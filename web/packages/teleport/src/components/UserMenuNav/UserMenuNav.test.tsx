@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { rest } from 'msw';
+import { setupServer } from 'msw/node';
+import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import {
@@ -23,6 +26,7 @@ import {
   screen,
   render as testingRender,
 } from 'design/utils/testing';
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
 import { getOSSFeatures } from 'teleport/features';
@@ -35,7 +39,23 @@ import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserC
 
 import { UserMenuNav } from './UserMenuNav';
 
+const server = setupServer(
+  rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
+    return res(
+      ctx.json({
+        theme: Theme.LIGHT,
+      })
+    );
+  })
+);
+
+beforeAll(() => server.listen());
+
 beforeEach(() => mockUserContextProviderWith(makeTestUserContext()));
+
+afterEach(() => server.resetHandlers());
+
+afterAll(() => server.close());
 
 describe('navigation items rendering', () => {
   test.each`

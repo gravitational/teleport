@@ -28,13 +28,13 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils/clocki"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -43,7 +43,7 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -65,7 +65,7 @@ func TestEtcd(t *testing.T) {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
-	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		opts, err := test.ApplyOptions(options)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -118,7 +118,7 @@ func TestPrefix(t *testing.T) {
 	// When I push an item with a key starting with "/" into etcd via the
 	// _prefixed_ client...
 	item := backend.Item{
-		Key:   backend.NewKey("foo"),
+		Key:   backend.Key("/foo"),
 		Value: []byte("bar"),
 	}
 	_, err = prefixedUut.Put(ctx, item)
@@ -126,7 +126,7 @@ func TestPrefix(t *testing.T) {
 
 	// Expect that I can retrieve it from the _un_prefixed client by
 	// manually prepending a prefix to the key and asking for it.
-	wantKey := prefixedUut.cfg.Key + item.Key.String()
+	wantKey := prefixedUut.cfg.Key + string(item.Key)
 	requireKV(ctx, t, unprefixedUut, wantKey, string(item.Value))
 	got, err := prefixedUut.Get(ctx, item.Key)
 	require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestPrefix(t *testing.T) {
 	// When I push an item with a key that does _not_ start with a separator
 	// char (i.e. "/") into etcd via the _prefixed_ client...
 	item = backend.Item{
-		Key:   backend.NewKey("foo"),
+		Key:   backend.Key("foo"),
 		Value: []byte("bar"),
 	}
 	_, err = prefixedUut.Put(ctx, item)
@@ -144,7 +144,7 @@ func TestPrefix(t *testing.T) {
 
 	// Expect, again, that I can retrieve it from the _un_prefixed client
 	// by manually prepending a prefix to the key and asking for it.
-	wantKey = prefixedUut.cfg.Key + item.Key.String()
+	wantKey = prefixedUut.cfg.Key + string(item.Key)
 	requireKV(ctx, t, unprefixedUut, wantKey, string(item.Value))
 	got, err = prefixedUut.Get(ctx, item.Key)
 	require.NoError(t, err)
@@ -207,7 +207,8 @@ func TestLeaseBucketing(t *testing.T) {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	var opts []Option
 	opts = append(opts, commonEtcdOptions...)
@@ -218,11 +219,11 @@ func TestLeaseBucketing(t *testing.T) {
 	defer bk.Close()
 
 	buckets := make(map[int64]struct{})
-	for i := range count {
+	for i := 0; i < count; i++ {
 		key := backend.NewKey(pfx, fmt.Sprintf("%d", i))
 		_, err := bk.Put(ctx, backend.Item{
 			Key:     key,
-			Value:   fmt.Appendf(nil, "val-%d", i),
+			Value:   []byte(fmt.Sprintf("val-%d", i)),
 			Expires: time.Now().Add(time.Minute),
 		})
 		require.NoError(t, err)
@@ -275,7 +276,7 @@ func TestKeyPrefix(t *testing.T) {
 			})
 
 			t.Run("no leading separator in key", func(t *testing.T) {
-				prefixed := bk.prependPrefix(backend.KeyFromString(".locks/test/llama"))
+				prefixed := bk.prependPrefix(backend.Key(".locks/test/llama"))
 				assert.Equal(t, prefix+".locks/test/llama", prefixed)
 
 				key := bk.trimPrefix([]byte(prefixed))

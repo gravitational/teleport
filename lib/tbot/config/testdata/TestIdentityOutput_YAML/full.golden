@@ -1,0 +1,8 @@
+type: identity
+destination:
+  type: memory
+roles:
+  - access
+cluster: leaf.example.com
+ssh_config: "off"
+allow_reissue: true

@@ -28,8 +28,4 @@ func SemVer() *semver.Version {
 }
 
 // SemVersion contains the same value you'd get by calling [SemVer].
-//
-// Deprecated: call [SemVer] instead.
 var SemVersion = SemVer()
-
-// TODO(espadolini) DELETE IN v19

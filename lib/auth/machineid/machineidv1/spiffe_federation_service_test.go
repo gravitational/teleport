@@ -36,7 +36,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth"
 	libevents "github.com/gravitational/teleport/lib/events"
 )
 
@@ -49,7 +49,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
 	require.NoError(t, err)
-	unauthorizedUser, err := authtest.CreateUser(
+	unauthorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"unauthorized",
@@ -69,7 +69,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := authtest.CreateUser(
+	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
@@ -135,7 +135,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 					return fed
 				}(),
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "status: cannot be set")
@@ -151,7 +151,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 					return fed
 				}(),
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "metadata.name: must not include the spiffe:// prefix")
@@ -163,7 +163,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 			req: &machineidv1pb.CreateSPIFFEFederationRequest{
 				SpiffeFederation: good,
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -172,7 +172,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			client, err := srv.NewClient(auth.TestUser(tt.user))
 			require.NoError(t, err)
 
 			mockEmitter.Reset()
@@ -230,7 +230,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
 	require.NoError(t, err)
-	unauthorizedUser, err := authtest.CreateUser(
+	unauthorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"unauthorized",
@@ -250,7 +250,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := authtest.CreateUser(
+	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
@@ -293,7 +293,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 			name:   "not-exist",
 			user:   authorizedUser.GetName(),
 			create: false,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -302,7 +302,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 			name:   "unauthorized",
 			user:   unauthorizedUser.GetName(),
 			create: true,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -311,7 +311,7 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			client, err := srv.NewClient(auth.TestUser(tt.user))
 			require.NoError(t, err)
 
 			resource := &machineidv1pb.SPIFFEFederation{
@@ -382,7 +382,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := authtest.CreateUser(
+	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
@@ -428,7 +428,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 			name:    "not-exist",
 			user:    authorizedUser.GetName(),
 			getName: "do-not-exist",
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -437,7 +437,7 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			client, err := srv.NewClient(auth.TestUser(tt.user))
 			require.NoError(t, err)
 
 			got, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
@@ -476,7 +476,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := authtest.CreateUser(
+	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
@@ -488,7 +488,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 	// Create entities to list
 	createdObjects := []*machineidv1pb.SPIFFEFederation{}
 	// Create 49 entities to test an incomplete page at the end.
-	for i := range 49 {
+	for i := 0; i < 49; i++ {
 		created, err := srv.AuthServer.AuthServer.Services.SPIFFEFederations.CreateSPIFFEFederation(
 			ctx,
 			&machineidv1pb.SPIFFEFederation{
@@ -537,7 +537,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			client, err := srv.NewClient(auth.TestUser(tt.user))
 			require.NoError(t, err)
 
 			fetched := []*machineidv1pb.SPIFFEFederation{}

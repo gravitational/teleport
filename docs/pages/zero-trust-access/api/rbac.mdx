@@ -1,7 +1,7 @@
 ---
 title: Generate Teleport Roles from an External RBAC System
 description: Use Teleport's API to automatically generate Teleport roles based on third-party RBAC policies
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -152,8 +152,6 @@ namespace/app created
 role.rbac.authorization.k8s.io/pod-reader created
 rolebinding.rbac.authorization.k8s.io/read-pods created
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 Next, define a cluster role and cluster role binding that allow users in the
 `ops` group to read, create, and execute commands on pods in all namespaces. Add
@@ -872,11 +870,7 @@ spec:
         enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
-    ssh_port_forwarding:
-      remote:
-        enabled: true
-      local:
-        enabled: true
+    port_forwarding: true
     record_session:
       default: best_effort
       desktop: true
@@ -923,11 +917,7 @@ spec:
         enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
-    ssh_port_forwarding:
-      remote:
-        enabled: true
-      local:
-        enabled: true
+    port_forwarding: true
     record_session:
       default: best_effort
       desktop: true

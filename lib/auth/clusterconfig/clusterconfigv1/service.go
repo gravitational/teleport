@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -41,7 +42,6 @@ type Cache interface {
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // ReadOnlyCache abstracts over the required methods of [readonly.Cache].
@@ -72,13 +72,12 @@ type Backend interface {
 
 // ServiceConfig contain dependencies required to create a [Service].
 type ServiceConfig struct {
-	Cache                         Cache
-	Backend                       Backend
-	Authorizer                    authz.Authorizer
-	Emitter                       apievents.Emitter
-	AccessGraph                   AccessGraphConfig
-	ReadOnlyCache                 ReadOnlyCache
-	SignatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
+	Cache         Cache
+	Backend       Backend
+	Authorizer    authz.Authorizer
+	Emitter       apievents.Emitter
+	AccessGraph   AccessGraphConfig
+	ReadOnlyCache ReadOnlyCache
 }
 
 // AccessGraphConfig contains the configuration about the access graph service
@@ -100,13 +99,12 @@ type AccessGraphConfig struct {
 type Service struct {
 	clusterconfigpb.UnimplementedClusterConfigServiceServer
 
-	cache                         Cache
-	backend                       Backend
-	authorizer                    authz.Authorizer
-	emitter                       apievents.Emitter
-	accessGraph                   AccessGraphConfig
-	readOnlyCache                 ReadOnlyCache
-	signatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
+	cache         Cache
+	backend       Backend
+	authorizer    authz.Authorizer
+	emitter       apievents.Emitter
+	accessGraph   AccessGraphConfig
+	readOnlyCache ReadOnlyCache
 }
 
 // NewService validates the provided configuration and returns a [Service].
@@ -132,15 +130,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg.ReadOnlyCache = readOnlyCache
 	}
 
-	return &Service{
-		cache:                         cfg.Cache,
-		backend:                       cfg.Backend,
-		authorizer:                    cfg.Authorizer,
-		emitter:                       cfg.Emitter,
-		accessGraph:                   cfg.AccessGraph,
-		readOnlyCache:                 cfg.ReadOnlyCache,
-		signatureAlgorithmSuiteParams: cfg.SignatureAlgorithmSuiteParams,
-	}, nil
+	return &Service{cache: cfg.Cache, backend: cfg.Backend, authorizer: cfg.Authorizer, emitter: cfg.Emitter, accessGraph: cfg.AccessGraph, readOnlyCache: cfg.ReadOnlyCache}, nil
 }
 
 // GetAuthPreference returns the locally cached auth preference.
@@ -192,11 +182,11 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateAuthPreference(req.GetAuthPreference()); err != nil {
+	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -209,10 +199,6 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.AuthPreference.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	req.AuthPreference.SetOrigin(types.OriginDynamic)
 
 	original, err := s.cache.GetAuthPreference(ctx)
@@ -222,6 +208,9 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 
 	updated, err := s.backend.UpdateAuthPreference(ctx, req.AuthPreference)
 
+	oldSecondFactor := original.GetSecondFactor()
+	newSecondFactor := req.AuthPreference.GetSecondFactor()
+
 	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -230,7 +219,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		UserMetadata:       authzCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
+		AdminActionsMFA:    GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
 	}
@@ -277,10 +266,6 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.AuthPreference.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	req.AuthPreference.SetOrigin(types.OriginDynamic)
 
 	original, err := s.cache.GetAuthPreference(ctx)
@@ -290,6 +275,9 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 
 	updated, err := s.backend.UpsertAuthPreference(ctx, req.AuthPreference)
 
+	oldSecondFactor := original.GetSecondFactor()
+	newSecondFactor := req.AuthPreference.GetSecondFactor()
+
 	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.AuthPreferenceUpdateEvent,
@@ -298,7 +286,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		UserMetadata:       authzCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
+		AdminActionsMFA:    GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 	}); auditErr != nil {
 		slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
 	}
@@ -327,20 +315,21 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err := authzCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	defaultPreference := types.DefaultAuthPreference()
-	defaultPreference.SetDefaultSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams)
+	newSecondFactor := defaultPreference.GetSecondFactor()
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		pref, err := s.cache.GetAuthPreference(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		oldSecondFactor := pref.GetSecondFactor()
 
 		if pref.Origin() == types.OriginConfigFile {
 			return nil, trace.BadParameter("auth preference has been defined via the config file and cannot be reset back to defaults dynamically.")
@@ -361,7 +350,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 			UserMetadata:       authzCtx.GetUserMetadata(),
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Status:             eventStatus(err),
-			AdminActionsMFA:    GetAdminActionsMFAStatus(pref, defaultPreference),
+			AdminActionsMFA:    GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor),
 		}); auditErr != nil {
 			slog.WarnContext(ctx, "Failed to emit auth preference update event event.", "error", auditErr)
 		}
@@ -384,13 +373,14 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 
 // GetAdminActionsMFAStatus returns whether MFA for admin actions was
 // altered when the auth preferences were updated.
-func GetAdminActionsMFAStatus(oldPref, newPref types.AuthPreference) apievents.AdminActionsMFAStatus {
-	if oldPref.IsAdminActionMFAEnforced() == newPref.IsAdminActionMFAEnforced() {
+func GetAdminActionsMFAStatus(oldSecondFactor, newSecondFactor constants.SecondFactorType) apievents.AdminActionsMFAStatus {
+	if oldSecondFactor == newSecondFactor {
 		return apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_UNCHANGED
 	}
-	if newPref.IsAdminActionMFAEnforced() {
+	if newSecondFactor == constants.SecondFactorWebauthn {
 		return apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_ENABLED
 	}
+	// oldSecondFactor == constants.SecondFactorWebauthn
 	return apievents.AdminActionsMFAStatus_ADMIN_ACTIONS_MFA_STATUS_DISABLED
 }
 
@@ -597,7 +587,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 		}
 	}
 
-	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err := authzCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -615,7 +605,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		cfg, err := s.cache.GetClusterNetworkingConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -738,10 +728,6 @@ func (s *Service) CreateSessionRecordingConfig(ctx context.Context, cfg types.Se
 		return nil, trace.AccessDenied("this request can be only executed by an auth server")
 	}
 
-	if err := services.ValidateSessionRecordingConfig(cfg, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	created, err := s.backend.CreateSessionRecordingConfig(ctx, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -775,10 +761,6 @@ func (s *Service) UpdateSessionRecordingConfig(ctx context.Context, req *cluster
 	}
 
 	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
-
-	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	updated, err := s.backend.UpdateSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 
@@ -826,10 +808,6 @@ func (s *Service) UpsertSessionRecordingConfig(ctx context.Context, req *cluster
 
 	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
 
-	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	upserted, err := s.backend.UpsertSessionRecordingConfig(ctx, req.SessionRecordingConfig)
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.SessionRecordingConfigUpdate{
@@ -869,14 +847,14 @@ func (s *Service) ResetSessionRecordingConfig(ctx context.Context, _ *clustercon
 		}
 	}
 
-	if err := authzCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err := authzCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defaultConfig := types.DefaultSessionRecordingConfig()
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails
 	// due to spurious networking conditions.
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 
 		cfg, err := s.cache.GetSessionRecordingConfig(ctx)
 		if err != nil {
@@ -930,8 +908,8 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport service")
 	}
 
-	// If the policy feature is disabled in the license, return a disabled response. if cloud, return the response to allow demo mode enabling
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
+	// If the policy feature is disabled in the license, return a disabled response.
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
 		return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
 			AccessGraph: &clusterconfigpb.AccessGraphConfig{
 				Enabled: false,
@@ -1032,7 +1010,8 @@ func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
+	features := modules.GetProtoEntitlement(modules.GetModules().Features().ToProto(), entitlements.Policy)
+	if !features.Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1076,7 +1055,8 @@ func (s *Service) UpsertAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	features := modules.GetProtoEntitlement(modules.GetModules().Features().ToProto(), entitlements.Policy)
+	if !features.Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1120,7 +1100,8 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	features := modules.GetProtoEntitlement(modules.GetModules().Features().ToProto(), entitlements.Policy)
+	if !features.Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1149,25 +1130,4 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 	}
 
 	return rsp, nil
-}
-
-func (s *Service) GetClusterName(ctx context.Context, _ *clusterconfigpb.GetClusterNameRequest) (*types.ClusterNameV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authzCtx.CheckAccessToKind(types.KindClusterName, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cn, err := s.cache.GetClusterName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cast, ok := cn.(*types.ClusterNameV2)
-	if !ok {
-		return nil, trace.BadParameter("unexpected cluster name type %T (expected %T)", cn, cast)
-	}
-	return cast, nil
 }

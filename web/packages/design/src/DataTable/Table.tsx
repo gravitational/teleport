@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, ReactNode, type JSX } from 'react';
+import React, { PropsWithChildren } from 'react';
 
-import { Box, Flex, Indicator, P1, Text } from 'design';
+import { Box, Flex, Indicator, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 import { SortHeaderCell, TextCell } from './Cells';
@@ -31,31 +31,33 @@ import {
   PagerPosition,
   SearchableBasicTableProps,
   ServersideTableProps,
-  SortDir,
   TableProps,
 } from './types';
-import useTable from './useTable';
+import useTable, { State } from './useTable';
 
-export default function Table<T>(props: TableProps<T>) {
-  const {
-    columns,
-    state,
-    onSort,
-    emptyText,
-    emptyHint,
-    emptyButton,
-    nextPage,
-    prevPage,
-    setSearchValue,
-    isSearchable,
-    fetching,
-    className,
-    style,
-    serversideProps,
-    customSort,
-    row,
-  } = useTable(props);
+export default function Container<T>(props: TableProps<T>) {
+  const tableProps = useTable(props);
+  return <Table<T> {...tableProps} />;
+}
 
+export function Table<T>({
+  columns,
+  state,
+  onSort,
+  emptyText,
+  emptyHint,
+  emptyButton,
+  nextPage,
+  prevPage,
+  setSearchValue,
+  isSearchable,
+  fetching,
+  className,
+  style,
+  serversideProps,
+  customSort,
+  row,
+}: State<T>) {
   const renderHeaders = () => {
     const headers = columns.flatMap(column => {
       if (column.isNonRender) {
@@ -64,15 +66,15 @@ export default function Table<T>(props: TableProps<T>) {
 
       const headerText = column.headerText || '';
 
-      let dir: SortDir | undefined;
+      let dir;
       if (customSort) {
-        dir = customSort.fieldName == column.key ? customSort.dir : undefined;
+        dir = customSort.fieldName == column.key ? customSort.dir : null;
       } else {
         dir =
           state.sort?.key === column.key ||
           state.sort?.key === column.altSortKey
             ? state.sort?.dir
-            : undefined;
+            : null;
       }
 
       const $cell = column.isSortable ? (
@@ -102,12 +104,9 @@ export default function Table<T>(props: TableProps<T>) {
   };
 
   const renderBody = (data: T[]) => {
-    const rows: ReactNode[] = [];
+    const rows = [];
 
-    if (
-      fetching?.fetchStatus === 'loading' &&
-      !fetching.disableLoadingIndicator
-    ) {
+    if (fetching?.fetchStatus === 'loading') {
       return <LoadingIndicator colSpan={columns.length} />;
     }
     data.map((item, rowIdx) => {
@@ -135,7 +134,7 @@ export default function Table<T>(props: TableProps<T>) {
         const $cell = column.render ? (
           column.render(item)
         ) : (
-          <TextCell data={column.key ? item[column.key] : undefined} />
+          <TextCell data={item[column.key]} />
         );
 
         return (
@@ -169,35 +168,34 @@ export default function Table<T>(props: TableProps<T>) {
         data={state.data}
         renderHeaders={renderHeaders}
         renderBody={renderBody}
-        nextPage={fetching?.onFetchNext}
-        prevPage={fetching?.onFetchPrev}
+        nextPage={fetching.onFetchNext}
+        prevPage={fetching.onFetchPrev}
         pagination={state.pagination}
         serversideProps={serversideProps}
-        fetchStatus={fetching?.fetchStatus}
+        fetchStatus={fetching.fetchStatus}
       />
     );
   }
 
+  const paginationProps: PagedTableProps<T> = {
+    style,
+    className,
+    data: state.data as T[],
+    renderHeaders,
+    renderBody,
+    nextPage,
+    prevPage,
+    pagination: state.pagination,
+    searchValue: state.searchValue,
+    setSearchValue,
+    fetching,
+  };
+
+  if (state.pagination && state.pagination.CustomTable) {
+    return <state.pagination.CustomTable {...paginationProps} />;
+  }
+
   if (state.pagination) {
-    const paginationProps: PagedTableProps<T> = {
-      style,
-      className,
-      data: state.data,
-      renderHeaders,
-      renderBody,
-      nextPage,
-      prevPage,
-      pagination: state.pagination,
-      searchValue: state.searchValue,
-      setSearchValue,
-      fetching,
-      isSearchable,
-    };
-
-    if (state.pagination.CustomTable) {
-      return <state.pagination.CustomTable {...paginationProps} />;
-    }
-
     return <PagedTable {...paginationProps} />;
   }
 
@@ -283,7 +281,6 @@ function PagedTable<T>({
   fetching,
   className,
   style,
-  isSearchable,
 }: PagedTableProps<T>) {
   const { pagerPosition, paginatedData, currentPage } = pagination;
   const { showBothPager, showBottomPager, showTopPager } = getPagerPosition(
@@ -293,25 +290,21 @@ function PagedTable<T>({
 
   return (
     <>
-      {(isSearchable || showTopPager || showBothPager) && (
-        <StyledPanel>
-          {isSearchable && (
-            <InputSearch
-              searchValue={searchValue}
-              setSearchValue={setSearchValue}
-            />
-          )}
-          {(showTopPager || showBothPager) && (
-            <ClientSidePager
-              nextPage={nextPage}
-              prevPage={prevPage}
-              data={data}
-              {...fetching}
-              {...pagination}
-            />
-          )}
-        </StyledPanel>
-      )}
+      <StyledPanel>
+        <InputSearch
+          searchValue={searchValue}
+          setSearchValue={setSearchValue}
+        />
+        {(showTopPager || showBothPager) && (
+          <ClientSidePager
+            nextPage={nextPage}
+            prevPage={prevPage}
+            data={data}
+            {...fetching}
+            {...pagination}
+          />
+        )}
+      </StyledPanel>
       <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}
@@ -349,7 +342,7 @@ function ServersideTable<T>({
   return (
     <>
       <StyledPanel>
-        <Box width="100%">{serversideProps?.serversideSearchPanel}</Box>
+        {serversideProps.serversideSearchPanel}
         {(showTopPager || showBothPager) && (
           <ServerSidePager
             nextPage={nextPage}
@@ -397,7 +390,7 @@ const EmptyIndicator = ({
           justifyContent="center"
         >
           <Flex
-            gap={3}
+            gap={2}
             flexWrap="nowrap"
             alignItems="flex-start"
             justifyContent="center"
@@ -411,12 +404,26 @@ const EmptyIndicator = ({
                 height: 32px;
               `}
             />
-            <Text textAlign="center" typography="h1" m="0" color="text.main">
+            <Text
+              textAlign="center"
+              typography="paragraph"
+              m="0"
+              color="text.main"
+            >
               {emptyText}
             </Text>
           </Flex>
 
-          {emptyHint && <P1 textAlign="center">{emptyHint}</P1>}
+          {emptyHint && (
+            <Text
+              textAlign="center"
+              typography="paragraph"
+              m="0"
+              color="text.main"
+            >
+              {emptyHint}
+            </Text>
+          )}
 
           {emptyButton}
         </Flex>
@@ -445,7 +452,7 @@ const LoadingIndicator = ({ colSpan }: { colSpan: number }) => (
  *   - both top and bottom pager if dataLen > 5
  */
 export function getPagerPosition(
-  pagerPosition: PagerPosition | undefined,
+  pagerPosition: PagerPosition,
   dataLen: number
 ) {
   const hasSufficientData = dataLen > 5;

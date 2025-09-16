@@ -29,12 +29,11 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	wan "github.com/go-webauthn/webauthn/webauthn"
-	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -68,22 +67,12 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func isReuseAllowedForScope(scope mfav1.ChallengeScope) bool {
-	switch scope {
-	case mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
-		mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION:
-		return true
-	default:
-		return false
-	}
-}
-
 func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
 	if challengeExtensions == nil {
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
 
-	if challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && !isReuseAllowedForScope(challengeExtensions.Scope) {
+	if challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && challengeExtensions.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION {
 		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", challengeExtensions.Scope)
 	}
 
@@ -116,14 +105,13 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 				continue
 			}
 
-			const msg = "User device has unexpected RPID, excluding from allowed credentials. " +
-				"RPID changes are not supported by WebAuthn, this is likely to cause permanent authentication problems for your users. " +
-				"Consider reverting the change or reset your users so they may register their devices again."
-			log.ErrorContext(ctx, msg,
-				"user", user,
-				"device", devices[i].GetName(),
-				"rpid", webDev.CredentialRpId,
-			)
+			log.Errorf(""+
+				"User device %q/%q has unexpected RPID=%q, excluding from allowed credentials. "+
+				"RPID changes are not supported by WebAuthn, this is likely to cause permanent authentication problems for your users. "+
+				"Consider reverting the change or reset your users so they may register their devices again.",
+				user,
+				devices[i].GetName(),
+				webDev.CredentialRpId)
 
 			// "Cut" device from slice.
 			devices = slices.Delete(devices, i, i+1)
@@ -142,12 +130,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 			return !resident1 && resident2
 		})
 
-		u = newWebUser(webUserOpts{
-			name:             user,
-			webID:            webID,
-			devices:          devices,
-			credentialIDOnly: true,
-		})
+		u = newWebUser(user, webID, true /* credentialIDOnly */, devices)
 
 		// Let's make sure we have at least one registered credential here, since we
 		// have to allow zero credentials for passwordless below.
@@ -201,11 +184,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd.ChallengeExtensions = &mfatypes.ChallengeExtensions{
-		Scope:                       challengeExtensions.Scope,
-		AllowReuse:                  challengeExtensions.AllowReuse,
-		UserVerificationRequirement: challengeExtensions.UserVerificationRequirement,
-	}
+	sd.ChallengeExtensions = challengeExtensions
 
 	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
 		return nil, trace.Wrap(err)
@@ -259,7 +238,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
-		log.DebugContext(ctx, "origin validation failed", "error", err)
+		log.WithError(err).Debugf("WebAuthn: origin validation failed")
 		return nil, trace.Wrap(err)
 	}
 
@@ -306,15 +285,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	case dev.GetU2F() != nil:
 		rpID = f.U2F.AppID
 	}
-	u := newWebUser(webUserOpts{
-		name:    user,
-		webID:   webID,
-		devices: []*types.MFADevice{dev},
-		currentFlags: &credentialFlags{
-			BE: parsedResp.Response.AuthenticatorData.Flags.HasBackupEligible(),
-			BS: parsedResp.Response.AuthenticatorData.Flags.HasBackupState(),
-		},
-	})
+	u := newWebUser(user, webID, false /* credentialIDOnly */, []*types.MFADevice{dev})
 
 	// Fetch the previously-stored SessionData, so it's checked against the user
 	// response.
@@ -329,11 +300,8 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		return nil, trace.AccessDenied("required scope %q is not satisfied by the given webauthn session with scope %q", requiredExtensions.Scope, sd.ChallengeExtensions.Scope)
 	}
 
-	noReuseAllowed := requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
-	challengeAllowReuse := sd.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
-
 	// If this session is reusable, but this login forbids reusable sessions, return an error.
-	if noReuseAllowed && challengeAllowReuse {
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && sd.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
 		return nil, trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context")
 	}
 
@@ -343,9 +311,9 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	if (discoverableLogin || uvr == protocol.VerificationRequired) && sd.UserVerification != string(protocol.VerificationRequired) {
 		// This is not a failure yet, but will likely become one.
 		sd.UserVerification = string(protocol.VerificationRequired)
-		const msg = "User verification required by extensions but not by challenge. " +
-			"Increased SessionData.UserVerification."
-		log.WarnContext(ctx, msg, "user_verification", sd.UserVerification)
+		log.Warnf(""+
+			"WebAuthn: User verification required by extensions but not by challenge. "+
+			"Increased SessionData.UserVerification to %s.", sd.UserVerification)
 	}
 
 	sessionData := wantypes.SessionDataToProtocol(sd)
@@ -384,17 +352,8 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		return nil, trace.Wrap(err)
 	}
 	if credential.Authenticator.CloneWarning {
-		// Reused challenges trigger clone warnings because, after first use, we expect
-		// the counter to be up by one.
-		isReuseCounterMismatch := challengeAllowReuse &&
-			len(u.credentials) == 1 /* sanity check */ &&
-			credential.Authenticator.SignCount != u.credentials[0].Authenticator.SignCount-1
-		if !isReuseCounterMismatch {
-			log.WarnContext(ctx, "Clone warning detected for device, the device counter may be malfunctioning",
-				"user", user,
-				"device", dev.GetName(),
-			)
-		}
+		log.Warnf(
+			"WebAuthn: Clone warning detected for user %q / device %q. Device counter may be malfunctioning.", user, dev.GetName())
 	}
 
 	// Update last used timestamp and device counter.
@@ -403,11 +362,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 	// Retroactively write the credential RPID, now that it cleared authn.
 	if webDev := dev.GetWebauthn(); webDev != nil && webDev.CredentialRpId == "" {
-		log.DebugContext(ctx, "Recording RPID in device",
-			"rpid", rpID,
-			"user", user,
-			"device", dev.GetName(),
-		)
+		log.Debugf("WebAuthn: Recording RPID=%q in device %q/%q", rpID, user, dev.GetName())
 		webDev.CredentialRpId = rpID
 	}
 
@@ -419,12 +374,9 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	// again, unless reuse is explicitly allowed.
 	// Note that even reusable sessions are deleted when their expiration time
 	// passes.
-	if !challengeAllowReuse {
+	if sd.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
 		if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
-			log.WarnContext(ctx, "failed to delete login SessionData for user",
-				"user", user,
-				"scope", sd.ChallengeExtensions.Scope,
-			)
+			log.Warnf("WebAuthn: failed to delete login SessionData for user %v (scope = %s)", user, sd.ChallengeExtensions.Scope)
 		}
 	}
 
@@ -476,7 +428,6 @@ func updateCredentialAndTimestamps(
 	switch d := dest.Device.(type) {
 	case *types.MFADevice_U2F:
 		d.U2F.Counter = credential.Authenticator.SignCount
-
 	case *types.MFADevice_Webauthn:
 		d.Webauthn.SignatureCounter = credential.Authenticator.SignCount
 
@@ -486,27 +437,6 @@ func updateCredentialAndTimestamps(
 		if discoverableLogin && !d.Webauthn.ResidentKey {
 			d.Webauthn.ResidentKey = true
 		}
-
-		// Backfill BE/BS bits.
-		if d.Webauthn.CredentialBackupEligible == nil {
-			d.Webauthn.CredentialBackupEligible = &gogotypes.BoolValue{
-				Value: credential.Flags.BackupEligible,
-			}
-			log.DebugContext(context.Background(), "Backfilled Webauthn device BE flag",
-				"device", dest.GetName(),
-				"be", credential.Flags.BackupEligible,
-			)
-		}
-		if d.Webauthn.CredentialBackedUp == nil {
-			d.Webauthn.CredentialBackedUp = &gogotypes.BoolValue{
-				Value: credential.Flags.BackupState,
-			}
-			log.DebugContext(context.Background(), "Backfilled Webauthn device BS flag",
-				"device", dest.GetName(),
-				"bs", credential.Flags.BackupState,
-			)
-		}
-
 	default:
 		return trace.BadParameter("unexpected device type for webauthn: %T", d)
 	}

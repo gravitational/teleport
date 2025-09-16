@@ -16,11 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  ButtonState,
-  selectDirectoryInBrowser,
-  TdpClient,
-} from 'shared/libs/tdp';
+import { ButtonState, TdpClient } from 'shared/libs/tdp';
 
 import { Withholder } from './Withholder';
 
@@ -57,7 +53,7 @@ describe('withholder', () => {
     const params = {
       e: { key: 'Enter' } as KeyboardEvent as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null),
     };
     withholder.handleInputEvent(params, mockHandleKeyboardEvent);
     expect(mockHandleKeyboardEvent).toHaveBeenCalledWith(params);
@@ -67,19 +63,19 @@ describe('withholder', () => {
     const metaDown = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null),
     };
 
     const metaUp = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null),
     };
 
     const enterDown = {
       e: { key: 'Enter' } as KeyboardEvent as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null),
     };
 
     withholder.handleInputEvent(metaDown, mockHandleKeyboardEvent);
@@ -99,12 +95,12 @@ describe('withholder', () => {
     const metaParams = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null),
     };
     const altParams = {
       e: { key: 'Alt' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null),
     };
 
     withholder.handleInputEvent(metaParams, mockHandleKeyboardEvent);
@@ -123,7 +119,7 @@ describe('withholder', () => {
     const metaParams = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.UP,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null),
     };
     withholder.handleInputEvent(metaParams, mockHandleKeyboardEvent);
     expect((withholder as any).withheldInputs).toHaveLength(1);
@@ -139,14 +135,14 @@ describe('withholder', () => {
     const metaParams = {
       e: { key: 'Meta' } as KeyboardEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null),
     };
     withholder.handleInputEvent(metaParams, mockHandleKeyboardEvent);
 
     const mouseEvent = {
       e: { button: 0 } as MouseEvent,
       state: ButtonState.DOWN,
-      cli: new TdpClient(() => null, selectDirectoryInBrowser),
+      cli: new TdpClient(() => null),
     };
     withholder.handleInputEvent(mouseEvent, mockHandleKeyboardEvent);
 

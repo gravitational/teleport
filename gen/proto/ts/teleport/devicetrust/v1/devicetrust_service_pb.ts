@@ -767,11 +767,8 @@ export interface AuthenticateDeviceInit {
      * - The x509 certificate is acquired from the mTLS connection, thus the
      *   in-band certificate is ignored.
      * - All certificates must be valid and issued by the Teleport CA.
-     * - TLS and SSH certificates must match (same Teleport user, plus whatever
-     *   additional checks the backend sees fit).
-     * - TLS and SSH certificates must either have matching public keys, or
-     *   (TPM)AuthenticateDeviceChallengeResponse.SshSignature must be a valid
-     *   signature over the challenge by the SSH private key.
+     * - All certificates must match (same public key, same Teleport user, plus
+     *   whatever additional checks the backend sees fit).
      * - Augmented certificates have the same expiration as the original
      *   certificates.
      *

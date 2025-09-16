@@ -18,7 +18,7 @@
 
 import { useState } from 'react';
 
-import { ButtonPrimary, P2, Stack } from 'design';
+import { ButtonPrimary, Flex, P2 } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
@@ -64,7 +64,7 @@ export function AskPin(props: {
             />
 
             <DialogContent mb={4}>
-              <Stack>
+              <Flex flexDirection="column" gap={2} alignItems="flex-start">
                 <P2>
                   Enter your YubiKey PIV PIN to continue
                   {props.req.command ? ' with command:' : '.'}
@@ -92,7 +92,7 @@ export function AskPin(props: {
                   {props.req.pinOptional &&
                     'To change the default PIN, leave the field blank.'}
                 </P2>
-              </Stack>
+              </Flex>
             </DialogContent>
 
             <DialogFooter>

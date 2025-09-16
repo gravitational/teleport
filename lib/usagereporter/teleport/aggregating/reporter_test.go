@@ -28,6 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -76,6 +77,7 @@ func TestReporter(t *testing.T) {
 
 	r, err := NewReporter(ctx, ReporterConfig{
 		Backend:     bk,
+		Log:         logrus.StandardLogger(),
 		Clock:       clk,
 		ClusterName: clusterName,
 		HostID:      uuid.NewString(),
@@ -126,7 +128,7 @@ func TestReporter(t *testing.T) {
 	})
 	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
 		UserName:    "alice",
-		SessionType: usagereporter.SAMLIdPSessionType,
+		SessionType: types.KindSAMLIdPSession,
 	})
 	recvIngested()
 	recvIngested()
@@ -157,7 +159,6 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), record.GetAccessRequestsReviewed())
 	require.Equal(t, uint64(1), record.GetAccessListsReviewed())
 	require.Equal(t, uint64(1), record.GetAccessListsGrants())
-	require.Equal(t, uint64(1), record.SamlIdpSessions)
 
 	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   "srv01",
@@ -254,6 +255,7 @@ func TestReporterMachineWorkloadIdentityActivity(t *testing.T) {
 	r, err := NewReporter(ctx, ReporterConfig{
 		Backend:     bk,
 		Clock:       clk,
+		Log:         logrus.StandardLogger(),
 		ClusterName: clusterName,
 		HostID:      uuid.NewString(),
 		Anonymizer:  anonymizer,

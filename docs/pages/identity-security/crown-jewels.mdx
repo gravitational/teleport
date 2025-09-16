@@ -1,7 +1,7 @@
 ---
 title: See permission changes with Access Graph Crown Jewels
 description: Describes how to use Access Graph Crown Jewels to see permission changes in Teleport.
-labels:
+tags:
  - conceptual
  - identity-security
 ---
@@ -18,7 +18,7 @@ Crown Jewels, and how to see permission changes for these resources.
 <Admonition type="tip">
 
 For an improved experience, we recommend using Crown Jewels in conjunction with Teleport local users or integrating with
-[Okta](../identity-governance/okta/okta.mdx) or [Microsoft Entra ID](./integrations/entra-id.mdx).
+[Okta](../enroll-resources/application-access/okta/okta.mdx) or [Microsoft Entra ID](./integrations/entra-id.mdx).
 This setup helps minimize the number of access path change entries generated when highly privileged ephemeral users
 log in via Teleport Auth Connectors.
 
@@ -30,7 +30,11 @@ log in via Teleport Auth Connectors.
 Check [Access Graph page](teleport-policy.mdx) for details on
 how to set up Access Graph.
 
-(!docs/pages/includes/policy/access-graph.mdx!)
+Access Graph is a feature of the [Teleport Policy](https://goteleport.com/platform/policy/) product
+available to Teleport Enterprise edition customers.
+
+After logging in to the Teleport UI, navigate to the Management tab. If enabled, Access Graph options can be found
+under the Permission Management section.
 
 ## Required RBAC permissions
 

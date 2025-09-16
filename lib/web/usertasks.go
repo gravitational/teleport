@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -32,7 +31,7 @@ import (
 )
 
 // userTaskStateUpdate updates the state of a User Task.
-func (h *Handler) userTaskStateUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) userTaskStateUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	userTaskName := p.ByName("name")
 	if userTaskName == "" {
 		return nil, trace.BadParameter("a user task name is required")
@@ -47,7 +46,7 @@ func (h *Handler) userTaskStateUpdate(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -67,13 +66,13 @@ func (h *Handler) userTaskStateUpdate(w http.ResponseWriter, r *http.Request, p 
 }
 
 // userTaskGet returns a User Task based on its name
-func (h *Handler) userTaskGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) userTaskGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	userTaskName := p.ByName("name")
 	if userTaskName == "" {
 		return nil, trace.BadParameter("a user task name is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -95,8 +94,8 @@ func (h *Handler) userTaskGet(w http.ResponseWriter, r *http.Request, p httprout
 //
 // It returns a list of user tasks with the base attributes (common among all user tasks).
 // To get a detailed UserTask use the single resource endpoint, ie, usertask/<resource's name>.
-func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -114,13 +113,7 @@ func (h *Handler) userTaskListByIntegration(w http.ResponseWriter, r *http.Reque
 		return nil, trace.BadParameter("integration query param is required")
 	}
 
-	taskStateFilter := values.Get("state")
-
-	filters := &usertasksv1.ListUserTasksFilters{
-		Integration: integrationName,
-		TaskState:   taskStateFilter,
-	}
-	userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasks(r.Context(), int64(limit), startKey, filters)
+	userTasks, nextKey, err := clt.UserTasksServiceClient().ListUserTasksByIntegration(r.Context(), int64(limit), startKey, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

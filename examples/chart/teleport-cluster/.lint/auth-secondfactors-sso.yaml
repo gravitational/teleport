@@ -1,4 +1,0 @@
-clusterName: helm-lint
-authentication:
-  secondFactors:
-    - sso

@@ -50,12 +50,19 @@ func TestAccessListMemberDefaults(t *testing.T) {
 		}
 	}
 
-	t.Run("membership kind defaults to user", func(t *testing.T) {
+	t.Run("join date required for member", func(t *testing.T) {
 		uut := newValidAccessListMember()
-		uut.Spec.MembershipKind = ""
+		uut.Spec.Joined = time.Time{}
 
 		err := uut.CheckAndSetDefaults()
-		require.NoError(t, err)
-		require.Equal(t, MembershipKindUser, uut.Spec.MembershipKind)
+		require.Error(t, err)
+	})
+
+	t.Run("added-by required", func(t *testing.T) {
+		uut := newValidAccessListMember()
+		uut.Spec.AddedBy = ""
+
+		err := uut.CheckAndSetDefaults()
+		require.Error(t, err)
 	})
 }

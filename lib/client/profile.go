@@ -19,7 +19,6 @@
 package client
 
 import (
-	"context"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -30,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
@@ -131,6 +131,9 @@ func (ms *MemProfileStore) DeleteProfile(profileName string) error {
 //
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSProfileStore struct {
+	// log holds the structured logger.
+	log logrus.FieldLogger
+
 	// Dir is the directory where all keys are stored.
 	Dir string
 }
@@ -139,6 +142,7 @@ type FSProfileStore struct {
 func NewFSProfileStore(dirPath string) *FSProfileStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSProfileStore{
+		log: logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		Dir: dirPath,
 	}
 }
@@ -297,23 +301,9 @@ type ProfileStatus struct {
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
 
-	// SSOHost is the host of the SSO provider used to log in.
-	SSOHost string
-
-	// GitHubIdentity is the GitHub identity attached to the user.
-	GitHubIdentity *GitHubIdentity
-
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool
-}
-
-// GitHubIdentity is the GitHub identity attached to the user.
-type GitHubIdentity struct {
-	// UserID is the unique ID of the GitHub user.
-	UserID string
-	// Username is the GitHub username.
-	Username string
 }
 
 // profileOptions contains fields needed to initialize a profile beyond those
@@ -327,13 +317,12 @@ type profileOptions struct {
 	KubeProxyAddr           string
 	IsVirtual               bool
 	SAMLSingleLogoutEnabled bool
-	SSOHost                 string
 	TLSRoutingEnabled       bool
 }
 
-// profileStatueFromKeyRing returns a ProfileStatus for the given key ring and options.
-func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileStatus, error) {
-	sshCert, err := keyRing.SSHCert()
+// profileFromkey returns a ProfileStatus for the given key and options.
+func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error) {
+	sshCert, err := key.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -359,16 +348,14 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			ext == teleport.CertExtensionTeleportTraits ||
 			ext == teleport.CertExtensionTeleportRouteToCluster ||
 			ext == teleport.CertExtensionTeleportActiveRequests ||
-			ext == teleport.CertExtensionAllowedResources ||
-			ext == teleport.CertExtensionGitHubUserID ||
-			ext == teleport.CertExtensionGitHubUsername {
+			ext == teleport.CertExtensionAllowedResources {
 			continue
 		}
 		extensions = append(extensions, ext)
 	}
 	sort.Strings(extensions)
 
-	tlsCert, err := keyRing.TeleportTLSCertificate()
+	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -377,12 +364,12 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		return nil, trace.Wrap(err)
 	}
 
-	databases, err := findActiveDatabases(keyRing)
+	databases, err := findActiveDatabases(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appCerts, err := keyRing.AppTLSCertificates()
+	appCerts, err := key.AppTLSCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -397,13 +384,6 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		}
 	}
 
-	var gitHubIdentity *GitHubIdentity
-	if sshIdent.GitHubUserID != "" {
-		gitHubIdentity = &GitHubIdentity{
-			UserID:   sshIdent.GitHubUserID,
-			Username: sshIdent.GitHubUsername,
-		}
-	}
 	return &ProfileStatus{
 		Name: opts.ProfileName,
 		Dir:  opts.ProfileDir,
@@ -431,8 +411,6 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		IsVirtual:               opts.IsVirtual,
 		AllowedResourceIDs:      sshIdent.AllowedResourceIDs,
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
-		SSOHost:                 opts.SSOHost,
-		GitHubIdentity:          gitHubIdentity,
 		TLSRoutingEnabled:       opts.TLSRoutingEnabled,
 	}, nil
 }
@@ -463,17 +441,14 @@ func (p *ProfileStatus) virtualPathFromEnv(kind VirtualPathKind, params VirtualP
 	// If we can't resolve any env vars, this will return garbage which we
 	// should at least warn about. As ugly as this is, arguably making every
 	// profile path lookup fallible is even uglier.
-	log.DebugContext(context.Background(), "Could not resolve path to virtual profile entry",
-		"entry_type", kind,
-		"parameters", params,
-	)
+	log.Debugf("Could not resolve path to virtual profile entry of type %s "+
+		"with parameters %+v.", kind, params)
 
 	virtualPathWarnOnce.Do(func() {
-		const msg = "A virtual profile is in use due to an identity file " +
+		log.Errorf("A virtual profile is in use due to an identity file " +
 			"(`-i ...`) but this functionality requires additional files on " +
 			"disk and may fail. Consider using a compatible wrapper " +
-			"application (e.g. Machine ID) for this command."
-		log.ErrorContext(context.Background(), msg)
+			"application (e.g. Machine ID) for this command.")
 	})
 
 	return "", false
@@ -491,34 +466,22 @@ func (p *ProfileStatus) CACertPathForCluster(cluster string) string {
 	return filepath.Join(keypaths.ProxyKeyDir(p.Dir, p.Name), "cas", cluster+".pem")
 }
 
-// SSHKeyPath returns path to the SSH private key for this profile.
+// KeyPath returns path to the private key for this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>.
-func (p *ProfileStatus) SSHKeyPath() string {
+func (p *ProfileStatus) KeyPath() string {
 	// Return an env var override if both valid and present for this identity.
 	if path, ok := p.virtualPathFromEnv(VirtualPathKey, nil); ok {
 		return path
 	}
 
-	return keypaths.UserSSHKeyPath(p.Dir, p.Name, p.Username)
-}
-
-// TLSKeyPath returns path to the TLS private key for this profile.
-//
-// It's kept in <profile-dir>/keys/<proxy>/<user>.
-func (p *ProfileStatus) TLSKeyPath() string {
-	// Return an env var override if both valid and present for this identity.
-	if path, ok := p.virtualPathFromEnv(VirtualPathKey, nil); ok {
-		return path
-	}
-
-	return keypaths.UserTLSKeyPath(p.Dir, p.Name, p.Username)
+	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
 }
 
 // DatabaseCertPathForCluster returns path to the specified database access
 // certificate for this profile, for the specified cluster.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>.crt
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>-x509.pem
 //
 // If the input cluster name is an empty string, the selected cluster in the
 // profile will be used.
@@ -527,30 +490,11 @@ func (p *ProfileStatus) DatabaseCertPathForCluster(clusterName string, databaseN
 		clusterName = p.Cluster
 	}
 
-	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseCertParams(databaseName)); ok {
+	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseParams(databaseName)); ok {
 		return path
 	}
 
 	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, clusterName, databaseName)
-}
-
-// DatabaseKeyPathForCluster returns path to the specified database access
-// private key for this profile, for the specified cluster.
-//
-// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/<name>.key
-//
-// If the input cluster name is an empty string, the selected cluster in the
-// profile will be used.
-func (p *ProfileStatus) DatabaseKeyPathForCluster(clusterName string, databaseName string) string {
-	if clusterName == "" {
-		clusterName = p.Cluster
-	}
-
-	if path, ok := p.virtualPathFromEnv(VirtualPathKey, VirtualPathDatabaseKeyParams(databaseName)); ok {
-		return path
-	}
-
-	return keypaths.DatabaseKeyPath(p.Dir, p.Name, p.Username, clusterName, databaseName)
 }
 
 // OracleWalletDir returns path to the specified database access
@@ -565,14 +509,14 @@ func (p *ProfileStatus) OracleWalletDir(clusterName string, databaseName string)
 		clusterName = p.Cluster
 	}
 
-	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseCertParams(databaseName)); ok {
+	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseParams(databaseName)); ok {
 		return path
 	}
 
 	return keypaths.DatabaseOracleWalletDirectory(p.Dir, p.Name, p.Username, clusterName, databaseName)
 }
 
-// DatabaseLocalCAPath returns the specified db's self-signed localhost CA path for
+// DatabaseLocalCAPath returns the specified db 's self-signed localhost CA path for
 // this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-db/proxy-localca.pem
@@ -586,31 +530,16 @@ func (p *ProfileStatus) DatabaseLocalCAPath() string {
 // AppCertPath returns path to the specified app access certificate
 // for this profile.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.crt
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-x509.pem
 func (p *ProfileStatus) AppCertPath(cluster, name string) string {
 	if cluster == "" {
 		cluster = p.Cluster
 	}
-	if path, ok := p.virtualPathFromEnv(VirtualPathAppCert, VirtualPathAppCertParams(name)); ok {
+	if path, ok := p.virtualPathFromEnv(VirtualPathApp, VirtualPathAppParams(name)); ok {
 		return path
 	}
 
 	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, cluster, name)
-}
-
-// AppKeyPath returns path to the specified app access private key for this
-// profile.
-//
-// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.key
-func (p *ProfileStatus) AppKeyPath(cluster, name string) string {
-	if cluster == "" {
-		cluster = p.Cluster
-	}
-	if path, ok := p.virtualPathFromEnv(VirtualPathKey, VirtualPathAppKeyParams(name)); ok {
-		return path
-	}
-
-	return keypaths.AppKeyPath(p.Dir, p.Name, p.Username, cluster, name)
 }
 
 // AppLocalCAPath returns the specified app's self-signed localhost CA path for
@@ -635,6 +564,20 @@ func (p *ProfileStatus) KubeConfigPath(name string) string {
 	return keypaths.KubeConfigPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
+// KubeCertPathForCluster returns path to the specified kube access certificate
+// for this profile, for the specified cluster name.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<username>-kube/<cluster>/<name>-x509.pem
+func (p *ProfileStatus) KubeCertPathForCluster(teleportCluster, kubeCluster string) string {
+	if teleportCluster == "" {
+		teleportCluster = p.Cluster
+	}
+	if path, ok := p.virtualPathFromEnv(VirtualPathKubernetes, VirtualPathKubernetesParams(kubeCluster)); ok {
+		return path
+	}
+	return keypaths.KubeCertPath(p.Dir, p.Name, p.Username, teleportCluster, kubeCluster)
+}
+
 // DatabaseServices returns a list of database service names for this profile.
 func (p *ProfileStatus) DatabaseServices() (result []string) {
 	for _, db := range p.Databases {
@@ -650,17 +593,17 @@ func (p *ProfileStatus) DatabasesForCluster(clusterName string, store *Store) ([
 		return p.Databases, nil
 	}
 
-	idx := KeyRingIndex{
+	idx := KeyIndex{
 		ProxyHost:   p.Name,
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
 
-	keyRing, err := store.GetKeyRing(idx, WithDBCerts{})
+	key, err := store.GetKey(idx, WithDBCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return findActiveDatabases(keyRing)
+	return findActiveDatabases(key)
 }
 
 // AppsForCluster returns a list of apps for this profile, for the
@@ -670,17 +613,17 @@ func (p *ProfileStatus) AppsForCluster(clusterName string, store *Store) ([]tlsc
 		return p.Apps, nil
 	}
 
-	idx := KeyRingIndex{
+	idx := KeyIndex{
 		ProxyHost:   p.Name,
 		Username:    p.Username,
 		ClusterName: clusterName,
 	}
 
-	keyRing, err := store.GetKeyRing(idx, WithAppCerts{})
+	key, err := store.GetKey(idx, WithAppCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return findActiveApps(keyRing)
+	return findActiveApps(key)
 }
 
 // AppNames returns a list of app names this profile is logged into.

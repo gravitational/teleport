@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 
@@ -238,6 +238,4 @@ const PreviewBox = styled(Box)<{ includeShadow?: boolean }>`
   box-shadow: ${p => {
     return p.includeShadow ? p.theme.boxShadow[1] : 'none';
   }};
-  border-radius: 8px;
-  overflow: hidden;
 `;

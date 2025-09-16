@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -56,18 +55,8 @@ func main() {
 		kong.Description(pluginDescription),
 	)
 
-	logCfg := logger.Config{
-		Severity: "info",
-		Output:   "stderr",
-		Format:   "text",
-	}
 	if cli.Debug {
-		logCfg.Severity = "debug"
-	}
-
-	if err := logger.Setup(logCfg); err != nil {
-		fmt.Println(trace.DebugReport(err))
-		os.Exit(-1)
+		enableLogDebug()
 	}
 
 	switch {
@@ -80,19 +69,28 @@ func main() {
 			os.Exit(-1)
 		}
 	case ctx.Command() == "start":
-		err := start(slog.Default())
+		err := start()
 
 		if err != nil {
 			lib.Bail(err)
 		} else {
-			slog.InfoContext(context.TODO(), "Successfully shut down")
+			logger.Standard().Info("Successfully shut down")
 		}
 	}
 }
 
+// turn on log debugging
+func enableLogDebug() {
+	err := logger.Setup(logger.Config{Severity: "debug", Output: "stderr"})
+	if err != nil {
+		fmt.Println(trace.DebugReport(err))
+		os.Exit(-1)
+	}
+}
+
 // start spawns the main process
-func start(log *slog.Logger) error {
-	app, err := NewApp(&cli.Start, log)
+func start() error {
+	app, err := NewApp(&cli.Start)
 	if err != nil {
 		return trace.Wrap(err)
 	}

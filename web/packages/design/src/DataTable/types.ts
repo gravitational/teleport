@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { JSX } from 'react';
-
 import { MatchCallback } from 'design/utils/match';
 
-import { Pagination } from './useTable';
+import { State } from './useTable';
 
 export type TableProps<T> = {
   data: T[];
@@ -96,7 +94,7 @@ type TableColumnBase<T> = {
   headerText?: string;
   render?: (row: T) => JSX.Element;
   isSortable?: boolean;
-  onSort?: (a: T, b: T) => number;
+  onSort?: (a, b) => number;
   // isNonRender is a flag that when true,
   // does not render the column or cell in table.
   // Use case: when a column combines two
@@ -141,7 +139,6 @@ export type FetchingConfig = {
   onFetchPrev?: () => void;
   onFetchMore?: () => void;
   fetchStatus: FetchStatus;
-  disableLoadingIndicator?: boolean;
 };
 
 export type ServersideProps = {
@@ -153,12 +150,9 @@ export type ServersideProps = {
 // Makes it so either key or altKey is required
 type TableColumnWithKey<T> = TableColumnBase<T> & {
   key: keyof T & string;
-  /**
-   * altSortKey is the alternative field to sort column by,
-   * if provided.
-   * Otherwise, it falls back to sorting by field "key".
-   * @deprecated Provide the custom sorting logic through `onSort` function.
-   */
+  // altSortKey is the alternative field to sort column by,
+  // if provided. Otherwise it falls back to sorting by field
+  // "key".
   altSortKey?: Extract<keyof T, string>;
   altKey?: never;
 };
@@ -219,15 +213,14 @@ export type SearchableBasicTableProps<T> = BasicTableProps<T> & {
 export type PagedTableProps<T> = SearchableBasicTableProps<T> & {
   nextPage: () => void;
   prevPage: () => void;
-  pagination: Pagination<T>;
-  fetching?: FetchingConfig;
-  isSearchable?: boolean;
+  pagination: State<T>['state']['pagination'];
+  fetching?: State<T>['fetching'];
 };
 
 export type ServersideTableProps<T> = BasicTableProps<T> & {
-  nextPage?: () => void;
-  prevPage?: () => void;
-  pagination?: Pagination<T>;
-  serversideProps: ServersideProps;
+  nextPage: () => void;
+  prevPage: () => void;
+  pagination: State<T>['state']['pagination'];
+  serversideProps: State<T>['serversideProps'];
   fetchStatus?: FetchStatus;
 };

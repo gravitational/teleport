@@ -47,13 +47,7 @@ const (
     --uri="http://localhost:8080" \
     --labels=group=dev
   Same as the above, but the app server runs with "group=dev" label which only
-  allows access to users with the application label "group: dev" in an assigned role.
-
-> teleport app start --token=xyz --auth-server=proxy.example.com:3080 \
-    --mcp-demo-server
-  Runs a Teleport demo MCP server that shows current user and session
-  information.
-`
+  allows access to users with the application label "group: dev" in an assigned role.`
 
 	dbUsageExamples = `
 > teleport db start --token=xyz --auth-server=proxy.example.com:3080 \

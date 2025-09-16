@@ -25,17 +25,18 @@ import (
 
 	"github.com/gravitational/trace"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // RenderTemplate parses the given template and renders a string using the given
 // attributes.
-func RenderTemplate(tmpl string, env *Environment) (string, error) {
+func RenderTemplate(tmpl string, attrs *workloadidentityv1pb.Attrs) (string, error) {
 	t, err := NewTemplate(tmpl)
 	if err != nil {
 		return "", err
 	}
-	return t.Render(env)
+	return t.Render(attrs)
 }
 
 // Template represents a string template with typical/predicate expressions in
@@ -115,7 +116,7 @@ func NewTemplate(tmpl string) (*Template, error) {
 }
 
 // Render a string from the template with the given attributes.
-func (t *Template) Render(env *Environment) (string, error) {
+func (t *Template) Render(attrs *workloadidentityv1pb.Attrs) (string, error) {
 	b := new(strings.Builder)
 
 	for _, frag := range t.fragments {
@@ -123,7 +124,7 @@ func (t *Template) Render(env *Environment) (string, error) {
 		case kindLiteral:
 			_, _ = b.WriteString(frag.text)
 		case kindExpression:
-			result, err := frag.expression.Evaluate(env)
+			result, err := frag.expression.Evaluate(attrs)
 			if err != nil {
 				return "", trace.Wrap(err, "evaluating expression: %s", frag.text)
 			}
@@ -154,7 +155,7 @@ const (
 type fragment struct {
 	kind       fragmentKind
 	text       string
-	expression typical.Expression[*Environment, any]
+	expression typical.Expression[*workloadidentityv1pb.Attrs, any]
 }
 
 // reInterpolation matches anything between curly braces that isn't a curly

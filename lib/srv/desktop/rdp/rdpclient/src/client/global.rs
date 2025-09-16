@@ -35,20 +35,24 @@
 
 use super::ClientHandle;
 use crate::CgoHandle;
-use std::{
-    collections::HashMap,
-    sync::{LazyLock, Mutex},
-};
+use parking_lot::RwLock;
+use static_init::dynamic;
+use std::collections::HashMap;
 
 /// Gets a [`ClientHandle`] from the global [`CLIENT_HANDLES`] map.
 pub fn get_client_handle(cgo_handle: CgoHandle) -> Option<ClientHandle> {
     CLIENT_HANDLES.get(cgo_handle)
 }
 
+/// A global, static tokio runtime for use by all clients.
+#[dynamic]
+pub static TOKIO_RT: tokio::runtime::Runtime = tokio::runtime::Runtime::new().unwrap();
+
 /// A global, static map of [`ClientHandle`] indexed by [`CgoHandle`].
 ///
 /// See [`ClientHandles`].
-pub static CLIENT_HANDLES: LazyLock<ClientHandles> = LazyLock::new(Default::default);
+#[dynamic]
+pub static CLIENT_HANDLES: ClientHandles = ClientHandles::new();
 
 const _: () = {
     /// References to following types can be shared by multiple
@@ -63,27 +67,28 @@ const _: () = {
 /// A map of [`ClientHandle`] indexed by [`CgoHandle`].
 ///
 /// A function can be dispatched to the [`Client`] corresponding to a
-/// given [`CgoHandle`] by retrieving its corresponding [`ClientHandle`]
+/// given [`CgoHandle`] by retrieving it's corresponding [`ClientHandle`]
 /// from this map and sending the desired [`ClientFunction`].
-#[derive(Default)]
 pub struct ClientHandles {
-    map: Mutex<HashMap<CgoHandle, ClientHandle>>,
+    map: RwLock<HashMap<CgoHandle, ClientHandle>>,
 }
 
 impl ClientHandles {
-    pub fn new() -> Self {
-        Default::default()
+    fn new() -> Self {
+        ClientHandles {
+            map: RwLock::new(HashMap::new()),
+        }
     }
 
     pub fn insert(&self, cgo_handle: CgoHandle, client_handle: ClientHandle) {
-        self.map.lock().unwrap().insert(cgo_handle, client_handle);
+        self.map.write().insert(cgo_handle, client_handle);
     }
 
     pub fn get(&self, cgo_handle: CgoHandle) -> Option<ClientHandle> {
-        self.map.lock().unwrap().get(&cgo_handle).cloned()
+        self.map.read().get(&cgo_handle).map(|c| (*c).clone())
     }
 
     pub fn remove(&self, cgo_handle: CgoHandle) {
-        self.map.lock().unwrap().remove(&cgo_handle);
+        self.map.write().remove(&cgo_handle);
     }
 }

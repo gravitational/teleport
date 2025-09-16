@@ -65,6 +65,8 @@ type UsersService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
+	// DeleteAllUsers deletes all users
+	DeleteAllUsers(ctx context.Context) error
 }
 
 // Identity is responsible for managing user entries and external identities
@@ -249,25 +251,14 @@ type Identity interface {
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error)
 
-	// UpsertSSOMFASessionData creates or updates SSO MFA session data in
-	// storage, for the purpose of later verifying an MFA authentication attempt.
-	// SSO MFA session data is expected to expire according to backend settings.
-	UpsertSSOMFASessionData(ctx context.Context, sd *SSOMFASessionData) error
-
-	// GetSSOMFASessionData retrieves SSO MFA session data by ID.
-	GetSSOMFASessionData(ctx context.Context, sessionID string) (*SSOMFASessionData, error)
-
-	// DeleteSSOMFASessionData deletes SSO MFA session data by ID.
-	DeleteSSOMFASessionData(ctx context.Context, sessionID string) error
-
 	// CreateUserToken creates a new user token.
 	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)
 
 	// DeleteUserToken deletes a user token.
 	DeleteUserToken(ctx context.Context, tokenID string) error
 
-	// ListUserTokens returns a page of user tokens.
-	ListUserTokens(ctx context.Context, limit int, startKey string) ([]types.UserToken, string, error)
+	// GetUserTokens returns all user tokens.
+	GetUserTokens(ctx context.Context) ([]types.UserToken, error)
 
 	// GetUserToken returns a user token by id.
 	GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error)
@@ -299,6 +290,8 @@ type Identity interface {
 	AppSession
 	// SnowflakeSession defines Snowflake session features.
 	SnowflakeSession
+	// SAMLIdPSession defines SAML IdP session features.
+	SAMLIdPSession
 }
 
 // AppSession defines application session features.
@@ -329,6 +322,22 @@ type SnowflakeSession interface {
 	DeleteSnowflakeSession(context.Context, types.DeleteSnowflakeSessionRequest) error
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 	DeleteAllSnowflakeSessions(context.Context) error
+}
+
+// SAMLIdPSession defines SAML IdP session features.
+type SAMLIdPSession interface {
+	// GetSAMLIdPSession gets a SAML IdP session.
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
+	// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+	ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
+	// UpsertSAMLIdPSession upserts a SAML IdP session.
+	UpsertSAMLIdPSession(context.Context, types.WebSession) error
+	// DeleteSAMLIdPSession removes a SAML IdP session.
+	DeleteSAMLIdPSession(context.Context, types.DeleteSAMLIdPSessionRequest) error
+	// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+	DeleteAllSAMLIdPSessions(context.Context) error
+	// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
+	DeleteUserSAMLIdPSessions(ctx context.Context, user string) error
 }
 
 // HeadlessAuthenticationService is responsible for headless authentication resource management

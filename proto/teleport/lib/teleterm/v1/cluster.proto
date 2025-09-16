@@ -66,8 +66,6 @@ message Cluster {
   // profile_status_error is set if there was an error when reading the profile.
   // This allows the app to be usable, when one or more profiles cannot be read.
   string profile_status_error = 12;
-  // sso_host is the host of the SSO provider used to log in.
-  string sso_host = 13;
 }
 
 // ShowResources tells if the cluster can show requestable resources on the resources page.
@@ -143,10 +141,6 @@ message ACL {
   ResourceAccess active_sessions = 14;
   // review_requests defines the ability to review requests
   bool review_requests = 15;
-  // Indicates whether the user can share a local directory with the remote machine during desktop sessions.
-  bool directory_sharing_enabled = 16;
-  // Indicates whether the user can share their clipboard with the remote machine during desktop sessions.
-  bool clipboard_sharing_enabled = 17;
 }
 
 // ResourceAccess describes access verbs

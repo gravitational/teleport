@@ -26,13 +26,13 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 func newClusterPeers(clusterName string) *clusterPeers {
@@ -90,20 +90,12 @@ func (p *clusterPeers) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, 
 	return peer.CachingAccessPoint()
 }
 
-func (p *clusterPeers) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+func (p *clusterPeers) NodeWatcher() (*services.NodeWatcher, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return peer.NodeWatcher()
-}
-
-func (p *clusterPeers) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	peer, err := p.pickPeer()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return peer.GitServerWatcher()
 }
 
 func (p *clusterPeers) GetClient() (authclient.ClientI, error) {
@@ -162,8 +154,14 @@ func (p *clusterPeers) Close() error { return nil }
 // newClusterPeer returns new cluster peer
 func newClusterPeer(srv *server, connInfo types.TunnelConnection, offlineThreshold time.Duration) (*clusterPeer, error) {
 	clusterPeer := &clusterPeer{
-		srv:              srv,
-		connInfo:         connInfo,
+		srv:      srv,
+		connInfo: connInfo,
+		log: log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.ComponentReverseTunnelServer,
+			teleport.ComponentFields: map[string]string{
+				"cluster": connInfo.GetClusterName(),
+			},
+		}),
 		clock:            clockwork.NewRealClock(),
 		offlineThreshold: offlineThreshold,
 	}
@@ -174,6 +172,8 @@ func newClusterPeer(srv *server, connInfo types.TunnelConnection, offlineThresho
 // clusterPeer is a remote cluster that has established
 // a tunnel to the peers
 type clusterPeer struct {
+	log *log.Entry
+
 	mu       sync.Mutex
 	connInfo types.TunnelConnection
 	srv      *server
@@ -202,12 +202,8 @@ func (s *clusterPeer) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, e
 	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
 }
 
-func (s *clusterPeer) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+func (s *clusterPeer) NodeWatcher() (*services.NodeWatcher, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
-}
-
-func (s *clusterPeer) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	return nil, trace.ConnectionProblem(nil, "unable to fetch git server watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 
 func (s *clusterPeer) GetClient() (authclient.ClientI, error) {

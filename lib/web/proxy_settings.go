@@ -18,8 +18,7 @@ package web
 
 import (
 	"context"
-	"net"
-	"strconv"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -158,5 +157,5 @@ func (p *ProxySettings) getPostgresPublicAddr() string {
 	} else {
 		host = p.ServiceConfig.Proxy.WebAddr.Host()
 	}
-	return net.JoinHostPort(host, strconv.Itoa(p.ServiceConfig.Proxy.PostgresAddr.Port(defaults.PostgresListenPort)))
+	return fmt.Sprintf("%s:%d", host, p.ServiceConfig.Proxy.PostgresAddr.Port(defaults.PostgresListenPort))
 }

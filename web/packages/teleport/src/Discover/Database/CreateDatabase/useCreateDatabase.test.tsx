@@ -17,11 +17,20 @@
  */
 
 import { act, renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { resourceSpecAwsRdsAuroraMysql } from 'teleport/Discover/Fixtures/databases';
-import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
-import { DiscoverContextState } from 'teleport/Discover/useDiscover';
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+} from 'teleport/Discover/SelectResource';
+import {
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import api from 'teleport/services/api';
 import {
@@ -249,7 +258,12 @@ describe('registering new databases, mainly error checking', () => {
     nextStep: jest.fn(x => x),
     prevStep: () => null,
     onSelectResource: () => null,
-    resourceSpec: resourceSpecAwsRdsAuroraMysql,
+    resourceSpec: {
+      dbMeta: {
+        location: DatabaseLocation.Aws,
+        engine: DatabaseEngine.AuroraMysql,
+      },
+    } as any,
     exitFlow: () => null,
     viewConfig: null,
     indexedViews: [],
@@ -284,14 +298,19 @@ describe('registering new databases, mainly error checking', () => {
       .mockResolvedValue({ services });
 
     wrapper = ({ children }) => (
-      <RequiredDiscoverProviders
-        agentMeta={discoverCtx.agentMeta}
-        resourceSpec={discoverCtx.resourceSpec}
-        discoverCtx={discoverCtx}
-        teleportCtx={teleCtx}
+      <MemoryRouter
+        initialEntries={[
+          { pathname: cfg.routes.discover, state: { entity: 'database' } },
+        ]}
       >
-        {children}
-      </RequiredDiscoverProviders>
+        <ContextProvider ctx={teleCtx}>
+          <FeaturesContextProvider value={[]}>
+            <DiscoverProvider mockCtx={discoverCtx}>
+              {children}
+            </DiscoverProvider>
+          </FeaturesContextProvider>
+        </ContextProvider>
+      </MemoryRouter>
     );
   });
 
@@ -380,7 +399,7 @@ describe('registering new databases, mainly error checking', () => {
         name: 'new-db',
         aws: { iamPolicyStatus: IamPolicyStatus.Success },
       },
-      serviceDeploy: { method: 'skipped' },
+      serviceDeployedMethod: 'skipped',
     });
 
     result.current.nextStep();

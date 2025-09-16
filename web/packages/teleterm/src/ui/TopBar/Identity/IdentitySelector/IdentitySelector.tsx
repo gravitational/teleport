@@ -16,42 +16,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { forwardRef } from 'react';
+import React, { forwardRef } from 'react';
 
 import { Box } from 'design';
-import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
-import { getClusterLetter } from '../IdentityList/IdentityListItem';
+import { PamIcon } from './PamIcon';
 import { UserIcon } from './UserIcon';
+
+interface IdentitySelectorProps {
+  isOpened: boolean;
+  userName: string;
+  clusterName: string;
+  onClick(): void;
+  makeTitle: (userWithClusterName: string | undefined) => string;
+  deviceTrustStatus: DeviceTrustStatus;
+}
 
 export const IdentitySelector = forwardRef<
   HTMLButtonElement,
-  {
-    open: boolean;
-    activeCluster: Cluster | undefined;
-    onClick(): void;
-    makeTitle(userWithClusterName: string | undefined): string;
-    deviceTrustStatus: DeviceTrustStatus;
-    activeColor: WorkspaceColor;
-  }
+  IdentitySelectorProps
 >((props, ref) => {
-  const selectorText =
-    props.activeCluster &&
-    getUserWithClusterName({
-      clusterName: props.activeCluster.name,
-      userName: props.activeCluster.loggedInUser?.name,
-    });
+  const isSelected = props.userName && props.clusterName;
+  const selectorText = isSelected && getUserWithClusterName(props);
   const title = props.makeTitle(selectorText);
 
   return (
     <TopBarButton
-      isOpened={props.open}
+      isOpened={props.isOpened}
       ref={ref}
       onClick={props.onClick}
       title={title}
@@ -59,12 +55,9 @@ export const IdentitySelector = forwardRef<
         position: relative;
       `}
     >
-      {props.activeCluster ? (
+      {isSelected ? (
         <Box>
-          <UserIcon
-            color={props.activeColor}
-            letter={getClusterLetter(props.activeCluster)}
-          />
+          <UserIcon letter={props.userName[0]} />
           {props.deviceTrustStatus === 'requires-enrollment' && (
             <ConnectionStatusIndicator
               status={'warning'}
@@ -77,7 +70,7 @@ export const IdentitySelector = forwardRef<
           )}
         </Box>
       ) : (
-        <UserIcon letter="+" />
+        <PamIcon />
       )}
     </TopBarButton>
   );

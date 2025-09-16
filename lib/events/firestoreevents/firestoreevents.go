@@ -23,7 +23,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/url"
 	"sort"
 	"strconv"
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/teleport"
@@ -255,8 +255,8 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 
 // Log is a firestore-db backed storage of events
 type Log struct {
-	// logger emits log messages
-	logger *slog.Logger
+	// Entry is a log entry
+	*log.Entry
 	// Config is a backend configuration
 	EventsConfig
 	// svc is the primary Firestore client
@@ -284,9 +284,11 @@ func New(cfg EventsConfig) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	l := log.WithFields(log.Fields{
+		teleport.ComponentKey: teleport.Component(teleport.ComponentFirestore),
+	})
+	l.Info("Initializing event backend.")
 	closeCtx, cancel := context.WithCancel(context.Background())
-	l := slog.With(teleport.ComponentKey, teleport.ComponentFirestore)
-	l.InfoContext(closeCtx, "Initializing event backend.")
 	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.DatabaseID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
 		cancel()
@@ -296,7 +298,7 @@ func New(cfg EventsConfig) (*Log, error) {
 	b := &Log{
 		svcContext:   closeCtx,
 		svcCancel:    cancel,
-		logger:       l,
+		Entry:        l,
 		EventsConfig: cfg,
 		svc:          firestoreClient,
 	}
@@ -311,7 +313,7 @@ func New(cfg EventsConfig) (*Log, error) {
 		go firestorebk.RetryingAsyncFunctionRunner(b.svcContext, retryutils.LinearConfig{
 			Step: b.RetryPeriod / 10,
 			Max:  b.RetryPeriod,
-		}, b.logger.With("task_name", "purge_expired_events"), b.purgeExpiredEvents)
+		}, b.Logger, b.purgeExpiredEvents, "purgeExpiredEvents")
 	}
 	return b, nil
 }
@@ -360,7 +362,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.searchEventsWithFilter(
+	return l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
 			fromUTC:   req.From,
@@ -372,14 +374,6 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 			filter:    searchEventsFilter{eventTypes: req.EventTypes},
 			sessionID: "",
 		})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
 }
 
 type searchEventsWithFilterParams struct {
@@ -392,19 +386,12 @@ type searchEventsWithFilterParams struct {
 	sessionID      string
 }
 
-func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWithFilterParams) ([]events.EventFields, string, error) {
+func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWithFilterParams) ([]apievents.AuditEvent, string, error) {
 	if params.limit <= 0 {
 		params.limit = batchReadLimit
 	}
 
-	g := l.logger.With(
-		"from", params.fromUTC,
-		"to", params.toUTC,
-		"namespace", params.namespace,
-		"filter", params.filter,
-		"limit", params.limit,
-		"start_key", params.lastKey,
-	)
+	g := l.WithFields(log.Fields{"From": params.fromUTC, "To": params.toUTC, "Namespace": params.namespace, "Filter": params.filter, "Limit": params.limit, "StartKey": params.lastKey})
 
 	var firestoreOrdering firestore.Direction
 	switch params.order {
@@ -449,8 +436,16 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWit
 	}
 
 	sort.Sort(toSort)
+	eventArr := make([]apievents.AuditEvent, 0, len(values))
+	for _, fields := range values {
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		eventArr = append(eventArr, event)
+	}
 
-	return values, lastKey, nil
+	return eventArr, lastKey, nil
 }
 
 func (l *Log) query(
@@ -459,7 +454,7 @@ func (l *Log) query(
 	lastKey string,
 	filter searchEventsFilter,
 	limit int,
-	g *slog.Logger,
+	g *log.Entry,
 ) (values []events.EventFields, _ string, err error) {
 	var (
 		checkpointTime int64
@@ -493,12 +488,12 @@ func (l *Log) query(
 			return nil, "", firestorebk.ConvertGRPCError(err)
 		}
 
-		g.DebugContext(ctx, "Query completed.", "duration", time.Since(start))
+		g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
 
 		// Iterate over the documents in the query.
 		// The iterator is limited to [limit] documents so in order to know if we
 		// have more pages to read when filtering, we can read only [limit] documents.
-		for range limit {
+		for i := 0; i < limit; i++ {
 			docSnap, err := fstoreIterator.Next()
 			if errors.Is(err, iterator.Done) {
 				// iterator.Done is returned when there are no more documents to read.
@@ -555,7 +550,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		}
 		filter.condition = condFn
 	}
-	values, next, err := l.searchEventsWithFilter(
+	return l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
 			fromUTC:   req.From,
@@ -568,14 +563,6 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 			sessionID: req.SessionID,
 		},
 	)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -598,8 +585,6 @@ func (l *Log) getIndexParent() string {
 
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	tuples := firestorebk.IndexList{}
-	// each pair of indexes below are identical except for the sort direction
-	// of createdAt
 	tuples.Index(
 		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
@@ -610,20 +595,12 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
-
-	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
-	)
 	tuples.Index(
 		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
-
 	tuples.Index(
 		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
@@ -631,15 +608,7 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
-	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(sessionIDDocProperty, adminpb.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
-		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
-	)
-
-	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, l.logger, tuples, l.getIndexParent())
+	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
 	return trace.Wrap(err)
 }
 
@@ -651,30 +620,6 @@ func (l *Log) Close() error {
 
 func (l *Log) getDocIDForEvent() string {
 	return uuid.New().String()
-}
-
-func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	values, next, err := l.searchEventsWithFilter(
-		ctx,
-		searchEventsWithFilterParams{
-			fromUTC:   req.From,
-			toUTC:     req.To,
-			namespace: apidefaults.Namespace,
-			limit:     req.Limit,
-			order:     req.Order,
-			lastKey:   req.StartKey,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes},
-			sessionID: "",
-		})
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSliceToUnstructured(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
 }
 
 func (l *Log) purgeExpiredEvents() error {

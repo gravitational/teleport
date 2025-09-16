@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Dispatch, SetStateAction, useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { StatePersistenceState } from 'teleterm/ui/services/statePersistence';
@@ -83,20 +83,10 @@ export function usePersistedState<
 >(
   key: Key,
   initialState: WholeState[Key]
-): [WholeState[Key], Dispatch<SetStateAction<WholeState[Key]>>] {
+): [WholeState[Key], (newState: WholeState[Key]) => void] {
   const { statePersistenceService } = useAppContext();
-
-  // setState below must be stable across updates, so it can't depend on initialState nor
-  // wholeState. Hence the shenanigans with initialStateRef and getState.
-  const initialStateRef = useRef(initialState);
-  const getState = useCallback(() => {
-    const wholeState = statePersistenceService.getState() as WholeState;
-    const state = Object.hasOwn(wholeState, key)
-      ? wholeState[key]
-      : initialStateRef.current;
-    return { wholeState, state };
-  }, [key, statePersistenceService]);
-
+  const wholeState = statePersistenceService.getState() as WholeState;
+  const state = Object.hasOwn(wholeState, key) ? wholeState[key] : initialState;
   // TODO(ravicious): usePersistedState currently doesn't propagate changes across several
   // callsites.
   //
@@ -104,28 +94,17 @@ export function usePersistedState<
   // listener in statePersistenceService that gets called whenever the given key gets updated.
   const [, rerender] = useState<object>();
 
-  const setState: Dispatch<SetStateAction<WholeState[Key]>> = useCallback(
-    newState => {
-      const { wholeState, state } = getState();
-
-      if (typeof newState === 'function') {
-        statePersistenceService.putState({
-          ...(wholeState as StatePersistenceState),
-          [key]: (newState as (prevState: WholeState[Key]) => WholeState[Key])(
-            state
-          ),
-        });
-      } else {
-        statePersistenceService.putState({
-          ...(wholeState as StatePersistenceState),
-          [key]: newState,
-        });
-      }
+  const setState = useCallback(
+    (newState: WholeState[Key]) => {
+      statePersistenceService.putState({
+        ...statePersistenceService.getState(),
+        [key]: newState,
+      });
 
       rerender({});
     },
-    [key, statePersistenceService, getState]
+    [key, statePersistenceService]
   );
 
-  return [getState().state, setState];
+  return [state, setState];
 }

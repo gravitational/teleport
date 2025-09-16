@@ -1,7 +1,7 @@
 ---
 title: Teleport GKE Auto-Discovery
 description: How to configure auto-discovery of Google Kubernetes Engine clusters in Teleport.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -15,7 +15,9 @@ each creation.
 In this guide, we will show you how to get started with Teleport Kubernetes
 Discovery for GKE.
 
-## How it works
+{/* lint ignore page-structure remark-lint */}
+
+## Overview
 
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 
@@ -337,13 +339,13 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: false
+  enabled: off
 proxy_service:
-  enabled: false
+  enabled: off
 ssh_service:
-  enabled: false
+  enabled: off
 discovery_service:
-  enabled: true
+  enabled: "yes"
   discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]
@@ -352,7 +354,7 @@ discovery_service:
       tags:
         "*" : "*"
 kubernetes_service:
-  enabled: true
+  enabled: "yes"
   resources:
   - labels:
       "*": "*"
@@ -373,13 +375,13 @@ teleport:
     method: token
   proxy_server: <Var name="teleport.example.com" />:443
 auth_service:
-  enabled: false
+  enabled: off
 proxy_service:
-  enabled: false
+  enabled: off
 ssh_service:
-  enabled: false
+  enabled: off
 kubernetes_service:
-  enabled: true
+  enabled: "yes"
   resources:
   - labels:
       "*": "*"
@@ -395,13 +397,13 @@ teleport:
     method: token
   proxy_server: <Var name="teleport.example.com" />:443
 auth_service:
-  enabled: false
+  enabled: off
 proxy_service:
-  enabled: false
+  enabled: off
 ssh_service:
-  enabled: false
+  enabled: off
 discovery_service:
-  enabled: true
+  enabled: "yes"
   discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]
@@ -439,7 +441,7 @@ clusters in project `myproj-prod` running in `us-east2`, but *not* clusters in
 
 ```yaml
 discovery_service:
-  enabled: true
+  enabled: "yes"
   discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]

@@ -19,8 +19,6 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
-import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
-
 import {
   addIndexToViews,
   findViewAtIndex,
@@ -32,7 +30,8 @@ import type { Database } from 'teleport/services/databases';
 import { DiscoveryConfig } from 'teleport/services/discovery';
 import type {
   AwsRdsDatabase,
-  IntegrationAwsOidc,
+  Ec2InstanceConnectEndpoint,
+  Integration,
   Regions,
 } from 'teleport/services/integrations';
 import type { Kube } from 'teleport/services/kube';
@@ -40,7 +39,6 @@ import type { Node } from 'teleport/services/nodes';
 import type {
   SamlGcpWorkforce,
   SamlIdpServiceProvider,
-  SamlMicrosoftEntraId,
 } from 'teleport/services/samlidp/types';
 import {
   DiscoverDiscoveryConfigMethod,
@@ -54,10 +52,10 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 
+import { ServiceDeployMethod } from './Database/common';
 import { ResourceViewConfig, View } from './flow';
-import { getDiscoverInfoGuideConfig, getOverview } from './Overview/Overview';
 import { viewConfigs } from './resourceViewConfigs';
-import { SelectResourceSpec } from './SelectResource/resources';
+import type { ResourceSpec } from './SelectResource';
 import { EViewConfigs } from './types';
 
 export interface DiscoverContextState<T = any> {
@@ -65,9 +63,9 @@ export interface DiscoverContextState<T = any> {
   currentStep: number;
   nextStep: (count?: number) => void;
   prevStep: () => void;
-  onSelectResource: (resource: SelectResourceSpec) => void;
+  onSelectResource: (resource: ResourceSpec) => void;
   exitFlow: () => void;
-  resourceSpec: SelectResourceSpec;
+  resourceSpec: ResourceSpec;
   viewConfig: ResourceViewConfig<T>;
   indexedViews: View[];
   setResourceSpec: (value: T) => void;
@@ -97,7 +95,7 @@ type CustomEventInput = {
 export type DiscoverUpdateProps = {
   // resourceSpec specifies ResourceSpec which should be used to
   // start a Discover flow.
-  resourceSpec: SelectResourceSpec;
+  resourceSpec: ResourceSpec;
   // agentMeta includes data that will be used to prepopulate input fields
   // in the respective Discover compnents.
   agentMeta: AgentMeta;
@@ -121,11 +119,11 @@ export type DiscoverUrlLocationState = {
   // the flow from where user left off.
   discover: {
     eventState: EventState;
-    resourceSpec: SelectResourceSpec;
+    resourceSpec: ResourceSpec;
     currentStep: number;
   };
   // integration is the created aws-oidc integration
-  integration: IntegrationAwsOidc;
+  integration: Integration;
 };
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
@@ -138,11 +136,10 @@ export function DiscoverProvider({
 }: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
-  const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
-  const [resourceSpec, setResourceSpec] = useState<SelectResourceSpec>();
+  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
   const [viewConfig, setViewConfig] = useState<ResourceViewConfig>();
   const [eventState, setEventState] = useState<EventState>({} as any);
 
@@ -294,7 +291,7 @@ export function DiscoverProvider({
 
   // onSelectResources inits states, starts flow, and
   // emits events.
-  function onSelectResource(resource: SelectResourceSpec) {
+  function onSelectResource(resource: ResourceSpec) {
     // We still want to emit an event if user clicked on an
     // unguided link to gather data on which unguided resource
     // is most popular.
@@ -326,7 +323,7 @@ export function DiscoverProvider({
   // startDiscoverFlow sets all the required states
   // that will begin the flow.
   function startDiscoverFlow(
-    resource: SelectResourceSpec,
+    resource: ResourceSpec,
     initEventState: EventState,
     targetViewIndex = 0
   ) {
@@ -357,9 +354,6 @@ export function DiscoverProvider({
     setIndexedViews(indexedViews);
     setResourceSpec(resource);
     setCurrentStep(targetViewIndex);
-    // Open the guide for the user when starting the flow.
-    const overview = getOverview({ resourceSpec: resource });
-    setInfoGuideConfig(getDiscoverInfoGuideConfig(overview));
   }
 
   // nextStep takes the user to next screen and sends reporting events.
@@ -445,10 +439,6 @@ export function DiscoverProvider({
     setViewConfig(null);
     setResourceSpec(null);
     setIndexedViews([]);
-
-    if (infoGuideConfig) {
-      setInfoGuideConfig(null);
-    }
   }
 
   function updateAgentMeta(meta: AgentMeta) {
@@ -522,7 +512,7 @@ type BaseMeta = {
    * awsIntegration is set to the selected AWS integration.
    * This field is set when a user wants to enroll AWS resources.
    */
-  awsIntegration?: IntegrationAwsOidc;
+  awsIntegration?: Integration;
   /**
    * awsRegion is set to the selected AWS region.
    * This field is set when a user wants to enroll AWS resources.
@@ -554,17 +544,8 @@ export type AutoDiscovery = {
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
+  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
-
-export type DatabaseServiceDeploy =
-  | {
-      method: 'auto';
-      selectedSecurityGroups: string[];
-      selectedSubnetIds: string[];
-    }
-  | {
-      method: 'manual' | 'skipped';
-    };
 
 // DbMeta describes the fields for a db resource
 // that needs to be preserved throughout the flow.
@@ -574,10 +555,10 @@ export type DbMeta = BaseMeta & {
   db?: Database;
   selectedAwsRdsDb?: AwsRdsDatabase;
   /**
-   * Only defined after the database service deploy step,
-   * before this step, it will be undefined.
+   * serviceDeployedMethod flag will be undefined if user skipped
+   * deploying service (service already existed).
    */
-  serviceDeploy?: DatabaseServiceDeploy;
+  serviceDeployedMethod?: ServiceDeployMethod;
 };
 
 // KubeMeta describes the fields for a kube resource
@@ -610,7 +591,6 @@ export type AppMeta = BaseMeta & {
 export type SamlMeta = BaseMeta & {
   samlGeneric?: SamlIdpServiceProvider;
   samlGcpWorkforce?: SamlGcpWorkforce;
-  samlMicrosoftEntraId?: SamlMicrosoftEntraId;
 };
 
 export type AgentMeta =

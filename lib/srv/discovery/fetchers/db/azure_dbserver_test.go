@@ -298,6 +298,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -421,6 +422,7 @@ func withAzurePostgresVersion(version string) func(*armpostgresql.Server) {
 func labelsToAzureTags(labels map[string]string) map[string]*string {
 	tags := make(map[string]*string, len(labels))
 	for k, v := range labels {
+		v := v
 		tags[k] = &v
 	}
 	return tags

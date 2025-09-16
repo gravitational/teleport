@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/winpki"
 )
 
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
@@ -49,17 +48,11 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for desktop access, please contact the cluster administrator")
 	}
-
-	limitExceeded, err := a.desktopsLimitExceeded(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,7 +71,6 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	// See https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for cert requirements for Windows authn.
 	certReq := tlsca.CertificateRequest{
@@ -93,20 +85,14 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// CRL Distribution Points (CDP) are required for Windows smartcard certs
 	// for users wanting to RDP. They are not required for the service account
 	// cert that Teleport itself uses to authenticate for LDAP.
-	//
-	// The CDP is computed here by the auth server issuing the cert and not provided
-	// by the client because the CDP is based on the identity of the issuer, which is
-	// necessary in order to support clusters with multiple issuing certs (HSMs).
-	if req.CRLDomain != "" {
-		cdp := winpki.CRLDistributionPoint(req.CRLDomain, types.UserCA, tlsCA, true)
-		certReq.CRLDistributionPoints = []string{cdp}
-	} else if req.CRLEndpoint != "" {
-		// Legacy clients will specify CRL endpoint instead of CRL domain.
-		// DELETE IN v20 (zmb3): v19 clients will no longer be setting CRLEndpoint
+	if req.CRLEndpoint != "" {
 		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
-		a.logger.DebugContext(ctx, "Generating Windows desktop cert with legacy CDP")
 	}
 
+	limitExceeded, err := a.desktopsLimitExceeded(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
 		Id:    tlsca.LicenseOID,
 		Value: []byte(modules.GetModules().BuildType()),
@@ -126,7 +112,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 // desktopAccessConfigureScript is the script that will run on the windows
 // machine and configure Active Directory
 //
-//go:embed windows-configure-ad.ps1
+//go:embed windows/configure-ad.ps1
 var desktopAccessScriptConfigure string
 var DesktopAccessScriptConfigure = template.Must(template.New("desktop-access-configure-ad").Parse(desktopAccessScriptConfigure))
 

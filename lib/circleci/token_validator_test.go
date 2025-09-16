@@ -20,6 +20,8 @@ package circleci
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -29,12 +31,8 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
-
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // fakeIDP pretends to be a circle CI org OIDC provider, e.g:
@@ -59,7 +57,7 @@ func (f *fakeIDP) issueToken(
 		IssuedAt: jwt.NewNumericDate(issuedAt),
 		Expiry:   jwt.NewNumericDate(expiry),
 	}
-	customClaims := map[string]any{
+	customClaims := map[string]interface{}{
 		"oidc.circleci.com/project-id":  projectID,
 		"oidc.circleci.com/context-ids": contextIDs,
 	}
@@ -78,7 +76,7 @@ func (f *fakeIDP) issuerURLTemplate() string {
 
 func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 	// Generate keypair for IDP
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(
@@ -92,7 +90,7 @@ func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 	t.Cleanup(srv.Close)
 	orgURL := "/org/" + organizationID
 	providerMux.HandleFunc(orgURL+"/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		response := map[string]any{
+		response := map[string]interface{}{
 			"claims_supported": []string{
 				"sub",
 				"aud",
@@ -123,7 +121,7 @@ func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 		jwks := jose.JSONWebKeySet{
 			Keys: []jose.JSONWebKey{
 				{
-					Key: privateKey.Public(),
+					Key: &privateKey.PublicKey,
 				},
 			},
 		}
@@ -197,12 +195,10 @@ func TestValidateToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			claims, err := ValidateToken(
-				ctx, fake.issuerURLTemplate(), realOrgID, tt.token,
+				ctx, clockwork.NewRealClock(), fake.issuerURLTemplate(), realOrgID, tt.token,
 			)
 			tt.assertError(t, err)
-			require.Empty(t,
-				cmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
-			)
+			require.Equal(t, tt.want, claims)
 		})
 	}
 }

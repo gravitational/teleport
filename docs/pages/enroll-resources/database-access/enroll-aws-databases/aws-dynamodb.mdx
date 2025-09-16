@@ -1,8 +1,7 @@
 ---
 title: Database Access with Amazon DynamoDB
-sidebar_label: Amazon DynamoDB
 description: How to access Amazon DynamoDB with Teleport database access
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -138,8 +137,6 @@ Create the new role:
 $ tctl create -f aws-dynamodb-access.yaml
 ```
 
-(!docs/pages/includes/create-role-using-web.mdx!)
-
 (!docs/pages/includes/add-role-to-user.mdx role="aws-dynamodb-access"!)
 
 ## Step 3/4. Install the Teleport Database Service
@@ -177,7 +174,7 @@ teleport:
   proxy_server: teleport.example.com:443
   auth_token: /tmp/token
 db_service:
-  enabled: true
+  enabled: "yes"
   # Lists statically registered databases proxied by this agent.
   databases:
     - name: "example-dynamodb"
@@ -222,9 +219,7 @@ $ aws dynamodb list-tables --endpoint-url=http://localhost:8000
 }
 ```
 
-{/* vale messaging.protocol-products = NO */}
 You can also connect to this database from the AWS NoSQL Workbench, as documented in our [Database Access GUI Clients](../../../connect-your-client/gui-clients.mdx#nosql-workbench) guide.
-{/* vale messaging.protocol-products = YES */}
 
 You can also use this tunnel for programmatic access. The example below uses the `boto3` SDK from AWS:
 

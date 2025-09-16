@@ -30,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
-	netutils "github.com/gravitational/teleport/api/utils/net"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 )
@@ -42,9 +41,6 @@ type AppsConfig struct {
 
 	// DebugApp enabled a header dumping debugging application.
 	DebugApp bool
-
-	// MCPDemoServer enables the "Teleport Demo" MCP server.
-	MCPDemoServer bool
 
 	// Apps is the list of applications that are being proxied.
 	Apps []App
@@ -96,24 +92,9 @@ type App struct {
 	// be part of the authentication redirect flow and authenticate along side this app.
 	RequiredAppNames []string
 
-	// UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the
-	// request originated from. This should be true if your proxy has multiple proxy public addrs and you
-	// want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec,
-	// setting this value to true will overwrite that public address in the web UI.
-	UseAnyProxyPublicAddr bool
-
 	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
 	// controlling how resources are shared across different origins.
 	CORS *CORS
-
-	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
-	// Only applicable to TCP App Access.
-	// If this field is not empty, URI is expected to contain no port number and start with the tcp
-	// protocol.
-	TCPPorts []PortRange
-
-	// MCP contains MCP server-related configurations.
-	MCP *types.MCP
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -144,30 +125,15 @@ type CORS struct {
 	MaxAge uint `yaml:"max_age"`
 }
 
-// PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
-// PortRange can be used to describe a single port in which case the Port field is the port and the
-// EndPort field is 0.
-type PortRange struct {
-	// Port describes the start of the range. It must be between 1 and 65535.
-	Port int
-	// EndPort describes the end of the range, inclusive. When describing a port range, it must be
-	// greater than Port and less than or equal to 65535. When describing a single port, it must be
-	// set to 0.
-	EndPort int
-}
-
 // CheckAndSetDefaults validates an application.
 func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
 	}
 	if a.URI == "" {
-		switch {
-		case a.Cloud != "":
+		if a.Cloud != "" {
 			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
-		case a.MCP != nil && a.MCP.Command != "":
-			a.URI = types.SchemaMCPStdio
-		default:
+		} else {
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}
 	}
@@ -207,43 +173,6 @@ func (a *App) CheckAndSetDefaults() error {
 			}
 		}
 	}
-
-	if len(a.TCPPorts) != 0 {
-		if err := a.checkPorts(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-func (a *App) checkPorts() error {
-	// Parsing the URI here does not break compatibility. The URI is parsed only if Ports are present.
-	// This means that old apps that do have invalid URIs but don't use Ports can continue existing.
-	uri, err := url.Parse(a.URI)
-	if err != nil {
-		return trace.BadParameter("invalid app URI format: %v", err)
-	}
-
-	// The scheme of URI is not validated to be "tcp" on purpose. This way in the future we can add
-	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
-	// web app gets downgraded to a version which supports multi-port only for TCP apps.
-	//
-	// For now, we simply ignore the Ports field set on non-TCP apps.
-	if uri.Scheme != "tcp" {
-		return nil
-	}
-
-	if uri.Port() != "" {
-		return trace.BadParameter("app URI %q must not include a port number when the app spec defines a list of ports", a.URI)
-	}
-
-	for _, portRange := range a.TCPPorts {
-		if err := netutils.ValidatePortRange(portRange.Port, portRange.EndPort); err != nil {
-			return trace.Wrap(err, "validating a port range of a TCP app")
-		}
-	}
-
 	return nil
 }
 

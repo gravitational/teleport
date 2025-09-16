@@ -24,7 +24,6 @@ import {
   isKubeClusterWithNamespaces,
   PendingKubeResourceItem,
   PendingListItem,
-  RequestableResourceKind,
 } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
@@ -35,7 +34,6 @@ import {
   AccessRequest as TeletermAccessRequest,
 } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
 import {
   extractResourceRequestProperties,
   mapKubeNamespaceUriToRequest,
@@ -46,12 +44,15 @@ import {
 import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
+import { ResourceKind } from '../DocumentAccessRequests/NewRequest/useNewRequest';
 import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests';
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
-  useWorkspaceServiceState();
+  ctx.workspacesService.useState();
   ctx.clustersService.useState();
+  const clusterUri =
+    ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();
 
   const {
@@ -72,8 +73,6 @@ export default function useAccessRequestCheckout() {
     startTime,
     onStartTimeChange,
     reset: resetSpecifiableFields,
-    reasonMode,
-    reasonPrompts,
   } = useSpecifiableFields();
 
   const [showCheckout, setShowCheckout] = useState(false);
@@ -82,12 +81,6 @@ export default function useAccessRequestCheckout() {
 
   const { attempt: createRequestAttempt, setAttempt: setCreateRequestAttempt } =
     useAttempt('');
-  // isCreatingRequest is an auxiliary variable that helps to differentiate between a dry run being
-  // performed vs an actual request being created, as both types of requests use the same attempt
-  // object (createRequestAttempt).
-  // TODO(ravicious): Remove this in React 19 when useSyncExternalStore updates are batched with
-  // other updates.
-  const [isCreatingRequest, setIsCreatingRequest] = useState(false);
 
   const { attempt: fetchResourceRolesAttempt, run: runFetchResourceRoles } =
     useAttempt('success');
@@ -113,15 +106,10 @@ export default function useAccessRequestCheckout() {
     // suggested reviewers.
     // Options and reviewers can change depending on the selected
     // roles or resources.
-    if (showCheckout && requestedCount == 0 && !isCreatingRequest) {
+    if (showCheckout && requestedCount == 0) {
       performDryRun();
     }
-  }, [
-    showCheckout,
-    pendingAccessRequestRequest,
-    requestedCount,
-    isCreatingRequest,
-  ]);
+  }, [showCheckout, pendingAccessRequestRequest]);
 
   useEffect(() => {
     if (!pendingAccessRequestRequest || requestedCount > 0) {
@@ -129,7 +117,7 @@ export default function useAccessRequestCheckout() {
     }
 
     runFetchResourceRoles(() =>
-      retryWithRelogin(ctx, rootClusterUri, async () => {
+      retryWithRelogin(ctx, clusterUri, async () => {
         const { response } = await ctx.tshd.getRequestableRoles({
           clusterUri: rootClusterUri,
           resourceIds: pendingAccessRequestsWithoutParentResource
@@ -148,11 +136,11 @@ export default function useAccessRequestCheckout() {
         setSelectedResourceRequestRoles(response.applicableRoles);
       })
     );
-  }, [pendingAccessRequestRequest, requestedCount]);
+  }, [pendingAccessRequestRequest]);
 
   useEffect(() => {
     clearCreateAttempt();
-  }, [rootClusterUri]);
+  }, [clusterUri]);
 
   useEffect(() => {
     if (
@@ -272,6 +260,17 @@ export default function useAccessRequestCheckout() {
     );
   }
 
+  function getAssumedRequests() {
+    if (!clusterUri) {
+      return [];
+    }
+    const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
+    if (!assumed) {
+      return [];
+    }
+    return Object.values(assumed);
+  }
+
   /**
    * Shared logic used both during dry runs and regular access request creation.
    */
@@ -311,7 +310,7 @@ export default function useAccessRequestCheckout() {
 
     setCreateRequestAttempt({ status: 'processing' });
 
-    return retryWithRelogin(ctx, rootClusterUri, () =>
+    return retryWithRelogin(ctx, clusterUri, () =>
       ctx.clustersService.createAccessRequest(params).then(({ response }) => {
         return {
           accessRequest: response.request,
@@ -329,7 +328,6 @@ export default function useAccessRequestCheckout() {
 
     try {
       const { accessRequest } = await prepareAndCreateRequest({
-        reason: 'placeholder-reason',
         dryRun: true,
         maxDuration: getDryRunMaxDuration(),
       });
@@ -345,7 +343,6 @@ export default function useAccessRequestCheckout() {
   }
 
   async function createRequest(req: CreateRequest) {
-    setIsCreatingRequest(true);
     let requestedCount: number;
     try {
       const response = await prepareAndCreateRequest(req);
@@ -357,7 +354,6 @@ export default function useAccessRequestCheckout() {
     setRequestedCount(requestedCount);
     reset();
     setCreateRequestAttempt({ status: 'success' });
-    setIsCreatingRequest(false);
   }
 
   function clearCreateAttempt() {
@@ -423,6 +419,7 @@ export default function useAccessRequestCheckout() {
   return {
     showCheckout,
     isCollapsed,
+    assumedRequests: getAssumedRequests(),
     toggleResource,
     pendingAccessRequests,
     shouldShowClusterNameColumn,
@@ -432,9 +429,11 @@ export default function useAccessRequestCheckout() {
     goToRequestsList,
     requestedCount,
     clearCreateAttempt,
+    clusterUri,
     selectedResourceRequestRoles,
     setSelectedResourceRequestRoles,
     resourceRequestRoles,
+    rootClusterUri,
     fetchResourceRolesAttempt,
     createRequestAttempt,
     collapseBar,
@@ -452,24 +451,8 @@ export default function useAccessRequestCheckout() {
     onStartTimeChange,
     fetchKubeNamespaces,
     updateNamespacesForKubeCluster,
-    reasonMode,
-    reasonPrompts,
   };
 }
-
-type ResourceKind =
-  | Extract<
-      RequestableResourceKind,
-      | 'node'
-      | 'app'
-      | 'db'
-      | 'kube_cluster'
-      | 'saml_idp_service_provider'
-      | 'namespace'
-      | 'aws_ic_account_assignment'
-      | 'windows_desktop'
-    >
-  | 'role';
 
 type PendingListItemWithOriginalItem = Omit<PendingListItem, 'kind'> &
   (

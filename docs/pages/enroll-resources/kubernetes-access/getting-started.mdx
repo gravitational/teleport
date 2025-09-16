@@ -2,7 +2,7 @@
 title: Enroll a Kubernetes Cluster
 description: Demonstrates how to enroll a Kubernetes cluster as a resource protected by Teleport.
 videoBanner: 3AUGrOZ5me0
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -10,8 +10,6 @@ labels:
 This guide demonstrates how to enroll a Kubernetes cluster as a Teleport
 resource by deploying the Teleport Kubernetes Service on the Kubernetes cluster
 you want to protect. 
-
-## How it works
 
 In this scenario, the Teleport Kubernetes Service pod detects that it is running
 on Kubernetes and enrolls the Kubernetes cluster automatically. The following
@@ -23,9 +21,25 @@ Teleport Kubernetes Service running on the Kubernetes cluster:
 For information about other ways to enroll and discover Kubernetes clusters, see
 [Registering Kubernetes Clusters with Teleport](register-clusters/register-clusters.mdx).
 
+{/* lint ignore page-structure remark-lint */}
+
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+- Access to a running Teleport cluster, `tctl` admin tool, and `tsh` client tool, 
+  version >= (=teleport.version=). 
+
+  You can verify the tools you have installed by running the following commands:
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+  
+  You can download these tools by following the appropriate [Installation 
+  instructions](../../installation/linux.mdx) for your environment.
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
@@ -61,14 +75,12 @@ impersonates the `viewers` group when proxying requests from the user.
        - viewers
      deny: {}
    ```
-   
+
 1. Apply your changes:
 
    ```code
    $ tctl create -f kube-access.yaml
    ```
-
-   (!docs/pages/includes/create-role-using-web.mdx!)
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="kube-access"!)
 

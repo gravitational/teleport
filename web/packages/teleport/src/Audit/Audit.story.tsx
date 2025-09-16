@@ -17,6 +17,7 @@
  */
 
 import { createMemoryHistory } from 'history';
+import React from 'react';
 import { Router } from 'react-router';
 
 import { Context, ContextProvider } from 'teleport';
@@ -31,36 +32,34 @@ export default {
 
 export const LoadedSample = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.auditService.fetchEvents = () =>
     Promise.resolve({ events: eventsSample, startKey: '' });
-  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
 
   return render(ctx);
 };
 
 export const LoadedFetchMore = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.auditService.fetchEvents = () =>
     Promise.resolve({ events, startKey: 'any-text' });
-  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
 
   return render(ctx);
 };
 
 export const Processing = () => {
   const ctx = new Context();
-  ctx.auditService.fetchEvents = () => new Promise(() => null);
   ctx.clusterService.fetchClusters = () => Promise.resolve([]);
-
+  ctx.auditService.fetchEvents = () => new Promise(() => null);
   return render(ctx);
 };
 
 export const Failed = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.auditService.fetchEvents = () =>
     Promise.reject(new Error('server error'));
-  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
-
   return render(ctx);
 };
 

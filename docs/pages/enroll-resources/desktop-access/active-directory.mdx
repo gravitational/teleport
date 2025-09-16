@@ -3,7 +3,7 @@ title: Configure access for Active Directory manually
 description: Explains how to manually connect Teleport to an Active Directory domain.
 videoBanner: YvMqgcq0MTQ
 tocDepth: 3
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -11,24 +11,42 @@ labels:
 This guide demonstrates how to connect an Active Directory domain and how to log
 into a Windows desktop from the connected domain.
 
-You should note that Teleport requires the Kerberos authentication protocol to
-support certificate-based authentication for Active Directory. Because Microsoft
-Entra ID doesn't use Kerberos, you can't use the Teleport Windows Desktop
-Service for Microsoft Entra ID.
+You should note that Teleport requires the Kerberos authentication protocol to support
+certificate-based authentication for Active Directory. Because Azure Active Directory
+doesn't use Kerberos, you can't use the Teleport Windows Desktop Service for
+Azure Active Directory.
 
 ## Prerequisites
 
 To complete the steps in this guide, verify your environment meets the following requirements:
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+- Access to a running Teleport cluster, `tctl` admin tool, and `tsh` client tool
+  version >= (=teleport.version=).
+
+  You can verify the tools you have installed by running the following commands:
+
+  ```code
+  $ tctl version
+  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  You can download these tools by following the appropriate [Installation
+  instructions](../../installation/linux.mdx) for the Teleport
+  edition you use.
 
 - A Linux server to run the Teleport Windows Desktop Service.
-  You can use an existing server that runs the Teleport Agent for other resources.
+  You can use an existing server that runs the Teleport agent for other resources.
+
 - An Active Directory domain that is configured for LDAPS. Because Teleport requires an
   encrypted LDAP connection, you should verify that your domain uses Active Directory
   Certificate Services or a non-Microsoft certification authority (CA) to issue LDAPS
   certificates.
+
 - Administrative access to a domain controller.
+
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Option 1: Automated configuration
@@ -582,10 +600,9 @@ To configure Teleport to protect access to Windows desktops:
      auth_token: "path/to/token"
      proxy_server: <Var name="teleport.example.com"/> # replace with your proxy address
    windows_desktop_service:
-     enabled: true
+     enabled: yes
      ldap:
-       # Address (including port) of an LDAP server.
-       # Can be omitted if `locate_server` is enabled.
+       # Port must be included for the addr.
        # LDAPS port is 636 by default (example.com:636)
        addr: "$LDAP_SERVER_ADDRESS"
        domain: "$LDAP_DOMAIN_NAME"
@@ -593,59 +610,18 @@ To configure Teleport to protect access to Windows desktops:
        sid: "$LDAP_USER_SID"
        # Path to the certificate you exported.
        der_ca_file: "path/to/exported/cert"
-     discovery_configs:
-       - base_dn: "*"
+     discovery:
+       base_dn: "*"
    auth_service:
-     enabled: false
+     enabled: no
    proxy_service:
-     enabled: false
+     enabled: no
    ssh_service:
-     enabled: false
+     enabled: no
    ```
 
    For a detailed description of the configuration fields, see
    [Desktop Configuration Reference](../../reference/agent-services/desktop-access-reference/configuration.mdx).
-
-1. Configure LDAP server selection.
-
-   To find desktops to connect to in Active Directory, Teleport must be given the
-   address of an LDAP server. There are two ways to specify the LDAP server, either
-   by providing a single LDAP server address in the `addr` field, or by enabling
-   `locate_server` to automatically discover the LDAP server from DNS SRV records.
-
-   If you opt to use `addr`, for the best results, the address should point to a
-   highly-available endpoint to avoid downtime. The port for LDAPS should also be
-   included, which is typically 636.
-
-   <details>
-   <summary>Example of using the addr field</summary>
-   ```yaml
-   windows_desktop_service:
-      enabled: true
-      ldap:
-         addr: ldap.example.com:636
-         domain: example.com
-   ```
-   </details>
-
-   Alternatively, you can enable `locate_server` to automatically discover an
-   LDAP server from the DNS SRV records of your specified `domain`. This is useful
-   if you have multiple LDAP servers for high availability and load balancing.
-   Optionally, you can specify a `site` to limit the discovery to a specific
-   Active Directory site.
-
-   <details>
-   <summary>Example of using locate_server</summary>
-   ```yaml
-   windows_desktop_service:
-      enabled: true
-      ldap:
-         locate_server: 
-            enabled: true
-            site: "my-site" # optional
-         domain: example.com
-   ```
-   </details>
 
 1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
@@ -671,6 +647,8 @@ To create a role for accessing Windows desktops:
        windows_desktop_logins: ["jsmith"]
    ```
 
+   Note that user names shared between domain and local users create login conflicts.
+
 1. Create the role:
 
    ```code
@@ -683,7 +661,6 @@ To create a role for accessing Windows desktops:
    a role that allows Teleport users to connect to Windows computers, you can
    use the Teleport user assigned the `windows-desktop-admins` role
    to connect to Windows desktops from the Teleport Web UI.
-   Alternatively, you can connect using Teleport Connect.
 
 To connect to a Windows desktop:
 
@@ -704,27 +681,22 @@ To connect to a Windows desktop:
 
    ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
 
-   To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
+   To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
+   in the Activity section.
 
 ## LDAP Discovery
 
 In Active Directory environments, Teleport can be configured to discover hosts
-via LDAP. LDAP discovery is enabled by adding one or more discovery configs to
-the `discovery_configs` field in the Teleport Windows Desktop Service
-configuration. You can set `base_dn` to a wildcard `'*'` to search from the root
-of the domain, or you can specify an alternate base distinguished name to search
-from.
-
-By default, all hosts discovered via LDAP will be registered with a port of 3389.
-You can override the RDP port for each discovery configuration.
+via LDAP. LDAP discovery is enabled by setting the `discovery.base_dn` field in
+the Teleport Windows Desktop Service configuration. You can set `base_dn` to a
+wildcard `'*'` to search from the root of the domain, or you can specify an alternate
+base distinguished name to search from.
 
 ```yaml
 windows_desktop_service:
-  enabled: true
-  discovery_configs:
-    - base_dn: 'OU=prod,DC=example,DC=com'
-    - base_dn: 'OU=staging,DC=example,DC=com'
-      rdp_port: 9989
+  enabled: yes
+  discovery:
+    base_dn: '*'
 ```
 
 ### Filters
@@ -736,28 +708,29 @@ compute a logical AND of all filters specified.
 
 ```yaml
 windows_desktop_service:
-  enabled: true
-  discovery_configs:
-    - base_dn: '*'
-      filters:
-        - '(location=Oakland)'
-        - '(!(primaryGroupID=516))'
+  enabled: yes
+  discovery:
+    base_dn: '*'
+    filters:
+    - '(location=Oakland)'
+    - '(!(primaryGroupID=516))'
 ```
 
 ### Labeling
 
 It is often necessary to apply labels to discovered hosts to control access. You
 can configure Teleport to convert LDAP attributes to Teleport labels by setting
-the `label_attributes` field in the discovery configuration.
+the `discovery.label_attributes` field in the Teleport Windows Desktop Service
+configuration.
 
 ```yaml
 windows_desktop_service:
-  enabled: true
-  discovery_configs:
-    - base_dn: '*'
-      label_attributes:
-        - 'location'
-        - 'department'
+  enabled: yes
+  discovery:
+    base_dn: '*'
+    label_attributes:
+      - 'location'
+      - 'department'
 ```
 
 Each of the specified attributes will be placed in a Teleport label prefixed with `ldap/`.
@@ -787,7 +760,7 @@ To change the default domain policy:
 
 Each `windows_desktop_service` is designed to support connecting to hosts in a
 single Active Directory domain. If you have multiple independent domains, you
-can deploy multiple Teleport Agents to service them.
+can deploy multiple Teleport agents to service them.
 
 If you have multiple domains with a trust relationship between them, you can
 configure Teleport to perform PKI operations against one domain, while generating
@@ -810,7 +783,7 @@ domain, you would do the following:
 
   ```yaml
   windows_desktop_service:
-    enabled: true
+    enabled: yes
 
     # configure LDAP settings to point at the child domain
     ldap:
@@ -849,7 +822,7 @@ NLA against `example.com:88`.
 
 ```yaml
 windows_desktop_service:
-    enabled: true
+    enabled: yes
     ldap:
       addr: example.com:636
 ```
@@ -859,7 +832,7 @@ in your Teleport configuration file.
 
 ```yaml
 windows_desktop_service:
-    enabled: true
+    enabled: yes
     kdc_address: kdc.example.com   # defaults to port 88 if unspecified
 ```
 

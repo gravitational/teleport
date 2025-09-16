@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
@@ -32,17 +32,14 @@ import {
 } from 'teleterm/ui/services/keyboardShortcuts';
 
 import { useAppContext } from '../appContextProvider';
-import { useStoreSelector } from '../hooks/useStoreSelector';
 
 const OPEN_SEARCH_BAR_SHORTCUT_ACTION: KeyboardShortcutAction = 'openSearchBar';
 
 export function SearchBarConnected() {
-  const rootClusterUri = useStoreSelector(
-    'workspacesService',
-    useCallback(state => state.rootClusterUri, [])
-  );
+  const { workspacesService } = useAppContext();
+  workspacesService.useState();
 
-  if (!rootClusterUri) {
+  if (!workspacesService.getRootClusterUri()) {
     return null;
   }
 
@@ -54,7 +51,7 @@ export function SearchBarConnected() {
 }
 
 function SearchBar() {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>();
   const { getAccelerator } = useKeyboardShortcutFormatters();
   const {
     activePicker,
@@ -209,7 +206,7 @@ const Input = styled.input`
   border-radius: ${props => props.theme.radii[2]}px;
   padding-inline: ${props => props.theme.space[2]}px;
 
-  &::placeholder {
+  ::placeholder {
     color: ${props => props.theme.colors.text.slightlyMuted};
   }
 `;

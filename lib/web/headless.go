@@ -24,7 +24,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 )
@@ -46,7 +48,7 @@ func (h *Handler) getHeadless(_ http.ResponseWriter, r *http.Request, params htt
 	if err != nil {
 		// Log the error, but return something more user-friendly.
 		// Context exceeded or invalid request states are more confusing than helpful.
-		h.logger.DebugContext(r.Context(), "failed to get headless session", "error", err)
+		h.log.Debug("failed to get headless session: %v", err)
 
 		return nil, trace.BadParameter("requested invalid headless session")
 	}
@@ -61,25 +63,21 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 	}
 
 	var req client.HeadlessRequest
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if req.MFAResponse == nil && req.WebauthnAssertionResponse != nil {
-		req.MFAResponse = &client.MFAChallengeResponse{
-			WebauthnResponse: req.WebauthnAssertionResponse,
-		}
-	}
-
-	mfaResp, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
-	if err != nil {
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var action types.HeadlessAuthenticationState
+	var resp = &proto.MFAAuthenticateResponse{}
+
 	switch req.Action {
 	case "accept":
 		action = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+		resp = &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wantypes.CredentialAssertionResponseToProto(req.WebauthnAssertionResponse),
+			},
+		}
 	case "denied":
 		action = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 	default:
@@ -91,7 +89,9 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authClient.UpdateHeadlessAuthenticationState(r.Context(), headlessAuthenticationID, action, mfaResp); err != nil {
+	err = authClient.UpdateHeadlessAuthenticationState(r.Context(), headlessAuthenticationID,
+		action, resp)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 

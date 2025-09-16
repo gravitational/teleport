@@ -26,21 +26,14 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
-	"github.com/gravitational/teleport/lib/tbot/services/application"
-	"github.com/gravitational/teleport/lib/tbot/services/database"
-	"github.com/gravitational/teleport/lib/tbot/services/identity"
-	"github.com/gravitational/teleport/lib/tbot/services/k8s"
-	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 )
 
 type destinationMixinV1 struct {
-	Directory *destination.Directory `yaml:"directory"`
-	Memory    *destination.Memory    `yaml:"memory"`
+	Directory *DestinationDirectory `yaml:"directory"`
+	Memory    *DestinationMemory    `yaml:"memory"`
 }
 
-func (c *destinationMixinV1) migrate() (destination.Destination, error) {
+func (c *destinationMixinV1) migrate() (bot.Destination, error) {
 	switch {
 	case c.Memory != nil && c.Directory != nil:
 		return nil, trace.BadParameter("both 'memory' and 'directory' cannot be specified")
@@ -270,7 +263,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 				break
 			}
 		}
-		return &application.OutputConfig{
+		return &ApplicationOutput{
 			Destination:           dest,
 			Roles:                 c.Roles,
 			AppName:               c.App,
@@ -284,28 +277,28 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 		); err != nil {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
-		format := database.UnspecifiedDatabaseFormat
+		format := UnspecifiedDatabaseFormat
 		for _, templateConfig := range c.Configs {
 			if templateConfig.Mongo != nil {
-				if format != database.UnspecifiedDatabaseFormat {
+				if format != UnspecifiedDatabaseFormat {
 					return nil, trace.BadParameter("multiple candidate formats for database output")
 				}
-				format = database.MongoDatabaseFormat
+				format = MongoDatabaseFormat
 			}
 			if templateConfig.Cockroach != nil {
-				if format != database.UnspecifiedDatabaseFormat {
+				if format != UnspecifiedDatabaseFormat {
 					return nil, trace.BadParameter("multiple candidate formats for database output")
 				}
-				format = database.CockroachDatabaseFormat
+				format = CockroachDatabaseFormat
 			}
 			if templateConfig.TLS != nil {
-				if format != database.UnspecifiedDatabaseFormat {
+				if format != UnspecifiedDatabaseFormat {
 					return nil, trace.BadParameter("multiple candidate formats for database output")
 				}
-				format = database.TLSDatabaseFormat
+				format = TLSDatabaseFormat
 			}
 		}
-		return &database.OutputConfig{
+		return &DatabaseOutput{
 			Destination: dest,
 			Roles:       c.Roles,
 			Format:      format,
@@ -321,7 +314,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 		); err != nil {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
-		return &k8s.OutputV1Config{
+		return &KubernetesOutput{
 			Destination:       dest,
 			Roles:             c.Roles,
 			KubernetesCluster: c.KubernetesCluster,
@@ -343,7 +336,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 				break
 			}
 		}
-		return &ssh.HostOutputConfig{
+		return &SSHHostOutput{
 			Destination: dest,
 			Roles:       c.Roles,
 			Principals:  principals,
@@ -356,7 +349,7 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 		); err != nil {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
-		return &identity.OutputConfig{
+		return &IdentityOutput{
 			Destination: dest,
 			Roles:       c.Roles,
 			Cluster:     c.Cluster,
@@ -365,14 +358,14 @@ func (c *configV1Destination) migrate() (ServiceConfig, error) {
 }
 
 type configV1 struct {
-	Onboarding      onboarding.Config `yaml:"onboarding"`
-	Debug           bool              `yaml:"debug"`
-	AuthServer      string            `yaml:"auth_server"`
-	CertificateTTL  time.Duration     `yaml:"certificate_ttl"`
-	RenewalInterval time.Duration     `yaml:"renewal_interval"`
-	Oneshot         bool              `yaml:"oneshot"`
-	FIPS            bool              `yaml:"fips"`
-	DiagAddr        string            `yaml:"diag_addr"`
+	Onboarding      OnboardingConfig `yaml:"onboarding"`
+	Debug           bool             `yaml:"debug"`
+	AuthServer      string           `yaml:"auth_server"`
+	CertificateTTL  time.Duration    `yaml:"certificate_ttl"`
+	RenewalInterval time.Duration    `yaml:"renewal_interval"`
+	Oneshot         bool             `yaml:"oneshot"`
+	FIPS            bool             `yaml:"fips"`
+	DiagAddr        string           `yaml:"diag_addr"`
 
 	Destinations  []configV1Destination `yaml:"destinations"`
 	StorageConfig *storageConfigV1      `yaml:"storage"`
@@ -409,16 +402,14 @@ func (c *configV1) migrate() (*BotConfig, error) {
 	return &BotConfig{
 		Version: V2,
 
-		Onboarding: c.Onboarding,
-		Debug:      c.Debug,
-		AuthServer: c.AuthServer,
-		CredentialLifetime: bot.CredentialLifetime{
-			TTL:             c.CertificateTTL,
-			RenewalInterval: c.RenewalInterval,
-		},
-		Oneshot:  c.Oneshot,
-		FIPS:     c.FIPS,
-		DiagAddr: c.DiagAddr,
+		Onboarding:      c.Onboarding,
+		Debug:           c.Debug,
+		AuthServer:      c.AuthServer,
+		CertificateTTL:  c.CertificateTTL,
+		RenewalInterval: c.RenewalInterval,
+		Oneshot:         c.Oneshot,
+		FIPS:            c.FIPS,
+		DiagAddr:        c.DiagAddr,
 
 		Storage:  storage,
 		Services: outputs,

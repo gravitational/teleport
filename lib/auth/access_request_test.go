@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"cmp"
 	"context"
 	"crypto/tls"
-	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -33,6 +32,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -45,9 +45,8 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -58,18 +57,16 @@ import (
 )
 
 type accessRequestTestPack struct {
-	tlsServer   *authtest.TLSServer
+	tlsServer   *TestTLSServer
 	clusterName string
 	roles       map[string]types.RoleSpecV6
 	users       map[string][]string
-	tlsPrivKey  []byte
-	tlsPubKey   []byte
-	sshPrivKey  []byte
-	sshPubKey   []byte
+	privKey     []byte
+	pubKey      []byte
 }
 
 func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestTestPack {
-	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err, "%s", trace.DebugReport(err))
@@ -79,7 +76,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	clusterName, err := tlsServer.Auth().GetClusterName(ctx)
+	clusterName, err := tlsServer.Auth().GetClusterName()
 	require.NoError(t, err)
 
 	roles := map[string]types.RoleSpecV6{
@@ -178,16 +175,16 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		require.NoError(t, err)
 	}
 
-	sshPrivKey, sshPubKey, tlsPrivKey, tlsPubKey := newSSHAndTLSKeyPairs(t)
+	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
 	return &accessRequestTestPack{
 		tlsServer:   tlsServer,
 		clusterName: clusterName.GetClusterName(),
 		roles:       roles,
 		users:       users,
-		sshPrivKey:  sshPrivKey,
-		sshPubKey:   sshPubKey,
-		tlsPrivKey:  tlsPrivKey,
-		tlsPubKey:   tlsPubKey,
+		privKey:     privKey,
+		pubKey:      pubKey,
 	}
 }
 
@@ -255,7 +252,7 @@ func TestAccessRequestResourceRBACLimits(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+	authServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clock,
 	})
@@ -266,7 +263,8 @@ func TestAccessRequestResourceRBACLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	staticRole, err := types.NewRole(staticRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -303,7 +301,7 @@ func TestAccessRequestResourceRBACLimits(t *testing.T) {
 	_, err = tlsServer.Auth().UpsertUser(ctx, otherUser)
 	require.NoError(t, err)
 
-	clt, err := tlsServer.NewClient(authtest.TestUser(userName))
+	clt, err := tlsServer.NewClient(TestUser(userName))
 	require.NoError(t, err)
 	defer clt.Close()
 
@@ -373,7 +371,7 @@ func TestListAccessRequests(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+	authServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clock,
 	})
@@ -384,7 +382,8 @@ func TestListAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	userA, userB := "lister-a", "lister-b"
 	roleA, roleB := userA+"-role", userB+"-role"
@@ -424,11 +423,11 @@ func TestListAccessRequests(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	clientA, err := tlsServer.NewClient(authtest.TestUser(userA))
+	clientA, err := tlsServer.NewClient(TestUser(userA))
 	require.NoError(t, err)
 	defer clientA.Close()
 
-	clientB, err := tlsServer.NewClient(authtest.TestUser(userB))
+	clientB, err := tlsServer.NewClient(TestUser(userB))
 	require.NoError(t, err)
 	defer clientB.Close()
 
@@ -436,7 +435,7 @@ func TestListAccessRequests(t *testing.T) {
 	// verify sort order).
 	var orderedIDs []string
 
-	for range requestsPerUser {
+	for i := 0; i < requestsPerUser; i++ {
 		clock.Advance(time.Second)
 		reqA, err := services.NewAccessRequest(userA, rroleA)
 		require.NoError(t, err)
@@ -445,7 +444,7 @@ func TestListAccessRequests(t *testing.T) {
 		orderedIDs = append(orderedIDs, rr.GetName())
 	}
 
-	for range requestsPerUser {
+	for i := 0; i < requestsPerUser; i++ {
 		clock.Advance(time.Second)
 		reqB, err := services.NewAccessRequest(userB, rroleB)
 		require.NoError(t, err)
@@ -762,11 +761,11 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 			}
 			user, err := types.NewUser(userName)
 			require.NoError(t, err)
-			user.SetRoles(slices.Collect(maps.Keys(tc.roles)))
+			user.SetRoles(maps.Keys(tc.roles))
 			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
-			client, err := testPack.tlsServer.NewClient(authtest.TestUser(userName))
+			client, err := testPack.tlsServer.NewClient(TestUser(userName))
 			require.NoError(t, err)
 
 			_, err = client.GetAccessRequests(ctx, types.AccessRequestFilter{})
@@ -866,9 +865,10 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
-			requester := authtest.TestUser(tc.requester)
+			requester := TestUser(tc.requester)
 			requesterClient, err := testPack.tlsServer.NewClient(requester)
 			require.NoError(t, err)
 
@@ -876,8 +876,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			// one or more access-requests to the certificate.
 			generateCerts := func(reqIDs ...string) (*proto.Certs, error) {
 				return requesterClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-					SSHPublicKey:   testPack.sshPubKey,
-					TLSPublicKey:   testPack.tlsPubKey,
+					PublicKey:      testPack.pubKey,
 					Username:       tc.requester,
 					Expires:        time.Now().Add(time.Hour).UTC(),
 					Format:         constants.CertificateFormatStandard,
@@ -927,7 +926,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			_, err = generateCerts(req.GetName())
 			require.ErrorIs(t, err, trace.AccessDenied("access request %q is awaiting approval", req.GetName()))
 
-			reviewer := authtest.TestUser(tc.reviewer)
+			reviewer := TestUser(tc.reviewer)
 			reviewerClient, err := testPack.tlsServer.NewClient(reviewer)
 			require.NoError(t, err)
 
@@ -959,10 +958,9 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 				[]string{req.GetName()},
 				requestResourceIDs)
 
-			elevatedCert, err := tls.X509KeyPair(certs.TLS, testPack.tlsPrivKey)
+			elevatedCert, err := tls.X509KeyPair(certs.TLS, testPack.privKey)
 			require.NoError(t, err)
-			elevatedClient, err := testPack.tlsServer.NewClientWithCert(elevatedCert)
-			require.NoError(t, err)
+			elevatedClient := testPack.tlsServer.NewClientWithCert(elevatedCert)
 
 			// should be able to list the expected nodes
 			nodes, err = elevatedClient.GetNodes(ctx, defaults.Namespace)
@@ -976,10 +974,9 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 
 			// renew elevated certs
 			newCerts, err := elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				SSHPublicKey: testPack.sshPubKey,
-				TLSPublicKey: testPack.tlsPubKey,
-				Username:     tc.requester,
-				Expires:      time.Now().Add(time.Hour).UTC(),
+				PublicKey: testPack.pubKey,
+				Username:  tc.requester,
+				Expires:   time.Now().Add(time.Hour).UTC(),
 				// no new access requests
 				AccessRequests: nil,
 			})
@@ -1016,10 +1013,9 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 
 			// ensure that identities with requests in the DENIED state can't reissue new certs.
 			_, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				SSHPublicKey: testPack.sshPubKey,
-				TLSPublicKey: testPack.tlsPubKey,
-				Username:     tc.requester,
-				Expires:      time.Now().Add(time.Hour).UTC(),
+				PublicKey: testPack.pubKey,
+				Username:  tc.requester,
+				Expires:   time.Now().Add(time.Hour).UTC(),
 				// no new access requests
 				AccessRequests: nil,
 			})
@@ -1038,13 +1034,11 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	t.Cleanup(cancel)
 
 	// Create the bot
-	adminClient, err := testPack.tlsServer.NewClient(authtest.TestAdmin())
+	adminClient, err := testPack.tlsServer.NewClient(TestAdmin())
 	require.NoError(t, err)
 	defer adminClient.Close()
 	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
 		Bot: &machineidv1pb.Bot{
-			Kind:    types.KindBot,
-			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: "request-approver",
 			},
@@ -1060,26 +1054,25 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 
 	// Use the bot user to generate some certs using role impersonation.
 	// This mimics what the bot actually does.
-	botClient, err := testPack.tlsServer.NewClient(authtest.TestUser(bot.Status.UserName))
+	botClient, err := testPack.tlsServer.NewClient(TestUser(bot.Status.UserName))
 	require.NoError(t, err)
 	defer botClient.Close()
 	certRes, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		Username:     bot.Status.UserName,
-		TLSPublicKey: testPack.tlsPubKey,
-		Expires:      time.Now().Add(time.Hour),
+		Username:  bot.Status.UserName,
+		PublicKey: testPack.pubKey,
+		Expires:   time.Now().Add(time.Hour),
 
 		RoleRequests:    []string{"admins"},
 		UseRoleRequests: true,
 	})
 	require.NoError(t, err)
-	tlsCert, err := tls.X509KeyPair(certRes.TLS, testPack.tlsPrivKey)
+	tlsCert, err := tls.X509KeyPair(certRes.TLS, testPack.privKey)
 	require.NoError(t, err)
-	impersonatedBotClient, err := testPack.tlsServer.NewClientWithCert(tlsCert)
-	require.NoError(t, err)
+	impersonatedBotClient := testPack.tlsServer.NewClientWithCert(tlsCert)
 	defer impersonatedBotClient.Close()
 
 	// Create an access request for the bot to approve
-	requesterClient, err := testPack.tlsServer.NewClient(authtest.TestUser("requester"))
+	requesterClient, err := testPack.tlsServer.NewClient(TestUser("requester"))
 	require.NoError(t, err)
 	defer requesterClient.Close()
 	accessRequest, err := services.NewAccessRequest("requester", "admins")
@@ -1146,7 +1139,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		require.NoError(t, testPack.tlsServer.Auth().UpsertAccessRequest(ctx, request))
 	}
 
-	requester := authtest.TestUser(username)
+	requester := TestUser(username)
 	requesterClient, err := testPack.tlsServer.NewClient(requester)
 	require.NoError(t, err)
 
@@ -1154,19 +1147,16 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	updateClientWithNewAndDroppedRequests := func(newRequests, dropRequests []string) newClientFunc {
 		return func(t *testing.T, clt *authclient.Client, _ *proto.Certs) (*authclient.Client, *proto.Certs) {
 			certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				SSHPublicKey:       testPack.sshPubKey,
-				TLSPublicKey:       testPack.tlsPubKey,
+				PublicKey:          testPack.pubKey,
 				Username:           username,
 				Expires:            time.Now().Add(time.Hour).UTC(),
 				AccessRequests:     newRequests,
 				DropAccessRequests: dropRequests,
 			})
 			require.NoError(t, err)
-			tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.tlsPrivKey)
+			tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.privKey)
 			require.NoError(t, err)
-			client, err := testPack.tlsServer.NewClientWithCert(tlsCert)
-			require.NoError(t, err)
-			return client, certs
+			return testPack.tlsServer.NewClientWithCert(tlsCert), certs
 		}
 	}
 	applyAccessRequests := func(newRequests ...string) newClientFunc {
@@ -1179,8 +1169,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		return func(t *testing.T, clt *authclient.Client, certs *proto.Certs) (*authclient.Client, *proto.Certs) {
 			// assert that this request fails
 			_, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				SSHPublicKey:   testPack.sshPubKey,
-				TLSPublicKey:   testPack.tlsPubKey,
+				PublicKey:      testPack.pubKey,
 				Username:       username,
 				Expires:        time.Now().Add(time.Hour).UTC(),
 				AccessRequests: reqs,
@@ -1301,6 +1290,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			expectAccessRequests: []string{adminRequest.GetName()},
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			client := requesterClient
@@ -1335,7 +1325,7 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 	require.NoError(t, err)
 
 	// Create a client with the old set of roles.
-	clt, err := testPack.tlsServer.NewClient(authtest.TestUser(username))
+	clt, err := testPack.tlsServer.NewClient(TestUser(username))
 	require.NoError(t, err)
 
 	// Add a new role to the user on the server.
@@ -1344,8 +1334,7 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 	require.NoError(t, err)
 
 	certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey:       testPack.sshPubKey,
-		TLSPublicKey:       testPack.tlsPubKey,
+		PublicKey:          testPack.pubKey,
 		Username:           username,
 		Expires:            time.Now().Add(time.Hour).UTC(),
 		DropAccessRequests: []string{"bogus-request-id"},
@@ -1409,7 +1398,7 @@ func checkCerts(t *testing.T,
 func TestCreateSuggestions(t *testing.T) {
 	t.Parallel()
 
-	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -1454,7 +1443,7 @@ func TestPromotedRequest(t *testing.T) {
 	testPack := newAccessRequestTestPack(ctx, t)
 
 	const requesterUserName = "requester"
-	requester := authtest.TestUser(requesterUserName)
+	requester := TestUser(requesterUserName)
 	requesterClient, err := testPack.tlsServer.NewClient(requester)
 	require.NoError(t, err)
 
@@ -1470,7 +1459,7 @@ func TestPromotedRequest(t *testing.T) {
 
 	const adminUser = "admin"
 	approveAs := func(reviewerName string) (types.AccessRequest, error) {
-		reviewer := authtest.TestUser(reviewerName)
+		reviewer := TestUser(reviewerName)
 		reviewerClient, err := testPack.tlsServer.NewClient(reviewer)
 		require.NoError(t, err)
 
@@ -1564,17 +1553,11 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 		return req
 	}
 
-	type testAccessListOwner struct {
-		name string
-		kind string
-	}
-
-	mustAccessListWithMembershipKind := func(name string, owners ...testAccessListOwner) *accesslist.AccessList {
+	mustAccessList := func(name string, owners ...string) *accesslist.AccessList {
 		ownersSpec := make([]accesslist.Owner, len(owners))
 		for i, owner := range owners {
 			ownersSpec[i] = accesslist.Owner{
-				Name:           owner.name,
-				MembershipKind: owner.kind,
+				Name: owner,
 			}
 		}
 		accessList, err := accesslist.NewAccessList(header.Metadata{
@@ -1593,22 +1576,10 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 		return accessList
 	}
 
-	mustAccessList := func(name string, owners ...string) *accesslist.AccessList {
-		ownersStruct := make([]testAccessListOwner, 0, len(owners))
-		for _, owner := range owners {
-			ownersStruct = append(ownersStruct, testAccessListOwner{owner, accesslist.MembershipKindUser})
-		}
-		return mustAccessListWithMembershipKind(name, ownersStruct...)
-	}
-
 	tests := []struct {
 		name              string
 		req               types.AccessRequest
 		accessLists       []*accesslist.AccessList
-		accessListMembers []struct {
-			Header header.Metadata
-			Spec   accesslist.AccessListMemberSpec
-		}
 		promotions        *types.AccessRequestAllowedPromotions
 		expectedReviewers []string
 	}{
@@ -1634,94 +1605,6 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 			expectedReviewers: []string{"rev1", "rev2", "owner1", "owner2", "owner3"},
 		},
 		{
-			name: "with ownership through nested list",
-			req:  mustRequest("rev1"),
-			accessLists: []*accesslist.AccessList{
-				mustAccessList("nested1", "owner1"),
-				mustAccessListWithMembershipKind(
-					"nested",
-					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
-					testAccessListOwner{"nested1", accesslist.MembershipKindList},
-				),
-				mustAccessListWithMembershipKind(
-					"root",
-					testAccessListOwner{"owner1", accesslist.MembershipKindUser},
-					testAccessListOwner{"nested", accesslist.MembershipKindList},
-				),
-			},
-			accessListMembers: []struct {
-				Header header.Metadata
-				Spec   accesslist.AccessListMemberSpec
-			}{
-				{
-					Header: header.Metadata{
-						Name: "nested",
-					},
-					Spec: accesslist.AccessListMemberSpec{
-						AccessList:     "root",
-						Name:           "nested",
-						Joined:         clock.Now().UTC(),
-						Expires:        clock.Now().UTC().Add(24 * time.Hour),
-						Reason:         "because",
-						AddedBy:        "owner1",
-						MembershipKind: accesslist.MembershipKindList,
-					},
-				},
-				{
-					Header: header.Metadata{
-						Name: "nested1",
-					},
-					Spec: accesslist.AccessListMemberSpec{
-						AccessList:     "nested",
-						Name:           "nested1",
-						Joined:         clock.Now().UTC(),
-						Expires:        clock.Now().UTC().Add(24 * time.Hour),
-						Reason:         "because",
-						AddedBy:        "owner1",
-						MembershipKind: accesslist.MembershipKindList,
-					},
-				},
-				{
-					Header: header.Metadata{
-						Name: "owner2",
-					},
-					Spec: accesslist.AccessListMemberSpec{
-						AccessList:     "nested",
-						Name:           "owner2",
-						Joined:         clock.Now().UTC(),
-						Expires:        clock.Now().UTC().Add(24 * time.Hour),
-						Reason:         "because",
-						AddedBy:        "owner1",
-						MembershipKind: accesslist.MembershipKindUser,
-					},
-				},
-				{
-					Header: header.Metadata{
-						Name: "owner3",
-					},
-					Spec: accesslist.AccessListMemberSpec{
-						AccessList:     "nested1",
-						Name:           "owner3",
-						Joined:         clock.Now().UTC(),
-						Expires:        clock.Now().UTC().Add(24 * time.Hour),
-						Reason:         "because",
-						AddedBy:        "owner1",
-						MembershipKind: accesslist.MembershipKindUser,
-					},
-				},
-			},
-			promotions: &types.AccessRequestAllowedPromotions{
-				Promotions: []*types.AccessRequestAllowedPromotion{
-					{AccessListName: "root"},
-					{AccessListName: "nested"},
-				},
-			},
-			// owner1 is owner of 'root', should be included
-			// owner2 is member of 'nested', which is owner of 'root', should be included via inheritance
-			// owner3 is member of 'nested1', which is member of 'nested', which is owner of 'root', should be included via two levels of inheritance
-			expectedReviewers: []string{"rev1", "owner1", "owner2", "owner3"},
-		},
-		{
 			name: "no promotions",
 			req:  mustRequest("rev1", "rev2"),
 			accessLists: []*accesslist.AccessList{
@@ -1737,6 +1620,7 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			mem, err := memory.New(memory.Config{})
@@ -1749,17 +1633,9 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 				_, err = accessLists.UpsertAccessList(ctx, accessList)
 				require.NoError(t, err)
 			}
-			if test.accessListMembers != nil {
-				for _, memberData := range test.accessListMembers {
-					member, err := accesslist.NewAccessListMember(memberData.Header, memberData.Spec)
-					require.NoError(t, err)
-					_, err = accessLists.UpsertAccessListMember(ctx, member)
-					require.NoError(t, err)
-				}
-			}
 
 			req := test.req.Copy()
-			auth.UpdateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, test.promotions)
+			updateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, test.promotions)
 			require.ElementsMatch(t, test.expectedReviewers, req.GetSuggestedReviewers())
 		})
 	}
@@ -1777,7 +1653,7 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 		{
 			name:      "too far in the future",
 			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time is too far in the future")
 			},
@@ -1785,7 +1661,7 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
 			},
@@ -1793,6 +1669,7 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req, err := services.NewAccessRequest(s.requesterUserName, "admins")
 			require.NoError(t, err)
@@ -1816,7 +1693,7 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		{
 			name:      "too far in the future",
 			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time is too far in the future")
 			},
@@ -1824,7 +1701,7 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
 			},
@@ -1843,6 +1720,7 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			review.Review.AssumeStartTime = &tc.startTime
 			resp, err := s.testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, review)
@@ -1866,7 +1744,7 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		{
 			name:      "too far in the future",
 			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time is too far in the future")
 			},
@@ -1874,7 +1752,7 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
 			},
@@ -1890,6 +1768,7 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		State:     types.RequestState_APPROVED,
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			update.AssumeStartTime = &tc.startTime
 			err := s.testPack.tlsServer.Auth().SetAccessRequestState(ctx, update)
@@ -1925,7 +1804,7 @@ func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 	testPack := newAccessRequestTestPack(ctx, t)
 
 	const requesterUserName = "requester"
-	requester := authtest.TestUser(requesterUserName)
+	requester := TestUser(requesterUserName)
 	requesterClient, err := testPack.tlsServer.NewClient(requester)
 	require.NoError(t, err)
 

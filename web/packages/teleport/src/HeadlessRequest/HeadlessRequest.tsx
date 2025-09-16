@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, rotate360 } from 'design';
@@ -47,7 +47,7 @@ export function HeadlessRequest() {
     };
 
     auth
-      .headlessSsoGet(requestId)
+      .headlessSSOGet(requestId)
       .then(setIpAddress)
       .catch(e => {
         setState({
@@ -106,7 +106,7 @@ export function HeadlessRequest() {
         setState({ ...state, status: 'in-progress' });
 
         auth
-          .headlessSsoAccept(requestId)
+          .headlessSSOAccept(requestId)
           .then(setSuccess)
           .catch(e => {
             setState({

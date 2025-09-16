@@ -20,7 +20,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -32,7 +31,6 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // handleX11Forwarding handles X11 channel requests for the given server session.
@@ -213,8 +211,7 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Sess
 			}
 		}()
 
-		// Proxy the connection until the connection is closed or the request is canceled.
-		if err := utils.ProxyConn(ctx, xconn, xchan); err != nil && !errors.Is(err, context.Canceled) {
+		if err := x11.Forward(ctx, xconn, xchan); err != nil {
 			slog.DebugContext(ctx, "Encountered error during X11 forwarding", "err", err)
 		}
 	})

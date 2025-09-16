@@ -16,38 +16,72 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { GroupBase, OptionsOrGroups } from 'react-select';
-
+import { Box, LabelInput } from 'design';
+import { useRule } from 'shared/components/Validation';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import Select, {
   AsyncProps as AsyncSelectProps,
-  Option,
   SelectAsync,
   Props as SelectProps,
 } from '../Select';
-import {
-  FieldProps,
-  FieldSelectWrapper,
-  resolveUndefinedOptions,
-  splitSelectProps,
-} from './shared';
+import { defaultRule, LabelTip } from './shared';
 
-export function FieldSelect<
-  Opt = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Opt> = GroupBase<Opt>,
->(props: SelectProps<Opt, IsMulti, Group> & FieldProps<Opt, IsMulti>) {
-  const { base, wrapper, others } = splitSelectProps<
-    Opt,
-    IsMulti,
-    Group,
-    typeof props
-  >(props, {});
+export function FieldSelect({
+  components,
+  label,
+  labelTip,
+  value,
+  options,
+  name,
+  onChange,
+  placeholder,
+  maxMenuHeight,
+  isClearable,
+  isMulti,
+  menuPosition,
+  rule = defaultRule,
+  stylesConfig,
+  isSearchable = false,
+  isSimpleValue = false,
+  autoFocus = false,
+  isDisabled = false,
+  elevated = false,
+  inputId = 'select',
+  ...styles
+}: SelectProps & FieldProps) {
+  const { valid, message } = useRule(rule(value));
+  const hasError = Boolean(!valid);
+  const labelText = hasError ? message : label;
   return (
-    <FieldSelectWrapper {...wrapper} {...others}>
-      <Select<Opt, IsMulti, Group> {...base} />
-    </FieldSelectWrapper>
+    <Box mb="4" {...styles}>
+      {label && (
+        <LabelInput htmlFor={inputId} hasError={hasError}>
+          {labelText}
+          {labelTip && <LabelTip text={labelTip} />}
+        </LabelInput>
+      )}
+      <Select
+        components={components}
+        stylesConfig={stylesConfig}
+        inputId={inputId}
+        name={name}
+        menuPosition={menuPosition}
+        hasError={hasError}
+        isSimpleValue={isSimpleValue}
+        isSearchable={isSearchable}
+        isClearable={isClearable}
+        value={value}
+        onChange={onChange}
+        options={options}
+        maxMenuHeight={maxMenuHeight}
+        placeholder={placeholder}
+        isMulti={isMulti}
+        autoFocus={autoFocus}
+        isDisabled={isDisabled}
+        elevated={elevated}
+      />
+    </Box>
   );
 }
 
@@ -64,85 +98,91 @@ export default FieldSelect;
  * Note: It is not possible to re-fetch the initial call for options.
  * ReactSelect fetches them when the component mounts and then keeps in memory.
  */
-export function FieldSelectAsync<
-  Opt = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Opt> = GroupBase<Opt>,
->(
-  props: AsyncSelectProps<Opt, IsMulti, Group> &
-    FieldProps<Opt, IsMulti> & {
-      /**
-       * A function that sets the initial options, after the initial options are
-       * finished fetching (triggered by when user clicks on the select component
-       * that renders the dropdown menu).
-       *
-       * Select async doesn't provide an option for "on menu open, load options".
-       * There is only "on render load, or provide default array of options".
-       * There are some cases where there can be many select async components rendered
-       * (eg: bulk adding kube clusters to an access request) and users may not be
-       * required to select anything from the select async dropdown, so this provides
-       * a way to load options only on need (menu open) and save wasteful api calls.
-       *
-       * Requires:
-       *   - base.onMenuOpen to be defined
-       *   - defaultOptions to be an array
-       */
-      initOptionsOnMenuOpen?(options: OptionsOrGroups<Opt, Group>): void;
-    }
-) {
-  const { base, wrapper, others } = splitSelectProps<
-    Opt,
-    IsMulti,
-    Group,
-    typeof props
-  >(props, {
-    defaultOptions: true,
-  });
-  const { defaultOptions, loadOptions, initOptionsOnMenuOpen, ...styles } =
-    others;
-  const [attempt, runAttempt] = useAsync(resolveUndefinedOptions(loadOptions));
-
-  async function onMenuOpen() {
-    if (!base.onMenuOpen) return;
-
-    base.onMenuOpen();
-
-    if (
-      initOptionsOnMenuOpen &&
-      defaultOptions &&
-      Array.isArray(defaultOptions) &&
-      defaultOptions.length == 0
-    ) {
-      const [options, error] = await runAttempt('', null);
-      if (!error) {
-        return others.initOptionsOnMenuOpen(options);
-      }
-    }
-  }
-
+export function FieldSelectAsync({
+  components,
+  label,
+  labelTip,
+  value,
+  name,
+  onChange,
+  placeholder,
+  maxMenuHeight,
+  isClearable,
+  isMulti,
+  menuPosition,
+  rule = defaultRule,
+  stylesConfig,
+  isSearchable,
+  isSimpleValue,
+  autoFocus,
+  isDisabled,
+  elevated,
+  noOptionsMessage,
+  loadOptions,
+  inputId = 'select',
+  onMenuClose,
+  onMenuOpen,
+  defaultOptions,
+  closeMenuOnSelect = true,
+  hideSelectedOptions = true,
+  ...styles
+}: AsyncSelectProps & FieldProps) {
+  const [attempt, runAttempt] = useAsync(loadOptions);
+  const { valid, message } = useRule(rule(value));
+  const hasError = Boolean(!valid);
+  const labelText = hasError ? message : label;
   return (
-    <FieldSelectWrapper {...wrapper} {...styles}>
-      <SelectAsync<Opt, IsMulti, Group>
-        {...base}
-        onMenuOpen={onMenuOpen}
-        defaultOptions={defaultOptions}
-        loadOptions={async (value, callback) => {
-          const [options, error] = await runAttempt(value, callback);
+    <Box mb="4" {...styles}>
+      <LabelInput htmlFor={inputId} hasError={hasError}>
+        {labelText}
+        {labelTip && <LabelTip text={labelTip} />}
+      </LabelInput>
+      <SelectAsync
+        components={components}
+        stylesConfig={stylesConfig}
+        inputId={inputId}
+        name={name}
+        menuPosition={menuPosition}
+        hasError={hasError}
+        isSimpleValue={isSimpleValue}
+        isSearchable={isSearchable}
+        isClearable={isClearable}
+        value={value}
+        onChange={onChange}
+        loadOptions={async (input, option) => {
+          const [options, error] = await runAttempt(input, option);
           if (error) {
             return [];
           }
           return options;
         }}
-        noOptionsMessage={obj => {
+        noOptionsMessage={() => {
           if (attempt.status === 'error') {
             return `Could not load options: ${attempt.statusText}`;
           }
-          if (attempt.status === 'processing') {
-            return 'Loading...';
-          }
-          return base.noOptionsMessage?.(obj) ?? 'No options';
+          return noOptionsMessage();
         }}
+        maxMenuHeight={maxMenuHeight}
+        defaultOptions={defaultOptions ? defaultOptions : true}
+        placeholder={placeholder}
+        isMulti={isMulti}
+        autoFocus={autoFocus}
+        isDisabled={isDisabled}
+        elevated={elevated}
+        onMenuClose={onMenuClose}
+        onMenuOpen={onMenuOpen}
+        closeMenuOnSelect={closeMenuOnSelect}
+        hideSelectedOptions={hideSelectedOptions}
       />
-    </FieldSelectWrapper>
+    </Box>
   );
 }
+
+type FieldProps = {
+  autoFocus?: boolean;
+  label?: string;
+  labelTip?: string;
+  rule?: (options: unknown) => () => unknown;
+  // styles
+  [key: string]: any;
+};

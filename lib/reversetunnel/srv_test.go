@@ -30,6 +30,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -41,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func newCAAndSigner(t *testing.T, caType types.CertAuthType, name string) (types.CertAuthority, ssh.Signer) {
@@ -81,7 +81,7 @@ func TestServerKeyAuth(t *testing.T) {
 	leafUserCA, leafUserCASigner := newCAAndSigner(t, types.UserCA, "leaf")
 
 	s := &server{
-		logger: logtest.NewLogger(),
+		log:    utils.NewLoggerForTests(),
 		Config: Config{Clock: clockwork.NewRealClock(), ClusterName: "root"},
 		localAccessPoint: mockAccessPoint{
 			cas: []types.CertAuthority{hostCA, userCA, leafHostCA, leafUserCA},
@@ -347,8 +347,8 @@ func TestOnlyAuthDial(t *testing.T) {
 	badListenerAddr := acceptAndCloseListener(t, true)
 
 	srv := &server{
-		logger: logtest.NewLogger(),
-		ctx:    ctx,
+		log: logrus.StandardLogger(),
+		ctx: ctx,
 		Config: Config{
 			LocalAuthAddresses: []string{goodListenerAddr},
 		},
@@ -366,6 +366,7 @@ func TestOnlyAuthDial(t *testing.T) {
 		"RemoteAuthServer": constants.RemoteAuthServer,
 		"ArbitraryDial":    badListenerAddr,
 	} {
+		addr := addr
 		t.Run(name, func(t *testing.T) {
 			ch, reqC, err := clientConn.conn.OpenChannel(constants.ChanTransport, nil)
 			require.NoError(t, err)

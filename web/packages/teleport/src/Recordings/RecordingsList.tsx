@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonPrimary } from 'design';
+import React from 'react';
+
+import { ButtonBorder } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
 import { dateTimeMatcher } from 'design/utils/match';
@@ -68,7 +70,7 @@ export default function RecordingsList(props: Props) {
           key: 'createdDate',
           headerText: 'Created (UTC)',
           isSortable: true,
-          render: ({ createdDate }) => <Cell>{createdDate.toISOString()}</Cell>,
+          render: ({ createdDate }) => <Cell>{createdDate}</Cell>,
         },
         {
           key: 'sid',
@@ -139,7 +141,8 @@ const renderPlayCell = (
   );
   return (
     <Cell align="right">
-      <ButtonPrimary
+      <ButtonBorder
+        kind="primary"
         as="a"
         href={url}
         width="80px"
@@ -147,7 +150,7 @@ const renderPlayCell = (
         size="small"
       >
         Play
-      </ButtonPrimary>
+      </ButtonBorder>
     </Cell>
   );
 };

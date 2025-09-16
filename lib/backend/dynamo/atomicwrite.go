@@ -19,22 +19,22 @@
 package dynamo
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/backendmetrics"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -58,12 +58,12 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 
 	tableName := aws.String(b.TableName)
 
-	var txnItems []types.TransactWriteItem
+	var txnItems []*dynamodb.TransactWriteItem
 	var includesPut bool
 
 	for _, ca := range condacts {
 		var condExpr *string
-		var exprAttrValues map[string]types.AttributeValue
+		var exprAttrValues map[string]*dynamodb.AttributeValue
 
 		switch ca.Condition.Kind {
 		case backend.KindWhatever:
@@ -83,8 +83,8 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 			default:
 				// revision is expected to be present and well-defined
 				condExpr = &revisionExpr
-				exprAttrValues = map[string]types.AttributeValue{
-					":rev": &types.AttributeValueMemberS{Value: ca.Condition.Revision},
+				exprAttrValues = map[string]*dynamodb.AttributeValue{
+					":rev": {S: aws.String(ca.Condition.Revision)},
 				}
 			}
 		default:
@@ -93,11 +93,11 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 
 		fullPath := prependPrefix(ca.Key)
 
-		var txnItem types.TransactWriteItem
+		var txnItem dynamodb.TransactWriteItem
 
 		switch ca.Action.Kind {
 		case backend.KindNop:
-			av, err := attributevalue.MarshalMap(keyLookup{
+			av, err := dynamodbattribute.MarshalMap(keyLookup{
 				HashKey:  hashKey,
 				FullPath: fullPath,
 			})
@@ -105,7 +105,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				return "", trace.Wrap(err)
 			}
 
-			txnItem.ConditionCheck = &types.ConditionCheck{
+			txnItem.ConditionCheck = &dynamodb.ConditionCheck{
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
 				Key:                       av,
@@ -125,19 +125,19 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				r.Expires = aws.Int64(ca.Action.Item.Expires.UTC().Unix())
 			}
 
-			av, err := attributevalue.MarshalMap(r)
+			av, err := dynamodbattribute.MarshalMap(r)
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
 
-			txnItem.Put = &types.Put{
+			txnItem.Put = &dynamodb.Put{
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
 				Item:                      av,
 				TableName:                 tableName,
 			}
 		case backend.KindDelete:
-			av, err := attributevalue.MarshalMap(keyLookup{
+			av, err := dynamodbattribute.MarshalMap(keyLookup{
 				HashKey:  hashKey,
 				FullPath: fullPath,
 			})
@@ -145,7 +145,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				return "", trace.Wrap(err)
 			}
 
-			txnItem.Delete = &types.Delete{
+			txnItem.Delete = &dynamodb.Delete{
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
 				Key:                       av,
@@ -156,7 +156,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 			return "", trace.BadParameter("unexpected action kind %v in conditional action against key %q", ca.Action.Kind, ca.Key)
 		}
 
-		txnItems = append(txnItems, txnItem)
+		txnItems = append(txnItems, &txnItem)
 	}
 
 	// dynamo cancels overlapping transactions without evaluating their conditions. the AtomicWrite API is expected to only fail
@@ -166,7 +166,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	// retry is lazily initialized as-needed.
 	var retry *retryutils.RetryV2
 TxnLoop:
-	for i := range maxTxnAttempts {
+	for i := 0; i < maxTxnAttempts; i++ {
 		if i != 0 {
 			if retry == nil {
 				// ideally we want one of the concurrently canceled transactions to retry immediately, with the rest holding back. since we
@@ -177,7 +177,7 @@ TxnLoop:
 					First:  time.Millisecond * 16,
 					Driver: retryutils.NewExponentialDriver(time.Millisecond * 16),
 					Max:    time.Millisecond * 1024,
-					Jitter: retryutils.FullJitter,
+					Jitter: utils.FullJitter,
 				})
 
 				if err != nil {
@@ -193,14 +193,14 @@ TxnLoop:
 		}
 
 		// execute the transaction
-		_, err = b.svc.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{
+		_, err = b.svc.TransactWriteItemsWithContext(ctx, &dynamodb.TransactWriteItemsInput{
 			TransactItems: txnItems,
 		})
 		if err != nil {
-			var txnErr *types.TransactionCanceledException
+			txnErr := &dynamodb.TransactionCanceledException{}
 			if !errors.As(err, &txnErr) {
 				if s := err.Error(); strings.Contains(s, "AccessDenied") && strings.Contains(s, "dynamodb:ConditionCheckItem") {
-					b.logger.WarnContext(ctx, "AtomicWrite failed with error that may indicate dynamodb is missing the required dynamodb:ConditionCheckItem permission (this permission is now required for teleport v16 and later). Consider updating your IAM policy to include this permission.", "error", err)
+					b.Warnf("AtomicWrite failed with error that may indicate dynamodb is missing the required dynamodb:ConditionCheckItem permission (this permission is now required for teleport v16 and later). Consider updating your IAM policy to include this permission.  Original error: %v", err)
 					return "", trace.Errorf("teleport is missing required AWS permission dynamodb:ConditionCheckItem, please contact your administrator to update permissions")
 				}
 				return "", trace.Errorf("unexpected error during atomic write: %v", err)
@@ -213,14 +213,15 @@ TxnLoop:
 			var conditionFailed bool
 			var txnConflict bool
 			for _, reason := range txnErr.CancellationReasons {
-				code := aws.ToString(reason.Code)
-				switch types.BatchStatementErrorCodeEnum(code) {
-				case types.BatchStatementErrorCodeEnumConditionalCheckFailed:
-					conditionFailed = true
-				case types.BatchStatementErrorCodeEnumTransactionConflict:
-					txnConflict = true
-				case "":
+				if reason.Code == nil {
 					continue
+				}
+
+				switch *reason.Code {
+				case dynamodb.BatchStatementErrorCodeEnumConditionalCheckFailed:
+					conditionFailed = true
+				case dynamodb.BatchStatementErrorCodeEnumTransactionConflict:
+					txnConflict = true
 				}
 			}
 
@@ -251,13 +252,13 @@ TxnLoop:
 		}
 
 		if i > 0 {
-			backendmetrics.AtomicWriteContention.WithLabelValues(teleport.ComponentDynamoDB).Add(float64(i))
+			backend.AtomicWriteContention.WithLabelValues(teleport.ComponentDynamoDB).Add(float64(i))
 		}
 
 		if n := i + 1; n > 2 {
 			// if we retried more than once, txn experienced non-trivial conflict and we should warn about it. Infrequent warnings of this kind
 			// are nothing to be concerned about, but high volumes may indicate that an automatic process is creating excessive conflicts.
-			b.logger.WarnContext(ctx, "AtomicWrite retried due to dynamodb transaction conflicts. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.", "retry_attempts", n)
+			b.Warnf("AtomicWrite retried %d times due to dynamodb transaction conflicts. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.", n)
 		}
 
 		if !includesPut {
@@ -268,12 +269,12 @@ TxnLoop:
 		return revision, nil
 	}
 
-	var keys []string
+	var keys [][]byte
 	for _, ca := range condacts {
-		keys = append(keys, ca.Key.String())
+		keys = append(keys, ca.Key)
 	}
 
-	b.logger.ErrorContext(ctx, "AtomicWrite failed, dynamodb transaction experienced too many conflicts", "keys", strings.Join(keys, ","))
+	b.Errorf("AtomicWrite failed, dynamodb transaction experienced too many conflicts. keys=%s", bytes.Join(keys, []byte(",")))
 
 	return "", trace.Errorf("dynamodb transaction experienced too many conflicts")
 }

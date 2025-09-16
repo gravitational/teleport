@@ -21,10 +21,7 @@ import (
 	"log"
 	"os"
 	"path"
-	"strings"
 	"text/template"
-
-	"github.com/gravitational/teleport/integrations/terraform/gen/strcase"
 )
 
 // payload represents template payload
@@ -41,9 +38,7 @@ type payload struct {
 	GetMethod string
 	// CreateMethod represents API create method name
 	CreateMethod string
-	// UpdateMethod represents the API update method name.
-	// On services without conditional updates, you can use the Update method.
-	// On services with conditional updates, you must use the Upsert variant.
+	// CreateMethod represents API update method name
 	UpdateMethod string
 	// DeleteMethod represents API reset method used in singular resources
 	DeleteMethod string
@@ -53,8 +48,6 @@ type payload struct {
 	WithSecrets string
 	// ID id value on create and import
 	ID string
-	// IDPrefix is optional for resources which are stored with an prefix in the backend.
-	IDPrefix string
 	// RandomMetadataName indicates that Metadata.Name must be generated (supported by plural resources only)
 	RandomMetadataName bool
 	// UUIDMetadataName functions similar to RandomMetadataName but generates UUID instead of
@@ -95,12 +88,6 @@ type payload struct {
 	WithNonce bool
 	// ConvertPackagePath is the path of the package doing the conversion between protobuf and the go types.
 	ConvertPackagePath string
-	// ConvertToProtoFunc is the function converting the internal struct to the protobuf
-	// struct. Defaults to "ToProto" if empty.
-	ConvertToProtoFunc string
-	// ConvertFromProtoFunc is the function converting the protobuf struct to the internal
-	// struct. Defaults to "FromProto" if empty.
-	ConvertFromProtoFunc string
 	// PropagatedFields is a list of fields that must be copied from the
 	// existing resource when we're updating it. For example:
 	// "Spec.Audit.NextAuditDate" in AccessList resource
@@ -114,8 +101,6 @@ type payload struct {
 	ForceSetKind string
 	// GetCanReturnNil is used to check for nil returned value when doing a Get<Resource>.
 	GetCanReturnNil bool
-	// DefaultName is the default singleton resource name. This is currently only supported for 153 resources.
-	DefaultName string
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -165,9 +150,8 @@ var (
 		TypeName:               "AuthPreferenceV2",
 		VarName:                "authPreference",
 		GetMethod:              "GetAuthPreference",
-		CreateMethod:           "UpsertAuthPreference",
-		UpdateMethod:           "UpsertAuthPreference",
-		UpsertMethodArity:      2,
+		CreateMethod:           "SetAuthPreference",
+		UpdateMethod:           "SetAuthPreference",
 		DeleteMethod:           "ResetAuthPreference",
 		ID:                     `"auth_preference"`,
 		Kind:                   "cluster_auth_preference",
@@ -198,9 +182,8 @@ var (
 		TypeName:               "ClusterNetworkingConfigV2",
 		VarName:                "clusterNetworkingConfig",
 		GetMethod:              "GetClusterNetworkingConfig",
-		CreateMethod:           "UpsertClusterNetworkingConfig",
-		UpdateMethod:           "UpsertClusterNetworkingConfig",
-		UpsertMethodArity:      2,
+		CreateMethod:           "SetClusterNetworkingConfig",
+		UpdateMethod:           "SetClusterNetworkingConfig",
 		DeleteMethod:           "ResetClusterNetworkingConfig",
 		ID:                     `"cluster_networking_config"`,
 		Kind:                   "cluster_networking_config",
@@ -221,23 +204,6 @@ var (
 		Kind:                   "db",
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_database",
-		HasCheckAndSetDefaults: true,
-	}
-
-	dynamicWindowsDesktop = payload{
-		Name:                   "DynamicWindowsDesktop",
-		TypeName:               "DynamicWindowsDesktopV1",
-		VarName:                "desktop",
-		IfaceName:              "DynamicWindowsDesktop",
-		GetMethod:              "DynamicDesktopClient().GetDynamicWindowsDesktop",
-		CreateMethod:           "DynamicDesktopClient().CreateDynamicWindowsDesktop",
-		UpdateMethod:           "DynamicDesktopClient().UpsertDynamicWindowsDesktop",
-		DeleteMethod:           "DynamicDesktopClient().DeleteDynamicWindowsDesktop",
-		UpsertMethodArity:      2,
-		ID:                     `desktop.Metadata.Name`,
-		Kind:                   "dynamic_windows_desktop",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_dynamic_windows_desktop",
 		HasCheckAndSetDefaults: true,
 	}
 
@@ -305,6 +271,7 @@ var (
 		Kind:                   "token",
 		HasStaticID:            false,
 		SchemaPackage:          "token",
+		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/token",
 		TerraformResourceType:  "teleport_provision_token",
 		HasCheckAndSetDefaults: true,
 	}
@@ -330,9 +297,8 @@ var (
 		TypeName:               "SessionRecordingConfigV2",
 		VarName:                "sessionRecordingConfig",
 		GetMethod:              "GetSessionRecordingConfig",
-		CreateMethod:           "UpsertSessionRecordingConfig",
-		UpdateMethod:           "UpsertSessionRecordingConfig",
-		UpsertMethodArity:      2,
+		CreateMethod:           "SetSessionRecordingConfig",
+		UpdateMethod:           "SetSessionRecordingConfig",
 		DeleteMethod:           "ResetSessionRecordingConfig",
 		ID:                     `"session_recording_config"`,
 		Kind:                   "session_recording_config",
@@ -452,30 +418,6 @@ var (
 		PropagatedFields:       []string{"Spec.Audit.NextAuditDate"},
 	}
 
-	accessListMember = payload{
-		Name:                   "Member",
-		TypeName:               "Member",
-		VarName:                "accessListMember",
-		GetMethod:              "AccessListClient().GetStaticAccessListMember",
-		CreateMethod:           "AccessListClient().UpsertStaticAccessListMember",
-		UpsertMethodArity:      2,
-		UpdateMethod:           "AccessListClient().UpsertStaticAccessListMember",
-		DeleteMethod:           "AccessListClient().DeleteStaticAccessListMember",
-		IDPrefix:               "accessListMember.Spec.AccessList",
-		ID:                     "accessListMember.Header.Metadata.Name",
-		Kind:                   "access_list_member",
-		HasStaticID:            false,
-		SchemaPackage:          "schemav1",
-		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1",
-		ProtoPackage:           "accesslist",
-		ProtoPackagePath:       "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1",
-		TerraformResourceType:  "teleport_access_list_member",
-		ConvertPackagePath:     "github.com/gravitational/teleport/api/types/accesslist/convert/v1",
-		ConvertToProtoFunc:     "ToMemberProto",
-		ConvertFromProtoFunc:   "FromMemberProto",
-		HasCheckAndSetDefaults: true,
-	}
-
 	server = payload{
 		Name:                   "Server",
 		TypeName:               "ServerV2",
@@ -585,86 +527,6 @@ var (
 		// We import the package containing kinds, then use ForceSetKind.
 		ForceSetKind: `"workload_identity"`,
 	}
-
-	autoUpdateVersion = payload{
-		Name:                  "AutoUpdateVersion",
-		TypeName:              "AutoUpdateVersion",
-		VarName:               "autoUpdateVersion",
-		GetMethod:             "GetAutoUpdateVersion",
-		CreateMethod:          "CreateAutoUpdateVersion",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertAutoUpdateVersion",
-		DeleteMethod:          "DeleteAutoUpdateVersion",
-		ID:                    "autoUpdateVersion.Metadata.Name",
-		Kind:                  "autoupdate_version",
-		HasStaticID:           false,
-		ProtoPackage:          "autoupdatev1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1",
-		TerraformResourceType: "teleport_autoupdate_version",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindAutoUpdateVersion",
-		DefaultName:  "apitypes.MetaNameAutoUpdateVersion",
-	}
-
-	autoUpdateConfig = payload{
-		Name:                  "AutoUpdateConfig",
-		TypeName:              "AutoUpdateConfig",
-		VarName:               "autoUpdateConfig",
-		GetMethod:             "GetAutoUpdateConfig",
-		CreateMethod:          "CreateAutoUpdateConfig",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertAutoUpdateConfig",
-		DeleteMethod:          "DeleteAutoUpdateConfig",
-		ID:                    "autoUpdateConfig.Metadata.Name",
-		Kind:                  "autoupdate_config",
-		HasStaticID:           false,
-		ProtoPackage:          "autoupdatev1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/autoupdate/v1",
-		TerraformResourceType: "teleport_autoupdate_config",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindAutoUpdateConfig",
-		DefaultName:  "apitypes.MetaNameAutoUpdateConfig",
-	}
-
-	healthCheckConfig = payload{
-		Name:                  "HealthCheckConfig",
-		TypeName:              "HealthCheckConfig",
-		VarName:               "healthCheckConfig",
-		GetMethod:             "GetHealthCheckConfig",
-		CreateMethod:          "CreateHealthCheckConfig",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertHealthCheckConfig",
-		DeleteMethod:          "DeleteHealthCheckConfig",
-		ID:                    "healthCheckConfig.Metadata.Name",
-		Kind:                  "health_check_config",
-		HasStaticID:           false,
-		ProtoPackage:          "healthcheckconfigv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/healthcheckconfig/v1",
-		TerraformResourceType: "teleport_health_check_config",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindHealthCheckConfig",
-	}
 )
 
 func main() {
@@ -682,8 +544,6 @@ func genTFSchema() {
 	generateDataSource(clusterNetworking, singularDataSource)
 	generateResource(database, pluralResource)
 	generateDataSource(database, pluralDataSource)
-	generateResource(dynamicWindowsDesktop, pluralResource)
-	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
@@ -708,8 +568,6 @@ func genTFSchema() {
 	generateDataSource(oktaImportRule, pluralDataSource)
 	generateResource(accessList, pluralResource)
 	generateDataSource(accessList, pluralDataSource)
-	generateResource(accessListMember, pluralResource)
-	generateDataSource(accessListMember, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
 	generateResource(installer, pluralResource)
@@ -720,12 +578,6 @@ func genTFSchema() {
 	generateDataSource(staticHostUser, pluralDataSource)
 	generateResource(workloadIdentity, pluralResource)
 	generateDataSource(workloadIdentity, pluralDataSource)
-	generateResource(autoUpdateVersion, singularResource)
-	generateDataSource(autoUpdateVersion, singularDataSource)
-	generateResource(autoUpdateConfig, singularResource)
-	generateDataSource(autoUpdateConfig, singularDataSource)
-	generateResource(healthCheckConfig, pluralResource)
-	generateDataSource(healthCheckConfig, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
@@ -743,9 +595,6 @@ func generate(p payload, tpl, outFile string) {
 	}
 
 	funcs := template.FuncMap{
-		"join":    strings.Join,
-		"split":   strings.Split,
-		"toSnake": toSnake,
 		"schemaImport": func(p payload) string {
 			if p.SchemaPackage == "tfschema" {
 				return `"` + p.SchemaPackagePath + `"`
@@ -777,9 +626,4 @@ func generate(p payload, tpl, outFile string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-// ToSnake converts a string to snake_case ignoring "." characters.
-func toSnake(s string) string {
-	return strcase.ToScreamingDelimited(s, '_', ".", false)
 }

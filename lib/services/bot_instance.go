@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/trace"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/api/types"
 )
 
 // BotInstance is an interface for the BotInstance service.
@@ -34,7 +33,7 @@ type BotInstance interface {
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances
-	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string) ([]*machineidv1.BotInstance, string, error)
 
 	// DeleteBotInstance
 	DeleteBotInstance(ctx context.Context, botName, instanceID string) error

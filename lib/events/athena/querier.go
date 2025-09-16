@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -36,13 +35,12 @@ import (
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/parquet-go/parquet-go"
-	"go.opentelemetry.io/otel"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
@@ -50,6 +48,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
@@ -102,7 +101,7 @@ type querierConfig struct {
 
 	clock  clockwork.Clock
 	awsCfg *aws.Config
-	logger *slog.Logger
+	logger log.FieldLogger
 
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
@@ -129,8 +128,9 @@ func (cfg *querierConfig) CheckAndSetDefaults() error {
 	}
 
 	if cfg.logger == nil {
-		cfg.logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
-
+		cfg.logger = log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.ComponentAthena,
+		})
 	}
 	if cfg.clock == nil {
 		cfg.clock = clockwork.NewRealClock()
@@ -149,17 +149,13 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &querier{
-		athenaClient: athena.NewFromConfig(*cfg.awsCfg, func(o *athena.Options) {
-			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		}),
-		s3Getter: s3.NewFromConfig(*cfg.awsCfg, func(o *s3.Options) {
-			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		}),
+		athenaClient:  athena.NewFromConfig(*cfg.awsCfg),
+		s3Getter:      s3.NewFromConfig(*cfg.awsCfg),
 		querierConfig: cfg,
 	}, nil
 }
 
-func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]events.EventFields, string, error) {
+func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	ctx, span := q.tracer.Start(
 		ctx,
 		"audit/SearchEvents",
@@ -250,32 +246,31 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 		}
 	}
 
-	evts := q.streamEventsFromChunk(ctx, date, req.Chunk)
+	events := q.streamEventsFromChunk(ctx, date, req.Chunk)
 
-	evts = stream.Skip(evts, int(cursor.pos))
+	events = stream.Skip(events, int(cursor.pos))
 
-	return stream.FilterMap(evts, func(e eventParquet) (*auditlogpb.ExportEventUnstructured, bool) {
+	return stream.FilterMap(events, func(e eventParquet) (*auditlogpb.ExportEventUnstructured, bool) {
 		cursor.pos++
-		var fields events.EventFields
-		if err := utils.FastUnmarshal([]byte(e.EventData), &fields); err != nil {
-			q.logger.WarnContext(ctx, "skipping export of audit event due to failed decoding",
-				"error", err,
-				"date", date,
-				"chunk", req.Chunk,
-				"pos", cursor.pos,
-			)
+		event, err := auditEventFromParquet(e)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+				"date":  date,
+				"chunk": req.Chunk,
+				"pos":   cursor.pos,
+			}).Warn("skipping export of audit event due to failed decoding")
 			return nil, false
 		}
 
-		unstructuredEvent, err := events.EventFieldsToUnstructured(fields)
+		unstructuredEvent, err := apievents.ToUnstructured(event)
 		if err != nil {
-			q.logger.WarnContext(ctx, "skipping export of audit event due to failed conversion to unstructured event",
-				"error", err,
-				"date", date,
-				"chunk", req.Chunk,
-				"pos", cursor.pos,
-			)
-
+			log.WithFields(log.Fields{
+				"error": err,
+				"date":  date,
+				"chunk": req.Chunk,
+				"pos":   cursor.pos,
+			}).Warn("skipping export of audit event due to failed conversion to unstructured event")
 			return nil, false
 		}
 
@@ -342,17 +337,17 @@ func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetE
 		if err != nil {
 			var nsk *s3types.NoSuchKey
 			if continuationToken == nil && errors.As(err, &nsk) {
-				q.logger.DebugContext(ctx, "no event chunks found for date",
-					"date", date,
-					"error", err,
-				)
+				log.WithFields(log.Fields{
+					"date":  date,
+					"error": err,
+				}).Debug("no event chunks found for date")
 				// no pages available
 				return nil, io.EOF
 			}
-			q.logger.ErrorContext(ctx, "failed to list event chunk objects in S3",
-				"error", err,
-				"date", date,
-			)
+			log.WithFields(log.Fields{
+				"error": err,
+				"date":  date,
+			}).Error("failed to list event chunk objects in S3")
 			return nil, trace.Wrap(err)
 		}
 
@@ -364,19 +359,19 @@ func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetE
 			fullKey := aws.ToString(obj.Key)
 
 			if !strings.HasSuffix(fullKey, ".parquet") {
-				q.logger.DebugContext(ctx, "skipping non-parquet s3 file",
-					"key", fullKey,
-					"date", date,
-				)
+				log.WithFields(log.Fields{
+					"key":  fullKey,
+					"date": date,
+				}).Debug("skipping non-parquet s3 file")
 				continue
 			}
 
 			chunkID := strings.TrimSuffix(strings.TrimPrefix(fullKey, prefix), ".parquet")
 			if chunkID == "" {
-				q.logger.WarnContext(ctx, "skipping empty parquet file name",
-					"key", fullKey,
-					"date", date,
-				)
+				log.WithFields(log.Fields{
+					"key":  fullKey,
+					"date": date,
+				}).Warn("skipping empty parquet file name")
 				continue
 			}
 
@@ -426,18 +421,17 @@ func (q *querier) readEventChunk(ctx context.Context, date, chunk string) ([]byt
 	if err != nil {
 		var nsk *s3types.NoSuchKey
 		if errors.As(err, &nsk) {
-			q.logger.DebugContext(ctx, "event chunk not found",
-				"date", date,
-				"chunk", chunk,
-				"error", err,
-			)
+			log.WithFields(log.Fields{
+				"date":  date,
+				"chunk": chunk,
+				"error": err,
+			}).Debug("event chunk not found")
 			return nil, trace.NotFound("event chunk %q not found", chunk)
 		}
-		q.logger.ErrorContext(ctx, "failed to get event chunk",
-			"error", err,
-			"date", date,
-		)
-
+		log.WithFields(log.Fields{
+			"error": err,
+			"date":  date,
+		}).Error("failed to get event chunk")
 		return nil, trace.Wrap(err)
 	}
 
@@ -469,8 +463,8 @@ func (q *querier) canOptimizePaginatedSearchCosts(ctx context.Context, startKey 
 // - 4. (2023-04-01 12:00, 2023-05-01 12:00) - 24*30h increase
 // - 5. (2023-04-01 12:00, 2023-08-01 12:00) - original range.
 // If any of steps returns enough data based on limit, we return immediately.
-func (q *querier) costOptimizedPaginatedSearch(ctx context.Context, req searchEventsRequest) ([]events.EventFields, string, error) {
-	var events []events.EventFields
+func (q *querier) costOptimizedPaginatedSearch(ctx context.Context, req searchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	var events []apievents.AuditEvent
 	var err error
 	var keyset string
 
@@ -480,10 +474,10 @@ func (q *querier) costOptimizedPaginatedSearch(ctx context.Context, req searchEv
 	for _, dateToMod := range prepareTimeRangesForCostOptimizedSearch(req.fromUTC, req.toUTC, req.order) {
 		if req.order == types.EventOrderAscending {
 			toUTC = dateToMod.UTC()
-			q.logger.DebugContext(ctx, "Doing cost optimized query by modifying to date", "requested_dated", req.toUTC, "modified_date", toUTC)
+			q.logger.Debugf("Doing cost optimized query by modifying to date (original %s, updated %s)", req.toUTC, toUTC)
 		} else {
 			fromUTC = dateToMod.UTC()
-			q.logger.DebugContext(ctx, "Doing cost optimized query by modifying from date", "requested_date", req.fromUTC, "modified_date", fromUTC)
+			q.logger.Debugf("Doing cost optimized query by modifying from date (original %s, updated %s)", req.fromUTC, fromUTC)
 
 		}
 		events, keyset, err = q.searchEvents(ctx, searchEventsRequest{
@@ -540,7 +534,7 @@ func prepareTimeRangesForCostOptimizedSearch(from, to time.Time, order types.Eve
 	return out
 }
 
-func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]events.EventFields, string, error) {
+func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	ctx, span := q.tracer.Start(
 		ctx,
 		"audit/SearchSessionEvents",
@@ -611,7 +605,7 @@ type searchEventsRequest struct {
 	sessionID      string
 }
 
-func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]events.EventFields, string, error) {
+func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	limit := req.limit
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
@@ -636,12 +630,12 @@ func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]
 
 	startTime := time.Now()
 	defer func() {
-		q.logger.DebugContext(ctx, "Executed events query on Athena",
-			"query", query,
-			"params", params,
-			"start_key", req.startKey,
-			"duration", time.Since(startTime),
-		)
+		q.logger.WithFields(log.Fields{
+			"query":    query,
+			"params":   params,
+			"startKey": req.startKey,
+			"duration": time.Since(startTime),
+		}).Debug("Executed events query on Athena")
 	}()
 	queryId, err := q.startQueryExecution(ctx, query, params)
 	if err != nil {
@@ -833,7 +827,7 @@ func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
 // fetchResults returns query results for given queryID.
 // Athena API allows only fetch 1000 results, so if client asks for more, multiple
 // calls to GetQueryResults will be necessary.
-func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, condition utils.FieldsCondition) ([]events.EventFields, string, error) {
+func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, condition utils.FieldsCondition) ([]apievents.AuditEvent, string, error) {
 	ctx, span := q.tracer.Start(
 		ctx,
 		"athena/fetchResults",
@@ -897,11 +891,11 @@ func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, c
 }
 
 type responseBuilder struct {
-	output []events.EventFields
+	output []apievents.AuditEvent
 	// totalSize is used to track size of output
 	totalSize int
 
-	logger *slog.Logger
+	logger log.FieldLogger
 }
 
 func (r *responseBuilder) endKeyset() (*keyset, error) {
@@ -916,10 +910,10 @@ func (r *responseBuilder) endKeyset() (*keyset, error) {
 	return endKeyset, trace.Wrap(err)
 }
 
-func eventToKeyset(in events.EventFields) (*keyset, error) {
+func eventToKeyset(in apievents.AuditEvent) (*keyset, error) {
 	var out keyset
 	var err error
-	out.t = in.GetTime(events.EventTime)
+	out.t = in.GetTime()
 	out.uid, err = uuid.Parse(in.GetID())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -950,7 +944,10 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 		if err := utils.FastUnmarshal([]byte(eventData), &fields); err != nil {
 			return false, trace.Wrap(err, "failed to unmarshal event, %s", eventData)
 		}
-
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
 		// TODO(tobiaszheller): encode filter as query params and remove it in next PRs.
 		if condition != nil && !condition(utils.Fields(fields)) {
 			continue
@@ -965,15 +962,15 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 				// page.
 				return true, nil
 			}
-
-			var err error
 			// A single event is larger than the max page size - the best we can
 			// do is try to trim it.
-			fields, err = trimToMaxSize(fields)
-			if err != nil {
-				return false, trace.Wrap(err, "failed to trim event")
-			}
+			event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
 
+			// Check to make sure the trimmed event is small enough.
+			fields, err = events.ToEventFields(event)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
 			marshalledEvent, err := utils.FastMarshal(&fields)
 			if err != nil {
 				return false, trace.Wrap(err, "failed to marshal event, %s", eventData)
@@ -983,7 +980,7 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 				// Exact rb.totalSize doesn't really matter since the response is
 				// already size limited.
 				rb.totalSize += events.MaxEventBytesInResponse
-				rb.output = append(rb.output, fields)
+				rb.output = append(rb.output, event)
 				return true, nil
 			}
 
@@ -1005,38 +1002,19 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 			// event that can possibly exceed the maximum size should implement
 			// TrimToMaxSize (until we can one day implement an API for storing
 			// and retrieving large events).
-			rb.logger.ErrorContext(context.Background(), "Failed to query event exceeding maximum response size.",
-				"event_type", fields.GetType(),
-				"event_id", fields.GetID(),
-				"event_size", len(eventData),
-			)
+			rb.logger.WithFields(log.Fields{
+				"event_type": event.GetType(),
+				"event_id":   event.GetID(),
+				"event_size": len(eventData),
+			}).Error("Failed to query event exceeding maximum response size.")
 			return true, trace.Errorf(
 				"%s event %s is %s and cannot be returned because it exceeds the maximum response size of %s",
-				fields.GetType(), fields.GetID(), humanize.IBytes(uint64(len(eventData))), humanize.IBytes(events.MaxEventBytesInResponse))
+				event.GetType(), event.GetID(), humanize.IBytes(uint64(len(eventData))), humanize.IBytes(events.MaxEventBytesInResponse))
 		}
 		rb.totalSize += len(eventData)
-		rb.output = append(rb.output, fields)
+		rb.output = append(rb.output, event)
 	}
 	return false, nil
-}
-
-// trimToMaxSize attempts to trim the event to fit into the maximum response size.
-// If the event is larger than the maximum response size, it will be trimmed
-// to the maximum size, which may result in loss of data.
-// Trimming requires unmarshalling the event to audit.Event and then
-// calling TrimToMaxSize on it.
-// This is not an efficient operation, but it is executed once per page,
-// so it should not be a problem in practice.
-func trimToMaxSize(fields events.EventFields) (events.EventFields, error) {
-	event, err := events.FromEventFields(fields)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
-
-	fields, err = events.ToEventFields(event)
-	return fields, trace.Wrap(err)
 }
 
 // keyset is a point at which the searchEvents pagination ended, and can be

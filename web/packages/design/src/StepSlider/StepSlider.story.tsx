@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import styled from 'styled-components';
+import React, { useState } from 'react';
 
-import { Box, ButtonLink, ButtonPrimary, Card, H1, H2, Text } from 'design';
+import { Box, ButtonLink, ButtonPrimary, Card, Text } from 'design';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import { NewFlow, StepComponentProps, StepSlider } from './StepSlider';
 
@@ -97,9 +97,9 @@ export const MultiFlowWheelSlider = (props: {
 function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-primary1">
-      <H1 mb={3} textAlign="center">
+      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         First Step
-      </H1>
+      </Text>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -132,9 +132,9 @@ function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
 function MainStep2({ next, prev, refCallback, changeFlow }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-primary2">
-      <H1 mb={3} textAlign="center">
+      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         Second Step
-      </H1>
+      </Text>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -193,9 +193,9 @@ function MainStep2({ next, prev, refCallback, changeFlow }: ViewProps) {
 function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-secondary1">
-      <H1 mb={3} textAlign="center">
+      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         Some Other Flow Title
-      </H1>
+      </Text>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -230,9 +230,9 @@ function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
 function FinalStep({ prev, refCallback }: ViewProps) {
   return (
     <OnboardCard ref={refCallback} data-testid="multi-final">
-      <H1 mb={3} textAlign="center">
+      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         Done Step
-      </H1>
+      </Text>
       <Text mb={3}>
         Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
         dolore eu fugiat nulla pariatur.
@@ -263,7 +263,9 @@ function Body1({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body1">
-      <H2 mb={3}>Step 1</H2>
+      <Text typography="h2" mb={3}>
+        Step 1
+      </Text>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua.
@@ -301,7 +303,9 @@ function Body2({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body2">
-      <H2 mb={3}>Step 2</H2>
+      <Text typography="h2" mb={3}>
+        Step 2
+      </Text>
       <Text mb={3}>
         Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
         tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
@@ -345,7 +349,9 @@ function Body3({
 }: StepComponentProps & { testProp: string }) {
   return (
     <Box p={6} ref={refCallback} data-testid="single-body3">
-      <H2 mb={3}>Step 3</H2>
+      <Text typography="h2" mb={3}>
+        Step 3
+      </Text>
       <Text mb={3}>
         Aenean et fringilla orci. Suspendisse ipsum arcu, molestie in quam eu,
         euismod euismod nibh. Cras scelerisque vulputate mattis. Mauris eget
@@ -380,21 +386,3 @@ function Body3({
     </Box>
   );
 }
-
-const OnboardCard = styled(Card)<{ center?: boolean }>`
-  width: 600px;
-  padding: ${props => props.theme.space[4]}px;
-  text-align: ${props => (props.center ? 'center' : 'left')};
-  margin: ${props => props.theme.space[3]}px auto
-    ${props => props.theme.space[3]}px auto;
-  overflow-y: auto;
-
-  @media screen and (max-width: 800px) {
-    width: auto;
-    margin: 20px;
-  }
-
-  @media screen and (max-height: 760px) {
-    height: calc(100vh - 250px);
-  }
-`;

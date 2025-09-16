@@ -17,8 +17,10 @@ limitations under the License.
 package sshutils
 
 import (
-	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"net"
 	"testing"
 	"time"
@@ -62,11 +64,19 @@ func (s *server) Stop() error {
 }
 
 func generateSigner(t *testing.T) ssh.Signer {
-	_, private, err := ed25519.GenerateKey(rand.Reader)
+	private, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	sshSigner, err := ssh.NewSignerFromSigner(private)
+
+	block := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(private),
+	}
+
+	privatePEM := pem.EncodeToMemory(block)
+	signer, err := ssh.ParsePrivateKey(privatePEM)
 	require.NoError(t, err)
-	return sshSigner
+
+	return signer
 }
 
 func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request) {

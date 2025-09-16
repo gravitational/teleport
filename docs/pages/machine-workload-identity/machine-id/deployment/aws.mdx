@@ -1,14 +1,13 @@
 ---
-title: Deploying tbot on AWS
+title: Deploying Machine ID on AWS
 description: How to install and configure Machine ID on an AWS EC2 instance
-labels:
+tags:
  - how-to
  - mwi
 ---
 
-This guide shows you how to deploy `tbot` on Amazon Web Services and connect it to your Teleport cluster.
-
-## How it works
+This guide explains how to deploy Machine ID on Amazon Web Services by running
+the `tbot` binary and joining it to your Teleport cluster.
 
 On AWS, virtual machines can be assigned an IAM role, which they can assume in
 order to request a signed document that includes information about the machine.
@@ -17,13 +16,15 @@ signed document from AWS using the assigned identity and send it to the Teleport
 Auth Service for verification. This allows the bot to join the cluster without
 the exchange of a long-lived secret.
 
-While this guide focuses on deploying `tbot` on an EC2 instance, it is also
+While this guide focuses on deploying Machine ID on an EC2 instance, it is also
 possible to use the `iam` join method with workloads running on an EKS
 Kubernetes cluster. To do so, you must configure [IAM Roles for Service Accounts
 (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
 for the cluster and the Kubernetes service account that will be used by the
 `tbot` pod. See the [Kubernetes platform guide](kubernetes.mdx) for further
 guidance on deploying Machine ID as a workload on Kubernetes.
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -114,8 +115,8 @@ outputs: []
 
 Replace:
 
-- `example.teleport.sh:443` with the address of your Teleport Proxy Service or
-  Auth Service. Prefer using the address of a Teleport Proxy Service instance.
+- `example.teleport.sh:443` with the address of your Teleport Proxy or
+  Auth Server. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)

@@ -32,8 +32,8 @@ import (
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/protobuf/proto"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -76,7 +76,7 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 	creds := insecure.NewCredentials()
 	if cfg.TLSConfig != nil {
 		tlsConfig = cfg.TLSConfig.Clone()
-		creds = credentials.NewTLS(tlsConfig)
+		creds = expcredentials.NewTLSWithALPNDisabled(tlsConfig)
 	}
 
 	c := &Collector{

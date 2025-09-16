@@ -29,7 +29,7 @@ import { Flex } from 'design';
 import { IconProps } from 'design/Icon/Icon';
 import { Attempt } from 'shared/hooks/useAsync';
 
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
 import { AddWindowEventListener } from '../SearchContext';
 
@@ -58,7 +58,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
     onBack,
     addWindowEventListener,
   } = props;
-  const activeItemRef = useRef<HTMLDivElement>(null);
+  const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const pickAndResetActiveItem = useCallback(
     (item: T) => {
@@ -166,7 +166,7 @@ export const NonInteractiveItem = styled.div`
     background-color: rgba(0, 158, 255, 0.4); // Accent/Link at 40%
   }
 
-  &:not(:last-of-type) {
+  :not(:last-of-type) {
     border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   }
 

@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -75,8 +74,7 @@ func setup(desktop types.WindowsDesktop) (*tlsca.Identity, *desktopSessionAudito
 			Heartbeat: HeartbeatConfig{
 				HostUUID: "test-host-id",
 			},
-			Clock:                clockwork.NewFakeClockAt(startTime),
-			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+			Clock: clockwork.NewFakeClockAt(startTime),
 		},
 		auditCache: newSharedDirectoryAuditCache(),
 	}
@@ -175,7 +173,7 @@ func TestSessionEndEvent(t *testing.T) {
 
 	id, audit := setup(testDesktop)
 
-	audit.clock.(*clockwork.FakeClock).Advance(30 * time.Second)
+	audit.clock.(clockwork.FakeClock).Advance(30 * time.Second)
 
 	endEvent := audit.makeSessionEnd(true)
 
@@ -286,6 +284,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 				DesktopAddr:   audit.desktop.GetAddr(),
 				DirectoryName: testDirName,
 				DirectoryID:   uint32(testDirectoryID),
+				DesktopName:   audit.desktop.GetName(),
 			}
 
 			expected := test.expected(baseEvent)
@@ -436,6 +435,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 				Path:          testFilePath,
 				Length:        testLength,
 				Offset:        testOffset,
+				DesktopName:   audit.desktop.GetName(),
 			}
 
 			require.Empty(t, cmp.Diff(test.expected(baseEvent), readEvent))
@@ -584,6 +584,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 				Path:          testFilePath,
 				Length:        testLength,
 				Offset:        testOffset,
+				DesktopName:   audit.desktop.GetName(),
 			}
 
 			require.Empty(t, cmp.Diff(test.expected(baseEvent), writeEvent))
@@ -596,7 +597,7 @@ func fillReadRequestCache(cache *sharedDirectoryAuditCache, did directoryID) {
 	cache.Lock()
 	defer cache.Unlock()
 
-	for i := range maxAuditCacheItems {
+	for i := 0; i < maxAuditCacheItems; i++ {
 		cache.readRequestCache[completionID(i)] = readRequestInfo{
 			directoryID: did,
 		}
@@ -647,6 +648,7 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 		DesktopAddr:   audit.desktop.GetAddr(),
 		DirectoryName: testDirName,
 		DirectoryID:   uint32(testDirectoryID),
+		DesktopName:   audit.desktop.GetName(),
 	}
 
 	require.Empty(t, cmp.Diff(expected, startEvent))
@@ -706,6 +708,7 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 		Path:          testFilePath,
 		Length:        testLength,
 		Offset:        testOffset,
+		DesktopName:   audit.desktop.GetName(),
 	}
 
 	require.Empty(t, cmp.Diff(expected, readEvent))
@@ -762,6 +765,7 @@ func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
 		Path:          testFilePath,
 		Length:        testLength,
 		Offset:        testOffset,
+		DesktopName:   audit.desktop.GetName(),
 	}
 
 	require.Empty(t, cmp.Diff(expected, writeEvent))

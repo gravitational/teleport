@@ -22,4 +22,8 @@ import { Box } from 'design';
 
 const DialogFooter = styled(Box)``;
 
+DialogFooter.defaultProps = {
+  ...Box.defaultProps,
+};
+
 export default DialogFooter;

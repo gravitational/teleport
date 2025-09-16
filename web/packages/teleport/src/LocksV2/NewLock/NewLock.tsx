@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Prompt } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Transition } from 'react-transition-group';
@@ -171,8 +171,6 @@ export function NewLockView(props: Props) {
   }
 
   const numAddedResources = getNumSelectedResources(selectedResources);
-  const transitionRef = useRef<HTMLDivElement>(null);
-
   return (
     <FeatureBox>
       <FeatureHeader>
@@ -212,16 +210,9 @@ export function NewLockView(props: Props) {
           clearSelectedResources={clearSelectedResources}
           setShowCheckout={setShowCheckout}
         />
-        <Transition
-          in={showCheckout}
-          nodeRef={transitionRef}
-          timeout={300}
-          mountOnEnter
-          unmountOnExit
-        >
+        <Transition in={showCheckout} timeout={300} mountOnEnter unmountOnExit>
           {transitionState => (
             <LockCheckout
-              ref={transitionRef}
               selectedResources={selectedResources}
               onClose={() => setShowCheckout(false)}
               toggleResource={toggleSelectResource}

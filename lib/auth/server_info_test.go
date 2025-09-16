@@ -30,11 +30,11 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockServerInfoAccessPoint struct {
-	clock         *clockwork.FakeClock
+	clock         clockwork.FakeClock
 	nodes         []types.Server
 	nodesErr      error
 	serverInfos   map[string]types.ServerInfo
@@ -68,8 +68,8 @@ func (m *mockServerInfoAccessPoint) GetServerInfo(_ context.Context, name string
 	return si, nil
 }
 
-func (m *mockServerInfoAccessPoint) UpdateLabels(_ context.Context, req *proto.InventoryUpdateLabelsRequest) error {
-	m.updatedLabels[req.GetServerID()] = req.Labels
+func (m *mockServerInfoAccessPoint) UpdateLabels(_ context.Context, req proto.InventoryUpdateLabelsRequest) error {
+	m.updatedLabels[req.ServerID] = req.Labels
 	return nil
 }
 
@@ -115,7 +115,7 @@ func TestReconcileServerInfo(t *testing.T) {
 			regularServerInfo.GetName(): regularServerInfo,
 		}
 
-		testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
+		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 			Name: "ReconcileServerInfos",
 			Task: func(ctx context.Context) error {
 				return trace.Wrap(ReconcileServerInfos(ctx, ap))
@@ -145,7 +145,7 @@ func TestReconcileServerInfo(t *testing.T) {
 			regularServerInfo.GetName(): regularServerInfo,
 		}
 
-		testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
+		utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 			Name: "ReconcileServerInfos",
 			Task: func(ctx context.Context) error {
 				return trace.Wrap(ReconcileServerInfos(ctx, ap))

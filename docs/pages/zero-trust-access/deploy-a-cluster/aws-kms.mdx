@@ -2,7 +2,7 @@
 title: AWS KMS
 description: Configure Teleport to store CA private keys in the AWS Key Management Service
 h1: Store Teleport Private Keys in AWS KMS
-labels:
+tags:
  - how-to
  - platform-wide
 ---
@@ -10,8 +10,6 @@ labels:
 This guide will show you how to set up your Teleport cluster to use the AWS Key
 Management Service (KMS) to store and handle the CA private key material used to
 sign all certificates issued by your cluster.
-
-## How it works
 
 Teleport generates private key material for its internal Certificate Authorities
 (CAs) during the first Auth Service instance's initial startup.
@@ -30,12 +28,14 @@ private keys, a CA rotation must be performed.
 Read on to [migrating an existing cluster](#migrating-an-existing-cluster) to
 learn more.
 
+{/* lint ignore page-structure remark-lint */}
+
 ## Prerequisites
 
 The features documented on this page are available in Teleport `15.0.0` and
 higher.
 
-- Teleport Enterprise (self-hosted).
+- Teleport v(=teleport.version=) Enterprise (self-hosted).
 - (!docs/pages/includes/tctl.mdx!)
 - An AWS account.
 
@@ -148,9 +148,7 @@ $ iptables -A OUTPUT -m owner ! --uid-owner 0 -d 169.254.169.254 -j REJECT
 CA key parameters are statically configured in the `teleport.yaml` configuration
 file of the Teleport Auth Service instances in your cluster.
 
-Include the following `ca_key_params` configuration in the `auth_service`
-section. Assign <Var name="AWS account"/> to your AWS account ID and 
-"<Var name="AWS region"/>" to the name of your AWS region:
+Include the following `ca_key_params` configuration in the `auth_service` section.
 
 ```yaml
 # /etc/teleport.yaml
@@ -175,10 +173,6 @@ KMS keys, read on to
 After starting up your Auth Service with the `aws_kms` configuration, you can
 confirm that Teleport has generated AWS KMS keys in your account by viewing them
 in the AWS Console.
-
-`tctl status` should also show `AWS KMS` as the `storage` method for all
-Certificate Authority keys.
-
 You can also run the following `tctl` commands to find the ARN of each key.
 
 ```code

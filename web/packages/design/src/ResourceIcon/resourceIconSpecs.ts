@@ -60,7 +60,6 @@ export const resourceIconSpecs = {
   auth0: { dark: i.auth0Dark, light: i.auth0Light },
   avalara: forAllThemes(i.avalara),
   aws: { dark: i.awsDark, light: i.awsLight },
-  awsaccount: forAllThemes(i.awsAccount),
   awsaurora: forAllThemes(i.awsaurora),
   awscommandlineinterface: forAllThemes(i.awscommandlineinterface),
   awsdynamodb: forAllThemes(i.awsdynamodb),
@@ -144,7 +143,6 @@ export const resourceIconSpecs = {
   g2: forAllThemes(i.g2),
   gable: forAllThemes(i.gable),
   gem: { dark: i.gemDark, light: i.gemLight },
-  git: { dark: i.gitDark, light: i.gitLight },
   github: { dark: i.githubDark, light: i.githubLight },
   gitlab: forAllThemes(i.gitlab),
   gmail: forAllThemes(i.gmail),
@@ -171,7 +169,6 @@ export const resourceIconSpecs = {
   inkeep: forAllThemes(i.inkeep),
   instruqt: { dark: i.instruqtDark, light: i.instruqtLight },
   intellimize: forAllThemes(i.intellimize),
-  intune: forAllThemes(i.intune),
   ipstack: forAllThemes(i.ipstack),
 
   jamf: forAllThemes(i.jamf),
@@ -199,9 +196,6 @@ export const resourceIconSpecs = {
   mariadb: { dark: i.mariadbDark, light: i.mariadbLight },
   mattermost: { dark: i.mattermostDark, light: i.mattermostLight },
   maxio: { dark: i.maxioDark, light: i.maxioLight },
-  mcpCursor: { dark: i.mcpCursorDark, light: i.mcpCursorLight },
-  mcpVscode: forAllThemes(i.mcpVscode),
-  mcpVscodeInsiders: forAllThemes(i.mcpVscodeInsiders),
   metabase: forAllThemes(i.metabase),
   microsoft: forAllThemes(i.microsoft),
   microsoftexcel: forAllThemes(i.microsoftexcel),
@@ -222,7 +216,6 @@ export const resourceIconSpecs = {
 
   oasisopen: forAllThemes(i.oasisopen),
   okta: { dark: i.oktaDark, light: i.oktaLight },
-  oktaAlt: forAllThemes(i.oktaAlt),
   '101domain': forAllThemes(i.onehundredonedomain),
   onelogin: { dark: i.oneloginDark, light: i.oneloginLight },
   '1password': { dark: i.onepasswordDark, light: i.onepasswordLight },
@@ -230,7 +223,6 @@ export const resourceIconSpecs = {
   openid: forAllThemes(i.openid),
   opsgenie: forAllThemes(i.opsgenie),
   'orbit.love': forAllThemes(i.orbitLove),
-  oracle: forAllThemes(i.oracle),
   orcasecurity: { dark: i.orcasecurityDark, light: i.orcasecurityLight },
   'outreach.io': forAllThemes(i.outreachIo),
 
@@ -278,7 +270,6 @@ export const resourceIconSpecs = {
   snowflake: forAllThemes(i.snowflake),
   spacelift: { dark: i.spaceliftDark, light: i.spaceliftLight },
   sparrow: forAllThemes(i.sparrow),
-  strapi: forAllThemes(i.strapi),
   stripe: { dark: i.stripeDark, light: i.stripeLight },
 
   tableau: forAllThemes(i.tableau),

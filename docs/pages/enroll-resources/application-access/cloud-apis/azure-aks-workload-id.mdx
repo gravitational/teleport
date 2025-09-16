@@ -1,7 +1,7 @@
 ---
 title: "Protect Azure CLIs with Teleport Application Access on AKS"
 description: How to enable secure access to Azure CLIs on Azure Kubernetes Service with Workload Identity.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -21,7 +21,7 @@ In this guide, you will:
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v15.2.4 or higher)"!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx version="15.2.4"!)
 - An Azure Kubernetes Service (AKS) cluster and admin permissions to manage the
   cluster.
 - The ability to manage user-assigned Azure managed identities, role policies,
@@ -43,17 +43,12 @@ the client IDs of the managed identities for user access. This managed identity
 will be assigned as the default identity for the Kubernetes service account.
 
 Log in to your Azure admin account with `az login` command if you haven't
-already, and prepare some environment variables for later steps. Assign <Var
-name="eastus" /> to an Azure region name, <Var name="myResourceGroup" /> to the
-name of your Azure resource group, <Var name="myAKSCluster" /> to the name of
-your AKS cluster, and <Var name="teleport-azure-cli-aks-agent" /> to the Azure
-identity to assign to the Teleport Agent:
-
+already, and prepare some environment variables for later steps:
 ```code
 $ export SUBSCRIPTION="$(az account show --query id --output tsv)"
 $ export LOCATION="<Var name="eastus" />"
 $ export RESOURCE_GROUP="<Var name="myResourceGroup" />"
-$ export AKS_CLUSTER_NAME="<Var name="myAKSCluster" />"
+$ export AKS_CLUSTER_NAME="<Var name="myASKCluster" />"
 $ export USER_ASSIGNED_IDENTITY_NAME="<Var name="teleport-azure-cli-aks-agent" />"
 ```
 
@@ -202,13 +197,13 @@ extraLabels:
 EOF
 ```
 
-Install the Helm chart for Teleport Agent services, `teleport-kube-agent`:
+Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
 ```code
 $ helm -n <Var name="teleport-ns" /> install teleport-azure-access-agent \
   teleport/teleport-kube-agent --values azure_access_agent.values.yaml
 ```
 
-Make sure that the Teleport Agent pod is running. You should see one
+Make sure that the Teleport agent pod is running. You should see one
 `teleport-azure-access-agent` pod with a single ready container:
 
 ```code

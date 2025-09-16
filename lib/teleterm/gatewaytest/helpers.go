@@ -19,8 +19,13 @@
 package gatewaytest
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
 	"io"
 	"net"
 	"slices"
@@ -31,8 +36,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -81,7 +84,7 @@ func (m *MockTCPPortAllocator) Listen(localAddress, localPort string) (net.Liste
 		return nil, trace.BadParameter("address already in use")
 	}
 
-	listener, err := net.Listen("tcp", "localhost:0")
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", "localhost", "0"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,7 +131,7 @@ func (m *MockListener) Addr() net.Addr {
 		return m.realListener.Addr()
 	}
 
-	addr, err := net.ResolveTCPAddr("", net.JoinHostPort("localhost", m.fakePort))
+	addr, err := net.ResolveTCPAddr("", fmt.Sprintf("%s:%s", "localhost", m.fakePort))
 
 	if err != nil {
 		panic(err)
@@ -159,7 +162,7 @@ func MustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tls
 	subj, err := identity.Subject()
 	require.NoError(t, err)
 
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
@@ -171,8 +174,8 @@ func MustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, identity tls
 	})
 	require.NoError(t, err)
 
-	keyPEM, err := keys.MarshalPrivateKey(privateKey)
-	require.NoError(t, err)
+	keyRaw := x509.MarshalPKCS1PrivateKey(privateKey)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
 	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
 	return cert

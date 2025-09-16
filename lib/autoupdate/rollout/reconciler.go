@@ -388,7 +388,6 @@ func (r *reconciler) makeGroupsStatus(ctx context.Context, schedules *autoupdate
 			ConfigDays:       group.Days,
 			ConfigStartHour:  group.StartHour,
 			ConfigWaitHours:  group.WaitHours,
-			CanaryCount:      uint64(group.CanaryCount),
 		}
 	}
 	return groups, nil

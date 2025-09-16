@@ -33,26 +33,18 @@ type webUser struct {
 	webID       []byte
 }
 
-type webUserOpts struct {
-	name             string
-	webID            []byte
-	devices          []*types.MFADevice
-	credentialIDOnly bool
-	currentFlags     *credentialFlags
-}
-
-func newWebUser(opts webUserOpts) *webUser {
+func newWebUser(name string, webID []byte, credentialIDOnly bool, devices []*types.MFADevice) *webUser {
 	var credentials []wan.Credential
-	for _, dev := range opts.devices {
-		c, ok := deviceToCredential(dev, opts.credentialIDOnly, opts.currentFlags)
+	for _, dev := range devices {
+		c, ok := deviceToCredential(dev, credentialIDOnly)
 		if ok {
 			credentials = append(credentials, c)
 		}
 	}
 	return &webUser{
 		credentials: credentials,
-		name:        opts.name,
-		webID:       opts.webID,
+		name:        name,
+		webID:       webID,
 	}
 }
 

@@ -39,11 +39,11 @@ func TestRoundRobinConcurrent(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	for range workers {
+	for w := 0; w < workers; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for range rounds {
+			for r := 0; r < rounds; r++ {
 				if rr.Next() {
 					tct.Add(1)
 				} else {

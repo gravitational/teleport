@@ -24,10 +24,8 @@ import {
   getWebAppLaunchUrl,
   isWebApp,
 } from 'teleterm/services/tshd/app';
-import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { IAppContext } from 'teleterm/ui/types';
-import { AppUri, routing } from 'teleterm/ui/uri';
-import { VnetLauncher } from 'teleterm/ui/Vnet';
+import { routing } from 'teleterm/ui/uri';
 
 import { DocumentOrigin } from './types';
 
@@ -46,7 +44,7 @@ export async function connectToApp(
    * launchVnet is supposed to be provided if VNet is supported. If so, connectToApp is going to use
    * this function when targeting a TCP app. Otherwise it'll create an app gateway.
    */
-  launchVnet: null | VnetLauncher,
+  launchVnet: null | (() => Promise<[void, Error]>),
   target: App,
   telemetry: { origin: DocumentOrigin },
   options?: {
@@ -106,59 +104,70 @@ export async function connectToApp(
 
   // TCP app
   if (launchVnet) {
-    // We don't let the user pick the target port through the search bar on purpose. If an app
-    // allows a port range, we'd need to allow the user to input any number from the range.
-    await launchVnet({
-      addrToCopy: appToAddrToCopy(target),
-      resourceUri: target.uri,
-      isMultiPortApp: !!target.tcpPorts.length,
-    });
+    await connectToAppWithVnet(ctx, launchVnet, target);
     return;
   }
 
-  let targetPort: number;
-  if (target.tcpPorts.length > 0) {
-    targetPort = target.tcpPorts[0].port;
-  }
-
-  await setUpAppGateway(ctx, target.uri, { telemetry, targetPort });
+  await setUpAppGateway(ctx, target, telemetry);
 }
 
 export async function setUpAppGateway(
   ctx: IAppContext,
-  targetUri: AppUri,
-  options: {
-    telemetry: { origin: DocumentOrigin };
-    /**
-     * targetPort allows the caller to preselect the target port for the gateway. Should be passed
-     * only for multi-port TCP apps.
-     */
-    targetPort?: number;
-  }
+  target: App,
+  telemetry: { origin: DocumentOrigin }
 ) {
-  const rootClusterUri = routing.ensureRootClusterUri(targetUri);
+  const rootClusterUri = routing.ensureRootClusterUri(target.uri);
 
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
   const doc = documentsService.createGatewayDocument({
-    targetUri: targetUri,
-    origin: options.telemetry.origin,
-    targetName: routing.parseAppUri(targetUri).params.appId,
+    targetUri: target.uri,
+    origin: telemetry.origin,
+    targetName: routing.parseAppUri(target.uri).params.appId,
     targetUser: '',
-    targetSubresourceName: options.targetPort?.toString(),
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
 
   if (connectionToReuse) {
     await ctx.connectionTracker.activateItem(connectionToReuse.id, {
-      origin: options.telemetry.origin,
+      origin: telemetry.origin,
     });
   } else {
     await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }
+}
+
+export async function connectToAppWithVnet(
+  ctx: IAppContext,
+  launchVnet: () => Promise<[void, Error]>,
+  target: App
+) {
+  const [, err] = await launchVnet();
+  if (err) {
+    return;
+  }
+
+  const addrToCopy = target.publicAddr;
+  try {
+    await navigator.clipboard.writeText(addrToCopy);
+  } catch (error) {
+    // On macOS, if the user uses the mouse rather than the keyboard to proceed with the osascript
+    // prompt, the Electron app throws an error about clipboard write permission being denied.
+    if (error['name'] === 'NotAllowedError') {
+      console.error(error);
+      ctx.notificationsService.notifyInfo(
+        `Connect via VNet by using ${addrToCopy}.`
+      );
+      return;
+    }
+    throw error;
+  }
+  ctx.notificationsService.notifyInfo(
+    `Connect via VNet by using ${addrToCopy} (copied to clipboard).`
+  );
 }
 
 /**

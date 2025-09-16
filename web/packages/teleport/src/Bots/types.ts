@@ -35,12 +35,14 @@ export type BotListProps = {
   bots: FlatBot[];
   disabledEdit: boolean;
   disabledDelete: boolean;
+  fetchRoles: (input: string) => Promise<string[]>;
   onClose: () => void;
   onDelete: () => void;
-  onEdit: (updatedBot: FlatBot) => void;
-  onSelect: (item: FlatBot) => void;
+  onEdit: () => void;
   selectedBot: FlatBot;
   setSelectedBot: Dispatch<SetStateAction<FlatBot>>;
+  selectedRoles: string[];
+  setSelectedRoles: Dispatch<SetStateAction<string[]>>;
 };
 
 export type DeleteBotProps = {

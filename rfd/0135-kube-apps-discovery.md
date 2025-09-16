@@ -1,6 +1,6 @@
 ---
 authors: Anton Miniailo (anton@goteleport.com)
-state: implemented (v14.0)
+state: draft
 ---
 
 # RFD 135 - Kubernetes App discovery

@@ -1,8 +1,7 @@
 ---
 title: Microsoft SQL Server access with PKINIT authentication
-sidebar_label: SQL Server
 description: How to configure Microsoft SQL Server access with Active Directory PKINIT authentication.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -90,13 +89,6 @@ You will need to repeat these steps if you rotate Teleport's database certificat
    $ tctl auth crl --type=db_client > db-ca.crl
    ```
 
-   If you use HSM, there are multiple CRLs that have to be exported.
-   This can be done by running:
-
-   ```code
-   $ tctl auth crl --type=db_client --out=<file_prefix>
-   ```
-
 1. Transfer the `db-ca.cer` and `db-ca.crl` files to a Windows machine where you can manage your group policy.
 
 ### Create a GPO and import the Teleport CA
@@ -180,12 +172,6 @@ Teleport CRL to your Active Directory domain (using the path to the exported
 certutil -dspublish -f <PathToCRLFile.crl> TeleportDB
 ```
 
-If you use HSM, run commands printed at the end of the CRL export. They will be in the form of:
-
-```powershell
-certutil -dspublish -f <PathToCRLFile.crl> TeleportDB <CRLCommonName>
-```
-
 <Admonition type="tip">
   To avoid waiting until the certificate propagates, you can force the CA
   retrieval from LDAP after importing the CA and CRL with the command:
@@ -206,7 +192,7 @@ following PowerShell script on your Windows instance:
 ```powershell
 $WindowsDERFile = $env:TEMP + "\windows.der"
 $WindowsPEMFile = $env:TEMP + "\windows.pem"
-certutil "-ca.cert" $WindowsDERFile
+certutil "-ca.cert" $WindowsDERFile 
 certutil -encode $WindowsDERFile $WindowsPEMFile
 
 $CA_CERT_PEM = Get-Content -Path $WindowsPEMFile
@@ -236,16 +222,6 @@ database section below as appropriate:
 - `spn`: Service Principal Name (SPN) for SQL Server to fetch Kerberos tickets.
 - `kdc_host_name`: SPN of the domain controller responsible for providing the LDAP CA.
 - `ldap_cert`: The contents of the LDAP CA previously exported.
-- `ldap_service_account_name`: Name of the service account Teleport uses to query LDAP for user SIDs.
-- `ldap_service_account_sid`: SID corresponding to the specified `ldap_service_account_name`.
-
-<Admonition type="note" title="LDAP service account">
-  Teleport will attempt to authenticate to LDAP with `ldap_service_account_name` username using x509 certificate issued
-  with the Teleport CA. LDAP should trust this certificate thanks to the previous step ("Publish the Teleport CA").
-
-  We encourage the use of service account with minimal privileges. To perform the mapping,
-  Teleport needs access to `objectSid`, `sAMAccountName` and `sAMAccountType` attributes.
-</Admonition>
 
 ```yaml
 version: v3
@@ -254,14 +230,14 @@ teleport:
   proxy_server: teleport.example.com:443
 
 auth_service:
-  enabled: false
+  enabled: no
 ssh_service:
-  enabled: false
+  enabled: no
 proxy_service:
-  enabled: false
+  enabled: no
 
 db_service:
-  enabled: true
+  enabled: "yes"
   databases:
     - name: my-sqlserver
       protocol: sqlserver
@@ -274,8 +250,6 @@ db_service:
           -----BEGIN CERTIFICATE-----
           ...
           -----END CERTIFICATE-----
-        ldap_service_account_name: "DEV\svc-teleport"
-        ldap_service_account_sid: "S-1-5-21-1111111111-2222222222-3333333333-4444"
 ```
 
 <Admonition type="tip">
@@ -371,15 +345,6 @@ entry `Failed to authenticate with KDC: Password for user@AD.TELEPORT.DEV:
 that the KDC hostname is wrong. You can verify your domain controller’s SPN to
 see if they’re set correctly and update the value on the field `kdc_hostname` on
 your database's configuration.
-
-### PKINIT authentication fails due to missing SID
-
-If PKINIT authentication fails and the Teleport Database Service logs show errors related to a missing user SID or failed LDAP queries,
-verify that the `ldap_service_account_name` and `ldap_service_account_sid` fields are correctly set in your database configuration.
-
-Verify that there are no errors due to invalid certificate in `ldap_cert` field.
-
-Ensure that the service account exists, has correct name and SID and has access to specified attributes.
 
 ### Teleport cannot verify database CA
 

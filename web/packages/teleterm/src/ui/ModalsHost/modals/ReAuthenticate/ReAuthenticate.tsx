@@ -16,18 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { FC, useEffect, useState } from 'react';
+import { FC, useState } from 'react';
 
 import {
-  Alert,
   Box,
   ButtonIcon,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
-  H2,
   Image,
-  Link,
   Text,
 } from 'design';
 import DialogConfirmation, {
@@ -38,41 +35,52 @@ import DialogConfirmation, {
 import * as icons from 'design/Icon';
 import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import FieldInput from 'shared/components/FieldInput';
-import { FieldSelect } from 'shared/components/FieldSelect';
+import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import Validation from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
-import PromptSsoStatus from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptSsoStatus';
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
+import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import { routing } from 'teleterm/ui/uri';
+
+type MfaType = 'webauthn' | 'totp';
 
 export const ReAuthenticate: FC<{
   promptMfaRequest: PromptMFARequest;
   onCancel: () => void;
-  onOtpSubmit: (otp: string) => void;
-  onSsoContinue: (redirectUrl: string) => void;
+  onSuccess: (otp: string) => void;
   hidden?: boolean;
 }> = props => {
-  const { promptMfaRequest: req, onSsoContinue } = props;
+  const logger = useLogger('ReAuthenticate');
+  const { promptMfaRequest: req } = props;
 
-  const availableMfaTypes = makeAvailableMfaTypes(req);
+  // TODO(ravicious): At the moment it doesn't seem like it's possible for both Webauthn and TOTP to
+  // be available at the same time (see lib/client/mfa.PromptConfig/GetRunOptions). Whenever both
+  // Webauthn and TOTP are supported, Webauthn is preferred. Well, unless AllowStdinHijack is
+  // specified, but lib/teleterm doesn't do this and AllowStdinHijack has a scary comment next to it
+  // telling you not to use it.
+  //
+  // Alas, the data structure certainly allows for this so the modal was designed with supporting
+  // such scenario in mind.
+  const availableMfaTypes: MfaType[] = [];
+  // Add Webauthn first to prioritize it if both Webauthn and TOTP are available.
+  if (req.webauthn) {
+    availableMfaTypes.push('webauthn');
+  }
+  if (req.totp) {
+    availableMfaTypes.push('totp');
+  }
+  if (availableMfaTypes.length === 0) {
+    // This shouldn't happen but is technically allowed by the req data structure.
+    logger.warn('availableMfaTypes is empty, defaulting to webauthn and totp');
+    availableMfaTypes.push('webauthn', 'totp');
+  }
 
-  const [selectedMfaType, setSelectedMfaType] = useState<AvailableMfaType>(
-    availableMfaTypes[0]
-  );
-
-  useEffect(() => {
-    // If SSO is the selected value, open the redirect window instead of waiting for the user to
-    // select SSO. This handles both a situation where the user selects the SSO option and a
-    // situation where SSO is already selected when the component renders.
-    if (selectedMfaType.value === 'sso') {
-      onSsoContinue(req.sso.redirectUrl);
-    }
-  }, [selectedMfaType.value, req.sso?.redirectUrl, onSsoContinue]);
-
+  const [selectedMfaType, setSelectedMfaType] = useState(availableMfaTypes[0]);
   const [otpToken, setOtpToken] = useState('');
 
   const { clusterUri } = req;
@@ -80,58 +88,13 @@ export const ReAuthenticate: FC<{
   // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
   // clustersService. https://github.com/gravitational/teleport/issues/33733
   const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
-  const rootCluster = clustersService.findRootClusterByResource(rootClusterUri);
   const rootClusterName =
-    rootCluster?.name || routing.parseClusterName(rootClusterUri);
-  const rootClusterProxyHost =
-    // As a fallback, we read the proxy hostname from the URI. One small issue is that URIs don't
-    // include the port number, so if the actual proxy host has a port number other than 443,
-    // rootClusterProxyHost will not point to the proxy service.
-    // In practice though we should not end up in a situation where this modal is shown but the
-    // cluster does not exist in the app.
-    rootCluster?.proxyHost || routing.parseClusterName(rootClusterUri);
+    clustersService.findRootClusterByResource(rootClusterUri)?.name ||
+    routing.parseClusterName(rootClusterUri);
   const clusterName =
     clustersService.findCluster(clusterUri)?.name ||
     routing.parseClusterName(clusterUri);
   const isLeafCluster = routing.isLeafCluster(clusterUri);
-
-  let $totpPrompt = (
-    <FieldInput
-      flex="1"
-      autoFocus
-      label="Authenticator Code"
-      rule={requiredToken}
-      inputMode="numeric"
-      autoComplete="one-time-code"
-      value={otpToken}
-      onChange={e => setOtpToken(e.target.value)}
-      placeholder="123 456"
-      mb={0}
-    />
-  );
-  if (req.perSessionMfa) {
-    const $action =
-      availableMfaTypes.length > 1 ? (
-        'choose'
-      ) : (
-        <Link
-          href={`https://${rootClusterProxyHost}/web/account`}
-          target="_blank"
-        >
-          set up
-        </Link>
-      );
-    $totpPrompt = (
-      <>
-        {/* Empty box to occupy hald of flex width if TOTP input is not shown. */}
-        <Box flex="1" />
-        <Alert kind="warning" width="100%" m={0}>
-          Authenticator App is no longer supported as a two-factor type for
-          per-session MFA. Please {$action} another authentication method.
-        </Alert>
-      </>
-    );
-  }
 
   return (
     <DialogConfirmation
@@ -148,7 +111,7 @@ export const ReAuthenticate: FC<{
           <form
             onSubmit={e => {
               e.preventDefault();
-              validator.validate() && props.onOtpSubmit(otpToken);
+              validator.validate() && props.onSuccess(otpToken);
             }}
           >
             <DialogHeader
@@ -156,9 +119,9 @@ export const ReAuthenticate: FC<{
               mb={0}
               alignItems="baseline"
             >
-              <H2 mb={4}>
+              <Text typography="h4">
                 Verify your identity on <strong>{rootClusterName}</strong>
-              </H2>
+              </Text>
               <ButtonIcon
                 type="button"
                 onClick={props.onCancel}
@@ -170,32 +133,47 @@ export const ReAuthenticate: FC<{
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <Text>
+                <Text typography="body1" color="text.slightlyMuted">
                   {req.reason}
                   {isLeafCluster && ` from trusted cluster "${clusterName}"`}
                 </Text>
 
-                <Flex width="100%" gap={3} flexWrap="wrap">
+                <Flex width="100%" gap={3} flex-wrap="no-wrap">
                   {availableMfaTypes.length > 1 && (
                     <FieldSelect
                       flex="1"
                       label="Two-factor Type"
-                      value={selectedMfaType}
-                      options={availableMfaTypes}
-                      onChange={mfaType => {
-                        setSelectedMfaType(mfaType);
-                      }}
+                      value={mfaTypeToOption(selectedMfaType)}
+                      options={availableMfaTypes.map(mfaTypeToOption)}
+                      onChange={option =>
+                        setSelectedMfaType(
+                          (option as Option<string, string>).value as MfaType
+                        )
+                      }
+                      menuIsOpen={true}
                     />
                   )}
-                  {selectedMfaType.value === 'totp' ? (
-                    $totpPrompt
+
+                  {selectedMfaType === 'totp' ? (
+                    <FieldInput
+                      flex="1"
+                      autoFocus
+                      label="Authenticator Code"
+                      rule={requiredToken}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={otpToken}
+                      onChange={e => setOtpToken(e.target.value)}
+                      placeholder="123 456"
+                      mb={0}
+                    />
                   ) : (
                     // Empty box to occupy hald of flex width if TOTP input is not shown.
                     <Box flex="1" />
                   )}
                 </Flex>
 
-                {selectedMfaType.value === 'webauthn' && (
+                {selectedMfaType === 'webauthn' && (
                   <>
                     <Image width="200px" src={svgHardwareKey} mx="auto" />
                     <Box
@@ -208,21 +186,13 @@ export const ReAuthenticate: FC<{
                     </Box>
                   </>
                 )}
-
-                {selectedMfaType.value === 'sso' && <PromptSsoStatus />}
               </Flex>
             </DialogContent>
 
             <DialogFooter>
               <Flex gap={3}>
-                {selectedMfaType.value === 'totp' && (
-                  <ButtonPrimary
-                    type="submit"
-                    // TOTP is not a supported MFA type for per-session MFA prompts.
-                    disabled={req.perSessionMfa}
-                  >
-                    Continue
-                  </ButtonPrimary>
+                {selectedMfaType === 'totp' && (
+                  <ButtonPrimary type="submit">Continue</ButtonPrimary>
                 )}
                 <ButtonSecondary type="button" onClick={props.onCancel}>
                   Cancel
@@ -236,34 +206,19 @@ export const ReAuthenticate: FC<{
   );
 };
 
-type MfaType = 'webauthn' | 'totp' | 'sso';
-type AvailableMfaType = Option<MfaType, string>;
+const mfaTypeToOption = (mfaType: MfaType): Option<string, string> => {
+  let label: string;
 
-const totp = { value: 'totp' as MfaType, label: 'Authenticator App' };
-const webauthn = { value: 'webauthn' as MfaType, label: 'Hardware Key' };
-
-function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaType[] {
-  let availableMfaTypes: AvailableMfaType[] = [];
-
-  if (req.webauthn) {
-    availableMfaTypes.push(webauthn);
-  }
-  if (req.totp) {
-    availableMfaTypes.push(totp);
-  }
-  // put sso last in the list so we don't automatically open the browser unless
-  // sso is the only one in the list.
-  if (req.sso) {
-    availableMfaTypes.push({
-      value: 'sso',
-      label: req.sso.displayName || req.sso.connectorId,
-    });
+  switch (mfaType) {
+    case 'webauthn':
+      label = 'Hardware Key';
+      break;
+    case 'totp':
+      label = 'Authenticator App';
+      break;
+    default:
+      assertUnreachable(mfaType);
   }
 
-  // This shouldn't happen but is technically allowed by the req data structure.
-  if (availableMfaTypes.length === 0) {
-    availableMfaTypes.push(webauthn);
-    availableMfaTypes.push(totp);
-  }
-  return availableMfaTypes;
-}
+  return { value: mfaType, label };
+};

@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev"
+.version: &version "16.5.15"
 
 apiVersion: v2
 name: teleport-plugin-discord
@@ -6,3 +6,8 @@ description: A Helm chart for the Teleport Discord Plugin
 type: application
 version: *version
 appVersion: *version
+
+dependencies:
+  - name: tbot
+    version: *version
+    condition: tbot.enabled

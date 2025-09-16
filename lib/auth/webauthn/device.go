@@ -19,7 +19,6 @@
 package webauthn
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/x509"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -35,15 +35,7 @@ import (
 // https://datatracker.ietf.org/doc/html/rfc8152#section-13.1
 const curveP256CBOR = 1
 
-type credentialFlags struct {
-	BE, BS bool
-}
-
-func deviceToCredential(
-	dev *types.MFADevice,
-	idOnly bool,
-	currentFlags *credentialFlags,
-) (wan.Credential, bool) {
+func deviceToCredential(dev *types.MFADevice, idOnly bool) (wan.Credential, bool) {
 	switch dev := dev.Device.(type) {
 	case *types.MFADevice_U2F:
 		var pubKeyCBOR []byte
@@ -51,7 +43,7 @@ func deviceToCredential(
 			var err error
 			pubKeyCBOR, err = u2fDERKeyToCBOR(dev.U2F.PubKey)
 			if err != nil {
-				log.WarnContext(context.Background(), "failed to convert U2F device key to CBOR", "error", err)
+				log.Warnf("WebAuthn: failed to convert U2F device key to CBOR: %v", err)
 				return wan.Credential{}, false
 			}
 		}
@@ -67,29 +59,10 @@ func deviceToCredential(
 		if !idOnly {
 			pubKeyCBOR = dev.Webauthn.PublicKeyCbor
 		}
-
-		// Use BE/BS from the device, falling back to currentFlags for devices that
-		// haven't been backfilled yet.
-		var be, bs bool
-		if dev.Webauthn.CredentialBackupEligible != nil {
-			be = dev.Webauthn.CredentialBackupEligible.Value
-		} else {
-			be = currentFlags != nil && currentFlags.BE
-		}
-		if dev.Webauthn.CredentialBackedUp != nil {
-			bs = dev.Webauthn.CredentialBackedUp.Value
-		} else {
-			bs = currentFlags != nil && currentFlags.BS
-		}
-
 		return wan.Credential{
 			ID:              dev.Webauthn.CredentialId,
 			PublicKey:       pubKeyCBOR,
 			AttestationType: dev.Webauthn.AttestationType,
-			Flags: wan.CredentialFlags{
-				BackupEligible: be,
-				BackupState:    bs,
-			},
 			Authenticator: wan.Authenticator{
 				AAGUID:    dev.Webauthn.Aaguid,
 				SignCount: dev.Webauthn.SignatureCounter,

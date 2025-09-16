@@ -215,7 +215,7 @@ func (e *permanentRetryError) Error() string {
 	return e.err.Error()
 }
 
-// RetryStaticFor retries a function repeatedly for a set amount of
+// RetryFastFor retries a function repeatedly for a set amount of
 // time before returning an error.
 //
 // Intended mostly for tests.

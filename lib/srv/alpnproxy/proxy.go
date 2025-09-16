@@ -25,16 +25,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -42,12 +40,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -59,7 +55,7 @@ type ProxyConfig struct {
 	// Router contains definition of protocol routing and handlers description.
 	Router *Router
 	// Log is used for logging.
-	Log *slog.Logger
+	Log logrus.FieldLogger
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
@@ -130,7 +126,10 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 			}
 			// The version should never be longer than 255 characters including
 			// the prefix, but better to be safe.
-			versionEnd := min(len(alpn), 255)
+			versionEnd := 255
+			if len(alpn) < versionEnd {
+				versionEnd = len(alpn)
+			}
 
 			mysqlVersionBase64 := alpn[mysqlVerStart:versionEnd]
 			mysqlVersionBytes, err := base64.StdEncoding.DecodeString(mysqlVersionBase64)
@@ -191,21 +190,15 @@ type HandlerDecs struct {
 	// terminating the TLS connection.
 	HandlerWithConnInfo HandlerFuncWithInfo
 	// ForwardTLS tells is ALPN proxy service should terminate TLS traffic or delegate the
-	// TLS termination to the protocol handler (Used in Kube handler case).
-	//
-	// It is the upstream servers responsibility to provide the appropriate [tls.Config.NextProtos]
-	// to confirm the negotiated protocol.
+	// TLS termination to the protocol handler (Used in Kube handler case)
 	ForwardTLS bool
 	// MatchFunc is a routing route match function based on ALPN SNI TLS values.
 	// If is evaluated to true the current HandleDesc will be used
 	// for connection handling.
 	MatchFunc MatchFunc
 	// TLSConfig is TLS configuration that allows switching TLS settings for the handle.
-	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connections,
-	// but if [HandlerDecs.TLSConfig] is present, it will take precedence over [ProxyConfig.WebTLSConfig].
-	//
-	// It is the responsibility of the creator of the [tls.Config] to provide the appropriate [tls.Config.NextProtos]
-	// to confirm the negotiated protocol.
+	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connection
+	// but if HandleDesc.TLSConfig is present it will take precedence over ProxyConfig TLS configuration.
 	TLSConfig *tls.Config
 }
 
@@ -242,7 +235,7 @@ type HandlerFunc func(ctx context.Context, conn net.Conn) error
 type Proxy struct {
 	cfg                ProxyConfig
 	supportedProtocols []common.Protocol
-	log                *slog.Logger
+	log                logrus.FieldLogger
 
 	// mu guards cancel
 	mu     sync.Mutex
@@ -258,7 +251,7 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("listener missing")
 	}
 	if c.Log == nil {
-		c.Log = slog.With(teleport.ComponentKey, "alpn:proxy")
+		c.Log = logrus.WithField(teleport.ComponentKey, "alpn:proxy")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -299,14 +292,6 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := metrics.RegisterPrometheusCollectors(
-		proxyConnectionsTotal,
-		proxyActiveConnections,
-		proxyConnectionErrorsTotal,
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &Proxy{
 		cfg:                cfg,
 		log:                cfg.Log,
@@ -341,18 +326,18 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// For example in ReverseTunnel handles connection asynchronously and closing conn after
 			// service handler returned will break service logic.
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
-			if err := p.handleConn(ctx, clientConn, nil, common.ConnHandlerSourceListener); err != nil {
+			if err := p.handleConn(ctx, clientConn, nil); err != nil {
 				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
-					p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr)
+					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
 				switch {
 				case trace.IsBadParameter(err):
-					p.log.WarnContext(ctx, "Failed to handle client connection", "error", err)
+					p.log.Warnf("Failed to handle client connection: %v", err)
 				case utils.IsOKNetworkError(err):
 				case isConnRemoteError(err):
-					p.log.DebugContext(ctx, "Connection rejected by client", "error", err, "remote_addr", clientConn.RemoteAddr())
+					p.log.WithField("remote_addr", clientConn.RemoteAddr()).Debugf("Connection rejected by client: %v", err)
 				default:
-					p.log.WarnContext(ctx, "Failed to handle client connection", "error", err)
+					p.log.WithError(err).Warnf("Failed to handle client connection.")
 				}
 			}
 		}()
@@ -381,24 +366,8 @@ type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info Connectio
 //  5. For backward compatibility check RouteToDatabase identity field
 //     was set if yes forward to the generic TLS DB handler.
 //  6. Forward connection to the handler obtained in step 2.
-func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config, connSource common.ConnHandlerSource) (err error) {
-	var hello *tls.ClientHelloInfo
-	var conn net.Conn
-	defer func() {
-		if err != nil {
-			proxyConnectionErrorsTotal.WithLabelValues(
-				getRequestedALPNFromHello(hello),
-				string(connSource),
-			).Inc()
-		}
-	}()
-
-	// Attempt to read TLS hello. Always increment total counters even on failures.
-	hello, conn, err = p.readHelloMessageWithoutTLSTermination(ctx, clientConn, connSource)
-	proxyConnectionsTotal.WithLabelValues(
-		getRequestedALPNFromHello(hello),
-		string(connSource),
-	).Inc()
+func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config) error {
+	hello, conn, err := p.readHelloMessageWithoutTLSTermination(ctx, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -432,7 +401,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	// We try to do quick early IP pinning check, if possible, and stop it on the proxy, without going further.
 	// It's based only on client cert. Client can still fail full IP pinning check later if their role now requires
 	// IP pinning but cert isn't pinned.
-	if err := p.checkCertIPPinning(ctx, tlsConn); err != nil {
+	if err := p.checkCertIPPinning(tlsConn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -444,7 +413,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
-		p.log.DebugContext(ctx, "Failed to check if connection is database connection", "error", err)
+		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if isDatabaseConnection {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
@@ -452,7 +421,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
 }
 
-func (p *Proxy) checkCertIPPinning(ctx context.Context, tlsConn *tls.Conn) error {
+func (p *Proxy) checkCertIPPinning(tlsConn *tls.Conn) error {
 	state := tlsConn.ConnectionState()
 
 	if len(state.PeerCertificates) == 0 {
@@ -471,10 +440,10 @@ func (p *Proxy) checkCertIPPinning(ctx context.Context, tlsConn *tls.Conn) error
 
 	if identity.PinnedIP != "" && (clientIP != identity.PinnedIP || port == "0") {
 		if port == "0" {
-			p.log.DebugContext(ctx, "pinned IP doesn't match observed client IP",
-				"client_ip", clientIP,
-				"pinned_ip", identity.PinnedIP,
-			)
+			p.log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Debug(authz.ErrIPPinningMismatch.Error())
 		}
 		return trace.Wrap(authz.ErrIPPinningMismatch)
 	}
@@ -499,7 +468,7 @@ func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) utils.
 				err := pingConn.WritePing()
 				if err != nil {
 					if !utils.IsOKNetworkError(err) {
-						p.log.WarnContext(ctx, "Failed to write ping message", "error", err)
+						p.log.WithError(err).Warn("Failed to write ping message")
 					}
 
 					return
@@ -528,7 +497,7 @@ func (p *Proxy) getTLSConfig(desc *HandlerDecs, defaultOverride *tls.Config) *tl
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
 // incoming TLS connection. After calling readHelloMessageWithoutTLSTermination function a returned
 // net.Conn should be used for further operation.
-func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn net.Conn, connSource common.ConnHandlerSource) (*tls.ClientHelloInfo, net.Conn, error) {
+func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn net.Conn) (*tls.ClientHelloInfo, net.Conn, error) {
 	buff := new(bytes.Buffer)
 	var hello *tls.ClientHelloInfo
 	tlsConn := tls.Server(readOnlyConn{reader: io.TeeReader(conn, buff)}, &tls.Config{
@@ -551,13 +520,7 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(ctx context.Context, conn 
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return hello,
-		newReportingConn(
-			newBufferedConn(conn, buff),
-			getRequestedALPNFromHello(hello),
-			string(connSource),
-		),
-		nil
+	return hello, newBufferedConn(conn, buff), nil
 }
 
 func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn, connInfo ConnectionInfo) error {
@@ -578,7 +541,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	tlsConn := tls.Server(conn, p.cfg.IdentityTLSConfig)
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		if err := tlsConn.Close(); err != nil {
-			p.log.ErrorContext(ctx, "Failed to close TLS connection", "error", err)
+			p.log.WithError(err).Error("Failed to close TLS connection.")
 		}
 		return trace.Wrap(err)
 	}
@@ -587,14 +550,14 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	}
 	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
 		if err := tlsConn.Close(); err != nil {
-			p.log.ErrorContext(ctx, "Failed to close TLS connection", "error", err)
+			p.log.WithError(err).Error("Failed to close TLS connection.")
 		}
 		return trace.Wrap(err)
 	}
 
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
-		p.log.DebugContext(ctx, "Failed to check if connection is database connection", "error", err)
+		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if !isDatabaseConnection {
 		return trace.BadParameter("not database connection")
@@ -661,20 +624,9 @@ func (p *Proxy) Close() error {
 
 // MakeConnectionHandler creates a ConnectionHandler which provides a callback
 // to handle incoming connections by this ALPN proxy server.
-//
-// Note that some registered handlers are async. The input client connection
-// will be automatically closed upon handler errors.
-func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config, connSource common.ConnHandlerSource) ConnectionHandler {
+func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config) ConnectionHandler {
 	return func(ctx context.Context, conn net.Conn) error {
-		if err := p.handleConn(ctx, conn, defaultOverride, connSource); err != nil {
-			// Make sure we close the connection on error.
-			if cerr := conn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
-				p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr, "remote_addr", logutils.StringerAttr(conn.RemoteAddr()))
-			}
-			// Still return the error for caller to report/log.
-			return trace.Wrap(err)
-		}
-		return nil
+		return p.handleConn(ctx, conn, defaultOverride)
 	}
 }
 
@@ -706,56 +658,3 @@ func isConnRemoteError(err error) bool {
 	var opErr *net.OpError
 	return errors.As(err, &opErr) && opErr.Op == "remote error"
 }
-
-// getRequestedALPNFromHello returns the primary requested ALPN by the client.
-// The server may not always terminate TLS so we won't know the negotiated
-// protocol. Here we just return the first supported ALPN from the client hello
-// and assumes that will likely be the one gets selected. If no supported ALPN
-// found, the function returns "unknown".
-func getRequestedALPNFromHello(hello *tls.ClientHelloInfo) string {
-	if hello == nil {
-		return "unknown"
-	}
-
-	for i := range hello.SupportedProtos {
-		protocol := common.Protocol(hello.SupportedProtos[i])
-		if strings.HasPrefix(string(protocol), string(common.ProtocolAuth)) {
-			protocol = common.ProtocolAuth
-		}
-
-		if slices.Contains(common.SupportedProtocols, protocol) {
-			return string(protocol)
-		}
-	}
-	return "unknown"
-}
-
-var (
-	proxyConnectionsTotal = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: "alpn_proxy",
-			Name:      "connections_total",
-			Help:      "Number of total connections handled by TLS routing proxy server.",
-		},
-		[]string{"alpn", "source"},
-	)
-	proxyActiveConnections = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: "alpn_proxy",
-			Name:      "active_connections",
-			Help:      "Number of active connections handled by TLS routing proxy server.",
-		},
-		[]string{"alpn", "source"},
-	)
-	proxyConnectionErrorsTotal = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: "alpn_proxy",
-			Name:      "connection_errors_total",
-			Help:      "Number of connection handler errors encountered by TLS routing proxy server.",
-		},
-		[]string{"alpn", "source"},
-	)
-)

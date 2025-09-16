@@ -382,6 +382,86 @@ export const formatters: Formatters = {
         rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
+  [eventCodes.SFTP_CLOSE]: {
+    type: 'sftp',
+    desc: 'SFTP Close',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] closed file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_CLOSE_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Close Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to close file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_READ]: {
+    type: 'sftp',
+    desc: 'SFTP Read',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] read from file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_READ_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Read Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to read from file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_WRITE]: {
+    type: 'sftp',
+    desc: 'SFTP Write',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] wrote to file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_WRITE_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Write Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to write to file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_LSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Lstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_LSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Lstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_FSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Fstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_FSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Fstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
   [eventCodes.SFTP_SETSTAT]: {
     type: 'sftp',
     desc: 'SFTP Setstat',
@@ -393,6 +473,22 @@ export const formatters: Formatters = {
   [eventCodes.SFTP_SETSTAT_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Setstat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to change attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_FSETSTAT]: {
+    type: 'sftp',
+    desc: 'SFTP Fsetstat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] changed attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_FSETSTAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Fsetstat Failed',
     format: ({ user, path, error, ...rest }) =>
       `User [${user}] failed to change attributes of file [${path}] on node [${
         rest['server_hostname'] || rest['addr.local']
@@ -478,6 +574,38 @@ export const formatters: Formatters = {
         rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
+  [eventCodes.SFTP_REALPATH]: {
+    type: 'sftp',
+    desc: 'SFTP Realpath',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried absolute path of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_REALPATH_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Realpath Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query absolute path of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_STAT]: {
+    type: 'sftp',
+    desc: 'SFTP Stat',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] queried attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_STAT_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Stat Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to query attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
   [eventCodes.SFTP_RENAME]: {
     type: 'sftp',
     desc: 'SFTP Rename',
@@ -491,6 +619,22 @@ export const formatters: Formatters = {
     desc: 'SFTP Rename Failed',
     format: ({ user, path, error, ...rest }) =>
       `User [${user}] failed to rename file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]: [${error}]`,
+  },
+  [eventCodes.SFTP_READLINK]: {
+    type: 'sftp',
+    desc: 'SFTP Readlink',
+    format: ({ user, path, ...rest }) =>
+      `User [${user}] read symbolic link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
+      }]`,
+  },
+  [eventCodes.SFTP_READLINK_FAILURE]: {
+    type: 'sftp',
+    desc: 'SFTP Readlink Failed',
+    format: ({ user, path, error, ...rest }) =>
+      `User [${user}] failed to read symbolic link [${path}] on node [${
         rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
@@ -1244,50 +1388,94 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',
     desc: 'Clipboard Data Received',
-    format: ({ user, desktop_addr, length }) =>
-      `User [${user}] received ${length} bytes of clipboard data from desktop [${desktop_addr}]`,
+    format: ({ user, desktop_addr, length, desktop_name }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] received ${length} bytes of clipboard data from desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: {
     type: 'desktop.clipboard.send',
     desc: 'Clipboard Data Sent',
-    format: ({ user, desktop_addr, length }) =>
-      `User [${user}] sent ${length} bytes of clipboard data to desktop [${desktop_addr}]`,
+    format: ({ user, desktop_addr, length, desktop_name }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] sent ${length} bytes of clipboard data to desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: {
     type: 'desktop.directory.share',
     desc: 'Directory Sharing Started',
-    format: ({ user, desktop_addr, directory_name }) =>
-      `User [${user}] started sharing directory [${directory_name}] to desktop [${desktop_addr}]`,
+    format: ({ user, desktop_addr, directory_name, desktop_name }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] started sharing directory [${directory_name}] to desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: {
     type: 'desktop.directory.share',
     desc: 'Directory Sharing Start Failed',
-    format: ({ user, desktop_addr, directory_name }) =>
-      `User [${user}] failed to start sharing directory [${directory_name}] to desktop [${desktop_addr}]`,
+    format: ({ user, desktop_addr, directory_name, desktop_name }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] failed to start sharing directory [${directory_name}] to desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: {
     type: 'desktop.directory.read',
     desc: 'Directory Sharing Read',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+    format: ({
+      user,
+      desktop_addr,
+      directory_name,
+      file_path,
+      length,
+      desktop_name,
+    }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: {
     type: 'desktop.directory.read',
     desc: 'Directory Sharing Read Failed',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] failed to read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+    format: ({
+      user,
+      desktop_addr,
+      directory_name,
+      file_path,
+      length,
+      desktop_name,
+    }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] failed to read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: {
     type: 'desktop.directory.write',
     desc: 'Directory Sharing Write',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] wrote [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+    format: ({
+      user,
+      desktop_addr,
+      directory_name,
+      file_path,
+      length,
+      desktop_name,
+    }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] wrote [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
+    },
   },
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: {
     type: 'desktop.directory.write',
     desc: 'Directory Sharing Write Failed',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
+    format: ({
+      user,
+      desktop_addr,
+      directory_name,
+      file_path,
+      length,
+      desktop_name,
+    }) => {
+      const desktop = desktop_name ? desktop_name : desktop_addr;
+      return `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
+    },
   },
   [eventCodes.DEVICE_CREATE]: {
     type: 'device.create',
@@ -1487,41 +1675,6 @@ export const formatters: Formatters = {
     desc: 'Workload Identity Deleted',
     format: ({ user, name }) => {
       return `User [${user}] deleted a Workload Identity [${name}]`;
-    },
-  },
-  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: {
-    type: 'workload_identity_x509_issuer_override.create',
-    desc: 'Workload Identity X.509 Issuer Override Created',
-    format: ({ user, name }) => {
-      return `User [${user}] created a Workload Identity X.509 Issuer Override [${name}]`;
-    },
-  },
-  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: {
-    type: 'workload_identity_x509_issuer_override.delete',
-    desc: 'Workload Identity X.509 Issuer Override Deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted a Workload Identity X.509 Issuer Override [${name}]`;
-    },
-  },
-  [eventCodes.SIGSTORE_POLICY_CREATE]: {
-    type: 'sigstore_policy.create',
-    desc: 'Sigstore Policy Created',
-    format: ({ user, name }) => {
-      return `User [${user}] created a Sigstore Policy [${name}]`;
-    },
-  },
-  [eventCodes.SIGSTORE_POLICY_UPDATE]: {
-    type: 'sigstore_policy.update',
-    desc: 'Sigstore Policy Updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated a Sigstore Policy [${name}]`;
-    },
-  },
-  [eventCodes.SIGSTORE_POLICY_DELETE]: {
-    type: 'sigstore_policy.delete',
-    desc: 'Sigstore Policy Deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted a Sigstore Policy [${name}]`;
     },
   },
   [eventCodes.LOGIN_RULE_CREATE]: {
@@ -1996,13 +2149,6 @@ export const formatters: Formatters = {
       return `User [${user}] deleted a user task [${name}]`;
     },
   },
-  [eventCodes.SFTP_SUMMARY]: {
-    type: 'sftp_summary',
-    desc: 'File Transfer Completed',
-    format: ({ user, server_hostname }) => {
-      return `User [${user}] completed a file transfer on [${server_hostname}]`;
-    },
-  },
   [eventCodes.PLUGIN_CREATE]: {
     type: 'plugin.create',
     desc: 'Plugin Created',
@@ -2043,71 +2189,6 @@ export const formatters: Formatters = {
     desc: 'Unknown Event',
     format: ({ unknown_type, unknown_code }) =>
       `Unknown '${unknown_type}' event (${unknown_code})`,
-  },
-  [eventCodes.GIT_COMMAND]: {
-    type: 'git.command',
-    desc: 'Git Command',
-    format: ({ user, service, path, actions }) => {
-      // "git-upload-pack" are fetches like "git fetch", "git pull".
-      if (service === 'git-upload-pack') {
-        return `User [${user}] has fetched from [${path}]`;
-      }
-      // "git-receive-pack" are pushes. Usually it should have one action.
-      if (service === 'git-receive-pack') {
-        if (actions && actions.length == 1) {
-          switch (actions[0].action) {
-            case 'delete':
-              return `User [${user}] has deleted [${actions[0].reference}] from [${path}]`;
-            case 'create':
-              return `User [${user}] has created [${actions[0].reference}] on [${path}]`;
-            case 'update':
-              return `User [${user}] has updated [${actions[0].reference}] to [${actions[0].new.substring(0, 7)}] on [${path}]`;
-          }
-        }
-        return `User [${user}] has attempted a push to [${path}]`;
-      }
-      if (service && path) {
-        return `User [${user}] has executed a Git Command [${service}] at [${path}]`;
-      }
-      return `User [${user}] has executed a Git Command`;
-    },
-  },
-  [eventCodes.GIT_COMMAND_FAILURE]: {
-    type: 'git.command',
-    desc: 'Git Command Failed',
-    format: ({ user, exitError, service, path }) => {
-      return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
-    },
-  },
-  [eventCodes.STABLE_UNIX_USER_CREATE]: {
-    type: 'stable_unix_user.create',
-    desc: 'Stable UNIX user created',
-    format: ({ stable_unix_user: { username } }) => {
-      return `Stable UNIX user for username [${username}] was created`;
-    },
-  },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: {
-    type: 'aws_identity_center.resource_sync.success',
-    desc: 'AWS IAM Identity Center Resource Sync Completed',
-    format: ({
-      total_user_groups,
-      total_accounts,
-      total_account_assignments,
-      total_permission_sets,
-    }) => {
-      // user groups only imported once.
-      if (total_user_groups > 0) {
-        return `User group synchronization successfully completed [groups: ${total_user_groups}]`;
-      }
-      return `Periodic synchronization successfully completed [accounts: ${total_accounts}, account assignments: ${total_account_assignments}, permission sets: ${total_permission_sets}]`;
-    },
-  },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: {
-    type: 'aws_identity_center.resource_sync.failed',
-    desc: 'AWS IAM Identity Center Resource Sync Failed',
-    format: ({ message }) => {
-      return message;
-    },
   },
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: {
     type: 'auto_update_config.create',
@@ -2151,116 +2232,6 @@ export const formatters: Formatters = {
       return `User ${user} deleted the Automatic Update Version`;
     },
   },
-  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: {
-    type: 'health_check_config.create',
-    desc: 'Health Check Config Created',
-    format: ({ user, name }) => {
-      return `User [${user}] created a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: {
-    type: 'health_check_config.update',
-    desc: 'Health Check Config Updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: {
-    type: 'health_check_config.delete',
-    desc: 'Health Check Config Deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted a health check config [${name}]`;
-    },
-  },
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: {
-    type: 'auto_update_agent_rollout.trigger',
-    desc: 'Automatic Update Agent Rollout Triggered',
-    format: ({ user, groups }) => {
-      return `User ${user} triggered the rollout of the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: {
-    type: 'auto_update_agent_rollout.force_done',
-    desc: 'Automatic Update Agent Rollout Forced Done.',
-    format: ({ user, groups }) => {
-      return `User ${user} forced to the done state the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: {
-    type: 'auto_update_agent_rollout.rollback',
-    desc: 'Automatic Update Agent Rollout Rollback',
-    format: ({ user, groups }) => {
-      return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.MCP_SESSION_START]: {
-    type: 'mcp.session.start',
-    desc: 'MCP Session Started',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] has connected to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_END]: {
-    type: 'mcp.session.end',
-    desc: 'MCP Session Ended',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] has disconnected from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_REQUEST]: {
-    type: 'mcp.session.request',
-    desc: 'MCP Session Request',
-    format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] sent an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
-      }
-      return `User [${user}] sent an MCP request [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: {
-    type: 'mcp.session.request',
-    desc: 'MCP Session Request Failure',
-    format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] was denied access to an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
-      }
-      return `User [${user}] was denied access to an MCP request [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_NOTIFICATION]: {
-    type: 'mcp.session.notification',
-    desc: 'MCP Session Notification',
-    format: ({ user, app_name, message }) => {
-      return `User [${user}] sent an MCP notification [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.BOUND_KEYPAIR_RECOVERY]: {
-    type: 'join_token.bound_keypair.recovery',
-    desc: 'Bound Keypair Recovery',
-    format: ({ token_name, success, error, recovery_count }) => {
-      return success
-        ? `Bound Keypair token [${token_name}] was successfully used in a recovery attempt. New counter value: ${recovery_count}`
-        : `Bound Keypair token [${token_name}] was used to attempt a recovery and failed: ${error}`;
-    },
-  },
-  [eventCodes.BOUND_KEYPAIR_ROTATION]: {
-    type: 'join_token.bound_keypair.rotation',
-    desc: 'Bound Keypair Rotation',
-    format: ({ token_name, success, error }) => {
-      return success
-        ? `Bound Keypair token [${token_name}] successfully rotated its public key during a join attempt`
-        : `Bound Keypair token [${token_name}] failed to rotate its public key during a join attempt: ${error}`;
-    },
-  },
-  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: {
-    type: 'join_token.bound_keypair.join_state_verification_failed',
-    desc: 'Bound Keypair Join Verification Failed',
-    format: ({ token_name, error }) => {
-      return `Bound keypair token [${token_name}] failed to verify a join attempt: ${error}`;
-    },
-  },
 };
 
 const unknownFormatter = {
@@ -2280,7 +2251,7 @@ export default function makeEvent(json: any): Event {
     id: getId(json),
     code: json.code,
     user: json.user,
-    time: new Date(json.time),
+    time: json.time,
     raw: json,
   };
 }

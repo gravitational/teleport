@@ -27,9 +27,7 @@ import {
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourcesResponse } from 'teleport/services/agents';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ApiError } from 'teleport/services/api/parseError';
 
 /**
@@ -126,8 +124,16 @@ export function useKeyBasedPagination<T>({
         pendingPromise.current = null;
         abortController.current = null;
 
+        // this will handle backward compatibility with access requests.
+        // The old access requests API returns only an array of resources while
+        // the new one sends the paginated object with startKey/requests
+        // If this webclient requests an older proxy, this should allow the
+        // old request to not break the webui
+        // TODO (avatus): DELETE in 17
+        const newResources = res[dataKey] || res;
+
         setState({
-          resources: [...resources, ...res[dataKey]],
+          resources: [...resources, ...newResources],
           startKey: res.startKey,
           finished: !res.startKey,
           attempt: { status: 'success' },
@@ -151,15 +157,7 @@ export function useKeyBasedPagination<T>({
         });
       }
     },
-    [
-      fetchFunc,
-      stateRef,
-      clear,
-      setState,
-      fetchMoreSize,
-      initialFetchSize,
-      dataKey,
-    ]
+    [fetchFunc, stateRef, clear, setState, fetchMoreSize, initialFetchSize]
   );
 
   function updateFetchedResources(modifiedResources: T[]) {

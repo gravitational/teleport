@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { Link } from 'react-router-dom';
 
 import {
@@ -23,7 +24,6 @@ import {
   ButtonBorder,
   ButtonPrimary,
   Flex,
-  H1,
   ResourceIcon,
   Text,
 } from 'design';
@@ -46,7 +46,9 @@ export default function Empty(props: Props) {
         color="text.main"
         borderRadius="12px"
       >
-        <H1 mb="3">{readOnly.title}</H1>
+        <Text typography="h2" mb="3">
+          {readOnly.title}
+        </Text>
         <Text>
           Either there are no {readOnly.resource} in the "
           <Text as="span" bold>
@@ -71,7 +73,9 @@ export default function Empty(props: Props) {
       <Box maxWidth={600}>
         <Box mb={4} textAlign="center">
           <ResourceIcon name="server" mx="auto" mb={4} height="160px" />
-          <H1 mb={2}>{title}</H1>
+          <Text typography="h5" mb={2} fontWeight={700} fontSize={24}>
+            {title}
+          </Text>
           <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
             {byline}
           </Text>

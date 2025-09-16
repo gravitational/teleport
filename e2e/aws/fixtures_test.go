@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // hostUser is the name of the host user used for tests.
@@ -190,7 +190,7 @@ func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 		NodeName:    host,
 		Priv:        priv,
 		Pub:         pub,
-		Logger:      logtest.NewLogger(),
+		Log:         utils.NewLoggerForTests(),
 	}
 }
 
@@ -198,6 +198,7 @@ func newTeleportConfig() *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
 	// Replace the default auth and proxy listeners with the ones so we can
 	// run multiple tests in parallel.
+	tconf.Console = nil
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second

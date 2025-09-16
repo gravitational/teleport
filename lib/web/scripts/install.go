@@ -26,7 +26,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
@@ -71,7 +70,7 @@ func (style AutoupdateStyle) String() string {
 type InstallScriptOptions struct {
 	AutoupdateStyle AutoupdateStyle
 	// TeleportVersion that should be installed. Without the leading "v".
-	TeleportVersion *semver.Version
+	TeleportVersion string
 	// CDNBaseURL is the URL of the CDN hosting teleport tarballs.
 	// If left empty, the 'teleport-update' installer will pick the one to use.
 	// For example: "https://cdn.example.com"
@@ -92,6 +91,9 @@ type InstallScriptOptions struct {
 	// the artifacts from the CDN.
 	// The agent install in insecure mode will not be able to automatically update.
 	Insecure bool
+	// Group is the group for agent installation used by 'teleport-update enable' command.
+	// Ignored by legacy script.
+	Group string
 }
 
 // Check validates that the minimal options are set.
@@ -108,7 +110,7 @@ func (o *InstallScriptOptions) Check() error {
 		return trace.BadParameter("Proxy address is required")
 	}
 
-	if o.TeleportVersion == nil {
+	if o.TeleportVersion == "" {
 		return trace.BadParameter("Teleport version is required")
 	}
 
@@ -131,6 +133,12 @@ func (o *InstallScriptOptions) Check() error {
 // oneOffParams returns the oneoff.OneOffScriptParams that will install Teleport
 // using the oneoff.sh script to download and execute 'teleport-update'.
 func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams) {
+	// We add the leading v if it's not here
+	version := o.TeleportVersion
+	if o.TeleportVersion[0] != 'v' {
+		version = "v" + o.TeleportVersion
+	}
+
 	args := []string{"enable", "--proxy", shsprintf.EscapeDefaultContext(o.ProxyAddr)}
 	// Pass the base-url override if the base url is set and is not the default one.
 	if o.CDNBaseURL != "" && o.CDNBaseURL != teleportUpdateDefaultCDN {
@@ -138,6 +146,9 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 	}
 
 	successMessage := "Teleport successfully installed."
+	if o.Group != "" {
+		args = append(args, "--group", shsprintf.EscapeDefaultContext(o.Group))
+	}
 	if o.Insecure {
 		args = append(args, "--insecure")
 		successMessage += " --insecure was used during installation, automatic updates will not work unless the Proxy Service presents a certificate trusted by the system."
@@ -147,7 +158,7 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 		Entrypoint:      "teleport-update",
 		EntrypointArgs:  strings.Join(args, " "),
 		CDNBaseURL:      o.CDNBaseURL,
-		TeleportVersion: "v" + o.TeleportVersion.String(),
+		TeleportVersion: version,
 		TeleportFlavor:  o.TeleportFlavor,
 		SuccessMessage:  successMessage,
 		TeleportFIPS:    o.FIPS,

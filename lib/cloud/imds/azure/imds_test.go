@@ -76,6 +76,7 @@ func TestAzureIsInstanceMetadataAvailable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -206,18 +207,19 @@ func TestGetInstanceInfo(t *testing.T) {
 		{
 			name:       "request error",
 			statusCode: http.StatusNotFound,
-			errAssertion: func(tt require.TestingT, err error, i ...any) {
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "not found")
 			},
 		},
 		{
 			name:       "empty body returns an error",
 			statusCode: http.StatusOK,
-			errAssertion: func(tt require.TestingT, err error, i ...any) {
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "error found in #0 byte")
 			},
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -260,11 +262,12 @@ func TestGetInstanceID(t *testing.T) {
 		{
 			name:       "request error",
 			statusCode: http.StatusNotFound,
-			errAssertion: func(tt require.TestingT, err error, i ...any) {
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "not found")
 			},
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

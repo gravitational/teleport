@@ -42,17 +42,13 @@ import (
 )
 
 type mockJoinServiceClient struct {
-	sendChallenge                    string
-	boundKeypairPublicKey            string
-	returnCerts                      *proto.Certs
-	returnError                      error
-	gotIAMChallengeResponse          *proto.RegisterUsingIAMMethodRequest
-	gotAzureChallengeResponse        *proto.RegisterUsingAzureMethodRequest
-	gotTPMChallengeResponse          *proto.RegisterUsingTPMMethodChallengeResponse
-	gotTPMInitReq                    *proto.RegisterUsingTPMMethodInitialRequest
-	gotBoundKeypairInitReq           *proto.RegisterUsingBoundKeypairInitialRequest
-	gotBoundKeypairChallengeResponse *proto.RegisterUsingBoundKeypairMethodRequest
-	gotRegisterUsingTokenReq         *types.RegisterUsingTokenRequest
+	sendChallenge             string
+	returnCerts               *proto.Certs
+	returnError               error
+	gotIAMChallengeResponse   *proto.RegisterUsingIAMMethodRequest
+	gotAzureChallengeResponse *proto.RegisterUsingAzureMethodRequest
+	gotTPMChallengeResponse   *proto.RegisterUsingTPMMethodChallengeResponse
+	gotTPMInitReq             *proto.RegisterUsingTPMMethodInitialRequest
 }
 
 func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
@@ -89,54 +85,8 @@ func (c *mockJoinServiceClient) RegisterUsingTPMMethod(
 	return c.returnCerts, c.returnError
 }
 
-func (c *mockJoinServiceClient) RegisterUsingBoundKeypairMethod(
-	ctx context.Context,
-	req *proto.RegisterUsingBoundKeypairInitialRequest,
-	challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-) (*client.BoundKeypairRegistrationResponse, error) {
-	c.gotBoundKeypairInitReq = req
-	resp, err := challengeResponse(&proto.RegisterUsingBoundKeypairMethodResponse{
-		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
-			Challenge: &proto.RegisterUsingBoundKeypairChallenge{
-				PublicKey: c.boundKeypairPublicKey,
-				Challenge: c.sendChallenge,
-			},
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.gotBoundKeypairChallengeResponse = resp
-
-	if c.returnError != nil {
-		return nil, c.returnError
-	}
-
-	return &client.BoundKeypairRegistrationResponse{
-		Certs:          c.returnCerts,
-		BoundPublicKey: c.boundKeypairPublicKey,
-	}, nil
-}
-
-func (c *mockJoinServiceClient) RegisterUsingOracleMethod(
-	ctx context.Context,
-	tokenReq *types.RegisterUsingTokenRequest,
-	challengeResponse client.RegisterOracleChallengeResponseFunc,
-) (*proto.Certs, error) {
-	return c.returnCerts, c.returnError
-}
-
-func (c *mockJoinServiceClient) RegisterUsingToken(
-	ctx context.Context,
-	req *types.RegisterUsingTokenRequest,
-) (*proto.Certs, error) {
-	c.gotRegisterUsingTokenReq = req
-	return c.returnCerts, c.returnError
-}
-
 func ConnectionCountingStreamInterceptor(count *atomic.Int32) grpc.StreamServerInterceptor {
-	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		count.Add(1)
 		defer count.Add(-1)
 		return handler(srv, ss)
@@ -373,88 +323,6 @@ func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
 	}
 }
 
-func TestJoinServiceGRPCServer_RegisterUsingToken(t *testing.T) {
-	t.Parallel()
-	testPack := newTestPack(t)
-
-	testCases := []struct {
-		desc    string
-		req     *types.RegisterUsingTokenRequest
-		wantReq *types.RegisterUsingTokenRequest
-		authErr string
-		certs   *proto.Certs
-	}{
-		{
-			desc: "unauthenticated pass case",
-			req: &types.RegisterUsingTokenRequest{
-				Token: "xyzzy",
-			},
-			wantReq: &types.RegisterUsingTokenRequest{
-				Token:      "xyzzy",
-				RemoteAddr: "bufconn",
-			},
-			certs: &proto.Certs{SSH: []byte("qux")},
-		},
-		{
-			desc: "unauthenticated - faked metadata ignored",
-			req: &types.RegisterUsingTokenRequest{
-				Token:         "xyzzy",
-				RemoteAddr:    "mauahahh",
-				BotInstanceID: "123-456",
-				BotGeneration: 1337,
-			},
-			wantReq: &types.RegisterUsingTokenRequest{
-				Token:      "xyzzy",
-				RemoteAddr: "bufconn",
-			},
-			certs: &proto.Certs{SSH: []byte("qux")},
-		},
-		{
-			desc: "auth error",
-			req: &types.RegisterUsingTokenRequest{
-				Token: "xyzzy",
-			},
-			wantReq: &types.RegisterUsingTokenRequest{
-				Token:      "xyzzy",
-				RemoteAddr: "bufconn",
-			},
-			authErr: "test auth error",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			testPack.mockAuthServer.returnCerts = tc.certs
-			if tc.authErr != "" {
-				testPack.mockAuthServer.returnError = errors.New(tc.authErr)
-			}
-
-			for suffix, clt := range map[string]*client.JoinServiceClient{
-				"_auth":  testPack.authClient,
-				"_proxy": testPack.proxyClient,
-			} {
-				t.Run(tc.desc+suffix, func(t *testing.T) {
-					certs, err := clt.RegisterUsingToken(
-						context.Background(),
-						tc.req,
-					)
-					if tc.authErr != "" {
-						require.ErrorContains(t, err, tc.authErr, "authErr mismatch")
-						return
-					}
-					if assert.NoError(t, err) {
-						assert.Equal(t, tc.certs, certs)
-					}
-					assert.Equal(
-						t,
-						tc.wantReq,
-						testPack.mockAuthServer.gotRegisterUsingTokenReq,
-					)
-				})
-			}
-		})
-	}
-}
-
 func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 	t.Parallel()
 	testPack := newTestPack(t)
@@ -573,118 +441,6 @@ func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 	}
 }
 
-// TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple tests the
-// simplest bound keypair joining path, with no keypair registration or
-// rotation.
-func TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple(t *testing.T) {
-	t.Parallel()
-	testPack := newTestPack(t)
-
-	standardResponse := &proto.RegisterUsingBoundKeypairMethodRequest{
-		Payload: &proto.RegisterUsingBoundKeypairMethodRequest_ChallengeResponse{
-			ChallengeResponse: &proto.RegisterUsingBoundKeypairChallengeResponse{
-				Solution: []byte("header.payload.signature"),
-			},
-		},
-	}
-
-	testCases := []struct {
-		desc                 string
-		publicKey            string
-		challenge            string
-		req                  *proto.RegisterUsingBoundKeypairInitialRequest
-		challengeResponse    *proto.RegisterUsingBoundKeypairMethodRequest
-		challengeResponseErr error
-		authErr              error
-		certs                *proto.Certs
-	}{
-		{
-			desc:      "success case",
-			challenge: "foo",
-			req: &proto.RegisterUsingBoundKeypairInitialRequest{
-				JoinRequest: &types.RegisterUsingTokenRequest{},
-			},
-			challengeResponse: standardResponse,
-			certs:             &proto.Certs{SSH: []byte("qux")},
-		},
-		{
-			desc:      "auth error",
-			challenge: "foo",
-			req: &proto.RegisterUsingBoundKeypairInitialRequest{
-				JoinRequest: &types.RegisterUsingTokenRequest{},
-			},
-			challengeResponse: standardResponse,
-			authErr:           trace.AccessDenied("not allowed"),
-		},
-		{
-			desc:      "challenge response error",
-			challenge: "foo",
-			req: &proto.RegisterUsingBoundKeypairInitialRequest{
-				JoinRequest: &types.RegisterUsingTokenRequest{},
-			},
-			challengeResponse:    nil,
-			challengeResponseErr: trace.BadParameter("testing error"),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			testPack.mockAuthServer.sendChallenge = tc.challenge
-			testPack.mockAuthServer.returnCerts = tc.certs
-			testPack.mockAuthServer.returnError = tc.authErr
-
-			challengeResponder := func(
-				challenge *proto.RegisterUsingBoundKeypairMethodResponse,
-			) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
-				assert.Equal(t, &proto.RegisterUsingBoundKeypairMethodResponse{
-					Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
-						Challenge: &proto.RegisterUsingBoundKeypairChallenge{
-							PublicKey: tc.publicKey,
-							Challenge: tc.challenge,
-						},
-					},
-				}, challenge)
-
-				return tc.challengeResponse, tc.challengeResponseErr
-			}
-
-			for suffix, clt := range map[string]*client.JoinServiceClient{
-				"_auth":  testPack.authClient,
-				"_proxy": testPack.proxyClient,
-			} {
-				t.Run(tc.desc+suffix, func(t *testing.T) {
-					response, err := clt.RegisterUsingBoundKeypairMethod(
-						context.Background(), tc.req, challengeResponder,
-					)
-					if tc.challengeResponseErr != nil {
-						require.ErrorIs(t, err, tc.challengeResponseErr)
-						return
-					}
-					if tc.authErr != nil {
-						require.Error(t, err)
-						require.Contains(t, err.Error(), tc.authErr.Error())
-						return
-					}
-					require.NoError(t, err)
-					require.Equal(t, tc.certs, response.Certs)
-
-					expectedInitReq := tc.req
-					expectedInitReq.JoinRequest.RemoteAddr = "bufconn"
-					assert.Equal(t, expectedInitReq, testPack.mockAuthServer.gotBoundKeypairInitReq)
-
-					assert.Equal(
-						t,
-						tc.challengeResponse,
-						testPack.mockAuthServer.gotBoundKeypairChallengeResponse,
-					)
-
-					require.Equal(t, tc.publicKey, response.BoundPublicKey)
-				})
-			}
-		})
-	}
-}
-
 func TestTimeout(t *testing.T) {
 	t.Parallel()
 
@@ -754,7 +510,7 @@ func TestTimeout(t *testing.T) {
 			//
 			// Make sure the request is automatically timed out on the server and all
 			// connections are closed shortly after the timeout.
-			fakeClock.Advance(joinRequestTimeout)
+			fakeClock.Advance(iamJoinRequestTimeout)
 			require.Eventually(t, func() bool {
 				return testPack.streamConnectionCount.Load() == 0
 			}, 10*time.Second, 1*time.Millisecond)

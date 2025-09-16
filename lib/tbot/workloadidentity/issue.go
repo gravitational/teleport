@@ -26,11 +26,10 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/workloadidentity/attrs"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
 // WorkloadIdentityLogValue returns a slog.Value for a given
@@ -71,28 +70,24 @@ func WorkloadIdentitiesLogValue(credentials []*workloadidentityv1pb.Credential) 
 
 type authClient interface {
 	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
-	cryptosuites.AuthPreferenceGetter
 }
 
 // IssueX509WorkloadIdentity uses a given client and selector to issue a single
-// or multiple X509-SVID workload identity credentials. The returned credentials
-// may have a certificate chain that should be consumed and used appropriately.
+// or multiple X509-SVID workload identity credentials.
 func IssueX509WorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
 	clt authClient,
-	workloadIdentity bot.WorkloadIdentitySelector,
+	workloadIdentity config.WorkloadIdentitySelector,
 	ttl time.Duration,
-	attest *attrs.WorkloadAttrs,
+	attest *workloadidentityv1pb.WorkloadAttrs,
 ) ([]*workloadidentityv1pb.Credential, crypto.Signer, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"IssueX509WorkloadIdentity",
 	)
 	defer span.End()
-	privateKey, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(clt),
-		cryptosuites.BotSVID)
+	privateKey, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -115,12 +110,11 @@ func IssueX509WorkloadIdentity(
 				Name: workloadIdentity.Name,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams{
 					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey:          pubBytes,
-						UseIssuerOverrides: true,
+						PublicKey: pubBytes,
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest.GetAttrs(),
+				WorkloadAttrs: attest,
 			},
 		)
 		if err != nil {
@@ -144,12 +138,11 @@ func IssueX509WorkloadIdentity(
 				LabelSelectors: labelSelectors,
 				Credential: &workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams{
 					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey:          pubBytes,
-						UseIssuerOverrides: true,
+						PublicKey: pubBytes,
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest.GetAttrs(),
+				WorkloadAttrs: attest,
 			},
 		)
 		if err != nil {
@@ -182,11 +175,11 @@ func labelsToSelectors(in map[string][]string) []*workloadidentityv1pb.LabelSele
 func IssueJWTWorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
-	clt *apiclient.Client,
-	workloadIdentity bot.WorkloadIdentitySelector,
+	clt *authclient.Client,
+	workloadIdentity config.WorkloadIdentitySelector,
 	audiences []string,
 	ttl time.Duration,
-	attest *attrs.WorkloadAttrs,
+	attest *workloadidentityv1pb.WorkloadAttrs,
 ) ([]*workloadidentityv1pb.Credential, error) {
 	ctx, span := tracer.Start(
 		ctx,
@@ -216,7 +209,7 @@ func IssueJWTWorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest.GetAttrs(),
+				WorkloadAttrs: attest,
 			},
 		)
 		if err != nil {
@@ -244,7 +237,7 @@ func IssueJWTWorkloadIdentity(
 					},
 				},
 				RequestedTtl:  durationpb.New(ttl),
-				WorkloadAttrs: attest.GetAttrs(),
+				WorkloadAttrs: attest,
 			},
 		)
 		if err != nil {

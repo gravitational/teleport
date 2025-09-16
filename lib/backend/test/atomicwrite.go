@@ -21,6 +21,7 @@ package test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -284,14 +285,14 @@ func testAtomicWriteMax(t *testing.T, newBackend Constructor) {
 
 	prefix := MakePrefix()
 
-	keyOf := func(i int) backend.Key {
-		return prefix("key-" + strconv.Itoa(i))
+	keyOf := func(i int) []byte {
+		return prefix(fmt.Sprintf("/key-%d", i))
 	}
 
 	var condacts []backend.ConditionalAction
 
 	// set up one more conditional actions than should be permitted
-	for i := range backend.MaxAtomicWriteSize + 1 {
+	for i := 0; i < backend.MaxAtomicWriteSize+1; i++ {
 		condacts = append(condacts, backend.ConditionalAction{
 			Key:       keyOf(i),
 			Condition: backend.NotExists(),
@@ -313,7 +314,7 @@ func testAtomicWriteMax(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 
 	// verify that items were inserted as expected
-	for i := range backend.MaxAtomicWriteSize {
+	for i := 0; i < backend.MaxAtomicWriteSize; i++ {
 		item, err := bk.Get(ctx, keyOf(i))
 		require.NoError(t, err, "i=%d", i)
 		require.Equal(t, rev1, item.Revision)
@@ -332,7 +333,7 @@ func testAtomicWriteMax(t *testing.T, newBackend Constructor) {
 	require.ErrorIs(t, err, backend.ErrConditionFailed)
 
 	// verify that failed atomic write results in no changes
-	for i := range backend.MaxAtomicWriteSize {
+	for i := 0; i < backend.MaxAtomicWriteSize; i++ {
 		item, err := bk.Get(ctx, keyOf(i))
 		require.NoError(t, err, "i=%d", i)
 		require.Equal(t, rev1, item.Revision)
@@ -352,7 +353,7 @@ func testAtomicWriteMax(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 
 	// verify that changes occurred as expected
-	for i := range backend.MaxAtomicWriteSize {
+	for i := 0; i < backend.MaxAtomicWriteSize; i++ {
 		item, err := bk.Get(ctx, keyOf(i))
 		require.NoError(t, err, "i=%d", i)
 		require.Equal(t, rev2, item.Revision)
@@ -383,7 +384,7 @@ func testAtomicWriteConcurrent(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 
 	var eg errgroup.Group
-	for range workers {
+	for i := 0; i < workers; i++ {
 		eg.Go(func() error {
 			var localIncrements int
 
@@ -391,7 +392,7 @@ func testAtomicWriteConcurrent(t *testing.T, newBackend Constructor) {
 			// succeed for at least one worker. this requirement only holds true if reads are *consistent*, weak reads
 			// *would* result in cases where all workers failed to perform an increment because they all observed an
 			// outdated state.
-			for range increments {
+			for j := 0; j < increments; j++ {
 				if localIncrements >= increments/workers {
 					return nil
 				}
@@ -467,10 +468,10 @@ func testAtomicWriteNonConflicting(t *testing.T, newBackend Constructor) {
 
 	results := make(chan error, workers)
 
-	commonKey := prefix("common")
+	commonKey := prefix("/common")
 
-	itemKey := func(i int) backend.Key {
-		return prefix("item-" + strconv.Itoa(i))
+	itemKey := func(i int) []byte {
+		return prefix(fmt.Sprintf("/item-%d", i))
 	}
 
 	_, err = bk.Put(ctx, backend.Item{
@@ -479,7 +480,7 @@ func testAtomicWriteNonConflicting(t *testing.T, newBackend Constructor) {
 	})
 	require.NoError(t, err)
 
-	for i := range workers {
+	for i := 0; i < workers; i++ {
 		go func(i int) {
 			_, err := bk.AtomicWrite(ctx, []backend.ConditionalAction{
 				{
@@ -502,7 +503,7 @@ func testAtomicWriteNonConflicting(t *testing.T, newBackend Constructor) {
 
 	timeout := time.After(time.Minute)
 
-	for i := range workers {
+	for i := 0; i < workers; i++ {
 		select {
 		case err := <-results:
 			require.NoError(t, err, trace.DebugReport(err))
@@ -511,7 +512,7 @@ func testAtomicWriteNonConflicting(t *testing.T, newBackend Constructor) {
 		}
 	}
 
-	for i := range workers {
+	for i := 0; i < workers; i++ {
 		item, err := bk.Get(ctx, itemKey(i))
 		require.NoError(t, err)
 		require.Equal(t, []byte("v1"), item.Value)
@@ -530,7 +531,7 @@ func testAtomicWriteOther(t *testing.T, newBackend Constructor) {
 
 	prefix := MakePrefix()
 
-	fooKey, barKey, badKey := prefix("foo"), prefix("bar"), prefix("bad")
+	fooKey, barKey, badKey := prefix("/foo"), prefix("/bar"), prefix("/bad")
 
 	fooVal, barVal := []byte("foo"), []byte("bar")
 

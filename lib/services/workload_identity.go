@@ -19,7 +19,6 @@ package services
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -76,11 +75,6 @@ func UnmarshalWorkloadIdentity(
 	return UnmarshalProtoResource[*workloadidentityv1pb.WorkloadIdentity](data, opts...)
 }
 
-const (
-	maxMaxJWTSVIDTTL  = time.Hour * 24
-	maxMaxX509SVIDTTL = time.Hour * 24 * 14
-)
-
 // ValidateWorkloadIdentity validates the WorkloadIdentity object. This is
 // performed prior to writing to the backend.
 func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
@@ -101,10 +95,6 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		return trace.BadParameter("spec.spiffe.id: is required")
 	case !strings.HasPrefix(s.Spec.Spiffe.Id, "/"):
 		return trace.BadParameter("spec.spiffe.id: must start with a /")
-	case s.Spec.Spiffe.GetX509().GetMaximumTtl().AsDuration() > maxMaxX509SVIDTTL:
-		return trace.BadParameter("spec.spiffe.x509.maximum_ttl: must be less than %s", maxMaxX509SVIDTTL)
-	case s.Spec.Spiffe.GetJwt().GetMaximumTtl().AsDuration() > maxMaxJWTSVIDTTL:
-		return trace.BadParameter("spec.spiffe.jwt.maximum_ttl: must be less than %s", maxMaxJWTSVIDTTL)
 	}
 
 	for i, rule := range s.GetSpec().GetRules().GetAllow() {

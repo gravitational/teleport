@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { MemoryRouter } from 'react-router';
-
-import { DiscoverBox } from 'teleport/Discover/Shared';
 
 import { DatabaseEngine } from '../../SelectResource';
 import { MutualTlsView } from './MutualTls';
@@ -30,52 +29,40 @@ export default {
 
 export const LoadedPostgres = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <MutualTlsView {...props} />
-    </DiscoverBox>
+    <MutualTlsView {...props} />
   </MemoryRouter>
 );
 
 export const LoadedMongo = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <MutualTlsView {...props} dbEngine={DatabaseEngine.MongoDb} />
-    </DiscoverBox>
+    <MutualTlsView {...props} dbEngine={DatabaseEngine.MongoDb} />
   </MemoryRouter>
 );
 
 export const LoadedSqlMaria = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <MutualTlsView {...props} dbEngine={DatabaseEngine.MySql} />
-    </DiscoverBox>
+    <MutualTlsView {...props} dbEngine={DatabaseEngine.MySql} />
   </MemoryRouter>
 );
 
 export const NoPerm = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <MutualTlsView {...props} canUpdateDatabase={false} />
-    </DiscoverBox>
+    <MutualTlsView {...props} canUpdateDatabase={false} />
   </MemoryRouter>
 );
 
 export const Failed = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <MutualTlsView
-        {...props}
-        attempt={{ status: 'failed', statusText: 'some error message' }}
-      />
-    </DiscoverBox>
+    <MutualTlsView
+      {...props}
+      attempt={{ status: 'failed', statusText: 'some error message' }}
+    />
   </MemoryRouter>
 );
 
 export const Processing = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <MutualTlsView {...props} attempt={{ status: 'processing' }} />
-    </DiscoverBox>
+    <MutualTlsView {...props} attempt={{ status: 'processing' }} />
   </MemoryRouter>
 );
 

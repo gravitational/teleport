@@ -56,15 +56,11 @@ func samlTest(c *authclient.Client, samlConnector types.SAMLConnector) (*AuthReq
 	requestInfo := &AuthRequestInfo{}
 
 	makeRequest := func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error) {
-		if err := req.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
 		samlRequest := types.SAMLAuthRequest{
 			ConnectorID:       req.ConnectorID + "-" + samlConnector.GetName(),
 			Type:              constants.SAML,
 			CheckUser:         false,
-			SshPublicKey:      req.SSHPubKey,
-			TlsPublicKey:      req.TLSPubKey,
+			PublicKey:         req.PublicKey,
 			CertTTL:           defaults.SAMLAuthRequestTTL,
 			CreateWebSession:  false,
 			ClientRedirectURL: req.RedirectURL,

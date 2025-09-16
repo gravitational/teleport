@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/semaphore"
@@ -74,7 +73,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 		return trace.Wrap(err)
 	}
 
-	clusterNameConfig, err := authClient.GetClusterName(process.GracefulExitContext())
+	clusterNameConfig, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -160,7 +159,7 @@ func NewDeployServiceUpdater(config AWSOIDCDeployServiceUpdaterConfig) (*AWSOIDC
 func (updater *AWSOIDCDeployServiceUpdater) Run(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration: updateAWSOIDCDeployServiceInterval,
-		Jitter:   retryutils.SeventhJitter,
+		Jitter:   retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
 
@@ -198,14 +197,17 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// stableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
+	stableVersion = strings.TrimPrefix(stableVersion, "v")
+
 	// minServerVersion specifies the minimum version of the cluster required for
 	// updated AWS OIDC deploy service to remain compatible with the cluster.
-	minServerVersion, err := utils.MajorSemver(stableVersion.String())
+	minServerVersion, err := utils.MajorSemver(stableVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if !utils.MeetsMinVersion(updater.TeleportClusterVersion, minServerVersion) {
+	if !utils.MeetsVersion(updater.TeleportClusterVersion, minServerVersion) {
 		updater.Log.DebugContext(ctx, "Skipping update. AWS OIDC Deploy Service will not be compatible with cluster", "cluster_version", updater.TeleportClusterVersion, "stable_version", stableVersion)
 		return nil
 	}
@@ -219,7 +221,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	// for AWS OIDC deploy services to update. In order to reduce the number of api
 	// calls, the aws regions are first reduced to only the regions containing
 	// an RDS database.
-	awsRegions := make(map[string]any)
+	awsRegions := make(map[string]interface{})
 	for _, database := range databases {
 		if database.IsAWSHosted() && database.IsRDS() {
 			awsRegions[database.GetAWS().Region] = nil
@@ -251,13 +253,10 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	return trace.Wrap(sem.Acquire(ctx, maxConcurrentUpdates))
 }
 
-func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx context.Context, integration types.Integration, awsRegion string, teleportVersion *semver.Version) error {
+func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx context.Context, integration types.Integration, awsRegion, teleportVersion string) error {
 	// Do not attempt update if integration is not an AWS OIDC integration.
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
 		return nil
-	}
-	if teleportVersion == nil {
-		return trace.BadParameter("teleport version is required")
 	}
 
 	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, integration.GetName())
@@ -314,7 +313,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	)
 	if err := awsoidc.UpdateDeployService(ctx, awsOIDCDeployServiceClient, updater.Log, awsoidc.UpdateServiceRequest{
 		TeleportClusterName: updater.TeleportClusterName,
-		TeleportVersionTag:  teleportVersion.String(),
+		TeleportVersionTag:  teleportVersion,
 		OwnershipTags:       ownershipTags,
 	}); err != nil {
 
@@ -325,7 +324,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 			// for the integration.
 			updater.Log.DebugContext(ctx, "Integration does not manage any services in given region", "integration", integration.GetName(), "region", awsRegion)
 			return nil
-		case trace.IsAccessDenied(awslib.ConvertIAMError(trace.Unwrap(err))):
+		case trace.IsAccessDenied(awslib.ConvertIAMv2Error(trace.Unwrap(err))):
 			// The AWS OIDC role may lack permissions due to changes in teleport.
 			// In this situation users should be notified that they will need to
 			// re-run the deploy service iam configuration script and update the

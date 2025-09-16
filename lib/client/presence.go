@@ -56,7 +56,7 @@ func WithPresenceClock(clock clockwork.Clock) PresenceOption {
 
 // RunPresenceTask periodically performs and MFA ceremony to detect that a user is
 // still present and attentive.
-func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, baseCeremony *mfa.Ceremony, opts ...PresenceOption) error {
+func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...PresenceOption) error {
 	fmt.Fprintf(term, "\r\nTeleport > MFA presence enabled\r\n")
 
 	o := &presenceOptions{
@@ -76,16 +76,12 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 		return trace.Wrap(err)
 	}
 
-	presenceCeremony := &mfa.Ceremony{
-		SSOMFACeremonyConstructor: baseCeremony.SSOMFACeremonyConstructor,
-		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+	mfaCeremony := &mfa.Ceremony{
+		PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
 			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-				// Replace normal output with terminal messages specific to moderated sessions.
-				opts = append(opts, mfa.WithQuiet())
-
 				fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
 
-				mfaResp, err := baseCeremony.PromptConstructor(opts...).Run(ctx, chal)
+				mfaResp, err := mfaPrompt.Run(ctx, chal)
 				if err != nil {
 					fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)
 					return nil, trace.Wrap(err)
@@ -95,14 +91,10 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 				return mfaResp, nil
 			})
 		},
-		CreateAuthenticateChallenge: func(ctx context.Context, chalReq *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+		CreateAuthenticateChallenge: func(ctx context.Context, _ *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 			req := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
-					ChallengeRequest: &proto.PresenceMFAChallengeRequest{
-						SessionID:            sessionID,
-						SSOClientRedirectURL: chalReq.SSOClientRedirectURL,
-						ProxyAddress:         chalReq.ProxyAddress,
-					},
+					ChallengeRequest: &proto.PresenceMFAChallengeRequest{SessionID: sessionID},
 				},
 			}
 
@@ -126,7 +118,7 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 	for {
 		select {
 		case <-ticker.Chan():
-			mfaResp, err := presenceCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{})
+			mfaResp, err := mfaCeremony.Run(ctx, nil /* req is not needed for MaintainSessionPresence */)
 			if err != nil {
 				return trace.Wrap(err)
 			}

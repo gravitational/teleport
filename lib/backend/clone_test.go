@@ -42,10 +42,10 @@ func TestClone(t *testing.T) {
 	itemCount := 11111
 	items := make([]backend.Item, itemCount)
 
-	for i := range itemCount {
+	for i := 0; i < itemCount; i++ {
 		item := backend.Item{
 			Key:   backend.NewKey(fmt.Sprintf("key-%05d", i)),
-			Value: fmt.Appendf(nil, "value-%d", i),
+			Value: []byte(fmt.Sprintf("value-%d", i)),
 		}
 		_, err := src.Put(ctx, item)
 		require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestClone(t *testing.T) {
 	result, err := dst.GetRange(ctx, start, backend.RangeEnd(start), 0)
 	require.NoError(t, err)
 
-	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision"), cmp.AllowUnexported(backend.Key{}))
+	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision"))
 	require.Empty(t, diff)
 	require.NoError(t, err)
 	require.Len(t, result.Items, itemCount)
@@ -78,10 +78,10 @@ func TestCloneForce(t *testing.T) {
 	itemCount := 100
 	items := make([]backend.Item, itemCount)
 
-	for i := range itemCount {
+	for i := 0; i < itemCount; i++ {
 		item := backend.Item{
 			Key:   backend.NewKey(fmt.Sprintf("key-%05d", i)),
-			Value: fmt.Appendf(nil, "value-%d", i),
+			Value: []byte(fmt.Sprintf("value-%d", i)),
 		}
 		_, err := src.Put(ctx, item)
 		require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestCloneForce(t *testing.T) {
 	result, err := dst.GetRange(ctx, start, backend.RangeEnd(start), 0)
 	require.NoError(t, err)
 
-	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision"), cmp.AllowUnexported(backend.Key{}))
+	diff := cmp.Diff(items, result.Items, cmpopts.IgnoreFields(backend.Item{}, "Revision"))
 	require.Empty(t, diff)
 	require.Len(t, result.Items, itemCount)
 }

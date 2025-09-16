@@ -2,7 +2,7 @@
 title: Access Controls Reference
 description: Explains the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
 tocDepth: 3
-labels:
+tags:
  - reference
  - zero-trust
 ---
@@ -15,7 +15,6 @@ A Teleport role manages access by having two lists of rules: `allow` rules and
 
 - Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
-- Deny rules should be avoided on roles granted through Access Lists.
 
 You can use any of the following to manage Teleport roles and other dynamic
 resources:
@@ -55,14 +54,14 @@ user:
 | - | - | - |
 | `max_session_ttl` | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins |
 | `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
-| `ssh_port_forwarding` | Allow TCP port forwarding | Logical "AND" i.e. if any role denies port forwarding, it's denied |
+| `port_forwarding` | Allow TCP port forwarding | Logical "OR" i.e. if any role allows port forwarding, it's allowed |
 | `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
 | `client_idle_timeout` | Forcefully terminate active sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
 | `disconnect_expired_cert` | Forcefully terminate active sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | The lowest value takes precedence. |
 | `enhanced_recording` | Indicates which events should be recorded by the BFP-based session recorder | |
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
-| `device_trust_mode` | Enforce authenticated device access for users assigned this role (`required`, `required-for-humans`, `optional`, `off`). Applies only to the resources in the roles' allow field. | |
+| `device_trust_mode` | Enforce authenticated device access for users assigned this role (`required`, `optional`, `off`). Applies only to the resources in the roles' allow field. | |
 | `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`). Applies only to the resources in the roles' allow field. | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
 | `mfa_verification_interval` | Define the maximum duration that can elapse between successive MFA verifications  | The shortest interval wins |
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
@@ -86,12 +85,12 @@ Teleport provides several preset roles:
 
 ### Role versions
 
-There are currently six supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, and `v8`.
+There are currently five supported role versions: `v3`, `v4`, `v5`, `v6`, and `v7`.
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
 Additionally, roles with version `v5` or higher do not allow joining sessions by default. The
-[Joining Sessions](../../zero-trust-access/authentication/joining-sessions.mdx) configuration in roles 'v5` or higher
+[Joining Sessions](../../zero-trust-access/access-controls/guides/joining-sessions.mdx) configuration in roles 'v5` or higher
 must be set to allow for joining sessions.
 
 Label              | `v3` Default   | `v4` and higher Default
@@ -104,33 +103,17 @@ Label              | `v3` Default   | `v4` and higher Default
 Role `v6` introduced a new field `kubernetes_resources` that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../../enroll-resources/kubernetes-access/controls.mdx) for more details.
 
-Role `v7` added support for more `kind` values in the `kubernetes_resources` field.
-
-Role `v8` added support for Kubernetes CRDs and introduced changes for how `kubernetes_resources` behave and are defined.
-
-See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
-
-#### Default values for `kubernetes_resources`
-
-The default value for `kubernetes_resources` is applied when there is a label set to
-allow access to a Kubernetes cluster.
-
 Version              |  `kubernetes_resources`
 ------------------ | --------------
-`v3`, `v4` and `v5` | `[{"kind":"pod","name":"*","namespace":"*","verbs":["*"]}]`
-`v6` |  `[]`
-`v7` |  `[{"kind":"*","name":"*","namespace":"*","verbs":["*"]}]`
-`v8` |  `[{"kind":"*","api_group":"*","name":"*","namespace":"*","verbs":["*"]},{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}]`
-
-SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
-There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`. 
-See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
+`v3`, `v4` and `v5` Default | `[{"kind":"pod", "name":"*", "namespace":"*", "verbs": ["*"]}]`
+`v6` Default |  `[]`
+`v7` Default |  `[{"kind":"*", "name":"*", "namespace":"*", "verbs": ["*"]}]`
 
 ## RBAC for infrastructure resources
 
 A Teleport role defines which resources (e.g., applications, servers, and
 databases) a user can access.
-This works by [labeling resources](../../zero-trust-access/rbac-get-started/labels.mdx) and
+This works by [labeling resources](../../zero-trust-access/management/admin/labels.mdx) and
 configuring allow/deny labels in a role definition.
 
 Consider the following use case:
@@ -247,7 +230,6 @@ conditions:
 - `db_service_labels_expression`
 - `windows_desktop_labels_expression`
 - `group_labels_expression`
-- `workload_identity_labels_expression`
 
 Check out our
 [predicate language](../predicate-language.mdx)
@@ -443,14 +425,14 @@ Requests. The `request` field can fall under both `spec.allow` and `spec.deny`:
 
 |Role Field|Description|Further Information|
 |---|---|---|
-| `request.roles` |Teleport roles that a user can or cannot request|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.claims_to_roles`|Teleport roles that a user can or cannot access based on their traits.|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.search_as_roles`|Teleport roles that a user can or cannot assume while searching for resources to request access to.|[Restrict resource requests](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.max_duration`|The maximum duration of elevated privileges if an Access Request were granted. | [How long access lasts](../../identity-governance/access-requests/access-request-configuration.mdx) |
-| `request.reason`|Configures the behavior of Access Request reasons. | [Requiring request reasons](../../identity-governance/access-requests/access-request-configuration.mdx) |
-| `request.thresholds`|Configures the criteria that an Access Request must meet.| [Review thresholds](../../identity-governance/access-requests/access-request-configuration.mdx) |
-| `request.suggested_reviewers`|Reviewers to add to an Access Request by default.| [Suggested reviewers](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.annotations`|Arbitrary data to write (or prevent writing) to an Access Request|[Request annotations](../../identity-governance/access-requests/access-request-configuration.mdx)|
+| `request.roles` |Teleport roles that a user can or cannot request|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx#restrict-role-requests)|
+| `request.claims_to_roles`|Teleport roles that a user can or cannot access based on their traits.|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx#restrict-role-requests)|
+| `request.search_as_roles`|Teleport roles that a user can or cannot assume while searching for resources to request access to.|[Restrict resource requests](../../identity-governance/access-requests/access-request-configuration.mdx#restrict-resource-requests)|
+| `request.max_duration`|The maximum duration of elevated privileges if an Access Request were granted. | [How long access lasts](../../identity-governance/access-requests/access-request-configuration.mdx#how-long-access-lasts) |
+| `request.reason`|Configures the behavior of Access Request reasons. | [Requiring request reasons](../../identity-governance/access-requests/access-request-configuration.mdx#how-clients-request-access) | 
+| `request.thresholds`|Configures the criteria that an Access Request must meet.| [Review thresholds](../../identity-governance/access-requests/access-request-configuration.mdx#review-thresholds) |
+| `request.suggested_reviewers`|Reviewers to add to an Access Request by default.| [Suggested reviewers](../../identity-governance/access-requests/access-request-configuration.mdx#suggested-reviewers)|
+| `request.annotations`|Arbitrary data to write (or prevent writing) to an Access Request|[Request annotations](../../identity-governance/access-requests/access-request-configuration.mdx#request-annotations)|
 
 ### Reviewing Access Requests
 
@@ -505,7 +487,6 @@ Labels for resources enrolled with Teleport:
 |`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
 |`node_labels`|[SSH Servers](../../enroll-resources/server-access/server-access.mdx)|
 |`windows_desktop_labels`|[Windows desktops](../../enroll-resources/server-access/server-access.mdx)|
-|`workload_identity_labels`|[Workload Identities](../workload-identity/workload-identity-resource.mdx)|
 
 Principals a user can assume on infrastructure resources:
 - `aws_role_arns`
@@ -632,9 +613,9 @@ attribute or OIDC claim called `trait`.
 
 You can specify an external trait in dot syntax if it begins with a letter and
 contains only letters, numbers, and underscores. Otherwise, you must use bracket
-syntax to specify a trait.
+syntax to specify a trait. 
 
-When using Microsoft Entra ID or ADFS as your IdP, you must use bracket notation, as these
+When using Azure AD or ADFS as your IdP, you must use bracket notation, as these
 IdPs assign attribute keys to URLs such as the following:
 
 ```text

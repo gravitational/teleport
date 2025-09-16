@@ -16,17 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 
-import {
-  Box,
-  ButtonPrimary,
-  ButtonSecondary,
-  Flex,
-  Indicator,
-  Text,
-} from 'design';
-import { Alert, Danger } from 'design/Alert';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
+import { Danger } from 'design/Alert';
 import Dialog, {
   DialogContent,
   DialogFooter,
@@ -35,70 +28,44 @@ import Dialog, {
 } from 'design/Dialog';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
-import Validation, { Validator } from 'shared/components/Validation';
+import Validation from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
+import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
-import { MfaOption } from 'teleport/services/mfa';
-
-import useReAuthenticate, {
-  ReauthProps,
-  ReauthState,
-} from './useReAuthenticate';
-
-export type Props = ReauthProps & {
-  onClose: () => void;
-};
+import useReAuthenticate, { Props, State } from './useReAuthenticate';
 
 export default function Container(props: Props) {
   const state = useReAuthenticate(props);
-  return <ReAuthenticate onClose={props.onClose} reauthState={state} />;
+  return <ReAuthenticate {...state} />;
 }
 
-export type State = {
-  reauthState: ReauthState;
-  onClose: () => void;
-};
-
 export function ReAuthenticate({
+  attempt,
+  clearAttempt,
+  submitWithTotp,
+  submitWithWebauthn,
   onClose,
-  reauthState: {
-    initAttempt,
-    mfaOptions,
-    submitWithMfa,
-    submitAttempt,
-    clearSubmitAttempt,
-  },
+  auth2faType,
+  preferredMfaType,
+  actionText,
 }: State) {
-  const [otpCode, setOtpToken] = useState('');
-  const [mfaOption, setMfaOption] = useState<MfaOption>();
+  const [otpToken, setOtpToken] = useState('');
+  const mfaOptions = createMfaOptions({
+    auth2faType: auth2faType,
+    preferredType: preferredMfaType,
+    required: true,
+  });
+  const [mfaOption, setMfaOption] = useState<MfaOption>(mfaOptions[0]);
 
-  useEffect(() => {
-    if (mfaOptions?.length) setMfaOption(mfaOptions[0]);
-  }, [mfaOptions]);
-
-  // Handle potential error states first.
-  switch (initAttempt.status) {
-    case 'processing':
-      return (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      );
-    case 'error':
-      return <Alert children={initAttempt.statusText} />;
-    case 'success':
-      break;
-    default:
-      return null;
-  }
-
-  function onReauthenticate(
-    e: React.MouseEvent<HTMLButtonElement>,
-    validator: Validator
-  ) {
+  function onSubmit(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
-    if (!validator.validate()) return;
-    submitWithMfa(mfaOption.value, 'mfa', otpCode);
+
+    if (mfaOption?.value === 'webauthn') {
+      submitWithWebauthn();
+    }
+    if (mfaOption?.value === 'otp') {
+      submitWithTotp(otpToken);
+    }
   }
 
   return (
@@ -117,16 +84,16 @@ export function ReAuthenticate({
               <DialogTitle>Verify your identity</DialogTitle>
               <Text textAlign="center" color="text.slightlyMuted">
                 You must verify your identity with one of your existing
-                two-factor devices before performing this action.
+                two-factor devices before {actionText}.
               </Text>
             </DialogHeader>
-            {submitAttempt.status === 'error' && (
+            {attempt.status === 'failed' && (
               <Danger mt={2} width="100%">
-                {submitAttempt.statusText}
+                {attempt.statusText}
               </Danger>
             )}
             <DialogContent>
-              <Flex mt={2} alignItems="flex-start">
+              <Flex mt={2} alignItems="flex-end">
                 <FieldSelect
                   width="60%"
                   label="Two-factor Type"
@@ -134,25 +101,25 @@ export function ReAuthenticate({
                   options={mfaOptions}
                   onChange={(o: MfaOption) => {
                     setMfaOption(o);
-                    clearSubmitAttempt();
+                    clearAttempt();
                   }}
                   data-testid="mfa-select"
                   mr={3}
                   mb={0}
-                  isDisabled={submitAttempt.status === 'processing'}
+                  isDisabled={attempt.status === 'processing'}
                   elevated={true}
                 />
                 <Box width="40%">
-                  {mfaOption?.value === 'totp' && (
+                  {mfaOption.value === 'otp' && (
                     <FieldInput
                       label="Authenticator Code"
                       rule={requiredToken}
                       inputMode="numeric"
                       autoComplete="one-time-code"
-                      value={otpCode}
+                      value={otpToken}
                       onChange={e => setOtpToken(e.target.value)}
                       placeholder="123 456"
-                      readonly={submitAttempt.status === 'processing'}
+                      readonly={attempt.status === 'processing'}
                       mb={0}
                     />
                   )}
@@ -161,8 +128,8 @@ export function ReAuthenticate({
             </DialogContent>
             <DialogFooter>
               <ButtonPrimary
-                onClick={e => onReauthenticate(e, validator)}
-                disabled={submitAttempt.status === 'processing'}
+                onClick={e => validator.validate() && onSubmit(e)}
+                disabled={attempt.status === 'processing'}
                 mr={3}
                 mt={3}
                 type="submit"

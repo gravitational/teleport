@@ -1,7 +1,7 @@
 ---
 title: "Protect Google Cloud API Access with Teleport"
 description: How to enable secure access to Google Cloud APIs.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -11,18 +11,19 @@ Cloud's APIs. This lets you control access to your infrastructure's management
 APIs using the same RBAC system that you use to protect your infrastructure
 itself.
 
-## How it works
-
 The Teleport Application Service manages access to Google Cloud's APIs by
 proxying requests from CLI applications. The Application Service authenticates
 these requests using tokens retrieved from Google Cloud. This enables Teleport
 operators to control the service accounts that users can assume in order to
 interact with Google Cloud APIs.
 
+{/* TODO: Add a mermaidjs graph here when available*/}
+
 The Teleport Application Service connects to the Teleport Proxy Service over a
 reverse tunnel, so you can run the Application Service in a private network and
-prevent unauthorized access to your organization's Google Cloud service
-accounts.
+prevent unauthorized access to your organization's Google Cloud service accounts.
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -252,11 +253,11 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: false
+  enabled: off
 proxy_service:
-  enabled: false
+  enabled: off
 ssh_service:
-  enabled: false
+  enabled: off
 app_service:
   enabled: true
   apps:
@@ -338,8 +339,7 @@ Cloud CLI via Teleport, the Teleport Auth Service populates the
 service accounts you have assigned to the user.
 
 Assign the target service account we created earlier (or another service
-account) to your Teleport user by running the following command, setting 
-<Var name="teleport-user" /> to the name of your Teleport user:
+account) to your Teleport user by running the following command:
 
 ```code
 $ tctl users update <Var name="teleport-user" /> \
@@ -356,8 +356,6 @@ Create the role:
 ```code
 $ tctl create -f google-cloud-cli-access.yaml
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 </TabItem>
 <TabItem label="SAML/OIDC Connectors">
@@ -403,8 +401,6 @@ Create the role:
 ```code
 $ tctl create -f google-cloud-cli-access
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 </TabItem>
 </Tabs>

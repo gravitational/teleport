@@ -19,17 +19,16 @@
 package streamproto
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport/api/types"
@@ -44,7 +43,7 @@ type metaMessage struct {
 	ServerHandshake *ServerHandshake            `json:"server_handshake,omitempty"`
 }
 
-// ClientHandshake is the first message sent by a client to inform a server of its intentions.
+// ClientHandshake is the first message sent by a client to inform a server of it's intentions.
 type ClientHandshake struct {
 	Mode types.SessionParticipantMode `json:"mode"`
 }
@@ -165,19 +164,20 @@ func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, erro
 }
 
 func (s *SessionStream) readTask() {
-	defer s.closeOnce.Do(func() { close(s.done) })
 	for {
+		defer s.closeOnce.Do(func() { close(s.done) })
+
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {
 			if !errors.Is(err, io.EOF) && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
-				slog.WarnContext(context.Background(), "Failed to read message from websocket", "error", err)
+				log.WithError(err).Warn("Failed to read message from websocket")
 			}
 
 			var closeErr *websocket.CloseError
 			// If it's a close error, we want to send a message to the stdout
 			if s.isClient && errors.As(err, &closeErr) && closeErr.Text != "" {
 				select {
-				case s.in <- fmt.Appendf(nil, "\r\n---\r\nConnection closed: %v\r\n", closeErr.Text):
+				case s.in <- []byte(fmt.Sprintf("\r\n---\r\nConnection closed: %v\r\n", closeErr.Text)):
 				case <-s.done:
 					return
 				}
@@ -293,7 +293,7 @@ func (s *SessionStream) Close() error {
 	if atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
 		err := s.conn.WriteMessage(websocket.CloseMessage, []byte{})
 		if err != nil {
-			slog.WarnContext(context.Background(), "Failed to gracefully close websocket connection", "error", err)
+			log.Warnf("Failed to gracefully close websocket connection: %v", err)
 		}
 		t := time.NewTimer(time.Second * 5)
 		defer t.Stop()

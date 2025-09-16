@@ -186,9 +186,9 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCre
 		RawAuthData: authData.Bytes(),
 		// See https://www.w3.org/TR/webauthn-2/#sctn-fido-u2f-attestation.
 		Format: "fido-u2f",
-		AttStatement: map[string]any{
+		AttStatement: map[string]interface{}{
 			"sig": res.Signature,
-			"x5c": []any{muk.Cert},
+			"x5c": []interface{}{muk.Cert},
 		},
 	})
 	if err != nil {
@@ -200,23 +200,13 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCre
 		muk.UserHandle = cc.Response.User.ID
 	}
 
-	var exts *wantypes.AuthenticationExtensionsClientOutputs
-	if muk.ReplyWithCredProps {
-		exts = &wantypes.AuthenticationExtensionsClientOutputs{
-			CredProps: &wantypes.CredentialPropertiesOutput{
-				RK: true,
-			},
-		}
-	}
-
 	return &wantypes.CredentialCreationResponse{
 		PublicKeyCredential: wantypes.PublicKeyCredential{
 			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(muk.KeyHandle),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
-			RawID:      muk.KeyHandle,
-			Extensions: exts,
+			RawID: muk.KeyHandle,
 		},
 		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
 			AuthenticatorResponse: wantypes.AuthenticatorResponse{

@@ -19,8 +19,6 @@
 package gitlab
 
 import (
-	"github.com/zitadel/oidc/v3/pkg/oidc"
-
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
@@ -58,7 +56,6 @@ import (
 // See the following for the structure:
 // https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#id-tokens
 type IDTokenClaims struct {
-	oidc.TokenClaims
 	// Sub roughly uniquely identifies the workload. Example:
 	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
 	// project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
@@ -112,10 +109,6 @@ type IDTokenClaims struct {
 	DeploymentTier string `json:"deployment_tier"`
 	// The visibility of the project where the pipeline is running. Can be internal, private, or public.
 	ProjectVisibility string `json:"project_visibility"`
-}
-
-func (c *IDTokenClaims) GetSubject() string {
-	return c.Sub
 }
 
 // JoinAttrs returns the protobuf representation of the attested identity.

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
+import React, {
   createContext,
   ReactNode,
   Suspense,
@@ -29,14 +29,9 @@ import {
 import { matchPath, useHistory } from 'react-router';
 import styled from 'styled-components';
 
-import { Box, Flex, Indicator } from 'design';
+import { Box, Indicator } from 'design';
 import { Failed } from 'design/CardError';
-import {
-  InfoGuidePanelProvider,
-  useInfoGuide,
-} from 'shared/components/SlidingSidePanel/InfoGuide';
-import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
-import { ToastNotifications } from 'shared/components/ToastNotification';
+import { sharedStyles } from 'design/theme/themes/sharedStyles';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -44,17 +39,17 @@ import type { BannerType } from 'teleport/components/BannerList/BannerList';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 import { CatchError } from 'teleport/components/CatchError';
 import { Redirect, Route, Switch } from 'teleport/components/Router';
-import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
-import { Navigation } from 'teleport/Navigation';
+import { NavigationCategory } from 'teleport/Navigation/categories';
 import {
-  ClusterAlert,
-  LINK_DESTINATION_LABEL,
-  LINK_TEXT_LABEL,
-} from 'teleport/services/alerts/alerts';
+  getFirstRouteForCategory,
+  Navigation,
+} from 'teleport/Navigation/Navigation';
+import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
 import { storageService } from 'teleport/services/storageService';
 import { TopBar } from 'teleport/TopBar';
+import { TopBarProps } from 'teleport/TopBar/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
@@ -67,7 +62,8 @@ export interface MainProps {
   customBanners?: ReactNode[];
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
-  CustomLogo?: () => React.ReactElement;
+  topBarProps?: TopBarProps;
+  inviteCollaboratorsFeedback?: ReactNode;
 }
 
 export function Main(props: MainProps) {
@@ -93,6 +89,14 @@ export function Main(props: MainProps) {
     () => props.features.filter(feature => feature.hasAccess(featureFlags)),
     [featureFlags, props.features]
   );
+  const feature = features
+    .filter(feature => Boolean(feature.route))
+    .find(f =>
+      matchPath(history.location.pathname, {
+        path: f.route.path,
+        exact: f.route.exact ?? false,
+      })
+    );
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
@@ -151,7 +155,7 @@ export function Main(props: MainProps) {
 
     const indexRoute = cfg.isDashboard
       ? cfg.routes.downloadCenter
-      : cfg.getUnifiedResourcesRoute(cfg.proxyCluster);
+      : getFirstRouteForCategory(features, NavigationCategory.Resources);
 
     return <Redirect to={indexRoute} />;
   }
@@ -168,48 +172,52 @@ export function Main(props: MainProps) {
     return 'danger';
   };
 
-  const banners: BannerType[] = alerts.map(
-    (alert): BannerType => ({
-      message: alert.spec.message,
-      severity: mapSeverity(alert.spec.severity),
-      linkDestination: alert.metadata.labels[LINK_DESTINATION_LABEL],
-      linkText: alert.metadata.labels[LINK_TEXT_LABEL],
-      id: alert.metadata.name,
-    })
-  );
+  const banners: BannerType[] = alerts.map(alert => ({
+    message: alert.spec.message,
+    severity: mapSeverity(alert.spec.severity),
+    link: alert.metadata.labels[LINK_LABEL],
+    id: alert.metadata.name,
+  }));
 
   const onboard = storageService.getOnboardDiscover();
   const requiresOnboarding =
     onboard && !onboard.hasResource && !onboard.notified;
   const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
+  const hasSidebar =
+    feature?.category === NavigationCategory.Management &&
+    !feature?.hideNavigation;
 
   return (
     <FeaturesContextProvider value={features}>
-      <TopBar CustomLogo={props.CustomLogo} />
+      <TopBar
+        CustomLogo={
+          props.topBarProps?.showPoweredByLogo
+            ? props.topBarProps.CustomLogo
+            : null
+        }
+      />
       <Wrapper>
         <MainContainer>
-          <Navigation showPoweredByLogo={!!props.CustomLogo} />
-          <InfoGuidePanelProvider>
-            <ContentWrapper>
-              <ContentMinWidth>
-                <BannerList
-                  banners={banners}
-                  customBanners={props.customBanners}
-                  billingBanners={featureFlags.billing && props.billingBanners}
-                  onBannerDismiss={dismissAlert}
-                />
-                <ToastNotifications />
-                <Suspense fallback={null}>
-                  <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
-                </Suspense>
-              </ContentMinWidth>
-            </ContentWrapper>
-          </InfoGuidePanelProvider>
+          <Navigation />
+          <HorizontalSplit hasSidebar={hasSidebar}>
+            <ContentMinWidth>
+              <BannerList
+                banners={banners}
+                customBanners={props.customBanners}
+                billingBanners={featureFlags.billing && props.billingBanners}
+                onBannerDismiss={dismissAlert}
+              />
+              <Suspense fallback={null}>
+                <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
+              </Suspense>
+            </ContentMinWidth>
+          </HorizontalSplit>
         </MainContainer>
       </Wrapper>
       {displayOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
+      {props.inviteCollaboratorsFeedback}
     </FeaturesContextProvider>
   );
 }
@@ -304,8 +312,6 @@ export const useNoMinWidth = () => {
 
 export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
-  const { infoGuideConfig, panelWidth } = useInfoGuide();
-  const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
     <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
@@ -315,30 +321,31 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           flex-direction: column;
           flex: 1;
           ${enforceMinWidth ? 'min-width: 1000px;' : ''}
-          min-height: 0;
-          overflow-y: auto;
-          ${marginTransitionCss({
-            sidePanelOpened: infoGuideSidePanelOpened,
-            panelWidth: infoGuideConfig?.viewHasOwnSidePanel ? 0 : panelWidth,
-          })}
         `}
       >
         {children}
       </div>
-      <InfoGuideSidePanel />
     </ContentMinWidthContext.Provider>
   );
 };
 
-export const ContentWrapper = styled.div`
+function getWidth(hasSidebar?: boolean) {
+  const { sidebarWidth } = sharedStyles;
+  if (hasSidebar) {
+    return `max-width: calc(100% - ${sidebarWidth}px);`;
+  }
+  return 'max-width: 100%;';
+}
+
+export const HorizontalSplit = styled.div<{ hasSidebar?: boolean }>`
   display: flex;
   flex-direction: column;
   flex: 1;
+  ${props => getWidth(props.hasSidebar)}
   overflow-x: auto;
-  max-width: 100%;
 `;
 
-export const StyledIndicator = styled(Flex)`
+export const StyledIndicator = styled(HorizontalSplit)`
   align-items: center;
   justify-content: center;
   position: absolute;
@@ -351,5 +358,5 @@ const Wrapper = styled(Box)`
   display: flex;
   height: 100vh;
   flex-direction: column;
-  max-width: 100vw;
+  width: 100vw;
 `;

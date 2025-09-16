@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Flex } from 'design';
 
 import {
@@ -28,7 +30,7 @@ import cfg from 'teleport/config';
 
 import { NoCodeIntegrationDescription } from './common';
 import { getRoutesToEnrollIntegrations } from './IntegrationRoute';
-import { IntegrationTiles } from './IntegrationTiles/IntegrationTiles';
+import { IntegrationTiles } from './IntegrationTiles';
 import { MachineIDIntegrationSection } from './MachineIDIntegrationSection';
 
 export function IntegrationEnroll() {

@@ -60,7 +60,7 @@ export const renderStatusCell = ({ state }: AccessRequest) => {
       <Cell>
         <Flex alignItems="center">
           <ArrowFatLinesUp size={17} color="success.main" mr={1} ml="-3px" />
-          <Text typography="body3">{state}</Text>
+          <Text typography="body2">{state}</Text>
         </Flex>
       </Cell>
     );
@@ -83,7 +83,7 @@ export const renderStatusCell = ({ state }: AccessRequest) => {
           p={0}
           style={{ minHeight: '10px' }}
         />
-        <Text typography="body3">{state}</Text>
+        <Text typography="body2">{state}</Text>
       </Flex>
     </Cell>
   );

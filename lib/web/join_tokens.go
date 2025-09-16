@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -38,10 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/ui"
@@ -59,7 +56,7 @@ type nodeJoinToken struct {
 	//  ID is token ID.
 	ID string `json:"id"`
 	// Expiry is token expiration time.
-	Expiry time.Time `json:"expiry"`
+	Expiry time.Time `json:"expiry,omitempty"`
 	// Method is the join method that the token supports
 	Method types.JoinMethod `json:"method"`
 	// SuggestedLabels contains the set of labels we expect the node to set when using this token
@@ -95,66 +92,15 @@ type GetTokensResponse struct {
 	Items []webui.JoinToken `json:"items"`
 }
 
-func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// There are 3 tokens types:
-	// - provision tokens
-	// - static tokens
-	// - user tokens
-	// This endpoint returns all 3 for compatibility reasons.
-	// Before, all 3 tokens were returned by the same "GetTokens" RPC, now we are using
-	// separate RPCs, with pagination. However, we don't know if the auth we are talking
-	// to supports the new RPCs. As the static token one got introduced last, we
-	// try to use it.If it works, we consume the two other RPCs. If it doesn't,
-	// we fallback to the legacy all-in-one RPC.
-	var tokens []types.ProvisionToken
-
-	// Trying to get static tokens
-	staticTokens, err := clt.GetStaticTokens(r.Context())
-	if err != nil && !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err, "getting static tokens")
-	}
-
-	// TODO(hugoShaka): DELETE IN 19.0.0
-	if trace.IsNotImplemented(err) {
-		// We are connected to an old auth, that doesn't support the per-token type RPCs
-		// so we fallback to the legacy all-in-one RPC.
-		tokens, err = clt.GetTokens(r.Context())
-		if err != nil {
-			return nil, trace.Wrap(err, "getting all tokens through the legacy RPC")
-		}
-	} else {
-		// We are connected to a modern auth, we must collect all 3 tokens types.
-		// Getting the provision tokens.
-		provisionTokens, err := stream.Collect(clientutils.Resources(r.Context(),
-			func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
-				return clt.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
-			},
-		))
-		if err != nil {
-			return nil, trace.Wrap(err, "getting provision tokens")
-		}
-		tokens = append(staticTokens.GetStaticTokens(), provisionTokens...)
-
-		// Getting the user tokens.
-		userTokens, err := stream.Collect(clientutils.Resources(r.Context(), clt.ListResetPasswordTokens))
-		if err != nil {
-			return nil, trace.Wrap(err, "getting user tokens")
-		}
-		// Converting the user tokens as provision tokens for presentation and
-		// backward compatibility.
-		for _, t := range userTokens {
-			roles := types.SystemRoles{types.RoleSignup}
-			tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
-			if err != nil {
-				return nil, trace.Wrap(err, "converting user token as a provision token")
-			}
-			tokens = append(tokens, tok)
-		}
+	tokens, err := clt.GetTokens(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	uiTokens, err := webui.MakeJoinTokens(tokens)
@@ -167,52 +113,7 @@ func (h *Handler) getTokens(w http.ResponseWriter, r *http.Request, params httpr
 	}, nil
 }
 
-// ListProvisionTokensResponse contains a paginated list of provision tokens.
-type ListProvisionTokensResponse struct {
-	Items         []webui.JoinToken `json:"items"`
-	NextPageToken string            `json:"next_page_token,omitempty"`
-}
-
-// listProvisionTokens returns a paginated list of provision tokens. Items can
-// be filtered by role and bot name. Tokens with ANY of the provided roles are
-// returned. If a bot name is provided, only tokens having a role of Bot are
-// returned.
-func (h *Handler) listProvisionTokens(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var pageSize int64 = 20
-	if r.URL.Query().Has("page_size") {
-		pageSize, err = strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse page_size")
-		}
-	}
-
-	roles, err := types.NewTeleportRoles(r.URL.Query()["role"])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	items, nextToken, err := clt.ListProvisionTokens(r.Context(), int(pageSize), r.URL.Query().Get("page_token"), roles, r.URL.Query().Get("bot_name"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	uiTokens, err := webui.MakeJoinTokens(items)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ListProvisionTokensResponse{
-		Items:         uiTokens,
-		NextPageToken: nextToken,
-	}, nil
-}
-
-func (h *Handler) deleteToken(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) deleteToken(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	token := r.Header.Get(HeaderTokenName)
 	if token == "" {
 		return nil, trace.BadParameter("requires a token to delete")
@@ -234,14 +135,14 @@ type CreateTokenRequest struct {
 	Content string `json:"content"`
 }
 
-func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
 	tokenId := r.Header.Get(HeaderTokenName)
 	if tokenId == "" {
 		return nil, trace.BadParameter("requires a token name to edit")
 	}
 
 	var yaml CreateTokenRequest
-	if err := httplib.ReadResourceJSON(r, &yaml); err != nil {
+	if err := httplib.ReadJSON(r, &yaml); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -285,7 +186,7 @@ type upsertTokenHandleRequest struct {
 
 func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	var req upsertTokenHandleRequest
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -304,8 +205,8 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 	var expires time.Time
 	switch req.JoinMethod {
-	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
-		// IAM, GCP, Oracle and GitHub tokens should never expire.
+	case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodGitHub:
+		// IAM, GCP and GitHub tokens should never expire.
 		expires = time.Time{}
 	default:
 		// Set expires time to default node join token TTL.
@@ -344,16 +245,14 @@ func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, para
 	return uiToken, nil
 }
 
-// createTokenForDiscoveryHandle creates tokens used during guided discover flows.
-// V2 endpoint processes "suggestedLabels" field.
-func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var req types.ProvisionTokenSpecV2
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -434,10 +333,9 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 	// We create an ID and return it as part of the Token, so the UI can use this ID to query the Node that joined using this token
 	// WebUI can then query the resources by this id and answer the question:
 	//   - Which Node joined the cluster from this token Y?
-	if req.SuggestedLabels == nil {
-		req.SuggestedLabels = make(types.Labels)
+	req.SuggestedLabels = types.Labels{
+		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
 	}
-	req.SuggestedLabels[types.InternalResourceIDLabel] = apiutils.Strings{uuid.NewString()}
 
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
@@ -466,7 +364,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 	}, nil
 }
 
-func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
 	settings := scriptSettings{
@@ -477,40 +375,34 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the node install script", "error", err)
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
 	return nil, nil
 }
 
-func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 
 	name, err := url.QueryUnescape(queryValues.Get("name"))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
-			"query_param", "name",
-			"error", err,
-		)
+		log.WithField("query-param", "name").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	uri, err := url.QueryUnescape(queryValues.Get("uri"))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script",
-			"query_param", "uri",
-			"error", err,
-		)
+		log.WithField("query-param", "uri").WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -524,21 +416,21 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the app install script", "error", err)
+		log.WithError(err).Info("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the app install script", "error", err)
+		log.WithError(err).Debug("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
 	return nil, nil
 }
 
-func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 
 	settings := scriptSettings{
@@ -548,38 +440,33 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the database install script", "error", err)
+		log.WithError(err).Info("Failed to return the database install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the database install script", "error", err)
+		log.WithError(err).Debug("Failed to return the database install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
 	return nil, nil
 }
 
-func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (any, error) {
+func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 	const discoveryGroupQueryParam = "discoveryGroup"
 
 	discoveryGroup, err := url.QueryUnescape(queryValues.Get(discoveryGroupQueryParam))
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script",
-			"error", err,
-			"query_param", discoveryGroupQueryParam,
-		)
+		log.WithField("query-param", discoveryGroupQueryParam).WithError(err).Debug("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 	if discoveryGroup == "" {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script. Missing required fields",
-			"query_param", discoveryGroupQueryParam,
-		)
+		log.WithField("query-param", discoveryGroupQueryParam).Debug("Failed to return the discovery install script. Missing required fields.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
@@ -592,14 +479,14 @@ func (h *Handler) getDiscoveryJoinScriptHandle(w http.ResponseWriter, r *http.Re
 
 	script, err := h.getJoinScript(r.Context(), settings)
 	if err != nil {
-		h.logger.InfoContext(r.Context(), "Failed to return the discovery install script", "error", err)
+		log.WithError(err).Info("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to return the discovery install script", "error", err)
+		log.WithError(err).Debug("Failed to return the discovery install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 

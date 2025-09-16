@@ -17,6 +17,7 @@
  */
 
 import { userEvent, UserEvent } from '@testing-library/user-event';
+import React from 'react';
 import selectEvent from 'react-select-event';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';

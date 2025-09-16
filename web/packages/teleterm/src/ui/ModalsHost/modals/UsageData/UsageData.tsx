@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Link } from 'design';
+import React from 'react';
+
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, Link, Text } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
-import { P } from 'design/Text/Text';
 
 export function UsageData(props: {
   onCancel(): void;
@@ -52,7 +53,9 @@ export function UsageData(props: {
           mb={0}
           alignItems="baseline"
         >
-          <H2 mb={4}>Anonymous usage data</H2>
+          <Text typography="h4" bold>
+            Anonymous usage data
+          </Text>
           <ButtonIcon
             type="button"
             onClick={props.onCancel}
@@ -62,11 +65,11 @@ export function UsageData(props: {
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <P>
+          <Text typography="body1" color="text.slightlyMuted">
             Do you agree to Teleport Connect collecting anonymized usage data?
             This will help us improve the product.
-          </P>
-          <P>
+          </Text>
+          <Text typography="body1" color="text.slightlyMuted">
             To learn more, see{' '}
             <Link
               href="https://goteleport.com/docs/faq/#teleport-connect"
@@ -75,7 +78,7 @@ export function UsageData(props: {
               our documentation
             </Link>
             .
-          </P>
+          </Text>
         </DialogContent>
         <DialogFooter>
           <ButtonPrimary autoFocus mr={3} type="submit">

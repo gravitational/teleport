@@ -465,28 +465,6 @@ func TestValidateAutoUpdateConfig(t *testing.T) {
 			},
 			assertErr: require.Error,
 		},
-		{
-			name: "group with too many canaries",
-			config: &autoupdate.AutoUpdateConfig{
-				Kind:    types.KindAutoUpdateConfig,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: types.MetaNameAutoUpdateConfig,
-				},
-				Spec: &autoupdate.AutoUpdateConfigSpec{
-					Agents: &autoupdate.AutoUpdateConfigSpecAgents{
-						Mode:     AgentsUpdateModeEnabled,
-						Strategy: AgentsStrategyHaltOnError,
-						Schedules: &autoupdate.AgentAutoUpdateSchedules{
-							Regular: []*autoupdate.AgentAutoUpdateGroup{
-								{Name: "g1", Days: []string{"*"}, WaitHours: 0, CanaryCount: 123},
-							},
-						},
-					},
-				},
-			},
-			assertErr: require.Error,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

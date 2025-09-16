@@ -2,7 +2,7 @@
 title: Run the Mattermost Access Request plugin
 sidebar_label: Mattermost
 description: How to set up Teleport's Mattermost plugin for privilege elevation approvals.
-labels:
+tags:
  - how-to
  - identity-governance
 ---
@@ -10,7 +10,12 @@ labels:
 import BotLogo from "/static/avatar_logo.png";
 
 This guide explains how to integrate Access Requests with Mattermost, an open 
-source messaging platform. 
+source messaging platform. The Teleport Mattermost plugin notifies individuals of
+access requests. Users can then approve and deny access requests by following the
+message link, making it easier to implement security best practices without
+compromising productivity.
+
+![The Mattermost Access Request plugin](../../../img/enterprise/plugins/mattermost/diagram.png)
 
 <details>
 <summary>This integration is hosted on Teleport Cloud</summary>
@@ -19,18 +24,11 @@ source messaging platform.
 
 </details>
 
-## How it works
-
-The Teleport Mattermost plugin notifies individuals of Access Requests. Users
-can then approve and deny Access Requests by following the message link, making
-it easier to implement security best practices without compromising
-productivity.
-
-![The Mattermost Access Request plugin](../../../img/enterprise/plugins/mattermost/diagram.png)
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/machine-id/plugin-prerequisites.mdx!)
 

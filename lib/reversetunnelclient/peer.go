@@ -17,7 +17,6 @@
 package reversetunnelclient
 
 import (
-	"context"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -34,9 +33,9 @@ func (f PeerDialerFunc) Dial(clusterName string, request peerdial.DialParams) (n
 }
 
 // NewPeerDialer implements [peerdial.Dialer] for a reverse tunnel server.
-func NewPeerDialer(clusterGetter ClusterGetter) PeerDialerFunc {
+func NewPeerDialer(server Tunnel) PeerDialerFunc {
 	return func(clusterName string, request peerdial.DialParams) (net.Conn, error) {
-		site, err := clusterGetter.Cluster(context.TODO(), clusterName)
+		site, err := server.GetSite(clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -21,24 +21,19 @@ package authclient
 import (
 	"context"
 	"io"
-	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -48,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -128,7 +122,7 @@ type ReadNodeAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -147,6 +141,12 @@ type ReadNodeAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
@@ -180,7 +180,7 @@ type ReadProxyAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -206,6 +206,12 @@ type ReadProxyAccessPoint interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
@@ -218,8 +224,8 @@ type ReadProxyAccessPoint interface {
 	// GetAuthServers returns a list of auth servers registered in the cluster
 	GetAuthServers() ([]types.Server, error)
 
-	// ListReverseTunnels returns a list of reverse tunnels with pagination.
-	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
+	// GetReverseTunnels returns  a list of reverse tunnels
+	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -235,9 +241,6 @@ type ReadProxyAccessPoint interface {
 
 	// ListApps returns a page of application resources.
 	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
@@ -277,14 +280,10 @@ type ReadProxyAccessPoint interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
 	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
-
-	// RangeDatabases returns database resources within the range [start, end).
-	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -308,6 +307,9 @@ type ReadProxyAccessPoint interface {
 	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
 
+	// GetSAMLIdPSession gets a SAML IdP session.
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
+
 	// ListUserGroups returns a paginated list of user group resources.
 	ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error)
 
@@ -322,14 +324,6 @@ type ReadProxyAccessPoint interface {
 
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
-
-	// GitServerReadOnlyClient returns the read-only client for Git servers.
-	GitServerReadOnlyClient() gitserver.ReadOnlyClient
-
-	// GetRelayServer returns the relay server heartbeat with a given name.
-	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
-	// ListRelayServers returns a paginated list of relay server heartbeats.
-	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -350,33 +344,6 @@ type ProxyAccessPoint interface {
 	accessPoint
 }
 
-// ReadRelayAccessPoint is a read only API interface to be used by a Relay
-// service.
-//
-// NOTE: This interface must be a subset of the [*cache.Cache] methods usable in the
-// cache configured by [cache.ForRelay].
-type ReadRelayAccessPoint interface {
-	io.Closer
-	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
-
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
-
-	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-
-	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
-
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
-
-	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
-
-	GetRole(ctx context.Context, name string) (types.Role, error)
-
-	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
-
-	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
-}
-
 // ReadRemoteProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
 // used by a teleport.ComponentProxy.
 //
@@ -395,7 +362,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -415,6 +382,12 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
@@ -426,6 +399,9 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetAuthServers returns a list of auth servers registered in the cluster
 	GetAuthServers() ([]types.Server, error)
+
+	// GetReverseTunnels returns  a list of reverse tunnels
+	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -447,12 +423,6 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
-
-	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
-
-	// GetWindowsDesktopService returns a registered windows desktop service by name.
-	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -483,7 +453,7 @@ type ReadKubernetesAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -505,6 +475,12 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -553,7 +529,7 @@ type ReadAppsAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -579,14 +555,17 @@ type ReadAppsAccessPoint interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
 	// ListApps returns a page of application resources.
 	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
@@ -610,10 +589,6 @@ type ReadDatabaseAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
-	// HealthCheckConfigReader defines methods for reading health check config
-	// resources.
-	services.HealthCheckConfigReader
-
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -624,7 +599,7 @@ type ReadDatabaseAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -650,15 +625,17 @@ type ReadDatabaseAccessPoint interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
 	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
-
-	// RangeDatabases returns database resources within the range [start, end).
-	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -692,7 +669,7 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -715,20 +692,20 @@ type ReadWindowsDesktopAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
-	// ListWindowsDesktops returns Windows desktop hosts.
-	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
 
-	// ListWindowsDesktopServices returns Windows desktop services.
-	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
 
-	// GetWindowsDesktopService returns a Windows desktop service by name.
+	// GetWindowsDesktops returns windows desktop hosts.
+	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+
+	// GetWindowsDesktopServices returns windows desktop hosts.
+	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+
+	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
-
-	// GetDynamicWindowsDesktop gets a dynamic Windows desktop by name.
-	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
-
-	// ListDynamicWindowsDesktops returns dynamic Windows desktops.
-	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 }
 
 // WindowsDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -759,7 +736,13 @@ type ReadDiscoveryAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
@@ -771,14 +754,10 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
 	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
-
-	// RangeDatabases returns database resources within the range [start, end).
-	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns a database resource with the given name if it exists.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -788,9 +767,6 @@ type ReadDiscoveryAccessPoint interface {
 
 	// ListApps returns a page of application resources.
 	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
@@ -846,9 +822,6 @@ type DiscoveryAccessPoint interface {
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 
-	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
-	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
-
 	// EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
 	EnrollEKSClusters(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 
@@ -860,18 +833,6 @@ type DiscoveryAccessPoint interface {
 
 	// UpsertUserTask creates or updates an User Task
 	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
-}
-
-// ExpiryAccessPoint is the API used by the expiry service.
-type ExpiryAccessPoint interface {
-	// Semaphores provides semaphore operations
-	types.Semaphores
-
-	// ListAccessRequests is an access request getter with pagination and sorting options.
-	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
-
-	// DeleteAccessRequest deletes an access request.
-	DeleteAccessRequest(ctx context.Context, reqID string) error
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1006,7 +967,7 @@ type AccessCache interface {
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // Cache is a subset of the auth interface handling
@@ -1018,11 +979,11 @@ type Cache interface {
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
-	// ListReverseTunnels returns a paginated list of reverse tunnels.
-	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
+	// GetReverseTunnels returns  a list of reverse tunnels
+	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -1035,6 +996,12 @@ type Cache interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
@@ -1081,9 +1048,6 @@ type Cache interface {
 	// ListApps returns a page of application resources.
 	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
 
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, startKey, endKey string) iter.Seq2[types.Application, error]
-
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1098,6 +1062,9 @@ type Cache interface {
 
 	// GetSnowflakeSession gets a Snowflake web session.
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+
+	// GetSAMLIdPSession gets a SAML IdP session.
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
@@ -1128,14 +1095,10 @@ type Cache interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
 	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
-
-	// RangeDatabases returns database resources within the range [start, end).
-	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -1152,14 +1115,11 @@ type Cache interface {
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
-	// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
-	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
-
-	// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
-	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
-
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
-	GetStaticTokens(ctx context.Context) (types.StaticTokens, error)
+	GetStaticTokens() (types.StaticTokens, error)
+
+	// GetTokens returns all active (non-expired) provisioning tokens
+	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
@@ -1221,7 +1181,7 @@ type Cache interface {
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 
 	// CountAccessListMembers will count all access list members.
-	CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error)
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	// May return a DynamicAccessListError if the requested access list has an
 	// implicit member list and the underlying implementation does not have
@@ -1250,7 +1210,9 @@ type Cache interface {
 	// GetUserTask returns the user tasks resource by name.
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 	// ListUserTasks returns the user tasks resources.
-	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
+	// ListUserTasksByIntegration returns the user tasks resources filtered by an integration.
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
 
 	// NotificationGetter defines list methods for notifications.
 	services.NotificationGetter
@@ -1260,7 +1222,7 @@ type Cache interface {
 	// GetAccessMonitoringRule returns the specified access monitoring rule.
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrules.AccessMonitoringRule, error)
 	// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrules.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
 
 	// DatabaseObjectsGetter defines methods for fetching database objects.
 	services.DatabaseObjectsGetter
@@ -1274,20 +1236,13 @@ type Cache interface {
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
-	// GetAutoUpdateAgentReport gets the AutoUpdateAgentRollout from the backend.
-	GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error)
-
-	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReports from the backend.
-	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
-
-	// GetAccessGraphSettings returns the access graph settings.
-	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
-
 	// GetSPIFFEFederation gets a SPIFFE Federation by name.
 	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
 	// ListSPIFFEFederations lists all SPIFFE Federations using Google style
 	// pagination.
 	ListSPIFFEFederations(ctx context.Context, pageSize int, lastToken string) ([]*machineidv1.SPIFFEFederation, string, error)
+	// GetAccessGraphSettings returns the access graph settings.
+	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
 	// GetWorkloadIdentity gets a WorkloadIdentity by name.
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
@@ -1299,41 +1254,6 @@ type Cache interface {
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
 	// GetStaticHostUser returns a static host user by name.
 	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
-
-	// GetProvisioningState gets a specific provisioning state
-	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
-
-	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
-	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
-	GetIdentityCenterAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
-
-	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
-	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
-
-	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
-	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
-
-	// GitServerGetter defines methods for fetching Git servers.
-	services.GitServerGetter
-
-	// HealthCheckConfigReader defines methods for fetching health checkc config
-	// resources.
-	services.HealthCheckConfigReader
-
-	// GetRelayServer returns the relay server heartbeat with a given name.
-	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
-	// ListRelayServers returns a paginated list of relay server heartbeats.
-	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
-
-	// GetBotInstance returns the specified BotInstance resource.
-	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
-
-	// ListBotInstances returns a page of BotInstance resources.
-	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
-
-	// ListProvisionTokens returns a paginated list of provision tokens.
-	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 type NodeWrapper struct {
@@ -1552,11 +1472,6 @@ func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.Subm
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (w *DiscoveryWrapper) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return w.NoCache.GenerateAWSOIDCToken(ctx, integration)
-}
-
-// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
-func (w *DiscoveryWrapper) GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error) {
-	return w.NoCache.GenerateAzureOIDCToken(ctx, integration)
 }
 
 // EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.

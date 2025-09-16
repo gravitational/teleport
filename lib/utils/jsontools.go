@@ -61,7 +61,7 @@ func hasPrefix(buf []byte, prefix []byte) bool {
 
 // FastUnmarshal uses the json-iterator library for fast JSON unmarshalling.
 // Note, this function marshals floats with 6 digits precision.
-func FastUnmarshal(data []byte, v any) error {
+func FastUnmarshal(data []byte, v interface{}) error {
 	iter := jsoniter.ConfigFastest.BorrowIterator(data)
 	defer jsoniter.ConfigFastest.ReturnIterator(iter)
 
@@ -94,7 +94,7 @@ var SafeConfigWithIndent = jsoniter.Config{
 
 // FastMarshal uses the json-iterator library for fast JSON marshaling.
 // Note, this function unmarshals floats with 6 digits precision.
-func FastMarshal(v any) ([]byte, error) {
+func FastMarshal(v interface{}) ([]byte, error) {
 	data, err := SafeConfig.Marshal(v)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -105,7 +105,7 @@ func FastMarshal(v any) ([]byte, error) {
 
 // FastMarshal uses the json-iterator library for fast JSON marshaling
 // with indentation. Note, this function unmarshals floats with 6 digits precision.
-func FastMarshalIndent(v any, prefix, indent string) ([]byte, error) {
+func FastMarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	data, err := SafeConfig.MarshalIndent(v, prefix, indent)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -133,7 +133,7 @@ func WriteJSONObject[M ~map[K]V, K comparable, V any](w io.Writer, m M) error {
 }
 
 // WriteJSON marshals multiple documents as a JSON list with indentation.
-func WriteJSON(w io.Writer, values any) error {
+func WriteJSON(w io.Writer, values interface{}) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "    ")
 	err := encoder.Encode(values)
@@ -168,7 +168,7 @@ const yamlDocDelimiter = "---"
 // WriteYAML detects whether value is a list
 // and marshals multiple documents delimited by `---`, otherwise, marshals
 // a single value
-func WriteYAML(w io.Writer, values any) error {
+func WriteYAML(w io.Writer, values interface{}) error {
 	if reflect.TypeOf(values).Kind() != reflect.Slice {
 		return trace.Wrap(writeYAML(w, values))
 	}
@@ -180,7 +180,7 @@ func WriteYAML(w io.Writer, values any) error {
 	}
 
 	allDocs := func() bool {
-		for i := range slice.Len() {
+		for i := 0; i < slice.Len(); i++ {
 			if !isDoc(slice.Index(i)) {
 				return false
 			}
@@ -191,7 +191,7 @@ func WriteYAML(w io.Writer, values any) error {
 		return trace.Wrap(writeYAML(w, values))
 	}
 	// second pass can marshal documents
-	for i := range slice.Len() {
+	for i := 0; i < slice.Len(); i++ {
 		err := writeYAML(w, slice.Index(i).Interface())
 		if err != nil {
 			return trace.Wrap(err)
@@ -220,7 +220,7 @@ func isDoc(val reflect.Value) bool {
 }
 
 // writeYAML writes marshaled YAML to writer
-func writeYAML(w io.Writer, values any) error {
+func writeYAML(w io.Writer, values interface{}) error {
 	data, err := yaml.Marshal(values)
 	if err != nil {
 		return trace.Wrap(err)
@@ -230,11 +230,11 @@ func writeYAML(w io.Writer, values any) error {
 }
 
 // ReadYAML can unmarshal a stream of documents, used in tests.
-func ReadYAML(reader io.Reader) (any, error) {
+func ReadYAML(reader io.Reader) (interface{}, error) {
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
-	var values []any
+	var values []interface{}
 	for {
-		var val any
+		var val interface{}
 		err := decoder.Decode(&val)
 		if err != nil {
 			if errors.Is(err, io.EOF) {

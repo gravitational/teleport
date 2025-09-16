@@ -261,38 +261,48 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 		}
 	}
 
-	var resp types.ListWindowsDesktopsResponse
-	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
-		StartKey: rangeStart,
-		EndKey:   rangeEnd,
-	}) {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		desktop, err := s.itemToWindowsDesktop(&item)
-		if err != nil {
-			continue
-		}
-
-		if !req.WindowsDesktopFilter.Match(desktop) {
-			continue
-		}
-
-		switch match, err := services.MatchResourceByFilters(desktop, filter, nil /* ignore dup matches */); {
-		case err != nil:
-			return nil, trace.Wrap(err)
-		case match:
-			if len(resp.Desktops) >= reqLimit {
-				resp.NextKey = backend.GetPaginationKey(desktop)
-				return &resp, nil
+	// Get most limit+1 results to determine if there will be a next key.
+	maxLimit := reqLimit + 1
+	var desktops []types.WindowsDesktop
+	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(desktops) == maxLimit {
+				break
 			}
 
-			resp.Desktops = append(resp.Desktops, desktop)
+			desktop, err := s.itemToWindowsDesktop(&item)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			if !req.WindowsDesktopFilter.Match(desktop) {
+				continue
+			}
+
+			switch match, err := services.MatchResourceByFilters(desktop, filter, nil /* ignore dup matches */); {
+			case err != nil:
+				return false, trace.Wrap(err)
+			case match:
+				desktops = append(desktops, desktop)
+			}
 		}
+
+		return len(desktops) == maxLimit, nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return &resp, nil
+	var nextKey string
+	if len(desktops) > reqLimit {
+		nextKey = backend.GetPaginationKey(desktops[len(desktops)-1])
+		// Truncate the last item that was used to determine next row existence.
+		desktops = desktops[:reqLimit]
+	}
+
+	return &types.ListWindowsDesktopsResponse{
+		Desktops: desktops,
+		NextKey:  nextKey,
+	}, nil
 }
 
 func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
@@ -317,38 +327,48 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 		filter.PredicateExpression = expression
 	}
 
-	var resp types.ListWindowsDesktopServicesResponse
-	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
-		StartKey: rangeStart,
-		EndKey:   rangeEnd,
-	}) {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		desktop, err := services.UnmarshalWindowsDesktopService(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			continue
-		}
-
-		switch match, err := services.MatchResourceByFilters(desktop, filter, nil /* ignore dup matches */); {
-		case err != nil:
-			return nil, trace.Wrap(err)
-		case match:
-			if len(resp.DesktopServices) >= reqLimit {
-				resp.NextKey = backend.GetPaginationKey(desktop)
-				return &resp, nil
+	// Get most limit+1 results to determine if there will be a next key.
+	maxLimit := reqLimit + 1
+	var desktopServices []types.WindowsDesktopService
+	if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, maxLimit, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(desktopServices) == maxLimit {
+				break
 			}
 
-			resp.DesktopServices = append(resp.DesktopServices, desktop)
+			desktop, err := services.UnmarshalWindowsDesktopService(
+				item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision),
+			)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			switch match, err := services.MatchResourceByFilters(desktop, filter, nil /* ignore dup matches */); {
+			case err != nil:
+				return false, trace.Wrap(err)
+			case match:
+				desktopServices = append(desktopServices, desktop)
+			}
 		}
+
+		return len(desktopServices) == maxLimit, nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return &resp, nil
+	var nextKey string
+	if len(desktopServices) > reqLimit {
+		nextKey = backend.GetPaginationKey(desktopServices[len(desktopServices)-1])
+		// Truncate the last item that was used to determine next row existence.
+		desktopServices = desktopServices[:reqLimit]
+	}
+
+	return &types.ListWindowsDesktopServicesResponse{
+		DesktopServices: desktopServices,
+		NextKey:         nextKey,
+	}, nil
 }
 
 const (

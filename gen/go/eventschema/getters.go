@@ -21,7 +21,6 @@ package eventschema
 import (
 	"fmt"
 	"reflect"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -47,7 +46,7 @@ func GetEventSchemaFromType(eventType string) (*Event, error) {
 
 // getMessageName takes a message struct and returns its name.
 // The struct name is also the protobuf message name.
-func getMessageName(eventStruct any) string {
+func getMessageName(eventStruct interface{}) string {
 	if t := reflect.TypeOf(eventStruct); t.Kind() == reflect.Ptr {
 		return t.Elem().Name()
 	} else {
@@ -212,6 +211,7 @@ func (field *EventField) TableSchemaDetails(path []string) ([]*ColumnSchemaDetai
 	default:
 		return nil, trace.NotImplemented("field type '%s' not supported", field.Type)
 	}
+	return nil, nil
 }
 
 func (field *EventField) dmlType() string {
@@ -270,7 +270,12 @@ func viewSchemaLine(jsonField, viewField, fieldType string) string {
 
 // IsValidEventType takes a string and returns whether it represents a valid event type.
 func IsValidEventType(input string) bool {
-	return slices.Contains(eventTypes, input)
+	for _, eventType := range eventTypes {
+		if input == eventType {
+			return true
+		}
+	}
+	return false
 }
 
 // TableSchema returns a CSV description of the event table schema.

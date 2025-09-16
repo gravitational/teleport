@@ -22,22 +22,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -51,7 +51,8 @@ func TestReadOrCreate(t *testing.T) {
 	ids := make([]string, concurrency)
 	barrier := make(chan struct{})
 
-	for i := range concurrency {
+	for i := 0; i < concurrency; i++ {
+		i := i
 		wg.Go(func() error {
 			<-barrier
 			id, err := hostid.ReadOrCreateFile(
@@ -60,7 +61,7 @@ func TestReadOrCreate(t *testing.T) {
 					First:  50 * time.Millisecond,
 					Driver: retryutils.NewExponentialDriver(100 * time.Millisecond),
 					Max:    15 * time.Second,
-					Jitter: retryutils.FullJitter,
+					Jitter: retryutils.NewFullJitter(),
 				}),
 				hostid.WithIterationLimit(10),
 			)
@@ -72,7 +73,9 @@ func TestReadOrCreate(t *testing.T) {
 	close(barrier)
 
 	require.NoError(t, wg.Wait())
-	require.Equal(t, slices.Repeat([]string{ids[0]}, concurrency), ids)
+	for _, id := range ids {
+		assert.Equal(t, ids[0], id)
+	}
 }
 
 func TestIdempotence(t *testing.T) {

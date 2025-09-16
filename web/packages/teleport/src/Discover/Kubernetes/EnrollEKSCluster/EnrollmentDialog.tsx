@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import React from 'react';
+
 import {
   AnimatedProgressBar,
   ButtonPrimary,
@@ -74,7 +76,7 @@ export function EnrollmentDialog({
                   Retry
                 </ButtonPrimary>
               )}
-              <ButtonSecondary width="50%" onClick={close}>
+              <ButtonSecondary width="86px" onClick={close}>
                 Close
               </ButtonSecondary>
             </Flex>

@@ -2,7 +2,7 @@
 title: "Part 1: Enroll Infrastructure with Terraform"
 h1: "Terraform Starter: Enroll Infrastructure"
 description: Explains how to deploy a pool of Teleport Agents so you can apply dynamic resources to enroll your infrastructure with Teleport.
-labels:
+tags:
  - zero-trust
 ---
 
@@ -23,11 +23,11 @@ with Teleport. You will:
 An Agent is a Teleport instance configured to run one or more Teleport services
 in order to proxy infrastructure resources. For a brief architectural overview
 of how Agents run in a Teleport cluster, read the [Introduction to Teleport
-Agents](../../../enroll-resources/agents/agents.mdx).
+Agents](../../../enroll-resources/agents/introduction.mdx).
 
 There are several methods you can use to join a Teleport Agent to your cluster,
 which we discuss in the [Joining Services to your
-Cluster](../../../enroll-resources/agents/agents.mdx) guide. In this guide, we will use
+Cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) guide. In this guide, we will use
 the **join token** method, where the operator stores a secure token on the Auth
 Service, and an Agent presents the token in order to join a cluster.
 
@@ -39,7 +39,7 @@ resources:
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v16.2.0 or higher)"!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx version="16.2.0"!)
 
 <Admonition type="tip">
 
@@ -47,7 +47,7 @@ We recommend following this guide on a fresh Teleport demo cluster so you can
 see how an Agent pool works. After you are familiar with the setup, apply the
 lessons from this guide to protect your infrastructure. You can get started with
 a demo cluster using:
-- A demo deployment on a [Linux server](../../../linux-demo.mdx)
+- A demo deployment on a [Linux server](../../deploy-a-cluster/linux-demo.mdx)
 - A [Teleport Enterprise (Cloud) trial](https://goteleport.com/signup)
 
 </Admonition>
@@ -360,7 +360,7 @@ provider "aws" {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Enterprise (Cloud) tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
 }
 ```
@@ -395,7 +395,7 @@ provider "google" {
 }
 
 provider "teleport" {
-  # Update addr to point to your Teleport Enterprise (Cloud) tenant URL's host:port
+  # Update addr to point to your Teleport Enterprise (managed) tenant URL's host:port
   addr               = PROXY_SERVICE_ADDRESS
 }
 ```

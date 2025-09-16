@@ -2,7 +2,7 @@
 title: Teleport FAQ
 description: Frequently Asked Questions About Using Teleport
 h1: Teleport FAQ
-labels:
+tags:
  - faq
  - platform-wide
 ---
@@ -30,9 +30,9 @@ Teleport provides two editions:
 - Teleport Enterprise
 - Teleport Community Edition
 
-For a detailed breakdown of features by edition, alongside a description of the
-products available to Teleport users, see [Teleport
-Editions](./feature-matrix.mdx).
+Here is a detailed breakdown of the differences between Teleport's editions.
+
+(!docs/pages/includes/edition-comparison.mdx!)
 
 ## Should we use Teleport Enterprise or Teleport Community Edition for connecting resources to our Teleport cluster?
 
@@ -40,11 +40,11 @@ Editions](./feature-matrix.mdx).
 
 ## Can individual agents create reverse tunnels to the Proxy Service without creating a new cluster?
 
-Yes. When running a Teleport Agent, use the `--auth-server` flag to point to the
+Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
 [Adding Nodes to the
-Cluster](enroll-resources/agents/join-token.mdx).
+Cluster](./enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 ## Can Nodes use a single port for reverse tunnels?
 
@@ -75,20 +75,17 @@ look at [Using OpenSSH Guide](enroll-resources/server-access/openssh/openssh-age
 
 ## Can I copy files from one Teleport node to another?
 
-Yes, Teleport supports [Headless WebAuthn authentication](zero-trust-access/authentication/headless.mdx),
+Yes, Teleport supports [Headless WebAuthn authentication](zero-trust-access/access-controls/guides/headless.mdx),
 which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
 are not logged in to Teleport or may not have access to a browser.
 
 ## `tsh` is very slow on Windows, what to do?
 
-If your host machine is joined to an Active Directory domain, you might find
-user lookups take a lot longer than you expect. If possible, we recommend
-updating `tsh` to v18 or later, which contains an optimized user lookup
-algorithm.
-
-If upgrading is not possible, you can use environment variables to set default
-account information for your Teleport user. If you are experiencing long lookup
-times on Windows, do the following:
+If your host machine is joined to an Active Directory domain, you might find user lookups take a
+lot longer than you expect. The number of Active Directory accounts that must be scanned to
+perform a user lookup can cause tsh to hang waiting to get information about the current user.
+To fix this issue, you can use environment variables to set default account information for your
+Teleport user. If you are experiencing long lookup times on Windows, do the following:
 
 - Either set the `TELEPORT_USER` environment variable or set the `--user` flag to the name of your Teleport user.
 - Either set the `TELEPORT_LOGIN` environment variable or set the `--login` flag to the name of current host user. This setting can be overridden if you open a new SSH session on a machine as a different user.
@@ -134,13 +131,8 @@ Teleport supports [SCIM](https://scim.cloud/) provisioning for Okta via the
 hosted Okta integration, available in the Enterprise (Cloud) and Enterprise
 (Self-Hosted) versions of Teleport.
 
-Refer to the [hosted Okta integration guide](identity-governance/okta/okta.mdx)
+Refer to the [hosted Okta integration guide](./enroll-resources/application-access/okta/hosted-guide.mdx)
 for details on setting up and configuring SCIM support.
-
-You can also set up Teleport to integrate with a SCIM provider to automatically
-synchronize SCIM group memberships with Teleport Access Lists. For details, see
-the [SCIM integration
-documentation](zero-trust-access/management/guides/scim/scim.mdx).
 
 ## Why do I see an alert that some agents are out of date?
 
@@ -181,7 +173,7 @@ anonymized information, depending on the license purchased. This information
 contains the following:
 
 - Teleport license identifier;
-- anonymized cluster name and Teleport Auth Service host ID;
+- anonymized cluster name and Teleport auth server host ID;
 - for each Teleport user, the anonymized user name and a per-protocol count of
   interactions - Teleport logins, SSH and Kubernetes exec sessions, Application
   access web sessions and TCP connections, SSH port forwards, Kubernetes API

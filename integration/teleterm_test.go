@@ -46,8 +46,8 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -63,7 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 func TestTeleterm(t *testing.T) {
@@ -697,6 +697,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -744,7 +745,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 				}
 				userRoles = append(userRoles, existingRole)
 			}
-			_, err = authtest.CreateUser(ctx, authServer, userName, userRoles...)
+			_, err = auth.CreateUser(ctx, authServer, userName, userRoles...)
 			require.NoError(t, err)
 
 			userPassword := uuid
@@ -845,7 +846,7 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 	require.NoError(t, err)
 	userRoles := []types.Role{ruleWithAllowRules}
 
-	_, err = authtest.CreateUser(ctx, authServer, userName, userRoles...)
+	_, err = auth.CreateUser(ctx, authServer, userName, userRoles...)
 	require.NoError(t, err)
 
 	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
@@ -966,10 +967,9 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	}()
 
 	// Start the new node.
-	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
-	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
+	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Logger = logtest.NewLogger()
+	nodeConfig.Log = libutils.NewLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -1002,7 +1002,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 	userRoles := []types.Role{ruleWithAllowRules}
 
-	_, err = authtest.CreateUser(ctx, authServer, userName, userRoles...)
+	_, err = auth.CreateUser(ctx, authServer, userName, userRoles...)
 	require.NoError(t, err)
 
 	// Log in as the new user.
@@ -1041,10 +1041,9 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 
 	// Start the new node.
-	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
-	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
+	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Logger = logtest.NewLogger()
+	nodeConfig.Log = libutils.NewLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())

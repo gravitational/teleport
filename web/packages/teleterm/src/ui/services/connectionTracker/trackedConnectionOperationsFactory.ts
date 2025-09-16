@@ -18,22 +18,19 @@
 
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
-  createDesktopSessionDocument,
-  DocumentGateway,
   DocumentOrigin,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
 import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import {
-  getDesktopDocumentByConnection,
   getGatewayDocumentByConnection,
   getGatewayKubeDocumentByConnection,
+  getKubeDocumentByConnection,
   getServerDocumentByConnection,
 } from './trackedConnectionUtils';
 import {
   TrackedConnection,
-  TrackedDesktopConnection,
   TrackedGatewayConnection,
   TrackedKubeConnection,
   TrackedServerConnection,
@@ -53,8 +50,6 @@ export class TrackedConnectionOperationsFactory {
         return this.getConnectionGatewayOperations(connection);
       case 'connection.kube':
         return this.getConnectionGatewayKubeOperations(connection);
-      case 'connection.desktop':
-        return this.getConnectionDesktopOperations(connection);
     }
   }
 
@@ -125,25 +120,16 @@ export class TrackedConnectionOperationsFactory {
       activate: params => {
         let gwDoc = documentsService
           .getDocuments()
-          .find(getGatewayDocumentByConnection(connection)) as DocumentGateway;
+          .find(getGatewayDocumentByConnection(connection));
 
         if (!gwDoc) {
-          const gw = this._clustersService.findGatewayByConnectionParams({
-            targetUri: connection.targetUri,
-            targetUser: connection.targetUser,
-            targetSubresourceName: connection.targetSubresourceName,
-          });
-
           gwDoc = documentsService.createGatewayDocument({
             targetUri: connection.targetUri,
             targetName: connection.targetName,
             targetUser: connection.targetUser,
             targetSubresourceName: connection.targetSubresourceName,
             title: connection.title,
-            // If the doc was closed but the gateway is still running, it's important for the
-            // doc to reopen with the existing gateway URI. Otherwise the doc would attempt to
-            // create a new gateway with the same connection params.
-            gatewayUri: gw?.uri,
+            gatewayUri: connection.gatewayUri,
             port: connection.port,
             origin: params.origin,
           });
@@ -153,22 +139,16 @@ export class TrackedConnectionOperationsFactory {
         documentsService.open(gwDoc.uri);
       },
       disconnect: async () => {
-        // When disconnecting, assume that the gateway exists. If a gateway doesn't exist, the UI is
-        // supposed to expose the remove operation, not the disconnect operation.
-        const gw = this._clustersService.findGatewayByConnectionParams({
-          targetUri: connection.targetUri,
-          targetUser: connection.targetUser,
-          targetSubresourceName: connection.targetSubresourceName,
-        });
-
-        return this._clustersService.removeGateway(gw.uri).then(() => {
-          documentsService
-            .getDocuments()
-            .filter(getGatewayDocumentByConnection(connection))
-            .forEach(document => {
-              documentsService.close(document.uri);
-            });
-        });
+        return this._clustersService
+          .removeGateway(connection.gatewayUri)
+          .then(() => {
+            documentsService
+              .getDocuments()
+              .filter(getGatewayDocumentByConnection(connection))
+              .forEach(document => {
+                documentsService.close(document.uri);
+              });
+          });
       },
       remove: async () => {},
     };
@@ -220,52 +200,17 @@ export class TrackedConnectionOperationsFactory {
                 .forEach(document => {
                   documentsService.close(document.uri);
                 });
+
+              // Remove deprecated doc.terminal_tsh_kube documents.
+              // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+              documentsService
+                .getDocuments()
+                .filter(getKubeDocumentByConnection(connection))
+                .forEach(document => {
+                  documentsService.close(document.uri);
+                });
             })
         );
-      },
-      remove: async () => {},
-    };
-  }
-
-  private getConnectionDesktopOperations(
-    connection: TrackedDesktopConnection
-  ): TrackedConnectionOperations {
-    const { rootClusterId, leafClusterId } = routing.parseClusterUri(
-      connection.desktopUri
-    ).params;
-    const { rootClusterUri, leafClusterUri } = this.getClusterUris({
-      rootClusterId,
-      leafClusterId,
-    });
-
-    const documentsService =
-      this._workspacesService.getWorkspaceDocumentService(rootClusterUri);
-
-    return {
-      rootClusterUri,
-      leafClusterUri,
-      activate: params => {
-        let doc = documentsService
-          .getDocuments()
-          .find(getDesktopDocumentByConnection(connection));
-
-        if (!doc) {
-          doc = createDesktopSessionDocument({
-            desktopUri: connection.desktopUri,
-            login: connection.login,
-            origin: params.origin,
-          });
-          documentsService.add(doc);
-        }
-        documentsService.open(doc.uri);
-      },
-      disconnect: async () => {
-        documentsService
-          .getDocuments()
-          .filter(getDesktopDocumentByConnection(connection))
-          .forEach(document => {
-            documentsService.close(document.uri);
-          });
       },
       remove: async () => {},
     };

@@ -40,14 +40,9 @@ export enum CaptureEvent {
   PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
 }
 
-/**
- * IntegrationEnrollEvent defines integration enrollment
- * events.
- */
 export enum IntegrationEnrollEvent {
   Started = 'tp.ui.integrationEnroll.start',
   Complete = 'tp.ui.integrationEnroll.complete',
-  Step = 'tp.ui.integrationEnroll.step',
 }
 
 // IntegrationEnrollKind represents a integration type.
@@ -78,79 +73,7 @@ export enum IntegrationEnrollKind {
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
   EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
   DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
-  AwsIdentityCenter = 'INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER',
-  GitHubRepoAccess = 'INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS',
 }
-
-/**
- * IntegrationEnrollStep defines configurable steps for an integration type.
- * Value matches with proto enums defined in the backend.
- */
-export enum IntegrationEnrollStep {
-  /**
-   * AWSIC steps defined for AWS Idenity Center plugin.
-   */
-  ConnectOidc = 'INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC',
-  ImportResourceSetDefaultOwner = 'INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER',
-  IdentitySourceUploadSamlMetadata = 'INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA',
-  ScimTestConnection = 'INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION',
-
-  /**
-   * GITHUBRA denotes GitHub Repo Access.
-   */
-  GitHubRaCreateIntegration = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION',
-  GitHubRaCreateGitServer = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER',
-  GitHubRaConfigureSshCert = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT',
-  GitHubRaCreateRole = 'INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE',
-}
-
-/**
- * IntegrationEnrollStatusCode defines status codes for a given
- * integration configuration step event.
- * Value matches with proto enums defined in the backend.
- */
-export enum IntegrationEnrollStatusCode {
-  Success = 'INTEGRATION_ENROLL_STATUS_CODE_SUCCESS',
-  Skipped = 'INTEGRATION_ENROLL_STATUS_CODE_SKIPPED',
-  Error = 'INTEGRATION_ENROLL_STATUS_CODE_ERROR',
-  Aborted = 'INTEGRATION_ENROLL_STATUS_CODE_ABORTED',
-}
-
-/**
- * IntegrationEnrollStepStatus defines fields for reporting
- * integration configuration step event.
- */
-export type IntegrationEnrollStepStatus =
-  | {
-      code: Exclude<
-        IntegrationEnrollStatusCode,
-        IntegrationEnrollStatusCode.Error
-      >;
-    }
-  | {
-      code: IntegrationEnrollStatusCode.Error;
-      error: string;
-    };
-
-/**
- * IntegrationEnrollEventData defines integration
- * enroll event. Use for start, complete and step events.
- */
-export type IntegrationEnrollEventData = {
-  id: string;
-  kind: IntegrationEnrollKind;
-  step?: IntegrationEnrollStep;
-  status?: IntegrationEnrollStepStatus;
-};
-
-/**
- * IntegrationEnrollEventRequest defines integration enroll
- * event request as expected in the backend.
- */
-export type IntegrationEnrollEventRequest = {
-  event: IntegrationEnrollEvent;
-  eventData: IntegrationEnrollEventData;
-};
 
 // These constants should match the constant defined in backend found in:
 // lib/usagereporter/web/userevent.go
@@ -163,7 +86,10 @@ export enum DiscoverEvent {
   DatabaseRegister = 'tp.ui.discover.database.register',
   DatabaseConfigureMTLS = 'tp.ui.discover.database.configure.mtls',
   DatabaseConfigureIAMPolicy = 'tp.ui.discover.database.configure.iampolicy',
+  EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
+  EC2DeployEICE = 'tp.ui.discover.deployEICE',
   CreateApplicationServer = 'tp.ui.discover.createAppServer',
+  CreateNode = 'tp.ui.discover.createNode',
   CreateDiscoveryConfig = 'tp.ui.discover.createDiscoveryConfig',
   KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',
   PrincipalsConfigure = 'tp.ui.discover.principals.configure',
@@ -235,13 +161,9 @@ export enum DiscoverEventStatus {
   Aborted = 'DISCOVER_STATUS_ABORTED', // user exits the wizard
 }
 
-export type UserEvent<E = CaptureEvent> = {
-  event: E;
+export type UserEvent = {
+  event: CaptureEvent;
   alert?: string;
-};
-
-type UserEventWithData<E, D> = UserEvent<E> & {
-  eventData: D;
 };
 
 export type EventMeta = {
@@ -252,10 +174,20 @@ export type EventMeta = {
 
 export type PreUserEvent = UserEvent & EventMeta;
 
-export type DiscoverEventRequest = UserEventWithData<
-  DiscoverEvent,
-  DiscoverEventData
->;
+export type IntegrationEnrollEventData = {
+  id: string;
+  kind: IntegrationEnrollKind;
+};
+
+export type IntegrationEnrollEventRequest = {
+  event: IntegrationEnrollEvent;
+  eventData: IntegrationEnrollEventData;
+};
+
+export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
+  event: DiscoverEvent;
+  eventData: DiscoverEventData;
+};
 
 export type DiscoverEventData = DiscoverEventStepStatus & {
   id: string;
@@ -306,6 +238,7 @@ export enum DiscoverServiceDeployType {
 export enum DiscoverDiscoveryConfigMethod {
   Unspecified = 'CONFIG_METHOD_UNSPECIFIED',
   AwsEc2Ssm = 'CONFIG_METHOD_AWS_EC2_SSM',
+  AwsEc2Eice = 'CONFIG_METHOD_AWS_EC2_EICE',
   AwsRdsEcs = 'CONFIG_METHOD_AWS_RDS_ECS',
   AwsEks = 'CONFIG_METHOD_AWS_EKS',
 }
@@ -325,13 +258,7 @@ export enum CtaEvent {
   CTA_OKTA_USER_SYNC = 11,
   CTA_ENTRA_ID = 12,
   CTA_OKTA_SCIM = 13,
-  CTA_IDENTITY_SECURITY = 14,
 }
-
-export type CtaEventRequest = UserEventWithData<
-  CaptureEvent.UiCallToActionClickEvent,
-  CtaEvent
->;
 
 export enum Feature {
   FEATURES_UNSPECIFIED = 0,
@@ -348,25 +275,3 @@ export type FeatureRecommendationEvent = {
   Feature: Feature;
   FeatureRecommendationStatus: FeatureRecommendationStatus;
 };
-
-export type FeatureRecommendationEventRequest = UserEventWithData<
-  CaptureEvent.FeatureRecommendationEvent,
-  FeatureRecommendationEvent
->;
-
-export enum RoleEditorMode {
-  Standard = 'standard',
-  Yaml = 'yaml',
-}
-
-export type CreateNewRoleSaveClickEventData = {
-  standardUsed: boolean;
-  yamlUsed: boolean;
-  modeWhenSaved: RoleEditorMode;
-  fieldsWithConversionErrors: string[];
-};
-
-export type CreateNewRoleSaveClickEvent = UserEventWithData<
-  CaptureEvent.CreateNewRoleSaveClickEvent,
-  CreateNewRoleSaveClickEventData
->;

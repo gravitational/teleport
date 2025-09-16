@@ -53,7 +53,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 	uploadPath := h.uploadPath(upload)
 
-	h.logger.DebugContext(ctx, "Creating upload", "path", uploadPath)
+	h.Logger.Debugf("Creating upload at %s", uploadPath)
 	// Make sure we don't overwrite an existing upload
 	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(uploadPath).Attrs(ctx)
 	if !errors.Is(err, storage.ErrObjectNotExist) {
@@ -109,7 +109,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	// If the session has been already created, move to cleanup
-	sessionPath := h.recordingPath(upload.SessionID)
+	sessionPath := h.path(upload.SessionID)
 	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(sessionPath).Attrs(ctx)
 	if !errors.Is(err, storage.ErrObjectNotExist) {
 		if err != nil {
@@ -134,7 +134,8 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 	objects := h.partsToObjects(upload, parts)
 	for len(objects) > maxParts {
-		h.logger.DebugContext(ctx, "Merging multiple objects for upload", "objects", len(objects), "upload", upload)
+		h.Logger.Debugf("Got %v objects for upload %v, performing temp merge.",
+			len(objects), upload)
 		objectsToMerge := objects[:maxParts]
 		mergeID := hashOfNames(objectsToMerge)
 		mergePath := h.mergePath(upload, mergeID)
@@ -151,7 +152,8 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	if err != nil {
 		return convertGCSError(err)
 	}
-	h.logger.DebugContext(ctx, "Completed upload after merging multiple objects", "objects", len(objects), "upload", upload)
+	h.Logger.Debugf("Got %v objects for upload %v, performed merge.",
+		len(objects), upload)
 	return h.cleanupUpload(ctx, upload)
 }
 
@@ -216,7 +218,7 @@ func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload)
 func (h *Handler) partsToObjects(upload events.StreamUpload, parts []events.StreamPart) []*storage.ObjectHandle {
 	objects := make([]*storage.ObjectHandle, len(parts))
 	bucket := h.gcsClient.Bucket(h.Config.Bucket)
-	for i := range parts {
+	for i := 0; i < len(parts); i++ {
 		objects[i] = bucket.Object(h.partPath(upload, parts[i].Number))
 	}
 	return objects
@@ -285,7 +287,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 // GetUploadMetadata gets the metadata for session upload
 func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 	return events.UploadMetadata{
-		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.recordingPath(s), string(s)),
+		URL:       fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.path(s), string(s)),
 		SessionID: s,
 	}
 }

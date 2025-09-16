@@ -21,21 +21,16 @@ package db
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/redshift"
-	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
-
-// RedshiftClient is a subset of the AWS Redshift API.
-type RedshiftClient interface {
-	redshift.DescribeClustersAPIClient
-}
 
 // newRedshiftFetcher returns a new AWS fetcher for Redshift databases.
 func newRedshiftFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
@@ -47,34 +42,31 @@ type redshiftPlugin struct{}
 
 // GetDatabases returns Redshift databases matching the watcher's selectors.
 func (f *redshiftPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
-	awsCfg, err := cfg.AWSConfigProvider.GetConfig(ctx, cfg.Region,
-		awsconfig.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
-		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: cfg.Integration}),
+	redshiftClient, err := cfg.AWSClients.GetAWSRedshiftClient(ctx, cfg.Region,
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID),
+		cloud.WithCredentialsMaybeIntegration(cfg.Integration),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusters, err := getRedshiftClusters(ctx, cfg.awsClients.GetRedshiftClient(awsCfg))
+	clusters, err := getRedshiftClusters(ctx, redshiftClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var databases types.Databases
 	for _, cluster := range clusters {
-		if !libcloudaws.IsRedshiftClusterAvailable(&cluster) {
-			cfg.Logger.DebugContext(ctx, "Skipping unavailable Redshift cluster",
-				"cluster", aws.ToString(cluster.ClusterIdentifier),
-				"status", aws.ToString(cluster.ClusterStatus),
-			)
+		if !libcloudaws.IsRedshiftClusterAvailable(cluster) {
+			cfg.Log.Debugf("The current status of Redshift cluster %q is %q. Skipping.",
+				aws.StringValue(cluster.ClusterIdentifier),
+				aws.StringValue(cluster.ClusterStatus))
 			continue
 		}
 
-		database, err := common.NewDatabaseFromRedshiftCluster(&cluster)
+		database, err := common.NewDatabaseFromRedshiftCluster(cluster)
 		if err != nil {
-			cfg.Logger.InfoContext(ctx, "Could not convert Redshift cluster to database resource",
-				"cluster", aws.ToString(cluster.ClusterIdentifier),
-				"error", err,
-			)
+			cfg.Log.Infof("Could not convert Redshift cluster %q to database resource: %v.",
+				aws.StringValue(cluster.ClusterIdentifier), err)
 			continue
 		}
 
@@ -89,20 +81,17 @@ func (f *redshiftPlugin) ComponentShortName() string {
 
 // getRedshiftClusters fetches all Reshift clusters using the provided client,
 // up to the specified max number of pages
-func getRedshiftClusters(ctx context.Context, clt RedshiftClient) ([]redshifttypes.Cluster, error) {
-	pager := redshift.NewDescribeClustersPaginator(clt,
+func getRedshiftClusters(ctx context.Context, redshiftClient redshiftiface.RedshiftAPI) ([]*redshift.Cluster, error) {
+	var clusters []*redshift.Cluster
+	var pageNum int
+	err := redshiftClient.DescribeClustersPagesWithContext(
+		ctx,
 		&redshift.DescribeClustersInput{},
-		func(dcpo *redshift.DescribeClustersPaginatorOptions) {
-			dcpo.StopOnDuplicateToken = true
+		func(page *redshift.DescribeClustersOutput, lastPage bool) bool {
+			pageNum++
+			clusters = append(clusters, page.Clusters...)
+			return pageNum <= maxAWSPages
 		},
 	)
-	var clusters []redshifttypes.Cluster
-	for pageNum := 0; pageNum < maxAWSPages && pager.HasMorePages(); pageNum++ {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, libcloudaws.ConvertRequestFailureError(err)
-		}
-		clusters = append(clusters, page.Clusters...)
-	}
-	return clusters, nil
+	return clusters, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 }

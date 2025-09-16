@@ -93,7 +93,7 @@ func (s *KubeMockServer) listPods(w http.ResponseWriter, req *http.Request, p ht
 
 func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	if s.getPodError != nil {
-		s.writeResponseError(w, nil, s.getPodError.DeepCopy())
+		s.writeResponseError(w, nil, s.getPodError)
 		return nil, nil
 	}
 	namespace := p.ByName("namespace")

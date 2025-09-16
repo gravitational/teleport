@@ -18,10 +18,11 @@ package vnet
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"net"
-	"sync"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -30,8 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestProxySSHConnection exercises [proxySSHConnection] to test that it
@@ -57,7 +57,7 @@ func TestProxySSHConnection(t *testing.T) {
 
 	proxyClientConfig := sshClientConfig(t)
 
-	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 		Name: "target server",
 		Task: func(ctx context.Context) error {
 			return runTestSSHServer(serverListener, targetServerConfig)
@@ -66,7 +66,7 @@ func TestProxySSHConnection(t *testing.T) {
 			return trace.Wrap(serverListener.Close())
 		},
 	})
-	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
 		Name: "proxy server",
 		Task: func(ctx context.Context) error {
 			return runTestSSHProxy(ctx,
@@ -104,22 +104,11 @@ func testSSHConnection(t *testing.T, dial dialer) {
 	sshConn, chans, reqs, err := ssh.NewClientConn(tcpConn, "localhost", clientConfig)
 	require.NoError(t, err)
 	defer sshConn.Close()
-
-	testConnectionToSshEchoServer(t, sshConn, chans, reqs)
-}
-
-func testConnectionToSshEchoServer(t *testing.T, sshConn ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
-	requestStreamEnded := make(chan struct{})
-	go func() {
-		ssh.DiscardRequests(reqs)
-		close(requestStreamEnded)
-	}()
-	chanStreamEnded := make(chan struct{})
+	go ssh.DiscardRequests(reqs)
 	go func() {
 		for newChan := range chans {
 			newChan.Reject(ssh.Prohibited, "test")
 		}
-		close(chanStreamEnded)
 	}()
 
 	// Try sending some global requests.
@@ -143,26 +132,6 @@ func testConnectionToSshEchoServer(t *testing.T, sshConn ssh.Conn, chans <-chan 
 	t.Run("echo channel 2", func(t *testing.T) {
 		testEchoChannel(t, sshConn)
 	})
-
-	t.Run("closing", func(t *testing.T) {
-		// Send a request that causes the target server to close the connection
-		// immediately and make sure channel reads are unblocked, and the global
-		// request and channel request streams end.
-		ch, reqs, err := sshConn.OpenChannel("echo", nil)
-		require.NoError(t, err)
-		go ssh.DiscardRequests(reqs)
-		readErr := make(chan error)
-		go func() {
-			var b [1]byte
-			_, err := ch.Read(b[:])
-			readErr <- err
-		}()
-		_, _, err = sshConn.SendRequest("close", false, nil)
-		require.NoError(t, err)
-		require.ErrorIs(t, <-readErr, io.EOF)
-		<-requestStreamEnded
-		<-chanStreamEnded
-	})
 }
 
 func testGlobalRequests(t *testing.T, conn ssh.Conn) {
@@ -183,11 +152,7 @@ func testGlobalRequests(t *testing.T, conn ssh.Conn) {
 func testEchoChannel(t *testing.T, conn ssh.Conn) {
 	ch, reqs, err := conn.OpenChannel("echo", nil)
 	require.NoError(t, err)
-	requestStreamEnded := make(chan struct{})
-	go func() {
-		ssh.DiscardRequests(reqs)
-		close(requestStreamEnded)
-	}()
+	go ssh.DiscardRequests(reqs)
 	defer ch.Close()
 
 	// Try sending a message over the SSH channel and asserting that it is
@@ -201,23 +166,8 @@ func testEchoChannel(t *testing.T, conn ssh.Conn) {
 	require.Equal(t, len(msg), n)
 	require.Equal(t, msg, buf[:n])
 
-	// Try sending a message over stderr and asserting that it is echoed back.
-	_, err = ch.Stderr().Write(msg)
-	require.NoError(t, err)
-	n, err = ch.Stderr().Read(buf[:])
-	require.NoError(t, err)
-	require.Equal(t, len(msg), n)
-	require.Equal(t, msg, buf[:n])
-
 	// Try sending a channel request that expects a reply.
 	reply, err := ch.SendRequest("echo", true, nil)
-	require.NoError(t, err)
-	require.True(t, reply)
-
-	// Close the channel for writes of in-band data and send another channel
-	// request, which should succeed.
-	require.NoError(t, ch.CloseWrite())
-	reply, err = ch.SendRequest("echo", true, nil)
 	require.NoError(t, err)
 	require.True(t, reply)
 
@@ -226,18 +176,6 @@ func testEchoChannel(t *testing.T, conn ssh.Conn) {
 	reply, err = ch.SendRequest("unknown", true, nil)
 	require.NoError(t, err)
 	require.False(t, reply)
-
-	// Send a channel request that causes the server to close the channel and
-	// make sure channel reads get unblocked and the incoming request stream ends.
-	readErr := make(chan error)
-	go func() {
-		_, err := ch.Read(buf[:])
-		readErr <- err
-	}()
-	_, err = ch.SendRequest("close", false, nil)
-	require.NoError(t, err)
-	require.ErrorIs(t, <-readErr, io.EOF)
-	<-requestStreamEnded
 }
 
 type dialer interface {
@@ -340,12 +278,23 @@ func runTestSSHServerInstance(tcpConn net.Conn, cfg *ssh.ServerConfig) error {
 		return trace.Wrap(err)
 	}
 	go func() {
-		handleSSHRequests(reqs, sshConn.Close)
+		handleEchoRequests(reqs)
 		sshConn.Close()
 	}()
 	handleEchoChannels(chans)
 	sshConn.Close()
 	return nil
+}
+
+func handleEchoRequests(reqs <-chan *ssh.Request) {
+	for req := range reqs {
+		switch req.Type {
+		case "echo":
+			req.Reply(true, req.Payload)
+		default:
+			req.Reply(false, nil)
+		}
+	}
 }
 
 func handleEchoChannels(chans <-chan ssh.NewChannel) {
@@ -364,37 +313,12 @@ func handleEchoChannel(newChan ssh.NewChannel) {
 	if err != nil {
 		return
 	}
-	go handleSSHRequests(reqs, ch.Close)
-	defer ch.CloseWrite()
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		io.Copy(ch, ch)
-		wg.Done()
-	}()
-	go func() {
-		io.Copy(ch.Stderr(), ch.Stderr())
-		wg.Done()
-	}()
-	wg.Wait()
-}
-
-func handleSSHRequests(reqs <-chan *ssh.Request, closeSource func() error) {
-	defer closeSource()
-	for req := range reqs {
-		switch req.Type {
-		case "echo":
-			req.Reply(true, req.Payload)
-		case "close":
-			closeSource()
-		default:
-			req.Reply(false, nil)
-		}
-	}
+	go handleEchoRequests(reqs)
+	io.Copy(ch, ch)
 }
 
 func sshServerConfig(t *testing.T) *ssh.ServerConfig {
-	serverKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	_, serverKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	hostSigner, err := ssh.NewSignerFromSigner(serverKey)
 	require.NoError(t, err)
@@ -409,7 +333,7 @@ func sshServerConfig(t *testing.T) *ssh.ServerConfig {
 }
 
 func sshClientConfig(t *testing.T) *ssh.ClientConfig {
-	clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	_, clientKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	clientSigner, err := ssh.NewSignerFromSigner(clientKey)
 	require.NoError(t, err)

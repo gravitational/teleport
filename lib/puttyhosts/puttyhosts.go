@@ -20,7 +20,6 @@ package puttyhosts
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"regexp"
 	"slices"
@@ -30,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -214,7 +214,7 @@ func ProcessHostCAPublicKeys(tc *client.TeleportClient, cfContext context.Contex
 					return nil, trace.Wrap(err)
 				}
 
-				hostCAPublicKey := base64.StdEncoding.EncodeToString(hostCABytes.Marshal())
+				hostCAPublicKey := strings.TrimPrefix(strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostCABytes))), constants.SSHRSAType+" ")
 				hostCAPublicKeys[ca.GetName()] = append(hostCAPublicKeys[ca.GetName()], hostCAPublicKey)
 			}
 		}

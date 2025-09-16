@@ -31,8 +31,6 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
-import { PortRange } from "./app_pb";
-import { RouteToApp } from "./app_pb";
 /**
  * Request for Relogin.
  *
@@ -95,11 +93,11 @@ export interface VnetCertExpired {
      */
     targetUri: string;
     /**
-     * route_to_app is the metadata associated with the app that the user was trying to reach.
+     * public_addr is the public address of the app that the user tried to access.
      *
-     * @generated from protobuf field: teleport.lib.teleterm.v1.RouteToApp route_to_app = 3;
+     * @generated from protobuf field: string public_addr = 2;
      */
-    routeToApp?: RouteToApp;
+    publicAddr: string;
 }
 /**
  * Response for Relogin.
@@ -161,6 +159,7 @@ export interface CannotProxyGatewayConnection {
 }
 /**
  * CannotProxyVnetConnection describes which app couldn't have been proxied through VNet and why.
+ * At the moment this is used solely when refreshing an expired cert.
  *
  * @generated from protobuf message teleport.lib.teleterm.v1.CannotProxyVnetConnection
  */
@@ -170,57 +169,15 @@ export interface CannotProxyVnetConnection {
      */
     targetUri: string;
     /**
-     * route_to_app is the metadata associated with the app that the user was trying to reach.
-     *
-     * @generated from protobuf field: teleport.lib.teleterm.v1.RouteToApp route_to_app = 4;
-     */
-    routeToApp?: RouteToApp;
-    /**
-     * @generated from protobuf oneof: reason
-     */
-    reason: {
-        oneofKind: "certReissueError";
-        /**
-         * @generated from protobuf field: teleport.lib.teleterm.v1.CertReissueError cert_reissue_error = 5;
-         */
-        certReissueError: CertReissueError;
-    } | {
-        oneofKind: "invalidLocalPort";
-        /**
-         * @generated from protobuf field: teleport.lib.teleterm.v1.InvalidLocalPort invalid_local_port = 6;
-         */
-        invalidLocalPort: InvalidLocalPort;
-    } | {
-        oneofKind: undefined;
-    };
-}
-/**
- * CertReissueError is sent as reason in CannotProxyVnetConnection when VNet wasn't able to reissue
- * a cert for a local proxy.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.CertReissueError
- */
-export interface CertReissueError {
-    /**
-     * @generated from protobuf field: string error = 1;
+     * @generated from protobuf field: string error = 2;
      */
     error: string;
-}
-/**
- * InvalidLocalPort is sent as reason in CannotProxyVnetConnection when VNet refused a connection
- * because its local port did not match any TCP ports in the spec of the app. The port is included
- * in route_to_app as target_port.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.InvalidLocalPort
- */
-export interface InvalidLocalPort {
     /**
-     * tcp_ports represents valid port ranges for the app. Sent only if there's less than 10 port
-     * ranges to keep the UI clean and to limit how much data is sent on each failed attempt.
+     * public_addr is the public address of the app that the user tried to access.
      *
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 1;
+     * @generated from protobuf field: string public_addr = 3;
      */
-    tcpPorts: PortRange[];
+    publicAddr: string;
 }
 /**
  * Response for SendNotification.
@@ -277,42 +234,6 @@ export interface PromptMFARequest {
      * @generated from protobuf field: string cluster_uri = 5;
      */
     clusterUri: string;
-    /**
-     * @generated from protobuf field: teleport.lib.teleterm.v1.SSOChallenge sso = 6;
-     */
-    sso?: SSOChallenge;
-    /**
-     * We may handle MFA options differently based on whether or not per-session
-     * MFA is required. For example, we invalidate TOTP as an option during
-     * per-session MFA but we may still need to know that the user has TOTP
-     * configured as an option.
-     *
-     * @generated from protobuf field: bool per_session_mfa = 7;
-     */
-    perSessionMfa: boolean;
-}
-/**
- * SSOChallenge contains SSO challenge details.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.SSOChallenge
- */
-export interface SSOChallenge {
-    /**
-     * @generated from protobuf field: string connector_id = 1;
-     */
-    connectorId: string;
-    /**
-     * @generated from protobuf field: string connector_type = 2;
-     */
-    connectorType: string;
-    /**
-     * @generated from protobuf field: string display_name = 3;
-     */
-    displayName: string;
-    /**
-     * @generated from protobuf field: string redirect_url = 4;
-     */
-    redirectUrl: string;
 }
 /**
  * Response for PromptMFA.
@@ -639,12 +560,13 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
     constructor() {
         super("teleport.lib.teleterm.v1.VnetCertExpired", [
             { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "route_to_app", kind: "message", T: () => RouteToApp }
+            { no: 2, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<VnetCertExpired>): VnetCertExpired {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.targetUri = "";
+        message.publicAddr = "";
         if (value !== undefined)
             reflectionMergePartial<VnetCertExpired>(this, message, value);
         return message;
@@ -657,8 +579,8 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
                 case /* string target_uri */ 1:
                     message.targetUri = reader.string();
                     break;
-                case /* teleport.lib.teleterm.v1.RouteToApp route_to_app */ 3:
-                    message.routeToApp = RouteToApp.internalBinaryRead(reader, reader.uint32(), options, message.routeToApp);
+                case /* string public_addr */ 2:
+                    message.publicAddr = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -675,9 +597,9 @@ class VnetCertExpired$Type extends MessageType<VnetCertExpired> {
         /* string target_uri = 1; */
         if (message.targetUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.targetUri);
-        /* teleport.lib.teleterm.v1.RouteToApp route_to_app = 3; */
-        if (message.routeToApp)
-            RouteToApp.internalBinaryWrite(message.routeToApp, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* string public_addr = 2; */
+        if (message.publicAddr !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.publicAddr);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -841,15 +763,15 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
     constructor() {
         super("teleport.lib.teleterm.v1.CannotProxyVnetConnection", [
             { no: 1, name: "target_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "route_to_app", kind: "message", T: () => RouteToApp },
-            { no: 5, name: "cert_reissue_error", kind: "message", oneof: "reason", T: () => CertReissueError },
-            { no: 6, name: "invalid_local_port", kind: "message", oneof: "reason", T: () => InvalidLocalPort }
+            { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "public_addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<CannotProxyVnetConnection>): CannotProxyVnetConnection {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.targetUri = "";
-        message.reason = { oneofKind: undefined };
+        message.error = "";
+        message.publicAddr = "";
         if (value !== undefined)
             reflectionMergePartial<CannotProxyVnetConnection>(this, message, value);
         return message;
@@ -862,20 +784,11 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
                 case /* string target_uri */ 1:
                     message.targetUri = reader.string();
                     break;
-                case /* teleport.lib.teleterm.v1.RouteToApp route_to_app */ 4:
-                    message.routeToApp = RouteToApp.internalBinaryRead(reader, reader.uint32(), options, message.routeToApp);
+                case /* string error */ 2:
+                    message.error = reader.string();
                     break;
-                case /* teleport.lib.teleterm.v1.CertReissueError cert_reissue_error */ 5:
-                    message.reason = {
-                        oneofKind: "certReissueError",
-                        certReissueError: CertReissueError.internalBinaryRead(reader, reader.uint32(), options, (message.reason as any).certReissueError)
-                    };
-                    break;
-                case /* teleport.lib.teleterm.v1.InvalidLocalPort invalid_local_port */ 6:
-                    message.reason = {
-                        oneofKind: "invalidLocalPort",
-                        invalidLocalPort: InvalidLocalPort.internalBinaryRead(reader, reader.uint32(), options, (message.reason as any).invalidLocalPort)
-                    };
+                case /* string public_addr */ 3:
+                    message.publicAddr = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -892,15 +805,12 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
         /* string target_uri = 1; */
         if (message.targetUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.targetUri);
-        /* teleport.lib.teleterm.v1.RouteToApp route_to_app = 4; */
-        if (message.routeToApp)
-            RouteToApp.internalBinaryWrite(message.routeToApp, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.lib.teleterm.v1.CertReissueError cert_reissue_error = 5; */
-        if (message.reason.oneofKind === "certReissueError")
-            CertReissueError.internalBinaryWrite(message.reason.certReissueError, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.lib.teleterm.v1.InvalidLocalPort invalid_local_port = 6; */
-        if (message.reason.oneofKind === "invalidLocalPort")
-            InvalidLocalPort.internalBinaryWrite(message.reason.invalidLocalPort, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* string error = 2; */
+        if (message.error !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.error);
+        /* string public_addr = 3; */
+        if (message.publicAddr !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.publicAddr);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -911,100 +821,6 @@ class CannotProxyVnetConnection$Type extends MessageType<CannotProxyVnetConnecti
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.CannotProxyVnetConnection
  */
 export const CannotProxyVnetConnection = new CannotProxyVnetConnection$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class CertReissueError$Type extends MessageType<CertReissueError> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.CertReissueError", [
-            { no: 1, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<CertReissueError>): CertReissueError {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.error = "";
-        if (value !== undefined)
-            reflectionMergePartial<CertReissueError>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CertReissueError): CertReissueError {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string error */ 1:
-                    message.error = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: CertReissueError, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string error = 1; */
-        if (message.error !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.error);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.CertReissueError
- */
-export const CertReissueError = new CertReissueError$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class InvalidLocalPort$Type extends MessageType<InvalidLocalPort> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.InvalidLocalPort", [
-            { no: 1, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange }
-        ]);
-    }
-    create(value?: PartialMessage<InvalidLocalPort>): InvalidLocalPort {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.tcpPorts = [];
-        if (value !== undefined)
-            reflectionMergePartial<InvalidLocalPort>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: InvalidLocalPort): InvalidLocalPort {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports */ 1:
-                    message.tcpPorts.push(PortRange.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: InvalidLocalPort, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 1; */
-        for (let i = 0; i < message.tcpPorts.length; i++)
-            PortRange.internalBinaryWrite(message.tcpPorts[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.InvalidLocalPort
- */
-export const InvalidLocalPort = new InvalidLocalPort$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SendNotificationResponse$Type extends MessageType<SendNotificationResponse> {
     constructor() {
@@ -1125,9 +941,7 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
             { no: 2, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "totp", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "webauthn", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "sso", kind: "message", T: () => SSOChallenge },
-            { no: 7, name: "per_session_mfa", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<PromptMFARequest>): PromptMFARequest {
@@ -1136,7 +950,6 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         message.totp = false;
         message.webauthn = false;
         message.clusterUri = "";
-        message.perSessionMfa = false;
         if (value !== undefined)
             reflectionMergePartial<PromptMFARequest>(this, message, value);
         return message;
@@ -1157,12 +970,6 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
                     break;
                 case /* string cluster_uri */ 5:
                     message.clusterUri = reader.string();
-                    break;
-                case /* teleport.lib.teleterm.v1.SSOChallenge sso */ 6:
-                    message.sso = SSOChallenge.internalBinaryRead(reader, reader.uint32(), options, message.sso);
-                    break;
-                case /* bool per_session_mfa */ 7:
-                    message.perSessionMfa = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1188,12 +995,6 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         /* string cluster_uri = 5; */
         if (message.clusterUri !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.clusterUri);
-        /* teleport.lib.teleterm.v1.SSOChallenge sso = 6; */
-        if (message.sso)
-            SSOChallenge.internalBinaryWrite(message.sso, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
-        /* bool per_session_mfa = 7; */
-        if (message.perSessionMfa !== false)
-            writer.tag(7, WireType.Varint).bool(message.perSessionMfa);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1204,77 +1005,6 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.PromptMFARequest
  */
 export const PromptMFARequest = new PromptMFARequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class SSOChallenge$Type extends MessageType<SSOChallenge> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.SSOChallenge", [
-            { no: 1, name: "connector_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "connector_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "display_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "redirect_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<SSOChallenge>): SSOChallenge {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.connectorId = "";
-        message.connectorType = "";
-        message.displayName = "";
-        message.redirectUrl = "";
-        if (value !== undefined)
-            reflectionMergePartial<SSOChallenge>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SSOChallenge): SSOChallenge {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string connector_id */ 1:
-                    message.connectorId = reader.string();
-                    break;
-                case /* string connector_type */ 2:
-                    message.connectorType = reader.string();
-                    break;
-                case /* string display_name */ 3:
-                    message.displayName = reader.string();
-                    break;
-                case /* string redirect_url */ 4:
-                    message.redirectUrl = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: SSOChallenge, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string connector_id = 1; */
-        if (message.connectorId !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.connectorId);
-        /* string connector_type = 2; */
-        if (message.connectorType !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.connectorType);
-        /* string display_name = 3; */
-        if (message.displayName !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.displayName);
-        /* string redirect_url = 4; */
-        if (message.redirectUrl !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.redirectUrl);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SSOChallenge
- */
-export const SSOChallenge = new SSOChallenge$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class PromptMFAResponse$Type extends MessageType<PromptMFAResponse> {
     constructor() {

@@ -1,7 +1,7 @@
 ---
 title: Machine ID with Server Access
 description: How to use Machine ID to access servers via SSH
-labels:
+tags:
  - how-to
  - mwi
 ---
@@ -61,8 +61,6 @@ only the hosts that the bot will need to access. This is known as the principle
 of least privilege and limits the damage that exfiltrated credentials can do.
 
 Use `tctl create -f ./role.yaml` to create the role.
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`

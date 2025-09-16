@@ -19,38 +19,40 @@
 package mocks
 
 import (
-	"context"
 	"fmt"
 	"slices"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	opensearch "github.com/aws/aws-sdk-go-v2/service/opensearch"
-	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/service/opensearchservice"
+	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
 	"github.com/gravitational/trace"
 )
 
-type OpenSearchClient struct {
+type OpenSearchMock struct {
+	opensearchserviceiface.OpenSearchServiceAPI
+
 	Unauth    bool
-	Domains   []opensearchtypes.DomainStatus
-	TagsByARN map[string][]opensearchtypes.Tag
+	Domains   []*opensearchservice.DomainStatus
+	TagsByARN map[string][]*opensearchservice.Tag
 }
 
-func (o *OpenSearchClient) ListDomainNames(context.Context, *opensearch.ListDomainNamesInput, ...func(*opensearch.Options)) (*opensearch.ListDomainNamesOutput, error) {
+func (o *OpenSearchMock) ListDomainNamesWithContext(aws.Context, *opensearchservice.ListDomainNamesInput, ...request.Option) (*opensearchservice.ListDomainNamesOutput, error) {
 	if o.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
-	out := &opensearch.ListDomainNamesOutput{}
+	out := &opensearchservice.ListDomainNamesOutput{}
 	for _, domain := range o.Domains {
-		out.DomainNames = append(out.DomainNames, opensearchtypes.DomainInfo{
+		out.DomainNames = append(out.DomainNames, &opensearchservice.DomainInfo{
 			DomainName: domain.DomainName,
-			EngineType: opensearchtypes.EngineTypeOpenSearch,
+			EngineType: aws.String("OpenSearch"),
 		})
 	}
 
 	return out, nil
 }
 
-func (o *OpenSearchClient) DescribeDomains(_ context.Context, input *opensearch.DescribeDomainsInput, _ ...func(*opensearch.Options)) (*opensearch.DescribeDomainsOutput, error) {
+func (o *OpenSearchMock) DescribeDomainsWithContext(_ aws.Context, input *opensearchservice.DescribeDomainsInput, _ ...request.Option) (*opensearchservice.DescribeDomainsOutput, error) {
 	if o.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
@@ -59,10 +61,10 @@ func (o *OpenSearchClient) DescribeDomains(_ context.Context, input *opensearch.
 	if len(input.DomainNames) > 5 {
 		return nil, trace.BadParameter("Please provide a maximum of 5 domain names to describe.")
 	}
-	out := &opensearch.DescribeDomainsOutput{}
+	out := &opensearchservice.DescribeDomainsOutput{}
 	for _, domain := range o.Domains {
-		if slices.ContainsFunc(input.DomainNames, func(other string) bool {
-			return other == aws.ToString(domain.DomainName)
+		if slices.ContainsFunc(input.DomainNames, func(other *string) bool {
+			return aws.StringValue(other) == aws.StringValue(domain.DomainName)
 		}) {
 			out.DomainStatusList = append(out.DomainStatusList, domain)
 		}
@@ -70,20 +72,20 @@ func (o *OpenSearchClient) DescribeDomains(_ context.Context, input *opensearch.
 	return out, nil
 }
 
-func (o *OpenSearchClient) ListTags(_ context.Context, request *opensearch.ListTagsInput, _ ...func(*opensearch.Options)) (*opensearch.ListTagsOutput, error) {
+func (o *OpenSearchMock) ListTagsWithContext(_ aws.Context, request *opensearchservice.ListTagsInput, _ ...request.Option) (*opensearchservice.ListTagsOutput, error) {
 	if o.Unauth {
 		return nil, trace.AccessDenied("unauthorized")
 	}
-	tags, found := o.TagsByARN[aws.ToString(request.ARN)]
+	tags, found := o.TagsByARN[aws.StringValue(request.ARN)]
 	if !found {
 		return nil, trace.NotFound("tags not found")
 	}
-	return &opensearch.ListTagsOutput{TagList: tags}, nil
+	return &opensearchservice.ListTagsOutput{TagList: tags}, nil
 }
 
-// OpenSearchDomain returns a sample opensearchtypes.DomainStatus.
-func OpenSearchDomain(name, region string, opts ...func(status *opensearchtypes.DomainStatus)) *opensearchtypes.DomainStatus {
-	domain := &opensearchtypes.DomainStatus{
+// OpenSearchDomain returns a sample opensearchservice.DomainStatus.
+func OpenSearchDomain(name, region string, opts ...func(status *opensearchservice.DomainStatus)) *opensearchservice.DomainStatus {
+	domain := &opensearchservice.DomainStatus{
 		ARN:           aws.String(fmt.Sprintf("arn:aws:es:%s:123456789012:domain/%s", region, name)),
 		DomainId:      aws.String("123456789012/" + name),
 		DomainName:    aws.String(name),
@@ -100,19 +102,19 @@ func OpenSearchDomain(name, region string, opts ...func(status *opensearchtypes.
 	return domain
 }
 
-func WithOpenSearchVPCEndpoint(name string) func(*opensearchtypes.DomainStatus) {
-	return func(status *opensearchtypes.DomainStatus) {
+func WithOpenSearchVPCEndpoint(name string) func(*opensearchservice.DomainStatus) {
+	return func(status *opensearchservice.DomainStatus) {
 		if status.Endpoints == nil {
-			status.Endpoints = map[string]string{}
+			status.Endpoints = map[string]*string{}
 		}
-		status.Endpoints[name] = fmt.Sprintf("vpc-%v-%v", name, aws.ToString(status.Endpoint))
+		status.Endpoints[name] = aws.String(fmt.Sprintf("vpc-%v-%v", name, aws.StringValue(status.Endpoint)))
 		status.Endpoint = nil
 	}
 }
 
-func WithOpenSearchCustomEndpoint(endpoint string) func(*opensearchtypes.DomainStatus) {
-	return func(status *opensearchtypes.DomainStatus) {
-		status.DomainEndpointOptions = &opensearchtypes.DomainEndpointOptions{
+func WithOpenSearchCustomEndpoint(endpoint string) func(*opensearchservice.DomainStatus) {
+	return func(status *opensearchservice.DomainStatus) {
+		status.DomainEndpointOptions = &opensearchservice.DomainEndpointOptions{
 			CustomEndpoint:        aws.String(endpoint),
 			CustomEndpointEnabled: aws.Bool(true),
 			EnforceHTTPS:          aws.Bool(true),

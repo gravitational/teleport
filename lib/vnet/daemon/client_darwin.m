@@ -26,10 +26,10 @@
 
 #include <string.h>
 
-// DaemonPlist takes the result of VNEDaemonLabel and appends ".plist" to it
+// DaemonPlist takes the result of DaemonLabel and appends ".plist" to it
 // if not empty.
 NSString *DaemonPlist(NSString *bundlePath) {
-  NSString *label = VNEDaemonLabel(bundlePath);
+  NSString *label = DaemonLabel(bundlePath);
   if ([label length] == 0) {
     return label;
   }
@@ -91,7 +91,7 @@ void OpenSystemSettingsLoginItems(void) {
 - (NSXPCConnection *)connection {
   // Create the XPC Connection on demand.
   if (_connection == nil) {
-    _connection = [[NSXPCConnection alloc] initWithMachServiceName:VNEDaemonLabel(_bundlePath)
+    _connection = [[NSXPCConnection alloc] initWithMachServiceName:DaemonLabel(_bundlePath)
                                                            options:NSXPCConnectionPrivileged];
     _connection.remoteObjectInterface =
         [NSXPCInterface interfaceWithProtocol:@protocol(VNEDaemonProtocol)];
@@ -151,8 +151,10 @@ void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
   }
 
   VNEConfig *config = [[VNEConfig alloc] init];
-  [config setServiceCredentialPath:@(request->service_credential_path)];
-  [config setClientApplicationServiceAddr:@(request->client_application_service_addr)];
+  [config setSocketPath:@(request->socket_path)];
+  [config setIpv6Prefix:@(request->ipv6_prefix)];
+  [config setDnsAddr:@(request->dns_addr)];
+  [config setHomePath:@(request->home_path)];
 
   dispatch_semaphore_t sema = dispatch_semaphore_create(0);
 

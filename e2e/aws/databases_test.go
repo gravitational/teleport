@@ -45,18 +45,17 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestDatabases(t *testing.T) {
@@ -253,25 +252,22 @@ func startLocalALPNProxy(t *testing.T, user string, cluster *helpers.TeleInstanc
 // generateClientDBCert creates a test db cert for the given user and database.
 func generateClientDBCert(t *testing.T, authSrv *auth.Server, user string, route tlsca.RouteToDatabase) tls.Certificate {
 	t.Helper()
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 
-	clusterName, err := authSrv.GetClusterName(context.TODO())
-	require.NoError(t, err)
-
-	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	clusterName, err := authSrv.GetClusterName()
 	require.NoError(t, err)
 
 	clientCert, err := authSrv.GenerateDatabaseTestCert(
 		auth.DatabaseTestCertRequest{
-			PublicKey:       publicKeyPEM,
+			PublicKey:       key.MarshalSSHPublicKey(),
 			Cluster:         clusterName.GetClusterName(),
 			Username:        user,
 			RouteToDatabase: route,
 		})
 	require.NoError(t, err)
 
-	tlsCert, err := keys.TLSCertificateForSigner(key, clientCert)
+	tlsCert, err := key.TLSCertificate(clientCert)
 	require.NoError(t, err)
 	return tlsCert
 }
@@ -338,7 +334,7 @@ func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName
 		_ = conn.Close(ctx)
 	})
 	return &pgConn{
-		logger: logtest.With("test_name", t.Name()),
+		logger: utils.NewSlogLoggerForTests().With("test_name", t.Name()),
 		Conn:   conn,
 	}
 }
@@ -389,7 +385,7 @@ type pgConn struct {
 	*pgx.Conn
 }
 
-func (c *pgConn) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+func (c *pgConn) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
 	var out pgconn.CommandTag
 	err := withRetry(ctx, c.logger, func() error {
 		var err error
@@ -410,7 +406,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 		First:  0,
 		Step:   500 * time.Millisecond,
 		Max:    5 * time.Second,
-		Jitter: retryutils.HalfJitter,
+		Jitter: retryutils.NewHalfJitter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -418,7 +414,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 
 	// retry a finite number of times before giving up.
 	const retries = 10
-	for range retries {
+	for i := 0; i < retries; i++ {
 		err := f()
 		if err == nil {
 			return nil

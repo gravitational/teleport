@@ -31,7 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/label"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -130,6 +130,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			tc := tc
 			t.Parallel()
 
 			// At initial setup, only allows postgres (used to create execute the procedures).
@@ -150,7 +151,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 			}
 
 			// Create user with role that allows user provisioning.
-			_, role, err := authtest.CreateUserAndRole(testCtx.tlsServer.Auth(), "alice", []string{"auto"}, nil)
+			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), "alice", []string{"auto"}, nil)
 			require.NoError(t, err)
 			options := role.GetOptions()
 			options.CreateDatabaseUserMode = tc.mode
@@ -188,7 +189,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 			select {
 			case e := <-testCtx.postgres["postgres"].db.UserEventsCh():
 				require.Equal(t, "alice", e.Name)
-				require.ElementsMatch(t, tc.databaseRoles, e.Roles)
+				require.Equal(t, tc.databaseRoles, e.Roles)
 				require.True(t, e.Active)
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not activated after 5s")
@@ -330,7 +331,7 @@ func TestAutoUsersMySQL(t *testing.T) {
 			go testCtx.startHandlingConnections()
 
 			// Create user with role that allows user provisioning.
-			_, role, err := authtest.CreateUserAndRole(testCtx.tlsServer.Auth(), tc.teleportUser, []string{"auto"}, nil)
+			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), tc.teleportUser, []string{"auto"}, nil)
 			require.NoError(t, err)
 			options := role.GetOptions()
 			options.CreateDatabaseUserMode = tc.mode
@@ -356,7 +357,7 @@ func TestAutoUsersMySQL(t *testing.T) {
 			case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
 				require.Equal(t, tc.teleportUser, e.TeleportUser)
 				require.Equal(t, tc.expectDatabaseUser, e.DatabaseUser)
-				require.ElementsMatch(t, []string{"reader", "writer"}, e.Roles)
+				require.Equal(t, []string{"reader", "writer"}, e.Roles)
 				require.True(t, e.Active)
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not activated after 5s")
@@ -406,6 +407,7 @@ func TestAutoUsersMongoDB(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -413,7 +415,7 @@ func TestAutoUsersMongoDB(t *testing.T) {
 			go testCtx.startHandlingConnections()
 
 			// Create user with role that allows user provisioning.
-			_, role, err := authtest.CreateUserAndRole(testCtx.tlsServer.Auth(), username, []string{"auto"}, nil)
+			_, role, err := auth.CreateUserAndRole(testCtx.tlsServer.Auth(), username, []string{"auto"}, nil)
 			require.NoError(t, err)
 			options := role.GetOptions()
 			options.CreateDatabaseUserMode = test.mode

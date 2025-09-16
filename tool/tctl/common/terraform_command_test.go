@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Note: due to its complex interactions with Teleport, the `tctl terraform env`
@@ -98,7 +98,7 @@ func TestTerraformCommand_checkIfRoleExists(t *testing.T) {
 			c := &TerraformCommand{
 				existingRole: tt.existingRoleFlag,
 				userOutput:   os.Stderr,
-				log:          logtest.NewLogger(),
+				log:          utils.NewSlogLoggerForTests(),
 			}
 			roleName, err := c.checkIfRoleExists(ctx, adminClient)
 			tt.expectedErr(t, err)

@@ -19,9 +19,7 @@ package types
 import (
 	"fmt"
 	"testing"
-	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -387,7 +385,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `invalid SubKind "invalid-subkind" of Kind "node"`)
+				require.EqualError(t, err, `invalid SubKind "invalid-subkind"`)
 			},
 		},
 		{
@@ -581,81 +579,6 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				require.ErrorContains(t, err, `invalid account "abcd" or instance id "i-defg"`)
 			},
 		},
-		{
-			name: "git_server with invalid subkind",
-			server: &ServerV2{
-				Kind:    KindGitServer,
-				SubKind: "invalid-subkind",
-				Metadata: Metadata{
-					Name: "5da56852-2adb-4540-a37c-80790203f6a9",
-				},
-			},
-			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `invalid SubKind "invalid-subkind" of Kind "git_server"`)
-			},
-		},
-		{
-			name: "GitHub server",
-			server: &ServerV2{
-				Kind:    KindGitServer,
-				SubKind: SubKindGitHub,
-				Metadata: Metadata{
-					Name: "5da56852-2adb-4540-a37c-80790203f6a9",
-				},
-				Spec: ServerSpecV2{
-					GitHub: &GitHubServerMetadata{
-						Integration:  "my-org",
-						Organization: "my-org",
-					},
-				},
-			},
-			assertion: func(t *testing.T, s *ServerV2, err error) {
-				t.Helper()
-				require.NoError(t, err)
-
-				expectedServer := &ServerV2{
-					Kind:    KindGitServer,
-					SubKind: SubKindGitHub,
-					Version: V2,
-					Metadata: Metadata{
-						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-						Namespace: defaults.Namespace,
-						Labels: map[string]string{
-							GitHubOrgLabel: "my-org",
-						},
-					},
-					Spec: ServerSpecV2{
-						Addr:     "github.com:22",
-						Hostname: "my-org.teleport-github-org",
-						GitHub: &GitHubServerMetadata{
-							Integration:  "my-org",
-							Organization: "my-org",
-						},
-					},
-				}
-				assert.Equal(t, expectedServer, s)
-			},
-		},
-		{
-			name: "invalid GitHub server",
-			server: &ServerV2{
-				Kind:    KindGitServer,
-				SubKind: SubKindGitHub,
-				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-					Namespace: defaults.Namespace,
-				},
-				Spec: ServerSpecV2{
-					GitHub: &GitHubServerMetadata{
-						Integration:  "",
-						Organization: "my-org",
-					},
-				},
-			},
-			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `integration must be set for Subkind "github"`)
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -806,55 +729,4 @@ func TestGetCloudMetadataAWS(t *testing.T) {
 			require.Equal(t, tt.expected, out)
 		})
 	}
-}
-
-func TestGitServerOrgDomain(t *testing.T) {
-	domain := MakeGitHubOrgServerDomain("my-org")
-	require.Equal(t, "my-org.teleport-github-org", domain)
-
-	githubNodeAddr := domain + ":22"
-	org, ok := GetGitHubOrgFromNodeAddr(githubNodeAddr)
-	require.True(t, ok)
-	require.Equal(t, "my-org", org)
-
-	_, ok = GetGitHubOrgFromNodeAddr("my-server.example.teleport.sh:22")
-	require.False(t, ok)
-}
-
-func TestServerLabels(t *testing.T) {
-	emptyLabels := make(map[string]string)
-	// empty
-	server := &ServerV2{}
-	require.Empty(t, server.GetAllLabels())
-	require.True(t, MatchLabels(server, emptyLabels))
-	require.False(t, MatchLabels(server, map[string]string{"a": "b"}))
-
-	// more complex
-	server = &ServerV2{
-		Metadata: Metadata{
-			Labels: map[string]string{
-				"role": "database",
-			},
-		},
-		Spec: ServerSpecV2{
-			CmdLabels: map[string]CommandLabelV2{
-				"time": {
-					Period:  NewDuration(time.Second),
-					Command: []string{"time"},
-					Result:  "now",
-				},
-			},
-		},
-	}
-
-	require.Empty(t, cmp.Diff(server.GetAllLabels(), map[string]string{
-		"role": "database",
-		"time": "now",
-	}))
-
-	require.True(t, MatchLabels(server, emptyLabels))
-	require.False(t, MatchLabels(server, map[string]string{"a": "b"}))
-	require.True(t, MatchLabels(server, map[string]string{"role": "database"}))
-	require.True(t, MatchLabels(server, map[string]string{"time": "now"}))
-	require.True(t, MatchLabels(server, map[string]string{"time": "now", "role": "database"}))
 }

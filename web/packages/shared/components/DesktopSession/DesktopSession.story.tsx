@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react-vite';
+import React, { Meta } from '@storybook/react';
 
 import DialogConfirmation from 'design/DialogConfirmation';
 import {
@@ -27,7 +27,6 @@ import {
 import {
   BitmapFrame,
   ClientScreenSpec,
-  selectDirectoryInBrowser,
   TdpClient,
   TdpClientEvent,
 } from 'shared/libs/tdp';
@@ -55,10 +54,10 @@ const meta: Meta = {
 export default meta;
 
 const fakeClient = () => {
-  const client = new TdpClient(() => null, selectDirectoryInBrowser);
+  const client = new TdpClient(() => null);
   // Don't try to connect to a websocket.
-  client.connect = async options => {
-    emitFrame(client, options.screenSpec);
+  client.connect = async spec => {
+    emitFrame(client, spec);
   };
   return client;
 };
@@ -170,10 +169,10 @@ export const SharingDisabledRbac = () => (
 //   />
 // );
 
-export const Alerts = () => {
+export const Warnings = () => {
   const client = fakeClient();
-  client.connect = async options => {
-    emitFrame(client, options.screenSpec);
+  client.connect = async spec => {
+    emitFrame(client, spec);
     client.emit(
       TdpClientEvent.TDP_WARNING,
       'Potential performance issues detected. Expect possible lag or instability.'

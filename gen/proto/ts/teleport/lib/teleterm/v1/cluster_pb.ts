@@ -121,12 +121,6 @@ export interface Cluster {
      * @generated from protobuf field: string profile_status_error = 12;
      */
     profileStatusError: string;
-    /**
-     * sso_host is the host of the SSO provider used to log in.
-     *
-     * @generated from protobuf field: string sso_host = 13;
-     */
-    ssoHost: string;
 }
 /**
  * LoggedInUser describes a logged-in user
@@ -306,18 +300,6 @@ export interface ACL {
      * @generated from protobuf field: bool review_requests = 15;
      */
     reviewRequests: boolean;
-    /**
-     * Indicates whether the user can share a local directory with the remote machine during desktop sessions.
-     *
-     * @generated from protobuf field: bool directory_sharing_enabled = 16;
-     */
-    directorySharingEnabled: boolean;
-    /**
-     * Indicates whether the user can share their clipboard with the remote machine during desktop sessions.
-     *
-     * @generated from protobuf field: bool clipboard_sharing_enabled = 17;
-     */
-    clipboardSharingEnabled: boolean;
 }
 /**
  * ResourceAccess describes access verbs
@@ -414,8 +396,7 @@ class Cluster$Type extends MessageType<Cluster> {
             { no: 9, name: "auth_cluster_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 10, name: "proxy_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 11, name: "show_resources", kind: "enum", T: () => ["teleport.lib.teleterm.v1.ShowResources", ShowResources, "SHOW_RESOURCES_"] },
-            { no: 12, name: "profile_status_error", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 13, name: "sso_host", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 12, name: "profile_status_error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Cluster>): Cluster {
@@ -429,7 +410,6 @@ class Cluster$Type extends MessageType<Cluster> {
         message.proxyVersion = "";
         message.showResources = 0;
         message.profileStatusError = "";
-        message.ssoHost = "";
         if (value !== undefined)
             reflectionMergePartial<Cluster>(this, message, value);
         return message;
@@ -471,9 +451,6 @@ class Cluster$Type extends MessageType<Cluster> {
                     break;
                 case /* string profile_status_error */ 12:
                     message.profileStatusError = reader.string();
-                    break;
-                case /* string sso_host */ 13:
-                    message.ssoHost = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -520,9 +497,6 @@ class Cluster$Type extends MessageType<Cluster> {
         /* string profile_status_error = 12; */
         if (message.profileStatusError !== "")
             writer.tag(12, WireType.LengthDelimited).string(message.profileStatusError);
-        /* string sso_host = 13; */
-        if (message.ssoHost !== "")
-            writer.tag(13, WireType.LengthDelimited).string(message.ssoHost);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -668,16 +642,12 @@ class ACL$Type extends MessageType<ACL> {
             { no: 12, name: "access_requests", kind: "message", T: () => ResourceAccess },
             { no: 13, name: "recorded_sessions", kind: "message", T: () => ResourceAccess },
             { no: 14, name: "active_sessions", kind: "message", T: () => ResourceAccess },
-            { no: 15, name: "review_requests", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 16, name: "directory_sharing_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 17, name: "clipboard_sharing_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 15, name: "review_requests", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ACL>): ACL {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.reviewRequests = false;
-        message.directorySharingEnabled = false;
-        message.clipboardSharingEnabled = false;
         if (value !== undefined)
             reflectionMergePartial<ACL>(this, message, value);
         return message;
@@ -728,12 +698,6 @@ class ACL$Type extends MessageType<ACL> {
                     break;
                 case /* bool review_requests */ 15:
                     message.reviewRequests = reader.bool();
-                    break;
-                case /* bool directory_sharing_enabled */ 16:
-                    message.directorySharingEnabled = reader.bool();
-                    break;
-                case /* bool clipboard_sharing_enabled */ 17:
-                    message.clipboardSharingEnabled = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -789,12 +753,6 @@ class ACL$Type extends MessageType<ACL> {
         /* bool review_requests = 15; */
         if (message.reviewRequests !== false)
             writer.tag(15, WireType.Varint).bool(message.reviewRequests);
-        /* bool directory_sharing_enabled = 16; */
-        if (message.directorySharingEnabled !== false)
-            writer.tag(16, WireType.Varint).bool(message.directorySharingEnabled);
-        /* bool clipboard_sharing_enabled = 17; */
-        if (message.clipboardSharingEnabled !== false)
-            writer.tag(17, WireType.Varint).bool(message.clipboardSharingEnabled);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

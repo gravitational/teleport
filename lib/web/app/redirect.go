@@ -21,13 +21,9 @@ package app
 import (
 	"fmt"
 	"html/template"
-	"io"
 	"net/http"
-	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/net/html"
 
 	"github.com/gravitational/teleport/lib/httplib"
 )
@@ -65,33 +61,6 @@ func SetRedirectPageHeaders(h http.Header, nonce string) {
 func MetaRedirect(w http.ResponseWriter, redirectURL string) error {
 	SetRedirectPageHeaders(w.Header(), "")
 	return trace.Wrap(metaRedirectTemplate.Execute(w, redirectURL))
-}
-
-// GetURLFromMetaRedirect parses an HTML redirect response written by
-// [MetaRedirect] and returns the redirect URL. Useful for tests.
-func GetURLFromMetaRedirect(body io.Reader) (string, error) {
-	tokenizer := html.NewTokenizer(body)
-	for tt := tokenizer.Next(); tt != html.ErrorToken; tt = tokenizer.Next() {
-		token := tokenizer.Token()
-		if token.Data != "meta" {
-			continue
-		}
-		if !slices.Contains(token.Attr, html.Attribute{Key: "http-equiv", Val: "refresh"}) {
-			continue
-		}
-		contentAttrIndex := slices.IndexFunc(token.Attr, func(attr html.Attribute) bool { return attr.Key == "content" })
-		if contentAttrIndex < 0 {
-			return "", trace.BadParameter("refresh tag did not contain content")
-		}
-		content := token.Attr[contentAttrIndex].Val
-		parts := strings.Split(content, "URL=")
-		if len(parts) < 2 {
-			return "", trace.BadParameter("refresh tag content did not contain URL")
-		}
-		quotedURL := parts[1]
-		return strings.TrimPrefix(strings.TrimSuffix(quotedURL, "'"), "'"), nil
-	}
-	return "", trace.NotFound("body did not contain refresh tag")
 }
 
 var appRedirectTemplate = template.Must(template.New("index").Parse(appRedirectHTML))

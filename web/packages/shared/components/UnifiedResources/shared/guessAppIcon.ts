@@ -21,12 +21,11 @@ import {
   ResourceIconName,
   resourceIconSpecs,
 } from 'design/ResourceIcon';
-import { AppSubKind } from 'shared/services';
 
 import { UnifiedResourceApp } from '../types';
 
 export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
-  const { awsConsole = false, name, friendlyName, labels, subKind } = resource;
+  const { awsConsole = false, name, friendlyName, labels } = resource;
 
   // Label matching takes precedence and we can assume it can be a direct lookup
   // since we expect a certain format.
@@ -41,9 +40,6 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
 
   if (awsConsole) {
     return 'aws';
-  }
-  if (subKind === AppSubKind.AwsIcAccount) {
-    return 'awsaccount';
   }
 
   const app = {
@@ -60,6 +56,7 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
   }
 
   // Help match brands with sub brands:
+
   if (match('adobe', app)) {
     if (match('creative', app)) return 'adobecreativecloud';
     if (match('marketo', app)) return 'adobemarketo';
@@ -89,12 +86,6 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     if (match('team', app)) return 'microsoftteams';
     if (match('word', app)) return 'microsoftword';
     return 'microsoft'; // generic
-  }
-  if (match('gcp', app)) {
-    return 'googlecloud';
-  }
-  if (match('azure', app)) {
-    return 'azure';
   }
 
   // Try matching by iterating through all the icon names

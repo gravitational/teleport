@@ -18,6 +18,7 @@
 
 import { act } from '@testing-library/react';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+import React from 'react';
 
 import { render, screen } from 'design/utils/testing';
 
@@ -31,6 +32,7 @@ import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer'
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
 
 import DocumentCluster from './DocumentCluster';
@@ -42,25 +44,41 @@ it('displays a button for Connect My Computer in the empty state if the user can
   const doc = makeDocumentCluster();
 
   const appContext = new MockAppContext({ platform: 'darwin' });
-  appContext.addRootClusterWithDoc(
-    makeRootCluster({
-      uri: doc.clusterUri,
-      loggedInUser: makeLoggedInUser({
-        userType: tsh.LoggedInUser_UserType.LOCAL,
-        acl: makeAcl({
-          tokens: {
-            create: true,
-            list: true,
-            edit: true,
-            delete: true,
-            read: true,
-            use: true,
-          },
+  appContext.clustersService.setState(draft => {
+    draft.clusters.set(
+      doc.clusterUri,
+      makeRootCluster({
+        uri: doc.clusterUri,
+        loggedInUser: makeLoggedInUser({
+          userType: tsh.LoggedInUser_UserType.LOCAL,
+          acl: makeAcl({
+            tokens: {
+              create: true,
+              list: true,
+              edit: true,
+              delete: true,
+              read: true,
+              use: true,
+            },
+          }),
         }),
-      }),
-    }),
-    doc
-  );
+      })
+    );
+  });
+
+  appContext.workspacesService.setState(draftState => {
+    const rootClusterUri = doc.clusterUri;
+    draftState.rootClusterUri = rootClusterUri;
+    draftState.workspaces[rootClusterUri] = {
+      localClusterUri: doc.clusterUri,
+      documents: [doc],
+      location: doc.uri,
+      accessRequests: {
+        pending: getEmptyPendingAccessRequest(),
+        isBarCollapsed: true,
+      },
+    };
+  });
 
   const emptyResponse = {
     resources: [],
@@ -99,25 +117,41 @@ it('does not display a button for Connect My Computer in the empty state if the 
   });
 
   const appContext = new MockAppContext({ platform: 'linux' });
-  appContext.addRootClusterWithDoc(
-    makeRootCluster({
-      uri: doc.clusterUri,
-      loggedInUser: makeLoggedInUser({
-        userType: tsh.LoggedInUser_UserType.LOCAL,
-        acl: makeAcl({
-          tokens: {
-            create: false,
-            list: true,
-            edit: true,
-            delete: true,
-            read: true,
-            use: true,
-          },
+  appContext.clustersService.setState(draft => {
+    draft.clusters.set(
+      doc.clusterUri,
+      makeRootCluster({
+        uri: doc.clusterUri,
+        loggedInUser: makeLoggedInUser({
+          userType: tsh.LoggedInUser_UserType.LOCAL,
+          acl: makeAcl({
+            tokens: {
+              create: false,
+              list: true,
+              edit: true,
+              delete: true,
+              read: true,
+              use: true,
+            },
+          }),
         }),
-      }),
-    }),
-    doc
-  );
+      })
+    );
+  });
+
+  appContext.workspacesService.setState(draftState => {
+    const rootClusterUri = doc.clusterUri;
+    draftState.rootClusterUri = rootClusterUri;
+    draftState.workspaces[rootClusterUri] = {
+      localClusterUri: doc.clusterUri,
+      documents: [doc],
+      location: doc.uri,
+      accessRequests: {
+        pending: getEmptyPendingAccessRequest(),
+        isBarCollapsed: true,
+      },
+    };
+  });
 
   const emptyResponse = {
     resources: [],

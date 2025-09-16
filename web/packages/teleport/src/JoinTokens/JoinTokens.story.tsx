@@ -16,35 +16,52 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { JoinToken } from 'teleport/services/joinToken';
 
 import { JoinTokens } from './JoinTokens';
 
 export default {
   title: 'Teleport/JoinTokens',
+  loaders: [mswLoader],
 };
 
+initialize();
+
 export const Loaded = () => (
-  <TeleportProviderBasic>
+  <Provider>
     <JoinTokens />
-  </TeleportProviderBasic>
+  </Provider>
 );
 
 Loaded.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.api.joinToken.list, () => {
-        return HttpResponse.json({ items: tokens });
+      rest.get(cfg.api.joinTokensPath, (req, res, ctx) => {
+        return res.once(ctx.json({ items: tokens }));
       }),
-      http.put(cfg.api.joinTokenYamlPath, () => {
-        return HttpResponse.json(editedToken);
+      rest.put(cfg.api.joinTokenYamlPath, (req, res, ctx) => {
+        return res.once(ctx.json(editedToken));
       }),
     ],
   },
+};
+
+const Provider = ({ children }) => {
+  const ctx = createTeleportContext();
+
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>{children}</ContextProvider>
+    </MemoryRouter>
+  );
 };
 
 const tokens: JoinToken[] = [

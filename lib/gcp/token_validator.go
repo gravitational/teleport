@@ -22,17 +22,20 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"time"
 
+	"github.com/coreos/go-oidc"
 	"github.com/gravitational/trace"
-	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/lib/oidc"
+	"github.com/gravitational/teleport/lib/jwt"
 )
-
-const audience = "teleport.cluster.local"
 
 // IDTokenValidatorConfig is the config for IDTokenValidator.
 type IDTokenValidatorConfig struct {
+	// Clock is used by the validator when checking expiry and issuer times of
+	// tokens. If omitted, a real clock will be used.
+	Clock clockwork.Clock
 	// issuerHost is the host of the Issuer for tokens issued by Google, to be
 	// overridden in tests. Defaults to "accounts.google.com".
 	issuerHost string
@@ -47,6 +50,9 @@ type IDTokenValidator struct {
 }
 
 func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
+	}
 	if cfg.issuerHost == "" {
 		cfg.issuerHost = defaultIssuerHost
 	}
@@ -65,23 +71,33 @@ func (id *IDTokenValidator) issuerURL() string {
 
 // Validate validates an ID token.
 func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDTokenClaims, error) {
-	issuer := id.issuerURL()
-
-	// GCP issues service account IDTokens with the `azp` claim set to the same
-	// value as the `sub` claim, rather than the `aud` claim. The `azp` check is
-	// optional, so we skip it in this non-standard case.
-	// https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation
-	withoutAZPVerifier := rp.WithAZPVerifier(func(string) error {
-		return nil
+	p, err := oidc.NewProvider(ctx, id.issuerURL())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	verifier := p.Verifier(&oidc.Config{
+		ClientID: "teleport.cluster.local",
+		Now:      id.Clock.Now,
 	})
 
-	claims, err := oidc.ValidateToken[*IDTokenClaims](ctx, issuer, audience, token, withoutAZPVerifier)
+	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
-		return nil, trace.Wrap(err, "validating token")
+		return nil, trace.Wrap(err)
+	}
+
+	// `go-oidc` does not implement not before check, so we need to manually
+	// perform this
+	if err := jwt.CheckNotBefore(id.Clock.Now(), time.Minute*2, idToken); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	claims := IDTokenClaims{}
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if claims.Google.ComputeEngine != (ComputeEngine{}) {
-		return claims, nil
+		return &claims, nil
 	}
 
 	if gcpDefaultServiceAccountEmailRegex.MatchString(claims.Email) {
@@ -104,7 +120,7 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 	// Assign the project ID exatracted from the email to the Google claims.
 	claims.Google.ComputeEngine.ProjectID = matches[1]
 
-	return claims, nil
+	return &claims, nil
 }
 
 var (

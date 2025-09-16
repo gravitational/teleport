@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { CSSProperties } from 'react';
 
 export interface SVGIconProps {
   fill?: string;
@@ -30,6 +29,6 @@ export interface SVGIconProps {
   mt?: number;
   role?: string;
   title?: string;
-  style?: CSSProperties;
+  style?: React.CSSProperties;
   onClick?: () => void;
 }

@@ -1,7 +1,7 @@
 ---
 title: Migrate Between Teleport Plans
 description: Explains how to migrate between Teleport Enterprise (Self-Hosted), Teleport Enterprise (Cloud), and Teleport Community Edition.
-labels:
+tags:
  - how-to
  - platform-wide
 ---
@@ -11,7 +11,7 @@ Enterprise (Self-Hosted) and Teleport Enterprise (Cloud) to another Teleport
 plan. 
 
 We recommend that you try out a Teleport [demo
-cluster](linux-demo.mdx) with Teleport Community Edition,
+cluster](zero-trust-access/deploy-a-cluster/linux-demo.mdx) with Teleport Community Edition,
 migrate to [Teleport Enterprise (Cloud)](get-started.mdx) to roll out
 Teleport across your organization, and deploy a
 [self-hosted](zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) Teleport Enterprise cluster
@@ -149,6 +149,7 @@ other resources need to be migrated. Some common dynamic resources includes:
 - `dbs`
 - `login_rule`
 
+If you are using infrastructure-as-code tools to 
 To achieve this:
 
 1. Log in to your original Teleport cluster and export a collection of the
@@ -188,11 +189,11 @@ and configure a new Auth Connector in the new Teleport Enterprise tenant.
 
 ## Step 3/4. Migrate Teleport services and plugins
 
-To migrate services such as Teleport Agents, Machine ID Bots, and plugins, start
+To migrate services such as Teleport agents, Machine ID Bots, and plugins, start
 by cataloging the various services you're managing with Teleport. The following
 resources should be considered for migration:
 
- - Teleport Agents 
+ - Teleport agents 
  - Machine ID Bots
  - Access Request plugins
  - The Teleport Event Handler
@@ -205,9 +206,9 @@ business requirements. If running Teleport at scale, you'll generally want to
 use a configuration management tool to automate and streamline the process of
 carrying out the actions involved in migrating agent configurations. 
 
-### Migrate Teleport Agents
+### Migrate Teleport agents
 
-To migrate Teleport Agents:
+To migrate Teleport agents:
 
 1. For each Agent and Machine ID Bot, obtain a valid join token. We recommend
    using a [delegated join

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"context"
@@ -28,8 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/modules"
@@ -84,8 +82,8 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), func(server *auth.Server) error {
-		server.SetBitbucketIDTokenValidator(idTokenValidator)
+	p, err := newTestPack(ctx, t.TempDir(), func(server *Server) error {
+		server.bitbucketIDTokenValidator = idTokenValidator
 		return nil
 	})
 	require.NoError(t, err)
@@ -94,7 +92,7 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
 		return &types.RegisterUsingTokenRequest{
@@ -119,7 +117,7 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -260,7 +258,7 @@ func TestAuth_RegisterUsingToken_Bitbucket(t *testing.T) {
 				},
 			},
 			request: newRequest("some other token"),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, errMockInvalidToken)
 			},
 		},

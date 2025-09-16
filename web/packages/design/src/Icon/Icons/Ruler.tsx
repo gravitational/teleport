@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import { forwardRef } from 'react';
+import React from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,20 +50,37 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export const Ruler = forwardRef<HTMLSpanElement, IconProps>(
-  ({ size = 24, color, ...otherProps }, ref) => (
-    <Icon
-      size={size}
-      color={color}
-      className="icon icon-ruler"
-      {...otherProps}
-      ref={ref}
-    >
+export function Ruler({ size = 24, color, ...otherProps }: IconProps) {
+  return (
+    <Icon size={size} color={color} className="icon icon-ruler" {...otherProps}>
       <path
-        fillRule="evenodd"
-        d="M1.94 15a1.5 1.5 0 0 0 0 2.121l4.939 4.94a1.5 1.5 0 0 0 2.121 0L22.061 9a1.5 1.5 0 0 0 0-2.121l-4.94-4.94a1.5 1.5 0 0 0-2.12 0l-3.523 3.523-.008.008-.008.008-2.984 2.984-.008.008-.008.008-2.984 2.984-.008.008-.008.008zM6 13.06l-3 3L7.94 21 21 7.94 16.06 3l-3 3 2.47 2.47a.75.75 0 0 1-1.06 1.06L12 7.06 10.06 9l2.47 2.47a.75.75 0 0 1-1.06 1.06L9 10.06 7.06 12l2.47 2.47a.75.75 0 0 1-1.06 1.06z"
-        clipRule="evenodd"
+        d="M15.5305 2.46951L2.46978 15.5302C2.17689 15.8231 2.17689 16.298 2.46978 16.5909L7.40914 21.5302C7.70204 21.8231 8.17691 21.8231 8.46981 21.5302L21.5305 8.46953C21.8234 8.17664 21.8234 7.70177 21.5305 7.40887L16.5911 2.46951C16.2983 2.17662 15.8234 2.17662 15.5305 2.46951Z"
+        stroke="black"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 6L15 9"
+        stroke="black"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 9L12 12"
+        stroke="black"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 12L9 15"
+        stroke="black"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </Icon>
-  )
-);
+  );
+}

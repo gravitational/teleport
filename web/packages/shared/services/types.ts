@@ -16,15 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type SSOType =
-  | 'microsoft'
-  | 'github'
-  | 'bitbucket'
-  | 'google'
-  | 'openid'
-  | 'okta'
-  | 'unknown';
-
 export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
 export type Auth2faType = 'otp' | 'off' | 'optional' | 'on' | 'webauthn';
@@ -56,9 +47,3 @@ export type AuthProvider = {
 
 /** Values are taken from https://github.com/gravitational/teleport/blob/0460786b4c3afced1350dd9362ce761806e1c99d/api/types/constants.go#L140-L154 */
 export type NodeSubKind = 'teleport' | 'openssh' | 'openssh-ec2-ice';
-
-/** AppSubKind defines names of SubKind for App resource. */
-export enum AppSubKind {
-  AwsIcAccount = 'aws_ic_account',
-  MCP = 'mcp',
-}

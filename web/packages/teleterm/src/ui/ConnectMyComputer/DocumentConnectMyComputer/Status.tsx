@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useRef, type JSX } from 'react';
+import React, { useCallback } from 'react';
 import { Transition } from 'react-transition-group';
 import styled, { css } from 'styled-components';
 
@@ -26,8 +26,8 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
-  H1,
   Label,
+  Link,
   MenuItem,
   Text,
 } from 'design';
@@ -36,7 +36,6 @@ import type { IconProps } from 'design/Icon/Icon';
 import Indicator from 'design/Indicator';
 import { MenuIcon } from 'shared/components/MenuAction';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 import type * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -80,7 +79,7 @@ export function Status(props: { closeDocument?: () => void }) {
   const downloadAndStartAgentAndIgnoreErrors = useCallback(async () => {
     try {
       await downloadAndStartAgent();
-    } catch {
+    } catch (error) {
       // Ignore the error, it'll be shown in the UI by inspecting the attempts.
     }
   }, [downloadAndStartAgent]);
@@ -146,8 +145,6 @@ export function Status(props: { closeDocument?: () => void }) {
     isRemoved ||
     isAgentIncompatibleOrUnknown;
 
-  const transitionRef = useRef<HTMLDivElement>(null);
-
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
       {shouldShowAgentUpgradeSuggestion(proxyVersion, {
@@ -161,20 +158,30 @@ export function Status(props: { closeDocument?: () => void }) {
       )}
       {isAgentConfiguredAttempt.status === 'error' && (
         <Alert
-          primaryAction={{
-            content: 'Run setup again',
-            onClick: replaceWithSetup,
-          }}
-          details={isAgentConfiguredAttempt.statusText}
+          css={`
+            display: block;
+          `}
         >
-          An error occurred while reading the agent config file
+          An error occurred while reading the agent config file:{' '}
+          {isAgentConfiguredAttempt.statusText}. <br />
+          You can try to{' '}
+          <Link
+            onClick={replaceWithSetup}
+            css={`
+              cursor: pointer;
+            `}
+          >
+            run the setup
+          </Link>{' '}
+          again.
         </Alert>
       )}
 
       <Flex flexDirection="column" gap={3}>
         <Flex flexDirection="column" gap={1}>
           <Flex justifyContent="space-between">
-            <H1
+            <Text
+              typography="h3"
               css={`
                 display: flex;
               `}
@@ -182,7 +189,7 @@ export function Status(props: { closeDocument?: () => void }) {
               <icons.Laptop mr={2} />
               {/** The node name can be changed, so it might be different from the system hostname. */}
               {agentNode?.hostname || hostname}
-            </H1>
+            </Text>
             <MenuIcon
               Icon={icons.MoreVert}
               buttonIconProps={{
@@ -211,13 +218,12 @@ export function Status(props: { closeDocument?: () => void }) {
 
           <Transition
             in={!!agentNode}
-            nodeRef={transitionRef}
             timeout={1_800}
             mountOnEnter
             unmountOnExit
           >
             {state => (
-              <LabelsContainer gap={1} className={state} ref={transitionRef}>
+              <LabelsContainer gap={1} className={state}>
                 {/* Explicitly check for existence of agentNode because Transition doesn't seem to
                 unmount immediately when `in` becomes falsy. */}
                 {agentNode?.labels && renderLabels(agentNode.labels)}

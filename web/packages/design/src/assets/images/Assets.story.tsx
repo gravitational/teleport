@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from "react";
+
 import Image from "design/Image";
+import kubeLogo from "design/assets/images/kube-logo.svg";
+import sampleLogoLong from "design/assets/images/sample-logo-long.svg";
+import sampleLogoSquire from "design/assets/images/sample-logo-squire.svg";
+import secKeyGraphic from "design/assets/images/sec-key-graphic.svg";
 import teleportLogo from "design/assets/images/enterprise-light.svg";
 import cloudCity from "design/assets/images/backgrounds/cloud-city.png"
 
@@ -35,6 +41,10 @@ export const ImageSVG = () => (
             alignItems: 'stretch',
         }}
     >
+        <Image maxWidth="100px" maxHeight="100px" src={kubeLogo} />
+        <Image maxWidth="100px" maxHeight="100px" src={sampleLogoLong} />
+        <Image maxWidth="100px" maxHeight="100px" src={sampleLogoSquire} />
+        <Image maxWidth="100px" maxHeight="100px" src={secKeyGraphic} />
         <Image maxWidth="100px" maxHeight="100px" src={teleportLogo} />
     </div>
 );

@@ -19,7 +19,6 @@ package top
 import (
 	"cmp"
 	"fmt"
-	"iter"
 	"math"
 	"os"
 	"slices"
@@ -336,32 +335,30 @@ type Percentile struct {
 
 // Percentiles returns an iterator of the percentiles
 // of the buckets within the historgram.
-func (h Histogram) Percentiles() iter.Seq[Percentile] {
-	return func(yield func(Percentile) bool) {
-		if h.Count == 0 {
-			return
-		}
-
-		for _, bucket := range h.Buckets {
-			if bucket.Count == 0 {
-				continue
-			}
-			if bucket.Count == h.Count || math.IsInf(bucket.UpperBound, 0) {
-				yield(Percentile{
-					Percentile: 100,
-					Value:      time.Duration(bucket.UpperBound * float64(time.Second)),
-				})
-				return
-			}
-
-			if !yield(Percentile{
-				Percentile: 100 * (float64(bucket.Count) / float64(h.Count)),
-				Value:      time.Duration(bucket.UpperBound * float64(time.Second)),
-			}) {
-				return
-			}
-		}
+func (h Histogram) Percentiles() []Percentile {
+	if h.Count == 0 {
+		return nil
 	}
+
+	var out []Percentile
+	for _, bucket := range h.Buckets {
+		if bucket.Count == 0 {
+			continue
+		}
+		if bucket.Count == h.Count || math.IsInf(bucket.UpperBound, 0) {
+			out = append(out, Percentile{
+				Percentile: 100,
+				Value:      time.Duration(bucket.UpperBound * float64(time.Second)),
+			})
+			return out
+		}
+
+		out = append(out, Percentile{
+			Percentile: 100 * (float64(bucket.Count) / float64(h.Count)),
+			Value:      time.Duration(bucket.UpperBound * float64(time.Second)),
+		})
+	}
+	return out
 }
 
 // Bucket is a histogram bucket

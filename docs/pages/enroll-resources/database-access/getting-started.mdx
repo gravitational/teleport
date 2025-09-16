@@ -1,32 +1,30 @@
 ---
 title: Database Access Getting Started Guide
 description: Getting started with Teleport database access and AWS Aurora PostgreSQL.
-labels:
+tags:
  - get-started
  - zero-trust
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="PostgreSQL Amazon Aurora" dbConfigure="with IAM authentication"!)
 
-## How it works
-
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Enroll RDS with a Self-Hosted Teleport Cluster](../../../img/database-access/guides/rds_selfhosted.png)
+![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Enroll RDS with a Cloud-Hosted Teleport Cluster](../../../img/database-access/guides/rds_cloud.png)
+![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds_cloud.png)
 </TabItem>
 
 </Tabs>
 
-(!docs/pages/includes/database-access/how-it-works/iam.mdx db="Amazon Aurora" cloud="AWS"!)
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- An AWS account with a PostgreSQL Amazon Aurora database and permissions to create
+- An AWS account with a PostgreSQL AWS Aurora database and permissions to create
   and attach IAM policies.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
@@ -179,8 +177,6 @@ spec:
     - '*'
 EOF
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 Create the Teleport user assigned the `db` role we've just created:
 

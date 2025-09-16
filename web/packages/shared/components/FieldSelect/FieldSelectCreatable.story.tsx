@@ -71,7 +71,7 @@ export function Default() {
             defaultOptions={true}
             loadOptions={async () => {
               await wait(400);
-              return Promise.reject<Option[]>('Network error');
+              return Promise.reject('Network error');
             }}
             noOptionsMessage={() => 'No options'}
           />

@@ -61,30 +61,26 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 }
 
 // AccessRequestCreateEvent is emitted when Access Request is created.
-type AccessRequestCreateEvent prehogv1a.AccessRequestCreateEvent
+type AccessRequestCreateEvent prehogv1a.AccessRequestEvent
 
 func (e *AccessRequestCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_AccessRequestCreate{
-			AccessRequestCreate: &prehogv1a.AccessRequestCreateEvent{
-				UserName:      a.AnonymizeString(e.UserName),
-				ResourceKinds: e.ResourceKinds,
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestCreateEvent{
+			AccessRequestCreateEvent: &prehogv1a.AccessRequestEvent{
+				UserName: a.AnonymizeString(e.UserName),
 			},
 		},
 	}
 }
 
 // AccessRequestCreateEvent is emitted when Access Request is reviewed.
-type AccessRequestReviewEvent prehogv1a.AccessRequestReviewEvent
+type AccessRequestReviewEvent prehogv1a.AccessRequestEvent
 
 func (e *AccessRequestReviewEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_AccessRequestReview{
-			AccessRequestReview: &prehogv1a.AccessRequestReviewEvent{
-				UserName:      a.AnonymizeString(e.UserName),
-				ResourceKinds: e.ResourceKinds,
-				IsBotReviewed: e.IsBotReviewed,
-				ProposedState: e.ProposedState,
+		Event: &prehogv1a.SubmitEventRequest_AccessRequestReviewEvent{
+			AccessRequestReviewEvent: &prehogv1a.AccessRequestEvent{
+				UserName: a.AnonymizeString(e.UserName),
 			},
 		},
 	}
@@ -136,7 +132,6 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			DbType:     u.Database.DbType,
 			DbProtocol: u.Database.DbProtocol,
 			DbOrigin:   u.Database.DbOrigin,
-			UserAgent:  u.Database.UserAgent,
 		}
 	}
 	if u.Desktop != nil {
@@ -146,17 +141,6 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			WindowsDomain:     a.AnonymizeString(u.Desktop.WindowsDomain),
 			AllowUserCreation: u.Desktop.AllowUserCreation,
 			Nla:               u.Desktop.Nla,
-		}
-	}
-	if u.App != nil {
-		sessionStart.App = &prehogv1a.SessionStartAppMetadata{
-			IsMultiPort: u.App.IsMultiPort,
-		}
-	}
-	if u.Git != nil {
-		sessionStart.Git = &prehogv1a.SessionStartGitMetadata{
-			GitType:    u.Git.GitType,
-			GitService: u.Git.GitService,
 		}
 	}
 	return prehogv1a.SubmitEventRequest{
@@ -275,33 +259,6 @@ func (u *UIIntegrationEnrollCompleteEvent) Anonymize(a utils.Anonymizer) prehogv
 					Id:       u.Metadata.Id,
 					Kind:     u.Metadata.Kind,
 					UserName: a.AnonymizeString(u.Metadata.UserName),
-				},
-			},
-		},
-	}
-}
-
-// UIIntegrationEnrollStepEvent is a UI event sent for the specified configuration step in a
-// given integration enrollment flow.
-type UIIntegrationEnrollStepEvent prehogv1a.UIIntegrationEnrollStepEvent
-
-func (u *UIIntegrationEnrollStepEvent) CheckAndSetDefaults() error {
-	return trace.Wrap(validateIntegrationEnrollMetadata(u.Metadata))
-}
-
-func (u *UIIntegrationEnrollStepEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStepEvent{
-			UiIntegrationEnrollStepEvent: &prehogv1a.UIIntegrationEnrollStepEvent{
-				Metadata: &prehogv1a.IntegrationEnrollMetadata{
-					Id:       u.Metadata.Id,
-					Kind:     u.Metadata.Kind,
-					UserName: a.AnonymizeString(u.Metadata.UserName),
-				},
-				Step: u.Step,
-				Status: &prehogv1a.IntegrationEnrollStepStatus{
-					Code:  u.Status.GetCode(),
-					Error: u.Status.GetError(),
 				},
 			},
 		},
@@ -504,11 +461,7 @@ func (u *UICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiCreateNewRoleSaveClick{
 			UiCreateNewRoleSaveClick: &prehogv1a.UICreateNewRoleSaveClickEvent{
-				UserName:                   a.AnonymizeString(u.UserName),
-				StandardUsed:               u.StandardUsed,
-				YamlUsed:                   u.YamlUsed,
-				ModeWhenSaved:              u.ModeWhenSaved,
-				FieldsWithConversionErrors: u.FieldsWithConversionErrors,
+				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
 	}
@@ -828,8 +781,7 @@ func (e *AccessListMemberCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AccessListMemberCreate{
 			AccessListMemberCreate: &prehogv1a.AccessListMemberCreateEvent{
-				UserName:   a.AnonymizeString(e.UserName),
-				MemberKind: e.MemberKind,
+				UserName: a.AnonymizeString(e.UserName),
 				Metadata: &prehogv1a.AccessListMetadata{
 					Id: a.AnonymizeString(e.Metadata.Id),
 				},
@@ -845,8 +797,7 @@ func (e *AccessListMemberUpdateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AccessListMemberUpdate{
 			AccessListMemberUpdate: &prehogv1a.AccessListMemberUpdateEvent{
-				UserName:   a.AnonymizeString(e.UserName),
-				MemberKind: e.MemberKind,
+				UserName: a.AnonymizeString(e.UserName),
 				Metadata: &prehogv1a.AccessListMetadata{
 					Id: a.AnonymizeString(e.Metadata.Id),
 				},
@@ -862,8 +813,7 @@ func (e *AccessListMemberDeleteEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AccessListMemberDelete{
 			AccessListMemberDelete: &prehogv1a.AccessListMemberDeleteEvent{
-				UserName:   a.AnonymizeString(e.UserName),
-				MemberKind: e.MemberKind,
+				UserName: a.AnonymizeString(e.UserName),
 				Metadata: &prehogv1a.AccessListMetadata{
 					Id: a.AnonymizeString(e.Metadata.Id),
 				},
@@ -879,11 +829,9 @@ func (e *AccessListGrantsToUserEvent) Anonymize(a utils.Anonymizer) prehogv1a.Su
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AccessListGrantsToUser{
 			AccessListGrantsToUser: &prehogv1a.AccessListGrantsToUserEvent{
-				UserName:                    a.AnonymizeString(e.UserName),
-				CountRolesGranted:           e.CountRolesGranted,
-				CountTraitsGranted:          e.CountTraitsGranted,
-				CountInheritedRolesGranted:  e.CountInheritedRolesGranted,
-				CountInheritedTraitsGranted: e.CountInheritedTraitsGranted,
+				UserName:           a.AnonymizeString(e.UserName),
+				CountRolesGranted:  e.CountRolesGranted,
+				CountTraitsGranted: e.CountTraitsGranted,
 			},
 		},
 	}
@@ -1430,11 +1378,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleSaveClick:
 		return &UICreateNewRoleSaveClickEvent{
-			UserName:                   userMD.Username,
-			StandardUsed:               e.UiCreateNewRoleSaveClick.StandardUsed,
-			YamlUsed:                   e.UiCreateNewRoleSaveClick.YamlUsed,
-			ModeWhenSaved:              e.UiCreateNewRoleSaveClick.ModeWhenSaved,
-			FieldsWithConversionErrors: e.UiCreateNewRoleSaveClick.FieldsWithConversionErrors,
+			UserName: userMD.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleCancelClick:
 		return &UICreateNewRoleCancelClickEvent{
@@ -1456,20 +1400,6 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCompleteEvent:
 		ret := &UIIntegrationEnrollCompleteEvent{
 			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollCompleteEvent.Metadata, userMD),
-		}
-		if err := ret.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return ret, nil
-	case *usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStepEvent:
-		ret := &UIIntegrationEnrollStepEvent{
-			Metadata: integrationEnrollMetadataToPrehog(e.UiIntegrationEnrollStepEvent.Metadata, userMD),
-			Step:     prehogv1a.IntegrationEnrollStep(e.UiIntegrationEnrollStepEvent.Step),
-			Status: &prehogv1a.IntegrationEnrollStepStatus{
-				Code:  prehogv1a.IntegrationEnrollStatusCode(e.UiIntegrationEnrollStepEvent.GetStatus().GetCode()),
-				Error: e.UiIntegrationEnrollStepEvent.GetStatus().GetError(),
-			},
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -1799,7 +1729,6 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: &prehogv1a.AccessListMetadata{
 				Id: e.AccessListMemberCreate.Metadata.Id,
 			},
-			MemberKind: e.AccessListMemberCreate.MemberMetadata.MembershipKind.String(),
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate:
@@ -1808,7 +1737,6 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: &prehogv1a.AccessListMetadata{
 				Id: e.AccessListMemberUpdate.Metadata.Id,
 			},
-			MemberKind: e.AccessListMemberUpdate.MemberMetadata.MembershipKind.String(),
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListMemberDelete:
@@ -1817,18 +1745,15 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: &prehogv1a.AccessListMetadata{
 				Id: e.AccessListMemberDelete.Metadata.Id,
 			},
-			MemberKind: e.AccessListMemberDelete.MemberMetadata.MembershipKind.String(),
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AccessListGrantsToUser:
 		// This event is emitted both as an one-off event as well as an aggregated
 		// user activity record report.
 		ret := &AccessListGrantsToUserEvent{
-			UserName:                    e.AccessListGrantsToUser.GetUserName(),
-			CountRolesGranted:           e.AccessListGrantsToUser.CountRolesGranted,
-			CountTraitsGranted:          e.AccessListGrantsToUser.CountTraitsGranted,
-			CountInheritedRolesGranted:  e.AccessListGrantsToUser.CountInheritedRolesGranted,
-			CountInheritedTraitsGranted: e.AccessListGrantsToUser.CountInheritedTraitsGranted,
+			UserName:           e.AccessListGrantsToUser.GetUserName(),
+			CountRolesGranted:  e.AccessListGrantsToUser.CountRolesGranted,
+			CountTraitsGranted: e.AccessListGrantsToUser.CountTraitsGranted,
 		}
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_TagExecuteQuery:

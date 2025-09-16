@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { MemoryRouter } from 'react-router';
-
-import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { Route } from 'teleport/components/Router';
 import { ContextProvider } from 'teleport/index';
@@ -39,13 +38,11 @@ function render(fetchClusterDetails: (clusterId: string) => Promise<any>) {
   return (
     <MemoryRouter initialEntries={['/clusters/test-cluster']}>
       <Route path="/clusters/:clusterId">
-        <InfoGuidePanelProvider>
-          <ContentMinWidth>
-            <ContextProvider ctx={ctx}>
-              <ManageCluster />
-            </ContextProvider>
-          </ContentMinWidth>
-        </InfoGuidePanelProvider>
+        <ContentMinWidth>
+          <ContextProvider ctx={ctx}>
+            <ManageCluster />
+          </ContextProvider>
+        </ContentMinWidth>
       </Route>
     </MemoryRouter>
   );

@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -394,7 +393,7 @@ func (s *RevocationService) UpsertWorkloadIdentityX509Revocation(
 // Implements teleport.workloadidentity.v1.RevocationService/StreamSignedCRL
 func (s *RevocationService) StreamSignedCRL(
 	req *workloadidentityv1pb.StreamSignedCRLRequest,
-	srv grpc.ServerStreamingServer[workloadidentityv1pb.StreamSignedCRLResponse],
+	srv workloadidentityv1pb.WorkloadIdentityRevocationService_StreamSignedCRLServer,
 ) error {
 	for {
 		crl, notify := s.getSignedCRL()
@@ -426,7 +425,7 @@ func (s *RevocationService) RunCRLSigner(ctx context.Context) {
 			}
 			err = trace.BadParameter("watchAndSign exited unexpectedly")
 		}
-		retryAfter := retryutils.HalfJitter(s.crlFailureBackoff)
+		retryAfter := retryutils.NewHalfJitter()(s.crlFailureBackoff)
 		if err != nil {
 			s.logger.ErrorContext(
 				ctx,
@@ -490,14 +489,22 @@ func (s *RevocationService) watchAndSign(ctx context.Context) error {
 	handleEvent := func(e types.Event) (bool, error) {
 		switch e.Type {
 		case types.OpPut:
-			unwrapper, ok := e.Resource.(types.Resource153UnwrapperT[*workloadidentityv1pb.WorkloadIdentityX509Revocation])
+			unwrapper, ok := e.Resource.(types.Resource153Unwrapper)
 			if !ok {
 				return false, trace.BadParameter(
 					"expected event resource (%s) to implement Resource153Wrapper",
 					e.Resource.GetName(),
 				)
 			}
-			revocation := unwrapper.UnwrapT()
+			unwrapped := unwrapper.Unwrap()
+			revocation, ok := unwrapped.(*workloadidentityv1pb.WorkloadIdentityX509Revocation)
+			if !ok {
+				return false, trace.BadParameter(
+					"expected event resource (%s) to be a WorkloadIdentityX509Revocation, but it was %T",
+					e.Resource.GetName(),
+					unwrapped,
+				)
+			}
 			revocationsMap[revocation.Metadata.Name] = revocation
 			return true, nil
 		case types.OpDelete:

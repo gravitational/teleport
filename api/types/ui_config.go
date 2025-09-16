@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // UIConfig defines configuration for the web UI served
@@ -38,8 +37,6 @@ type UIConfig interface {
 	SetScrollbackLines(int32)
 
 	String() string
-	// Clone returns a copy of the config.
-	Clone() UIConfig
 }
 
 func NewUIConfigV1() (*UIConfigV1, error) {
@@ -71,11 +68,6 @@ func (c *UIConfigV1) CheckAndSetDefaults() error {
 		return trace.BadParameter("show resources %q not supported", c.Spec.ShowResources)
 	}
 	return nil
-}
-
-// Clone returns a copy of the config.
-func (c *UIConfigV1) Clone() UIConfig {
-	return utils.CloneProtoMsg(c)
 }
 
 // GetVersion returns resource version.

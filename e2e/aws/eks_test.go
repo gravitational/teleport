@@ -117,11 +117,17 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		for ks := range authC.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+		kubeServers, err := authC.UnifiedResourceCache.GetKubernetesServers(ctx)
+		if err != nil {
+			return false
+		}
+
+		for _, ks := range kubeServers {
 			if ks.GetCluster().GetName() == expectedClusterName {
 				return true
 			}
 		}
+
 		return false
 	}, 2*time.Minute, time.Second, "wait for the kubernetes service to create a KubernetesServer")
 
@@ -197,7 +203,6 @@ func withFullKubeAccessUserRole(t *testing.T) testOptionsFunc {
 					Name:      types.Wildcard,
 					Namespace: types.Wildcard,
 					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
 				},
 			},
 		},

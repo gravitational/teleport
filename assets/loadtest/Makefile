@@ -24,7 +24,7 @@ delete-gcp-cluster:
 destroy-deploy:
 	$(MAKE) -C control-plane destroy
 
-# deploys teleport auth and proxy with assosciated pre-requisites (monitoring/storage/etc)
+# deploys teleport auth and proxy
 .PHONY: deploy-control-plane
 deploy-control-plane:
 	$(MAKE) -C control-plane deploy
@@ -117,14 +117,13 @@ deploy-tc:
 .PHONY: join-tc
 join-tc:
 	kubectl get pod -n tc -o name --no-headers \
-    	| xargs -P 10 -n 1 -I {} kubectl -n tc exec {} -- tctl create -f /etc/teleport/tc.yaml
+    	| xargs -P 20 -n 1 -I {} kubectl -n tc exec {} -- tctl create -f /etc/teleport/tc.yaml
 
 # deletes trusted clusters
 .PHONY: delete-tc
 delete-tc:
 	helm delete -n tc trusted-cluster
-	kubectl --namespace teleport exec deploy/teleport-auth \
-		-- /busybox/sh -c "tctl get rc | grep ' name:' | cut -d ':' -f2- | xargs -P 20 -n 1 -I {} tctl rm rc/{}"
+	tctl get rc | grep ' name:' | cut -d ':' -f2- | xargs -P 20 -n 1 -I {} tctl rm rc/{}
 
 # creates a bot used by the soak tests to authenticate with the cluster
 .PHONY: create-soaktest-bot

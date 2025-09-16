@@ -19,7 +19,7 @@ package resumption
 import (
 	"context"
 	"encoding/binary"
-	"math/rand/v2"
+	"math/rand"
 	"net"
 	"net/netip"
 	"os"
@@ -64,12 +64,12 @@ func TestHandover(t *testing.T) {
 
 		srv := &net.TCPAddr{
 			IP:   net.IPv4(127, 0, 0, 1),
-			Port: 1 + rand.N(65536-1),
+			Port: 1 + rand.Intn(65535),
 		}
 		clt := &net.TCPAddr{
 			IP:   clientAddr.AsSlice(),
 			Zone: clientAddr.Zone(),
-			Port: 1 + rand.N(65536-1),
+			Port: 1 + rand.Intn(65535),
 		}
 
 		go handleConnection(utils.NewConnWithAddr(c2, srv, clt))

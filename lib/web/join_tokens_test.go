@@ -35,7 +35,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -48,15 +47,12 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
-	libui "github.com/gravitational/teleport/lib/ui"
-	utils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -330,133 +326,9 @@ func TestGetTokens(t *testing.T) {
 			resp := GetTokensResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.Len(t, resp.Items, len(tc.expected))
-			require.Empty(t, cmp.Diff(tc.expected, resp.Items, cmpopts.IgnoreFields(ui.JoinToken{}, "Content"), cmpopts.SortSlices(func(a, b ui.JoinToken) bool { return a.ID < b.ID })))
+			require.Empty(t, cmp.Diff(resp.Items, tc.expected, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
 		})
 	}
-}
-
-func TestListProvisionTokens(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	expiry := time.Now().UTC().Add(30 * time.Minute)
-
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
-
-	items := []struct {
-		name string
-		spec types.ProvisionTokenSpecV2
-	}{
-		{
-			name: "test-token-3",
-			spec: types.ProvisionTokenSpecV2{
-				Roles:   types.SystemRoles{types.RoleBot, types.RoleNode},
-				BotName: "bot-2",
-			},
-		},
-		{
-			name: "test-token-1",
-			spec: types.ProvisionTokenSpecV2{
-				Roles: types.SystemRoles{types.RoleNode},
-			},
-		},
-		{
-			name: "test-token-2",
-			spec: types.ProvisionTokenSpecV2{
-				Roles:   types.SystemRoles{types.RoleBot},
-				BotName: "bot-1",
-			},
-		},
-	}
-
-	for _, item := range items {
-		token, err := types.NewProvisionTokenFromSpec(
-			item.name,
-			expiry,
-			item.spec)
-		require.NoError(t, err)
-		err = env.server.Auth().CreateToken(ctx, token)
-		require.NoError(t, err)
-	}
-
-	endpoint := pack.clt.Endpoint("v2", "webapi", "tokens")
-
-	t.Run("paging", func(t *testing.T) {
-		re, err := pack.clt.Get(ctx, endpoint, url.Values{
-			"page_token": []string{""}, // default to the start
-			"page_size":  []string{strconv.Itoa(2)},
-		})
-		require.NoError(t, err)
-		resp := ListProvisionTokensResponse{}
-		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-
-		require.Len(t, resp.Items, 2)
-		assert.Equal(t, "test-token-3", resp.NextPageToken)
-		assert.Equal(t, "test-token-1", resp.Items[0].ID)
-		assert.Equal(t, "test-token-2", resp.Items[1].ID)
-
-		re, err = pack.clt.Get(ctx, endpoint, url.Values{
-			"page_token": []string{resp.NextPageToken},
-			"page_size":  []string{strconv.Itoa(2)},
-		})
-		require.NoError(t, err)
-		resp = ListProvisionTokensResponse{}
-		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-
-		require.Len(t, resp.Items, 1)
-		assert.Empty(t, resp.NextPageToken)
-		assert.Equal(t, "test-token-3", resp.Items[0].ID)
-	})
-
-	t.Run("filter by roles", func(t *testing.T) {
-		re, err := pack.clt.Get(ctx, endpoint, url.Values{
-			"role": []string{"Node", "Bot"},
-		})
-		require.NoError(t, err)
-		resp := ListProvisionTokensResponse{}
-		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-		require.Len(t, resp.Items, 3)
-
-		re, err = pack.clt.Get(ctx, endpoint, url.Values{
-			"role": []string{"Node"},
-		})
-		require.NoError(t, err)
-		resp = ListProvisionTokensResponse{}
-		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-		require.Len(t, resp.Items, 2)
-		assert.Equal(t, "test-token-1", resp.Items[0].ID)
-		assert.Equal(t, "test-token-3", resp.Items[1].ID)
-
-		re, err = pack.clt.Get(ctx, endpoint, url.Values{
-			"role": []string{"Bot"},
-		})
-		require.NoError(t, err)
-		resp = ListProvisionTokensResponse{}
-		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-		require.Len(t, resp.Items, 2)
-		assert.Equal(t, "test-token-2", resp.Items[0].ID)
-		assert.Equal(t, "test-token-3", resp.Items[1].ID)
-	})
-
-	t.Run("filter by bot name", func(t *testing.T) {
-		re, err := pack.clt.Get(ctx, endpoint, url.Values{
-			"bot_name": []string{""},
-		})
-		require.NoError(t, err)
-		resp := ListProvisionTokensResponse{}
-		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-		require.Len(t, resp.Items, 3)
-
-		re, err = pack.clt.Get(ctx, endpoint, url.Values{
-			"bot_name": []string{"bot-1"},
-		})
-		require.NoError(t, err)
-		resp = ListProvisionTokensResponse{}
-		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-		require.Len(t, resp.Items, 1)
-		assert.Equal(t, "test-token-2", resp.Items[0].ID)
-	})
 }
 
 func TestDeleteToken(t *testing.T) {
@@ -623,7 +495,7 @@ func TestCreateTokenExpiry(t *testing.T) {
 
 			var expectedExpiry time.Time
 			switch method {
-			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
+			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodGitHub:
 				expectedExpiry = time.Time{}
 			default:
 				expectedExpiry = time.Now().UTC().Add(4 * time.Hour)
@@ -664,14 +536,6 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 			Allow: []*types.ProvisionTokenSpecV2Bitbucket_Rule{
 				{
 					WorkspaceUUID: "test-workspace-uuid",
-				},
-			},
-		}
-	case types.JoinMethodOracle:
-		spec.Oracle = &types.ProvisionTokenSpecV2Oracle{
-			Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
-				{
-					Tenancy: "ocid1.tenancy.oc1..test",
 				},
 			},
 		}
@@ -742,89 +606,6 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				},
 			},
 		}
-	case types.JoinMethodAzureDevops:
-		spec.AzureDevops = &types.ProvisionTokenSpecV2AzureDevops{
-			OrganizationID: "0000-0000-0000-000",
-			Allow: []*types.ProvisionTokenSpecV2AzureDevops_Rule{
-				{
-					ProjectName: "my-project",
-				},
-			},
-		}
-	case types.JoinMethodBoundKeypair:
-		spec.BoundKeypair = &types.ProvisionTokenSpecV2BoundKeypair{
-			Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
-				InitialPublicKey: "abcd",
-			},
-			Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
-				Mode: boundkeypair.RecoveryModeInsecure,
-			},
-		}
-	}
-}
-
-func TestCreateTokenForDiscovery(t *testing.T) {
-	ctx := context.Background()
-	username := "test-user@example.com"
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, username, nil /* roles */)
-
-	match := func(resp nodeJoinToken, userLabels types.Labels) {
-		if len(userLabels) > 0 {
-			require.Empty(t, cmp.Diff([]libui.Label{{Name: "env"}, {Name: "teleport.internal/resource-id"}}, resp.SuggestedLabels, cmpopts.SortSlices(
-				func(a, b libui.Label) bool {
-					return a.Name < b.Name
-				},
-			), cmpopts.IgnoreFields(libui.Label{}, "Value")))
-		} else {
-			require.Empty(t, cmp.Diff([]libui.Label{{Name: "teleport.internal/resource-id"}}, resp.SuggestedLabels, cmpopts.IgnoreFields(libui.Label{}, "Value")))
-		}
-		require.NotEmpty(t, resp.ID)
-		require.NotEmpty(t, resp.Expiry)
-		require.Equal(t, types.JoinMethodToken, resp.Method)
-	}
-
-	tt := []struct {
-		name string
-		req  types.ProvisionTokenSpecV2
-	}{
-		{
-			name: "with suggested labels",
-			req: types.ProvisionTokenSpecV2{
-				Roles:           []types.SystemRole{types.RoleNode},
-				SuggestedLabels: types.Labels{"env": []string{"testing"}},
-			},
-		},
-		{
-			name: "without suggested labels",
-			req: types.ProvisionTokenSpecV2{
-				Roles:           []types.SystemRole{types.RoleNode},
-				SuggestedLabels: nil,
-			},
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(fmt.Sprintf("v1 %s", tc.name), func(t *testing.T) {
-			endpointV1 := pack.clt.Endpoint("v1", "webapi", "token")
-			re, err := pack.clt.PostJSON(ctx, endpointV1, tc.req)
-			require.NoError(t, err)
-
-			resp := nodeJoinToken{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			match(resp, tc.req.SuggestedLabels)
-		})
-
-		t.Run(fmt.Sprintf("v2 %s", tc.name), func(t *testing.T) {
-			endpointV2 := pack.clt.Endpoint("v2", "webapi", "token")
-			re, err := pack.clt.PostJSON(ctx, endpointV2, tc.req)
-			require.NoError(t, err)
-
-			resp := nodeJoinToken{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			match(resp, tc.req.SuggestedLabels)
-		})
 	}
 }
 
@@ -1224,55 +1005,6 @@ func TestGetNodeJoinScript(t *testing.T) {
 			},
 		},
 		{
-			desc:     "app server labels",
-			settings: scriptSettings{token: validToken, appInstallMode: true, appName: "app-name", appURI: "app-uri"},
-			token: &types.ProvisionTokenV2{
-				Metadata: types.Metadata{
-					Name: validToken,
-				},
-				Spec: types.ProvisionTokenSpecV2{
-					SuggestedLabels: types.Labels{
-						types.InternalResourceIDLabel: apiutils.Strings{internalResourceID},
-					},
-				},
-			},
-			errAssert: require.NoError,
-			extraAssertions: func(t *testing.T, script string) {
-				require.Contains(t, script, `APP_NAME='app-name'`)
-				require.Contains(t, script, `APP_URI='app-uri'`)
-				require.Contains(t, script, `public_addr`)
-				require.Contains(t, script, fmt.Sprintf("    labels:\n      %s: %s", types.InternalResourceIDLabel, internalResourceID))
-			},
-		},
-		{
-			desc:     "app server labels with shell injection attempt",
-			settings: scriptSettings{token: validToken, appInstallMode: true, appName: "app-name", appURI: "app-uri"},
-			token: &types.ProvisionTokenV2{
-				Metadata: types.Metadata{
-					Name: validToken,
-				},
-				Spec: types.ProvisionTokenSpecV2{
-					SuggestedLabels: types.Labels{
-						types.InternalResourceIDLabel:   apiutils.Strings{internalResourceID},
-						"env":                           []string{"bad label value | ; & $ > < ' !"},
-						"bad label key | ; & $ > < ' !": []string{"env"},
-					},
-				},
-			},
-			errAssert: require.NoError,
-			extraAssertions: func(t *testing.T, script string) {
-				require.Contains(t, script, `APP_NAME='app-name'`)
-				require.Contains(t, script, `APP_URI='app-uri'`)
-				require.Contains(t, script, `public_addr`)
-				require.Contains(t, script, `
-    labels:
-      bad label key | ; & $ > < ' !: env
-      env: bad\ label\ value\ \|\ \;\ \&\ \$\ \>\ \<\ \'\ \!
-      teleport.internal/resource-id: `+internalResourceID,
-				)
-			},
-		},
-		{
 			desc:     "attempt to shell injection using suggested labels",
 			settings: scriptSettings{token: validToken},
 			token: &types.ProvisionTokenV2{
@@ -1391,7 +1123,7 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 			PublicProxyAddr:           addr,
 			ProxyClient:               clt,
 		},
-		logger: logtest.NewLogger(),
+		logger: utils.NewSlogLoggerForTests(),
 	}
 	h.PublicProxyAddr()
 	return h
@@ -1554,6 +1286,7 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = h.getJoinScript(context.Background(), tc.settings)
 			if tc.shouldError {
@@ -1571,7 +1304,6 @@ func TestGetAppJoinScript(t *testing.T) {
 
 func TestGetDatabaseJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
-	emptySuggestedAgentMatcherLabelsToken := "f18da1c9f6630a51e8daf121e7451000"
 	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
 	hostname := "test.example.com"
 	port := 1234
@@ -1594,7 +1326,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 
 	noMatcherToken := &types.ProvisionTokenV2{
 		Metadata: types.Metadata{
-			Name: emptySuggestedAgentMatcherLabelsToken,
+			Name: validToken,
 		},
 		Spec: types.ProvisionTokenSpecV2{
 			SuggestedLabels: types.Labels{
@@ -1647,6 +1379,10 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 		},
 		{
 			desc: "discover flow with wildcard label matcher",
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               validToken,
+			},
 			token: &types.ProvisionTokenV2{
 				Metadata: types.Metadata{
 					Name: validToken,
@@ -1660,14 +1396,11 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 					},
 				},
 			},
-			settings: scriptSettings{
-				databaseInstallMode: true,
-				token:               validToken,
-			},
 			errAssert: require.NoError,
 			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
+				require.Contains(t, script, strconv.Itoa(port))
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
@@ -1706,6 +1439,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 			extraAssertions: func(t *testing.T, script string) {
 				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
+				require.Contains(t, script, strconv.Itoa(port))
 				require.Contains(t, script, "sha256:")
 				require.Contains(t, script, "--labels ")
 				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
@@ -1728,11 +1462,11 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 			token: noMatcherToken,
 			settings: scriptSettings{
 				databaseInstallMode: true,
-				token:               emptySuggestedAgentMatcherLabelsToken,
+				token:               validToken,
 			},
 			errAssert: require.NoError,
 			extraAssertions: func(t *testing.T, script string) {
-				require.Contains(t, script, emptySuggestedAgentMatcherLabelsToken)
+				require.Contains(t, script, validToken)
 				require.Contains(t, script, hostname)
 				require.Contains(t, script, strconv.Itoa(port))
 				require.Contains(t, script, "sha256:")

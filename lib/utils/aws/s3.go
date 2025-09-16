@@ -22,13 +22,14 @@ import (
 	"context"
 	"errors"
 	"io"
-	"strings"
+	"net/http"
 
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
 	managerv2 "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	s3v2 "github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gravitational/trace"
 )
 
@@ -39,6 +40,25 @@ func ConvertS3Error(err error) error {
 		return nil
 	}
 
+	// SDK v1 errors:
+	var rerr awserr.RequestFailure
+	if errors.As(err, &rerr) && rerr.StatusCode() == http.StatusForbidden {
+		return trace.AccessDenied("%s", rerr.Message())
+	}
+
+	var aerr awserr.Error
+	if errors.As(err, &aerr) {
+		switch aerr.Code() {
+		case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload, "NotFound":
+			return trace.NotFound("%s", aerr)
+		case s3.ErrCodeBucketAlreadyExists, s3.ErrCodeBucketAlreadyOwnedByYou:
+			return trace.AlreadyExists("%s", aerr)
+		default:
+			return trace.BadParameter("%s", aerr)
+		}
+	}
+
+	// SDK v2 errors:
 	var noSuchKey *s3types.NoSuchKey
 	if errors.As(err, &noSuchKey) {
 		return trace.NotFound("%s", noSuchKey)
@@ -53,20 +73,15 @@ func ConvertS3Error(err error) error {
 	}
 	var bucketAlreadyExists *s3types.BucketAlreadyExists
 	if errors.As(err, &bucketAlreadyExists) {
-		return trace.AlreadyExists("%s", bucketAlreadyExists.Error())
+		return trace.AlreadyExists("%s", bucketAlreadyExists)
 	}
 	var bucketAlreadyOwned *s3types.BucketAlreadyOwnedByYou
 	if errors.As(err, &bucketAlreadyOwned) {
-		return trace.AlreadyExists("%s", bucketAlreadyOwned.Error())
+		return trace.AlreadyExists("%s", bucketAlreadyOwned)
 	}
 	var notFound *s3types.NotFound
 	if errors.As(err, &notFound) {
 		return trace.NotFound("%s", notFound)
-	}
-
-	var opError *smithy.OperationError
-	if errors.As(err, &opError) && strings.Contains(opError.Err.Error(), "FIPS") {
-		return trace.BadParameter("%s", opError)
 	}
 
 	return err

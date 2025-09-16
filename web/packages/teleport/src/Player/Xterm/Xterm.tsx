@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { getPlatformType } from 'design/platform';
@@ -28,9 +28,9 @@ import Terminal from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';
 
 export default function Xterm({ tty }: { tty: Tty }) {
-  const refContainer = useRef<HTMLDivElement>(null);
+  const refContainer = useRef<HTMLDivElement>();
   const theme = useTheme();
-  const terminalPlayer = useRef<TerminalPlayer>(undefined);
+  const terminalPlayer = useRef<TerminalPlayer>();
   const [showSearch, setShowSearch] = useState(false);
 
   const onSearchClose = useCallback(() => {

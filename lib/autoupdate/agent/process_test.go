@@ -292,7 +292,7 @@ func TestTickFile(t *testing.T) {
 					_ = os.RemoveAll(filePath)
 					switch {
 					case tick > 0:
-						err := os.WriteFile(filePath, fmt.Appendln(nil, tick), os.ModePerm)
+						err := os.WriteFile(filePath, []byte(fmt.Sprintln(tick)), os.ModePerm)
 						require.NoError(t, err)
 					case tick < 0:
 						err := os.Mkdir(filePath, os.ModePerm)

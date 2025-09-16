@@ -86,7 +86,7 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
-		Stdout: &stdoutBuff,
+		stdout: &stdoutBuff,
 	}
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
@@ -216,7 +216,7 @@ func mustWriteIdentityFile(t *testing.T, client *authclient.Client, username str
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
-	fakeClock       *clockwork.FakeClock
+	fakeClock       clockwork.FakeClock
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -233,7 +233,7 @@ func withFileDescriptors(fds []*servicecfg.FileDescriptor) testServerOptionFunc 
 	}
 }
 
-func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
+func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fakeClock = fakeClock
 	}

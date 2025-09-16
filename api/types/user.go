@@ -44,10 +44,6 @@ func (f *UserFilter) Match(user *UserV2) bool {
 		}
 	}
 
-	if f.SkipSystemUsers && IsSystemResource(user) {
-		return false
-	}
-
 	return true
 }
 
@@ -65,8 +61,6 @@ type User interface {
 	GetSAMLIdentities() []ExternalIdentity
 	// GetGithubIdentities returns a list of connected Github identities
 	GetGithubIdentities() []ExternalIdentity
-	// SetGithubIdentities sets the list of connected GitHub identities
-	SetGithubIdentities([]ExternalIdentity)
 	// Get local authentication secrets (may be nil).
 	GetLocalAuth() *LocalAuthSecrets
 	// Set local authentication secrets (use nil to delete).
@@ -127,8 +121,6 @@ type User interface {
 	SetHostUserUID(uid string)
 	// SetHostUserGID sets the GID for host users
 	SetHostUserGID(gid string)
-	// SetMCPTools sets a list of allowed MCP tools for the user
-	SetMCPTools(mcpTools []string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -162,8 +154,6 @@ type User interface {
 	SetWeakestDevice(MFADeviceKind)
 	// GetWeakestDevice gets the MFA state for the user.
 	GetWeakestDevice() MFADeviceKind
-	// Clone creats a copy of the user.
-	Clone() User
 }
 
 // NewUser creates new empty user
@@ -279,15 +269,14 @@ func (u *UserV2) SetName(e string) {
 	u.Metadata.Name = e
 }
 
-func (u *UserV2) Clone() User {
-	return utils.CloneProtoMsg(u)
-}
-
 // WithoutSecrets returns an instance of resource without secrets.
 func (u *UserV2) WithoutSecrets() Resource {
-	u2 := utils.CloneProtoMsg(u)
+	if u.Spec.LocalAuth == nil {
+		return u
+	}
+	u2 := *u
 	u2.Spec.LocalAuth = nil
-	return u2
+	return &u2
 }
 
 // GetTraits gets the trait map for this user used to populate role variables.
@@ -423,11 +412,6 @@ func (u *UserV2) SetHostUserGID(uid string) {
 	u.setTrait(constants.TraitHostUserGID, []string{uid})
 }
 
-// SetMCPTools sets a list of allowed MCP tools for the user
-func (u *UserV2) SetMCPTools(mcpTools []string) {
-	u.setTrait(constants.TraitMCPTools, mcpTools)
-}
-
 // GetStatus returns login status of the user
 func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
@@ -446,11 +430,6 @@ func (u *UserV2) GetSAMLIdentities() []ExternalIdentity {
 // GetGithubIdentities returns a list of connected Github identities
 func (u *UserV2) GetGithubIdentities() []ExternalIdentity {
 	return u.Spec.GithubIdentities
-}
-
-// SetGithubIdentities sets the list of connected GitHub identities
-func (u *UserV2) SetGithubIdentities(identities []ExternalIdentity) {
-	u.Spec.GithubIdentities = identities
 }
 
 // GetLocalAuth gets local authentication secrets (may be nil).

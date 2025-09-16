@@ -19,10 +19,8 @@
 package authz
 
 import (
-	"context"
-	"log/slog"
-
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -47,8 +45,8 @@ func IsTLSDeviceVerified(ext *tlsca.DeviceExtensions) bool {
 
 // VerifyTLSUser verifies if the TLS identity has the required extensions to
 // fulfill the device trust configuration.
-func VerifyTLSUser(ctx context.Context, dt *types.DeviceTrust, identity tlsca.Identity) error {
-	return verifyDeviceExtensions(ctx, dt, identity.Username, identity.IsBot(), IsTLSDeviceVerified(&identity.DeviceExtensions))
+func VerifyTLSUser(dt *types.DeviceTrust, identity tlsca.Identity) error {
+	return verifyDeviceExtensions(dt, identity.Username, IsTLSDeviceVerified(&identity.DeviceExtensions))
 }
 
 // IsSSHDeviceVerified returns true if cert contains all required device
@@ -85,33 +83,25 @@ func HasDeviceTrustExtensions(extensions []string) bool {
 
 // VerifySSHUser verifies if the SSH certificate has the required extensions to
 // fulfill the device trust configuration.
-func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, ident *sshca.Identity) error {
+func VerifySSHUser(dt *types.DeviceTrust, ident *sshca.Identity) error {
 	if ident == nil {
 		return trace.BadParameter("ssh identity required")
 	}
-	return verifyDeviceExtensions(ctx, dt, ident.Username, ident.IsBot(), IsSSHDeviceVerified(ident))
+
+	return verifyDeviceExtensions(dt, ident.Username, IsSSHDeviceVerified(ident))
 }
 
-func verifyDeviceExtensions(ctx context.Context, dt *types.DeviceTrust, username string, isBot bool, verified bool) error {
+func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified bool) error {
 	mode := dtconfig.GetEnforcementMode(dt)
-
-	var pass bool
-	switch mode {
-	case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional:
-		// OK, extensions not enforced.
-		pass = true
-	case constants.DeviceTrustModeRequiredForHumans:
-		// Humans must use trusted devices, bots can use untrusted devices.
-		pass = verified || isBot
-	case constants.DeviceTrustModeRequired:
-		// Only trusted devices allowed for bot human and bot users.
-		pass = verified
-	}
-
-	if !pass {
-		slog.DebugContext(ctx, "Device Trust: denied access for unidentified device", "user", username)
+	switch {
+	case mode != constants.DeviceTrustModeRequired:
+		return nil // OK, extensions not enforced.
+	case !verified:
+		log.
+			WithField("User", username).
+			Debug("Device Trust: denied access for unidentified device")
 		return trace.Wrap(ErrTrustedDeviceRequired)
+	default:
+		return nil
 	}
-
-	return nil
 }

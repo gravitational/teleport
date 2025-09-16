@@ -17,15 +17,13 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
 import { setupServer } from 'msw/node';
+import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import '@testing-library/jest-dom';
 
-import { ThemeProvider } from 'styled-components';
-
-import lightTheme from 'design/theme/themes/lightTheme';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
@@ -43,10 +41,12 @@ function ThemeName() {
 
 describe('user context - success state', () => {
   const server = setupServer(
-    http.get(cfg.api.userPreferencesPath, () => {
-      return HttpResponse.json({
-        theme: Theme.LIGHT,
-      });
+    rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
+      return res(
+        ctx.json({
+          theme: Theme.LIGHT,
+        })
+      );
     })
   );
 
@@ -57,13 +57,11 @@ describe('user context - success state', () => {
 
   it('should render with the settings from the backend', async () => {
     render(
-      <ThemeProvider theme={lightTheme}>
-        <MemoryRouter>
-          <UserContextProvider>
-            <ThemeName />
-          </UserContextProvider>
-        </MemoryRouter>
-      </ThemeProvider>
+      <MemoryRouter>
+        <UserContextProvider>
+          <ThemeName />
+        </UserContextProvider>
+      </MemoryRouter>
     );
 
     const theme = await screen.findByText(/theme: light/i);
@@ -74,8 +72,8 @@ describe('user context - success state', () => {
 
 describe('user context - error state', () => {
   const server = setupServer(
-    http.get(cfg.api.userPreferencesPath, () => {
-      return HttpResponse.json(null, { status: 500 });
+    rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
+      return res(ctx.status(500));
     })
   );
 
@@ -86,13 +84,11 @@ describe('user context - error state', () => {
 
   it('should render with the default settings', async () => {
     render(
-      <ThemeProvider theme={lightTheme}>
-        <MemoryRouter>
-          <UserContextProvider>
-            <ThemeName />
-          </UserContextProvider>
-        </MemoryRouter>
-      </ThemeProvider>
+      <MemoryRouter>
+        <UserContextProvider>
+          <ThemeName />
+        </UserContextProvider>
+      </MemoryRouter>
     );
 
     const theme = await screen.findByText(/theme: light/i);
@@ -109,13 +105,11 @@ describe('user context - error state', () => {
     );
 
     render(
-      <ThemeProvider theme={lightTheme}>
-        <MemoryRouter>
-          <UserContextProvider>
-            <ThemeName />
-          </UserContextProvider>
-        </MemoryRouter>
-      </ThemeProvider>
+      <MemoryRouter>
+        <UserContextProvider>
+          <ThemeName />
+        </UserContextProvider>
+      </MemoryRouter>
     );
 
     const theme = await screen.findByText(/theme: dark/i);

@@ -2,29 +2,39 @@
 
 ## Usage
 
-Please, refer to [official documentation](https://goteleport.com/docs/admin-guides/infrastructure-as-code/terraform-provider/terraform-provider/).
+Please, refer to [official documentation](https://goteleport.com/docs/admin-guides/infrastructure-as-code/terraform-provider/).
 
 ## Development
 
 1. Install [`protobuf`](https://grpc.io/docs/protoc-installation/).
+
 2. Install [`protoc-gen-terraform`](https://github.com/gravitational/protoc-gen-terraform) @v3.0.2.
 
     ```go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.2```
 
 3. Install [`Terraform`](https://learn.hashicorp.com/tutorials/terraform/install-cli) v1.1.0+. Alternatively, you can use [`tfenv`](https://github.com/tfutils/tfenv). Please note that on Mac M1 you need to specify `TFENV_ARCH` (ex: `TFENV_ARCH=arm64 tfenv install 1.1.6`).
 
-4. Build and install the plugin:
+4. Clone the plugin:
 
     ```bash
-    cd integrations/terraform
+    git clone git@github.com:gravitational/teleport-plugins
+    ```
+
+5. Build and install the plugin:
+
+    ```bash
+    cd teleport-plugins/terraform
     make install
     ```
 
-5. Run tests:
+6. Run tests:
 
     ```bash
     make test
     ```
+
+    Note: Some tests won't pass without a valid `teleport` binary, enterprise license, etc. 
+    See [Testing](../TESTING.md) to see how to provide these values to the tests locally.
 
 # Updating the provider
 
@@ -35,11 +45,6 @@ make gen-tfschema
 ```
 
 This will generate `types_tfschema.go` from a current API `.proto` file, and regenerate the provider code.
-
-If the schema changed, you will need to re-render the docs with:
-```
-make docs
-```
 
 # Playing with examples locally
 

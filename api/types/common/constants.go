@@ -62,10 +62,6 @@ const (
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = "integration_awsoidc"
 
-	// OriginIntegrationAWSRolesAnywhere is an origin value indicating that the resource was
-	// created from the AWS IAM Roles Anywhere Integration.
-	OriginIntegrationAWSRolesAnywhere = "integration_awsrolesanywhere"
-
 	// OriginDiscoveryKubernetes indicates that the resource was imported
 	// from kubernetes cluster by discovery service.
 	OriginDiscoveryKubernetes = "discovery-kubernetes"
@@ -73,11 +69,6 @@ const (
 	// OriginEntraID indicates that the resource was imported
 	// from the Entra ID directory.
 	OriginEntraID = "entra-id"
-
-	// OriginAWSIdentityCenter indicates that the resource was
-	// imported from the AWS Identity Center or created from
-	// the AWS Identity Center plugin.
-	OriginAWSIdentityCenter = "aws-identity-center"
 )
 
 // OriginValues lists all possible origin values.
@@ -91,6 +82,4 @@ var OriginValues = []string{
 	OriginSCIM,
 	OriginDiscoveryKubernetes,
 	OriginEntraID,
-	OriginAWSIdentityCenter,
-	OriginIntegrationAWSRolesAnywhere,
 }

@@ -16,14 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { H1 } from 'design';
+import React from 'react';
+
 import Card from 'design/Card';
+import Text from 'design/Text';
 
 export default function CardIcon({ title, icon, children }) {
   return (
     <Card width="540px" p={7} my={4} mx="auto" textAlign="center">
       {icon}
-      {title && <H1 mb={4}>{title}</H1>}
+      {title && (
+        <Text typography="h2" mb="4">
+          {title}
+        </Text>
+      )}
       {children}
     </Card>
   );

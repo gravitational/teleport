@@ -15,21 +15,17 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
+// +build vnetdaemon
 
 package daemon
 
-// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=11.0
+// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
 // #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 // #include "common_darwin.h"
 import "C"
 
 import (
 	"errors"
-	"unsafe"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils/darwinbundle"
 )
 
 var (
@@ -59,24 +55,3 @@ var (
 	errorCodeNSXPCConnectionCodeSigningRequirementFailure = int(C.NSXPCConnectionCodeSigningRequirementFailure)
 	errXPCConnectionCodeSigningRequirementFailure         = errors.New("code signing requirement failed")
 )
-
-func DaemonLabel() (string, error) {
-	path, err := darwinbundle.Path()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
-
-	cLabel := C.DaemonLabel(cPath)
-	defer C.free(unsafe.Pointer(cLabel))
-
-	label := C.GoString(cLabel)
-
-	if label == "" {
-		return "", trace.Errorf("could not get details for bundle under %s", path)
-	}
-
-	return label, nil
-}

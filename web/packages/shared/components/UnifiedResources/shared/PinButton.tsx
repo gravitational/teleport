@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef } from 'react';
+import React, { useRef } from 'react';
 
 import ButtonIcon from 'design/ButtonIcon';
 import { PushPin, PushPinFilled } from 'design/Icon';
-import { HoverTooltip } from 'design/Tooltip';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import { PinningSupport } from '../types';
+import { PINNING_NOT_SUPPORTED_MESSAGE } from '../UnifiedResources';
 
-// TODO(kimlisa): move this out of the UnifiedResources directory,
-// since it is also used outside of UnifiedResources
-// (eg: Discover/SelectResource.tsx)
 export function PinButton({
   pinned,
   pinningSupport,
@@ -57,18 +55,10 @@ export function PinButton({
 
   return (
     <ButtonIcon
-      data-testid="pin-button"
       disabled={shouldDisableButton}
-      ref={copyAnchorEl}
+      setRef={copyAnchorEl}
       size={0}
-      onClick={e => {
-        // This ButtonIcon can be used within another element that also has a
-        // onClick handler (stops propagating click event) or within an
-        // anchor element (prevents browser default to go the link).
-        e.stopPropagation();
-        e.preventDefault();
-        setPinned();
-      }}
+      onClick={setPinned}
       className={className}
       css={`
         visibility: ${shouldShowButton ? 'visible' : 'hidden'};
@@ -82,6 +72,7 @@ export function PinButton({
       ) : (
         $content
       )}
+      <HoverTooltip tipContent={tipContent}></HoverTooltip>
     </ButtonIcon>
   );
 }
@@ -92,7 +83,7 @@ function getTipContent(
 ): string {
   switch (pinningSupport) {
     case PinningSupport.NotSupported:
-      return 'To enable pinning support, upgrade to 17.3 or newer.';
+      return PINNING_NOT_SUPPORTED_MESSAGE;
     case PinningSupport.Supported:
       return pinned ? 'Unpin' : 'Pin';
     default:

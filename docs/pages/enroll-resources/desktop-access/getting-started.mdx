@@ -2,7 +2,7 @@
 title: Configure access for local Windows users
 description: Use Teleport to configure passwordless access for local Windows users.
 videoBanner: 9DyKQbg4ORc
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -65,9 +65,9 @@ To prepare a Windows computer:
    $ curl.exe -fo teleport.cer https://<Var name="teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-   If your Teleport cluster uses HSM or AWS KMS-backed keys, there will be multiple 
-   user CAs (one for each Auth Service instance). You can download a bundle containing
-   all CAs by appending `&format=zip` to the URL.
+   If you are using Teleport's support for HSM-backed keys, then your Teleport cluster
+   has multiple user CAs (one for each Auth Service instance). You can download a bundle
+   containing all CAs by appending `&format=zip` to the URL.
 
 3. Download the Teleport Windows Auth setup program:
 
@@ -87,15 +87,7 @@ $ curl.exe -fo teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https
    - Enables Windows to trust the Teleport certificate authority.
    - Installs the required dynamic link library (DLL) for Teleport to use.
    - Disables Network Level Authentication (NLA) for remote desktop services.
-   - Enables RemoteFX compression.
-
-  In versions below Teleport 17.4.0, the Windows auth package for local users is
-  "greedy" and attempts to process all smart card logins. This prevents smart
-  card logins from outside of Teleport from working, and also makes it
-  impossible to use Teleport to connect as Active Directory users. This is no
-  longer the case with Teleport 17.4.0 and up. To connect as local users and
-  Active Directory users on the same host, you need to register the host twice
-  with Teleport, once with `ad: true` and once with `ad: false`.
+   - Enables RemoteFX compression, if using Teleport version 15 or newer.
 
   Note: in order for the Windows Local Security Authority (LSA) to load the Teleport DLL,
   [LSA protection](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/configuring-additional-lsa-protection)
@@ -164,18 +156,18 @@ following for the Windows Desktop Service:
      proxy_server: <Var name="teleport.example.com" />:443
      auth_token: "/tmp/token"
    windows_desktop_service:
-     enabled: true
+     enabled: yes
      static_hosts:
      - name: host1
        ad: false
        addr: 192.0.2.156
 
    auth_service:
-     enabled: false
+     enabled: no
    proxy_service:
-     enabled: false
+     enabled: no
    ssh_service:
-     enabled: false
+     enabled: no
    ```
 
    In this file:
@@ -203,7 +195,7 @@ following for the Windows Desktop Service:
      proxy_server: teleport.example.com:443
      auth_token: /tmp/token
    windows_desktop_service:
-     enabled: true
+     enabled: yes
      static_hosts:
      - name: host1
        ad: false
@@ -222,7 +214,7 @@ following for the Windows Desktop Service:
      nodename: <Var name="windows.teleport.example.com" />
      proxy_server: teleport-proxy.example.com:443
    windows_desktop_service:
-     enabled: true
+     enabled: yes
      static_hosts:
       - name: host1
         ad: false
@@ -278,8 +270,6 @@ To configure a role for desktop access:
    $ tctl create -f windows-desktop-admins.yaml
    ```
 
-   (!docs/pages/includes/create-role-using-web.mdx!)
-
 1. (\!docs/pages/includes/add-role-to-user.mdx role="windows-desktop-admins" \!)
 
 ## Step 4/4. Connect
@@ -288,7 +278,6 @@ Now that you have configured a Linux server to run the Windows Desktop Service a
 created a role to allow a Teleport user to connect to Microsoft Windows with a local
 Windows login, you can use the Teleport user assigned the `windows-desktop-admins` role
 to connect to Windows desktops from the Teleport Web UI.
-Alternatively, you can connect using Teleport Connect.
 
 To connect to a Windows desktop:
 
@@ -309,7 +298,8 @@ Windows login to use for the connection.
 
    ![Disconnect from a Windows desktop ](../../../img/desktop-access/desktop-disconnect.png)
 
-   To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
+   To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings**
+   in the Activity section.
 
 ## Uninstall
 
@@ -318,6 +308,6 @@ Windows login to use for the connection.
 ## Next steps
 
 For more general information about how to create, assign, and update roles, see [Access Controls
-Getting Started](../../zero-trust-access/rbac-get-started/role-demo.mdx).
+Getting Started](../../zero-trust-access/access-controls/getting-started.mdx).
 For more specific information about configuring Windows-specific role permissions, see
 [Role-Based Access Control for Desktops](./rbac.mdx).

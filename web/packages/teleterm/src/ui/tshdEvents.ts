@@ -58,9 +58,6 @@ export function createTshdEventsContextBridgeService(
           kind: 'reauthenticate',
           promptMfaRequest: request,
           onSuccess: totpCode => resolve({ hasCanceledModal: false, totpCode }),
-          onSsoContinue: (redirectUrl: string) => {
-            window.open(redirectUrl);
-          },
           onCancel: () =>
             resolve({
               hasCanceledModal: true,
@@ -85,9 +82,7 @@ export function createTshdEventsContextBridgeService(
         };
       }
 
-      return {
-        totpCode,
-      };
+      return { totpCode };
     },
 
     getUsageReportingSettings: async () => {
@@ -110,7 +105,7 @@ export function createTshdEventsContextBridgeService(
     },
 
     promptHardwareKeyPIN: async ({ request, onRequestCancelled }) => {
-      await ctx.mainProcessClient.forceFocusWindow();
+      ctx.mainProcessClient.forceFocusWindow();
       const { pin, hasCanceledModal } = await new Promise<{
         pin: string;
         hasCanceledModal: boolean;
@@ -142,7 +137,7 @@ export function createTshdEventsContextBridgeService(
     },
 
     promptHardwareKeyTouch: async ({ request, onRequestCancelled }) => {
-      await ctx.mainProcessClient.forceFocusWindow();
+      ctx.mainProcessClient.forceFocusWindow();
       const { hasCanceledModal } = await new Promise<{
         hasCanceledModal: boolean;
       }>(resolve => {

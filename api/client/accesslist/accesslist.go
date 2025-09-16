@@ -23,7 +23,6 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
-	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
 // Client is an access list client that conforms to the following lib/services interfaces:
@@ -114,21 +113,6 @@ func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.Acce
 	return accessLists, nil
 }
 
-// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
-func (c *Client) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.Grants, error) {
-	resp, err := c.grpcClient.GetInheritedGrants(ctx, &accesslistv1.GetInheritedGrantsRequest{
-		AccessListId: accessListID,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &accesslist.Grants{
-		Roles:  resp.Grants.Roles,
-		Traits: traitv1.FromProto(resp.Grants.Traits),
-	}, nil
-}
-
 // UpsertAccessList creates or updates an access list resource.
 func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{
@@ -161,16 +145,21 @@ func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
+// DeleteAllAccessLists removes all access lists.
+func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
+	return trace.NotImplemented("DeleteAllAccessLists not supported in the gRPC client")
+}
+
 // CountAccessListMembers will count all access list members.
-func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
+func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
 	resp, err := c.grpcClient.CountAccessListMembers(ctx, &accesslistv1.CountAccessListMembersRequest{
 		AccessListName: accessListName,
 	})
 	if err != nil {
-		return 0, 0, trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
-	return resp.Count, resp.ListCount, nil
+	return resp.Count, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members for an access list.
@@ -219,7 +208,7 @@ func (c *Client) ListAllAccessListMembers(ctx context.Context, pageSize int, pag
 }
 
 // GetAccessListMember returns the specified access list member resource.
-func (c *Client) GetAccessListMember(ctx context.Context, accessList, memberName string) (*accesslist.AccessListMember, error) {
+func (c *Client) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{
 		AccessList: accessList,
 		MemberName: memberName,
@@ -230,41 +219,6 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList, memberName
 
 	member, err := conv.FromMemberProto(resp, conv.WithMemberIneligibleStatusField(resp))
 	return member, trace.Wrap(err)
-}
-
-// GetStaticAccessListMember returns the specified access_list_member resource. If returns error if
-// the target access_list is not of type static.
-func (c *Client) GetStaticAccessListMember(ctx context.Context, accessList, memberName string) (*accesslist.AccessListMember, error) {
-	resp, err := c.grpcClient.GetStaticAccessListMember(ctx, &accesslistv1.GetStaticAccessListMemberRequest{
-		AccessList: accessList,
-		MemberName: memberName,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	member, err := conv.FromMemberProto(resp.Member, conv.WithMemberIneligibleStatusField(resp.Member))
-	return member, trace.Wrap(err)
-}
-
-// GetAccessListOwners returns a list of all owners in an Access List, including those inherited from nested Access Lists.
-//
-// Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
-func (c *Client) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
-	resp, err := c.grpcClient.GetAccessListOwners(ctx, &accesslistv1.GetAccessListOwnersRequest{
-		AccessList: accessListName,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	owners := make([]*accesslist.Owner, 0, len(resp.Owners))
-	for _, owner := range resp.Owners {
-		ownerProto := conv.FromOwnerProto(owner)
-		owners = append(owners, &ownerProto)
-	}
-
-	return owners, nil
 }
 
 // UpsertAccessListMember creates or updates an access list member resource.
@@ -279,19 +233,6 @@ func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.
 	return responseMember, trace.Wrap(err)
 }
 
-// UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns error
-// and does nothing if the target access_list is not of type static.
-func (c *Client) UpsertStaticAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
-	resp, err := c.grpcClient.UpsertStaticAccessListMember(ctx, &accesslistv1.UpsertStaticAccessListMemberRequest{
-		Member: conv.ToMemberProto(member),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	m, err := conv.FromMemberProto(resp.Member, conv.WithMemberIneligibleStatusField(resp.Member))
-	return m, trace.Wrap(err)
-}
-
 // UpdateAccessListMember updates an access list member resource using a conditional update.
 func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.UpdateAccessListMember(ctx, &accesslistv1.UpdateAccessListMemberRequest{
@@ -304,18 +245,8 @@ func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.
 	return responseMember, trace.Wrap(err)
 }
 
-// DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error and
-// does nothing if the target access_list is not of static type.
-func (c *Client) DeleteStaticAccessListMember(ctx context.Context, accessList, memberName string) error {
-	_, err := c.grpcClient.DeleteStaticAccessListMember(ctx, &accesslistv1.DeleteStaticAccessListMemberRequest{
-		AccessList: accessList,
-		MemberName: memberName,
-	})
-	return trace.Wrap(err)
-}
-
 // DeleteAccessListMember hard deletes the specified access list member resource.
-func (c *Client) DeleteAccessListMember(ctx context.Context, accessList, memberName string) error {
+func (c *Client) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
 	_, err := c.grpcClient.DeleteAccessListMember(ctx, &accesslistv1.DeleteAccessListMemberRequest{
 		AccessList: accessList,
 		MemberName: memberName,
@@ -329,6 +260,11 @@ func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, ac
 		AccessList: accessList,
 	})
 	return trace.Wrap(err)
+}
+
+// DeleteAllAccessListMembers hard deletes all access list members.
+func (c *Client) DeleteAllAccessListMembers(ctx context.Context) error {
+	return trace.NotImplemented("DeleteAllAccessListMembers is not supported in the gRPC client")
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
@@ -431,6 +367,11 @@ func (c *Client) DeleteAccessListReview(ctx context.Context, accessListName, rev
 		ReviewName:     reviewName,
 	})
 	return trace.Wrap(err)
+}
+
+// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
+func (c *Client) DeleteAllAccessListReviews(ctx context.Context) error {
+	return trace.NotImplemented("DeleteAllAccessListReviews is not supported in the gRPC client")
 }
 
 // GetSuggestedAccessLists returns a list of access lists that are suggested for a given request.

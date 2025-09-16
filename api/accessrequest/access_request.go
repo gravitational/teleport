@@ -58,9 +58,9 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 	var resourceIDs []types.ResourceID
 	for _, resourceID := range ids {
 		// We're interested in hostname or friendly name details. These apply to
-		// nodes, app servers, user groups and Identity Center resources.
+		// nodes, app servers, and user groups.
 		switch resourceID.Kind {
-		case types.KindNode, types.KindApp, types.KindUserGroup, types.KindIdentityCenterAccount:
+		case types.KindNode, types.KindApp, types.KindUserGroup:
 			resourceIDs = append(resourceIDs, resourceID)
 		}
 	}
@@ -128,28 +128,6 @@ func GetResourcesByResourceIDs(ctx context.Context, lister client.ListResourcesC
 		resources = append(resources, resp...)
 	}
 	return resources, nil
-}
-
-// GetResourceNames returns the human readable names for the requested resources in an access request.
-func GetResourceNames(ctx context.Context, lister client.ListResourcesClient, req types.AccessRequest) ([]string, error) {
-	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
-	resourcesByCluster := GetResourceIDsByCluster(req)
-
-	for cluster, resources := range resourcesByCluster {
-		resourceDetails, err := GetResourceDetails(ctx, cluster, lister, resources)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, resource := range resources {
-			resourceName := types.ResourceIDToString(resource)
-			if details, ok := resourceDetails[resourceName]; ok && details.FriendlyName != "" {
-				resourceName = fmt.Sprintf("/%s/%s", resource.Kind, details.FriendlyName)
-			}
-			resourceNames = append(resourceNames, resourceName)
-		}
-	}
-	return resourceNames, nil
 }
 
 // anyNameMatcher returns a PredicateExpression which matches any of a given list

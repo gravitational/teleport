@@ -95,7 +95,7 @@ func (p *PluginDataService) getPluginData(ctx context.Context, filter types.Plug
 	}
 	var matches []types.PluginData
 	for _, item := range result.Items {
-		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue
@@ -132,7 +132,7 @@ func (p *PluginDataService) updatePluginData(ctx context.Context, params types.P
 		return trace.Wrap(err)
 	}
 	// Update is attempted multiple times in the event of concurrent writes.
-	for range maxCmpAttempts {
+	for i := 0; i < maxCmpAttempts; i++ {
 		var create bool
 		var data types.PluginData
 		item, err := p.Get(ctx, pluginDataKey(params.Kind, params.Resource))

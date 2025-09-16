@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/api/client"
@@ -39,7 +40,9 @@ import (
 )
 
 const (
-	joinRequestTimeout = time.Minute
+	iamJoinRequestTimeout   = time.Minute
+	azureJoinRequestTimeout = time.Minute
+	tpmJoinRequestTimeout   = time.Minute
 )
 
 type joinServiceClient interface {
@@ -49,20 +52,6 @@ type joinServiceClient interface {
 		ctx context.Context,
 		initReq *proto.RegisterUsingTPMMethodInitialRequest,
 		solveChallenge client.RegisterTPMChallengeResponseFunc,
-	) (*proto.Certs, error)
-	RegisterUsingOracleMethod(
-		ctx context.Context,
-		tokenReq *types.RegisterUsingTokenRequest,
-		challengeResponse client.RegisterOracleChallengeResponseFunc,
-	) (*proto.Certs, error)
-	RegisterUsingBoundKeypairMethod(
-		ctx context.Context,
-		req *proto.RegisterUsingBoundKeypairInitialRequest,
-		challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
-	) (*client.BoundKeypairRegistrationResponse, error)
-	RegisterUsingToken(
-		ctx context.Context,
-		req *types.RegisterUsingTokenRequest,
 	) (*proto.Certs, error)
 }
 
@@ -96,9 +85,31 @@ func NewJoinServiceGRPCServer(joinServiceClient joinServiceClient) *JoinServiceG
 // sts:GetCallerIdentity request with the challenge string. Finally, the signed
 // cluster certs are sent on the server stream.
 func (s *JoinServiceGRPCServer) RegisterUsingIAMMethod(srv proto.JoinService_RegisterUsingIAMMethodServer) error {
-	return trace.Wrap(s.handleStreamingRegistration(srv.Context(), types.JoinMethodIAM, func() error {
-		return trace.Wrap(s.registerUsingIAMMethod(srv))
-	}))
+	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
+	// hold connections open indefinitely.
+	timeout := s.clock.NewTimer(iamJoinRequestTimeout)
+	defer timeout.Stop()
+
+	// The only way to cancel a blocked Send or Recv on the server side without
+	// adding an interceptor to the entire gRPC service is to return from the
+	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.registerUsingIAMMethod(srv)
+	}()
+	select {
+	case err := <-errCh:
+		// Completed before the deadline, return the error (may be nil).
+		return trace.Wrap(err)
+	case <-timeout.Chan():
+		nodeAddr := ""
+		if peerInfo, ok := peer.FromContext(srv.Context()); ok {
+			nodeAddr = peerInfo.Addr.String()
+		}
+		logrus.Warnf("IAM join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
+		// Returning here should cancel any blocked Send or Recv operations.
+		return trace.LimitExceeded("RegisterUsingIAMMethod timed out after %s, terminating the stream on the server", iamJoinRequestTimeout)
+	}
 }
 
 func (s *JoinServiceGRPCServer) registerUsingIAMMethod(srv proto.JoinService_RegisterUsingIAMMethodServer) error {
@@ -145,9 +156,31 @@ func (s *JoinServiceGRPCServer) registerUsingIAMMethod(srv proto.JoinService_Reg
 // attested data document with the challenge string. Finally, the signed
 // cluster certs are sent on the server stream.
 func (s *JoinServiceGRPCServer) RegisterUsingAzureMethod(srv proto.JoinService_RegisterUsingAzureMethodServer) error {
-	return trace.Wrap(s.handleStreamingRegistration(srv.Context(), types.JoinMethodAzure, func() error {
-		return trace.Wrap(s.registerUsingAzureMethod(srv))
-	}))
+	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
+	// hold connections open indefinitely.
+	timeout := s.clock.NewTimer(azureJoinRequestTimeout)
+	defer timeout.Stop()
+
+	// The only way to cancel a blocked Send or Recv on the server side without
+	// adding an interceptor to the entire gRPC service is to return from the
+	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.registerUsingAzureMethod(srv)
+	}()
+	select {
+	case err := <-errCh:
+		// Completed before the deadline, return the error (may be nil).
+		return trace.Wrap(err)
+	case <-timeout.Chan():
+		nodeAddr := ""
+		if peerInfo, ok := peer.FromContext(srv.Context()); ok {
+			nodeAddr = peerInfo.Addr.String()
+		}
+		logrus.Warnf("Azure join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
+		// Returning here should cancel any blocked Send or Recv operations.
+		return trace.LimitExceeded("RegisterUsingAzureMethod timed out after %s, terminating the stream on the server", azureJoinRequestTimeout)
+	}
 }
 
 func checkForProxyRole(identity tlsca.Identity) bool {
@@ -175,16 +208,8 @@ func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenReque
 // setBotParameters extracts a bot instance ID from either the incoming request
 // or the context identity.
 func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest) {
-	// The previous bot instance can never be set at this point; it's set by the
-	// join method handler if at all.
-	req.PreviousBotInstanceID = ""
-
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {
-		// No authenticated user, we don't want to trust the values provided in
-		// the request unless it's coming from a proxy.
-		req.BotInstanceID = ""
-		req.BotGeneration = 0
 		return
 	}
 
@@ -198,10 +223,10 @@ func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest)
 	if ident.BotInstanceID != "" {
 		// Trust the instance ID from the incoming identity: bots will
 		// attempt to provide it on renewal, assuming it's still valid.
-		slog.InfoContext(ctx, "bot is rejoining",
-			"bot_name", ident.BotName,
-			"bot_instance_id", ident.BotInstanceID,
-		)
+		logrus.WithFields(logrus.Fields{
+			"bot_name":        ident.BotName,
+			"bot_instance_id": ident.BotInstanceID,
+		}).Info("bot is rejoining")
 		req.BotInstanceID = ident.BotInstanceID
 	} else {
 		// Clear any other value from the request: the value must come from a
@@ -249,9 +274,41 @@ func (s *JoinServiceGRPCServer) registerUsingAzureMethod(srv proto.JoinService_R
 // auth.ServerWithRoles's RegisterUsingTPMMethod method. When running on the
 // Proxy, this method will forward the request to the Auth server.
 func (s *JoinServiceGRPCServer) RegisterUsingTPMMethod(srv proto.JoinService_RegisterUsingTPMMethodServer) error {
-	return trace.Wrap(s.handleStreamingRegistration(srv.Context(), types.JoinMethodTPM, func() error {
-		return trace.Wrap(s.registerUsingTPMMethod(srv.Context(), srv))
-	}))
+	ctx := srv.Context()
+
+	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
+	// hold connections open indefinitely.
+	timeout := s.clock.After(tpmJoinRequestTimeout)
+
+	// The only way to cancel a blocked Send or Recv on the server side without
+	// adding an interceptor to the entire gRPC service is to return from the
+	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.registerUsingTPMMethod(ctx, srv)
+	}()
+	select {
+	case err := <-errCh:
+		// Completed before the deadline, return the error (may be nil).
+		return trace.Wrap(err)
+	case <-timeout:
+		nodeAddr := ""
+		if peerInfo, ok := peer.FromContext(ctx); ok {
+			nodeAddr = peerInfo.Addr.String()
+		}
+		slog.WarnContext(
+			srv.Context(),
+			"TPM join attempt timed out, node is misbehaving or did not close the connection after encountering an error",
+			"node_addr", nodeAddr,
+		)
+		// Returning here should cancel any blocked Send or Recv operations.
+		return trace.LimitExceeded(
+			"RegisterUsingTPMMethod timed out after %s, terminating the stream on the server",
+			tpmJoinRequestTimeout,
+		)
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
 }
 
 func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
@@ -318,184 +375,4 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 			Certs: certs,
 		},
 	}))
-}
-
-// RegisterUsingOracleMethod registers the caller using the Oracle join method and
-// returns signed certs to join the cluster.
-func (s *JoinServiceGRPCServer) RegisterUsingOracleMethod(
-	srv proto.JoinService_RegisterUsingOracleMethodServer,
-) error {
-	return trace.Wrap(s.handleStreamingRegistration(srv.Context(), types.JoinMethodOracle, func() error {
-		return trace.Wrap(s.registerUsingOracleMethod(srv))
-	}))
-}
-
-func (s *JoinServiceGRPCServer) registerUsingOracleMethod(srv proto.JoinService_RegisterUsingOracleMethodServer) error {
-	ctx := srv.Context()
-	tokenParamsReq, err := srv.Recv()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tokenParams := tokenParamsReq.GetRegisterUsingTokenRequest()
-	if tokenParams == nil {
-		return trace.BadParameter("expected RegisterUsingTokenRequest, got %T", tokenParamsReq.Request)
-	}
-	if err := setClientRemoteAddr(ctx, tokenParams); err != nil {
-		return trace.Wrap(err)
-	}
-	setBotParameters(ctx, tokenParams)
-
-	certs, err := s.joinServiceClient.RegisterUsingOracleMethod(
-		ctx,
-		tokenParams,
-		func(challenge string) (*proto.OracleSignedRequest, error) {
-			err = srv.Send(&proto.RegisterUsingOracleMethodResponse{
-				Response: &proto.RegisterUsingOracleMethodResponse_Challenge{
-					Challenge: challenge,
-				},
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			req, err := srv.Recv()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			oracleReq := req.GetOracleRequest()
-			if oracleReq == nil {
-				return nil, trace.BadParameter("expected signed Oracle request, got %T", req.Request)
-			}
-			return oracleReq, nil
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(srv.Send(&proto.RegisterUsingOracleMethodResponse{
-		Response: &proto.RegisterUsingOracleMethodResponse_Certs{
-			Certs: certs,
-		},
-	}))
-}
-
-// RegisterUsingBoundKeypairMethod registers the client using the bound-keypair
-// join method, and if successful, returns a signed cert bundle for
-// authenticated cluster access.
-func (s *JoinServiceGRPCServer) RegisterUsingBoundKeypairMethod(
-	srv proto.JoinService_RegisterUsingBoundKeypairMethodServer,
-) error {
-	return trace.Wrap(s.handleStreamingRegistration(srv.Context(), types.JoinMethodBoundKeypair, func() error {
-		return trace.Wrap(s.registerUsingBoundKeypair(srv))
-	}))
-}
-
-func (s *JoinServiceGRPCServer) registerUsingBoundKeypair(srv proto.JoinService_RegisterUsingBoundKeypairMethodServer) error {
-	ctx := srv.Context()
-
-	// Get initial payload from the client
-	req, err := srv.Recv()
-	if err != nil {
-		return trace.Wrap(err, "receiving initial payload")
-	}
-	initReq := req.GetInit()
-	if initReq == nil {
-		return trace.BadParameter("expected non-nil Init payload")
-	}
-
-	if initReq.JoinRequest == nil {
-		return trace.BadParameter(
-			"expected JoinRequest in RegisterUsingBoundKeypairInitialRequest, got nil",
-		)
-	}
-	if err := setClientRemoteAddr(ctx, initReq.JoinRequest); err != nil {
-		return trace.Wrap(err, "setting client address")
-	}
-
-	setBotParameters(ctx, initReq.JoinRequest)
-
-	regResponse, err := s.joinServiceClient.RegisterUsingBoundKeypairMethod(ctx, initReq, func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
-		// First, forward the challenge from Auth to the client.
-		err := srv.Send(resp)
-		if err != nil {
-			return nil, trace.Wrap(
-				err, "forwarding challenge to client",
-			)
-		}
-
-		// Get response from Client
-		req, err := srv.Recv()
-		if err != nil {
-			return nil, trace.Wrap(
-				err, "receiving challenge solution from client",
-			)
-		}
-
-		return req, nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	slog.DebugContext(srv.Context(), "challenge ceremony complete, sending cert bundle")
-
-	// finally, send the certs on the response stream
-	return trace.Wrap(srv.Send(&proto.RegisterUsingBoundKeypairMethodResponse{
-		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Certs{
-			Certs: &proto.RegisterUsingBoundKeypairCertificates{
-				Certs:     regResponse.Certs,
-				PublicKey: regResponse.BoundPublicKey,
-				JoinState: regResponse.JoinState,
-			},
-		},
-	}))
-}
-
-// RegisterUsingToken allows nodes and proxies to join the cluster using
-// legacy join methods which do not yet have their own RPC.
-// On the Auth server, this method will call the auth.Server's
-// RegisterUsingToken method. When running on the Proxy, this method will
-// forward the request to the Auth server's JoinServiceServer.
-func (s *JoinServiceGRPCServer) RegisterUsingToken(
-	ctx context.Context, req *types.RegisterUsingTokenRequest,
-) (*proto.Certs, error) {
-	if err := setClientRemoteAddr(ctx, req); err != nil {
-		return nil, trace.Wrap(err, "setting client address")
-	}
-	setBotParameters(ctx, req)
-
-	return s.joinServiceClient.RegisterUsingToken(ctx, req)
-}
-
-func (s *JoinServiceGRPCServer) handleStreamingRegistration(ctx context.Context, joinMethod types.JoinMethod, register func() error) error {
-	// The only way to cancel a blocked Send or Recv on the server side without
-	// adding an interceptor to the entire gRPC service is to return from the
-	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- register()
-	}()
-	select {
-	case err := <-errCh:
-		// Completed before the deadline, return the error (may be nil).
-		return trace.Wrap(err)
-		// Enforce a timeout on the entire RPC so that misbehaving clients cannot
-		// hold connections open indefinitely.
-	case <-s.clock.After(joinRequestTimeout):
-		nodeAddr := ""
-		if peerInfo, ok := peer.FromContext(ctx); ok {
-			nodeAddr = peerInfo.Addr.String()
-		}
-		slog.WarnContext(
-			ctx,
-			"Join attempt timed out, node is misbehaving or did not close the connection after encountering an error",
-			"join_method", joinMethod, "node_addr", nodeAddr,
-		)
-		// Returning here should cancel any blocked Send or Recv operations.
-		return trace.LimitExceeded(
-			"%s join method timed out after %s, terminating the stream on the server",
-			joinMethod, joinRequestTimeout,
-		)
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
-	}
 }

@@ -17,6 +17,7 @@
  */
 
 import { screen, within } from '@testing-library/react';
+import React from 'react';
 
 import { fireEvent, render } from 'design/utils/testing';
 
@@ -84,7 +85,7 @@ test('render empty list when search does not match any item', () => {
 });
 
 test('render provided placeholder in the search box', () => {
-  const placeholder = 'Search connections';
+  const placeholder = 'Search Connections';
   render(
     <FilterableList<TestItem>
       items={[]}

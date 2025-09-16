@@ -20,7 +20,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -78,20 +77,10 @@ const (
 	// JoinMethodBitbucket indicates that the node will join using the Bitbucket
 	// join method. See lib/bitbucket for more.
 	JoinMethodBitbucket JoinMethod = "bitbucket"
-	// JoinMethodOracle indicates that the node will join using the Oracle join
-	// method.
-	JoinMethodOracle JoinMethod = "oracle"
-	// JoinMethodAzureDevops indicates that the node will join using the Azure
-	// Devops join method.
-	JoinMethodAzureDevops JoinMethod = "azure_devops"
-	// JoinMethodBoundKeypair indicates the node will join using the Bound
-	// Keypair join method. See lib/boundkeypair for more.
-	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
 )
 
 var JoinMethods = []JoinMethod{
 	JoinMethodAzure,
-	JoinMethodAzureDevops,
 	JoinMethodBitbucket,
 	JoinMethodCircleCI,
 	JoinMethodEC2,
@@ -104,8 +93,6 @@ var JoinMethods = []JoinMethod{
 	JoinMethodToken,
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
-	JoinMethodOracle,
-	JoinMethodBoundKeypair,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -123,7 +110,6 @@ var (
 	KubernetesJoinTypeUnspecified KubernetesJoinType = ""
 	KubernetesJoinTypeInCluster   KubernetesJoinType = "in_cluster"
 	KubernetesJoinTypeStaticJWKS  KubernetesJoinType = "static_jwks"
-	KubernetesJoinTypeOIDC        KubernetesJoinType = "oidc"
 )
 
 // ProvisionToken is a provisioning token
@@ -173,8 +159,6 @@ type ProvisionToken interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
-	// Clone creates a copy of the token.
-	Clone() ProvisionToken
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -199,26 +183,6 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 	return t, nil
 }
 
-// NewProvisionTokenFromSpecAndStatus returns a new provision token with the given spec.
-func NewProvisionTokenFromSpecAndStatus(
-	token string, expires time.Time,
-	spec ProvisionTokenSpecV2,
-	status *ProvisionTokenStatusV2,
-) (ProvisionToken, error) {
-	t := &ProvisionTokenV2{
-		Metadata: Metadata{
-			Name:    token,
-			Expires: &expires,
-		},
-		Spec:   spec,
-		Status: status,
-	}
-	if err := t.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return t, nil
-}
-
 // MustCreateProvisionToken returns a new valid provision token
 // or panics, used in tests
 func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time) ProvisionToken {
@@ -227,10 +191,6 @@ func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time
 		panic(err)
 	}
 	return t
-}
-
-func (p *ProvisionTokenV2) Clone() ProvisionToken {
-	return utils.CloneProtoMsg(p)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -419,36 +379,6 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.bitbucket: failed validation")
-		}
-	case JoinMethodOracle:
-		providerCfg := p.Spec.Oracle
-		if providerCfg == nil {
-			return trace.BadParameter(
-				"spec.oracle: must be configured for the join method %q",
-				JoinMethodOracle,
-			)
-		}
-		if err := providerCfg.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "spec.oracle: failed validation")
-		}
-	case JoinMethodAzureDevops:
-		providerCfg := p.Spec.AzureDevops
-		if providerCfg == nil {
-			return trace.BadParameter(
-				"spec.azure_devops: must be configured for the join method %q",
-				JoinMethodAzureDevops,
-			)
-		}
-		if err := providerCfg.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "spec.azure_devops: failed validation")
-		}
-	case JoinMethodBoundKeypair:
-		if p.Spec.BoundKeypair == nil {
-			p.Spec.BoundKeypair = &ProvisionTokenSpecV2BoundKeypair{}
-		}
-
-		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -785,34 +715,10 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 		if a.StaticJWKS.JWKS == "" {
 			return trace.BadParameter("static_jwks.jwks: must be set when type is %q", KubernetesJoinTypeStaticJWKS)
 		}
-	case KubernetesJoinTypeOIDC:
-		if a.OIDC == nil {
-			return trace.BadParameter("oidc: must be set when types is %q", KubernetesJoinTypeOIDC)
-		}
-		if a.OIDC.Issuer == "" {
-			return trace.BadParameter("oidc.issuer: must be set when type is %q", KubernetesJoinTypeOIDC)
-		}
-
-		parsed, err := url.Parse(a.OIDC.Issuer)
-		if err != nil {
-			return trace.BadParameter("oidc.issuer: must be a valid URL")
-		}
-
-		if parsed.Scheme == "http" {
-			if !a.OIDC.InsecureAllowHTTPIssuer {
-				return trace.BadParameter("oidc.issuer: must be https:// unless insecure_allow_http_issuer is set")
-			}
-		} else if parsed.Scheme != "https" {
-			return trace.BadParameter("oidc.issuer: invalid URL scheme, must be https://")
-		}
 	default:
 		return trace.BadParameter(
 			"type: must be one of (%s), got %q",
-			utils.JoinStrings([]string{
-				string(KubernetesJoinTypeInCluster),
-				string(KubernetesJoinTypeStaticJWKS),
-				string(KubernetesJoinTypeOIDC),
-			}, ", "),
+			utils.JoinStrings(JoinMethods, ", "),
 			a.Type,
 		)
 	}
@@ -1003,73 +909,6 @@ func (a *ProvisionTokenSpecV2Bitbucket) checkAndSetDefaults() error {
 			)
 		}
 	}
-
-	return nil
-}
-
-// checkAndSetDefaults checks and sets defaults on the Oracle spec. This only
-// covers basics like the presence of required fields; more complex validation
-// (e.g. requiring the Oracle SDK) is in auth.validateOracleJoinToken.
-func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
-	if len(a.Allow) == 0 {
-		return trace.BadParameter("the %q join method requires at least one allow rule", JoinMethodOracle)
-	}
-	for i, rule := range a.Allow {
-		if rule.Tenancy == "" {
-			return trace.BadParameter(
-				"allow[%d]: tenancy must be set",
-				i,
-			)
-		}
-	}
-	return nil
-}
-
-// checkAndSetDefaults checks and sets defaults on the Azure Devops spec.
-func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
-	switch {
-	case len(a.Allow) == 0:
-		return trace.BadParameter(
-			"the %q join method requires at least one allow rule",
-			JoinMethodAzureDevops,
-		)
-	case a.OrganizationID == "":
-		return trace.BadParameter(
-			"organization_id: must be set",
-		)
-	}
-
-	for i, rule := range a.Allow {
-		subSet := rule.Sub != ""
-		projectNameSet := rule.ProjectName != ""
-		projectIDSet := rule.ProjectID != ""
-		if !subSet && !projectNameSet && !projectIDSet {
-			return trace.BadParameter(
-				"allow[%d]: at least one of ['sub', 'project_name', 'project_id'] must be set",
-				i,
-			)
-		}
-	}
-	return nil
-}
-
-func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
-	if a.Onboarding == nil {
-		a.Onboarding = &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{}
-	}
-
-	if a.Recovery == nil {
-		a.Recovery = &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
-	}
-
-	// Limit must be >= 1 for the token to be useful. If zero, assume it's unset
-	// and provide a sane default.
-	if a.Recovery.Limit == 0 {
-		a.Recovery.Limit = 1
-	}
-
-	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
-	// ("") is mapped to RecoveryModeStandard.
 
 	return nil
 }

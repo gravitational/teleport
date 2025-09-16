@@ -4,7 +4,7 @@ h1: Teleport Configuration Reference
 description: The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
 keywords: [config, file, reference, yaml, etc]
 tocDepth: 3
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -56,7 +56,7 @@ names are listed below):
 
 ```yaml
 service_name:
-  enabled: false
+  enabled: "no"
 ```
 
 Teleport supports the following services:
@@ -103,10 +103,10 @@ These settings apply to any `teleport` instance:
 
 Further reading:
 - [Joining Services to a
-  Cluster](../enroll-resources/agents/agents.mdx):
+  Cluster](../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx):
   Available join methods to help you configure `join_params`.
 - [Using a CA
-  Pin](../enroll-resources/agents/join-token.mdx):
+  Pin](../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx):
   When to assign a value to `ca_pin`.
 - [Teleport Metrics Reference](monitoring/monitoring.mdx): Data to collect using
   `diag_addr`.
@@ -140,10 +140,10 @@ to specify these configuration settings.
 Further reading:
 - [Storage Backends](backends.mdx) reference: instructions on configuring DynamoDB, S3, etcd, and other highly available
   backends.
-- [Passwordless](../zero-trust-access/authentication/passwordless.mdx): More
+- [Passwordless](../zero-trust-access/access-controls/guides/passwordless.mdx): More
   information about the `passwordless` authentication option.
 - [Headless
-  WebAuthn](../zero-trust-access/authentication/headless.mdx): The
+  WebAuthn](../zero-trust-access/access-controls/guides/headless.mdx): The
   `headless` authentication option.
 - [Single Sign-On](../zero-trust-access/sso/sso.mdx): Configuring SSO
   so you can configure Teleport to use a specific SSO authentication connector.

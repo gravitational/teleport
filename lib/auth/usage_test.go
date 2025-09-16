@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"context"
@@ -94,7 +94,7 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 type setupAccessRequestLimist struct {
 	monthlyLimit int
 	testpack     testPack
-	clock        *clockwork.FakeClock
+	clock        clockwork.FakeClock
 	features     modules.Features
 }
 

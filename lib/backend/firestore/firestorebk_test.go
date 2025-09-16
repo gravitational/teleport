@@ -20,10 +20,8 @@ package firestore
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"reflect"
@@ -38,6 +36,7 @@ import (
 	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
@@ -52,12 +51,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils/clocki"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -94,7 +92,7 @@ func firestoreParams() backend.Params {
 		endpoint = e
 	}
 
-	return map[string]any{
+	return map[string]interface{}{
 		"collection_name":                       collection,
 		"project_id":                            projectID,
 		"endpoint":                              endpoint,
@@ -109,7 +107,7 @@ func ensureTestsEnabled(t *testing.T) {
 	}
 }
 
-func ensureEmulatorRunning(t *testing.T, cfg map[string]any) {
+func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
 	endpoint, _ := cfg["endpoint"].(string)
 	if endpoint == "" {
 		return
@@ -127,7 +125,7 @@ func TestFirestoreDB(t *testing.T) {
 	ensureTestsEnabled(t)
 	ensureEmulatorRunning(t, cfg)
 
-	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
 		testCfg, err := test.ApplyOptions(options)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -161,7 +159,7 @@ func TestFirestoreDB(t *testing.T) {
 }
 
 // newBackend creates a self-closing firestore backend
-func newBackend(t *testing.T, cfg map[string]any) *Backend {
+func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
 	clock := clockwork.NewFakeClock()
 
 	uut, err := New(context.Background(), cfg, Options{Clock: clock})
@@ -179,7 +177,7 @@ func TestReadLegacyRecord(t *testing.T) {
 	uut := newBackend(t, cfg)
 
 	item := backend.Item{
-		Key:     backend.NewKey("legacy-record"),
+		Key:     []byte("legacy-record"),
 		Value:   []byte("foo"),
 		Expires: uut.clock.Now().Add(time.Minute).Round(time.Second).UTC(),
 	}
@@ -188,7 +186,7 @@ func TestReadLegacyRecord(t *testing.T) {
 	// version of this backend.
 	ctx := context.Background()
 	rl := legacyRecord{
-		Key:       item.Key.String(),
+		Key:       string(item.Key),
 		Value:     string(item.Value),
 		Expires:   item.Expires.UTC().Unix(),
 		Timestamp: uut.clock.Now().UTC().Unix(),
@@ -238,7 +236,7 @@ func TestReadBrokenRecord(t *testing.T) {
 		Key:   prefix("legacy-record").String(),
 		Value: "sheep",
 	}
-	_, err = uut.svc.Collection(uut.CollectionName).Doc(uut.keyToDocumentID(backend.KeyFromString(lr.Key))).Set(ctx, lr)
+	_, err = uut.svc.Collection(uut.CollectionName).Doc(uut.keyToDocumentID(backend.Key(lr.Key))).Set(ctx, lr)
 	require.NoError(t, err)
 
 	// Create a broken record with a backend.Key key type.
@@ -251,7 +249,7 @@ func TestReadBrokenRecord(t *testing.T) {
 	// Write using broken record format, emulating data written by an older
 	// version of this backend.
 	br := brokenRecord{
-		Key:       brokenKey(brokenItem.Key.String()),
+		Key:       brokenItem.Key,
 		Value:     brokenItem.Value,
 		Expires:   brokenItem.Expires.UTC().Unix(),
 		Timestamp: uut.clock.Now().UTC().Unix(),
@@ -286,7 +284,7 @@ func TestReadBrokenRecord(t *testing.T) {
 		switch r := result.Key.String(); r {
 		case item.Key.String():
 			assert.Equal(t, item.Value, result.Value)
-		case string(br.Key):
+		case br.Key.String():
 			assert.Equal(t, br.Value, result.Value)
 		case lr.Key:
 			assert.Equal(t, lr.Value, string(result.Value))
@@ -373,11 +371,12 @@ func TestDeleteDocuments(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			docs := make([]*firestore.DocumentSnapshot, 0, tt.documents)
-			for i := range tt.documents {
+			for i := 0; i < tt.documents; i++ {
 				docs = append(docs, &firestore.DocumentSnapshot{
 					Ref: &firestore.DocumentRef{
 						Path: fmt.Sprintf("projects/test-project/databases/test-db/documents/test/%d", i+1),
@@ -422,7 +421,7 @@ func TestDeleteDocuments(t *testing.T) {
 
 			b := &Backend{
 				svc:           client,
-				logger:        slog.With(teleport.ComponentKey, BackendName),
+				Entry:         utils.NewLoggerForTests().WithFields(logrus.Fields{teleport.ComponentKey: BackendName}),
 				clock:         clockwork.NewFakeClock(),
 				clientContext: ctx,
 				clientCancel:  cancel,
@@ -454,65 +453,4 @@ func TestDeleteDocuments(t *testing.T) {
 		})
 	}
 
-}
-
-// TestFirestoreMigration tests the migration of incorrect key types in Firestore.
-// TODO(tigrato|rosstimothy): DELETE In 19.0.0: Remove this migration in 19.0.0.
-func TestFirestoreMigration(t *testing.T) {
-	cfg := firestoreParams()
-	ensureTestsEnabled(t)
-	ensureEmulatorRunning(t, cfg)
-
-	clock := clockwork.NewRealClock()
-
-	uut, err := New(context.Background(), cfg, Options{Clock: clock})
-	require.NoError(t, err)
-
-	// Empty the collection to make sure previous tests don't interfere
-	snapshot, err := uut.svc.Collection(uut.CollectionName).Documents(context.Background()).GetAll()
-	require.NoError(t, err)
-	require.NoError(t, uut.deleteDocuments(snapshot))
-
-	type byteAlias []byte
-	type badRecord struct {
-		Key        byteAlias `firestore:"key,omitempty"`
-		Timestamp  int64     `firestore:"timestamp,omitempty"`
-		Expires    int64     `firestore:"expires,omitempty"`
-		Value      []byte    `firestore:"value,omitempty"`
-		RevisionV2 string    `firestore:"revision,omitempty"`
-		RevisionV1 string    `firestore:"-"`
-	}
-
-	for i := range 301 {
-		key := fmt.Appendf(nil, "test-%d", i)
-		_, err = uut.svc.Collection(uut.CollectionName).
-			Doc(base64.URLEncoding.EncodeToString(key)).
-			Set(context.Background(), &badRecord{
-				Key:        key,
-				Timestamp:  clock.Now().UTC().Unix(),
-				Expires:    clock.Now().Add(time.Minute).UTC().Unix(),
-				Value:      key,
-				RevisionV2: "v2",
-			})
-		require.NoError(t, err)
-	}
-
-	// Migrate the collection
-	uut.migrateIncorrectKeyTypes()
-
-	// Ensure that all incorrect key types have been migrated
-	docs, err := uut.svc.Collection(uut.CollectionName).
-		Where(keyDocProperty, ">", byteAlias("/")).
-		Limit(100).
-		Documents(context.Background()).GetAll()
-	require.NoError(t, err)
-
-	require.Empty(t, docs, "expected all incorrect key types to be migrated")
-
-	// Ensure that all incorrect key types have been migrated to the correct key type []byte
-	docs, err = uut.svc.Collection(uut.CollectionName).
-		Where(keyDocProperty, ">", []byte("/")).
-		Documents(context.Background()).GetAll()
-	require.NoError(t, err)
-	require.Len(t, docs, 301)
 }

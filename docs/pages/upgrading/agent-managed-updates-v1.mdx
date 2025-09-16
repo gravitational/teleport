@@ -1,11 +1,10 @@
 ---
 title: Managed Updates for Teleport Agents (v1)
 description: Describes how to set up Managed Updates for Teleport Agents (v1)
-labels:
+tags:
  - how-to
  - platform-wide
 ---
-
 <Admonition type="warning">
 This document describes Managed Updates for Agents (v1), which
 is currently supported but may be removed in future versions of Teleport.
@@ -56,7 +55,7 @@ updates.
 
 Teleport supports managed agent updates for SystemD-based Linux distributions
 using `apt`, `yum`, and `zypper` package managers, as well as Kubernetes
-clusters. 
+clusters.
 
 This guide explains how to enable Managed Updates v1 for Teleport Agents on
 Teleport Enterprise clusters, including both self-hosted and cloud-hosted
@@ -65,18 +64,21 @@ clusters.
 ## How it works
 
 When Managed Updates are enabled, a Teleport updater is installed alongside
-each Teleport Agent. The updater communicates with the Teleport Proxy Service to
+each Teleport agent. The updater communicates with the Teleport Proxy Service to
 determine when an update is available. When an update is available, the updater
-will update the Teleport Agent during the next maintenance window. However, if a
-critical update is available, the Teleport Agent will be updated outside the
+will update the Teleport agent during the next maintenance window. However, if a
+critical update is available, the Teleport agent will be updated outside the
 regular maintenance window.
 
 ## Prerequisites
 
+- A Teleport Enterprise cluster. If you do not have one, [sign
+  up](https://goteleport.com/signup) for a free trial or consult the [Update
+  Reference](upgrading-reference.mdx) to read about manual updates.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
-- Teleport Agents that are not yet enrolled in Managed Updates.
-- (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+- Teleport agents that are not yet enrolled in Managed Updates.
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Enable Managed Agent Updates
@@ -86,7 +88,7 @@ If you are running a cloud-hosted Teleport Enterprise cluster, skip to [Step
 
 Before enabling managed upgrades in your self-hosted Teleport cluster, you
 must enable a **version server**. This section shows you how to enable a version
-server in your cluster. 
+server in your cluster.
 
 ### Configure a maintenance schedule
 
@@ -115,10 +117,8 @@ Teleport cluster that agents use to determine when to check for upgrades.
    Create the role resource:
 
    ```code
-   $ tctl create cmc-editor.yaml
+   $ tctl create cmd-editor.yaml
    ```
-
-   (!docs/pages/includes/create-role-using-web.mdx!)
 
 1. Add the role to your Teleport user:
 
@@ -146,7 +146,7 @@ field in the Proxy Service configuration file:
 
 ```yaml
 proxy_service:
-  enabled: true
+  enabled: "yes"
   automatic_upgrades_channels:
     # Override the default version channel reachable at
     # https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default/version
@@ -201,9 +201,9 @@ Server ID                            Hostname      Services Version Upgrader
 
 1. Determine the Teleport version to install by querying the Teleport Proxy
    Service. This way, the Teleport installation has the same major version as
-   the updater. 
+   the automatic updater.
 
-   Replace <Var name="stable/cloud" /> with the name of your update
+   Replace <Var name="stable/cloud" /> with the name of your automatic update
    channel. For cloud-hosted Teleport Enterprise accounts, this is always
    `stable/cloud`:
 
@@ -211,7 +211,7 @@ Server ID                            Hostname      Services Version Upgrader
    $ TELEPORT_VERSION="$(curl https://<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/<Var name="stable/cloud" />/version | sed 's/v//')"
    ```
 
-1. Ensure that the Teleport repository is properly configured to use the 
+1. Ensure that the Teleport repository is properly configured to use the
    <Var name="stable/cloud" /> channel, and install the `teleport-ent-updater`
    package. You must install `teleport-ent-updater` on each agent you would like
    to enroll into Managed Updates:
@@ -271,15 +271,15 @@ Server ID                            Hostname      Services Version Upgrader
    ```code
    $ sudo teleport-upgrade dry-run
    ```
-   
+
 1. You should see one of the following messages, depending on the target version
    you are currently serving:
-    
+
    ```text
    no upgrades available (1.2.3 == 1.2.3)
    an upgrade is available (1.2.3 -> 2.3.4)
    ```
-    
+
    `teleport-upgrade` may display warnings about not having a valid upgrade
    schedule. This is expected immediately after install as the maintenance
    schedule might not be exported yet.
@@ -352,9 +352,9 @@ This section assumes that the name of your `teleport-kube-agent` release is
    <your-agent-release>-2                         1/1     Running   0          14m
    <your-agent-release>-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
    ```
-   
+
 1. Check for any deployment issues by checking the updater logs:
-   
+
    ```code
    $ kubectl -n <Var name="teleport" /> logs deployment/<Var name="teleport-agent" />-updater
    2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
@@ -362,10 +362,10 @@ This section assumes that the name of your `teleport-kube-agent` release is
 
 ## Troubleshooting
 
-Teleport Agents are not updated immediately when a new version of Teleport is
+Teleport agents are not updated immediately when a new version of Teleport is
 released, and agent updates can lag behind the cluster by a few days.
 
-If the Teleport Agent has not been automatically updating for several weeks, you
+If the Teleport agent has not been automatically updating for several weeks, you
 can consult the updater logs to help troubleshoot the problem:
 
 ```code
@@ -377,7 +377,7 @@ $ journalctl -u teleport-upgrade
 The updater is a controller that periodically reconciles expected Kubernetes
 resources with those in the cluster. The updater executes a reconciliation loop
 every 30 minutes or in response to a Kubernetes event. If you don't want to wait
-until the next reconciliation, you can trigger an event. 
+until the next reconciliation, you can trigger an event.
 
 1. Any deployment update will send an event, so you can trigger the upgrader by
    annotating the resource:
@@ -411,153 +411,3 @@ until the next reconciliation, you can trigger an event.
    ```code
    $ sudo systemctl enable --now teleport-upgrade.timer
    ```
-
-## Working with the teleport-upgrade tool
-
-This section explains advanced usage of the v1 `teleport-upgrade` script for Linux.
-Note that this tool is no longer actively developed, and the Managed Updates v2
-`teleport-update` binary should be used instead.
-For Managed Updates v2 instructions, see [Managed Updates for
-Agents (v2)](./agent-managed-updates.mdx).
-
-### `teleport-upgrade` commands
-
-The `teleport-upgrade` tool provides some basic commands to verify and perform an
-update of the Teleport Agent.
-
-```code
-$ teleport-upgrade help
-USAGE: /usr/sbin/teleport-upgrade <command>
-
-Tool for automatic upgrades of Teleport Agents.
-
-Commands:
-  run           check for and potentially apply a teleport upgrade.
-  dry-run       check for new teleport version but do not upgrade.
-  force         performs an upgrade if an upgrade is available.
-  version       print the current version of /usr/sbin/teleport-upgrade.
-  help          show this help text.
-```
-
-The `dry-run` command can be used to check for an available update without performing
-an update.
-```code
-# Example output when teleport is already on the latest compatible version.
-$ teleport-upgrade dry-run
-[i] no upgrades available (14.3.14 == 14.3.14) [ 582 ]
-
-# Example output when an update is available.
-$ teleport-upgrade dry-run
-[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-[i] within maintenance window, upgrade will be attempted. [ 596 ]
-```
-
-The `run` command performs an update if available.
-```code
-# Successful teleport update from 13.4.14 to 14.3.14.
-$ teleport-upgrade run
-[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-[i] within maintenance window, upgrade will be attempted. [ 596 ]
-[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
-[...]
-[i] gracefully restarting Teleport (if already running) [ 449 ]
-
-# Teleport updates are not attempted when outside the maintenance window.
-$ teleport-upgrade run
-[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-[i] upgrade is non-critical and we are outside of maintenance window, not attempting. [ 618 ]
-```
-
-The `force` command performs an update immediately even when outside the maintenance
-window.
-```code
-$ teleport-upgrade force
-[i] an upgrade is available (13.4.14 -> 14.3.14) [ 585 ]
-[i] attempting apt install teleport-ent=14.3.14... [ 480 ]
-[...]
-[i] gracefully restarting Teleport (if already running) [ 449 ]
-```
-
-### Configuring the `teleport-upgrade` tool
-
-1. Create the upgrade configuration directory:
-
-   ```code
-   $ sudo mkdir -p /etc/teleport-upgrade.d/
-   ```
-
-1. If you changed the agent user to run as non-root, create
-   `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user,
-   assigning <Var name="your-teleport-user" /> to the name of your Teleport
-   user. Otherwise, you can skip this step:
-
-   ```code 
-   $ sudo touch /etc/teleport-upgrade.d/schedule 
-   $ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule 
-   ```
-
-   1. Configure the upgrader to connect to your version server and subscribe to
-      the right release channel:
-
-   ```code 
-   $ echo "<Var name="teleport.example.com:443" />/v1/webapi/automaticupgrades/channel/default" | sudo tee /etc/teleport-upgrade.d/endpoint
-   ```
-
-   Make sure not to include `https://` as a prefix to the server address, nor
-   suffix the endpoint with `/version`.
-
-### Choosing a release channel
-
-When [configuring the updater](#configuring-the-teleport-upgrade-tool), you can
-select a release channel.
-
-The following channels are available for APT, YUM, and Zypper repos:
-
-| Channel name      | Description                                                                                |
-|-------------------|--------------------------------------------------------------------------------------------|
-| `stable/<major>`  | Receives releases for the specified major release line, i.e. `v(=teleport.major_version=)` |
-| `stable/cloud`    | Rolling channel that receives releases compatible with current Cloud version               |
-| `stable/rolling`  | Rolling channel that receives all published Teleport releases                              |
-
-### Updating the updater
-
-The updater is designed to be minimal and relatively stable, but the updater will
-receive updates on occasion. Currently, the updater does not have the capability
-to update itself. Updates to the `teleport-ent-updater` package must be done manually.
-
-The `teleport-ent-updater` will be backwards compatible with older versions of Teleport,
-so you can always update the `teleport-ent-updater` package to the latest available
-version.
-
-### Version locking
-
-As of Teleport `15.1.10`, a version locking mechanism is enabled by the updater.
-This mechanism locks the version of Teleport and prevents manual updates of the Teleport
-package. This prevents unintentional updates during routine system maintenance, or
-an accidental update by a user. The updater still has the capability to update the
-Teleport package, and all updates of Teleport are expected to be performed by the
-updater.
-
-The version locking mechanism is implemented using the features of the package managers.
-In case a user would like to manually update the Teleport version, this can be done
-with the following commands.
-
-With the `apt` package manager CLI, the `--allow-change-held-packages` flag must be provided
-to bypass the version lock.
-```code
-$ apt-get install --allow-change-held-packages "teleport-ent=<target-version>"
-```
-
-With the `yum` package manager CLI, the `--disableexcludes="teleport"` flag must be provided
-to bypass the version lock.
-```code
-$ yum install --disablerepo="*" --enablerepo="teleport" --disableexcludes="teleport" "teleport-ent-<target-version>"
-```
-
-With the `zypper` package manager CLI, the lock must be disabled and then re-enabled
-after the update.
-```code
-$ zypper removelock "teleport-ent"
-$ zypper install --repo="teleport" "teleport-ent-<target-version>"
-$ zypper addlock "teleport-ent"
-```

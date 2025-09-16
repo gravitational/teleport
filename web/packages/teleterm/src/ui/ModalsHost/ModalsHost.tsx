@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Fragment } from 'react';
+import React, { Fragment } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
@@ -27,8 +27,6 @@ import { Dialog } from 'teleterm/ui/services/modals';
 import { ClusterLogout } from '../ClusterLogout';
 import { ResourceSearchErrors } from '../Search/ResourceSearchErrors';
 import { assertUnreachable } from '../utils';
-import { ConfigureSSHClients } from '../Vnet/ConfigureSSHClients';
-import { AppUpdates } from './modals/AppUpdates';
 import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
 import { AskPin, ChangePin, OverwriteSlot, Touch } from './modals/HardwareKeys';
 import { ReAuthenticate } from './modals/ReAuthenticate';
@@ -201,12 +199,10 @@ function renderDialog({
         <ReAuthenticate
           hidden={hidden}
           promptMfaRequest={dialog.promptMfaRequest}
-          onOtpSubmit={totpCode => {
+          onSuccess={totpCode => {
             handleClose();
             dialog.onSuccess(totpCode);
           }}
-          // This function needs to be stable between renders.
-          onSsoContinue={dialog.onSsoContinue}
           onCancel={() => {
             handleClose();
             dialog.onCancel();
@@ -282,20 +278,6 @@ function renderDialog({
           }}
         />
       );
-    }
-    case 'configure-ssh-clients': {
-      return (
-        <ConfigureSSHClients
-          hidden={hidden}
-          onConfirm={dialog.onConfirm}
-          onClose={handleClose}
-          vnetSSHConfigPath={dialog.vnetSSHConfigPath}
-          host={dialog.host}
-        />
-      );
-    }
-    case 'app-updates': {
-      return <AppUpdates hidden={hidden} onClose={() => handleClose()} />;
     }
 
     default: {

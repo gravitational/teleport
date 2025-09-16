@@ -355,7 +355,7 @@ func dialResumable(ctx context.Context, token resumptionToken, hostID string, re
 
 	otp32 := sha256.Sum256(dhSecret)
 
-	for i := range 16 {
+	for i := 0; i < 16; i++ {
 		otp32[i] ^= token[i]
 	}
 

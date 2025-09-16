@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -82,8 +83,8 @@ func RunClientPing(ctx context.Context, cc ClientConn, pings, failedPings promet
 	const pingInterval = time.Minute
 	ivl := interval.New(interval.Config{
 		Duration:      pingInterval * 14 / 13,
-		FirstDuration: retryutils.HalfJitter(pingInterval),
-		Jitter:        retryutils.SeventhJitter,
+		FirstDuration: utils.HalfJitter(pingInterval),
+		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer ivl.Stop()
 

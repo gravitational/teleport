@@ -21,25 +21,23 @@ package machineidv1
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"maps"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/protobuf/types/known/durationpb"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
@@ -48,7 +46,6 @@ import (
 // lib/tbot/config
 var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodAzure,
-	types.JoinMethodAzureDevops,
 	types.JoinMethodCircleCI,
 	types.JoinMethodGCP,
 	types.JoinMethodGitHub,
@@ -60,7 +57,6 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodTPM,
 	types.JoinMethodTerraformCloud,
 	types.JoinMethodBitbucket,
-	types.JoinMethodBoundKeypair,
 }
 
 // BotResourceName returns the default name for resources associated with the
@@ -113,7 +109,7 @@ type BotServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      Cache
 	Backend    Backend
-	Logger     *slog.Logger
+	Logger     logrus.FieldLogger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
@@ -132,10 +128,11 @@ func NewBotService(cfg BotServiceConfig) (*BotService, error) {
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.Reporter == nil:
 		return nil, trace.BadParameter("reporter is required")
-	case cfg.Logger == nil:
-		return nil, trace.BadParameter("logger is required")
 	}
 
+	if cfg.Logger == nil {
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "bot.service")
+	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
@@ -158,7 +155,7 @@ type BotService struct {
 	cache      Cache
 	backend    Backend
 	authorizer authz.Authorizer
-	logger     *slog.Logger
+	logger     logrus.FieldLogger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
@@ -171,9 +168,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.MaybeAccessToKind(
-		types.KindBot, types.VerbRead,
-	); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -195,14 +190,6 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err, "converting from resources")
 	}
 
-	if err := authCtx.CheckAccessToResource153(
-		bot, types.VerbRead,
-	); err != nil {
-		// Return NotFound rather than Forbidden to avoid leaking existence of
-		// bot.
-		return nil, trace.NotFound("bot %q not found", req.BotName)
-	}
-
 	return bot, nil
 }
 
@@ -215,11 +202,7 @@ func (bs *BotService) ListBots(
 		return nil, trace.Wrap(err)
 	}
 
-	// Check generally if this user may have the ability to list bots - ignoring
-	// where conditions.
-	if err := authCtx.MaybeAccessToKind(
-		types.KindBot, types.VerbList,
-	); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -241,33 +224,19 @@ func (bs *BotService) ListBots(
 
 		role, err := bs.cache.GetRole(ctx, BotResourceName(botName))
 		if err != nil {
-			bs.logger.WarnContext(
-				ctx,
-				"Failed to fetch role for bot during ListBots. Bot will be omitted from results",
-				"error", err,
-				"bot_name", botName,
-			)
+			bs.logger.WithError(err).WithFields(logrus.Fields{
+				"bot.name": botName,
+			}).Warn("Failed to fetch role for bot during ListBots. Bot will be omitted from results.")
 			continue
 		}
 
 		bot, err := botFromUserAndRole(u, role)
 		if err != nil {
-			bs.logger.WarnContext(
-				ctx,
-				"Failed to convert bot during ListBots. Bot will be omitted from results",
-				"error", err,
-				"bot_name", botName,
-			)
+			bs.logger.WithError(err).WithFields(logrus.Fields{
+				"bot.name": botName,
+			}).Warn("Failed to convert bot during ListBots. Bot will be omitted from results.")
 			continue
 		}
-
-		// Check if user can access this specific Bot.
-		if err := authCtx.CheckAccessToResource153(
-			bot, types.VerbList,
-		); err != nil {
-			continue
-		}
-
 		bots = append(bots, bot)
 	}
 
@@ -282,18 +251,11 @@ func (bs *BotService) ListBots(
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
-	if err := setKindAndVersion(req.Bot); err != nil {
-		return nil, trace.Wrap(err, "setting kind and version")
-	}
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := authCtx.CheckAccessToResource153(
-		req.Bot,
-		types.VerbCreate,
-	); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
@@ -342,10 +304,7 @@ func (bs *BotService) CreateBot(
 			Name: bot.Metadata.Name,
 		},
 	}); err != nil {
-		bs.logger.WarnContext(
-			ctx, "Failed to emit BotCreate audit event",
-			"error", err,
-		)
+		bs.logger.WithError(err).Warn("Failed to emit BotCreate audit event.")
 	}
 
 	return bot, nil
@@ -400,20 +359,15 @@ func UpsertBot(
 
 // UpsertBot creates a new bot or forcefully updates an existing bot.
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
-	if err := setKindAndVersion(req.Bot); err != nil {
-		return nil, trace.Wrap(err, "setting kind and version")
-	}
-
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToResource153(
-		req.Bot,
-		types.VerbCreate, types.VerbUpdate,
-	); err != nil {
+
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Support reused MFA for bulk tctl create requests.
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
@@ -443,10 +397,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 			Name: bot.Metadata.Name,
 		},
 	}); err != nil {
-		bs.logger.WarnContext(
-			ctx, "Failed to emit BotCreate audit event",
-			"error", err,
-		)
+		bs.logger.WithError(err).Warn("Failed to emit BotCreate audit event.")
 	}
 
 	return bot, nil
@@ -457,20 +408,15 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
-	if err := setKindAndVersion(req.Bot); err != nil {
-		return nil, trace.Wrap(err, "setting kind and version")
-	}
-
 	authCtx, err := bs.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToResource153(
-		req.Bot,
-		types.VerbUpdate,
-	); err != nil {
+
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -522,10 +468,6 @@ func (bs *BotService) UpdateBot(
 				traits[t.Name] = append(traits[t.Name], t.Values...)
 			}
 			user.SetTraits(traits)
-		case "spec.max_session_ttl":
-			opts := role.GetOptions()
-			opts.MaxSessionTTL = types.Duration(req.Bot.Spec.MaxSessionTtl.AsDuration())
-			role.SetOptions(opts)
 		default:
 			return nil, trace.BadParameter("update_mask: unsupported path %q", path)
 		}
@@ -550,10 +492,7 @@ func (bs *BotService) UpdateBot(
 			Name: req.Bot.Metadata.Name,
 		},
 	}); err != nil {
-		bs.logger.WarnContext(
-			ctx, "Failed to emit BotUpdate audit event",
-			"error", err,
-		)
+		bs.logger.WithError(err).Warn("Failed to emit BotUpdate audit event.")
 	}
 
 	bot, err := botFromUserAndRole(user, role)
@@ -592,18 +531,6 @@ func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 	return bs.backend.DeleteRole(ctx, role.GetName())
 }
 
-// dummyBotWithName returns a dummy bot with the given name. This is used
-// for evaluating RBAC for the Delete RPC
-func dummyBotWithName(name string) *pb.Bot {
-	return &pb.Bot{
-		Kind:    types.KindBot,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
-	}
-}
-
 // DeleteBot deletes an existing bot. It will throw an error if the bot does
 // not exist.
 func (bs *BotService) DeleteBot(
@@ -619,17 +546,16 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.BotName == "" {
-		return nil, trace.BadParameter("bot_name: must be non-empty")
+	if err := authCtx.CheckAccessToKind(types.KindBot, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToResource153(
-		dummyBotWithName(req.BotName), types.VerbDelete,
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.BotName == "" {
+		return nil, trace.BadParameter("bot_name: must be non-empty")
 	}
 
 	err = trace.NewAggregate(
@@ -650,34 +576,10 @@ func (bs *BotService) DeleteBot(
 			Name: req.BotName,
 		},
 	}); err != nil {
-		bs.logger.WarnContext(
-			ctx, "Failed to emit BotDelete audit event",
-			"error", err,
-		)
+		bs.logger.WithError(err).Warn("Failed to emit BotDelete audit event.")
 	}
 
 	return &emptypb.Empty{}, nil
-}
-
-// setKindAndVersion patches for the fact that when this API was originally
-// introduced, we did not enforce that the Kind/Version fields were set.
-// This is largely not an issue since someone would need to invoke the API
-// directly (as tctl will require that they are set). However, we do need these
-// fields to be set correctly for authz to work properly.
-//
-// TODO(noah): In the future, we should commit to a breaking change to validate
-// that these fields are set correctly.
-func setKindAndVersion(b *pb.Bot) error {
-	if b == nil {
-		return trace.BadParameter("bot: must be non-nil")
-	}
-	if b.Kind == "" {
-		b.Kind = types.KindBot
-	}
-	if b.Version == "" {
-		b.Version = types.V1
-	}
-	return nil
 }
 
 func validateBot(b *pb.Bot) error {
@@ -734,8 +636,7 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 			RoleName: role.GetName(),
 		},
 		Spec: &pb.BotSpec{
-			Roles:         role.GetImpersonateConditions(types.Allow).Roles,
-			MaxSessionTtl: durationpb.New(role.GetOptions().MaxSessionTTL.Duration()),
+			Roles: role.GetImpersonateConditions(types.Allow).Roles,
 		},
 	}
 
@@ -767,17 +668,9 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User, types.Role, error) {
 	// Setup role
 	resourceName := BotResourceName(bot.Metadata.Name)
-
-	// Continue to use the legacy max session TTL (12 hours) as the default, but
-	// allow overrides via the optional bot spec field.
-	maxSessionTTL := defaults.DefaultBotMaxSessionTTL
-	if bot.Spec.MaxSessionTtl != nil {
-		maxSessionTTL = bot.Spec.MaxSessionTtl.AsDuration()
-	}
-
 	role, err := types.NewRole(resourceName, types.RoleSpecV6{
 		Options: types.RoleOptions{
-			MaxSessionTTL: types.NewDuration(maxSessionTTL),
+			MaxSessionTTL: types.Duration(12 * time.Hour),
 		},
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
@@ -812,7 +705,9 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 
 	// First copy in the labels from the Bot resource
 	userMeta.Labels = map[string]string{}
-	maps.Copy(userMeta.Labels, bot.Metadata.Labels)
+	for k, v := range bot.Metadata.Labels {
+		userMeta.Labels[k] = v
+	}
 	// Then set these labels over the top - we exclude these when converting
 	// back.
 	userMeta.Labels[types.BotLabel] = bot.Metadata.Name

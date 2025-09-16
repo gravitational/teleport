@@ -18,6 +18,7 @@
 
 import { subMinutes, subSeconds } from 'date-fns';
 import { createMemoryHistory } from 'history';
+import React from 'react';
 import { Router } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';

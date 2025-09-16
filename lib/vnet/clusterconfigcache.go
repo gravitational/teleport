@@ -27,15 +27,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/singleflight"
-
-	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 )
 
 type ClusterConfig struct {
-	// ProxyPublicAddr is the public address of the proxy, it is always a valid DNS zone for apps.
+	// ClusterName is the name of the cluster as reported by Ping.
+	ClusterName string
+	// ProxyPublicAddr is the public address of the proxy as reported by Ping, with any ports removed, this is
+	// just the hostname. This is often but not always identical to the ClusterName. For root clusters this
+	// will be the same as the profile name (the profile is named after the proxy public addr).
 	ProxyPublicAddr string
-	// CustomDNSZones is the list of custom DNS zones configured for the cluster.
-	CustomDNSZones []string
+	// DNSZones is the list of DNS zones that are valid for this cluster, this includes ProxyPublicAddr *and*
+	// any configured custom DNS zones for the cluster.
+	DNSZones []string
 	// IPv4CIDRRange is the CIDR range that IPv4 addresses should be assigned from for apps in this cluster.
 	IPv4CIDRRange string
 	// Expires is the time at which this information should be considered stale and refetched. Stale data may
@@ -45,10 +48,6 @@ type ClusterConfig struct {
 
 func (e *ClusterConfig) stale(clock clockwork.Clock) bool {
 	return clock.Now().After(e.Expires)
-}
-
-func (c *ClusterConfig) appDNSZones() []string {
-	return append([]string{c.ProxyPublicAddr}, c.CustomDNSZones...)
 }
 
 // ClusterConfigCache is a read-through cache for cluster VnetConfigs. Cached entries go stale after 5
@@ -113,6 +112,7 @@ func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clust
 		return nil, trace.Wrap(err)
 	}
 
+	clusterName := pingResp.ClusterName
 	proxyPublicAddr := pingResp.ProxyPublicAddr
 	if strings.Contains(proxyPublicAddr, ":") {
 		proxyPublicAddr, _, err = net.SplitHostPort(pingResp.ProxyPublicAddr)
@@ -121,8 +121,8 @@ func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clust
 		}
 	}
 
-	var customDNSZones []string
-	ipv4CIDRRange := typesvnet.DefaultIPv4CIDRRange
+	dnsZones := []string{proxyPublicAddr}
+	ipv4CIDRRange := defaultIPv4CIDRRange
 
 	vnetConfig, err := clusterClient.CurrentCluster().GetVnetConfig(ctx)
 	if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
@@ -131,14 +131,15 @@ func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clust
 		return nil, trace.Wrap(err)
 	} else {
 		for _, zone := range vnetConfig.GetSpec().GetCustomDnsZones() {
-			customDNSZones = append(customDNSZones, zone.GetSuffix())
+			dnsZones = append(dnsZones, zone.GetSuffix())
 		}
-		ipv4CIDRRange = cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), typesvnet.DefaultIPv4CIDRRange)
+		ipv4CIDRRange = cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), defaultIPv4CIDRRange)
 	}
 
 	return &ClusterConfig{
+		ClusterName:     clusterName,
 		ProxyPublicAddr: proxyPublicAddr,
-		CustomDNSZones:  customDNSZones,
+		DNSZones:        dnsZones,
 		IPv4CIDRRange:   ipv4CIDRRange,
 		Expires:         c.clock.Now().Add(5 * time.Minute),
 	}, nil

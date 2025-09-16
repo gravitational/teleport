@@ -153,13 +153,18 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				},
 			},
 			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
-				wantWeb := &types.Webauthn{
-					RPID:                  "example.com",
-					AttestationAllowedCAs: []string{yubicoU2FCA},
+				// Did we derive the WebAuthn config from U2F?
+				if sf := got.GetSecondFactor(); sf == constants.SecondFactorWebauthn ||
+					sf == constants.SecondFactorOn ||
+					sf == constants.SecondFactorOptional {
+					wantWeb := &types.Webauthn{
+						RPID:                  "example.com",
+						AttestationAllowedCAs: []string{yubicoU2FCA},
+					}
+					gotWeb, err := got.GetWebauthn()
+					require.NoError(t, err, "webauthn config not found")
+					require.Empty(t, cmp.Diff(wantWeb, gotWeb))
 				}
-				gotWeb, err := got.GetWebauthn()
-				require.NoError(t, err, "webauthn config not found")
-				require.Empty(t, cmp.Diff(wantWeb, gotWeb))
 			},
 		},
 		{
@@ -706,16 +711,6 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_deviceTrust(t *testing.T) {
 				Spec: types.AuthPreferenceSpecV2{
 					DeviceTrust: &types.DeviceTrust{
 						Mode: constants.DeviceTrustModeRequired,
-					},
-				},
-			},
-		},
-		{
-			name: "Mode=required-for-humans",
-			authPref: &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{
-					DeviceTrust: &types.DeviceTrust{
-						Mode: constants.DeviceTrustModeRequiredForHumans,
 					},
 				},
 			},

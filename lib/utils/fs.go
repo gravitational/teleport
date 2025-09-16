@@ -265,7 +265,7 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 }
 
 // RemoveAllSecure is similar to [os.RemoveAll] but leverages [RemoveSecure] to delete files so that they are
-// overwritten. This helps guard against hardware attacks on magnetic disks.
+// overwritten.  This helps guard against hardware attacks on magnetic disks.
 func RemoveAllSecure(path string) error {
 	if path == "" {
 		// match behavior from os.RemoveAll
@@ -339,7 +339,7 @@ func removeSecure(filePath string, fi os.FileInfo) error {
 	if runtime.GOOS == "windows" {
 		// Windows can't unlink the file before overwriting.
 		if f != nil {
-			for range 3 {
+			for i := 0; i < 3; i++ {
 				if err := overwriteFile(f, fi); err != nil {
 					break
 				}
@@ -352,7 +352,7 @@ func removeSecure(filePath string, fi os.FileInfo) error {
 	} else {
 		removeErr := os.Remove(filePath)
 		if f != nil {
-			for range 3 {
+			for i := 0; i < 3; i++ {
 				if err := overwriteFile(f, fi); err != nil {
 					break
 				}
@@ -498,14 +498,4 @@ func RecursiveCopy(src, dest string, skip func(src, dest string) (bool, error)) 
 
 		return nil
 	}))
-}
-
-// CreateExclusiveFile creates a file only if it does not exist to prevent overwriting
-// existing files.
-func CreateExclusiveFile(path string, mode os.FileMode) (*os.File, error) {
-	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	return out, nil
 }

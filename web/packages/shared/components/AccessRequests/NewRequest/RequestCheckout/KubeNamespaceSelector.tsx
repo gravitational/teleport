@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActionMeta } from 'react-select';
 import styled from 'styled-components';
 
 import { Box } from 'design';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import { CheckableOptionComponent } from '../CheckableOption';
 import { PendingKubeResourceItem, PendingListItem } from './RequestCheckout';
@@ -55,6 +56,14 @@ export function KubeNamespaceSelector({
   // options for future (clicking the dropdown again).
   const [initOptions, setInitOptions] = useState<Option[]>([]);
 
+  // react select version 3.0 (in teleport version v16 or less)
+  // does not support the field "initOptionsOnMenuOpen".
+  // This is required to produce the same affect.
+  const [initAttempt, initRunAttempt] = useAsync(async () => {
+    const opts = await handleLoadOptions();
+    setInitOptions(opts);
+  });
+
   const currKubeClustersNamespaceItems = savedResourceItems.filter(
     resource =>
       resource.kind === 'namespace' &&
@@ -69,9 +78,15 @@ export function KubeNamespaceSelector({
     }))
   );
 
+  useEffect(() => {
+    if (isMenuOpen) {
+      initRunAttempt();
+    }
+  }, [isMenuOpen]);
+
   function handleChange(options: Option[], actionMeta: ActionMeta<Option>) {
     if (isMenuOpen) {
-      setSelectedOpts(options);
+      setSelectedOpts(options || []);
       return;
     }
 
@@ -111,7 +126,7 @@ export function KubeNamespaceSelector({
     };
   }
 
-  async function handleLoadOptions(input: string) {
+  async function handleLoadOptions(input = '') {
     const namespaces = await fetchKubeNamespaces(input, kubeClusterItem);
 
     return namespaces.map(namespace => ({
@@ -142,8 +157,19 @@ export function KubeNamespaceSelector({
         onChange={handleChange}
         value={selectedOpts}
         menuPosition="fixed" /* required to render dropdown out of its row */
-        initOptionsOnMenuOpen={(opts: Option[]) => setInitOptions(opts)}
         defaultOptions={initOptions}
+        noOptionsMessage={() => {
+          if (
+            initAttempt.status === 'processing' ||
+            initAttempt.status === ''
+          ) {
+            return 'Loading...';
+          }
+          if (initAttempt.status === 'error') {
+            return initAttempt.statusText;
+          }
+          return 'No Options';
+        }}
       />
     </Box>
   );

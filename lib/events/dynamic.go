@@ -1,4 +1,5 @@
-/** Teleport
+/*
+ * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,16 +19,11 @@
 package events
 
 import (
-	"context"
 	"encoding/json"
-	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/structpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	log "github.com/sirupsen/logrus"
 
-	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -292,8 +288,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:
 		e = &events.AccessRequestDelete{}
-	case AccessRequestExpireEvent:
-		e = &events.AccessRequestExpire{}
 	case CertificateCreateEvent:
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
@@ -400,8 +394,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessGraphSettingsUpdate{}
 	case DatabaseSessionSpannerRPCEvent:
 		e = &events.SpannerRPC{}
-	case GitCommandEvent:
-		e = &events.GitCommand{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
@@ -447,7 +439,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.StaticHostUserUpdate{}
 	case StaticHostUserDeleteEvent:
 		e = &events.StaticHostUserDelete{}
-
 	case CrownJewelCreateEvent:
 		e = &events.CrownJewelCreate{}
 	case CrownJewelUpdateEvent:
@@ -461,9 +452,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.UserTaskUpdate{}
 	case UserTaskDeleteEvent:
 		e = &events.UserTaskDelete{}
-
-	case SFTPSummaryEvent:
-		e = &events.SFTPSummary{}
 
 	case AutoUpdateConfigCreateEvent:
 		e = &events.AutoUpdateConfigCreate{}
@@ -479,17 +467,17 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case AutoUpdateVersionDeleteEvent:
 		e = &events.AutoUpdateVersionDelete{}
 
-	case ContactCreateEvent:
-		e = &events.ContactCreate{}
-	case ContactDeleteEvent:
-		e = &events.ContactDelete{}
-
 	case WorkloadIdentityCreateEvent:
 		e = &events.WorkloadIdentityCreate{}
 	case WorkloadIdentityUpdateEvent:
 		e = &events.WorkloadIdentityUpdate{}
 	case WorkloadIdentityDeleteEvent:
 		e = &events.WorkloadIdentityDelete{}
+
+	case ContactCreateEvent:
+		e = &events.ContactCreate{}
+	case ContactDeleteEvent:
+		e = &events.ContactDelete{}
 
 	case WorkloadIdentityX509RevocationCreateEvent:
 		e = &events.WorkloadIdentityX509RevocationCreate{}
@@ -498,50 +486,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case WorkloadIdentityX509RevocationDeleteEvent:
 		e = &events.WorkloadIdentityX509RevocationDelete{}
 
-	case StableUNIXUserCreateEvent:
-		e = &events.StableUNIXUserCreate{}
-
-	case AWSICResourceSyncSuccessEvent,
-		AWSICResourceSyncFailureEvent:
-		e = &events.AWSICResourceSync{}
-
-	case HealthCheckConfigCreateEvent:
-		e = &events.HealthCheckConfigCreate{}
-	case HealthCheckConfigUpdateEvent:
-		e = &events.HealthCheckConfigUpdate{}
-	case HealthCheckConfigDeleteEvent:
-		e = &events.HealthCheckConfigDelete{}
-
-	case WorkloadIdentityX509IssuerOverrideCreateEvent:
-		e = &events.WorkloadIdentityX509IssuerOverrideCreate{}
-	case WorkloadIdentityX509IssuerOverrideDeleteEvent:
-		e = &events.WorkloadIdentityX509IssuerOverrideDelete{}
-
-	case SigstorePolicyCreateEvent:
-		e = &events.SigstorePolicyCreate{}
-	case SigstorePolicyUpdateEvent:
-		e = &events.SigstorePolicyUpdate{}
-	case SigstorePolicyDeleteEvent:
-		e = &events.SigstorePolicyDelete{}
-
-	case MCPSessionStartEvent:
-		e = &events.MCPSessionStart{}
-	case MCPSessionEndEvent:
-		e = &events.MCPSessionEnd{}
-	case MCPSessionRequestEvent:
-		e = &events.MCPSessionRequest{}
-	case MCPSessionNotificationEvent:
-		e = &events.MCPSessionNotification{}
-
-	case BoundKeypairRecovery:
-		e = &events.BoundKeypairRecovery{}
-	case BoundKeypairRotation:
-		e = &events.BoundKeypairRotation{}
-	case BoundKeypairJoinStateVerificationFailed:
-		e = &events.BoundKeypairJoinStateVerificationFailed{}
-
 	default:
-		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
+		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}
 		if err := utils.FastUnmarshal(data, unknown); err != nil {
 			return nil, trace.Wrap(err)
@@ -596,59 +542,4 @@ func ToEventFields(event events.AuditEvent) (EventFields, error) {
 	}
 
 	return fields, nil
-}
-
-// FromEventFieldsSlice converts an array of EventFields to an array of AuditEvent.
-func FromEventFieldsSlice(fieldsArray []EventFields) ([]events.AuditEvent, error) {
-	events := make([]events.AuditEvent, 0, len(fieldsArray))
-	for _, fields := range fieldsArray {
-		event, err := FromEventFields(fields)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		events = append(events, event)
-	}
-	return events, nil
-}
-
-// EventFieldsToUnstructured converts an EventFields to an EventUnstructured.
-func FromEventFieldsSliceToUnstructured(fieldsArray []EventFields) ([]*auditlogpb.EventUnstructured, error) {
-	events := make([]*auditlogpb.EventUnstructured, 0, len(fieldsArray))
-	for _, fields := range fieldsArray {
-		event, err := EventFieldsToUnstructured(fields)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		events = append(events, event)
-	}
-	return events, nil
-}
-
-// EventFieldsToUnstructured converts the raw event fields stored to unstructured.
-func EventFieldsToUnstructured(evt EventFields) (*auditlogpb.EventUnstructured, error) {
-	str, err := structpb.NewStruct(evt)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to convert event fields to structpb.Struct")
-	}
-
-	id := getOrComputeEventID(evt)
-
-	return &auditlogpb.EventUnstructured{
-		Type:         evt.GetType(),
-		Index:        int64(evt.GetInt(EventIndex)),
-		Time:         timestamppb.New(evt.GetTime(EventTime)),
-		Id:           id,
-		Unstructured: str,
-	}, nil
-}
-
-// getOrComputeEventID computes the ID of the event. If the event already has an ID, it is returned.
-// Otherwise, the event is marshaled to JSON and the SHA256 hash of the JSON is returned.
-func getOrComputeEventID(evt EventFields) string {
-	id := evt.GetID()
-	if id != "" {
-		return id
-	}
-
-	return uuid.NewString()
 }

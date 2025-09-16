@@ -51,8 +51,6 @@ export interface AccessRequest {
   promotedAccessListTitle?: string;
   assumeStartTime?: Date;
   assumeStartTimeDuration?: string;
-  reasonMode: string;
-  reasonPrompts: string[];
 }
 
 export interface AccessRequestReview {

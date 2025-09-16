@@ -33,11 +33,9 @@ import (
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -207,8 +205,6 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWindowsDesktopService, nil
 	case types.KindWindowsDesktop, "win_desktop":
 		return types.KindWindowsDesktop, nil
-	case types.KindDynamicWindowsDesktop, "dynamic_win_desktop", "dynamic_desktop":
-		return types.KindDynamicWindowsDesktop, nil
 	case types.KindToken, "tokens":
 		return types.KindToken, nil
 	case types.KindInstaller:
@@ -275,30 +271,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAutoUpdateVersion, nil
 	case types.KindAutoUpdateAgentRollout:
 		return types.KindAutoUpdateAgentRollout, nil
-	case types.KindAutoUpdateAgentReport:
-		return types.KindAutoUpdateAgentReport, nil
-	case types.KindGitServer, types.KindGitServer + "s":
-		return types.KindGitServer, nil
 	case types.KindWorkloadIdentityX509Revocation, types.KindWorkloadIdentityX509Revocation + "s":
 		return types.KindWorkloadIdentityX509Revocation, nil
-	case types.KindWorkloadIdentityX509IssuerOverride, types.KindWorkloadIdentityX509IssuerOverride + "s":
-		return types.KindWorkloadIdentityX509IssuerOverride, nil
-	case types.KindSigstorePolicy, "sigstorepolicy", "sigstore_policies", "sigstorepolicies":
-		return types.KindSigstorePolicy, nil
-	case types.KindHealthCheckConfig, types.KindHealthCheckConfig + "s", "hcc":
-		return types.KindHealthCheckConfig, nil
-	case scopedaccess.KindScopedRole, scopedaccess.KindScopedRole + "s", "scopedrole", "scopedroles":
-		return scopedaccess.KindScopedRole, nil
-	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments":
-		return scopedaccess.KindScopedRoleAssignment, nil
-	case types.KindInferenceModel, "inference_models":
-		return types.KindInferenceModel, nil
-	case types.KindInferenceSecret, "inference_secrets":
-		return types.KindInferenceSecret, nil
-	case types.KindInferencePolicy, "inference_policies":
-		return types.KindInferencePolicy, nil
-	case types.KindRelayServer, types.KindRelayServer + "s":
-		return types.KindRelayServer, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -781,26 +755,6 @@ func init() {
 		}
 		return types.Resource153ToLegacy(v), nil
 	})
-	// add health_check_config to tctl get all
-	RegisterResourceMarshaler(types.KindHealthCheckConfig, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
-		wrapper, ok := resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig])
-		if !ok {
-			return nil, trace.BadParameter("expected health check config, got %T", resource)
-		}
-		bytes, err := MarshalHealthCheckConfig(wrapper.UnwrapT(), opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return bytes, nil
-	})
-	// support health_check_config --bootstrap and --apply-on-startup
-	RegisterResourceUnmarshaler(types.KindHealthCheckConfig, func(data []byte, options ...MarshalOption) (types.Resource, error) {
-		cfg, err := UnmarshalHealthCheckConfig(data, options...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return types.Resource153ToLegacy(cfg), nil
-	})
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
@@ -985,26 +939,6 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 	return resource, nil
 }
 
-// UnmarshalProtoResourceArray unmarshals an array of ProtoResources from JSON using [UnmarshalProtoResource] on each
-// individual element.
-func UnmarshalProtoResourceArray[T ProtoResourcePtr[U], U any](data []byte, opts ...MarshalOption) ([]T, error) {
-	var msgs []json.RawMessage
-	if err := json.Unmarshal(data, &msgs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resources := make([]T, 0, len(msgs))
-	for _, msg := range msgs {
-		resource, err := UnmarshalProtoResource[T](msg, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, resource)
-	}
-
-	return resources, nil
-}
-
 // FastMarshalProtoResourceDeprecated marshals a ProtoResource to JSON using [utils.FastMarshal] and respecting [opts].
 //
 // Deprecated: this should not be used for new types, prefer [MarshalProtoResource]. Existing types should not
@@ -1049,17 +983,4 @@ func FastUnmarshalProtoResourceDeprecated[T ProtoResourcePtr[U], U any](data []b
 		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
 	}
 	return resource, nil
-}
-
-// convertResource is a generic helper func that converts a [types.Resource] by
-// direct type assertion or assertion to an [types.Resource153UnwrapperT].
-func convertResource[T any](resource types.Resource) (T, error) {
-	switch resource := resource.(type) {
-	case T:
-		return resource, nil
-	case interface{ UnwrapT() T }:
-		return resource.UnwrapT(), nil
-	}
-	var zero T
-	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
 }

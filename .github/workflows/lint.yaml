@@ -1,9 +1,8 @@
 name: Lint
 on:
   pull_request:
+
   merge_group:
-env:
-  GOFLAGS: '-buildvcs=false'
 
 jobs:
   changes:
@@ -15,7 +14,6 @@ jobs:
       has_go: ${{ steps.changes.outputs.has_go }}
       has_rust: ${{ steps.changes.outputs.has_rust }}
       has_proto: ${{ steps.changes.outputs.has_proto }}
-      has_rfd: ${{ steps.changes.outputs.has_rfd }}
       has_ui: ${{ steps.changes.outputs.has_ui }}
     steps:
       - name: Checkout
@@ -27,10 +25,6 @@ jobs:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
           filters: |
-            has_rfd:
-              - '.github/workflows/lint.yaml'
-              - 'rfd/**.md'
-              - 'rfd/cspell.json'
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
@@ -64,12 +58,10 @@ jobs:
               - 'integrations/terraform/Makefile'
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
-              - 'integrations/terraform/provider/**'
               # rendered doc changes
-              - 'docs/pages/admin-guides/**'
-              - 'docs/pages/enroll-resources/**'
-              - 'docs/pages/reference/operator-resources/**'
+              - 'docs/pages/reference/terraform-provider.mdx'
               - 'docs/pages/reference/terraform-provider/**'
+              - 'docs/pages/reference/operator-resources/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
             has_ui:
               - '.github/workflows/lint.yaml'
@@ -91,7 +83,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport16
 
     steps:
       - name: Checkout
@@ -103,9 +95,12 @@ jobs:
           find . -path ./e -prune -o -name go.mod -print | while read f; do
             echo "checking $f"
             pushd $(dirname "$f") > /dev/null;
-            go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
+            go mod tidy;
             popd > /dev/null;
           done
+
+          # We have to add the current directory as a safe directory or else git commands will not work as expected.
+          git config --global --add safe.directory $( realpath . ) && git diff --exit-code;
 
       - name: Set linter versions
         run: |
@@ -161,12 +156,6 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
 
-      - name: Check if go generated files are up to date
-        run: make go-generate-up-to-date
-
-      - name: Check if test symbols are included in binaries
-        run: make lint-test-symbols
-
   lint-rust:
     name: Lint (Rust)
     runs-on: ubuntu-22.04
@@ -206,7 +195,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport16
 
     steps:
       - name: Checkout
@@ -216,10 +205,7 @@ jobs:
         run: |
           echo BUF_VERSION=$(cd build.assets; make print-buf-version) >> $GITHUB_ENV
 
-      - name: Print linter versions
-        run: |
-          echo "BUF_VERSION=$BUF_VERSION"
-      - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
+      - uses: bufbuild/buf-setup-action@480a0ee8a588045b52a847b48138c6f377a89519 # v1.31.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}
@@ -228,11 +214,9 @@ jobs:
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
         with:
           against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
-      # Release branches must not add new fields to protos with respect to
-      # master, new fields should be added to master first.
       - name: buf breaking from self to master
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
-        if: startsWith(github.base_ref, 'branch/v') || startsWith(github.event.merge_group.base_ref, 'refs/heads/branch/v')
+        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
         with:
           input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
           against: '.'
@@ -250,28 +234,6 @@ jobs:
         # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
         run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.0.2 && make terraform-resources-up-to-date
 
-  lint-rfd:
-    name: Lint (RFD)
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rfd == 'true' }}
-    runs-on: ubuntu-22.04
-
-    permissions:
-      contents: read
-
-    container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install JS dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Check spelling
-        run: pnpm cspell -c ./rfd/cspell.json rfd
-
   lint-ui:
     name: Prettier, ESLint, & TSC
     needs: changes
@@ -282,7 +244,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport16
 
     steps:
       - name: Checkout OSS Teleport
@@ -310,10 +272,3 @@ jobs:
 
       - name: Run Storybook smoke test
         run: pnpm storybook-smoke-test
-
-      - name: Lint licenses
-        run: make lint-license
-
-      - name: Check icons
-        # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && make icons-up-to-date

@@ -1,71 +1,11 @@
-{{ edition="Teleport" clients="`tctl` and `tsh` clients" }}
+{{ version="(=teleport.version=)" }}
 
-- A running {{ edition }} cluster. If you want to get started with Teleport,
-  [sign up](https://goteleport.com/signup) for a free trial or [set up a demo
-  environment](../linux-demo.mdx).
+- A running Teleport cluster version {{ version }} or above. If you want to get started with Teleport, [sign
+  up](https://goteleport.com/signup) for a free trial or [set up a demo
+  environment](../zero-trust-access/deploy-a-cluster/linux-demo.mdx).
 
-- The {{ clients }}.
+- The `tctl` admin tool and `tsh` client tool.
 
-  <details>
-  <summary>Installing {{ clients }}</summary>
+  Visit [Installation](../installation/installation.mdx) for instructions on downloading
+  `tctl` and `tsh`.
 
-  1. Determine the version of your Teleport cluster. The {{ clients }} must be
-     at most one major version behind your Teleport cluster version. Send a GET
-     request to the Proxy Service at `/v1/webapi/find` and use a JSON query tool
-     to obtain your cluster version. Replace <Var name="teleport.example.com:443" />
-     with the web address of your Teleport Proxy Service:
-  
-     ```code
-     $ TELEPORT_DOMAIN=<Var name="teleport.example.com:443" />
-     $ TELEPORT_VERSION="$(curl -s https://$TELEPORT_DOMAIN/v1/webapi/find | jq -r '.server_version')"
-     ```
-
-  1. Follow the instructions for your platform to install {{ clients }}:
-
-     <Tabs>
-       <TabItem label="Mac">
-     
-         Download the signed macOS .pkg installer for Teleport, which includes the {{ clients }}:
-     
-         ```code
-         $ curl -O https://cdn.teleport.dev/teleport-${TELEPORT_VERSION?}.pkg
-         ```
-   
-         In Finder double-click the `pkg` file to begin installation.
-     
-         <Admonition type="danger">
-           Using Homebrew to install Teleport is not supported. The Teleport package in
-           Homebrew is not maintained by Teleport and we can't guarantee its reliability or
-           security.
-         </Admonition>
-     
-       </TabItem>
-     
-       <TabItem label="Windows - Powershell">
-     
-         ```code
-         $ curl.exe -O https://cdn.teleport.dev/teleport-v${TELEPORT_VERSION?}-windows-amd64-bin.zip
-         # Unzip the archive and move the {{ clients }} to your %PATH%
-         # NOTE: Do not place the {{ clients }} in the System32 directory, as this can cause issues when using WinSCP.
-         # Use %SystemRoot% (C:\Windows) or %USERPROFILE% (C:\Users\<username>) instead.
-         ```
-     
-       </TabItem>
-     
-       <TabItem label="Linux">
-     
-         All of the Teleport binaries in Linux installations include the {{ clients }}.  For more
-         options (including RPM/DEB packages and downloads for i386/ARM/ARM64) see
-         our [installation page](../installation/installation.mdx).
-     
-         ```code
-         $ curl -O https://cdn.teleport.dev/teleport-v${TELEPORT_VERSION?}-linux-amd64-bin.tar.gz
-         $ tar -xzf teleport-v${TELEPORT_VERSION?}-linux-amd64-bin.tar.gz
-         $ cd teleport
-         $ sudo ./install
-         # Teleport binaries have been copied to /usr/local/bin
-         ```
-       </TabItem>
-     </Tabs>
-  
-  </details>

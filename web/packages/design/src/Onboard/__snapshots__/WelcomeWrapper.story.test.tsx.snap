@@ -1,0 +1,204 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`wrapper 1`] = `
+.c1 {
+  box-sizing: border-box;
+  height: 100%;
+}
+
+.c3 {
+  box-sizing: border-box;
+}
+
+.c2 {
+  display: flex;
+  justify-content: space-between;
+  flex-direction: column;
+}
+
+.c4 {
+  display: flex;
+  flex-direction: column;
+}
+
+.c11 {
+  display: flex;
+}
+
+.c7 {
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c6 {
+  display: block;
+  outline: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 12px;
+  margin-bottom: 12px;
+  max-width: 200px;
+  max-height: 120px;
+}
+
+.c13 {
+  color: #009EFF;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c8 {
+  width: 600px;
+  padding: 24px;
+  text-align: left;
+  margin: 16px auto 16px auto;
+  overflow-y: auto;
+}
+
+.c12 {
+  justify-content: center;
+  width: 100%;
+  gap: 50px;
+}
+
+.c10 {
+  padding-bottom: 24px;
+  width: 100%;
+  color: white;
+}
+
+.c14 {
+  color: white;
+  text-decoration: none;
+}
+
+.c14:hover,
+.c14:active,
+.c14:focus {
+  color: rgba(255,255,255,0.54);
+}
+
+.c0 {
+  position: absolute;
+  width: 100vw;
+  height: 100vh;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  z-index: -2;
+  background: url('file_stub');
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+  background-size: cover;
+}
+
+.c0::after {
+  content: '';
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  position: absolute;
+  z-index: -1;
+  background-color: black;
+  opacity: 0.25;
+  backdrop-filter: blur(17.5px);
+}
+
+.c5 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 24px 0;
+}
+
+@media screen and (max-width:800px) {
+  .c8 {
+    width: auto;
+    margin: 20px;
+  }
+}
+
+@media screen and (max-height:760px) {
+  .c8 {
+    height: calc(100vh - 250px);
+  }
+}
+
+@media screen and (max-width:800px) {
+  .c12 {
+    flex-direction: column-reverse;
+    text-align: center;
+    gap: 10px;
+  }
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1 c2"
+    height="100%"
+  >
+    <div
+      class="c3 c4"
+    >
+      <div
+        class="c3 c5"
+      >
+        <img
+          class="c6"
+          src="file_stub"
+        />
+      </div>
+      <div
+        class="c3 c7 c8"
+      >
+        <div
+          class="c9"
+        >
+          Some content
+        </div>
+      </div>
+    </div>
+    <footer
+      class="c10"
+    >
+      <div
+        class="c3 c11 c12"
+      >
+        <div
+          class="c9"
+        >
+          © Gravitational, Inc. All Rights Reserved
+        </div>
+        <a
+          class="c13 c14"
+          href="https://goteleport.com/legal/tos/"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Terms of Service
+        </a>
+        <a
+          class="c13 c14"
+          href="https://goteleport.com/legal/privacy/"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Privacy Policy
+        </a>
+      </div>
+    </footer>
+  </div>
+</div>
+`;

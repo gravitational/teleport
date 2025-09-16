@@ -1,7 +1,7 @@
 ---
 title: API Getting Started Guide
 description: Get started working with the Teleport API programmatically using Go.
-labels:
+tags:
  - get-started
  - mwi
 ---
@@ -122,12 +122,12 @@ func main() {
 	}
 
 	log.Printf("Example success!")
-	log.Printf("Example server response: %v", resp)
+	log.Printf("Example server response: %s", resp)
 	log.Printf("Server version: %s", resp.ServerVersion)
 }
 ```
 
-Now you can run the program and connect the client to the Teleport Auth Service to fetch the server version.
+Now you can run the program and connect the client to the Teleport Auth Server to fetch the server version.
 
 ```code
 $ go run main.go

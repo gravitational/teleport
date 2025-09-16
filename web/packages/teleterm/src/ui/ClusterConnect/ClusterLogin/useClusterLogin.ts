@@ -22,31 +22,30 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useAppUpdaterContext } from 'teleterm/ui/AppUpdater';
 import type * as types from 'teleterm/ui/services/clusters/types';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
 export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
-  const { clustersService, tshd, configService, mainProcessClient } =
-    useAppContext();
-  const appUpdaterContext = useAppUpdaterContext();
+  const { clustersService } = useAppContext();
   const cluster = clustersService.findCluster(clusterUri);
   const refAbortCtrl = useRef<AbortController>(null);
   const loggedInUserName =
     props.prefill.username || cluster.loggedInUser?.name || null;
   const [shouldPromptSsoStatus, promptSsoStatus] = useState(false);
-  const [passwordlessLoginState, setPasswordlessLoginState] =
-    useState<PasswordlessLoginState>();
+  const [webauthnLogin, setWebauthnLogin] = useState<WebauthnLogin>();
 
-  const [initAttempt, init] = useAsync(() => {
-    return Promise.all([
-      tshd.getAuthSettings({ clusterUri }).then(({ response }) => response),
-      // checkForAppUpdates doesn't return a rejected promise, errors are
-      // surfaced in app updates widget and details view.
-      mainProcessClient.checkForAppUpdates(),
-    ]).then(([authSettings]) => authSettings);
+  const [initAttempt, init] = useAsync(async () => {
+    const authSettings = await clustersService.getAuthSettings(clusterUri);
+
+    if (authSettings.preferredMfa === 'u2f') {
+      throw new Error(`the U2F API for hardware keys is deprecated, \
+        please notify your system administrator to update cluster \
+        settings to use WebAuthn as the second factor protocol.`);
+    }
+
+    return authSettings;
   });
 
   const [loginAttempt, login, setAttempt] = useAsync(
@@ -74,12 +73,22 @@ export default function useClusterLogin(props: Props) {
     }
   );
 
-  const onLoginWithLocal = (username: string, password: string) => {
+  const onLoginWithLocal = (
+    username: string,
+    password: string,
+    token: string,
+    secondFactor?: types.Auth2faType
+  ) => {
+    if (secondFactor === 'webauthn') {
+      setWebauthnLogin({ prompt: 'tap' });
+    }
+
     login({
       kind: 'local',
       clusterUri,
       username,
       password,
+      token,
     });
   };
 
@@ -87,16 +96,16 @@ export default function useClusterLogin(props: Props) {
     login({
       kind: 'passwordless',
       clusterUri,
-      onPromptCallback: (prompt: types.PasswordlessLoginPrompt) => {
-        const newState: PasswordlessLoginState = {
+      onPromptCallback: (prompt: types.WebauthnLoginPrompt) => {
+        const newLogin: WebauthnLogin = {
           prompt: prompt.type,
           processing: false,
         };
 
         if (prompt.type === 'pin') {
-          newState.onUserResponse = (pin: string) => {
-            setPasswordlessLoginState({
-              ...newState,
+          newLogin.onUserResponse = (pin: string) => {
+            setWebauthnLogin({
+              ...newLogin,
               // prevent user from clicking on submit buttons more than once
               processing: true,
             });
@@ -105,12 +114,12 @@ export default function useClusterLogin(props: Props) {
         }
 
         if (prompt.type === 'credential') {
-          newState.loginUsernames = prompt.data.credentials.map(
+          newLogin.loginUsernames = prompt.data.credentials.map(
             c => c.username
           );
-          newState.onUserResponse = (index: number) => {
-            setPasswordlessLoginState({
-              ...newState,
+          newLogin.onUserResponse = (index: number) => {
+            setWebauthnLogin({
+              ...newLogin,
               // prevent user from clicking on multiple usernames
               processing: true,
             });
@@ -118,7 +127,7 @@ export default function useClusterLogin(props: Props) {
           };
         }
 
-        setPasswordlessLoginState(newState);
+        setWebauthnLogin(newLogin);
       },
     });
   };
@@ -154,7 +163,7 @@ export default function useClusterLogin(props: Props) {
 
   useEffect(() => {
     if (loginAttempt.status !== 'processing') {
-      setPasswordlessLoginState(null);
+      setWebauthnLogin(null);
       promptSsoStatus(false);
     }
 
@@ -163,20 +172,9 @@ export default function useClusterLogin(props: Props) {
     }
   }, [loginAttempt.status]);
 
-  //TODO(gzdunek): We should have a way to listen to config service changes.
-  //A workaround for is to update the state, which triggers a re-render.
-  const [shouldSkipVersionCheck, setShouldSkipVersionCheck] = useState(
-    () => configService.get('skipVersionCheck').value
-  );
-  function disableVersionCheck() {
-    configService.set('skipVersionCheck', true);
-    setShouldSkipVersionCheck(true);
-  }
-  const { platform } = mainProcessClient.getRuntimeSettings();
-
   return {
     shouldPromptSsoStatus,
-    passwordlessLoginState,
+    webauthnLogin,
     title: cluster?.name,
     loggedInUserName,
     onLoginWithLocal,
@@ -186,22 +184,7 @@ export default function useClusterLogin(props: Props) {
     onAbort,
     loginAttempt,
     initAttempt,
-    init,
     clearLoginAttempt,
-    shouldSkipVersionCheck,
-    disableVersionCheck,
-    platform,
-    appUpdateEvent: appUpdaterContext.updateEvent,
-    downloadAppUpdate: mainProcessClient.downloadAppUpdate,
-    cancelAppUpdateDownload: mainProcessClient.cancelAppUpdateDownload,
-    checkForAppUpdates: mainProcessClient.checkForAppUpdates,
-    quitAndInstallAppUpdate: mainProcessClient.quitAndInstallAppUpdate,
-    changeAppUpdatesManagingCluster:
-      mainProcessClient.changeAppUpdatesManagingCluster,
-    clusterGetter: {
-      findCluster: (clusterUri: RootClusterUri) =>
-        clustersService.findCluster(clusterUri),
-    },
   };
 }
 
@@ -214,11 +197,9 @@ export type Props = {
   prefill: { username: string };
 };
 
-export type PasswordlessLoginState = {
-  /**
-   * prompt describes the current step, or prompt, shown to the user during the passwordless login.
-   */
-  prompt: types.PasswordlessLoginPrompt['type'];
+export type WebauthnLogin = {
+  prompt: types.WebauthnLoginPrompt['type'];
+  // The below fields are only ever used for passwordless login flow.
   processing?: boolean;
   loginUsernames?: string[];
   onUserResponse?(val: number | string): void;

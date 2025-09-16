@@ -82,40 +82,24 @@ func TestServiceAccess(t *testing.T) {
 		allowedStates []authz.AdminActionAuthState
 	}{
 		{
-			name: "UpsertDatabaseObjectImportRule",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
+			name:          "UpsertDatabaseObjectImportRule",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
-			name: "CreateDatabaseObjectImportRule",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbCreate},
+			name:          "CreateDatabaseObjectImportRule",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbCreate},
 		},
 		{
-			name: "UpdateDatabaseObjectImportRule",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbUpdate},
+			name:          "UpdateDatabaseObjectImportRule",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbUpdate},
 		},
 		{
-			name: "DeleteDatabaseObjectImportRule",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			allowedVerbs: []string{types.VerbDelete},
+			name:          "DeleteDatabaseObjectImportRule",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
 		},
 		{
 			name: "GetDatabaseObjectImportRule",
@@ -194,8 +178,10 @@ type fakeChecker struct {
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindDatabaseObjectImportRule {
-		if slices.Contains(f.allowedVerbs, verb) {
-			return nil
+		for _, allowedVerb := range f.allowedVerbs {
+			if allowedVerb == verb {
+				return nil
+			}
 		}
 	}
 

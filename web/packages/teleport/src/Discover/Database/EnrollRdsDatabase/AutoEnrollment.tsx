@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-import { Text } from 'design';
-import { Alert } from 'design/Alert/Alert';
+import { ButtonSecondary, Flex, Text } from 'design';
+import Alert from 'design/Alert/Alert';
 import { FetchStatus } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
@@ -44,7 +44,6 @@ import {
 import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons } from '../../Shared';
-import { AwsRdsAuthRequirementAlert } from '../SetupAccess/AwsRdsAuthRequirements';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
@@ -83,14 +82,8 @@ export function AutoEnrollment({
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
 
-  const {
-    agentMeta,
-    updateAgentMeta,
-    emitErrorEvent,
-    nextStep,
-    emitEvent,
-    resourceSpec,
-  } = useDiscover();
+  const { agentMeta, updateAgentMeta, emitErrorEvent, nextStep, emitEvent } =
+    useDiscover();
   const {
     attempt: createDiscoveryConfigAttempt,
     setAttempt: setCreateDiscoveryConfigAttempt,
@@ -222,13 +215,15 @@ export function AutoEnrollment({
       {showTable && (
         <>
           {tableData?.oneOfError && (
-            <Alert
-              primaryAction={{
-                content: 'Retry',
-                onClick: () => fetchRdsDatabases(emptyTableData(), vpc),
-              }}
-            >
-              {tableData.oneOfError}
+            <Alert>
+              <Flex alignItems="center" gap={2}>
+                {tableData.oneOfError}
+                <ButtonSecondary
+                  onClick={() => fetchRdsDatabases(emptyTableData(), vpc)}
+                >
+                  Retry
+                </ButtonSecondary>
+              </Flex>
             </Alert>
           )}
           <Text mt={3}>List of databases that will be auto enrolled:</Text>
@@ -237,10 +232,6 @@ export function AutoEnrollment({
             items={tableData?.items || []}
             fetchStatus={tableData?.fetchStatus || 'loading'}
             fetchNextPage={fetchNextPage}
-          />
-          <AwsRdsAuthRequirementAlert
-            wantAutoDiscover={true}
-            id={resourceSpec.id}
           />
         </>
       )}

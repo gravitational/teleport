@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/bitbucket"
@@ -53,7 +54,10 @@ func (a *Server) checkBitbucketJoinRequest(
 		return nil, trace.Wrap(err)
 	}
 
-	a.logger.InfoContext(ctx, "Bitbucket run trying to join cluster", "claims", claims, "token", pt.GetName())
+	log.WithFields(logrus.Fields{
+		"claims": claims,
+		"token":  pt.GetName(),
+	}).Info("Bitbucket run trying to join cluster")
 
 	return claims, trace.Wrap(checkBitbucketAllowRules(token, claims))
 }

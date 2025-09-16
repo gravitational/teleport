@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
@@ -92,9 +91,6 @@ type Config struct {
 	// StartTime represents the time the recorder started. If not zero, this
 	// value is used to generate the events index.
 	StartTime time.Time
-
-	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter events.EncryptionWrapper
 }
 
 // New returns a [events.SessionPreparerRecorder]. If session recording is disabled,
@@ -136,10 +132,7 @@ func New(cfg Config) (events.SessionPreparerRecorder, error) {
 			cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
 			events.StreamingSessionsDir, cfg.Namespace,
 		)
-		if cfg.Encrypter == nil {
-			cfg.Encrypter = recordingencryption.NewEncryptionWrapper(cfg.RecordingCfg)
-		}
-		fileStreamer, err := filesessions.NewStreamer(uploadDir, cfg.Encrypter)
+		fileStreamer, err := filesessions.NewStreamer(uploadDir)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

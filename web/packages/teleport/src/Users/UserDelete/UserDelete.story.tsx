@@ -16,11 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { StoryObj } from '@storybook/react-vite';
-import { delay } from 'msw';
-
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
-import { errorDeleteUser, handleDeleteUser } from 'teleport/test/helpers/users';
+import React from 'react';
 
 import { UserDelete } from './UserDelete';
 
@@ -28,54 +24,25 @@ export default {
   title: 'Teleport/Users/UserDelete',
 };
 
-export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleDeleteUser(() => delay('infinite'))],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <UserDelete {...props} />
-      </TeleportProviderBasic>
-    );
-  },
+export const Processing = () => {
+  return <UserDelete {...props} attempt={{ status: 'processing' }} />;
 };
 
-export const Confirm: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleDeleteUser(() => delay('infinite'))],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <UserDelete {...props} />
-      </TeleportProviderBasic>
-    );
-  },
+export const Confirm = () => {
+  return <UserDelete {...props} attempt={{ status: '' }} />;
 };
 
-export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [errorDeleteUser('server error')],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <UserDelete {...props} />
-      </TeleportProviderBasic>
-    );
-  },
+export const Failed = () => {
+  return (
+    <UserDelete
+      {...props}
+      attempt={{ status: 'failed', statusText: 'server error' }}
+    />
+  );
 };
 
 const props = {
   username: 'somename',
   onDelete: () => null,
   onClose: () => null,
-  modifyFetchedData: () => null,
 };

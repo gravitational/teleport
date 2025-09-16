@@ -50,8 +50,7 @@ type Modules struct {
 	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 
-	GenerateAccessRequestPromotionsFn  func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
-	GenerateLongTermResourceGroupingFn func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
+	GenerateAccessRequestPromotionsFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 // AttestHardwareKey implements modules.Modules.
@@ -84,14 +83,6 @@ func (m *Modules) Features() modules.Features {
 	return m.TestFeatures
 }
 
-// GenerateLongTermResourceGrouping implements modules.Modules.
-func (m *Modules) GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	if m.GenerateLongTermResourceGroupingFn != nil {
-		return m.GenerateLongTermResourceGroupingFn(ctx, clt, req)
-	}
-	return nil, trace.NotImplemented("GenerateLongTermResourceGrouping not implemented")
-}
-
 // GenerateAccessRequestPromotions implements modules.Modules.
 func (m *Modules) GenerateAccessRequestPromotions(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	if m.GenerateAccessRequestPromotionsFn != nil {
@@ -101,7 +92,9 @@ func (m *Modules) GenerateAccessRequestPromotions(ctx context.Context, getter mo
 }
 
 // GetSuggestedAccessLists implements modules.Modules.
-func (m *Modules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient, accessListGetter modules.AccessListAndMembersGetter, requestID string) ([]*accesslist.AccessList, error) {
+func (m *Modules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient,
+	accessListGetter modules.AccessListGetter, requestID string,
+) ([]*accesslist.AccessList, error) {
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }
 

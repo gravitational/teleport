@@ -1,7 +1,7 @@
 ---
 title: Configure Trusted Clusters
 description: Explains how you can configure a trust relationship and manage access between two Teleport clusters.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -32,6 +32,23 @@ instance running on the root cluster.
    leaf Proxy Services to connect to sensitive or unauthorized resources, so be sure to use a
    firewall to ensure leaf Proxy services are only allowed to connect to the appropriate resources.  
 </Admonition>
+
+{/* lint ignore page-structure remark-lint */}
+
+## Who uses trusted clusters?
+
+Most organizations don't need to configure trusted clusters. In most cases, you can add 
+multiple Teleport Proxy Service instances to enroll and manage thousands of resources 
+without creating a new cluster.
+
+However, there are a few specific scenarios where trusted clusters can be particularly useful.
+For example, if you have a large and widely-distributed infrastructure or must provide access
+to resources for external agencies, contractors, or clients, you might benefit from setting up 
+a trusted cluster. The most common use cases for trusted clusters include:
+
+- Managed service providers (MSP) remotely managing the infrastructure of their clients.
+- Device manufacturers remotely maintaining computing appliances deployed on premises.
+- Large cloud software vendors managing multiple data centers using a common proxy.
 
 ## How it works
 
@@ -83,21 +100,6 @@ on the leaf cluster and service running on the root cluster:
 Note that trusted clusters only work in one direction. 
 Users from the leaf cluster can't see or connect to resources in the root cluster.
 
-## Who uses trusted clusters?
-
-Most organizations don't need to configure trusted clusters. In most cases, you can add 
-multiple Teleport Proxy Service instances to enroll and manage thousands of resources 
-without creating a new cluster.
-
-However, there are a few specific scenarios where trusted clusters can be particularly useful.
-For example, if you have a large and widely-distributed infrastructure or must provide access
-to resources for external agencies, contractors, or clients, you might benefit from setting up 
-a trusted cluster. The most common use cases for trusted clusters include:
-
-- Managed service providers (MSP) remotely managing the infrastructure of their clients.
-- Device manufacturers remotely maintaining computing appliances deployed on premises.
-- Large cloud software vendors managing multiple data centers using a common proxy.
-
 ## Role relationships in a trusted cluster
 
 Leaf clusters are autonomous in that they have their own state, roles, and local users. This autonomy 
@@ -147,14 +149,14 @@ to learn how to:
 
 To complete the steps in this guide, verify your environment meets the following requirements:
 
-- [Proxy peering](../operations/proxy-peering.mdx) must be disabled. Proxy Peering and Trusted Clusters are not compatible.
+- [Proxy peering](../../../reference/architecture/proxy-peering.mdx) must be disabled. Proxy Peering and Trusted Clusters are not compatible.
 
 - Access to **two** Teleport cluster instances.
 
   The two clusters should be at the same version or, at most, the leaf cluster can be one major version 
   behind the root cluster version.
 
-- The `tctl` admin tool and `tsh` client tool.
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
   
   You can verify the tools you have installed by running the following commands:
 
@@ -170,7 +172,7 @@ To complete the steps in this guide, verify your environment meets the following
 
 - A Teleport SSH server that is joined to the cluster you plan to use as the **leaf cluster**.
   For information about how to enroll a resource in your cluster, see 
-  [Join Services to your Cluster](../../../enroll-resources/agents/agents.mdx).
+  [Join Services to your Cluster](../../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -185,7 +187,7 @@ logging in to the server in the leaf cluster.
 
 To add a user and role for accessing the trusted cluster:
 
-1. Open a terminal shell on the server running the Teleport Agent in the leaf cluster.
+1. Open a terminal shell on the server running the Teleport agent in the leaf cluster.
 
 1. Add the local `visitor` user and create a home directory for the user by running the 
 following command:
@@ -228,7 +230,7 @@ your Teleport username:
    ```
 
    You must explicitly allow access to nodes with labels to SSH into the server running 
-   the Teleport Agent. In this example, the `visitor` login is allowed access to any server.
+   the Teleport agent. In this example, the `visitor` login is allowed access to any server.
 
 1. Create the `visitor` role by running the following command:
    
@@ -236,8 +238,6 @@ your Teleport username:
    $ tctl create visitor.yaml
    ```
    
-   (!docs/pages/includes/create-role-using-web.mdx!)
-
    You now have a `visitor` role on your leaf cluster. The `visitor` role allows 
    users with the `visitor` login to access nodes in the leaf cluster. In the next step, 
    you must add the `visitor` login to your user so you can satisfy the conditions of 
@@ -444,7 +444,7 @@ the following command:
    ```
 
    You can also configure leaf clusters directly in the Teleport Web UI.
-   For example, you can select **Zero Trust Access** in the left pane, then click **Manage Clusters** to create a
+   For example, you can select **Management**, then click **Trusted Clusters** to create a
    new `trusted_cluster` resource or manage an existing trusted cluster.
 
 1. Sign out of the leaf cluster and sign back in to the root cluster. 
@@ -577,7 +577,7 @@ running the following command:
    ```
    
 
-1. Confirm that the server running the Teleport Agent is joined to the leaf cluster by 
+1. Confirm that the server running the Teleport agent is joined to the leaf cluster by 
 running a command similar to the following:
    
    ```code
@@ -900,9 +900,8 @@ command to start the teleport service:
 teleport start --debug`
 ```
 
-You can also enable verbose output by updating the configuration file for both
-Auth Service instances.  Open the `/etc/teleport.yaml` configuration file and
-add `DEBUG` to the `log` configuration section:
+You can also enable verbose output by updating the configuration file for both Auth Services.
+Open the `/etc/teleport.yaml` configuration file and add `DEBUG` to the `log` configuration section:
 
 ```yaml
 # Snippet from /etc/teleport.yaml
@@ -939,4 +938,5 @@ To troubleshoot, you should start by checking the following information for the 
   If you manage Teleport on your own network, the default location for audit log is 
   `/var/lib/teleport/log` on the server where the Teleport Auth Service for the cluster runs.
 
-  If you use Teleport as a managed cloud-based service, the audit log is viewable under **Audit** in the left-hand pane via the Web UI for users with permission to the `event` resources.
+  If you use Teleport as a managed cloud-based service, you can access the audit log from the
+  Teleport Web UI by selecting **Management**, then clicking **Audit Log** in the Activity section.

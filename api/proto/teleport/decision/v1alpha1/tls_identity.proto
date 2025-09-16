@@ -149,11 +149,6 @@ message TLSIdentity {
 
   // UserType indicates if the User was created by an SSO Provider or locally.
   string user_type = 35;
-
-  // JoinToken is the name of the join token used when a bot joins; it does not
-  // apply to other identity types, or to bots using the traditional `token`
-  // join method.
-  string join_token = 36;
 }
 
 // RouteToApp holds routing information for applications.
@@ -186,17 +181,6 @@ message RouteToApp {
   // Uri is the URI of the app. This is the internal endpoint where the
   // application is running and isn't user-facing.
   string uri = 8;
-
-  // TargetPort is the port to which connections should be routed to. Used only
-  // for multi-port TCP apps. It is appended to the hostname from the URI in the
-  // app spec, since the URI from RouteToApp is not used as the source of truth
-  // for routing.
-  int32 target_port = 9;
-
-  // AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
-  // This is a JSON string that conforms with
-  // https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
-  string aws_credentialprocess_credentials = 10;
 }
 
 // RouteToDatabase contains routing information for databases.

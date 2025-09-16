@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -144,7 +145,7 @@ func TestUpdateCrownJewel(t *testing.T) {
 	service := getService(t)
 	prepopulate(t, service, 1)
 
-	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
 	// Fetch the object from the backend so the revision is populated.
 	obj, err := service.GetCrownJewel(ctx, getObject(t, 0).GetMetadata().GetName())
@@ -168,7 +169,7 @@ func TestUpdateCrownJewelMissingRevision(t *testing.T) {
 	service := getService(t)
 	prepopulate(t, service, 1)
 
-	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
 	obj := getObject(t, 0)
 	obj.Metadata.Expires = expiry
@@ -233,7 +234,7 @@ func TestListCrownJewel(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -257,7 +258,7 @@ func TestListCrownJewel(t *testing.T) {
 					}
 				}
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -297,7 +298,7 @@ func getObject(t *testing.T, index int) *crownjewelv1.CrownJewel {
 }
 
 func prepopulate(t *testing.T, service services.CrownJewels, count int) {
-	for i := range count {
+	for i := 0; i < count; i++ {
 		_, err := service.CreateCrownJewel(context.Background(), getObject(t, i))
 		require.NoError(t, err)
 	}

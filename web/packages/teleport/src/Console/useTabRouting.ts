@@ -16,14 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo } from 'react';
+import React from 'react';
 import { useLocation, useParams, useRouteMatch } from 'react-router';
 
-import cfg, {
-  UrlDbConnectParams,
-  UrlKubeExecParams,
-  UrlSshParams,
-} from 'teleport/config';
+import cfg, { UrlKubeExecParams, UrlSshParams } from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 
 import ConsoleContext from './consoleContext';
@@ -42,12 +38,9 @@ export default function useRouting(ctx: ConsoleContext) {
   const joinKubeExecRouteMatch = useRouteMatch<UrlKubeExecParams>(
     cfg.routes.kubeExecSession
   );
-  const dbConnectMatch = useRouteMatch<UrlDbConnectParams>(
-    cfg.routes.dbConnect
-  );
 
   // Ensure that each URL has corresponding document
-  useMemo(() => {
+  React.useMemo(() => {
     if (ctx.getActiveDocId(pathname) !== -1) {
       return;
     }
@@ -68,8 +61,6 @@ export default function useRouting(ctx: ConsoleContext) {
     } else if (joinKubeExecRouteMatch) {
       joinKubeExecRouteMatch.params.mode = participantMode;
       ctx.addKubeExecDocument(joinKubeExecRouteMatch.params);
-    } else if (dbConnectMatch) {
-      ctx.addDbDocument(dbConnectMatch.params);
     }
   }, [ctx, pathname]);
 

@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os/user"
 	"strings"
 	"testing"
@@ -43,27 +42,11 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
-
-func startDummyHTTPServer(t *testing.T, name string) string {
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Server", name)
-		_, _ = w.Write([]byte("hello"))
-	}))
-
-	srv.Start()
-
-	t.Cleanup(func() {
-		srv.Close()
-	})
-
-	return srv.URL
-}
 
 func testDummyAppConn(addr string, tlsCerts ...tls.Certificate) (*http.Response, error) {
 	clt := &http.Client{
@@ -86,15 +69,7 @@ func testDummyAppConn(addr string, tlsCerts ...tls.Certificate) (*http.Response,
 func TestAppCommands(t *testing.T) {
 	ctx := context.Background()
 
-	oldResyncInterval := defaults.ResyncInterval
-	defaults.ResyncInterval = 100 * time.Millisecond
-	// To detect tests that run in parallel incorrectly, call t.Setenv with a
-	// dummy env var - that function detects tests with parallel ancestors
-	// and panics, preventing improper use of this helper.
-	t.Setenv("WithResyncInterval", "1")
-	t.Cleanup(func() {
-		defaults.ResyncInterval = oldResyncInterval
-	})
+	testserver.WithResyncInterval(t, 0)
 
 	accessUser, err := types.NewUser("access")
 	require.NoError(t, err)
@@ -105,51 +80,29 @@ func TestAppCommands(t *testing.T) {
 	accessUser.SetLogins([]string{user.Name})
 	connector := mockConnector(t)
 
-	rootApp := testserver.StartDummyHTTPServer("rootapp")
-	t.Cleanup(rootApp.Close)
-
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
-		testserver.WithClusterName("root"),
-		testserver.WithTestApp("rootapp", rootApp.URL),
+		testserver.WithClusterName(t, "root"),
+		testserver.WithTestApp(t, "rootapp"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, rootServer.Close())
-		require.NoError(t, rootServer.Wait())
-	})
+	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
 	rootAuthServer := rootServer.GetAuthServer()
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 
-	cap, err := rootAuthServer.GetAuthPreference(ctx)
-	require.NoError(t, err)
-	cap.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
-	_, err = rootAuthServer.UpdateAuthPreference(ctx, cap)
-	require.NoError(t, err)
-
-	leafApp := testserver.StartDummyHTTPServer("leafapp")
-	t.Cleanup(leafApp.Close)
-
 	leafServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(accessUser),
-		testserver.WithClusterName("leaf"),
-		testserver.WithTestApp("leafapp", leafApp.URL),
+		testserver.WithClusterName(t, "leaf"),
+		testserver.WithTestApp(t, "leafapp"),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, leafServer.Close())
-		require.NoError(t, leafServer.Wait())
-	})
-	SetupTrustedCluster(ctx, t, rootServer, leafServer)
+	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
+	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 	// Set up user with MFA device for per session MFA tests below.
 	origin := "https://127.0.0.1"
@@ -248,7 +201,6 @@ func TestAppCommands(t *testing.T) {
 								err = Run(ctx, []string{
 									"app",
 									"login",
-									"--insecure",
 									app.name,
 									"--cluster", app.cluster,
 								}, setHomePath(loginPath), webauthnLoginOpt)
@@ -331,13 +283,11 @@ func TestAppCommands(t *testing.T) {
 
 								assert.EventuallyWithT(t, func(t *assert.CollectT) {
 									resp, err := testDummyAppConn(fmt.Sprintf("http://127.0.0.1:%v", localProxyPort))
-									if !assert.NoError(t, err) {
-										return
-									}
+									require.NoError(t, err)
 									assert.Equal(t, http.StatusOK, resp.StatusCode)
 									assert.Equal(t, app.name, resp.Header.Get("Server"))
 									resp.Body.Close()
-								}, 10*time.Second, 20*time.Millisecond)
+								}, 10*time.Second, time.Second)
 
 								proxyCancel()
 								assert.NoError(t, <-errC)
@@ -382,8 +332,8 @@ func TestFormatAppConfig(t *testing.T) {
 		{"Name:     ", testAppName},
 		{"URI:", "https://test-app.example.com:8443"},
 		{"CA:", "/test/dir/keys/cas/root.pem"},
-		{"Cert:", "/test/dir/keys/alice-app/root/test-app.crt"},
-		{"Key:", "/test/dir/keys/alice-app/root/test-app.key"},
+		{"Cert:", "/test/dir/keys/alice-app/root/test-app-x509.pem"},
+		{"Key:", "/test/dir/keys/alice"},
 	}
 
 	defaultFormatTable := asciitable.MakeTable(make([]string, 2), asciiRows...)
@@ -428,21 +378,21 @@ func TestFormatAppConfig(t *testing.T) {
 			name:     "format cert",
 			tc:       defaultTc,
 			format:   appFormatCert,
-			expected: "/test/dir/keys/alice-app/root/test-app.crt",
+			expected: "/test/dir/keys/alice-app/root/test-app-x509.pem",
 		},
 		{
 			name:     "format key",
 			tc:       defaultTc,
 			format:   appFormatKey,
-			expected: "/test/dir/keys/alice-app/root/test-app.key",
+			expected: "/test/dir/keys/alice",
 		},
 		{
 			name:   "format curl standard non-standard HTTPS port",
 			tc:     defaultTc,
 			format: appFormatCURL,
 			expected: `curl \
-  --cert "/test/dir/keys/alice-app/root/test-app.crt" \
-  --key "/test/dir/keys/alice-app/root/test-app.key" \
+  --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+  --key "/test/dir/keys/alice" \
   https://test-app.example.com:8443`,
 		},
 		{
@@ -451,8 +401,8 @@ func TestFormatAppConfig(t *testing.T) {
 			format:   appFormatCURL,
 			insecure: true,
 			expected: `curl --insecure \
-  --cert "/test/dir/keys/alice-app/root/test-app.crt" \
-  --key "/test/dir/keys/alice-app/root/test-app.key" \
+  --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+  --key "/test/dir/keys/alice" \
   https://test-app.example.com:8443`,
 		},
 		{
@@ -463,9 +413,9 @@ func TestFormatAppConfig(t *testing.T) {
   "name": "test-app",
   "uri": "https://test-app.example.com:8443",
   "ca": "/test/dir/keys/cas/root.pem",
-  "cert": "/test/dir/keys/alice-app/root/test-app.crt",
-  "key": "/test/dir/keys/alice-app/root/test-app.key",
-  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app.crt\" \\\n  --key \"/test/dir/keys/alice-app/root/test-app.key\" \\\n  https://test-app.example.com:8443"
+  "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
+  "key": "/test/dir/keys/alice",
+  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app-x509.pem\" \\\n  --key \"/test/dir/keys/alice\" \\\n  https://test-app.example.com:8443"
 }
 `,
 		},
@@ -474,13 +424,13 @@ func TestFormatAppConfig(t *testing.T) {
 			tc:     defaultTc,
 			format: appFormatYAML,
 			expected: `ca: /test/dir/keys/cas/root.pem
-cert: /test/dir/keys/alice-app/root/test-app.crt
+cert: /test/dir/keys/alice-app/root/test-app-x509.pem
 curl: |-
   curl \
-    --cert "/test/dir/keys/alice-app/root/test-app.crt" \
-    --key "/test/dir/keys/alice-app/root/test-app.key" \
+    --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+    --key "/test/dir/keys/alice" \
     https://test-app.example.com:8443
-key: /test/dir/keys/alice-app/root/test-app.key
+key: /test/dir/keys/alice
 name: test-app
 uri: https://test-app.example.com:8443
 `,
@@ -520,9 +470,9 @@ uri: https://test-app.example.com:8443
   "name": "test-app",
   "uri": "https://test-app.example.com:8443",
   "ca": "/test/dir/keys/cas/root.pem",
-  "cert": "/test/dir/keys/alice-app/root/test-app.crt",
-  "key": "/test/dir/keys/alice-app/root/test-app.key",
-  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app.crt\" \\\n  --key \"/test/dir/keys/alice-app/root/test-app.key\" \\\n  https://test-app.example.com:8443",
+  "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
+  "key": "/test/dir/keys/alice",
+  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app-x509.pem\" \\\n  --key \"/test/dir/keys/alice\" \\\n  https://test-app.example.com:8443",
   "azure_identity": "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"
 }
 `,
@@ -534,13 +484,13 @@ uri: https://test-app.example.com:8443
 			format:        appFormatYAML,
 			expected: `azure_identity: /subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure
 ca: /test/dir/keys/cas/root.pem
-cert: /test/dir/keys/alice-app/root/test-app.crt
+cert: /test/dir/keys/alice-app/root/test-app-x509.pem
 curl: |-
   curl \
-    --cert "/test/dir/keys/alice-app/root/test-app.crt" \
-    --key "/test/dir/keys/alice-app/root/test-app.key" \
+    --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+    --key "/test/dir/keys/alice" \
     https://test-app.example.com:8443
-key: /test/dir/keys/alice-app/root/test-app.key
+key: /test/dir/keys/alice
 name: test-app
 uri: https://test-app.example.com:8443
 `,
@@ -562,9 +512,9 @@ uri: https://test-app.example.com:8443
   "name": "test-app",
   "uri": "https://test-app.example.com:8443",
   "ca": "/test/dir/keys/cas/root.pem",
-  "cert": "/test/dir/keys/alice-app/root/test-app.crt",
-  "key": "/test/dir/keys/alice-app/root/test-app.key",
-  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app.crt\" \\\n  --key \"/test/dir/keys/alice-app/root/test-app.key\" \\\n  https://test-app.example.com:8443",
+  "cert": "/test/dir/keys/alice-app/root/test-app-x509.pem",
+  "key": "/test/dir/keys/alice",
+  "curl": "curl \\\n  --cert \"/test/dir/keys/alice-app/root/test-app-x509.pem\" \\\n  --key \"/test/dir/keys/alice\" \\\n  https://test-app.example.com:8443",
   "gcp_service_account": "dev@example-123456.iam.gserviceaccount.com"
 }
 `,
@@ -575,14 +525,14 @@ uri: https://test-app.example.com:8443
 			gcpServiceAccount: "dev@example-123456.iam.gserviceaccount.com",
 			format:            appFormatYAML,
 			expected: `ca: /test/dir/keys/cas/root.pem
-cert: /test/dir/keys/alice-app/root/test-app.crt
+cert: /test/dir/keys/alice-app/root/test-app-x509.pem
 curl: |-
   curl \
-    --cert "/test/dir/keys/alice-app/root/test-app.crt" \
-    --key "/test/dir/keys/alice-app/root/test-app.key" \
+    --cert "/test/dir/keys/alice-app/root/test-app-x509.pem" \
+    --key "/test/dir/keys/alice" \
     https://test-app.example.com:8443
 gcp_service_account: dev@example-123456.iam.gserviceaccount.com
-key: /test/dir/keys/alice-app/root/test-app.key
+key: /test/dir/keys/alice
 name: test-app
 uri: https://test-app.example.com:8443
 `,
@@ -632,20 +582,6 @@ func TestWriteAppTable(t *testing.T) {
 			}),
 		},
 	}
-	appListingsWithMultiPort := append(defaultAppListings,
-		appListing{
-			Proxy:   "example.com",
-			Cluster: "foo-cluster",
-			App: mustMakeNewAppV3(t, types.Metadata{Name: "mp-root"}, types.AppSpecV3{
-				PublicAddr: "https://mp-root.example.com",
-				URI:        "tcp://localhost",
-				TCPPorts: []*types.PortRange{
-					&types.PortRange{Port: 1337},
-					&types.PortRange{Port: 4200, EndPort: 4242},
-				},
-			}),
-		},
-	)
 
 	tests := []struct {
 		name          string
@@ -667,8 +603,8 @@ func TestWriteAppTable(t *testing.T) {
 			wantHeaders: []string{"Application", "Public Address"},
 			// Public addresses are expected to be truncated when verbose mode is off.
 			wantValues:    []string{"https://root-app...", "https://leaf-app...", "root-app", "leaf-app"},
-			wantNoHeaders: []string{"URI", "Proxy", "Cluster", "Target Ports"},
-			wantNoValues:  []string{"http://localhost:8080", "foo-cluster", "bar-cluster", "1337"},
+			wantNoHeaders: []string{"URI", "Proxy", "Cluster"},
+			wantNoValues:  []string{"http://localhost:8080", "foo-cluster", "bar-cluster"},
 		},
 		{
 			name: "regular list with active app",
@@ -694,20 +630,6 @@ func TestWriteAppTable(t *testing.T) {
 			wantHeaders: []string{"Application", "Public Address"},
 		},
 		{
-			name: "regular list with multi-port",
-			config: appTableConfig{
-				active:  []tlsca.RouteToApp{},
-				verbose: false,
-				listAll: false,
-			},
-			appListings: appListingsWithMultiPort,
-			wantHeaders: []string{"Target Ports", "Application", "Public Address"},
-			// Public addresses are expected to be truncated when verbose mode is off.
-			wantValues:    []string{"1337, 4200-4...", "https://mp-r...", "https://root...", "mp-root", "root-app"},
-			wantNoHeaders: []string{"URI", "Proxy", "Cluster"},
-			wantNoValues:  []string{"http://localhost:8080", "foo-cluster", "bar-cluster"},
-		},
-		{
 			name: "verbose",
 			config: appTableConfig{
 				active:  []tlsca.RouteToApp{},
@@ -718,19 +640,6 @@ func TestWriteAppTable(t *testing.T) {
 			wantHeaders: []string{"URI", "Application", "Public Address"},
 			wantValues: []string{"http://localhost:8080", "http://localhost:4242",
 				"https://root-app.example.com", "https://leaf-app.example.com", "root-app", "leaf-app"},
-			wantNoHeaders: []string{"Proxy", "Cluster", "Target Ports"},
-			wantNoValues:  []string{"foo-cluster", "bar-cluster", "1337"},
-		},
-		{
-			name: "verbose with multi-port",
-			config: appTableConfig{
-				active:  []tlsca.RouteToApp{},
-				verbose: true,
-				listAll: false,
-			},
-			appListings:   appListingsWithMultiPort,
-			wantHeaders:   []string{"Target Ports", "URI"},
-			wantValues:    []string{"1337, 4200-4242", "tcp://localhost", "https://mp-root.example.com", "mp-root"},
 			wantNoHeaders: []string{"Proxy", "Cluster"},
 			wantNoValues:  []string{"foo-cluster", "bar-cluster"},
 		},
@@ -745,19 +654,6 @@ func TestWriteAppTable(t *testing.T) {
 			wantHeaders: []string{"Proxy", "Cluster", "Application", "Public Address"},
 			// Public addresses are expected to be truncated when verbose mode is off.
 			wantValues:    []string{"foo-cluste...", "bar-cluste...", "example.co...", "https://ro...", "https://le...", "root-app", "leaf-app"},
-			wantNoHeaders: []string{"URI", "Target Ports"},
-			wantNoValues:  []string{"http://localhost:8080", "1337"},
-		},
-		{
-			name: "list all with multi-port",
-			config: appTableConfig{
-				active:  []tlsca.RouteToApp{},
-				verbose: false,
-				listAll: true,
-			},
-			appListings:   appListingsWithMultiPort,
-			wantHeaders:   []string{"Target Ports", "Proxy", "Cluster"},
-			wantValues:    []string{"1337, 420...", "foo-clust...", "example.c...", "https://m...", "mp-root"},
 			wantNoHeaders: []string{"URI"},
 			wantNoValues:  []string{"http://localhost:8080"},
 		},
@@ -772,18 +668,6 @@ func TestWriteAppTable(t *testing.T) {
 			wantHeaders: []string{"Proxy", "Cluster", "URI", "Application", "Public Address"},
 			wantValues: []string{"foo-cluster", "bar-cluster", "http://localhost:8080", "http://localhost:4242",
 				"https://root-app.example.com", "https://leaf-app.example.com", "root-app", "leaf-app"},
-		},
-		{
-			name: "verbose, list all, and multi-port",
-			config: appTableConfig{
-				active:  []tlsca.RouteToApp{},
-				verbose: true,
-				listAll: true,
-			},
-			appListings: appListingsWithMultiPort,
-			wantHeaders: []string{"Proxy", "Cluster", "URI", "Application", "Public Address"},
-			wantValues: []string{"1337, 4200-4242", "foo-cluster", "tcp://localhost",
-				"https://mp-root.example.com", "mp-root"},
 		},
 	}
 

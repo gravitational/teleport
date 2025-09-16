@@ -16,44 +16,50 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { rest } from 'msw';
+import { setupServer } from 'msw/node';
+import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { lockService } from 'teleport/services/locks';
-import { makeLocks } from 'teleport/services/locks/locks';
 
 import { Locks } from './Locks';
 
 test('lock search', async () => {
-  const ctx = createTeleportContext();
-
-  jest.spyOn(lockService, 'fetchLocks').mockResolvedValue(
-    makeLocks({
-      items: [
-        {
-          name: 'lock-name-1',
-          targets: {
-            user: 'lock-user',
+  const server = setupServer(
+    rest.get(cfg.getLocksUrl(), (req, res, ctx) => {
+      return res(
+        ctx.json([
+          {
+            name: 'lock-name-1',
+            targets: {
+              user: 'lock-user',
+            },
           },
-        },
-        {
-          name: 'lock-name-2',
-          targets: {
-            role: 'lock-role-1',
+          {
+            name: 'lock-name-2',
+            targets: {
+              role: 'lock-role-1',
+            },
           },
-        },
-        {
-          name: 'lock-name-3',
-          targets: {
-            role: 'lock-role-2',
+          {
+            name: 'lock-name-3',
+            targets: {
+              role: 'lock-role-2',
+            },
           },
-        },
-      ],
+        ])
+      );
     })
   );
+
+  server.listen();
+
+  const ctx = createTeleportContext();
 
   render(
     <MemoryRouter>
@@ -75,4 +81,6 @@ test('lock search', async () => {
 
   expect(screen.queryAllByText(/lock-role/i)).toHaveLength(2);
   expect(screen.queryByText(/lock-user/i)).not.toBeInTheDocument();
+
+  server.close();
 });

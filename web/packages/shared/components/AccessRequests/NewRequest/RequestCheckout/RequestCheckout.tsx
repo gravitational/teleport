@@ -16,13 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
-  forwardRef,
-  useEffect,
-  useRef,
-  useState,
-  type JSX,
-} from 'react';
+import React, { useRef, useState } from 'react';
 import type { TransitionStatus } from 'react-transition-group';
 import styled from 'styled-components';
 
@@ -39,21 +33,19 @@ import {
   Image,
   Indicator,
   LabelInput,
-  P3,
   Subtitle2,
   Text,
 } from 'design';
 import { Danger } from 'design/Alert';
+import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import Table, { Cell } from 'design/DataTable';
 import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
-import { HoverTooltip } from 'design/Tooltip';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { Option } from 'shared/components/Select';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
+import { HoverTooltip } from 'shared/components/ToolTip';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import { mergeRefs } from 'shared/libs/mergeRefs';
 import type { AccessRequest } from 'shared/services/accessRequests';
 import { pluralize } from 'shared/utils/text';
 
@@ -71,74 +63,64 @@ import { SelectReviewers } from './SelectReviewers';
 import shieldCheck from './shield-check.png';
 import { ReviewerOption } from './types';
 
-export const RequestCheckoutWithSlider = forwardRef<
-  HTMLDivElement,
-  RequestCheckoutWithSliderProps<PendingListItem>
->(
-  (
-    { transitionState, ...props },
-    /**
-     * ref is extra ref that can be passed to RequestCheckoutWithSlider, at the moment used for
-     * animations.
-     */
-    ref
-  ) => {
-    const wrapperRef = useRef<HTMLDivElement>(null);
+export function RequestCheckoutWithSlider<
+  T extends PendingListItem = PendingListItem,
+>({ transitionState, ...props }: RequestCheckoutWithSliderProps<T>) {
+  const ref = useRef<HTMLDivElement>();
 
-    // Listeners are attached to enable overflow on the wrapper div after
-    // transitioning ends (entered) or starts (exits). Enables vertical scrolling
-    // when content gets too big.
-    //
-    // Overflow is initially hidden to prevent
-    // brief flashing of horizontal scroll bar resulting from positioning
-    // the container off screen to the right for the slide affect.
-    useEffect(() => {
-      function applyOverflowAutoStyle(e: TransitionEvent) {
-        if (e.propertyName === 'right') {
-          wrapperRef.current.style.overflow = `auto`;
-          // There will only ever be one 'end right' transition invoked event, so we remove it
-          // afterwards, and listen for the 'start right' transition which is only invoked
-          // when user exits this component.
-          window.removeEventListener('transitionend', applyOverflowAutoStyle);
-          window.addEventListener('transitionstart', applyOverflowHiddenStyle);
-        }
-      }
-
-      function applyOverflowHiddenStyle(e: TransitionEvent) {
-        if (e.propertyName === 'right') {
-          wrapperRef.current.style.overflow = `hidden`;
-        }
-      }
-
-      window.addEventListener('transitionend', applyOverflowAutoStyle);
-
-      return () => {
+  // Listeners are attached to enable overflow on the parent container after
+  // transitioning ends (entered) or starts (exits). Enables vertical scrolling
+  // when content gets too big.
+  //
+  // Overflow is initially hidden to prevent
+  // brief flashing of horizontal scroll bar resulting from positioning
+  // the container off screen to the right for the slide affect.
+  React.useEffect(() => {
+    function applyOverflowAutoStyle(e: TransitionEvent) {
+      if (e.propertyName === 'right') {
+        ref.current.style.overflow = `auto`;
+        // There will only ever be one 'end right' transition invoked event, so we remove it
+        // afterwards, and listen for the 'start right' transition which is only invoked
+        // when user exits this component.
         window.removeEventListener('transitionend', applyOverflowAutoStyle);
-        window.removeEventListener('transitionstart', applyOverflowHiddenStyle);
-      };
-    }, []);
+        window.addEventListener('transitionstart', applyOverflowHiddenStyle);
+      }
+    }
 
-    return (
-      <div
-        ref={mergeRefs([wrapperRef, ref])}
-        data-testid="request-checkout"
-        css={`
-          position: absolute;
-          width: 100vw;
-          height: 100vh;
-          top: 0;
-          left: 0;
-          overflow: hidden;
-        `}
-      >
-        <Dimmer className={transitionState} />
-        <SidePanel className={transitionState}>
-          <RequestCheckout {...props} />
-        </SidePanel>
-      </div>
-    );
-  }
-);
+    function applyOverflowHiddenStyle(e: TransitionEvent) {
+      if (e.propertyName === 'right') {
+        ref.current.style.overflow = `hidden`;
+      }
+    }
+
+    window.addEventListener('transitionend', applyOverflowAutoStyle);
+
+    return () => {
+      window.removeEventListener('transitionend', applyOverflowAutoStyle);
+      window.removeEventListener('transitionstart', applyOverflowHiddenStyle);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      data-testid="request-checkout"
+      css={`
+        position: absolute;
+        width: 100vw;
+        height: 100vh;
+        top: 0;
+        left: 0;
+        overflow: hidden;
+      `}
+    >
+      <Dimmer className={transitionState} />
+      <SidePanel className={transitionState}>
+        <RequestCheckout {...props} />
+      </SidePanel>
+    </div>
+  );
+}
 
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
@@ -150,7 +132,6 @@ export function RequestCheckout<T extends PendingListItem>({
   setSelectedReviewers,
   SuccessComponent,
   requireReason,
-  reasonPrompts,
   numRequestedResources,
   setSelectedResourceRequestRoles,
   fetchStatus,
@@ -293,46 +274,47 @@ export function RequestCheckout<T extends PendingListItem>({
             )}
           {hasUnsupporteKubeResourceKinds && (
             <Alert kind="danger">
-              <HoverTooltip
-                placement="left"
-                tipContent={
-                  fetchResourceRequestRolesAttempt.statusText.length > 248
-                    ? fetchResourceRequestRolesAttempt.statusText
-                    : null
-                }
-              >
-                <ShortenedText mb={2}>
-                  {fetchResourceRequestRolesAttempt.statusText}
-                </ShortenedText>
-              </HoverTooltip>
-              <Text mb={2}>
-                The listed allowed kinds are currently only supported through
-                the{' '}
-                <ExternalLink
-                  target="_blank"
-                  href="https://goteleport.com/docs/connect-your-client/tsh/#installing-tsh"
+              <div>
+                <HoverTooltip
+                  tipContent={
+                    fetchResourceRequestRolesAttempt.statusText.length > 248
+                      ? fetchResourceRequestRolesAttempt.statusText
+                      : null
+                  }
                 >
-                  tsh CLI tool
-                </ExternalLink>
-                . Use the{' '}
-                <ExternalLink
-                  target="_blank"
-                  href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#search-for-kubernetes-resources"
-                >
-                  tsh request search
-                </ExternalLink>{' '}
-                that will help you construct the request.
-              </Text>
-              <Box width="325px">
-                Example:
-                <TextSelectCopyMulti
-                  lines={[
-                    {
-                      text: `tsh request search --kind=ALLOWED_KIND --kube-cluster=CLUSTER_NAME --all-kube-namespaces`,
-                    },
-                  ]}
-                />
-              </Box>
+                  <ShortenedText mb={2}>
+                    {fetchResourceRequestRolesAttempt.statusText}
+                  </ShortenedText>
+                </HoverTooltip>
+                <Text mb={2}>
+                  The listed allowed kinds are currently only supported through
+                  the{' '}
+                  <ExternalLink
+                    target="_blank"
+                    href="https://goteleport.com/docs/connect-your-client/tsh/#installing-tsh"
+                  >
+                    tsh CLI tool
+                  </ExternalLink>
+                  . Use the{' '}
+                  <ExternalLink
+                    target="_blank"
+                    href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#search-for-kubernetes-resources"
+                  >
+                    tsh request search
+                  </ExternalLink>{' '}
+                  command that will help you construct the request.
+                </Text>
+                <Box width="340px">
+                  Example:
+                  <TextSelectCopyMulti
+                    lines={[
+                      {
+                        text: `tsh request search --kind=ALLOWED_KIND --kube-cluster=CLUSTER_NAME --all-kube-namespaces`,
+                      },
+                    ]}
+                  />
+                </Box>
+              </div>
             </Alert>
           )}
           {fetchStatus === 'loading' && (
@@ -453,7 +435,6 @@ export function RequestCheckout<T extends PendingListItem>({
                       reason={reason}
                       updateReason={updateReason}
                       requireReason={requireReason}
-                      reasonPrompts={reasonPrompts}
                     />
                     {dryRunResponse && maxDuration && (
                       <AdditionalOptions
@@ -604,7 +585,7 @@ function ResourceRequestRoles({
               <LabelInput mb={0} style={{ cursor: 'pointer' }}>
                 Roles
               </LabelInput>
-              <Text typography="body4" mb={2}>
+              <Text typography="newBody4" mb={2}>
                 {selectedRoles.length} role
                 {selectedRoles.length !== 1 ? 's' : ''} selected
               </Text>
@@ -646,20 +627,34 @@ function ResourceRequestRoles({
       {fetchAttempt.status === 'success' && expanded && (
         <Box mt={2}>
           {roles.map((roleName, index) => {
-            const checked = selectedRoles.includes(roleName);
+            const id = `${roleName}${index}`;
             return (
-              <RoleRowContainer checked={checked} key={index}>
-                <StyledFieldCheckbox
-                  key={index}
+              <CheckboxWrapper
+                key={index}
+                css={`
+                  width: 100%;
+                  cursor: pointer;
+                  background: ${({ theme }) => theme.colors.levels.surface};
+
+                  &:hover {
+                    border-color: ${({ theme }) =>
+                      theme.colors.levels.elevated};
+                  }
+                `}
+                as="label"
+                htmlFor={id}
+              >
+                <CheckboxInput
+                  type="checkbox"
                   name={roleName}
+                  id={id}
                   onChange={e => {
                     onInputChange(roleName, e);
                   }}
-                  checked={checked}
-                  label={roleName}
-                  size="small"
+                  checked={selectedRoles.includes(roleName)}
                 />
-              </RoleRowContainer>
+                {roleName}
+              </CheckboxWrapper>
             );
           })}
           {selectedRoles.length < roles.length && (
@@ -676,10 +671,10 @@ function ResourceRequestRoles({
               `}
             >
               <Warning mr={3} size="medium" color="warning.main" />
-              <P3>
+              <Text typography="subtitle2">
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.
-              </P3>
+              </Text>
             </Flex>
           )}
         </Box>
@@ -688,63 +683,21 @@ function ResourceRequestRoles({
   );
 }
 
-const RoleRowContainer = styled.div<{ checked?: boolean }>`
-  transition: all 150ms;
-  position: relative;
-
-  // TODO(bl-nero): That's the third place where we're copying these
-  // definitions. We need to make them reusable.
-  &:hover {
-    background-color: ${props => props.theme.colors.levels.surface};
-
-    // We use a pseudo element for the shadow with position: absolute in order to prevent
-    // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    &:after {
-      box-shadow: ${props => props.theme.boxShadow[3]};
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: -1;
-      width: 100%;
-      height: 100%;
-    }
-  }
-`;
-
-const StyledFieldCheckbox = styled(FieldCheckbox)`
-  margin: 0;
-  padding: ${p => p.theme.space[2]}px;
-  background-color: ${props =>
-    props.checked
-      ? props.theme.colors.interactive.tonal.primary[2]
-      : 'transparent'};
-  border-bottom: ${props => props.theme.borders[2]}
-    ${props => props.theme.colors.interactive.tonal.neutral[0]};
-
-  & > label {
-    display: block; // make it full-width
-  }
-`;
-
 function TextBox({
   reason,
   updateReason,
   requireReason,
-  reasonPrompts,
 }: {
   reason: string;
   updateReason(reason: string): void;
   requireReason: boolean;
-  reasonPrompts?: string[];
 }) {
   const { valid, message } = useRule(requireText(reason, requireReason));
   const hasError = !valid;
   const labelText = hasError ? message : 'Request Reason';
 
-  const placeholderText =
-    reasonPrompts?.filter(s => s.length > 0).join('\n') ||
-    'Describe your request...';
+  const optionalText = requireReason ? '' : ' (optional)';
+  const placeholder = `Describe your request...${optionalText}`;
 
   return (
     <LabelInput hasError={hasError}>
@@ -758,14 +711,14 @@ function TextBox({
         color="text.main"
         border={hasError ? '2px solid' : '1px solid'}
         borderColor={hasError ? 'error.main' : 'text.muted'}
-        placeholder={placeholderText.replaceAll(/\\n/g, '\n')}
+        placeholder={placeholder}
         value={reason}
         onChange={e => updateReason(e.target.value)}
         css={`
           outline: none;
           background: transparent;
 
-          &::placeholder {
+          ::placeholder {
             color: ${({ theme }) => theme.colors.text.muted};
           }
 
@@ -798,14 +751,8 @@ function getPrettyResourceKind(kind: RequestableResourceKind): string {
       return 'User Group';
     case 'windows_desktop':
       return 'Desktop';
-    case 'saml_idp_service_provider':
-      return 'SAML Application';
     case 'namespace':
       return 'Namespace';
-    case 'aws_ic_account_assignment':
-      return 'AWS IAM Identity Center Account Assignment';
-    case 'git_server':
-      return 'Git';
     default:
       kind satisfies never;
       return kind;
@@ -824,10 +771,7 @@ const requireText = (value: string, requireReason: boolean) => () => {
 
 const SidePanel = styled(Box)`
   position: absolute;
-  // This z-index must be a higher value than the top bar z-index defined for
-  // Teleport web UI navigation found in teleport/src/Navigation/zIndexMap.ts.
-  // It prevents this SidePanel from rendering underneath the navigation bits.
-  z-index: 100;
+  z-index: 11;
   top: 0px;
   right: 0px;
   background: ${({ theme }) => theme.colors.levels.sunken};
@@ -927,7 +871,6 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
     isResourceRequest: boolean;
     requireReason: boolean;
-    reasonPrompts: string[];
     selectedReviewers: ReviewerOption[];
     pendingAccessRequests: T[];
     showClusterNameColumn?: boolean;

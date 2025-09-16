@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
-import { WelcomeWrapper } from 'teleport/components/Onboard';
+import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
+
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import { CardWelcome } from './CardWelcome';

@@ -19,13 +19,13 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { Alert, Box, ButtonPrimary, Flex, H3, Label, Text } from 'design';
+import { Alert, Box, ButtonPrimary, Flex, Label, Text } from 'design';
 import { Warning } from 'design/Icon';
 import { Radio } from 'design/RadioGroup';
-import { HoverTooltip } from 'design/Tooltip';
-import { FieldSelect } from 'shared/components/FieldSelect';
+import FieldSelect from 'shared/components/FieldSelect';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Option } from 'shared/components/Select';
+import { HoverTooltip } from 'shared/components/ToolTip';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAsync';
@@ -117,7 +117,9 @@ export default function RequestReview({
           style={{ position: 'relative' }}
         >
           <Box bg="levels.sunken" py={1} px={3}>
-            <H3 mr={3}>{user} - add a review</H3>
+            <Text typography="h6" mr={3}>
+              {user} - add a review
+            </Text>
           </Box>
           <Box p={3} bg="levels.elevated">
             {submitReviewAttempt.status === 'error' && (
@@ -165,27 +167,18 @@ export default function RequestReview({
                       {radio}
                       <Box ml={4} mt={2} css={{ position: 'relative' }}>
                         <HorizontalLine />
-                        <FieldSelect<SuggestedAcessListOption>
+                        <FieldSelect
                           ml={1}
                           maxWidth="600px"
                           label={`Select a suggested Access List to add ${request.user} as a member to:`}
                           rule={requiredField('Required')}
                           value={
-                            // TODO(bl-nero): The type casting here is a hack.
-                            // This code actually works, but it doesn't work in
-                            // a way supported by type bindings. The type of
-                            // this value is deliberately different from the
-                            // options array element type. This is because we
-                            // want to visualize the options differently on the
-                            // option face and inside the options list. The
-                            // correct way of doing it would be to provide a
-                            // custom option component.
-                            (selectedAccessList
+                            selectedAccessList
                               ? {
-                                  value: selectedAccessList.value,
+                                  value: selectedAccessList,
                                   label: selectedAccessList.value.title,
                                 }
-                              : undefined) as any as SuggestedAcessListOption
+                              : undefined
                           }
                           onChange={(o: SuggestedAcessListOption) =>
                             setSelectedAccessList(o)
@@ -207,6 +200,7 @@ export default function RequestReview({
               mb={4}
               maxWidth="500px"
               textAreaCss={`
+                  font-size: 14px;
                   min-height: 100px;
                 `}
               onChange={e => setReason(e.target.value)}

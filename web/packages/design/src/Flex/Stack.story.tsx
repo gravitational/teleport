@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react-vite';
+import { Meta } from '@storybook/react';
 import styled from 'styled-components';
 
 import Box from 'design/Box';
@@ -88,7 +88,12 @@ export const MarginAuto = ({ fullWidth }: StoryProps) => (
     <SmallSquare bg="pink" />
     <SmallSquare bg="green" />
     <SmallSquare bg="brown" />
-    <SmallSquare bg="yellow" marginTop="auto" />
+    <SmallSquare
+      bg="yellow"
+      css={`
+        margin-top: auto;
+      `}
+    />
     <SmallSquare bg="orange" />
   </Stack>
 );

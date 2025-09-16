@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { MemoryRouter } from 'react-router';
-
-import { DiscoverBox } from 'teleport/Discover/Shared';
 
 import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 import { CreateDatabaseView } from './CreateDatabase';
@@ -30,48 +29,38 @@ export default {
 
 export const InitSelfHostedPostgres = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <CreateDatabaseView {...props} />
-    </DiscoverBox>
+    <CreateDatabaseView {...props} />
   </MemoryRouter>
 );
 
 export const InitSelfHostedMySql = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <CreateDatabaseView {...props} dbEngine={DatabaseEngine.MySql} />
-    </DiscoverBox>
+    <CreateDatabaseView {...props} dbEngine={DatabaseEngine.MySql} />
   </MemoryRouter>
 );
 
 export const NoPerm = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <CreateDatabaseView {...props} canCreateDatabase={false} />
-    </DiscoverBox>
+    <CreateDatabaseView {...props} canCreateDatabase={false} />
   </MemoryRouter>
 );
 
 export const Processing = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <CreateDatabaseView {...props} attempt={{ status: 'processing' }} />
-    </DiscoverBox>
+    <CreateDatabaseView {...props} attempt={{ status: 'processing' }} />
   </MemoryRouter>
 );
 
 export const Failed = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <CreateDatabaseView
-        {...props}
-        attempt={{
-          status: 'failed',
-          statusText:
-            'invalid database "sfd" address "sfdsdf": address sfdsdf: missing port in address',
-        }}
-      />
-    </DiscoverBox>
+    <CreateDatabaseView
+      {...props}
+      attempt={{
+        status: 'failed',
+        statusText:
+          'invalid database "sfd" address "sfdsdf": address sfdsdf: missing port in address',
+      }}
+    />
   </MemoryRouter>
 );
 

@@ -213,35 +213,35 @@ var parseTestCases = []struct {
 	{
 		name: "missing path",
 		in:   "user@server",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [user@]host:[path]", i[0]))
 		},
 	},
 	{
 		name: "missing host",
 		in:   "user@:/foo",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q is missing a host, use form [user@]host:[path]", i[0]))
 		},
 	},
 	{
 		name: "invalid IPv6 addr, only one colon",
 		in:   "[user]@[:",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q has an invalid host, host cannot contain '[' unless it is an IPv6 address", i[0]))
 		},
 	},
 	{
 		name: "invalid IPv6 addr, only one colon",
 		in:   "[user]@[::1:file",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q has an invalid host, host cannot contain '[' or ':' unless it is an IPv6 address", i[0]))
 		},
 	},
 	{
 		name: "missing path with IPv6 addr",
 		in:   "[user]@[::1]",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [user@]host:[path]", i[0]))
 		},
 	},

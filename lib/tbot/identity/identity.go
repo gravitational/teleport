@@ -23,20 +23,16 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"log/slog"
-	"slices"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -74,12 +70,11 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBo
 // Identity is collection of raw key and certificate data as well as the
 // parsed equivalents that make up a Teleport identity.
 type Identity struct {
-	// PrivateKeyBytes is a PEM encoded private key.
+	// PrivateKeyBytes is a PEM encoded private key
 	PrivateKeyBytes []byte
-	// PublicKeyBytes is the public key corresponding to [PrivateKeyBytes] in
-	// SSH authorized_keys format.
+	// PublicKeyBytes contains bytes of the original SSH public key
 	PublicKeyBytes []byte
-	// CertBytes is a PEM encoded SSH user cert
+	// CertBytes is a PEM encoded SSH host cert
 	CertBytes []byte
 	// TLSCertBytes is a PEM encoded TLS x509 client certificate
 	TLSCertBytes []byte
@@ -120,6 +115,16 @@ type LoadIdentityParams struct {
 	PrivateKeyBytes []byte
 	PublicKeyBytes  []byte
 	TokenHashBytes  []byte
+}
+
+// Params returns the LoadIdentityParams for this Identity, which are the
+// local-only parameters to be carried over to a renewed identity.
+func (i *Identity) Params() *LoadIdentityParams {
+	return &LoadIdentityParams{
+		PrivateKeyBytes: i.PrivateKeyBytes,
+		PublicKeyBytes:  i.PublicKeyBytes,
+		TokenHashBytes:  i.TokenHashBytes,
+	}
 }
 
 // String returns user-friendly representation of the identity.
@@ -266,8 +271,10 @@ func parseSSHIdentity(
 	if len(cert.ValidPrincipals) < 1 {
 		return nil, nil, nil, trace.BadParameter("valid principals: at least one valid principal is required")
 	}
-	if slices.Contains(cert.ValidPrincipals, "") {
-		return nil, nil, nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+	for _, validPrincipal := range cert.ValidPrincipals {
+		if validPrincipal == "" {
+			return nil, nil, nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+		}
 	}
 
 	hostCheckers, err = apisshutils.ParseAuthorizedKeys(caBytes)
@@ -281,7 +288,7 @@ func parseSSHIdentity(
 // VerifyWrite attempts to write to the .write-test artifact inside the given
 // destination. It should be called before attempting a renewal to help ensure
 // we won't then fail to save the identity.
-func VerifyWrite(ctx context.Context, dest destination.Destination) error {
+func VerifyWrite(ctx context.Context, dest bot.Destination) error {
 	return trace.Wrap(dest.Write(ctx, WriteTestKey, []byte{}))
 }
 
@@ -301,7 +308,7 @@ func ListKeys(kinds ...ArtifactKind) []string {
 }
 
 // SaveIdentity saves a bot identity to a destination.
-func SaveIdentity(ctx context.Context, id *Identity, d destination.Destination, kinds ...ArtifactKind) error {
+func SaveIdentity(ctx context.Context, id *Identity, d bot.Destination, kinds ...ArtifactKind) error {
 	for _, artifact := range GetArtifacts() {
 		// Only store artifacts matching one of the set kinds.
 		if !artifact.Matches(kinds...) {
@@ -320,7 +327,7 @@ func SaveIdentity(ctx context.Context, id *Identity, d destination.Destination, 
 }
 
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(ctx context.Context, d destination.Destination, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 	var certs proto.Certs
 	var params LoadIdentityParams
 
@@ -377,50 +384,3 @@ func LoadIdentity(ctx context.Context, d destination.Destination, kinds ...Artif
 
 	return ReadIdentityFromStore(&params, &certs)
 }
-
-// LogValue implements slog.LogValuer.
-func (i *Identity) LogValue() slog.Value {
-	failedToDescribe := slog.StringValue("failed-to-describe")
-
-	cert := i.X509Cert
-	if cert == nil {
-		log.WarnContext(context.TODO(), "Attempted to describe TLS identity without TLS credentials.")
-		return failedToDescribe
-	}
-
-	tlsIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		log.WarnContext(context.TODO(), "Bot TLS certificate can not be parsed as an identity", "error", err)
-		return failedToDescribe
-	}
-
-	var principals []string
-	for _, principal := range tlsIdent.Principals {
-		if !strings.HasPrefix(principal, constants.NoLoginPrefix) {
-			principals = append(principals, principal)
-		}
-	}
-
-	botDesc := ""
-	if tlsIdent.BotInstanceID != "" {
-		botDesc = fmt.Sprintf(", id=%s", tlsIdent.BotInstanceID)
-	}
-
-	duration := cert.NotAfter.Sub(cert.NotBefore)
-	description := fmt.Sprintf(
-		"%s%s | valid: after=%v, before=%v, duration=%s | kind=tls, renewable=%v, disallow-reissue=%v, roles=%v, principals=%v, generation=%v",
-		tlsIdent.BotName,
-		botDesc,
-		cert.NotBefore.Format(time.RFC3339),
-		cert.NotAfter.Format(time.RFC3339),
-		duration,
-		tlsIdent.Renewable,
-		tlsIdent.DisallowReissue,
-		tlsIdent.Groups,
-		principals,
-		tlsIdent.Generation,
-	)
-	return slog.StringValue(description)
-}
-
-var _ slog.LogValuer = (*Identity)(nil)

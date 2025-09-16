@@ -326,9 +326,9 @@ func host(addr string) string {
 // charWrap wraps a line to about 80 characters to make it easier to read.
 func charWrap(message string) string {
 	var sb strings.Builder
-	for line := range strings.SplitSeq(message, "\n") {
+	for _, line := range strings.Split(message, "\n") {
 		var n int
-		for word := range strings.FieldsSeq(line) {
+		for _, word := range strings.Fields(line) {
 			sb.WriteString(word)
 			sb.WriteString(" ")
 

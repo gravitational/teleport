@@ -1,7 +1,7 @@
 ---
 title: Managed Updates (v2) for Teleport Agents
 description: Describes how to set up Managed Updates (v2) for Teleport Agents
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -70,10 +70,13 @@ Existing agents must be manually enrolled into Managed Updates.
 
 ## Prerequisites
 
+- A Teleport cluster. If you do not have one, [sign
+  up](https://goteleport.com/signup) for a free trial or consult the
+  [Teleport Installation](../installation/installation.mdx) page.
 - Familiarity with the [Upgrading Compatibility Overview](./overview.mdx) guide,
   which describes the sequence in which to upgrade components in your cluster.
 - Teleport Agents that are not yet enrolled in Managed Updates.
-- (!docs/pages/includes/edition-prereqs-tabs.mdx!)
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Quick setup for existing connected Linux servers
@@ -436,65 +439,6 @@ This section assumes that the name of your `teleport-kube-agent` release is
    2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
    ```
 
-## GitOps tools
-
-Managed updates for Kubernetes agents requires workarounds when used with GitOps tools for
-continuous deployment.  The `teleport-kube-agent` Helm chart owns the version of the
-`teleport-agent` resource, so when the `teleport-agent-updater` modifies the
-image version of the `teleport-agent` resource, the GitOps tool will detect a
-drift or a diff in the `teleport-agent` resource.
-
-The sections below describe workarounds for various GitOps tools.
-
-### ArgoCD deployments
-
-After a managed update, ArgoCD reports the `teleport-agent` resource as `OutOfSync`.
-As a workaround to this problem use a [Diff Customization](https://argo-cd.readthedocs.io/en/stable/user-guide/diffing/#diffing-customization)
-to ignore the difference in image version. Here is an example deployment using the
-name `teleport-agent` and namespace `teleport`.
-
-```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: teleport-agent
-  namespace: teleport
-spec:
-  ignoreDifferences:
-  - group: apps
-    kind: StatefulSet
-    name: teleport-agent
-    namespace: teleport
-    jqPathExpressions:
-    - .spec.template.spec.containers[] | select(.name == "teleport").image
-...
-```
-
-### FluxCD deployments
-
-After a managed update, FluxCD reports a `DriftDetected` event. As a workaround
-to this problem modify the [drift detection](https://fluxcd.io/flux/components/helm/helmreleases/#drift-detection)
-configuration to ignore the difference in image version. Here is an example deployment
-using the name `teleport-agent` and namespace `teleport`.
-
-```yaml
-apiVersion: helm.toolkit.fluxcd.io/v2beta2
-kind: HelmRelease
-metadata:
-  name: teleport-agent
-  namespace: teleport
-spec:
-  driftDetection:
-    mode: enabled
-    ignore:
-    - paths: ["/spec/template/spec/containers/0/image"]
-      target:
-        kind: StatefulSet
-        name: teleport-agent
-        namespace: teleport
-...
-```
-
 ## Troubleshooting
 
 You can inspect the current agent autoupdate status by running:
@@ -577,40 +521,3 @@ $ journalctl -u teleport-update
    $ sudo teleport-update update --now
    ```
 
-### Using a different CDN URL
-
-If your agents cannot reach the default Teleport CDN URL (`cdn.teleport.dev`), they will be unable to download updates.
-
-Here are a couple of potential solutions to this issue:
-
-#### Use an HTTP CONNECT proxy
-
-If you configure the `HTTPS_PROXY` variable in the `teleport-update` process's environment, it will use this proxy to pull updates.
-
-The easiest way to configure a proxy with a default install is to add this variable to `/etc/systemd/system/teleport-update.service.d/override.conf`:
-
-```bash
-$ sudo mkdir -p /etc/systemd/system/teleport-update.service.d
-$ sudo tee -a /etc/systemd/system/teleport-update.service.d/override.conf > /dev/null <<'EOF'
-[Service]
-Environment=HTTPS_PROXY=http://proxy-url:3128
-EOF
-```
-
-You can view the `teleport-update` process logs with `sudo journalctl -u teleport-update.service`.
-
-#### Mirror the Teleport tarball packages and change the base-url
-
-If you can mirror the Teleport tarball installers somewhere that your agents are able to access, you can change the `base-url`
-used by Teleport updaters so they can pull them directly.
-
-To change the `base-url`, you should add the `-b` or `--base-url` flag to the `teleport-update enable` command:
-
-```bash
-$ sudo teleport-update enable --base-url https://teleport.artifactory.company.local
-```
-
-It is safe to re-run `sudo teleport-update enable` to modify the base URL.
-Existing updater settings will be preserved if not explicitly overridden by flags.
-
-More information about flags that can be used with `teleport-update enable` can be found [here](../reference/cli/teleport-update.mdx#teleport-update-enable)

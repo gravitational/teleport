@@ -349,23 +349,6 @@ func TestValidateAutoUpdateAgentRollout(t *testing.T) {
 			},
 			assertErr: require.Error,
 		},
-		{
-			name: "group with too high canary count",
-			rollout: &autoupdate.AutoUpdateAgentRollout{
-				Kind:    types.KindAutoUpdateAgentRollout,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: types.MetaNameAutoUpdateAgentRollout,
-				},
-				Spec: &haltOnErrorRolloutSpec,
-				Status: &autoupdate.AutoUpdateAgentRolloutStatus{
-					Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-						{Name: "g1", ConfigDays: []string{"*"}, CanaryCount: 15},
-					},
-				},
-			},
-			assertErr: require.Error,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

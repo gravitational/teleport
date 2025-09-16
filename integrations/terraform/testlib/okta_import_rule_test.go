@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *TerraformSuiteEnterprise) TestOktaImportRule() {
+func (s *TerraformSuiteOSS) TestOktaImportRule() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -95,7 +95,7 @@ func (s *TerraformSuiteEnterprise) TestOktaImportRule() {
 	})
 }
 
-func (s *TerraformSuiteEnterprise) TestImportOktaImportRule() {
+func (s *TerraformSuiteOSS) TestImportOktaImportRule() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 

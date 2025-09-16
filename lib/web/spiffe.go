@@ -17,6 +17,7 @@
 package web
 
 import (
+	"crypto/rsa"
 	"net/http"
 	"time"
 
@@ -41,7 +42,7 @@ import (
 // Must abide by the standard for a "https_web" profile as described in
 // https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md#5-serving-and-consuming-a-spiffe-bundle-endpoint
 func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
-	cn, err := h.GetAccessPoint().GetClusterName(r.Context())
+	cn, err := h.GetAccessPoint().GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching cluster name")
 	}
@@ -89,10 +90,11 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing public key")
 		}
-		kid, err := jwt.KeyID(pubKey)
-		if err != nil {
-			return nil, trace.Wrap(err, "generating key ID")
+		rsaPubKey, ok := pubKey.(*rsa.PublicKey)
+		if !ok {
+			return nil, trace.BadParameter("unsupported key format %T", pubKey)
 		}
+		kid := jwt.KeyID(rsaPubKey)
 		if err := bundle.AddJWTAuthority(kid, pubKey); err != nil {
 			return nil, trace.Wrap(err, "adding JWT authority to bundle")
 		}
@@ -144,6 +146,6 @@ func (h *Handler) getSPIFFEOIDCDiscoveryDocument(_ http.ResponseWriter, _ *http.
 }
 
 // Mounted at /workload-identity/jwt-jwks.json
-func (h *Handler) getSPIFFEJWKS(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
+func (h *Handler) getSPIFFEJWKS(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
 	return h.jwks(r.Context(), types.SPIFFECA, false)
 }

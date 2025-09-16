@@ -83,7 +83,7 @@ export function ChangePin(props: {
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <P2>
+                <P2 color="text.slightlyMuted">
                   The default PIV PIN is not allowed.
                   <br />
                   Please set a new PIV PIN for your hardware key before
@@ -119,7 +119,7 @@ export function ChangePin(props: {
                   )}
                 />
 
-                <P2>
+                <P2 color="text.slightlyMuted">
                   To change the PIN, please provide your PUK code.
                   <br />
                   For security purposes, the default PUK ({DEFAULT_PUK}) cannot

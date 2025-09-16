@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func makeTrustDomain(t *testing.T, name string) (spiffeid.TrustDomain, *spiffebundle.Bundle) {
@@ -65,7 +65,7 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 	clock := clockwork.NewRealClock()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 	clock := clockwork.NewFakeClock()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)

@@ -81,5 +81,14 @@ func TLSDial(ctx context.Context, dialer ContextDialer, network, addr string, tl
 		return nil, trace.Wrap(err)
 	}
 
+	if tlsConfig.InsecureSkipVerify {
+		return conn, nil
+	}
+
+	if err := conn.VerifyHostname(tlsConfig.ServerName); err != nil {
+		plainConn.Close()
+		return nil, trace.Wrap(err)
+	}
+
 	return conn, nil
 }

@@ -115,62 +115,8 @@ spec:
                 description: EntityDescriptorURL is a URL that supplies a configuration
                   XML.
                 type: string
-              force_authn:
-                description: ForceAuthn specified whether re-authentication should
-                  be forced on login. UNSPECIFIED is treated as NO.
-                x-kubernetes-int-or-string: true
               issuer:
                 description: Issuer is the identity provider issuer.
-                type: string
-              mfa:
-                description: MFASettings contains settings to enable SSO MFA checks
-                  through this auth connector.
-                nullable: true
-                properties:
-                  cert:
-                    description: Cert is the identity provider certificate PEM. IDP
-                      signs `<Response>` responses using this certificate.
-                    type: string
-                  enabled:
-                    description: Enabled specified whether this SAML connector supports
-                      MFA checks. Defaults to false.
-                    type: boolean
-                  entity_descriptor:
-                    description: EntityDescriptor is XML with descriptor. It can be
-                      used to supply configuration parameters in one XML file rather
-                      than supplying them in the individual elements. Usually set
-                      from EntityDescriptorUrl.
-                    type: string
-                  entity_descriptor_url:
-                    description: EntityDescriptorUrl is a URL that supplies a configuration
-                      XML.
-                    type: string
-                  force_authn:
-                    description: ForceAuthn specified whether re-authentication should
-                      be forced for MFA checks. UNSPECIFIED is treated as YES to always
-                      re-authentication for MFA checks. This should only be set to
-                      NO if the IdP is setup to perform MFA checks on top of active
-                      user sessions.
-                    x-kubernetes-int-or-string: true
-                  issuer:
-                    description: Issuer is the identity provider issuer. Usually set
-                      from EntityDescriptor.
-                    type: string
-                  sso:
-                    description: SSO is the URL of the identity provider's SSO service.
-                      Usually set from EntityDescriptor.
-                    type: string
-                type: object
-              preferred_request_binding:
-                description: PreferredRequestBinding is a preferred SAML request binding
-                  method. Value must be either "http-post" or "http-redirect". In
-                  general, the SAML identity provider lists request binding methods
-                  it supports. And the SAML service provider uses one of the IdP supported
-                  request binding method that it prefers. But we never honored request
-                  binding value provided by the IdP and always used http-redirect
-                  binding as a default. Setting up PreferredRequestBinding value lets
-                  us preserve existing auth connector behavior and only use http-post
-                  binding if it is explicitly configured.
                 type: string
               provider:
                 description: Provider is the external identity provider.
@@ -197,14 +143,6 @@ spec:
               sso:
                 description: SSO is the URL of the identity provider's SSO service.
                 type: string
-              user_matchers:
-                description: UserMatchers is a set of glob patterns to narrow down
-                  which username(s) this auth connector should match for identifier-first
-                  login.
-                items:
-                  type: string
-                nullable: true
-                type: array
             type: object
           status:
             description: Status defines the observed state of the Teleport resource
@@ -213,8 +151,16 @@ spec:
                 description: Conditions represent the latest available observations
                   of an object's state
                 items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
+                  description: "Condition contains details for one aspect of the current
+                    state of this API Resource.\n---\nThis struct is intended for
+                    direct use as an array at the field path .status.conditions.  For
+                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
+                    observations of a foo's current state.\n\t    // Known .status.conditions.type
+                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
+                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
+                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
+                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
+                    \   // other fields\n\t}"
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -255,7 +201,12 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      description: |-
+                        type of condition in CamelCase or in foo.example.com/CamelCase.
+                        ---
+                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
+                        useful (see .node.status.conditions), the ability to deconflict is important.
+                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string

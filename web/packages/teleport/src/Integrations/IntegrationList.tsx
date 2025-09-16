@@ -24,14 +24,10 @@ import styled from 'styled-components';
 import { Box, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { ResourceIcon } from 'design/ResourceIcon';
-import { IconTooltip } from 'design/Tooltip';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { useAsync } from 'shared/hooks/useAsync';
-import { saveOnDisk } from 'shared/utils/saveOnDisk';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import cfg from 'teleport/config';
-import { getStatus } from 'teleport/Integrations/helpers';
-import api from 'teleport/services/api';
 import {
   ExternalAuditStorageIntegration,
   getStatusCodeDescription,
@@ -41,11 +37,10 @@ import {
   IntegrationStatusCode,
   Plugin,
 } from 'teleport/services/integrations';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
-type Props = {
+type Props<IntegrationLike> = {
   list: IntegrationLike[];
   onDeletePlugin?(p: Plugin): void;
   integrationOps?: {
@@ -55,36 +50,21 @@ type Props = {
   onDeleteExternalAuditStorage?(opType: ExternalAuditStorageOpType): void;
 };
 
-export type IntegrationLike =
-  | Integration
-  | Plugin
-  | ExternalAuditStorageIntegration;
+type IntegrationLike = Integration | Plugin | ExternalAuditStorageIntegration;
 
-export function IntegrationList(props: Props) {
+export function IntegrationList(props: Props<IntegrationLike>) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
-    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
+    if (row.kind !== 'okta') return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
+    if (row.kind !== 'okta') return;
     return { cursor: 'pointer' };
   }
 
-  const [downloadAttempt, download] = useAsync(
-    async (clusterId: string, itemName: string) => {
-      return api
-        .fetch(cfg.getMsTeamsAppZipRoute(clusterId, itemName))
-        .then(response => response.blob())
-        .then(blob => {
-          saveOnDisk(blob, 'app.zip', 'application/zip');
-        });
-    }
-  );
-
-  const { clusterId } = useStickyClusterId();
   return (
     <Table
       pagination={{ pageSize: 20 }}
@@ -118,11 +98,6 @@ export function IntegrationList(props: Props) {
         {
           altKey: 'options-btn',
           render: item => {
-            if (item.kind === IntegrationKind.AwsOidc) {
-              // do not show any action menu for aws oidc; settings are available on the dashboard
-              return;
-            }
-
             if (item.resourceType === 'plugin') {
               return (
                 <Cell align="right">
@@ -134,14 +109,6 @@ export function IntegrationList(props: Props) {
                         to={cfg.getIntegrationStatusRoute(item.kind, item.name)}
                       >
                         View Status
-                      </MenuItem>
-                    )}
-                    {item.kind === 'msteams' && (
-                      <MenuItem
-                        disabled={downloadAttempt.status === 'processing'}
-                        onClick={() => download(clusterId, item.name)}
-                      >
-                        Download app.zip
                       </MenuItem>
                     )}
                     <MenuItem onClick={() => props.onDeletePlugin(item)}>
@@ -157,7 +124,8 @@ export function IntegrationList(props: Props) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    {item.kind === IntegrationKind.GitHub && (
+                    {/* Currently, only AWSOIDC supports editing. */}
+                    {item.kind === IntegrationKind.AwsOidc && (
                       <MenuItem
                         onClick={() =>
                           props.integrationOps.onEditIntegration(item)
@@ -245,10 +213,7 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
       </Cell>
     );
   }
-  const statusDescription = getStatusCodeDescription(
-    item.statusCode,
-    item.status?.errorMessage
-  );
+  const statusDescription = getStatusCodeDescription(item.statusCode);
   return (
     <Cell>
       <Flex alignItems="center">
@@ -256,7 +221,7 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
         {getStatusCodeTitle(item.statusCode)}
         {statusDescription && (
           <Box mx="1">
-            <IconTooltip>{statusDescription}</IconTooltip>
+            <ToolTipInfo>{statusDescription}</ToolTipInfo>
           </Box>
         )}
       </Flex>
@@ -264,11 +229,38 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
   );
 };
 
-export enum Status {
+enum Status {
   Success,
   Warning,
   Error,
-  OktaConfigError = 20,
+}
+
+function getStatus(item: IntegrationLike): Status | null {
+  if (item.resourceType === 'integration') {
+    return Status.Success;
+  }
+
+  if (item.resourceType === 'external-audit-storage') {
+    switch (item.statusCode) {
+      case IntegrationStatusCode.Draft:
+        return Status.Warning;
+      default:
+        return Status.Success;
+    }
+  }
+
+  switch (item.statusCode) {
+    case IntegrationStatusCode.Unknown:
+      return null;
+    case IntegrationStatusCode.Running:
+      return Status.Success;
+    case IntegrationStatusCode.SlackNotInChannel:
+      return Status.Warning;
+    case IntegrationStatusCode.Draft:
+      return Status.Warning;
+    default:
+      return Status.Error;
+  }
 }
 
 const StatusLight = styled(Box)<{ status: Status }>`
@@ -280,7 +272,7 @@ const StatusLight = styled(Box)<{ status: Status }>`
     if (status === Status.Success) {
       return theme.colors.success.main;
     }
-    if ([Status.Error, Status.OktaConfigError].includes(status)) {
+    if (status === Status.Error) {
       return theme.colors.error.main;
     }
     if (status === Status.Warning) {
@@ -347,21 +339,6 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Datadog Incident Management';
         icon = <IconContainer name="datadog" />;
         break;
-      case 'aws-identity-center':
-        formattedText = 'AWS IAM Identity Center';
-        icon = <IconContainer name="aws" />;
-        break;
-      case 'scim':
-        formattedText = 'SCIM';
-        icon = <IconContainer name="scim" />;
-        break;
-      case 'intune':
-        formattedText = 'Microsoft Intune';
-        icon = <IconContainer name="intune" />;
-        break;
-      default:
-        // TODO(ravicious): Remove openai exemption from here once a branch is added for it.
-        item.kind satisfies never | 'openai';
     }
   } else {
     // Default is integration.
@@ -374,10 +351,6 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case IntegrationKind.AzureOidc:
         formattedText = 'Azure OIDC';
         icon = <IconContainer name="azure" />;
-        break;
-      case IntegrationKind.GitHub:
-        formattedText = item.name;
-        icon = <IconContainer name="github" />;
         break;
     }
   }

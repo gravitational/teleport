@@ -48,7 +48,7 @@ func tableView(width int, first, second column) string {
 		Align(lipgloss.Left)
 
 	var rows []string
-	for i := range first.content {
+	for i := 0; i < len(first.content); i++ {
 		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Left,
 			leftColumn.Render(first.content[i]),
 			rightColumn.Render(second.content[i]),
@@ -75,7 +75,7 @@ func percentileTableView(width int, hist Histogram) string {
 		},
 	}
 
-	for p := range hist.Percentiles() {
+	for _, p := range hist.Percentiles() {
 		firstColumn.content = append(firstColumn.content, humanize.FormatFloat("#,###", p.Percentile)+"%")
 		secondColumn.content = append(secondColumn.content, fmt.Sprintf("%v", p.Value))
 	}

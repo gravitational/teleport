@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -89,7 +88,6 @@ func TestServiceAccess(t *testing.T) {
 	testCases := []struct {
 		name             string
 		allowedVerbs     []string
-		kind             string
 		allowedStates    []authz.AdminActionAuthState
 		disallowedStates []authz.AdminActionAuthState
 		builtinRole      *authz.BuiltinRole
@@ -101,7 +99,6 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateConfig,
 			allowedVerbs: []string{types.VerbCreate},
 		},
 		{
@@ -111,7 +108,6 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateConfig,
 			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
@@ -121,7 +117,6 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateConfig,
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
@@ -132,18 +127,12 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateConfig,
 			allowedVerbs: []string{types.VerbRead},
 		},
 		{
-			name: "DeleteAutoUpdateConfig",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateConfig,
-			allowedVerbs: []string{types.VerbDelete},
+			name:          "DeleteAutoUpdateConfig",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
 		},
 		// AutoUpdate version check.
 		{
@@ -153,7 +142,6 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateVersion,
 			allowedVerbs: []string{types.VerbCreate},
 		},
 		{
@@ -163,7 +151,6 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateVersion,
 			allowedVerbs: []string{types.VerbUpdate},
 		},
 		{
@@ -173,7 +160,6 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateVersion,
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
@@ -184,18 +170,12 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateVersion,
 			allowedVerbs: []string{types.VerbRead},
 		},
 		{
-			name: "DeleteAutoUpdateVersion",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateVersion,
-			allowedVerbs: []string{types.VerbDelete},
+			name:          "DeleteAutoUpdateVersion",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
 		},
 		// AutoUpdate agent rollout check.
 		{
@@ -206,7 +186,6 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbRead},
 		},
 		{
@@ -216,7 +195,6 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbCreate},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
@@ -227,7 +205,6 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbUpdate},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
@@ -238,117 +215,14 @@ func TestServiceAccess(t *testing.T) {
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateAgentRollout,
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
 		{
-			name: "DeleteAutoUpdateAgentRollout",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentRollout,
-			allowedVerbs: []string{types.VerbDelete},
-			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
-		},
-		{
-			name: "TriggerAutoUpdateAgentGroup",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentRollout,
-			allowedVerbs: []string{types.VerbUpdate},
-		},
-		{
-			name: "ForceAutoUpdateAgentGroup",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentRollout,
-			allowedVerbs: []string{types.VerbUpdate},
-		},
-		{
-			name: "RollbackAutoUpdateAgentGroup",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentRollout,
-			allowedVerbs: []string{types.VerbUpdate},
-		},
-		// Autoupdate agent report check
-		{
-			name: "ListAutoUpdateAgentReports",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthUnauthorized,
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentReport,
-			allowedVerbs: []string{types.VerbRead, types.VerbList},
-		},
-		{
-			name: "GetAutoUpdateAgentReport",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthUnauthorized,
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentReport,
-			allowedVerbs: []string{types.VerbRead},
-		},
-		{
-			name: "CreateAutoUpdateAgentReport",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentReport,
-			allowedVerbs: []string{types.VerbCreate},
-			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
-		},
-		{
-			name: "UpdateAutoUpdateAgentReport",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentReport,
-			allowedVerbs: []string{types.VerbUpdate},
-			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
-		},
-		{
-			name: "UpsertAutoUpdateAgentReport",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentReport,
-			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
-			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
-		},
-		{
-			name: "DeleteAutoUpdateAgentReport",
-			allowedStates: []authz.AdminActionAuthState{
-				authz.AdminActionAuthNotRequired,
-				authz.AdminActionAuthMFAVerified,
-				authz.AdminActionAuthMFAVerifiedWithReuse,
-			},
-			kind:         types.KindAutoUpdateAgentReport,
-			allowedVerbs: []string{types.VerbDelete},
-			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
+			name:          "DeleteAutoUpdateAgentRollout",
+			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
+			allowedVerbs:  []string{types.VerbDelete},
+			builtinRole:   &authz.BuiltinRole{Role: types.RoleAuth},
 		},
 	}
 
@@ -360,12 +234,7 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 							t.Run(fmt.Sprintf("verbs=%v", verbs), func(t *testing.T) {
-								checker := fakeChecker{
-									allowedKinds: []string{tt.kind},
-									allowedVerbs: verbs,
-									builtinRole:  tt.builtinRole,
-								}
-								service := newService(t, state, checker, &libevents.DiscardEmitter{})
+								service := newService(t, state, fakeChecker{allowedVerbs: verbs, builtinRole: tt.builtinRole}, &libevents.DiscardEmitter{})
 								err := callMethod(t, service, tt.name)
 								// expect access denied except with full set of verbs.
 								if len(verbs) == len(tt.allowedVerbs) {
@@ -389,12 +258,7 @@ func TestServiceAccess(t *testing.T) {
 					t.Run(stateToString(state), func(t *testing.T) {
 						// it is enough to test against tt.allowedVerbs,
 						// this is the only different data point compared to the test cases above.
-						checker := fakeChecker{
-							allowedKinds: []string{tt.kind},
-							allowedVerbs: tt.allowedVerbs,
-							builtinRole:  tt.builtinRole,
-						}
-						service := newService(t, state, checker, &libevents.DiscardEmitter{})
+						service := newService(t, state, fakeChecker{allowedVerbs: tt.allowedVerbs, builtinRole: tt.builtinRole}, &libevents.DiscardEmitter{})
 						err := callMethod(t, service, tt.name)
 						require.True(t, trace.IsAccessDenied(err))
 					})
@@ -403,22 +267,9 @@ func TestServiceAccess(t *testing.T) {
 		})
 	}
 
-	// TODO(hugoShaka): remove this list in the PR implementing the service.
-	notImplementedYet := []string{
-		"ListAutoUpdateAgentReports",
-		"CreateAutoUpdateAgentReport",
-		"GetAutoUpdateAgentReport",
-		"UpdateAutoUpdateAgentReport",
-		"UpsertAutoUpdateAgentReport",
-		"DeleteAutoUpdateAgentReport",
-	}
-
 	// verify that all declared methods have matching test cases
 	t.Run("verify coverage", func(t *testing.T) {
 		for _, method := range autoupdatev1pb.AutoUpdateService_ServiceDesc.Methods {
-			if slices.Contains(notImplementedYet, method.MethodName) {
-				continue
-			}
 			t.Run(method.MethodName, func(t *testing.T) {
 				match := false
 				for _, testCase := range testCases {
@@ -433,8 +284,7 @@ func TestServiceAccess(t *testing.T) {
 func TestAutoUpdateConfigEvents(t *testing.T) {
 	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	checker := fakeChecker{allowedVerbs: rwVerbs, allowedKinds: []string{types.KindAutoUpdateConfig}}
-	service := newService(t, authz.AdminActionAuthMFAVerified, checker, mockEmitter)
+	service := newService(t, authz.AdminActionAuthMFAVerified, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
 	ctx := context.Background()
 
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
@@ -480,8 +330,7 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 func TestAutoUpdateVersionEvents(t *testing.T) {
 	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	checker := fakeChecker{allowedVerbs: rwVerbs, allowedKinds: []string{types.KindAutoUpdateVersion}}
-	service := newService(t, authz.AdminActionAuthMFAVerified, checker, mockEmitter)
+	service := newService(t, authz.AdminActionAuthMFAVerified, fakeChecker{allowedVerbs: rwVerbs}, mockEmitter)
 	ctx := context.Background()
 
 	config, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
@@ -524,112 +373,22 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	mockEmitter.Reset()
 }
 
-func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
-	rwVerbs := []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
-	mockEmitter := &eventstest.MockRecorderEmitter{}
-	service := newService(t,
-		authz.AdminActionAuthMFAVerified,
-		fakeChecker{
-			allowedVerbs: rwVerbs,
-			allowedKinds: []string{types.KindAutoUpdateAgentRollout},
-			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
-		},
-		mockEmitter)
-	ctx := context.Background()
-
-	rollout, err := autoupdate.NewAutoUpdateAgentRollout(&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-		StartVersion:   "1.2.3",
-		TargetVersion:  "1.2.4",
-		Schedule:       autoupdate.AgentsScheduleRegular,
-		AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-		Strategy:       autoupdate.AgentsStrategyHaltOnError,
-	})
-	require.NoError(t, err)
-	rollout.Status = &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
-		Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-			{
-				Name:       "blue",
-				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-				ConfigDays: cloudGroupUpdateDays,
-			},
-			{
-				Name:       "dev",
-				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
-				ConfigDays: cloudGroupUpdateDays,
-			},
-			{
-				Name:       "stage",
-				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-				ConfigDays: cloudGroupUpdateDays,
-			},
-			{
-				Name:       "prod",
-				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-				ConfigDays: cloudGroupUpdateDays,
-			},
-			{
-				Name:       "backup",
-				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
-				ConfigDays: cloudGroupUpdateDays,
-			},
-		},
-	}
-
-	_, err = service.CreateAutoUpdateAgentRollout(ctx, &autoupdatev1pb.CreateAutoUpdateAgentRolloutRequest{Rollout: rollout})
-	require.NoError(t, err)
-
-	groups := []string{"prod"}
-	_, err = service.TriggerAutoUpdateAgentGroup(ctx, &autoupdatev1pb.TriggerAutoUpdateAgentGroupRequest{
-		Groups: groups,
-	})
-	require.NoError(t, err)
-
-	require.Len(t, mockEmitter.Events(), 1)
-	require.Equal(t, libevents.AutoUpdateAgentRolloutTriggerEvent, mockEmitter.LastEvent().GetType())
-	require.Equal(t, libevents.AutoUpdateAgentRolloutTriggerCode, mockEmitter.LastEvent().GetCode())
-	require.Equal(t, groups, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutTrigger).Groups)
-	mockEmitter.Reset()
-
-	_, err = service.ForceAutoUpdateAgentGroup(ctx, &autoupdatev1pb.ForceAutoUpdateAgentGroupRequest{
-		Groups: []string{"prod"},
-	})
-	require.NoError(t, err)
-
-	require.Len(t, mockEmitter.Events(), 1)
-	require.Equal(t, libevents.AutoUpdateAgentRolloutForceDoneEvent, mockEmitter.LastEvent().GetType())
-	require.Equal(t, libevents.AutoUpdateAgentRolloutForceDoneCode, mockEmitter.LastEvent().GetCode())
-	require.Equal(t, groups, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutForceDone).Groups)
-	mockEmitter.Reset()
-
-	_, err = service.RollbackAutoUpdateAgentGroup(ctx, &autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest{
-		Groups: []string{"prod"},
-	})
-	require.NoError(t, err)
-
-	require.Len(t, mockEmitter.Events(), 1)
-	require.Equal(t, libevents.AutoUpdateAgentRolloutRollbackEvent, mockEmitter.LastEvent().GetType())
-	require.Equal(t, libevents.AutoUpdateAgentRolloutRollbackCode, mockEmitter.LastEvent().GetCode())
-	require.Equal(t, groups, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutRollback).Groups)
-	mockEmitter.Reset()
-}
-
 type fakeChecker struct {
-	allowedKinds []string
 	allowedVerbs []string
 	builtinRole  *authz.BuiltinRole
 	services.AccessChecker
 }
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
-	if !slices.Contains(f.allowedKinds, resource) {
-		return trace.AccessDenied("access denied to rule=%v/verb=%v, no resource matching", resource, verb)
+	if resource == types.KindAutoUpdateConfig || resource == types.KindAutoUpdateVersion || resource == types.KindAutoUpdateAgentRollout {
+		for _, allowedVerb := range f.allowedVerbs {
+			if allowedVerb == verb {
+				return nil
+			}
+		}
 	}
 
-	if !slices.Contains(f.allowedVerbs, verb) {
-		return trace.AccessDenied("access denied to rule=%v/verb=%v, no verb matching", resource, verb)
-	}
-
-	return nil
+	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
 func (f fakeChecker) HasRole(name string) bool {
@@ -885,14 +644,6 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 			Cloud: true,
 		},
 	}
-	cloudUnlimitedModules := modulestest.Modules{
-		TestFeatures: modules.Features{
-			Cloud: true,
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.UnrestrictedManagedUpdates: {Enabled: true},
-			},
-		},
-	}
 	selfHostedModules := modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: false,
@@ -936,18 +687,6 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 			expectErr: require.Error,
 		},
 		{
-			name:    "over max groups halt-on-error cloud unlimited",
-			modules: cloudUnlimitedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
-				Mode:     autoupdate.AgentsUpdateModeEnabled,
-				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
-					Regular: generateGroups(maxGroupsHaltOnErrorStrategy+1, cloudGroupUpdateDays),
-				},
-			},
-			expectErr: require.Error,
-		},
-		{
 			name:    "over max groups halt-on-error cloud",
 			modules: cloudModules,
 			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
@@ -970,18 +709,6 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 				},
 			},
 			expectErr: require.Error,
-		},
-		{
-			name:    "cloud unlimited should allow custom weekdays",
-			modules: cloudUnlimitedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
-				Mode:     autoupdate.AgentsUpdateModeEnabled,
-				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
-					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
-				},
-			},
-			expectErr: require.NoError,
 		},
 		{
 			name:    "self-hosted should allow custom weekdays",
@@ -1009,21 +736,6 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 				},
 			},
 			expectErr: require.Error,
-		},
-		{
-			name:    "cloud should allow long rollouts with entitlement",
-			modules: cloudUnlimitedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
-				Mode:     autoupdate.AgentsUpdateModeEnabled,
-				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
-					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
-						{Name: "g1", Days: cloudGroupUpdateDays},
-						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
-					},
-				},
-			},
-			expectErr: require.NoError,
 		},
 		{
 			name:    "self-hosted should allow long rollouts",

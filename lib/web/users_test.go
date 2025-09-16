@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
-	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -49,7 +48,7 @@ func TestRequestParameters(t *testing.T) {
 			role:         nil,
 			traitsPreset: nil,
 			allTraits:    nil,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("missing user name"))
 			},
 		},
@@ -59,7 +58,7 @@ func TestRequestParameters(t *testing.T) {
 			role:         []string{"testrole"},
 			traitsPreset: nil,
 			allTraits:    nil,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("missing user name"))
 			},
 		},
@@ -69,7 +68,7 @@ func TestRequestParameters(t *testing.T) {
 			role:         nil,
 			traitsPreset: nil,
 			allTraits:    nil,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("missing roles"))
 			},
 		},
@@ -79,7 +78,7 @@ func TestRequestParameters(t *testing.T) {
 			role:         []string{"testrole"},
 			traitsPreset: &traitsPreset{Logins: &[]string{"root"}},
 			allTraits:    map[string][]string{"logins": {"root"}},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.BadParameter("either traits or allTraits must be provided"))
 			},
 		},
@@ -289,6 +288,7 @@ func TestUpdateUser_updateUserTraitsPreset(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			user, err := types.NewUser(tt.name)
@@ -429,7 +429,7 @@ func TestCRUDErrors(t *testing.T) {
 }
 
 // newRequest creates http request with given body
-func newRequest(t *testing.T, body any) *http.Request {
+func newRequest(t *testing.T, body interface{}) *http.Request {
 	reqBody, err := json.Marshal(body)
 	require.NoError(t, err)
 
@@ -446,7 +446,6 @@ type mockedUserAPIGetter struct {
 	mockUpdateUser func(ctx context.Context, user types.User) (types.User, error)
 	mockGetUsers   func(ctx context.Context, withSecrets bool) ([]types.User, error)
 	mockDeleteUser func(ctx context.Context, user string) error
-	mockListUsers  func(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 }
 
 func (m *mockedUserAPIGetter) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
@@ -483,12 +482,4 @@ func (m *mockedUserAPIGetter) DeleteUser(ctx context.Context, name string) error
 	}
 
 	return trace.NotImplemented("mockDeleteUser not implemented")
-}
-
-func (m *mockedUserAPIGetter) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	if m.mockListUsers != nil {
-		return m.mockListUsers(ctx, req)
-	}
-
-	return nil, trace.NotImplemented("mockListUsers not implemented")
 }

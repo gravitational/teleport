@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
 
 import { ResourceLabel } from 'teleport/services/agents';
@@ -33,12 +32,10 @@ export interface App {
   clusterId: string;
   launchUrl: string;
   fqdn: string;
-  useAnyProxyPublicAddr?: boolean;
   awsRoles: AwsRole[];
   awsConsole: boolean;
   requiresRequest?: boolean;
-  isTcp?: boolean;
-  isCloud?: boolean;
+  isCloudOrTcpEndpoint?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
@@ -53,73 +50,9 @@ export interface App {
   // Integration is the integration name that must be used to access this Application.
   // Only applicable to AWS App Access.
   integration?: string;
-  /** subKind is subKind of an App. */
-  subKind?: AppSubKind;
-  /**
-   * permissionSets is a list of AWS IAM Identity Center permission sets
-   * available for this App. The value is only populated if the app SubKind is
-   * aws_ic_account.
-   */
-  permissionSets?: PermissionSet[];
-  /**
-   * samlAppLaunchUrl contains service provider specific authentication
-   * endpoints where user should be launched to start SAML authentication.
-   */
-  samlAppLaunchUrls?: SamlAppLaunchUrl[];
-  /**
-   * mcp contains MCP server specific configurations.
-   */
-  mcp?: AppMCP;
 }
 
 export type UserGroupAndDescription = {
   name: string;
   description: string;
-};
-
-/** AppSubKind defines names of SubKind for App resource. */
-export {
-  /*
-   * @deprecated Import AppSubKind from 'shared/services' instead.
-   */
-  AppSubKind,
-} from 'shared/services';
-
-/**
- * PermissionSet defines an AWS IAM Identity Center permission set that
- * is available to an App.
- */
-export type PermissionSet = {
-  /** name is a permission set name */
-  name: string;
-  /** arn is a permission set ARN */
-  arn: string;
-  /** assignmentId is an account assignment ID. */
-  assignmentId: string;
-};
-
-/**
- * SamlAppLaunchUrl contains service provider specific authentication
- * endpoint where user should be launched to start SAML authentication.
- */
-export type SamlAppLaunchUrl = {
-  /* launch URL. */
-  url: string;
-  /* friendly name of the URL. */
-  friendlyName?: string;
-};
-
-/**
- * AppMCP contains MCP server specific configurations.
- */
-export type AppMCP = {
-  /** Command to launch stdio-based MCP servers. */
-  command: string;
-  /** Args to execute with the command. */
-  args?: string[];
-  /**
-   * The host user account under which the command will be
-   * executed. Required for stdio-based MCP servers.
-   */
-  runAsHostUser: string;
 };

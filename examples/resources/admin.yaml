@@ -28,9 +28,5 @@ spec:
     - network
     forward_agent: true
     max_session_ttl: 30h0m0s
-    ssh_port_forwarding:
-      remote:
-        enabled: true
-      local:
-        enabled: true
+    port_forwarding: true
 version: v3

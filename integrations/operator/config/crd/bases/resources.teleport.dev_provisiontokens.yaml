@@ -102,43 +102,6 @@ spec:
                     nullable: true
                     type: array
                 type: object
-              azure_devops:
-                description: AzureDevops allows the configuration of options specific
-                  to the "azure_devops" join method.
-                nullable: true
-                properties:
-                  allow:
-                    description: Allow is a list of TokenRules, nodes using this token
-                      must match one allow rule to use this token. At least one allow
-                      rule must be specified.
-                    items:
-                      properties:
-                        definition_id:
-                          type: string
-                        pipeline_name:
-                          type: string
-                        project_id:
-                          type: string
-                        project_name:
-                          type: string
-                        repository_ref:
-                          type: string
-                        repository_uri:
-                          type: string
-                        repository_version:
-                          type: string
-                        sub:
-                          type: string
-                      type: object
-                    nullable: true
-                    type: array
-                  organization_id:
-                    description: OrganizationID specifies the UUID of the Azure DevOps
-                      organization that this join token will grant access to. This
-                      is used to identify the correct issuer verification of the ID
-                      token. This is a required field.
-                    type: string
-                type: object
               bitbucket:
                 description: Bitbucket allows the configuration of options specific
                   to the "bitbucket" join method.
@@ -177,45 +140,6 @@ spec:
                 description: BotName is the name of the bot this token grants access
                   to, if any
                 type: string
-              bound_keypair:
-                description: BoundKeypair allows the configuration of options specific
-                  to the "bound_keypair" join method.
-                nullable: true
-                properties:
-                  onboarding:
-                    description: Onboarding contains parameters related to initial
-                      onboarding and keypair registration.
-                    nullable: true
-                    properties:
-                      initial_public_key:
-                        type: string
-                      must_register_before:
-                        format: date-time
-                        type: string
-                      registration_secret:
-                        type: string
-                    type: object
-                  recovery:
-                    description: Recovery contains parameters related to recovery
-                      after identity expiration.
-                    nullable: true
-                    properties:
-                      limit:
-                        format: int32
-                        type: integer
-                      mode:
-                        type: string
-                    type: object
-                  rotate_after:
-                    description: RotateAfter is an optional timestamp that forces
-                      clients to perform a keypair rotation on the next join or recovery
-                      attempt after the given date. If `LastRotatedAt` is unset or
-                      before this timestamp, a rotation will be requested. It is recommended
-                      to set this value to the current timestamp if a rotation should
-                      be triggered on the next join attempt.
-                    format: date-time
-                    type: string
-                type: object
               circleci:
                 description: CircleCI allows the configuration of options specific
                   to the "circleci" join method.
@@ -398,15 +322,6 @@ spec:
                       type: object
                     nullable: true
                     type: array
-                  oidc:
-                    description: OIDCConfig configures the `oidc` type.
-                    nullable: true
-                    properties:
-                      insecure_allow_http_issuer:
-                        type: boolean
-                      issuer:
-                        type: string
-                    type: object
                   static_jwks:
                     description: StaticJWKS is the configuration specific to the `static_jwks`
                       type.
@@ -418,35 +333,8 @@ spec:
                   type:
                     description: 'Type controls which behavior should be used for
                       validating the Kubernetes Service Account token. Support values:
-                      - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults
-                      to `in_cluster`.'
+                      - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.'
                     type: string
-                type: object
-              oracle:
-                description: Oracle allows the configuration of options specific to
-                  the "oracle" join method.
-                nullable: true
-                properties:
-                  allow:
-                    description: Allow is a list of Rules, nodes using this token
-                      must match one allow rule to use this token.
-                    items:
-                      properties:
-                        parent_compartments:
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        regions:
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                        tenancy:
-                          type: string
-                      type: object
-                    nullable: true
-                    type: array
                 type: object
               roles:
                 description: Roles is a list of roles associated with the token, that
@@ -477,10 +365,6 @@ spec:
                       type: object
                     nullable: true
                     type: array
-                  enable_glob_matching:
-                    description: EnableGlobMatching enables glob-style matching for
-                      the space_id and caller_id fields in the rules.
-                    type: boolean
                   hostname:
                     description: Hostname is the hostname of the Spacelift tenant
                       that tokens will originate from. E.g `example.app.spacelift.io`
@@ -587,8 +471,16 @@ spec:
                 description: Conditions represent the latest available observations
                   of an object's state
                 items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
+                  description: "Condition contains details for one aspect of the current
+                    state of this API Resource.\n---\nThis struct is intended for
+                    direct use as an array at the field path .status.conditions.  For
+                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
+                    observations of a foo's current state.\n\t    // Known .status.conditions.type
+                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
+                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
+                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
+                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
+                    \   // other fields\n\t}"
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -629,7 +521,12 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      description: |-
+                        type of condition in CamelCase or in foo.example.com/CamelCase.
+                        ---
+                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
+                        useful (see .node.status.conditions), the ability to deconflict is important.
+                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string

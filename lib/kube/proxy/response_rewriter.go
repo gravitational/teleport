@@ -88,7 +88,7 @@ func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Res
 				newClientNegotiator(&globalKubeCodecs),
 			)
 			if err != nil {
-				f.log.ErrorContext(r.Request.Context(), "Failed to create encoder", "error", err)
+				f.log.WithError(err).Error("Failed to create encoder")
 				return nil
 			}
 
@@ -108,7 +108,7 @@ func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Res
 
 			// Encode the new response.
 			if err = encoder.Encode(status, b); err != nil {
-				f.log.ErrorContext(r.Request.Context(), "Failed to encode response", "error", err)
+				f.log.WithError(err).Error("Failed to encode response")
 				return trace.Wrap(err)
 			}
 
@@ -148,10 +148,10 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 	// results in the intersection of roles that match the "kubernetes_labels" and
 	// roles that allow access to the desired "kubernetes_resource".
 	// If from the intersection results an empty set, the request is denied.
-	if rbacRes := s.metaResource.rbacResource(); rbacRes != nil && !s.metaResource.isList {
+	if s.kubeResource != nil {
 		matchers = append(
 			matchers,
-			services.NewKubernetesResourceMatcher(*rbacRes, s.metaResource.isClusterWideResource()),
+			services.NewKubernetesResourceMatcher(*s.kubeResource),
 		)
 	}
 	var rolesWithSystemMasters []string

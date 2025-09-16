@@ -40,7 +40,7 @@ func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
 	}
 	mfaNames := make(map[string]struct{}, len(l.MFA))
 	for _, d := range l.MFA {
-		if err := d.CheckAndSetDefaults(); err != nil {
+		if err := validateMFADevice(d); err != nil {
 			return trace.BadParameter("MFA device named %q is invalid: %v", d.Metadata.Name, err)
 		}
 		if _, ok := mfaNames[d.Metadata.Name]; ok {
@@ -58,13 +58,41 @@ func ValidateLocalAuthSecrets(l *types.LocalAuthSecrets) error {
 
 // NewTOTPDevice creates a TOTP MFADevice from the given key.
 func NewTOTPDevice(name, key string, addedAt time.Time) (*types.MFADevice, error) {
-	d, err := types.NewMFADevice(name, uuid.New().String(), addedAt, &types.MFADevice_Totp{Totp: &types.TOTPDevice{
+	d := types.NewMFADevice(name, uuid.New().String(), addedAt)
+	d.Device = &types.MFADevice_Totp{Totp: &types.TOTPDevice{
 		Key: key,
-	}})
-	if err != nil {
+	}}
+	if err := validateMFADevice(d); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return d, nil
+}
+
+// validateMFADevice runs additional validations for OTP devices.
+// Prefer adding new validation logic to types.MFADevice.CheckAndSetDefaults
+// instead.
+func validateMFADevice(d *types.MFADevice) error {
+	if err := d.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	switch dd := d.Device.(type) {
+	case *types.MFADevice_Totp:
+		if err := validateTOTPDevice(dd.Totp); err != nil {
+			return trace.Wrap(err)
+		}
+	case *types.MFADevice_U2F:
+	case *types.MFADevice_Webauthn:
+	default:
+		return trace.BadParameter("MFADevice has Device field of unknown type %T", d.Device)
+	}
+	return nil
+}
+
+func validateTOTPDevice(d *types.TOTPDevice) error {
+	if d.Key == "" {
+		return trace.BadParameter("TOTPDevice missing Key field")
+	}
+	return nil
 }
 
 // UnmarshalAuthPreference unmarshals the AuthPreference resource from JSON.

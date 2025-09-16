@@ -33,15 +33,13 @@ import (
 	"google.golang.org/api/option"
 	gtransport "google.golang.org/api/transport/grpc"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/grpc/stats"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 )
 
 type upstream[T any] interface {
@@ -325,12 +323,12 @@ func (e *Engine) getClientLocked(ctx context.Context) (spannerpb.SpannerClient, 
 	// Therefore use the client connection context rather than the RPC context.
 	cc, err := gtransport.DialPool(e.clientConnContext,
 		append(spannerapi.DefaultClientOptions(),
-			option.WithGRPCDialOption(grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg))),
+			option.WithGRPCDialOption(grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(tlsCfg))),
 			option.WithGRPCDialOption(grpc.WithStatsHandler(&messageStatsHandler{
 				messagesReceived: common.GetMessagesFromServerMetric(e.sessionCtx.Database),
 			})),
 			option.WithTokenSource(ts),
-			option.WithEndpoint(getEndpoint(e.sessionCtx.Database)),
+			option.WithEndpoint(e.sessionCtx.Database.GetURI()),
 			// pool size seems to be adjusted to number of gRPC channels, which is
 			// 4 by default in Google's code and seemingly other clients as well,
 			// but with Teleport in the middle each downstream client connection
@@ -517,18 +515,3 @@ func (s *messageStatsHandler) TagConn(ctx context.Context, _ *stats.ConnTagInfo)
 
 // HandleConn is a no-op for the message stats handler.
 func (s *messageStatsHandler) HandleConn(_ context.Context, _ stats.ConnStats) {}
-
-// getEndpoint is a simple helper that returns the endpoint to dial.
-// It exists to intentionally couple the engine dialing logic with the endpoint
-// resolver logic.
-func getEndpoint(db types.Database) string {
-	return db.GetURI()
-}
-
-// NewEndpointsResolver returns an endpoint resolver.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	uri := getEndpoint(db)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{uri}, nil
-	}), nil
-}

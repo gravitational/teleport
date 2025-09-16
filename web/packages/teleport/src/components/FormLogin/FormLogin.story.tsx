@@ -16,11 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { delay, http, HttpResponse } from 'msw';
-import { useEffect, useState } from 'react';
-
-import cfg from 'teleport/config';
-import { storageService } from 'teleport/services/storageService';
+import React from 'react';
 
 import FormLogin, { Props } from './FormLogin';
 
@@ -143,22 +139,12 @@ export const LocalDisabledNoSso = () => (
 
 export const PrimarySso = () => {
   const ssoProvider = [
-    { name: 'github', displayName: 'GitHub', type: 'oidc', url: '' } as const,
-    { name: 'google', displayName: 'Google', type: 'oidc', url: '' } as const,
-    {
-      name: 'bitbucket',
-      displayName: 'Bitbucket',
-      type: 'oidc',
-      url: '',
-    } as const,
+    { name: 'github', type: 'oidc', url: '' } as const,
+    { name: 'google', type: 'oidc', url: '' } as const,
+    { name: 'bitbucket', type: 'oidc', url: '' } as const,
     {
       name: 'Mission Control',
       type: 'oidc',
-      url: '',
-    } as const,
-    {
-      name: 'Okta',
-      type: 'saml',
       url: '',
     } as const,
     {
@@ -230,74 +216,4 @@ export const PrimaryPwdlessWithNoSso = () => {
       auth2faType="optional"
     />
   );
-};
-
-export const IdentifierFirst = () => {
-  const ssoProviders = [
-    { name: 'github', type: 'oidc', url: '' } as const,
-    { name: 'google', type: 'oidc', url: '' } as const,
-  ];
-  const [key, setKey] = useState(0);
-
-  useEffect(() => {
-    const defaultIdentifierFirst = cfg.auth.identifierFirstLoginEnabled;
-    cfg.auth.identifierFirstLoginEnabled = true;
-    setKey(prev => prev + 1); // Force remount the component with new cfg state.
-
-    return () => {
-      cfg.auth.identifierFirstLoginEnabled = defaultIdentifierFirst;
-    };
-  }, []);
-
-  return <FormLogin {...props} authProviders={ssoProviders} key={key} />;
-};
-
-export const IdentifierFirstRememberedUser = () => {
-  const [key, setKey] = useState(0);
-  const ssoProviders = [
-    { name: 'github', type: 'oidc', url: '' } as const,
-    { name: 'google', type: 'oidc', url: '' } as const,
-  ];
-
-  useEffect(() => {
-    storageService.setRememberedSsoUsername('joe@goteleport.com');
-    const defaultIdentifierFirst = cfg.auth.identifierFirstLoginEnabled;
-    cfg.auth.identifierFirstLoginEnabled = true;
-    setKey(prev => prev + 1); // Force remount the component with new cfg state.
-
-    return () => {
-      cfg.auth.identifierFirstLoginEnabled = defaultIdentifierFirst;
-      storageService.clearRememberedSsoUsername();
-    };
-  }, []);
-
-  return <FormLogin {...props} authProviders={ssoProviders} key={key} />;
-};
-
-IdentifierFirstRememberedUser.parameters = {
-  msw: {
-    handlers: [
-      http.post(cfg.api.authConnectorsPath, async () => {
-        await delay(600); // Simulate loading state
-        return HttpResponse.json([connectorsResp]);
-      }),
-    ],
-  },
-};
-
-const connectorsResp = {
-  connectors: [
-    {
-      name: 'Okta',
-      type: 'saml',
-      displayName: 'Okta',
-      url: 'http://localhost/okta/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=okta',
-    },
-    {
-      name: 'Entra',
-      type: 'saml',
-      displayName: 'Entra',
-      url: 'http://localhost/okta/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=okta',
-    },
-  ],
 };

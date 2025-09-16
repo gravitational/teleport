@@ -1,15 +1,13 @@
 ---
-title: Deploying tbot on GCP
+title: Deploying Machine ID on GCP
 description: How to install and configure Machine ID on a GCP VM
-labels:
+tags:
  - how-to
  - mwi
 ---
 
 This guide explains how to deploy Machine ID on Google Cloud Platform (GCP) by
 running the `tbot` binary and joining it to your Teleport cluster.
-
-## How it works
 
 On GCP, virtual machines can be assigned a service account. These machines can
 then request a signed JSON web token from GCP, which allows third parties to
@@ -26,6 +24,8 @@ Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identi
 for the cluster and the Kubernetes service account that will be used by the
 `tbot` pod. See the [Kubernetes platform guide](kubernetes.mdx) for further
 guidance on deploying Machine ID as a workload on Kubernetes.
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -72,7 +72,7 @@ spec:
   bot_name: example
   join_method: gcp
   gcp:
-    # allow specifies the rules by which the Auth Service determines if `tbot`
+    # allow specifies the rules by which the Auth Server determines if `tbot`
     # should be allowed to join.
     allow:
     - project_ids:
@@ -118,7 +118,7 @@ outputs: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Service. Prefer using the address of a Teleport Proxy.
+  Auth Server. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)

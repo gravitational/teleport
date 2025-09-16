@@ -17,7 +17,6 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/asn1"
 	"net"
 	"slices"
@@ -31,6 +30,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -138,7 +138,7 @@ func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 				}
 			}
 
-			return credentials.NewTLS(tlsCfg), nil
+			return expcredentials.NewTLSWithALPNDisabled(tlsCfg), nil
 		}
 	} else {
 		c.clientCreds = func(cluster string) (client.Credentials, error) {
@@ -444,17 +444,6 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 	}
 
 	return ClusterDetails{FIPS: details.FipsEnabled}, nil
-}
-
-// ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
-// The caller is required to pass a valid desktop certificate.
-func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, windowsDesktopCert tls.Certificate, rootCAs *x509.CertPool) (*tls.Conn, error) {
-	session, err := c.transport.ProxyWindowsDesktopSession(ctx, cluster, desktopName, windowsDesktopCert, rootCAs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return session, nil
 }
 
 // Ping measures the round trip latency of sending a message to the Proxy.

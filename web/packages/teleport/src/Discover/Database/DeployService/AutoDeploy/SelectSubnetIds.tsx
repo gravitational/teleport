@@ -29,7 +29,7 @@ import {
 } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import * as Icons from 'design/Icon';
-import { HoverTooltip, IconTooltip } from 'design/Tooltip';
+import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
 import { pluralize } from 'shared/utils/text';
@@ -121,12 +121,12 @@ export function SelectSubnetIds({
     <>
       <Flex alignItems="center" gap={1} mb={2}>
         <Subtitle3>Select ECS Subnets</Subtitle3>
-        <IconTooltip>
+        <ToolTipInfo>
           <Text>
             A subnet has an outbound internet route if it has a route to an
             internet gateway or a NAT gateway in a public subnet.
           </Text>
-        </IconTooltip>
+        </ToolTipInfo>
       </Flex>
 
       <Text mb={2}>
@@ -164,7 +164,7 @@ export function SelectSubnetIds({
           <Flex alignItems="center" gap={3} mt={2}>
             <HoverTooltip
               tipContent="Refreshing subnets will reset selections"
-              placement="top-start"
+              anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
             >
               <ButtonSecondary
                 onClick={() => fetchSubnets({ refresh: true })}

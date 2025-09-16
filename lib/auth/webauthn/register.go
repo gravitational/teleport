@@ -29,9 +29,9 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	wan "github.com/go-webauthn/webauthn/webauthn"
-	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -160,7 +160,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 			continue
 		}
 
-		cred, ok := deviceToCredential(dev, true /* idOnly */, nil /* currentFlags */)
+		cred, ok := deviceToCredential(dev, true /* idOnly */)
 		if !ok {
 			continue
 		}
@@ -174,11 +174,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u := newWebUser(webUserOpts{
-		name:             user,
-		webID:            webID,
-		credentialIDOnly: true,
-	})
+	u := newWebUser(user, webID, true /* credentialIDOnly */, nil /* devices */)
 
 	web, err := newWebAuthn(webAuthnParams{
 		cfg:                     f.Webauthn,
@@ -189,15 +185,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cc, sessionData, err := web.BeginRegistration(
-		u,
-		wan.WithExclusions(exclusions),
-		wan.WithExtensions(protocol.AuthenticationExtensions{
-			// Query authenticator on whether the resulting credential is resident,
-			// despite our requirements.
-			wantypes.CredPropsExtension: true,
-		}),
-	)
+	cc, sessionData, err := web.BeginRegistration(u, wan.WithExclusions(exclusions))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -283,7 +271,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 
 	origin := parsedResp.Response.CollectedClientData.Origin
 	if err := validateOrigin(origin, f.Webauthn.RPID); err != nil {
-		log.DebugContext(ctx, "origin validation failed", "error", err)
+		log.WithError(err).Debugf("WebAuthn: origin validation failed")
 		return nil, trace.Wrap(err)
 	}
 
@@ -294,11 +282,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u := newWebUser(webUserOpts{
-		name:             req.User,
-		webID:            wla.UserID,
-		credentialIDOnly: true,
-	})
+	u := newWebUser(req.User, wla.UserID, true /* credentialIDOnly */, nil /* devices */)
 
 	sd, err := f.Identity.GetWebauthnSessionData(ctx, req.User, scopeSession)
 	if err != nil {
@@ -331,7 +315,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 			protocolErr.Type == protocol.ErrVerification.Type &&
 			passwordless &&
 			!parsedResp.Response.AttestationObject.AuthData.Flags.UserVerified() {
-			log.DebugContext(ctx, "WebAuthn: Replacing verification error with PIN message", "error", err)
+			log.WithError(err).Debug("WebAuthn: Replacing verification error with PIN message")
 			return nil, trace.BadParameter("authenticator doesn't support passwordless, setting up a PIN may fix this")
 		}
 
@@ -345,7 +329,8 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 		return nil, trace.Wrap(err)
 	}
 
-	newDevice, err := types.NewMFADevice(req.DeviceName, uuid.NewString() /* id */, time.Now() /* addedAt */, &types.MFADevice_Webauthn{
+	newDevice := types.NewMFADevice(req.DeviceName, uuid.NewString() /* id */, time.Now() /* addedAt */)
+	newDevice.Device = &types.MFADevice_Webauthn{
 		Webauthn: &types.WebauthnDevice{
 			CredentialId:      credential.ID,
 			PublicKeyCbor:     credential.PublicKey,
@@ -353,20 +338,10 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 			Aaguid:            credential.Authenticator.AAGUID,
 			SignatureCounter:  credential.Authenticator.SignCount,
 			AttestationObject: req.CreationResponse.AttestationResponse.AttestationObject,
-			ResidentKey:       req.Passwordless || hasCredPropsRK(req.CreationResponse),
+			ResidentKey:       req.Passwordless,
 			CredentialRpId:    f.Webauthn.RPID,
-			CredentialBackupEligible: &gogotypes.BoolValue{
-				Value: credential.Flags.BackupEligible,
-			},
-			CredentialBackedUp: &gogotypes.BoolValue{
-				Value: credential.Flags.BackupState,
-			},
 		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
-
 	// We delegate a few checks to identity, including:
 	// * The validity of the created MFADevice
 	// * Uniqueness validation of the deviceName
@@ -377,7 +352,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 
 	// Registration complete, remove the registration challenge we just used.
 	if err := f.Identity.DeleteWebauthnSessionData(ctx, req.User, scopeSession); err != nil {
-		log.WarnContext(ctx, "failed to delete registration SessionData for user", "user", req.User, "error", err)
+		log.Warnf("WebAuthn: failed to delete registration SessionData for user %v", req.User)
 	}
 
 	return newDevice, nil
@@ -400,11 +375,4 @@ func parseCredentialCreationResponse(resp *wantypes.CredentialCreationResponse) 
 	}
 	parsedResp, err := protocol.ParseCredentialCreationResponseBody(bytes.NewReader(body))
 	return parsedResp, trace.Wrap(err)
-}
-
-func hasCredPropsRK(ccr *wantypes.CredentialCreationResponse) bool {
-	return ccr != nil &&
-		ccr.Extensions != nil &&
-		ccr.Extensions.CredProps != nil &&
-		ccr.Extensions.CredProps.RK
 }

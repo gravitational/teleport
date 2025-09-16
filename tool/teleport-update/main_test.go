@@ -43,7 +43,7 @@ func BenchmarkInit(b *testing.B) {
 	executable, err := os.Executable()
 	require.NoError(b, err)
 
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		cmd := exec.Command(executable, initTestSentinel)
 		err := cmd.Run()
 		assert.NoError(b, err)

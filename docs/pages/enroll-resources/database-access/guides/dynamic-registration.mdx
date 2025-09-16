@@ -1,7 +1,7 @@
 ---
 title: Dynamic Database Registration
 description: Register/unregister databases without restarting Teleport.
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
@@ -20,7 +20,7 @@ service to monitor for registering:
 
 ```yaml
 db_service:
-  enabled: true
+  enabled: "yes"
   resources:
   - labels:
       "*": "*"

@@ -33,7 +33,6 @@ import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
-import "teleport/lib/teleterm/v1/windows_desktop.proto";
 import "teleport/userpreferences/v1/cluster_preferences.proto";
 import "teleport/userpreferences/v1/unified_resource_preferences.proto";
 
@@ -62,10 +61,12 @@ service TerminalService {
   // StartHeadlessWatcher starts a headless watcher.
   // If the watcher is already running, it is restarted.
   rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
+  // GetDatabases returns a filtered and paginated list of databases
+  rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
-  // ListDatabaseServers lists allowed users for the given database based on the role set.
-  rpc ListDatabaseServers(ListDatabaseServersRequest) returns (ListDatabaseServersResponse);
+  // GetServers returns filtered, sorted, and paginated servers
+  rpc GetServers(GetServersRequest) returns (GetServersResponse);
   // GetAccessRequests lists filtered AccessRequests
   rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
   // GetAccessRequest retreives a single Access Request
@@ -88,6 +89,10 @@ service TerminalService {
   // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
   rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
 
+  // GetKubes returns filtered, sorted, and paginated kubes
+  rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
+  // GetApps returns a filtered and paginated list of apps.
+  rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
   // RemoveCluster removes a cluster from profile
@@ -174,20 +179,6 @@ service TerminalService {
   // See
   // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
   rpc AuthenticateWebDevice(AuthenticateWebDeviceRequest) returns (AuthenticateWebDeviceResponse);
-
-  // GetApp returns details of an app resource. It does not include information about AWS roles and
-  // FQDN.
-  rpc GetApp(GetAppRequest) returns (GetAppResponse);
-
-  // ConnectToDesktop is a bidirectional stream for the desktop connection.
-  rpc ConnectToDesktop(stream ConnectToDesktopRequest) returns (stream ConnectToDesktopResponse);
-  // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
-  // If there is no active desktop session associated with the specified desktop_uri and login,
-  // the RPC returns an error.
-  //
-  // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
-  // It only registers file system handlers for processing file system-related TDP events.
-  rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
 }
 
 message EmptyResponse {}
@@ -465,6 +456,16 @@ message ListClustersResponse {
   repeated Cluster clusters = 1;
 }
 
+message GetDatabasesRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
 message ListLeafClustersRequest {
   string cluster_uri = 1;
 }
@@ -475,28 +476,6 @@ message ListDatabaseUsersRequest {
 
 message ListDatabaseUsersResponse {
   repeated string users = 1;
-}
-
-// ListResourcesParams describes different types of params
-// that can be applied when sending a request to a method that
-// uses the ListResources API underneath.
-message ListResourcesParams {
-  string start_key = 1;
-  int32 limit = 2;
-  string predicate_expression = 3;
-  // UseSearchAsRoles indicates that the response should include all resources
-  // the caller is able to request access to using search_as_roles
-  bool use_search_as_roles = 4;
-}
-
-message ListDatabaseServersRequest {
-  string cluster_uri = 1;
-  ListResourcesParams params = 2;
-}
-
-message ListDatabaseServersResponse {
-  repeated DatabaseServer resources = 1;
-  string next_key = 2;
 }
 
 message CreateGatewayRequest {
@@ -524,6 +503,60 @@ message SetGatewayTargetSubresourceNameRequest {
 message SetGatewayLocalPortRequest {
   string gateway_uri = 1;
   string local_port = 2;
+}
+
+message GetServersRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetServersResponse {
+  repeated Server agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
+}
+
+message GetDatabasesResponse {
+  repeated Database agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
+}
+
+message GetKubesRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetKubesResponse {
+  repeated Kube agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
+}
+
+message GetAppsRequest {
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
+}
+
+message GetAppsResponse {
+  repeated App agents = 1;
+  int32 total_count = 2;
+  string start_key = 3;
 }
 
 message GetAuthSettingsRequest {
@@ -624,7 +657,7 @@ message SortBy {
 
 message ListUnifiedResourcesResponse {
   repeated PaginatedResource resources = 1;
-  // A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
+  // A key to use as start_key in a ListResourcesRequest to continue retrieving
   // the next pages. If it is empty, there are no more pages.
   string next_key = 2;
 }
@@ -635,7 +668,6 @@ message PaginatedResource {
     Server server = 2;
     Kube kube = 3;
     App app = 4;
-    WindowsDesktop windows_desktop = 6;
   }
   bool requires_request = 5;
 }
@@ -678,47 +710,3 @@ message AuthenticateWebDeviceResponse {
   // authentication attempt.
   teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
 }
-
-message GetAppRequest {
-  string app_uri = 1;
-}
-
-message GetAppResponse {
-  App app = 1;
-}
-
-// TargetDesktop contains information about the destination desktop.
-message TargetDesktop {
-  // URI of the desktop to connect to.
-  string desktop_uri = 1;
-  // Login for the desktop session.
-  string login = 2;
-}
-
-// Request for ConnectToDesktop.
-message ConnectToDesktopRequest {
-  // Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
-  // Must be empty in the first message and nonempty in subsequent messages.
-  bytes data = 1;
-  // Target desktop and login. Must be set in the first message and unset in subsequent messages.
-  TargetDesktop target_desktop = 2;
-}
-
-// Response for ConnectToDesktop.
-message ConnectToDesktopResponse {
-  // Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
-  bytes data = 1;
-}
-
-// Request for SetSharedDirectoryForDesktopSession.
-message SetSharedDirectoryForDesktopSessionRequest {
-  // URI of the desktop.
-  string desktop_uri = 1;
-  // Login for the desktop session.
-  string login = 2;
-  // Path to share with a remote machine. Must be a directory.
-  string path = 3;
-}
-
-// Response for SetSharedDirectoryForDesktopSession.
-message SetSharedDirectoryForDesktopSessionResponse {}

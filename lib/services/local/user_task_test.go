@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -128,7 +129,7 @@ func TestUpdateUserTask(t *testing.T) {
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
-	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
 	// Fetch the object from the backend so the revision is populated.
 	obj, err := service.GetUserTask(ctx, getUserTaskObject(t, 0).GetMetadata().GetName())
@@ -152,7 +153,7 @@ func TestUpdateUserTaskMissingRevision(t *testing.T) {
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
-	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
 	obj := getUserTaskObject(t, 0)
 	obj.Metadata.Expires = expiry
@@ -218,14 +219,14 @@ func TestListUserTask(t *testing.T) {
 			prepopulateUserTask(t, service, count)
 
 			expectedElements := make([]*usertasksv1.UserTask, 0, count)
-			for i := range count {
+			for i := 0; i < count; i++ {
 				expectedElements = append(expectedElements, getUserTaskObject(t, i))
 			}
 			slices.SortFunc(expectedElements, sortUserTasksFn)
 
 			t.Run("one page", func(t *testing.T) {
 				// Fetch all objects.
-				elements, nextToken, err := service.ListUserTasks(ctx, 200, "", &usertasksv1.ListUserTasksFilters{})
+				elements, nextToken, err := service.ListUserTasks(ctx, 200, "")
 				require.NoError(t, err)
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
@@ -239,7 +240,7 @@ func TestListUserTask(t *testing.T) {
 				elements := make([]*usertasksv1.UserTask, 0)
 				nextToken := ""
 				for {
-					out, token, err := service.ListUserTasks(ctx, 2, nextToken, &usertasksv1.ListUserTasksFilters{})
+					out, token, err := service.ListUserTasks(ctx, 2, nextToken)
 					require.NoError(t, err)
 					nextToken = token
 
@@ -296,7 +297,7 @@ func getUserTaskObject(t *testing.T, index int) *usertasksv1.UserTask {
 }
 
 func prepopulateUserTask(t *testing.T, service services.UserTasks, count int) {
-	for i := range count {
+	for i := 0; i < count; i++ {
 		_, err := service.CreateUserTask(context.Background(), getUserTaskObject(t, i))
 		require.NoError(t, err)
 	}

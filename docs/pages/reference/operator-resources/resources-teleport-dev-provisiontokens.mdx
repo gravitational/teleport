@@ -2,7 +2,7 @@
 title: TeleportProvisionToken
 description: Provides a comprehensive list of fields in the TeleportProvisionToken resource available through the Teleport Kubernetes operator
 tocDepth: 3
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -32,17 +32,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |allow|[][object](#specallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
 |aws_iid_ttl|string|AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.|
 |azure|[object](#specazure)|Azure allows the configuration of options specific to the "azure" join method.|
-|azure_devops|[object](#specazure_devops)|AzureDevops allows the configuration of options specific to the "azure_devops" join method.|
 |bitbucket|[object](#specbitbucket)|Bitbucket allows the configuration of options specific to the "bitbucket" join method.|
 |bot_name|string|BotName is the name of the bot this token grants access to, if any|
-|bound_keypair|[object](#specbound_keypair)|BoundKeypair allows the configuration of options specific to the "bound_keypair" join method.|
 |circleci|[object](#speccircleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
 |gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
 |github|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
 |gitlab|[object](#specgitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
 |join_method|string|JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm|
 |kubernetes|[object](#speckubernetes)|Kubernetes allows the configuration of options specific to the "kubernetes" join method.|
-|oracle|[object](#specoracle)|Oracle allows the configuration of options specific to the "oracle" join method.|
 |roles|[]string|Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|
 |spacelift|[object](#specspacelift)|Spacelift allows the configuration of options specific to the "spacelift" join method.|
 |suggested_agent_matcher_labels|object|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
@@ -72,26 +69,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |resource_groups|[]string||
 |subscription|string||
 
-### spec.azure_devops
-
-|Field|Type|Description|
-|---|---|---|
-|allow|[][object](#specazure_devopsallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. At least one allow rule must be specified.|
-|organization_id|string|OrganizationID specifies the UUID of the Azure DevOps organization that this join token will grant access to. This is used to identify the correct issuer verification of the ID token. This is a required field.|
-
-### spec.azure_devops.allow items
-
-|Field|Type|Description|
-|---|---|---|
-|definition_id|string||
-|pipeline_name|string||
-|project_id|string||
-|project_name|string||
-|repository_ref|string||
-|repository_uri|string||
-|repository_version|string||
-|sub|string||
-
 ### spec.bitbucket
 
 |Field|Type|Description|
@@ -108,29 +85,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |deployment_environment_uuid|string||
 |repository_uuid|string||
 |workspace_uuid|string||
-
-### spec.bound_keypair
-
-|Field|Type|Description|
-|---|---|---|
-|onboarding|[object](#specbound_keypaironboarding)|Onboarding contains parameters related to initial onboarding and keypair registration.|
-|recovery|[object](#specbound_keypairrecovery)|Recovery contains parameters related to recovery after identity expiration.|
-|rotate_after|string|RotateAfter is an optional timestamp that forces clients to perform a keypair rotation on the next join or recovery attempt after the given date. If `LastRotatedAt` is unset or before this timestamp, a rotation will be requested. It is recommended to set this value to the current timestamp if a rotation should be triggered on the next join attempt.|
-
-### spec.bound_keypair.onboarding
-
-|Field|Type|Description|
-|---|---|---|
-|initial_public_key|string||
-|must_register_before|string||
-|registration_secret|string||
-
-### spec.bound_keypair.recovery
-
-|Field|Type|Description|
-|---|---|---|
-|limit|integer||
-|mode|string||
 
 ### spec.circleci
 
@@ -216,9 +170,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |allow|[][object](#speckubernetesallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
-|oidc|[object](#speckubernetesoidc)|OIDCConfig configures the `oidc` type.|
 |static_jwks|[object](#speckubernetesstatic_jwks)|StaticJWKS is the configuration specific to the `static_jwks` type.|
-|type|string|Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults to `in_cluster`.|
+|type|string|Type controls which behavior should be used for validating the Kubernetes Service Account token. Support values: - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.|
 
 ### spec.kubernetes.allow items
 
@@ -226,39 +179,17 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |service_account|string||
 
-### spec.kubernetes.oidc
-
-|Field|Type|Description|
-|---|---|---|
-|insecure_allow_http_issuer|boolean||
-|issuer|string||
-
 ### spec.kubernetes.static_jwks
 
 |Field|Type|Description|
 |---|---|---|
 |jwks|string||
 
-### spec.oracle
-
-|Field|Type|Description|
-|---|---|---|
-|allow|[][object](#specoracleallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
-
-### spec.oracle.allow items
-
-|Field|Type|Description|
-|---|---|---|
-|parent_compartments|[]string||
-|regions|[]string||
-|tenancy|string||
-
 ### spec.spacelift
 
 |Field|Type|Description|
 |---|---|---|
 |allow|[][object](#specspaceliftallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
-|enable_glob_matching|boolean|EnableGlobMatching enables glob-style matching for the space_id and caller_id fields in the rules.|
 |hostname|string|Hostname is the hostname of the Spacelift tenant that tokens will originate from. E.g `example.app.spacelift.io`|
 
 ### spec.spacelift.allow items

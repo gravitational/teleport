@@ -188,7 +188,16 @@ func newDefaultConfig() *Config {
 			"teleport.lib.teleterm.v1.TerminalService.ListLeafClusters":                 {},
 			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers":                {},
 			"proto.AuthService.GetInventoryStatus":                                      {},
-
+			"teleport.lib.teleterm.v1.TerminalService.GetServers":                       {},
+			"teleport.lib.teleterm.v1.TerminalService.GetApps":                          {},
+			"teleport.lib.teleterm.vnet.v1.VnetService.ListDNSZones":                    {},
+			"teleport.lib.teleterm.v1.TerminalService.GetDatabases":                     {},
+			"teleport.integration.v1.AWSOIDCService.ListEICE":                           {},
+			"teleport.integration.v1.AWSOIDCService.ListEC2":                            {},
+			"teleport.lib.teleterm.v1.TerminalService.GetKubes":                         {},
+			"proto.AuthService.GetRoles":                                                {},
+			// RPCs deprecated from v19 onwards:
+			"proto.AuthService.GetDatabases": {},
 			// repeated field `schemas` in `Resource` does not require pagination.
 			"teleport.scim.v1.SCIMService.GetSCIMResource": {},
 			// `Device` message contains repeated field `DeviceCollectedData` but is not paginated.

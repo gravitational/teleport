@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
@@ -223,7 +224,17 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string
 		return nil, trace.Wrap(err)
 	}
 
-	applyWebSocketUpgradeHeaders(req, alpnUpgradeType, challengeKey)
+	// Prefer "websocket".
+	if useConnUpgradeMode.useWebSocket() {
+		applyWebSocketUpgradeHeaders(req, alpnUpgradeType, challengeKey)
+	}
+
+	// Append "legacy" custom upgrade type.
+	// TODO(greedy52) DELETE in 17.0
+	if useConnUpgradeMode.useLegacy() {
+		req.Header.Add(constants.WebAPIConnUpgradeHeader, alpnUpgradeType)
+		req.Header.Add(constants.WebAPIConnUpgradeTeleportHeader, alpnUpgradeType)
+	}
 
 	// Set "Connection" header to meet RFC spec:
 	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42
@@ -261,10 +272,36 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string
 
 	// Handle WebSocket.
 	logger := slog.With("hostname", api.Host)
-	if err := checkWebSocketUpgradeResponse(resp, alpnUpgradeType, challengeKey); err != nil {
-		return nil, trace.Wrap(err)
+	if resp.Header.Get(constants.WebAPIConnUpgradeHeader) == constants.WebAPIConnUpgradeTypeWebSocket {
+		if err := checkWebSocketUpgradeResponse(resp, alpnUpgradeType, challengeKey); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		logger.DebugContext(req.Context(), "Performing ALPN WebSocket connection upgrade.")
+		return newWebSocketALPNClientConn(conn), nil
 	}
 
-	logger.DebugContext(req.Context(), "Performing ALPN WebSocket connection upgrade.")
-	return newWebSocketALPNClientConn(conn), nil
+	// Handle "legacy".
+	// TODO(greedy52) DELETE in 17.0.
+	logger.DebugContext(req.Context(), "Performing ALPN legacy connection upgrade.")
+	if alpnUpgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
+		return pingconn.New(conn), nil
+	}
+	return conn, nil
 }
+
+type connUpgradeMode string
+
+func (m connUpgradeMode) useWebSocket() bool {
+	// Use WebSocket as long as it's not legacy only.
+	return strings.ToLower(string(m)) != "legacy"
+}
+
+func (m connUpgradeMode) useLegacy() bool {
+	// Use legacy as long as it's not WebSocket only.
+	return strings.ToLower(string(m)) != "websocket"
+}
+
+var (
+	useConnUpgradeMode connUpgradeMode = connUpgradeMode(os.Getenv(defaults.TLSRoutingConnUpgradeModeEnvVar))
+)

@@ -1,7 +1,7 @@
 ---
 title: Using the tsh Command Line Tool
 description: This reference shows you how to use Teleport's tsh tool to authenticate to a cluster, explore your infrastructure, and connect to a resource.
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
@@ -687,7 +687,7 @@ $ tsh join <session_ID>
   title="Lacking permission?"
 >
   Joining sessions requires special permissions that need to be set up by your cluster administrator.
-  Refer them to the [Moderated Sessions guide](../zero-trust-access/authentication/joining-sessions.mdx) for more information on configuring join permissions.
+  Refer them to the [Moderated Sessions guide](../zero-trust-access/access-controls/guides/joining-sessions.mdx) for more information on configuring join permissions.
 </Admonition>
 
 You can also list active sessions with the `tsh sessions ls` command.
@@ -777,10 +777,6 @@ $ tsh status
   Extensions:         permit-X11-forwarding
 ```
 
-## Proxying Git commands
-
-(!docs/pages/connect-your-client/includes/tsh-git.mdx!)
-
 ## Custom aliases and defaults
 
 You can configure `tsh` to define aliases, custom commands and command-specific flag defaults. Using aliases, you can run frequently used `tsh` commands more easily.
@@ -852,40 +848,15 @@ DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.g
 ...
 ```
 
-## Debug logs
-
-Adding the `--debug` flag to a command or setting the `TELEPORT_DEBUG` env var to `1` makes tsh
-print debug logs to standard output.
-
-### Unified logging system on macOS
-
-On macOS, the `--os-log` flag can be used instead of `--debug` to send debug logs to [the unified
-logging system](https://support.apple.com/en-gb/guide/console/welcome/mac). This behavior can also be controlled through the `TELEPORT_OS_LOG` env var.
-
-To stream logs in a separate shell session:
-
-```code
-$ log stream --predicate 'subsystem CONTAINS "tsh"' --style syslog --level debug
-```
-
-To dump logs captured so far to a file:
-
-```code
-$ log show --predicate 'subsystem CONTAINS "tsh"' --style syslog --info --debug > tsh.log
-```
-
-The logs can also be inspected in [the Console
-app](https://support.apple.com/en-gb/guide/console/cnsl1012/1.1/mac/15.0). Info and debug logs are
-not shown by default, so make sure to select "Include Info Messages" and "Include Debug Messages"
-from the Action menu.
-
 ## Examining recorded sessions
 
 You can use `tsh` to examine sessions that users have completed in resources
 protected by Teleport. This section explains how to list and play Teleport
 session recordings with `tsh`.
 
-To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
+Note that you can also play session recordings in the Teleport Web UI. To do so,
+navigate to the **Access Management** tab on the top sidebar and view the
+**Session Recordings** tab on the left sidebar.
 
 ### Listing recordings
 
@@ -1106,7 +1077,7 @@ proxy_templates:
 In the configuration above, `query` accepts an predicate expression.  This has
 priority over search but will be ignored if a host is provided.  See the
 [predicate language
-documentation](../reference/predicate-language.mdx#resource-filtering) for
+documentation](../reference/predicate-language.mdx#resource-filtering for
 predicate expression examples.
 
 `tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the

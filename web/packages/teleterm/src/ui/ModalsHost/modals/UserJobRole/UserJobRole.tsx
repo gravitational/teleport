@@ -16,10 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
 
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Input } from 'design';
+import {
+  ButtonIcon,
+  ButtonPrimary,
+  ButtonSecondary,
+  Input,
+  Text,
+} from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
@@ -43,7 +49,7 @@ export function UserJobRole(props: {
   onSend(jobRole: string): void;
   hidden?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>();
   const [jobRole, setJobRole] = useState<string | null>(null);
   const [otherJobRole, setOtherJobRole] = useState('');
 
@@ -85,7 +91,9 @@ export function UserJobRole(props: {
           mb={1}
           alignItems="baseline"
         >
-          <H2 mb={4}>What describes your current job role best?</H2>
+          <Text typography="h4" bold>
+            What describes your current job role best?
+          </Text>
           <ButtonIcon
             type="button"
             onClick={props.onCancel}
@@ -101,7 +109,6 @@ export function UserJobRole(props: {
             options={[...JOB_OPTIONS, OTHER_JOB_ROLE]}
             value={jobRole}
             onChange={handleRadioGroupChange}
-            mb={3}
           />
           <StyledInput
             ref={inputRef}

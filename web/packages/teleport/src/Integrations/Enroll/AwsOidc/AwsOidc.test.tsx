@@ -46,11 +46,7 @@ test('render', async () => {
   expect(
     screen.getByLabelText(/Give this AWS integration a name/i)
   ).toBeInTheDocument();
-  expect(
-    screen.getByLabelText(
-      /Give a name for an AWS IAM role this integration will create/i
-    )
-  ).toBeInTheDocument();
+  expect(screen.getByLabelText(/iam role name/i)).toBeInTheDocument();
 });
 
 test('generate command', async () => {
@@ -84,14 +80,9 @@ test('generate command', async () => {
   fireEvent.change(screen.getByLabelText(/Give this AWS integration a name/i), {
     target: { value: pluginConfig.name },
   });
-  fireEvent.change(
-    screen.getByLabelText(
-      /Give a name for an AWS IAM role this integration will create/i
-    ),
-    {
-      target: { value: pluginConfig.roleName },
-    }
-  );
+  fireEvent.change(screen.getByLabelText(/iam role name/i), {
+    target: { value: pluginConfig.roleName },
+  });
 
   fireEvent.click(screen.getByRole('button', { name: /Generate Command/i }));
 
@@ -125,10 +116,7 @@ test('generate command', async () => {
 
   // Test create is still called with 404 ping error.
   jest.clearAllMocks();
-  let error = new ApiError({
-    message: '',
-    response: { status: 404 } as Response,
-  });
+  let error = new ApiError('', { status: 404 } as Response);
   spyPing = jest
     .spyOn(integrationService, 'pingAwsOidcIntegration')
     .mockRejectedValue(error);
@@ -139,7 +127,7 @@ test('generate command', async () => {
 
   // Test create isn't called with non 404 error
   jest.clearAllMocks();
-  error = new ApiError({ message: '', response: { status: 400 } as Response });
+  error = new ApiError('', { status: 400 } as Response);
   spyPing = jest
     .spyOn(integrationService, 'pingAwsOidcIntegration')
     .mockRejectedValue(error);

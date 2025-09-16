@@ -24,17 +24,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coreos/go-oidc"
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/oidc"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type clusterNameGetter interface {
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 type IDTokenValidatorConfig struct {
@@ -83,15 +85,42 @@ func (id *IDTokenValidator) issuerURL(domain string) string {
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, domain string, token string,
 ) (*IDTokenClaims, error) {
-	clusterNameResource, err := id.ClusterNameGetter.GetClusterName(ctx)
+	p, err := oidc.NewProvider(
+		ctx,
+		id.issuerURL(domain),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterNameResource, err := id.ClusterNameGetter.GetClusterName()
 	if err != nil {
 		return nil, err
 	}
 
-	audience := clusterNameResource.GetClusterName()
-	issuer := id.issuerURL(domain)
+	verifier := p.Verifier(&oidc.Config{
+		ClientID: clusterNameResource.GetClusterName(),
+		Now:      id.Clock.Now,
+	})
 
-	return oidc.ValidateToken[*IDTokenClaims](ctx, issuer, audience, token)
+	idToken, err := verifier.Verify(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// `go-oidc` does not implement not before check, so we need to manually
+	// perform this
+	if err := jwt.CheckNotBefore(
+		id.Clock.Now(), time.Minute*2, idToken,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	claims := IDTokenClaims{}
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &claims, nil
 }
 
 // ValidateTokenWithJWKS validates a token using the provided JWKS data.
@@ -116,7 +145,7 @@ func (id *IDTokenValidator) ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
 
-	clusterNameResource, err := id.ClusterNameGetter.GetClusterName(ctx)
+	clusterNameResource, err := id.ClusterNameGetter.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}

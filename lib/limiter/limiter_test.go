@@ -28,24 +28,79 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/timetools"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
 
-	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
+func TestConnectionsLimiter(t *testing.T) {
+	limiter, err := NewLimiter(
+		Config{
+			MaxConnections: 0,
+		},
+	)
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		require.NoError(t, limiter.AcquireConnection("token1"))
+	}
+	for i := 0; i < 5; i++ {
+		require.NoError(t, limiter.AcquireConnection("token2"))
+	}
+
+	for i := 0; i < 10; i++ {
+		limiter.ReleaseConnection("token1")
+	}
+	for i := 0; i < 5; i++ {
+		limiter.ReleaseConnection("token2")
+	}
+
+	limiter, err = NewLimiter(
+		Config{
+			MaxConnections: 5,
+		},
+	)
+	require.NoError(t, err)
+
+	for i := 0; i < 5; i++ {
+		require.NoError(t, limiter.AcquireConnection("token1"))
+	}
+
+	for i := 0; i < 5; i++ {
+		require.NoError(t, limiter.AcquireConnection("token2"))
+	}
+	for i := 0; i < 5; i++ {
+		require.Error(t, limiter.AcquireConnection("token2"))
+	}
+
+	for i := 0; i < 10; i++ {
+		limiter.ReleaseConnection("token1")
+		require.NoError(t, limiter.AcquireConnection("token1"))
+	}
+
+	for i := 0; i < 5; i++ {
+		limiter.ReleaseConnection("token2")
+	}
+	for i := 0; i < 5; i++ {
+		require.NoError(t, limiter.AcquireConnection("token2"))
+	}
+}
+
 func TestRateLimiter(t *testing.T) {
-	clock := clockwork.NewFakeClock()
+	// TODO: this test fails
+	clock := &timetools.FreezedTime{
+		CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
+	}
 
 	limiter, err := NewLimiter(
 		Config{
@@ -65,31 +120,31 @@ func TestRateLimiter(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		require.NoError(t, limiter.RegisterRequest("token2"))
 	}
 
 	require.Error(t, limiter.RegisterRequest("token1"))
 
-	clock.Advance(10 * time.Millisecond)
-	for range 10 {
+	clock.Sleep(10 * time.Millisecond)
+	for i := 0; i < 10; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.Error(t, limiter.RegisterRequest("token1"))
 
-	clock.Advance(10 * time.Millisecond)
-	for range 10 {
+	clock.Sleep(10 * time.Millisecond)
+	for i := 0; i < 10; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.Error(t, limiter.RegisterRequest("token1"))
 
-	clock.Advance(10 * time.Millisecond)
+	clock.Sleep(10 * time.Millisecond)
 	// the second rate is full
 	err = nil
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
@@ -97,11 +152,11 @@ func TestRateLimiter(t *testing.T) {
 	}
 	require.Error(t, err)
 
-	clock.Advance(10 * time.Millisecond)
+	clock.Sleep(10 * time.Millisecond)
 	// Now the second rate has free space
 	require.NoError(t, limiter.RegisterRequest("token1"))
 	err = nil
-	for range 15 {
+	for i := 0; i < 15; i++ {
 		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
@@ -111,7 +166,9 @@ func TestRateLimiter(t *testing.T) {
 }
 
 func TestCustomRate(t *testing.T) {
-	clock := clockwork.NewFakeClock()
+	clock := &timetools.FreezedTime{
+		CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
+	}
 
 	limiter, err := NewLimiter(
 		Config{
@@ -132,7 +189,7 @@ func TestCustomRate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Max out custom rate.
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		require.NoError(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
 	}
 
@@ -140,7 +197,7 @@ func TestCustomRate(t *testing.T) {
 	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
 
 	// Test default rate still works.
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 }
@@ -173,7 +230,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	serverInfo := &grpc.UnaryServerInfo{
 		FullMethod: "/method",
 	}
-	handler := func(context.Context, any) (any, error) { return nil, nil }
+	handler := func(context.Context, interface{}) (interface{}, error) { return nil, nil }
 
 	unaryInterceptor := limiter.UnaryServerInterceptor()
 
@@ -182,7 +239,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	require.NoError(t, err)
 
 	// should eventually fail, not testing the limiter behavior here
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 		if err != nil {
 			break
@@ -204,7 +261,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	require.NoError(t, err)
 
 	// should eventually fail, not testing the limiter behavior here
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 		if err != nil {
 			break
@@ -240,14 +297,14 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 		ctx: ctx,
 	}
 	info := &grpc.StreamServerInfo{}
-	handler := func(srv any, stream grpc.ServerStream) error { return nil }
+	handler := func(srv interface{}, stream grpc.ServerStream) error { return nil }
 
 	// pass at least once
 	err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 	require.NoError(t, err)
 
 	// should eventually fail, not testing the limiter behavior here
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 		if err != nil {
 			break
@@ -347,14 +404,15 @@ func TestListener(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			limiter := NewConnectionsLimiter(test.config.MaxConnections)
+			limiter, err := NewConnectionsLimiter(test.config)
+			require.NoError(t, err)
 
 			ln, err := NewListener(test.listener, limiter)
 			require.NoError(t, err)
 
 			// open connections without closing to enforce limits
 			conns := make([]net.Conn, 0, connLimit)
-			for i := range connLimit {
+			for i := 0; i < connLimit; i++ {
 				conn, err := ln.Accept()
 				test.acceptAssertion(t, i, conn, err)
 
@@ -385,7 +443,7 @@ func TestListener(t *testing.T) {
 
 			// open connections again after closing to
 			// ensure that closing reset limits
-			for i := range 5 {
+			for i := 0; i < 5; i++ {
 				conn, err := ln.Accept()
 				test.acceptAssertion(t, i, conn, err)
 

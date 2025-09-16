@@ -16,15 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useLocation } from 'react-router';
 
-import { parseSortType } from 'design/DataTable/sort';
 import { SortType } from 'design/DataTable/types';
-import {
-  IncludedResourceMode,
-  isResourceHealthStatus,
-} from 'shared/components/UnifiedResources';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
@@ -43,62 +38,27 @@ export interface UrlFilteringState {
   search: string;
 }
 
-type URLResourceFilter = Omit<ResourceFilter, 'includedResourceMode'>;
-
 export function useUrlFiltering(
-  initialParams: URLResourceFilter,
-  includedResourceMode?: IncludedResourceMode
+  initialParams: Partial<ResourceFilter>
 ): UrlFilteringState {
   const { search, pathname } = useLocation();
+  const [params, setParams] = useState<ResourceFilter>({
+    ...initialParams,
+    ...getResourceUrlQueryParams(search),
+  });
 
   function replaceHistory(path: string) {
     history.replace(path);
   }
 
   function setSort(sort: SortType) {
-    replaceHistory(
-      encodeUrlQueryParams({
-        pathname,
-        searchString: params.search || params.query,
-        sort: { ...params.sort, ...sort },
-        kinds: params.kinds,
-        isAdvancedSearch: !!params.query,
-        pinnedOnly: params.pinnedOnly,
-      })
-    );
-  }
-
-  const [initialParamsState] = useState(initialParams);
-  const params = useMemo(() => {
-    const urlParams = getResourceUrlQueryParams(search);
-    return {
-      ...initialParamsState,
-      ...urlParams,
-      includedResourceMode,
-      pinnedOnly:
-        urlParams.pinnedOnly !== undefined
-          ? urlParams.pinnedOnly
-          : initialParamsState.pinnedOnly,
-    };
-  }, [search, includedResourceMode]);
-
-  function setParams(newParams: URLResourceFilter) {
-    replaceHistory(
-      encodeUrlQueryParams({
-        pathname,
-        searchString: newParams.search || newParams.query,
-        sort: newParams.sort,
-        kinds: newParams.kinds,
-        isAdvancedSearch: !!newParams.query,
-        pinnedOnly: newParams.pinnedOnly,
-        statuses: newParams.statuses,
-      })
-    );
+    setParams({ ...params, sort });
   }
 
   const onLabelClick = (label: ResourceLabel) => {
     const queryAfterLabelClick = makeAdvancedSearchQueryForLabel(label, params);
 
+    setParams({ ...params, search: '', query: queryAfterLabelClick });
     replaceHistory(
       encodeUrlQueryParams({
         pathname,
@@ -134,21 +94,24 @@ export default function getResourceUrlQueryParams(
   const pinnedOnly = searchParams.get('pinnedOnly');
   const sort = searchParams.get('sort');
   const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
-  const statuses = searchParams.has('status')
-    ? searchParams.getAll('status').filter(isResourceHealthStatus)
-    : undefined;
 
-  const processedSortParam = parseSortType(sort);
+  const sortParam = sort ? sort.split(':') : null;
+
+  // Converts the "fieldname:dir" format into {fieldName: "", dir: ""}
+  const processedSortParam = sortParam
+    ? ({
+        fieldName: sortParam[0],
+        dir: sortParam[1]?.toUpperCase() || 'ASC',
+      } as SortType)
+    : null;
 
   return {
     query,
     search,
     kinds,
-    statuses,
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
     // Conditionally adds the pinnedResources field based on whether its true or not
-    pinnedOnly:
-      pinnedOnly === 'true' ? true : pinnedOnly === 'false' ? false : undefined,
+    ...(pinnedOnly === 'true' && { pinnedOnly: true }),
   };
 }

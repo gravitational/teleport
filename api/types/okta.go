@@ -17,9 +17,7 @@ limitations under the License.
 package types
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -40,8 +38,6 @@ type OktaImportRule interface {
 
 	// GetMappings will return the list of mappings for the Okta import rule.
 	GetMappings() []OktaImportRuleMapping
-	// Clone returns a copy of the Okta import rule.
-	Clone() OktaImportRule
 }
 
 // NewOktaImportRule returns a new OktaImportRule.
@@ -56,11 +52,6 @@ func NewOktaImportRule(metadata Metadata, spec OktaImportRuleSpecV1) (OktaImport
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
-}
-
-// Clone returns a copy of the Okta import rule.
-func (o *OktaImportRuleV1) Clone() OktaImportRule {
-	return utils.CloneProtoMsg(o)
 }
 
 // GetPriority will return the priority of the Okta import rule.
@@ -498,111 +489,5 @@ func OktaAssignmentStatusProtoToString(status OktaAssignmentSpecV1_OktaAssignmen
 		return constants.OktaAssignmentStatusFailed
 	default:
 		return constants.OktaAssignmentStatusUnknown
-	}
-}
-
-func (o *PluginOktaSettings) GetCredentialsInfo() *PluginOktaCredentialsInfo {
-	if o == nil {
-		return nil
-	}
-	return o.CredentialsInfo
-}
-
-func (o *PluginOktaSettings) GetSyncSettings() *PluginOktaSyncSettings {
-	if o == nil {
-		return nil
-	}
-	return o.SyncSettings
-}
-
-func (o *PluginOktaSyncSettings) GetEnableUserSync() bool {
-	if o == nil {
-		return false
-	}
-	return o.SyncUsers
-}
-
-func (o *PluginOktaSyncSettings) GetEnableAppGroupSync() bool {
-	if !o.GetEnableUserSync() {
-		return false
-	}
-	return !o.DisableSyncAppGroups
-}
-
-func (o *PluginOktaSyncSettings) GetEnableAccessListSync() bool {
-	if !o.GetEnableAppGroupSync() {
-		return false
-	}
-	return o.SyncAccessLists
-}
-
-func (o *PluginOktaSyncSettings) GetEnableBidirectionalSync() bool {
-	if !o.GetEnableAppGroupSync() {
-		return false
-	}
-	return !o.DisableBidirectionalSync
-}
-
-func (o *PluginOktaSyncSettings) GetEnableSystemLogExport() bool {
-	if o == nil {
-		return false
-	}
-	return o.EnableSystemLogExport
-}
-
-func (o *PluginOktaSyncSettings) GetAssignDefaultRoles() bool {
-	if o == nil {
-		return false
-	}
-	return !o.DisableAssignDefaultRoles
-}
-
-type OktaUserSyncSource string
-
-// IsUnknown returns true if user sync source is empty or explicitly set to "unknown".
-func (s OktaUserSyncSource) IsUnknown() bool {
-	switch s {
-	case "", OktaUserSyncSourceUnknown:
-		return true
-	default:
-		return false
-	}
-}
-
-const (
-	// OktaUserSyncSourceUnknown indicates the user sync source is not set.
-	OktaUserSyncSourceUnknown OktaUserSyncSource = "unknown"
-
-	// OktaUserSyncSourceSamlApp indicates users are synchronized from Okta SAML app for the connector assignments.
-	OktaUserSyncSourceSamlApp OktaUserSyncSource = "saml_app"
-
-	// OktaUserSyncSourceSamlOrg indicates users are synchronized  Okta organization (legacy).
-	OktaUserSyncSourceOrg OktaUserSyncSource = "org"
-)
-
-func (o *PluginOktaSyncSettings) GetUserSyncSource() OktaUserSyncSource {
-	if o == nil {
-		return OktaUserSyncSourceUnknown
-	}
-	switch v := OktaUserSyncSource(o.UserSyncSource); v {
-	case "":
-		return OktaUserSyncSourceUnknown
-	case OktaUserSyncSourceUnknown, OktaUserSyncSourceSamlApp, OktaUserSyncSourceOrg:
-		return v
-	default:
-		slog.ErrorContext(context.Background(), "Unhandled PluginOktaSyncSettings_UserSyncSource, returning OktaUserSyncSourceUnknown", "value", o.UserSyncSource)
-		return OktaUserSyncSourceUnknown
-	}
-}
-
-func (o *PluginOktaSyncSettings) SetUserSyncSource(source OktaUserSyncSource) {
-	if o == nil {
-		panic("calling (*PluginOktaSyncSettings).SetUserSyncSource on nil pointer")
-	}
-	switch source {
-	case OktaUserSyncSourceUnknown, OktaUserSyncSourceSamlApp, OktaUserSyncSourceOrg:
-		o.UserSyncSource = string(source)
-	default:
-		slog.ErrorContext(context.Background(), "Unhandled OktaUserSyncSource, not doing anything", "value", source)
 	}
 }

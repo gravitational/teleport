@@ -20,9 +20,7 @@ package common
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const initTestSentinel = "init_test"
@@ -47,7 +46,7 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -55,7 +54,7 @@ func BenchmarkInit(b *testing.B) {
 	executable, err := os.Executable()
 	require.NoError(b, err)
 
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		cmd := exec.Command(executable, initTestSentinel)
 		err := cmd.Run()
 		assert.NoError(b, err)
@@ -104,7 +103,8 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.Auth.Enabled)
 		require.True(t, conf.SSH.Enabled)
 		require.True(t, conf.Proxy.Enabled)
-		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelError))
+		require.Equal(t, os.Stdout, conf.Console)
+		require.Equal(t, log.ErrorLevel, log.GetLevel())
 	})
 
 	t.Run("RolesFlag", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.SSH.Enabled)
 		require.False(t, conf.Auth.Enabled)
 		require.False(t, conf.Proxy.Enabled)
-		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelDebug))
+		require.Equal(t, log.DebugLevel, conf.Log.GetLevel())
 		require.Equal(t, "hvostongo.example.org", conf.Hostname)
 
 		token, err := conf.Token()

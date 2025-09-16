@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/auth"
 )
 
 func TestIsAllowedDomain(t *testing.T) {
@@ -71,7 +69,7 @@ func TestIsAllowedDomain(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.assert(t, auth.IsAllowedDomain(tc.url, allowedDomains))
+			tc.assert(t, isAllowedDomain(tc.url, allowedDomains))
 		})
 	}
 }

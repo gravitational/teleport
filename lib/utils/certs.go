@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // ParseKeyStorePEM parses signing key store from PEM encoded key pair
@@ -62,24 +62,16 @@ type KeyStore struct {
 	cert       []byte
 }
 
-// GetKeyPair implements goxmldsig.X509KeyPair.
 func (ks *KeyStore) GetKeyPair() (*rsa.PrivateKey, []byte, error) {
 	return ks.privateKey, ks.cert, nil
 }
 
-// GenerateSelfSignedSigningCert is an alias of GenerateRSASelfSignedSigningCert
-// used due to references in teleport.e.
-var GenerateSelfSignedSigningCert = GenerateRSASelfSignedSigningCert
-
-// GenerateRSASelfSignedSigningCert generates an RSA self-signed certificate used
-// for digital signatures.
-// This should only be used for the SAML implementation and tests.
-func GenerateRSASelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+// GenerateSelfSignedSigningCert generates self-signed certificate used for digital signatures
+func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	rsaPriv := priv.(*rsa.PrivateKey)
 	// to account for clock skew
 	notBefore := time.Now().Add(-2 * time.Minute)
 	notAfter := notBefore.Add(ttl)
@@ -101,12 +93,12 @@ func GenerateRSASelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl t
 		DNSNames:              dnsNames,
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &rsaPriv.PublicKey, rsaPriv)
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rsaPriv)})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 
 	return keyPEM, certPEM, nil

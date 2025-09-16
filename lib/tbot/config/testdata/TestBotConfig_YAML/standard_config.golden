@@ -1,9 +1,4 @@
 version: v2
-onboarding:
-  token: my-gitlab-token
-  join_method: gitlab
-  gitlab:
-    token_env_var_name: MY_CUSTOM_ENV_VAR
 storage:
   type: directory
   path: /bot/storage
@@ -24,9 +19,36 @@ outputs:
     destination:
       type: kubernetes_secret
       name: my-secret
-    credential_ttl: 30s
-    renewal_interval: 15s
 services:
+  - type: spiffe-workload-api
+    listen: unix:///var/run/spiffe.sock
+    svids:
+      - path: /bar
+        hint: my hint
+        sans:
+          dns:
+            - foo.bar
+          ip:
+            - 10.0.0.1
+        rules:
+          - unix:
+              pid: 100
+              uid: 1000
+              gid: 1234
+            kubernetes: {}
+          - unix:
+              pid: 100
+            kubernetes: {}
+    attestors:
+      kubernetes:
+        enabled: false
+      podman:
+        enabled: false
+      docker:
+        enabled: false
+      systemd:
+        enabled: false
+      unix: {}
   - type: example
     message: llama
   - type: ssh-multiplexer
@@ -35,23 +57,17 @@ services:
       path: /bot/output
     enable_resumption: null
     proxy_templates_path: ""
-    credential_ttl: 30s
-    renewal_interval: 15s
   - type: application-tunnel
     listen: tcp://127.0.0.1:123
     roles:
       - access
     app_name: my-app
-    credential_ttl: 30s
-    renewal_interval: 15s
   - type: workload-identity-x509
     selector:
       name: my-workload-identity
     destination:
       type: directory
       path: /an/output/path
-    credential_ttl: 30s
-    renewal_interval: 15s
   - type: workload-identity-api
     listen: tcp://127.0.0.1:123
     attestors:
@@ -64,12 +80,8 @@ services:
       systemd:
         enabled: false
       unix: {}
-      sigstore:
-        enabled: false
     selector:
       name: my-workload-identity
-    credential_ttl: 30s
-    renewal_interval: 15s
   - type: workload-identity-jwt
     selector:
       name: my-workload-identity
@@ -81,7 +93,7 @@ services:
       - audience2
 debug: true
 auth_server: example.teleport.sh:443
-credential_ttl: 1m0s
+certificate_ttl: 1m0s
 renewal_interval: 30s
 oneshot: true
 fips: true

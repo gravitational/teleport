@@ -1,7 +1,7 @@
 ---
 title: Teleport AKS Auto-Discovery
 description: Auto-Discovery of AKS clusters in Azure cloud.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -10,11 +10,11 @@ AKS Auto-Discovery can automatically
 discover any AKS cluster and enroll it in Teleport if its tags match the
 configured labels.
 
-## How it works
-
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 
 (!docs/pages/includes/discovery/same-host-tip.mdx serviceName="Kubernetes" resourceDesc="cluster" !)
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ automatically configure the access to the cluster if you include the necessary
 permissions to do so.
 
 <Tabs>
-  <TabItem label="Microsoft Entra ID + Azure RBAC (recommended)" >
+  <TabItem label="Azure AD + Azure RBAC (recommended)" >
 
 In this scenario, the Teleport's authentication happens through Active Directory,
 and the permissions required to access the Kubernetes cluster are associated with
@@ -78,9 +78,9 @@ you want to guarantee permissions on all subscriptions.
 
   </TabItem>
 
-  <TabItem label="Microsoft Entra ID + Kubernetes RBAC">
+  <TabItem label="Azure AD + Kubernetes RBAC">
 
-When using Microsoft Entra ID authentication with Kubernetes RBAC mode, Azure is responsible
+When using Azure AD authentication with Kubernetes RBAC mode, Azure is responsible
 for user authentication using AD credentials, but permissions management is Kubernetes'
 RBAC responsibility.
 
@@ -164,8 +164,7 @@ rules:
 
 ### ClusterRoleBinding
 
-Link the previously created `ClusterRole` into the Microsoft Entra ID group ID
-for Teleport:
+Link the previously created `ClusterRole` into the Teleport AD group id.
 
 ```yaml
 kind: ClusterRoleBinding
@@ -182,7 +181,7 @@ subjects:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-Replace `{azure_ad_group_id}` with the appropriate Microsoft Entra ID group id
+Replace `{azure_ad_group_id}` with the appropriate Azure AD group id
 associated with Teleport identity.
 
 </details>
@@ -240,13 +239,13 @@ teleport:
     method: token
   proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: false
+  enabled: off
 proxy_service:
-  enabled: false
+  enabled: off
 ssh_service:
-  enabled: false
+  enabled: off
 discovery_service:
-  enabled: true
+  enabled: "yes"
   discovery_group: "aks-prod"
   azure:
   - types: ["aks"]
@@ -256,7 +255,7 @@ discovery_service:
     tags:
       "env": "prod"
 kubernetes_service:
-  enabled: true
+  enabled: "yes"
   resources:
   - labels:
       "env": "prod" # Match Kubernetes Cluster labels specified earlier

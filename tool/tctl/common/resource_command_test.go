@@ -44,10 +44,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
-	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
@@ -58,9 +56,8 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -204,9 +201,7 @@ func TestDatabaseServerResource(t *testing.T) {
 	require.NoError(t, err)
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	// get all database servers
 	buff, err := runResourceCommand(t, clt, []string{"get", types.KindDatabaseServer, "--format=json"})
@@ -271,9 +266,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt, err := testenv.NewDefaultAuthClient(auth)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, auth)
 
 	// Add a lot of DatabaseServices to test pagination
 	dbS, err := types.NewDatabaseServiceV1(
@@ -288,7 +281,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	randomDBServiceName := ""
 	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-	for i := range totalDBServices {
+	for i := 0; i < totalDBServices; i++ {
 		dbS.SetName(uuid.NewString())
 		if i == apidefaults.DefaultChunkSize { // A "random" database service name
 			randomDBServiceName = dbS.GetName()
@@ -329,204 +322,6 @@ func TestDatabaseServiceResource(t *testing.T) {
 	})
 }
 
-func TestScopedRoleAndAssignmentResource(t *testing.T) {
-	const scopedRoleYAML = `kind: scoped_role
-metadata:
-  name: some-role
-scope: "/"
-spec:
-  assignable_scopes: ["/foo"]
-version: v1
-`
-	const scopedRoleAssignmentYAML = `kind: scoped_role_assignment
-scope: "/"
-spec:
-  user: "bob"
-  assignments:
-    - role: some-role
-      scope: /foo
-version: v1
-`
-
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
-	dynAddr := helpers.NewDynamicServiceAddr(t)
-
-	fileConfig := &config.FileConfig{
-		Global: config.Global{
-			DataDir: t.TempDir(),
-		},
-		Proxy: config.Proxy{
-			Service: config.Service{
-				EnabledFlag: "true",
-			},
-			WebAddr: dynAddr.WebAddr,
-			TunAddr: dynAddr.TunnelAddr,
-		},
-		Auth: config.Auth{
-			Service: config.Service{
-				EnabledFlag:   "true",
-				ListenAddress: dynAddr.AuthAddr,
-			},
-		},
-	}
-
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt, err := testenv.NewDefaultAuthClient(auth)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
-
-	scopedRoleYAMLPath := filepath.Join(t.TempDir(), "some-role.yaml")
-	require.NoError(t, os.WriteFile(scopedRoleYAMLPath, []byte(scopedRoleYAML), 0644))
-
-	// Create the scoped role
-	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleYAMLPath})
-	require.NoError(t, err)
-
-	// wait for cache propagation
-	timeout := time.After(time.Second * 30)
-	var raw []byte
-	for {
-		// Get the scoped role
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
-		if err == nil {
-			raw = buff.Bytes()
-			break
-		}
-
-		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
-
-		select {
-		case <-timeout:
-			require.FailNow(t, "Timed out waiting for scoped role cache propagation")
-		case <-time.After(time.Millisecond * 100):
-		}
-	}
-
-	// Unmarshal the response into a ScopedRole object
-	rs, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRole](raw, services.DisallowUnknown())
-	require.NoError(t, err)
-	require.Len(t, rs, 1)
-
-	// Compare with expected value
-	expected := &scopedaccessv1.ScopedRole{
-		Kind: scopedaccess.KindScopedRole,
-		Metadata: &headerv1.Metadata{
-			Name: "some-role",
-		},
-		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
-			AssignableScopes: []string{"/foo"},
-		},
-		Version: types.V1,
-	}
-
-	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
-
-	// now that a role exists, test commands for assignment creation
-	scopedRoleAssignmentYAMLPath := filepath.Join(t.TempDir(), "some-role-assignment.yaml")
-	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
-
-	// Create the scoped role assignment
-	buff, err := runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
-	require.NoError(t, err)
-
-	parts := bytes.Split(buff.Bytes(), []byte("\""))
-	require.Len(t, parts, 3)
-
-	assignmentName := string(parts[1])
-
-	_, err = uuid.Parse(assignmentName)
-	require.NoError(t, err, "expected assignment name to be a UUID, got %q (extracted from output %q)", assignmentName, buff.String())
-
-	// wait for cache propagation
-	timeout = time.After(time.Second * 30)
-	var rawAssignment []byte
-	for {
-		// Get the scoped role assignment
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
-		if err == nil {
-			rawAssignment = buff.Bytes()
-			break
-		}
-		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
-
-		select {
-		case <-timeout:
-			require.FailNow(t, "Timed out waiting for scoped role assignment cache propagation")
-		case <-time.After(time.Millisecond * 100):
-		}
-	}
-
-	// Unmarshal the response into a ScopedRoleAssignment object
-	as, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
-	require.NoError(t, err)
-	require.Len(t, as, 1)
-
-	// Compare with expected value
-	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind: scopedaccess.KindScopedRoleAssignment,
-		Metadata: &headerv1.Metadata{
-			Name: assignmentName,
-		},
-		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-			User: "bob",
-			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  "some-role",
-					Scope: "/foo",
-				},
-			},
-		},
-		Version: types.V1,
-	}
-
-	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
-
-	// verify delete of assignment
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/" + assignmentName})
-	require.NoError(t, err)
-
-	// wait for delete cache propagation
-	timeout = time.After(time.Second * 30)
-	for {
-		// verify assignment is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
-		if err != nil {
-			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
-			break
-		}
-
-		select {
-		case <-timeout:
-			require.FailNow(t, "Timed out waiting for scoped role assignment cache propagation")
-		case <-time.After(time.Millisecond * 100):
-		}
-	}
-
-	// verify delete of role
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role/some-role"})
-	require.NoError(t, err)
-
-	// wait for delete cache propagation
-	timeout = time.After(time.Second * 30)
-	for {
-		// verify role is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
-		if err != nil {
-			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
-			break
-		}
-
-		select {
-		case <-timeout:
-			require.FailNow(t, "Timed out waiting for scoped role cache propagation")
-		case <-time.After(time.Millisecond * 100):
-		}
-	}
-}
-
 // TestIntegrationResource tests tctl integration commands.
 func TestIntegrationResource(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
@@ -552,9 +347,7 @@ func TestIntegrationResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt, err := testenv.NewDefaultAuthClient(auth)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, auth)
 
 	t.Run("get", func(t *testing.T) {
 
@@ -569,7 +362,7 @@ func TestIntegrationResource(t *testing.T) {
 
 		randomIntegrationName := ""
 		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := range totalIntegrations {
+		for i := 0; i < totalIntegrations; i++ {
 			ig1.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" integration name
 				randomIntegrationName = ig1.GetName()
@@ -667,9 +460,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt, err := testenv.NewDefaultAuthClient(auth)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, auth)
 
 	t.Run("get", func(t *testing.T) {
 		// Add a lot of DiscoveryConfigs to test pagination
@@ -685,7 +476,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		randomDiscoveryConfigName := ""
 		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := range totalDiscoveryConfigs {
+		for i := 0; i < totalDiscoveryConfigs; i++ {
 			dc.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
 				randomDiscoveryConfigName = dc.GetName()
@@ -782,11 +573,9 @@ func TestCreateLock(t *testing.T) {
 	timeNow := time.Now().UTC()
 	fakeClock := clockwork.NewFakeClockAt(timeNow)
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
-	_, err = types.NewLock("test-lock", types.LockSpecV2{
+	_, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{
 			User: "bad@actor",
 		},
@@ -856,15 +645,13 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
 	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 
-	_, err = runResourceCommand(t, clt, []string{"create", dbYAMLPath})
+	_, err := runResourceCommand(t, clt, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 }
 
@@ -906,11 +693,7 @@ version: v3
 metadata:
   name: foo
 spec:
-  uri: "tcp://localhost1"
-  tcp_ports:
-  - port: 1234
-  - port: 30000
-    end_port: 30768
+  uri: "localhost1"
 ---
 kind: app
 version: v3
@@ -999,9 +782,7 @@ func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		desc               string
@@ -1086,9 +867,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		desc           string
@@ -1255,9 +1034,7 @@ func (test *dynamicResourceTest[T]) setup(t *testing.T) *authclient.Client {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, process)
 	return clt
 }
 
@@ -1423,11 +1200,7 @@ func TestAppResource(t *testing.T) {
 		Name:   "foo",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.AppSpecV3{
-		URI: "tcp://localhost1",
-		TCPPorts: []*types.PortRange{
-			&types.PortRange{Port: 1234},
-			&types.PortRange{Port: 30000, EndPort: 30768},
-		},
+		URI: "localhost1",
 	})
 	require.NoError(t, err)
 	appFooBar1, err := types.NewAppV3(types.Metadata{
@@ -1563,8 +1336,8 @@ func TestFormatAmbiguousDeleteMessage(t *testing.T) {
 
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected any) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual any, msgAndArgs ...any) {
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -1589,15 +1362,8 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
-	rootClient, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = rootClient.Close() })
+	process := testenv.MakeTestServer(t, testenv.WithLogger(utils.NewSlogLoggerForTests()))
+	rootClient := testenv.MakeDefaultAuthClient(t, process)
 
 	// tctlGetAllValidations allows tests to register post-test validations to validate
 	// that their resource is present in "tctl get all" output.
@@ -1633,10 +1399,6 @@ func TestCreateResources(t *testing.T) {
 			getAllCheck: func(t *testing.T, s string) {
 				assert.Contains(t, s, "kind: user")
 			},
-		},
-		{
-			kind:   "empty-doc",
-			create: testCreateWithEmptyDocument,
 		},
 		{
 			kind:   types.KindDatabaseObjectImportRule,
@@ -1683,17 +1445,6 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindAutoUpdateAgentRollout,
 			create: testCreateAutoUpdateAgentRollout,
-		},
-		{
-			kind:   types.KindDynamicWindowsDesktop,
-			create: testCreateDynamicWindowsDesktop,
-		},
-		{
-			kind:   types.KindHealthCheckConfig,
-			create: testCreateHealthCheckConfig,
-			getAllCheck: func(t *testing.T, s string) {
-				assert.Contains(t, s, "kind: health_check_config")
-			},
 		},
 	}
 
@@ -1913,22 +1664,6 @@ spec:
 	require.NoError(t, err)
 }
 
-func testCreateWithEmptyDocument(t *testing.T, clt *authclient.Client) {
-	const userYAML = `
----
-kind: user
-version: v2
-metadata:
-  name: llama2
-spec:
-  roles: ["access"]
-`
-	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
-	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
-	_, err := runResourceCommand(t, clt, []string{"create", userYAMLPath})
-	require.NoError(t, err)
-}
-
 func testCreateUser(t *testing.T, clt *authclient.Client) {
 	// Ensure that our test user does not exist
 	_, err := runResourceCommand(t, clt, []string{"get", types.KindUser + "/llama", "--format=json"})
@@ -2124,7 +1859,7 @@ func testCreateAuthPreference(t *testing.T, clt *authclient.Client) {
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factors: [otp, sso]
+  second_factor: off
   type: local
 version: v2
 `
@@ -2141,18 +1876,16 @@ version: v2
 	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
 	require.Len(t, cap, 1)
 
-	expectInitialSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP} // second factors defaults to [otp]
-	require.Equal(t, expectInitialSecondFactors, initial.GetSecondFactors())
+	var expected types.AuthPreferenceV2
+	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
 
-	var revised types.AuthPreferenceV2
-	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &revised))
-	expectRevisedSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO}
-	require.Equal(t, expectRevisedSecondFactors, revised.GetSecondFactors())
+	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
+	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
 
 	// Explicitly change the revision and try creating the cap with and without
 	// the force flag.
-	revised.SetRevision(uuid.NewString())
-	raw, err := services.MarshalAuthPreference(&revised, services.PreserveRevision())
+	expected.SetRevision(uuid.NewString())
+	raw, err := services.MarshalAuthPreference(&expected, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
 
@@ -2352,15 +2085,8 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		},
 	})
 
-	process, err := testenv.NewTeleportProcess(t.TempDir())
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	process := testenv.MakeTestServer(t)
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	tests := []struct {
 		kind   string
@@ -2407,7 +2133,6 @@ spec:
   client_id: "12345"
   client_secret: "678910"
   display: OIDC
-  pkce_mode: "enabled"
   scope: [roles]
   claims_to_roles:
     - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`
@@ -2463,7 +2188,7 @@ spec:
   acs: test
   audience: test
   issuer: test
-  sso: https://example.com
+  sso: test
   service_provider_issuer: test
   display: SAML
   attributes_to_roles:
@@ -2484,8 +2209,8 @@ spec:
         </md:KeyDescriptor>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://example.com" />
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.com" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="test" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="test" />
       </md:IDPSSODescriptor>
     </md:EntityDescriptor>` + "\n"
 
@@ -2737,35 +2462,6 @@ version: v1
 	require.ErrorContains(t, err, "autoupdate_agent_rollout \"autoupdate-agent-rollout\" doesn't exist")
 }
 
-func testCreateDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
-	const resourceYAML = `kind: dynamic_windows_desktop
-metadata:
-  name: test
-  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
-spec:
-  addr: test
-version: v1
-`
-
-	// Create the resource.
-	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
-	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
-	_, err := runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
-	require.NoError(t, err)
-
-	// Get the resource
-	buf, err := runResourceCommand(t, clt, []string{"get", types.KindDynamicWindowsDesktop, "--format=json"})
-	require.NoError(t, err)
-	resources := mustDecodeJSON[[]types.DynamicWindowsDesktopV1](t, buf)
-	require.Len(t, resources, 1)
-
-	var expected types.DynamicWindowsDesktopV1
-	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
-	expected.SetRevision(resources[0].GetRevision())
-
-	require.Empty(t, cmp.Diff([]types.DynamicWindowsDesktopV1{expected}, resources, protocmp.Transform()))
-}
-
 func TestPluginResourceWrapper(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -2774,8 +2470,6 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "okta",
 			plugin: types.PluginV1{
-				Kind:    types.KindPlugin,
-				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2801,8 +2495,6 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "slack",
 			plugin: types.PluginV1{
-				Kind:    types.KindPlugin,
-				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2819,118 +2511,6 @@ func TestPluginResourceWrapper(t *testing.T) {
 							AccessToken:  "token",
 							RefreshToken: "refresh_token",
 						},
-					},
-				},
-			},
-		},
-		{
-			name: "identity center",
-			plugin: types.PluginV1{
-				Kind:    types.KindPlugin,
-				Version: types.V1,
-				Metadata: types.Metadata{
-					Name: apicommon.OriginAWSIdentityCenter,
-					Labels: map[string]string{
-						"teleport.dev/hosted-plugin": "true",
-					},
-				},
-				Spec: types.PluginSpecV1{
-					Settings: &types.PluginSpecV1_AwsIc{
-						AwsIc: &types.PluginAWSICSettings{
-							Credentials: &types.AWSICCredentials{
-								Source: &types.AWSICCredentials_System{
-									System: &types.AWSICCredentialSourceSystem{},
-								},
-							},
-							Region: "ap-south-2",
-							Arn:    "some:arn",
-							ProvisioningSpec: &types.AWSICProvisioningSpec{
-								BaseUrl: "https://scim.example.com/v2",
-							},
-							AccessListDefaultOwners: []string{"root"},
-							UserSyncFilters: []*types.AWSICUserSyncFilter{
-								{Labels: map[string]string{types.OriginLabel: types.OriginOkta}},
-								{Labels: map[string]string{types.OriginLabel: types.OriginEntraID}},
-							},
-							GroupSyncFilters: []*types.AWSICResourceFilter{
-								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Group #\\d+$`}},
-								{Include: &types.AWSICResourceFilter_Id{Id: "42"}},
-							},
-							AwsAccountsFilters: []*types.AWSICResourceFilter{
-								{Include: &types.AWSICResourceFilter_Id{Id: "314159"}},
-								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Account #\\d+$`}},
-							},
-						},
-					},
-				},
-				Status: types.PluginStatusV1{
-					Code: types.PluginStatusCode_RUNNING,
-					Details: &types.PluginStatusV1_AwsIc{
-						AwsIc: &types.PluginAWSICStatusV1{
-							GroupImportStatus: &types.AWSICGroupImportStatus{
-								StatusCode: types.AWSICGroupImportStatusCode_DONE,
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "entra_id",
-			plugin: types.PluginV1{
-				Kind:    types.KindPlugin,
-				Version: types.V1,
-				Metadata: types.Metadata{
-					Name: "entra_id",
-				},
-				Spec: types.PluginSpecV1{
-					Settings: &types.PluginSpecV1_EntraId{
-						EntraId: &types.PluginEntraIDSettings{},
-					},
-				},
-				Status: types.PluginStatusV1{
-					Details: &types.PluginStatusV1_EntraId{
-						EntraId: &types.PluginEntraIDStatusV1{},
-					},
-				},
-			},
-		},
-		{
-			name: "gitlab",
-			plugin: types.PluginV1{
-				Kind:    types.KindPlugin,
-				Version: types.V1,
-				Metadata: types.Metadata{
-					Name: "gitlab",
-				},
-				Spec: types.PluginSpecV1{
-					Settings: &types.PluginSpecV1_Gitlab{
-						Gitlab: &types.PluginGitlabSettings{},
-					},
-				},
-				Status: types.PluginStatusV1{
-					Details: &types.PluginStatusV1_Gitlab{
-						Gitlab: &types.PluginGitlabStatusV1{},
-					},
-				},
-			},
-		},
-		{
-			name: "net_iq",
-			plugin: types.PluginV1{
-				Kind:    types.KindPlugin,
-				Version: types.V1,
-				Metadata: types.Metadata{
-					Name: "net_iq",
-				},
-				Spec: types.PluginSpecV1{
-					Settings: &types.PluginSpecV1_NetIq{
-						NetIq: &types.PluginNetIQSettings{},
-					},
-				},
-				Status: types.PluginStatusV1{
-					Details: &types.PluginStatusV1_NetIq{
-						NetIq: &types.PluginNetIQStatusV1{},
 					},
 				},
 			},

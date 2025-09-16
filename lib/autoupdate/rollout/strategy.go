@@ -97,11 +97,8 @@ func setGroupState(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, newState
 	if previousState != newState {
 		group.State = newState
 		changed = true
-		// If we just started the group, also update the start time.
-		// If we are doing a canary -> active transition, we don't override the start date.
-		if (newState == autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE &&
-			previousState != autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY) ||
-			newState == autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY {
+		// If we just started the group, also update the start time
+		if newState == autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE {
 			group.StartTime = timestamppb.New(now)
 		}
 	}

@@ -1,7 +1,7 @@
 ---
 title: Running Teleport with Self-Signed Certificates
 description: This guide shows you how to run Teleport using self-signed certificates, which is helpful for testing or demo environments.
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -37,19 +37,23 @@ to the Proxy Service.
 <TabItem scope={["oss"]} label="Open Source">
 
 - A running Teleport cluster. For details on how to set this up, see our
-  [Getting Started](../../../linux-demo.mdx) guide (skip TLS certificate setup).
+  [Getting Started](../../../zero-trust-access/deploy-a-cluster/linux-demo.mdx) guide (skip TLS certificate setup).
 
 - A Teleport Proxy Service which does not have certificates or ACME automatic certificates configured.
 For example, this Teleport Proxy Service configuration would use self-signed certs:
 
   ```yaml
   proxy_service:
-    enabled: true
+    enabled: "yes"
     # TLS certificate for the HTTPS connection.
     https_keypairs: []
     # Get an automatic certificate from letsencrypt.org using ACME.
     acme: {}
   ```
+
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
+
+  See [Installation](../../../installation/installation.mdx) for details.
 
 </TabItem>
 <TabItem
@@ -63,71 +67,17 @@ For example, this Teleport Proxy Service configuration would use self-signed cer
 
   ```yaml
   proxy_service:
-    enabled: true
+    enabled: "yes"
     # TLS certificate for the HTTPS connection.
     https_keypairs: []
     # Get an automatic certificate from letsencrypt.org using ACME.
     acme: {}
   ```
 
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
+
 </TabItem>
 </Tabs>
-
-- The `tctl` and `tsh` client tools:
-
-  <Tabs>
-    <TabItem label="Mac">
-  
-      Download the signed macOS .pkg installer for Teleport, which includes `tctl`
-      and `tsh`. In Finder double-click the `pkg` file to begin installation:
-  
-      ```code
-      $ curl -O https://cdn.teleport.dev/teleport-(=teleport.version=).pkg
-      ```
-  
-      <Admonition type="danger">
-        Using Homebrew to install Teleport is not supported. The Teleport package in
-        Homebrew is not maintained by Teleport and we can't guarantee its reliability or
-        security.
-      </Admonition>
-  
-    </TabItem>
-  
-    <TabItem label="Windows - Powershell">
-  
-      ```code
-      $ curl.exe -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
-      # Unzip the archive and move tsh.exe and tctl.exe to your %PATH%
-      # NOTE: Do not place tsh.exe and tctl.exe in the System32 directory, as this can cause issues when using WinSCP.
-      # Use %SystemRoot% (C:\Windows) or %USERPROFILE% (C:\Users\<username>) instead.
-      ```
-  
-    </TabItem>
-  
-    <TabItem label="Linux">
-  
-      All of the Teleport binaries in Linux installations include tctl and tsh.  For more
-      options (including RPM/DEB packages and downloads for i386/ARM/ARM64) see
-      the [installation page](../../../installation/installation.mdx).
-  
-      ```code
-      $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-      $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-      $ cd teleport
-      $ sudo ./install
-      # Teleport binaries have been copied to /usr/local/bin
-      ```
-    </TabItem>
-  </Tabs>
-  
-  Make sure `tctl` and `tsh` are at most one major version behind your Teleport
-  cluster version. Send a GET request to the Proxy Service at `/v1/webapi/ping`
-  and use a JSON query tool to obtain your cluster version:
-  
-  ```code
-  $ curl https://example.teleport.sh/v1/webapi/ping | jq -r '.server_version'
-  (=teleport.version=)
-  ```
 
 ## How to use self-signed certs with Teleport binaries and clients
 
@@ -257,7 +207,7 @@ flag](../../../connect-your-client/teleport-connect.mdx).
 
 ## Further reading
 
-- [Configuring Teleport TLS Certs](../../../linux-demo.mdx)
+- [Configuring Teleport TLS Certs](../../../zero-trust-access/deploy-a-cluster/linux-demo.mdx#configure-teleport)
 - [Run Teleport as a systemd Daemon](./daemon.mdx)
 - [Teleport Proxy Service](../../../reference/architecture/proxy.mdx)
 - [Teleport Authentication](../../../reference/architecture/authentication.mdx)

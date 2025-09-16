@@ -69,17 +69,6 @@ export function isAbortError(err: any): boolean {
     return true;
   }
 
-  // handles error that went through Electron IPC (it contains only a message)
-  if (getErrorMessage(err).includes('AbortError:')) {
-    return true;
-  }
-
-  // handles gRPC cancel error (see TshdRpcError)
+  // handles Connect abort error (specifically gRPC cancel error), see TshdRpcError
   return err?.code === 'CANCELLED';
-}
-
-export class AbortError extends DOMException {
-  constructor(message = 'The operation was aborted.') {
-    super(message, 'AbortError');
-  }
 }

@@ -52,7 +52,6 @@ func TestReporter(t *testing.T) {
 	tests := []struct {
 		name              string
 		preReconcileError error
-		preAssertError    error
 		assertErr         require.ErrorAssertionFunc
 		report            []*accessgraphsecretsv1pb.PrivateKey
 		want              []*accessgraphsecretsv1pb.PrivateKey
@@ -62,14 +61,6 @@ func TestReporter(t *testing.T) {
 			report:    newPrivateKeys(t, deviceID),
 			want:      newPrivateKeys(t, deviceID),
 			assertErr: require.NoError,
-		},
-		{
-			name:           "pre-assert error",
-			preAssertError: errors.New("pre-assert error"),
-			report:         newPrivateKeys(t, deviceID),
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "pre-assert error")
-			},
 		},
 		{
 			name:              "pre-reconcile error",
@@ -82,13 +73,13 @@ func TestReporter(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			e := setup(
 				t,
 				withDevice(deviceID, device),
 				withPreReconcileError(tt.preReconcileError),
-				withPreAssertError(tt.preAssertError),
 			)
 
 			ctx := context.Background()
@@ -150,7 +141,7 @@ func sortPrivateKeys(keys []*accessgraphsecretsv1pb.PrivateKey) {
 func newPrivateKeys(t *testing.T, deviceID string) []*accessgraphsecretsv1pb.PrivateKey {
 	t.Helper()
 	var pks []*accessgraphsecretsv1pb.PrivateKey
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		pk, err := accessgraph.NewPrivateKey(
 			&accessgraphsecretsv1pb.PrivateKeySpec{
 				PublicKeyFingerprint: "key" + strconv.Itoa(i),

@@ -19,16 +19,20 @@
 package web
 
 import (
+	"bytes"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/entitlements"
 )
 
-// SetClusterFeatures sets the flags for supported and unsupported features.
-// TODO(mcbattirola): make method unexported, fix tests using it to set
-// test modules instead.
+// SetClusterFeatures sets the flags for supported and unsupported features
 func (h *Handler) SetClusterFeatures(features proto.Features) {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
+
+	if !bytes.Equal(h.clusterFeatures.CloudAnonymizationKey, features.CloudAnonymizationKey) {
+		h.log.Info("Received new cloud anonymization key from server")
+	}
 
 	entitlements.BackfillFeatures(&features)
 	h.clusterFeatures = features
@@ -45,28 +49,31 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 // startFeatureWatcher periodically pings the auth server and updates `clusterFeatures`.
 // Must be called only once per `handler`, otherwise it may close an already closed channel
 // which will cause a panic.
-// The watcher doesn't ping the auth server immediately upon start because features are
-// already set by the config object in `NewHandler`.
 func (h *Handler) startFeatureWatcher() {
-	ctx := h.cfg.Context
 	ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
-	h.logger.InfoContext(ctx, "Proxy handler features watcher has started", "interval", h.cfg.FeatureWatchInterval)
+	h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
+	ctx := h.cfg.Context
+
+	// close ready channel to signal it started the main loop
+	if h.featureWatcherReady != nil {
+		close(h.featureWatcherReady)
+	}
 
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.Chan():
-			h.logger.InfoContext(ctx, "Pinging auth server for features")
+			h.log.Info("Pinging auth server for features")
 			pingResponse, err := h.GetProxyClient().Ping(ctx)
 			if err != nil {
-				h.logger.ErrorContext(ctx, "Auth server ping failed", "error", err)
+				h.log.WithError(err).Error("Auth server ping failed")
 				continue
 			}
 
 			h.SetClusterFeatures(*pingResponse.ServerFeatures)
-			h.logger.InfoContext(ctx, "Done updating proxy features", "features", pingResponse.ServerFeatures)
+			h.log.WithField("features", pingResponse.ServerFeatures).Info("Done updating proxy features")
 		case <-ctx.Done():
-			h.logger.InfoContext(ctx, "Feature service has stopped")
+			h.log.Info("Feature service has stopped")
 			return
 		}
 	}

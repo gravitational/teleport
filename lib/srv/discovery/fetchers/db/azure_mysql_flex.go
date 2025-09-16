@@ -19,11 +19,9 @@
 package db
 
 import (
-	"context"
-	"log/slog"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -50,21 +48,17 @@ func (f *azureMySQLFlexServerFetcher) GetServerLocation(server *armmysqlflexible
 }
 
 // NewDatabaseFromServer converts an Azure MySQL Flexible server to a Teleport database.
-func (f *azureMySQLFlexServerFetcher) NewDatabaseFromServer(ctx context.Context, server *armmysqlflexibleservers.Server, logger *slog.Logger) types.Database {
-	if !f.isAvailable(server, logger) {
-		logger.DebugContext(ctx, "Skipping unavailable Azure MySQL Flexible server",
-			"server", azure.StringVal(server.Name),
-			"state", azure.StringVal(server.Properties.State),
-		)
+func (f *azureMySQLFlexServerFetcher) NewDatabaseFromServer(server *armmysqlflexibleservers.Server, log logrus.FieldLogger) types.Database {
+	if !f.isAvailable(server, log) {
+		log.Debugf("The current status of Azure MySQL Flexible server %q is %q. Skipping.",
+			azure.StringVal(server.Name),
+			azure.StringVal(server.Properties.State))
 		return nil
 	}
 
 	database, err := common.NewDatabaseFromAzureMySQLFlexServer(server)
 	if err != nil {
-		logger.WarnContext(ctx, "Could not convert Azure MySQL server to database resource",
-			"server", azure.StringVal(server.Name),
-			"error", err,
-		)
+		log.Warnf("Could not convert Azure MySQL server %q to database resource: %v.", azure.StringVal(server.Name), err)
 		return nil
 	}
 	return database
@@ -72,7 +66,7 @@ func (f *azureMySQLFlexServerFetcher) NewDatabaseFromServer(ctx context.Context,
 
 // isAvailable checks the status of the server and returns true if the server
 // is available.
-func (f *azureMySQLFlexServerFetcher) isAvailable(server *armmysqlflexibleservers.Server, logger *slog.Logger) bool {
+func (f *azureMySQLFlexServerFetcher) isAvailable(server *armmysqlflexibleservers.Server, log logrus.FieldLogger) bool {
 	state := armmysqlflexibleservers.ServerState(azure.StringVal(server.Properties.State))
 	switch state {
 	case armmysqlflexibleservers.ServerStateReady, armmysqlflexibleservers.ServerStateUpdating:
@@ -85,9 +79,8 @@ func (f *azureMySQLFlexServerFetcher) isAvailable(server *armmysqlflexibleserver
 		// server state is known and it's not available.
 		return false
 	}
-	logger.WarnContext(context.Background(), "Assuming Azure MySQL Flexible server with unknown status type is available",
-		"status", state,
-		"server", azure.StringVal(server.Name),
-	)
+	log.Warnf("Unknown status type: %q. Assuming Azure MySQL Flexible server %q is available.",
+		state,
+		azure.StringVal(server.Name))
 	return true
 }

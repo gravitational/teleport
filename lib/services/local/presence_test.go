@@ -21,7 +21,6 @@ package local
 import (
 	"context"
 	"fmt"
-	"maps"
 	"testing"
 	"time"
 
@@ -31,20 +30,16 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	gproto "google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
@@ -264,31 +259,6 @@ func TestNodeCRUD(t *testing.T) {
 		require.NoError(t, err)
 		_, err = presence.UpsertNode(ctx, node2)
 		require.NoError(t, err)
-	})
-
-	t.Run("UpdateNode", func(t *testing.T) {
-		node1, err = presence.GetNode(ctx, apidefaults.Namespace, node1.GetName())
-		require.NoError(t, err)
-		node1.SetAddr("1.2.3.4:8080")
-
-		node2, err = presence.GetNode(ctx, apidefaults.Namespace, node2.GetName())
-		require.NoError(t, err)
-
-		node1, err = presence.UpdateNode(ctx, node1)
-		require.NoError(t, err)
-		require.Equal(t, "1.2.3.4:8080", node1.GetAddr())
-
-		rev := node2.GetRevision()
-		node2.SetAddr("1.2.3.4:9090")
-		node2.SetRevision(node1.GetRevision())
-
-		_, err = presence.UpdateNode(ctx, node2)
-		require.True(t, trace.IsCompareFailed(err))
-		node2.SetRevision(rev)
-
-		node2, err = presence.UpdateNode(ctx, node2)
-		require.NoError(t, err)
-		require.Equal(t, "1.2.3.4:9090", node2.GetAddr())
 	})
 
 	// Run NodeGetters in nested subtests to allow parallelization.
@@ -584,40 +554,11 @@ func TestListResources(t *testing.T) {
 				return desktopService.DeleteAllWindowsDesktops(ctx)
 			},
 		},
-		"GitServer": {
-			resourceType: types.KindGitServer,
-			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				gitServerService, err := NewGitServerService(presence.Backend)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
-					Organization: "my-org",
-					Integration:  "my-org",
-				})
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				gitServer.SetName(name)
-				newLabels := gitServer.GetLabels()
-				maps.Copy(newLabels, labels)
-				gitServer.SetStaticLabels(newLabels)
-
-				_, err = gitServerService.UpsertGitServer(ctx, gitServer)
-				return trace.Wrap(err)
-			},
-			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
-				gitServerService, err := NewGitServerService(presence.Backend)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				return gitServerService.DeleteAllGitServers(ctx)
-			},
-		},
 	}
 
 	for testName, test := range tests {
+		testName := testName
+		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			backend, err := lite.NewWithConfig(ctx, lite.Config{
@@ -645,13 +586,13 @@ func TestListResources(t *testing.T) {
 			totalResources := totalWithLabels + totalWithoutLabels
 
 			// with labels
-			for i := range totalWithLabels {
+			for i := 0; i < totalWithLabels; i++ {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-%d", i), labels)
 				require.NoError(t, err)
 			}
 
 			// without labels
-			for i := range totalWithoutLabels {
+			for i := 0; i < totalWithoutLabels; i++ {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-label-%d", i), map[string]string{})
 				require.NoError(t, err)
 			}
@@ -803,6 +744,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        5,
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -815,8 +757,8 @@ func TestListResources_Helpers(t *testing.T) {
 	})
 
 	// Add some test servers.
-	for range 20 {
-		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+	for i := 0; i < 20; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -833,6 +775,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        -1,
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				_, err := tc.fetch(req)
@@ -848,6 +791,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        int32(len(nodes)),
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -863,6 +807,7 @@ func TestListResources_Helpers(t *testing.T) {
 
 	t.Run("test first, middle, last fetching", func(t *testing.T) {
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				// First fetch.
@@ -922,6 +867,7 @@ func TestListResources_Helpers(t *testing.T) {
 			SearchKeywords: []string{targetVal},
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -947,21 +893,21 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	presence := NewPresenceService(bend)
 
 	// Add some control servers.
-	server := NewServer(types.KindNode, "foo-bar", "127.0.0.1:2022", namespace)
+	server := suite.NewServer(types.KindNode, "foo-bar", "127.0.0.1:2022", namespace)
 	_, err = presence.UpsertNode(ctx, server)
 	require.NoError(t, err)
 
-	server = NewServer(types.KindNode, "foo-baz", "127.0.0.1:2022", namespace)
+	server = suite.NewServer(types.KindNode, "foo-baz", "127.0.0.1:2022", namespace)
 	_, err = presence.UpsertNode(ctx, server)
 	require.NoError(t, err)
 
-	server = NewServer(types.KindNode, "foo-qux", "127.0.0.1:2022", namespace)
+	server = suite.NewServer(types.KindNode, "foo-qux", "127.0.0.1:2022", namespace)
 	_, err = presence.UpsertNode(ctx, server)
 	require.NoError(t, err)
 
 	// Add some test servers.
-	for range 10 {
-		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+	for i := 0; i < 10; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -999,6 +945,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 		}
 
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				req := FakePaginateParams{
@@ -1104,12 +1051,13 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	// cancellations are honored
 	errCh := make(chan error, maxLeases)
 	for _, l := range leases {
+		l := l
 		go func() {
 			errCh <- presence.CancelSemaphoreLease(ctx, *l)
 		}()
 	}
 
-	for range maxLeases {
+	for i := 0; i < maxLeases; i++ {
 		err := <-errCh
 		require.NoError(t, err)
 	}
@@ -1157,7 +1105,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindDatabaseServer",
 			kind: types.KindDatabaseServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					db, err := types.NewDatabaseServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.DatabaseServerSpecV3{
@@ -1184,7 +1132,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindAppServer",
 			kind: types.KindAppServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					server, err := types.NewAppServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.AppServerSpecV3{
@@ -1207,7 +1155,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindKubernetesCluster",
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 
 					kube, err := types.NewKubernetesClusterV3(
 						types.Metadata{
@@ -1326,171 +1274,4 @@ func TestServerInfoCRUD(t *testing.T) {
 	out, err = stream.Collect(presence.GetServerInfos(ctx))
 	require.NoError(t, err)
 	require.Empty(t, out)
-}
-
-func TestPresenceService_ListReverseTunnels(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
-
-	presenceService := NewPresenceService(bk)
-
-	// With no resources, we should not get an error but we should get an empty
-	// token and an empty slice.
-	rcs, pageToken, err := presenceService.ListReverseTunnels(ctx, 0, "")
-	require.NoError(t, err)
-	require.Empty(t, pageToken)
-	require.Empty(t, rcs)
-
-	// Create a few remote clusters
-	for i := range 10 {
-		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
-		require.NoError(t, err)
-		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
-		require.NoError(t, err)
-	}
-
-	// Check limit behaves
-	rcs, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, "")
-	require.NoError(t, err)
-	require.NotEmpty(t, pageToken)
-	require.Len(t, rcs, 1)
-
-	// Iterate through all pages with a low limit to ensure that pageToken
-	// behaves correctly.
-	rcs = []types.ReverseTunnel{}
-	pageToken = ""
-	for i := range 10 {
-		var got []types.ReverseTunnel
-		got, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, pageToken)
-		require.NoError(t, err)
-		if i == 9 {
-			// For the final page, we should not get a page token
-			require.Empty(t, pageToken)
-		} else {
-			require.NotEmpty(t, pageToken)
-		}
-		require.Len(t, got, 1)
-		rcs = append(rcs, got...)
-	}
-	require.Len(t, rcs, 10)
-
-	// Check that with a higher limit, we get all resources
-	rcs, pageToken, err = presenceService.ListReverseTunnels(ctx, 20, "")
-	require.NoError(t, err)
-	require.Empty(t, pageToken)
-	require.Len(t, rcs, 10)
-}
-
-func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
-
-	presenceService := NewPresenceService(bk)
-
-	rt, err := types.NewReverseTunnel("my-tunnel", []string{"example.com:443"})
-	require.NoError(t, err)
-
-	// Upsert a reverse tunnel
-	got, err := presenceService.UpsertReverseTunnel(ctx, rt)
-	require.NoError(t, err)
-	// Check that the returned resource is the same as the one we upserted
-	require.Empty(t, cmp.Diff(rt, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-	// Do a get to check revision matches
-	fetched, err := presenceService.GetReverseTunnel(ctx, rt.GetName())
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(got, fetched))
-}
-
-func TestPresenceService_RelayServer(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	defer bk.Close()
-
-	var p *PresenceService
-	require.NotPanics(t, func() {
-		p = NewPresenceService(bk)
-	})
-
-	_, err = p.UpsertRelayServer(ctx, nil)
-	require.ErrorAs(t, err, new(*trace.BadParameterError))
-
-	relayA := &presencev1.RelayServer{
-		Kind:    types.KindRelayServer,
-		SubKind: "",
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "a",
-		},
-	}
-
-	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
-	require.NoError(t, err)
-	require.NotNil(t, upsertedA.GetMetadata())
-
-	diffOpts := []cmp.Option{
-		protocmp.Transform(),
-		protocmp.IgnoreFields((*headerv1.Metadata)(nil), "revision"),
-	}
-
-	require.Empty(t, cmp.Diff(relayA, upsertedA, diffOpts...))
-
-	gottenA, err := p.GetRelayServer(ctx, "a")
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(relayA, gottenA, diffOpts...))
-
-	_, err = p.GetRelayServer(ctx, "b")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-
-	err = p.DeleteRelayServer(ctx, "a")
-	require.NoError(t, err)
-
-	_, err = p.GetRelayServer(ctx, "a")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-	err = p.DeleteRelayServer(ctx, "a")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-
-	relayB := &presencev1.RelayServer{
-		Kind:    types.KindRelayServer,
-		SubKind: "",
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "b",
-		},
-	}
-
-	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
-	require.NoError(t, err)
-	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayB))
-	require.NoError(t, err)
-
-	listedRelays, nextPageToken, err := p.ListRelayServers(ctx, 0, "")
-	require.NoError(t, err)
-	require.Empty(t, nextPageToken)
-	require.Len(t, listedRelays, 2)
-	require.Empty(t, cmp.Diff(relayA, listedRelays[0], diffOpts...))
-	require.Empty(t, cmp.Diff(relayB, listedRelays[1], diffOpts...))
-
-	shortList, nextPageToken, err := p.ListRelayServers(ctx, 1, "")
-	require.NoError(t, err)
-	require.Equal(t, "b", nextPageToken)
-	require.Len(t, shortList, 1)
-	require.Empty(t, cmp.Diff(relayA, shortList[0], diffOpts...))
-
-	shortList, nextPageToken, err = p.ListRelayServers(ctx, 1, "b")
-	require.NoError(t, err)
-	require.Empty(t, nextPageToken)
-	require.Len(t, shortList, 1)
-	require.Empty(t, cmp.Diff(relayB, shortList[0], diffOpts...))
 }

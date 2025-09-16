@@ -9,7 +9,7 @@ state: implemented
 ## Required approvers
 
 - Engineering: `@r0mant`
-- Product: `@klizhentas && @xinding33`
+- Product: `@klizentas && @xinding33`
 - Security: `@reedloden`
 
 ## What

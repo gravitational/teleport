@@ -96,70 +96,6 @@ build-binaries-fips: buildbox-centos7-fips webassets
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) FIPS=yes clean full
 
 #
-# Build the buildbox thirdparty components. This rarely needs to be rebuilt and is
-# slow to build, so it is done separately from the main buildbox
-#
-.PHONY: buildbox-thirdparty
-buildbox-thirdparty:
-	$(call LOG_GROUP_START)
-	docker buildx build \
-		--cache-from $(BUILDBOX_THIRDPARTY) \
-		--cache-to type=inline \
-		$(if $(PUSH),--push,--load) \
-		--tag $(BUILDBOX_THIRDPARTY) \
-		-f buildbox/Dockerfile-thirdparty \
-		buildbox
-	$(call LOG_GROUP_END)
-
-#
-# A generic build rule to build a stage of Dockerfile-thirdparty based
-# on the $(STAGE) variable. These stage builds are used for development
-# of the thirdparty buildbox, whether to configure crosstool-NG
-# (see config/buildbox-ng), or when adding additional third party
-# libraries using either the compilers stage or libs stage.
-#
-.PHONY: buildbox-thirdparty-stage
-buildbox-thirdparty-stage:
-	$(call LOG_GROUP_START)
-	docker buildx build \
-		--load \
-		--tag buildbox-thirdparty-$(STAGE):$(BUILDBOX_VERSION) \
-		-f buildbox/Dockerfile-thirdparty \
-		--target $(STAGE) \
-		buildbox
-	$(call LOG_GROUP_END)
-
-.PHONY: buildbox-thirdparty-crosstoolng
-buildbox-thirdparty-crosstoolng: STAGE=crosstoolng
-buildbox-thirdparty-crosstoolng: buildbox-thirdparty-stage
-
-.PHONY: buildbox-thirdparty-compilers
-buildbox-thirdparty-compilers: STAGE=compilers
-buildbox-thirdparty-compilers: buildbox-thirdparty-stage
-
-.PHONY: buildbox-thirdparty-libs
-buildbox-thirdparty-libs: STAGE=libs
-buildbox-thirdparty-libs: buildbox-thirdparty-stage
-
-#
-# Build the buildbox-ng using the pre-built third party components from the
-# buildbox-thirdparty image
-#
-.PHONY: buildbox-ng
-buildbox-ng:
-	$(call LOG_GROUP_START)
-	docker buildx build \
-		--build-arg THIRDPARTY_IMAGE=$(BUILDBOX_THIRDPARTY) \
-		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--cache-from $(BUILDBOX_NG) \
-		--cache-to type=inline \
-		$(if $(PUSH),--push,--load) \
-		--tag $(BUILDBOX_NG) \
-		-f buildbox/Dockerfile \
-		buildbox
-	$(call LOG_GROUP_END)
-
 # Builds a Docker container which is used for building official Teleport binaries
 # If running in CI and there is no image with the buildbox name:tag combination present locally,
 # the image is pulled from the Docker repository. If this pull fails (i.e. when a new Go runtime is
@@ -356,8 +292,6 @@ clean:
 	docker image rm --force $(BUILDBOX)
 	docker image rm --force $(DOCSBOX)
 	GOMODCACHE=$(GOMODCACHE) go clean -modcache
-	# Generated in the project root dir during webassets builds.
-	rm -rf ../.pnpm-store
 
 #
 # Runs tests inside a build container
@@ -447,52 +381,6 @@ enter-root: buildbox
 	docker run $(DOCKERFLAGS) -ti \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
 
-#
-# Reconfigure crosstool-NG for the given ARCH via its menuconfig system.
-# e.g.
-# $ make config/buildbox-ng CROSSTOOLNG_ARCH=arm64
-#
-# After saving and exiting in the menuconfig, you should have an updated
-# defconfig file in build.assets/buildbox/crosstoolng-configs
-#
-# You need to have a local copy of the configuration container image
-# created with: make buildbox-thirdparty-crosstoolng
-#
-.PHONY: config/buildbox-ng
-config/buildbox-ng:
-	@: $(or $(CROSSTOOLNG_ARCH),$(error CROSSTOOLNG_ARCH variable must be set))
-	@: $(or $(wildcard buildbox/crosstoolng-configs/$(CROSSTOOLNG_ARCH).defconfig),\
-		$(error No config for arch $(CROSSTOOLNG_ARCH)))
-	docker run -it --rm \
-		--volume $(shell pwd)/..:/home/teleport \
-		--workdir /home/teleport \
-		buildbox-thirdparty-crosstoolng:$(BUILDBOX_VERSION) \
-		make -C build.assets/buildbox -f crosstoolng.mk crosstoolng-menuconfig \
-		ARCH=$(CROSSTOOLNG_ARCH)
-
-
-#
-# Starts a shell in the buildbox-ng container
-# We don't use $(DOCKERFLAGS) as it contains stuff for the old buildbox which is
-# not relevant or incorrect for this one.
-.PHONY: enter/buildbox-ng
-enter/buildbox-ng:
-	docker run -it --rm \
-		--volume $(shell pwd)/..:/home/teleport \
-		--workdir /home/teleport \
-		--user $(shell id -u):$(shell id -g) \
-		$(BUILDBOX_NG)
-
-#
-# Starts a root shell in the buildbox-ng container
-#
-.PHONY: enter-root/buildbox-ng
-enter-root/buildbox-ng:
-	docker run -it --rm \
-		--volume $(shell pwd)/..:/home/teleport \
-		--workdir /home/teleport \
-		--user 0:0 \
-		$(BUILDBOX_NG)
 #
 # Starts shell inside the centos7 container
 #
@@ -600,41 +488,6 @@ release: $(BUILDBOX_TARGET)
 	@echo "Build Assets Release"
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make $(RELEASE_TARGET) -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
-	$(call LOG_GROUP_END)
-
-
-.PHONY: release-ng-amd64 release-ng-amd64-fips release-ng-arm64 release-ng-386 release-ng-arm
-release-ng-amd64:
-	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes
-release-ng-amd64-fips:
-	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes FIPS=yes RELEASE_TARGET=release-ent
-release-ng-arm64:
-	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes
-release-ng-arm64-fips:
-	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes FIPS=yes RELEASE_TARGET=release-ent
-release-ng-386:
-	$(MAKE) release-ng ARCH=386
-release-ng-arm:
-	$(MAKE) release-ng ARCH=arm
-
-.PHONY: release-ng
-release-ng: RELEASE_TARGET = release-unix-preserving-webassets
-release-ng: webassets buildbox-ng
-	$(call LOG_GROUP_START)
-	docker run --rm --interactive $(shell test -t 0 && echo --tty) \
-		--volume $(shell pwd)/..:/home/teleport \
-		--workdir /home/teleport \
-		--user $(shell id -u):$(shell id -g) \
-		$(BUILDBOX_NG) \
-		make -e $(RELEASE_TARGET) \
-			ADDFLAGS="$(ADDFLAGS)" \
-			OS="$(OS)" \
-			ARCH="$(ARCH)" \
-			RUNTIME="$(GOLANG_VERSION)" \
-			FIDO2="$(FIDO2)" \
-			PIV="$(PIV)" \
-			FIPS="$(FIPS)" \
-			REPRODUCIBLE=yes
 	$(call LOG_GROUP_END)
 
 #

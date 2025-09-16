@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,13 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { type JSX } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
-import { Flex, H2, Text } from 'design';
+import { Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import { MenuIcon } from 'shared/components/MenuAction';
+
+import { DocumentSsh } from 'teleport/Console/stores';
 
 export const WARN_THRESHOLD = 150;
 export const ERROR_THRESHOLD = 400;
@@ -32,11 +34,6 @@ export enum LatencyColor {
   Warn = 'dataVisualisation.tertiary.abbey',
   Error = 'dataVisualisation.tertiary.sunflower',
   Unknown = 'text.muted',
-}
-
-export interface Latency {
-  client: number;
-  server: number;
 }
 
 function colorForLatency(l: number): LatencyColor {
@@ -53,7 +50,7 @@ function colorForLatency(l: number): LatencyColor {
 
 // latencyColors determines the color to use for each leg of the connection
 // and the total measurement.
-export function latencyColors(latency: Latency | undefined): {
+export function latencyColors(latency: { client: number; server: number }): {
   client: LatencyColor;
   server: LatencyColor;
   total: LatencyColor;
@@ -94,19 +91,17 @@ export function latencyColors(latency: Latency | undefined): {
 export function LatencyDiagnostic({
   latency,
 }: {
-  latency: Latency | undefined;
+  latency: DocumentSsh['latency'];
 }) {
   const colors = latencyColors(latency);
 
   return (
-    <MenuIcon
-      Icon={Icons.Wifi}
-      tooltip="Network Connection"
-      buttonIconProps={{ color: colors.total }}
-    >
+    <MenuIcon Icon={Icons.Wifi} buttonIconProps={{ color: colors.total }}>
       <Container>
         <Flex gap={5} flexDirection="column">
-          <H2>Network Connection</H2>
+          <Text textAlign="left" typography="h3">
+            Network Connection
+          </Text>
 
           <Flex alignItems="center">
             <IconContainer

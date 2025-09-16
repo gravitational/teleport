@@ -1,6 +1,6 @@
 ---
-authors: Anton Miniailo (anton@goteleport.com)
-state: implemented (v14.1)
+authors:  Anton Miniailo (anton@goteleport.com)
+state: Draft
 ---
 
 # RFD 0149 - Headless Kubernetes Access

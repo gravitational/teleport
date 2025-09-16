@@ -23,13 +23,11 @@ package asciitable
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"slices"
 	"strings"
 	"text/tabwriter"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/term"
 )
 
@@ -132,7 +130,7 @@ func (t *Table) AddColumn(c Column) {
 // AddRow adds a row of cells to the table.
 func (t *Table) AddRow(row []string) {
 	limit := min(len(row), len(t.columns))
-	for i := range limit {
+	for i := 0; i < limit; i++ {
 		cell, _ := t.truncateCell(i, row[i])
 		t.columns[i].width = max(len(cell), t.columns[i].width)
 	}
@@ -160,49 +158,29 @@ func (t *Table) truncateCell(colIndex int, cell string) (string, bool) {
 }
 
 // AsBuffer returns a *bytes.Buffer with the printed output of the table.
-//
-// TODO(nklaassen): delete this, all calls either immediately copy the buffer to
-// another writer or just call .String() once.
 func (t *Table) AsBuffer() *bytes.Buffer {
 	var buffer bytes.Buffer
-	// Writes to bytes.Buffer never return an error.
-	_ = t.WriteTo(&buffer)
-	return &buffer
-}
 
-func (t *Table) String() string {
-	var sb strings.Builder
-	// Writes to strings.Builder never return an error.
-	_ = t.WriteTo(&sb)
-	return sb.String()
-}
-
-// WriteTo writes the full table to [w] or else returns an error.
-func (t *Table) WriteTo(w io.Writer) error {
-	writer := tabwriter.NewWriter(w, 5, 0, 1, ' ', 0)
+	writer := tabwriter.NewWriter(&buffer, 5, 0, 1, ' ', 0)
 	template := strings.Repeat("%v\t", len(t.columns))
 
 	// Header and separator.
 	if !t.IsHeadless() {
-		var colh []any
-		var cols []any
+		var colh []interface{}
+		var cols []interface{}
 
 		for _, col := range t.columns {
 			colh = append(colh, col.Title)
 			cols = append(cols, strings.Repeat("-", col.width))
 		}
-		if _, err := fmt.Fprintf(writer, template+"\n", colh...); err != nil {
-			return trace.Wrap(err)
-		}
-		if _, err := fmt.Fprintf(writer, template+"\n", cols...); err != nil {
-			return trace.Wrap(err)
-		}
+		fmt.Fprintf(writer, template+"\n", colh...)
+		fmt.Fprintf(writer, template+"\n", cols...)
 	}
 
 	// Body.
 	footnoteLabels := make(map[string]struct{})
 	for _, row := range t.rows {
-		var rowi []any
+		var rowi []interface{}
 		for i := range row {
 			cell, addFootnote := t.truncateCell(i, row[i])
 			if addFootnote {
@@ -210,23 +188,17 @@ func (t *Table) WriteTo(w io.Writer) error {
 			}
 			rowi = append(rowi, cell)
 		}
-		if _, err := fmt.Fprintf(writer, template+"\n", rowi...); err != nil {
-			return trace.Wrap(err)
-		}
+		fmt.Fprintf(writer, template+"\n", rowi...)
 	}
 
 	// Footnotes.
 	for label := range footnoteLabels {
-		if _, err := fmt.Fprintln(writer); err != nil {
-			return trace.Wrap(err)
-		}
-		if _, err := fmt.Fprintln(writer, label, t.footnotes[label]); err != nil {
-			return trace.Wrap(err)
-		}
+		fmt.Fprintln(writer)
+		fmt.Fprintln(writer, label, t.footnotes[label])
 	}
 
 	writer.Flush()
-	return nil
+	return &buffer
 }
 
 // IsHeadless returns true if none of the table title cells contains any text.

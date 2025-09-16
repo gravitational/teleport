@@ -62,7 +62,8 @@ func waitForUpdate(t *testing.T, svc *failingTrackerService, done chan error) {
 func TestSessionTracker_UpdateRetry(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	clock := clockwork.NewFakeClock()
 
 	svc := &failingTrackerService{
@@ -88,7 +89,7 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 	// Walk through a few attempts to update the session tracker. Even iterations
 	// will fail and force the retry mechanism to kick in. Odd iterations update
 	// session trackers successfully on first attempt.
-	for i := range 4 {
+	for i := 0; i < 4; i++ {
 		clock.BlockUntil(1)
 
 		// advance the clock to fire the ticker
@@ -145,8 +146,7 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 func TestSessionTracker(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-
+	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
 	mockService := &mockSessiontrackerService{

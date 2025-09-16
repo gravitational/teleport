@@ -24,7 +24,7 @@ const GlobalStyle = createGlobalStyle`
 
   html {
     font-family: ${props => props.theme.font};
-    ${props => props.theme.typography.body2};
+    ${props => props.theme.typography.body1};
   }
 
   body {
@@ -34,14 +34,14 @@ const GlobalStyle = createGlobalStyle`
     padding: 0;
   }
 
-  input, textarea, button {
+  input, textarea {
     font-family: ${props => props.theme.font};
   }
 
   input {
     accent-color: ${props => props.theme.colors.brand};
 
-    &::placeholder {
+    ::placeholder {
       color: ${props => props.theme.colors.text.muted};
     }
   }

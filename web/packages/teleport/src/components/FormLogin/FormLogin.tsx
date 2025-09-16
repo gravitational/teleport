@@ -32,9 +32,8 @@ import {
 } from 'design';
 import * as Alerts from 'design/Alert';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
-import { FieldSelect } from 'shared/components/FieldSelect';
+import FieldSelect from 'shared/components/FieldSelect';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
   requiredField,
@@ -49,12 +48,10 @@ import {
 } from 'shared/services';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
-import cfg from 'teleport/config';
 import { UserCredentials } from 'teleport/services/auth';
 import history from 'teleport/services/history';
 
 import { PasskeyIcons } from '../Passkeys';
-import { FormIdentifierFirst, ViewSwitchButton } from './FormIdentifierFirst';
 import SSOButtonList from './SsoButtons';
 
 const allAuthTypes: PrimaryAuthType[] = ['passwordless', 'sso', 'local'];
@@ -66,13 +63,7 @@ export default function LoginForm(props: Props) {
     isPasswordlessEnabled,
     authProviders = [],
     primaryAuthType,
-    title = 'Sign in to Teleport',
-    ssoTitle = 'Sign in to Teleport with SSO',
   } = props;
-
-  const [showIdentifierFirstLogin, setShowIdentifierFirstLogin] = useState(
-    cfg?.auth?.identifierFirstLoginEnabled
-  );
 
   const ssoEnabled = authProviders?.length > 0;
 
@@ -97,23 +88,11 @@ export default function LoginForm(props: Props) {
 
   const showAccessChangedMessage = history.hasAccessChangedParam();
 
-  if (ssoEnabled && showIdentifierFirstLogin) {
-    return (
-      <FormIdentifierFirst
-        onLoginWithSso={props.onLoginWithSso}
-        onUseLocalLogin={() => setShowIdentifierFirstLogin(false)}
-        isLocalAuthEnabled={isLocalAuthEnabled}
-        title={title}
-        ssoTitle={ssoTitle}
-      />
-    );
-  }
-
   // Everything below requires local auth to be enabled.
   return (
     <Card my="5" mx="auto" maxWidth={500} minWidth={300} py={4}>
-      <Text typography="h1" mb={4} textAlign="center">
-        {title}
+      <Text typography="h3" mb={4} textAlign="center">
+        Sign in to Teleport
       </Text>
       {errorMessage && <Alerts.Danger m={4}>{errorMessage}</Alerts.Danger>}
       {showAccessChangedMessage && (
@@ -127,14 +106,13 @@ export default function LoginForm(props: Props) {
           currFlow={'default'}
           otherAuthTypes={otherAuthTypes}
           {...props}
-          setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
           primaryAuthType={actualPrimaryType}
         />
       ) : (
-        <P mx={4}>
+        <Text mx={4} typography="paragraph2">
           The ability to login has not been enabled. Please contact your system
           administrator for more information.
-        </P>
+        </Text>
       )}
     </Card>
   );
@@ -146,24 +124,11 @@ const SsoList = ({
   onLoginWithSso,
   autoFocus = false,
   hasTransitionEnded,
-  setShowIdentifierFirstLogin,
 }: Props & { hasTransitionEnded?: boolean }) => {
-  const ref = useRefAutoFocus<HTMLButtonElement>({
+  const ref = useRefAutoFocus<HTMLInputElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
   const { isProcessing } = attempt;
-
-  if (cfg?.auth?.identifierFirstLoginEnabled) {
-    return (
-      <ViewSwitchButton
-        onClick={() => setShowIdentifierFirstLogin(true)}
-        disabled={isProcessing}
-      >
-        Sign in using SSO
-      </ViewSwitchButton>
-    );
-  }
-
   return (
     <SSOButtonList
       isDisabled={isProcessing}
@@ -181,7 +146,7 @@ const Passwordless = ({
   hasTransitionEnded,
   primary,
 }: Props & { hasTransitionEnded: boolean; primary: boolean }) => {
-  const ref = useRefAutoFocus<HTMLButtonElement>({
+  const ref = useRefAutoFocus<HTMLInputElement>({
     shouldFocus: hasTransitionEnded && autoFocus,
   });
   return (
@@ -198,13 +163,13 @@ const Passwordless = ({
           <PasskeyIcons />
         </div>
         <div>
-          <P>Your browser will prompt you for a device key.</P>
+          <Text typography="body1">
+            Your browser will prompt you for a device key.
+          </Text>
         </div>
         <Button
-          fill="filled"
-          intent={primary ? 'primary' : 'neutral'}
-          size="extra-large"
-          ref={ref}
+          kind={primary ? 'primary' : 'secondary'}
+          setRef={ref}
           disabled={attempt.isProcessing}
           onClick={() => onLoginWithWebauthn()}
         >
@@ -292,16 +257,6 @@ const LocalForm = ({
             <FieldInput
               rule={requiredField('Password is required')}
               label="Password"
-              helperText={
-                isRecoveryEnabled && (
-                  <ButtonLink
-                    style={{ padding: '0px', minHeight: 0 }}
-                    onClick={() => onRecover(true)}
-                  >
-                    Forgot Password?
-                  </ButtonLink>
-                )
-              }
               value={pass}
               onChange={e => setPass(e.target.value)}
               type="password"
@@ -310,31 +265,32 @@ const LocalForm = ({
               mb={0}
               width="100%"
             />
+            {isRecoveryEnabled && (
+              <Box textAlign="right">
+                <ButtonLink
+                  style={{ padding: '0px', minHeight: 0 }}
+                  onClick={() => onRecover(true)}
+                >
+                  Forgot Password?
+                </ButtonLink>
+              </Box>
+            )}
           </Box>
           {auth2faType !== 'off' && (
             <Box mb={isRecoveryEnabled ? 2 : 3}>
-              <Flex alignItems="flex-start">
+              <Flex alignItems="flex-end">
                 <FieldSelect
                   maxWidth="50%"
                   width="100%"
                   data-testid="mfa-select"
                   label="Multi-factor Type"
-                  helperText={
-                    isRecoveryEnabled && (
-                      <ButtonLink
-                        style={{ padding: '0px', minHeight: 0 }}
-                        onClick={() => onRecover(false)}
-                      >
-                        Lost Two-Factor Device?
-                      </ButtonLink>
-                    )
-                  }
                   value={mfaType}
                   options={mfaOptions}
                   onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
                   mr={3}
                   mb={0}
                   isDisabled={isProcessing}
+                  menuIsOpen={true}
                   // Needed to prevent the menu from causing scroll bars to
                   // appear.
                   menuPosition="fixed"
@@ -354,12 +310,20 @@ const LocalForm = ({
                   />
                 )}
               </Flex>
+              {isRecoveryEnabled && (
+                <ButtonLink
+                  style={{ padding: '0px', minHeight: 0 }}
+                  onClick={() => onRecover(false)}
+                >
+                  Lost Two-Factor Device?
+                </ButtonLink>
+              )}
             </Box>
           )}
           <ButtonPrimary
             width="100%"
             type="submit"
-            size="extra-large"
+            size="large"
             onClick={e => onLoginClick(e, validator)}
             disabled={isProcessing}
           >
@@ -376,26 +340,22 @@ const LoginOptions = ({
   next,
   refCallback,
   otherAuthTypes,
-  setShowIdentifierFirstLogin,
   ...otherProps
 }: { otherAuthTypes: PrimaryAuthType[] } & Props & StepComponentProps) => {
   return (
     <Flex flexDirection="column" px={4} gap={3} ref={refCallback}>
       <AuthMethod
         {...otherProps}
-        setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
         next={next}
         refCallback={refCallback}
         authType={otherProps.primaryAuthType}
         primary
-        autoFocus
       />
       {otherAuthTypes.length > 0 && <Divider />}
       {otherAuthTypes.map(authType => (
         <AuthMethod
           key={authType}
           {...otherProps}
-          setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
           next={next}
           refCallback={refCallback}
           authType={authType}
@@ -428,8 +388,8 @@ function AuthMethod({
         <LocalForm {...otherProps} autoFocus={true} />
       ) : (
         <Box py={2}>
-          <ButtonSecondary size="extra-large" block onClick={next}>
-            Sign in with Username and Password
+          <ButtonSecondary size="large" block onClick={next}>
+            Sign in with username and password
           </ButtonSecondary>
         </Box>
       );
@@ -447,8 +407,6 @@ const LocalLogin = ({
       <LocalForm {...otherProps} autoFocus={true} />
       <Box pt={3} textAlign="center">
         <ButtonText
-          width="100%"
-          size="extra-large"
           disabled={otherProps.attempt.isProcessing}
           onClick={() => {
             otherProps.clearAttempt();
@@ -484,6 +442,7 @@ const StyledOr = styled.div`
   width: 32px;
   justify-content: center;
   position: absolute;
+  z-index: 1;
   text-transform: uppercase;
 `;
 
@@ -492,10 +451,6 @@ const loginViews = { default: [LoginOptions, LocalLogin] };
 export type Props = {
   // Deprecated. TODO(bl-nero): Remove after e/ is updated.
   title?: string;
-  /**
-   * ssoTitle is the login form title for the identifier-first login view.
-   */
-  ssoTitle?: string;
   isLocalAuthEnabled?: boolean;
   isPasswordlessEnabled: boolean;
   authProviders?: AuthProvider[];
@@ -510,7 +465,6 @@ export type Props = {
   onLoginWithWebauthn(creds?: UserCredentials): void;
   onLogin(username: string, password: string, token: string): void;
   autoFocus?: boolean;
-  setShowIdentifierFirstLogin?: (value: boolean) => void;
 };
 
 type AttemptState = ReturnType<typeof useAttempt>[0];

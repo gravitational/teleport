@@ -33,8 +33,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -55,6 +58,7 @@ type TestServer struct {
 	listener           net.Listener
 	port               string
 	tlsConfig          *tls.Config
+	log                logrus.FieldLogger
 	authorizationToken string
 	forceTokenRefresh  bool
 }
@@ -78,10 +82,14 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 	}
 
 	testServer := &TestServer{
-		cfg:                config,
-		listener:           config.Listener,
-		port:               port,
-		tlsConfig:          tlsConfig,
+		cfg:       config,
+		listener:  config.Listener,
+		port:      port,
+		tlsConfig: tlsConfig,
+		log: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: defaults.ProtocolSnowflake,
+			"name":                config.Name,
+		}),
 		authorizationToken: "test-token-123",
 	}
 
@@ -205,6 +213,7 @@ func (s *TestServer) verifyJWT(ctx context.Context, accName, loginName, token st
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
 		PublicKey:   cert.PublicKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 	})
 	if err != nil {

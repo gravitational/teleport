@@ -21,13 +21,13 @@ package teleterm
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -65,21 +65,21 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPaths []st
 		Certificates: []tls.Certificate{serverKeyPair},
 	}
 
-	config.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+	config.GetConfigForClient = func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
 		certPool := x509.NewCertPool()
 
 		for _, clientCertPath := range clientCertPaths {
-			log := slog.With("cert_path", clientCertPath)
+			log := log.WithField("cert_path", clientCertPath)
 
 			clientCert, err := os.ReadFile(clientCertPath)
 			if err != nil {
-				log.ErrorContext(info.Context(), "Failed to read the client cert file", "error", err)
+				log.WithError(err).Error("Failed to read the client cert file")
 				// Fall back to the default config.
 				return nil, nil
 			}
 
 			if !certPool.AppendCertsFromPEM(clientCert) {
-				log.ErrorContext(info.Context(), "Failed to add the client cert to the pool")
+				log.Error("Failed to add the client cert to the pool")
 				// Fall back to the default config.
 				return nil, nil
 			}
@@ -91,7 +91,7 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPaths []st
 		return configClone, nil
 	}
 
-	return grpc.Creds(credentials.NewTLS(config)), nil
+	return grpc.Creds(expcredentials.NewTLSWithALPNDisabled(config)), nil
 }
 
 // createClientCredentials creates mTLS credentials for a gRPC client. The server cert file is read
@@ -102,7 +102,7 @@ func createClientCredentials(clientKeyPair tls.Certificate, serverCertPath strin
 		return nil, trace.Wrap(err)
 	}
 
-	return grpc.WithTransportCredentials(credentials.NewTLS(config)), nil
+	return grpc.WithTransportCredentials(expcredentials.NewTLSWithALPNDisabled(config)), nil
 }
 
 func createClientTLSConfig(clientKeyPair tls.Certificate, serverCertPath string) (*tls.Config, error) {

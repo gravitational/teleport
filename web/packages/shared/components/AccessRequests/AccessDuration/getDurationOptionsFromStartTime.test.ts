@@ -188,6 +188,4 @@ const mockAccessRequest: AccessRequest = {
   thresholdNames: ['default'],
   resources: [],
   assumeStartTime: null,
-  reasonMode: 'optional',
-  reasonPrompts: [],
 };

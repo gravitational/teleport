@@ -15,11 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import React from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex, H3, Input, Mark, Subtitle3, Text } from 'design';
-import { P } from 'design/Text/Text';
-import { IconTooltip } from 'design/Tooltip';
+import { Box, Flex, Input, Mark, Text } from 'design';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { Tabs } from 'teleport/components/Tabs';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -68,21 +68,18 @@ discovery_service:
               Auto-enrolling requires you to configure a{' '}
               <Mark>Discovery Service</Mark>
             </Text>
-            <IconTooltip children={discoveryServiceToolTip} />
+            <ToolTipInfo children={discoveryServiceToolTip} />
           </Flex>
           <br />
         </>
       )}
       <StyledBox mb={5}>
-        <header>
-          <H3>Step 1</H3>
-          <Subtitle3 mb={2}> Create a Join Token</Subtitle3>
-        </header>
-        <P mb={2}>
+        <Text bold>Step 1: Create a Join Token</Text>
+        <Text mb={2}>
           Run the following command against your Teleport Auth Service and save
           it in <Mark>/tmp/token</Mark> on the host that will run the Discovery
           Service.
-        </P>
+        </Text>
         <TextSelectCopyMulti
           lines={[
             {
@@ -93,13 +90,10 @@ discovery_service:
       </StyledBox>
       <StyledBox mb={5}>
         <Flex alignItems="center">
-          <header>
-            <H3>Step 2</H3>
-            <Subtitle3>
-              Define a Discovery Group name{' '}
-              <IconTooltip children={discoveryGroupToolTip} />
-            </Subtitle3>
-          </header>
+          <Text bold mr={1}>
+            Step 2: Define a Discovery Group name{' '}
+          </Text>
+          <ToolTipInfo children={discoveryGroupToolTip} />
         </Flex>
         <Box mt={3} width="260px">
           <Input
@@ -110,26 +104,24 @@ discovery_service:
         </Box>
       </StyledBox>
       <StyledBox mb={5}>
-        <header>
-          <H3>Step 3</H3>
-          <Subtitle3 mb={2}>Create a teleport.yaml file</Subtitle3>
-        </header>
-        <P mb={2}>
+        <Text bold mr={1}>
+          Step 3: Create a teleport.yaml file
+        </Text>
+        <Text mb={2}>
           Use this template to create a <Mark>teleport.yaml</Mark> on the host
           that will run the Discovery Service.
-        </P>
+        </Text>
         <TextSelectCopyMulti lines={[{ text: yamlContent }]} bash={false} />
       </StyledBox>
       <StyledBox mb={5}>
-        <header>
-          <H3>Step 4</H3>
-          <Subtitle3 mb={2}>Start Discovery Service</Subtitle3>
-        </header>
-        <P mb={2}>
+        <Text bold mr={1}>
+          Step 4: Start Discovery Service
+        </Text>
+        <Text mb={2}>
           Configure the Discovery Service to start automatically when the host
           boots up by creating a systemd service for it. The instructions depend
           on how you installed the Discovery Service.
-        </P>
+        </Text>
         <Tabs
           tabs={[
             {
@@ -180,11 +172,11 @@ discovery_service:
             },
           ]}
         />
-        <P mt={2}>
+        <Text mt={2}>
           You can check the status of the Discovery Service with{' '}
           <Mark>systemctl status teleport</Mark> and view its logs with{' '}
           <Mark>journalctl -fu teleport</Mark>.
-        </P>
+        </Text>
       </StyledBox>
     </Box>
   );

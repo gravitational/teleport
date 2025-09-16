@@ -17,8 +17,6 @@
  */
 
 const BASE_PATH = '/web';
-const SAML_SP_INITIATED_SSO_PATH = '/enterprise/saml-idp/sso';
-const SAML_IDP_INITIATED_SSO_PATH = '/enterprise/saml-idp/login';
 
 /**
  * Processes a redirect URI to ensure it's valid and follows the expected format.
@@ -35,11 +33,12 @@ const SAML_IDP_INITIATED_SSO_PATH = '/enterprise/saml-idp/login';
  * @returns A processed URI string that always starts with the basePath, unless it's an invalid input.
  *
  * @example
- * processRedirectURI(null) // returns '/web'
- * processRedirectURI('https://example.com/path') // returns '/web/path'
- * processRedirectURI('/custom/path') // returns '/web/custom/path'
- * processRedirectURI('/web/existing/path') // returns '/web/existing/path'
- * processRedirectURI('invalid://url') // returns '/web'
+ * processRedirectURI('/web', null) // returns '/web'
+ * processRedirectURI('/web', 'https://example.com/path') // returns '/web/path'
+ * processRedirectURI('/web', '/custom/path') // returns '/web/custom/path'
+ * processRedirectURI('/web', '/web/existing/path') // returns '/web/existing/path'
+ * processRedirectURI('/web', 'invalid://url') // returns '/web'
+ * processRedirectURI('/app', 'https://example.com/path') // returns '/app/path'
  */
 export function processRedirectUri(redirectUri: string | null): string {
   // should be equal to cfg.routes.root
@@ -54,19 +53,12 @@ export function processRedirectUri(redirectUri: string | null): string {
       return path;
     }
 
-    if (
-      path.startsWith(SAML_IDP_INITIATED_SSO_PATH) ||
-      path.startsWith(SAML_SP_INITIATED_SSO_PATH)
-    ) {
-      return path + url.search;
-    }
-
     if (path === '/') {
       return BASE_PATH;
     }
 
     return `${BASE_PATH}${path.startsWith('/') ? '' : '/'}${path}`;
-  } catch {
+  } catch (error) {
     // If it's not a valid URL, it might be a relative path
     if (redirectUri.startsWith('/')) {
       return redirectUri.startsWith(BASE_PATH)

@@ -1,7 +1,7 @@
 ---
 title: Dynamic Kubernetes Cluster Registration
 description: Register and unregister Kubernetes clusters without restarting a Teleport Kubernetes Service instance.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -18,16 +18,7 @@ In this guide, we will show you how to set up dynamic Kubernetes cluster
 registration, then create, list, update, and delete Kubernetes clusters via
 `tctl`.
 
-## How it works
-
-The Teleport Kubernetes Service proxies traffic from Teleport users to a
-Kubernetes API server so you can take advantage of passwordless authentication,
-role-based access controls, audit logging, and other Teleport features in order
-to manage access to Kubernetes. 
-
-In this step, you will install the Teleport Kubernetes Service on a Linux host
-and configure it to access any Kubernetes cluster you register with your
-Teleport cluster. 
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -50,8 +41,14 @@ Teleport cluster.
 
 ## Step 1/3. Set up the Teleport Kubernetes Service
 
-This step shows you how to install the Teleport Kubernetes Service on a Linux
-server.
+The Teleport Kubernetes Service proxies traffic from Teleport users to a
+Kubernetes API server so you can take advantage of passwordless authentication,
+role-based access controls, audit logging, and other Teleport features in order
+to manage access to Kubernetes. 
+
+In this step, you will install the Teleport Kubernetes Service on a Linux host
+and configure it to access any Kubernetes cluster you register with your
+Teleport cluster. 
 
 ### Get a join token
 
@@ -92,7 +89,7 @@ Edit your configuration file at `/etc/teleport.yaml` to include the following:
 
 ```yaml
 kubernetes_service:
-  enabled: true
+  enabled: "yes"
   resources:
   - labels:
       "*": "*"
@@ -207,8 +204,6 @@ Create the role:
 ```code
 $ tctl create -f kube-manager.yaml
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 (!docs/pages/includes/add-role-to-user.mdx role="kube-manager"!)
 
@@ -469,5 +464,6 @@ clusters via Teleport, check out the following guides:
 - [Connect a Kubernetes Cluster to Teleport](../getting-started.mdx): How to use
   the `teleport-kube-agent` Helm chart to register a Kubernetes cluster with
   Teleport.
-- [Enroll a Kubernetes Cluster with a Static kubeconfig](./static-kubeconfig.mdx): How to use the Teleport Kubernetes
+- [Kubernetes Access from a Standalone Teleport
+  Cluster](./static-kubeconfig.mdx): How to use the Teleport Kubernetes
   Service's configuration file to register a Kubernetes cluster with Teleport.

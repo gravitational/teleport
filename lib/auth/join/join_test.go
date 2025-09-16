@@ -18,9 +18,6 @@ package join
 
 import (
 	"context"
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"errors"
 	"net"
 	"os"
@@ -28,8 +25,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -41,10 +36,10 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -57,8 +52,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func newTestTLSServer(t testing.TB) *authtest.TLSServer {
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
+	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
@@ -78,81 +73,6 @@ func newTestTLSServer(t testing.TB) *authtest.TLSServer {
 	return srv
 }
 
-// TestRegisterWithAlgorithmSuite tests that the registration generates keys
-// with the correct algorithm based on the cluster's configured signature
-// algorithm suite.
-func TestRegisterWithAlgorithmSuite(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	srv := newTestTLSServer(t)
-
-	token, err := types.NewProvisionToken("foo", []types.SystemRole{types.RoleNode}, time.Now().Add(time.Hour))
-	require.NoError(t, err)
-	require.NoError(t, srv.Auth().UpsertToken(ctx, token))
-
-	authPref, err := srv.Auth().GetAuthPreference(ctx)
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		suite            types.SignatureAlgorithmSuite
-		expectPubKeyType crypto.PublicKey
-	}{
-		{
-			suite:            types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
-			expectPubKeyType: &rsa.PublicKey{},
-		},
-		{
-			suite:            types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
-			expectPubKeyType: &rsa.PublicKey{},
-		},
-		{
-			suite:            types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			expectPubKeyType: &ecdsa.PublicKey{},
-		},
-		{
-			suite:            types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
-			expectPubKeyType: &ecdsa.PublicKey{},
-		},
-		{
-			suite:            types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
-			expectPubKeyType: &ecdsa.PublicKey{},
-		},
-	} {
-		name, err := tc.suite.MarshalText()
-		require.NoError(t, err)
-		t.Run(string(name), func(t *testing.T) {
-			authPref.SetSignatureAlgorithmSuite(tc.suite)
-			_, err := srv.Auth().UpsertAuthPreference(ctx, authPref)
-			require.NoError(t, err)
-
-			result, err := Register(ctx, RegisterParams{
-				Token: token.GetName(),
-				ID: state.IdentityID{
-					HostUUID: "testhostid",
-					NodeName: "testhostname",
-					Role:     types.RoleNode,
-				},
-				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-			})
-			require.NoError(t, err, trace.DebugReport(err))
-			require.IsType(t, tc.expectPubKeyType, result.PrivateKey.Public())
-
-			// Sanity check ssh cert subject pubkey matches returned private key.
-			expectSSHPub, err := ssh.NewPublicKey(result.PrivateKey.Public())
-			require.NoError(t, err)
-			sshCert, err := sshutils.ParseCertificate(result.Certs.SSH)
-			require.NoError(t, err)
-			require.Equal(t, expectSSHPub, sshCert.Key)
-
-			// Sanity check TLS cert subject pubkey matches returned private key.
-			tlsCert, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
-			require.NoError(t, err)
-			require.Equal(t, result.PrivateKey.Public(), tlsCert.PublicKey)
-		})
-	}
-}
-
 // TestRegister_Bot tests that a provision token can be used to generate
 // renewable certificates for a non-interactive user.
 func TestRegister_Bot(t *testing.T) {
@@ -162,8 +82,6 @@ func TestRegister_Bot(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
-		Kind:    types.KindBot,
-		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: "test",
 		},
@@ -188,6 +106,13 @@ func TestRegister_Bot(t *testing.T) {
 	err = srv.Auth().UpsertToken(ctx, wrongKind)
 	require.NoError(t, err)
 	err = srv.Auth().UpsertToken(ctx, wrongUser)
+	require.NoError(t, err)
+
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
 	require.NoError(t, err)
 
 	for _, test := range []struct {
@@ -223,25 +148,27 @@ func TestRegister_Bot(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			start := srv.Clock().Now()
-			result, err := Register(ctx, RegisterParams{
+			certs, err := Register(ctx, RegisterParams{
 				Token: test.token.GetName(),
 				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: publicKey,
 			})
 			test.assertErr(t, err)
 
 			if err == nil {
-				require.NotEmpty(t, result.Certs.SSH)
-				require.NotEmpty(t, result.Certs.TLS)
+				require.NotEmpty(t, certs.SSH)
+				require.NotEmpty(t, certs.TLS)
 
 				// ensure token was removed
 				_, err = srv.Auth().GetToken(ctx, test.token.GetName())
 				require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 				// ensure cert is renewable
-				x509, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
+				x509, err := tlsca.ParseCertificatePEM(certs.TLS)
 				require.NoError(t, err)
 				id, err := tlsca.FromSubject(x509.Subject, later)
 				require.NoError(t, err)
@@ -274,6 +201,12 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	require.NoError(t, err)
 
 	validExpires := srv.Clock().Now().Add(time.Hour * 6)
 	tooGreatExpires := srv.Clock().Now().Add(time.Hour * 24 * 365)
@@ -295,19 +228,17 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 		{
 			name:           "value exceeding limit specified",
 			requestExpires: &tooGreatExpires,
-			// MaxSessionTTL is set to defaults.MaxRenewableCertTTL by
-			// createBotRole, and will clamp the requested value set in
-			// generateInitialBotCerts.
-			expectTTL: defaults.DefaultBotMaxSessionTTL,
+			// MaxSessionTTL set in createBotRole is 12 hours, so this cap will
+			// apply instead of the defaults.MaxRenewableCertTTL specified
+			// in generateInitialBotCerts.
+			expectTTL: 12 * time.Hour,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			botName := uuid.NewString()
-			_, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
-				Kind:    types.KindBot,
-				Version: types.V1,
+			botName := t.Name()
+			_, err = machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},
@@ -317,19 +248,21 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 				},
 			}, srv.Clock().Now(), "")
 			require.NoError(t, err)
-			tok := newBotToken(t, uuid.NewString(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
+			tok := newBotToken(t, t.Name(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
 			require.NoError(t, srv.Auth().UpsertToken(ctx, tok))
 
-			result, err := Register(ctx, RegisterParams{
+			certs, err := Register(ctx, RegisterParams{
 				Token: tok.GetName(),
 				ID: state.IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers: []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-				Expires:     tt.requestExpires,
+				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: publicKey,
+				Expires:      tt.requestExpires,
 			})
 			require.NoError(t, err)
-			x509, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
+			x509, err := tlsca.ParseCertificatePEM(certs.TLS)
 			require.NoError(t, err)
 			id, err := tlsca.FromSubject(x509.Subject, x509.NotAfter)
 			require.NoError(t, err)
@@ -359,12 +292,6 @@ func (a *authJoinClientMock) RegisterUsingToken(ctx context.Context, req *types.
 	return a.registerUsingToken(ctx, req)
 }
 
-func (a *authJoinClientMock) Ping(_ context.Context) (proto.PingResponse, error) {
-	return proto.PingResponse{
-		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-	}, nil
-}
-
 // TestRegisterWithAuthClient is a unit test to validate joining using a
 // auth client supplied via RegisterParams
 func TestRegisterWithAuthClient(t *testing.T) {
@@ -378,19 +305,18 @@ func TestRegisterWithAuthClient(t *testing.T) {
 	m := &authJoinClientMock{
 		registerUsingToken: func(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 			assert.Empty(t, cmp.Diff(
+				req,
 				&types.RegisterUsingTokenRequest{
 					Token: expectedToken,
 					Role:  expectedRole,
 				},
-				req,
-				cmpopts.IgnoreFields(types.RegisterUsingTokenRequest{}, "PublicSSHKey", "PublicTLSKey"),
 			))
 			called = true
 			return expectedCerts, nil
 		},
 	}
 
-	gotResult, gotErr := Register(ctx, RegisterParams{
+	gotCerts, gotErr := Register(ctx, RegisterParams{
 		Token: expectedToken,
 		ID: state.IdentityID{
 			Role: expectedRole,
@@ -399,5 +325,5 @@ func TestRegisterWithAuthClient(t *testing.T) {
 	})
 	require.NoError(t, gotErr)
 	assert.True(t, called)
-	assert.Equal(t, expectedCerts, gotResult.Certs)
+	assert.Equal(t, expectedCerts, gotCerts)
 }

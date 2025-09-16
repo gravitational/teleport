@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import { Flex } from 'design';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
-import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
@@ -31,9 +30,7 @@ import {
   makeLabelsList,
   makeRootCluster,
   makeServer,
-  makeWindowsDesktop,
 } from 'teleterm/services/tshd/testHelpers';
-import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { routing } from 'teleterm/ui/uri';
 import type * as uri from 'teleterm/ui/uri';
@@ -109,14 +106,6 @@ export const ResultsNarrow = () => {
 function makeAppWithAddr(props: Partial<App>) {
   const app = makeApp(props);
   return { ...app, addrWithProtocol: getAppAddrWithProtocol(app) };
-}
-
-function makeWindowsDesktopWithoutDefaultPort(props: Partial<WindowsDesktop>) {
-  const desktop = makeWindowsDesktop(props);
-  return {
-    ...desktop,
-    addrWithoutDefaultPort: getWindowsDesktopAddrWithoutDefaultPort(desktop),
-  };
 }
 
 const SearchResultItems = () => {
@@ -479,45 +468,6 @@ const SearchResultItems = () => {
           'im-just-a-smol': 'kube',
           kube: 'kubersson',
           with: 'little-to-no-labels',
-        }),
-      }),
-    }),
-    makeResourceResult({
-      kind: 'windows_desktop',
-      requiresRequest: false,
-      resource: makeWindowsDesktopWithoutDefaultPort({
-        uri: `${clusterUri}/windows_desktops/long-name`,
-        name: 'super-long-windows-desktop-name-with-uuid-7a96e498-88ec-442f-a25b-569fa9150123c',
-        labels: makeLabelsList({
-          'aws/Environment': 'demo-13-biz',
-          'aws/Owner': 'foobar',
-          windowsDesktops: 'custom-windows-list',
-          with: 'little-to-no-labels',
-        }),
-      }),
-    }),
-    makeResourceResult({
-      kind: 'windows_desktop',
-      resource: makeWindowsDesktopWithoutDefaultPort({
-        uri: `${clusterUri}/windows_desktops/long-label-list`,
-        name: 'long-label-list',
-        labels: makeLabelsList({
-          'aws/Environment': 'demo-13-biz',
-          'aws/Owner': 'foobar',
-          'aws/Name': 'db-bastion-4-13biz',
-          windowsDesktops: 'custom-windows-list',
-          with: 'little-to-no-labels',
-        }),
-      }),
-    }),
-    makeResourceResult({
-      kind: 'windows_desktop',
-      requiresRequest: true,
-      resource: makeWindowsDesktopWithoutDefaultPort({
-        uri: `${clusterUri}/windows_desktops/short-label-list`,
-        name: 'short-label-list',
-        labels: makeLabelsList({
-          'im-just-a-smol': 'win',
         }),
       }),
     }),

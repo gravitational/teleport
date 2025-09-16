@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import React from 'react';
 import {
   Router,
   useLocation,
@@ -47,7 +47,7 @@ const Route = props => {
   const { title = '', ...rest } = props;
   const { clusterId } = useParams();
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (title && clusterId) {
       document.title = `${clusterId} • ${title}`;
     } else if (title) {

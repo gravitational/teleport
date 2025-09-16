@@ -2,16 +2,16 @@
 title: Teleport Agent Architecture
 description: Describes the architecture that enables Teleport to securely proxy client traffic to infrastructure resources. 
 tocDepth: 3
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
 
-**Teleport Agents** route traffic to and from resources in your infrastructure.
+**Teleport agents** route traffic to and from resources in your infrastructure.
 This guide describes the architecture that enables Teleport to securely manage
 traffic through this pathway.
 
-Teleport Agents are running instances of the `teleport` binary, and can run on
+Teleport agents are running instances of the `teleport` binary, and can run on
 any Linux platform (e.g., bare-metal, a Linux VM, a Docker container, or a pod
 in a Kubernetes cluster). It is up to Teleport administrators to deploy and
 manage agents, including on managed Teleport Enterprise accounts. 
@@ -43,7 +43,7 @@ listed above can then proxy resources enrolled by the Discovery Service.
 
 ## Components
 
-![Components of a Teleport Agent deployment](../../../img/architecture/agent-architecture.png)
+![Components of a Teleport agent deployment](../../../img/architecture/agent-architecture.png)
 
 A Teleport cluster where an administrator has enrolled resources involves the
 following components:
@@ -56,11 +56,11 @@ following components:
 - **[Teleport Auth Service](../architecture/authentication.mdx):** Serves as the
   cluster's certificate authority, handles user authentication/authorization and
   issues short-lived client certificates.
-- **Teleport Agents:** Agents perform authentication against infrastructure
+- **Teleport agents:** Agents perform authentication against infrastructure
   resources, route user traffic to those resources, and perform protocol
   parsing.
 - **Teleport client tools (`tsh`, Teleport Connect, and the Teleport Web UI):**
-  Connect to resources in your infrastructure through Teleport Agents and the
+  Connect to resources in your infrastructure through Teleport agents and the
   Teleport Proxy Service.
 - **Local proxies:** In some cases, `tsh` spins up local proxy servers that
   authenticate to Teleport and forward traffic from client tools (e.g., database
@@ -68,11 +68,11 @@ following components:
 - **Infrastructure resources:** Teleport can protect access to self-hosted
   infrastructure as well as infrastructure managed by a cloud provider.
 
-## Teleport Agents to the Teleport Auth Service
+## Teleport agents to the Teleport Auth Service
 
 The Teleport Auth Service runs a certificate authority that issues a host
 certificate to an agent when it joins the cluster for the first time. Read [Join
-Services to your Teleport Cluster](../../enroll-resources/agents/agents.mdx)
+Services to your Teleport Cluster](../../enroll-resources/agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx)
 for the available methods you can use to join an agent to your Teleport cluster.
 
 All agents in a Teleport cluster keep the Auth Service updated on their status
@@ -101,7 +101,7 @@ The Auth Service also generates a short-lived X.509 certificate signed by the
 cluster's host CA, with the client's identity and routing information for an
 infrastructure resource encoded in it.
 
-## Teleport Agents to the Teleport Proxy Service
+## Teleport agents to the Teleport Proxy Service
 
 In most cases, when an agent joins a Teleport cluster, it establishes an SSH
 reverse tunnel to the Proxy Service. As such, users do not need to have direct
@@ -122,8 +122,8 @@ agent.
 <details>
 <summary>Connecting to agents without reverse tunnels</summary>
 
-It is possible to join Teleport Agents to a cluster [through the Teleport Auth
-Service](../../enroll-resources/agents/join-token.mdx).
+It is possible to join Teleport agents to a cluster [through the Teleport Auth
+Service](../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 Once an agent joins a cluster through the Teleport Auth Service, the Teleport
 Proxy Service dials the agent directly, without creating a reverse tunnel. This
 mode supports the following services:
@@ -137,7 +137,7 @@ In direct mode, SSH Service instances act like OpenSSH servers that only accept
 client SSH certificates. Users can connect to SSH servers through the Teleport
 Proxy Service as a jump-host or directly:
 
-![Standard Mode](../../../img/architecture/ssh-direct-mode@1.2x.png)
+![Standard Mode](../../../img/architecture/ssh-direct-mode@1.2x.svg)
 
 Direct mode is designed for legacy use cases and only supports self-hosted
 Teleport clusters. We recommend joining agents through the Teleport Proxy
@@ -148,7 +148,7 @@ self-hosted Teleport deployment.
 
 ## Agents to infrastructure resources
 
-Teleport Agents route user traffic to and from resources in your infrastructure.
+Teleport agents route user traffic to and from resources in your infrastructure.
 Agents authenticate with infrastructure resources using a technique available to
 the target resource, often using a form of public key cryptography. A
 non-exhaustive list of examples is below:
@@ -184,13 +184,13 @@ Teleport cluster:
 - [OpenSSH servers](../../enroll-resources/server-access/openssh/openssh.mdx)
 - [Windows desktops](../../enroll-resources/desktop-access/getting-started.mdx)
 
-## Clients to Agents
+## Clients to agents
 
-Client tools authenticate to Teleport Agents by presenting certificates signed by
-a Teleport certificate authority, forwarding traffic to the Agent through an SSH
-reverse tunnel established between the Teleport Proxy Service and the Agent.
+Client tools authenticate to Teleport agent by presenting certificates signed by
+a Teleport certificate authority, forwarding traffic to the agent through an SSH
+reverse tunnel established between the Teleport Proxy Service and the agent.
 Clients need to retrieve a certificate, then connect to an infrastructure
-resource through the Agent.
+resource through the agent.
 
 ### Credentials for Teleport clients
 
@@ -234,7 +234,7 @@ resources through agents:
 
 After retrieving [client credentials](#credentials-for-teleport-clients), these
 tools are authenticated to the Teleport Proxy Service and can send traffic
-through it to Teleport Agents. The protocol that a client uses depends on the
+through it to Teleport agents. The protocol that a client uses depends on the
 upstream resource. See [TLS Routing](./tls-routing.mdx) for how client tools
 perform protocol negotiation with the Teleport Proxy Service.
 
@@ -269,7 +269,7 @@ starts a local proxy before using a database client to send traffic to it.
 
 ## Submitting audit events
 
-Teleport Agents connect to the Teleport Auth Service through the Teleport Proxy
+Teleport agents connect to the Teleport Auth Service through the Teleport Proxy
 Service and submit audit events at various moments within the life cycle of a
 user session, including when the user signs in, connects to a resource,
 interacts with a resource, and signs out. Agents interpret the wire protocol
@@ -280,5 +280,5 @@ Reference](../monitoring/audit.mdx).
 
 ## Further reading
 
-- For instructions on deploying agents, see the [Teleport Agent
-  guides](../../enroll-resources/agents/agents.mdx).
+- For instructions on deploying agents, see the [Teleport agent
+  guides](../../enroll-resources/agents/introduction.mdx).

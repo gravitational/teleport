@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,8 +37,10 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -66,75 +67,6 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	require.Equal(t, string(data), val)
 }
 
-// UploadDownloadSummary tests summary uploads and downloads
-func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
-	val := "this is the summary file"
-	id := session.NewID()
-	_, err := handler.UploadSummary(t.Context(), id, bytes.NewBuffer([]byte(val)))
-	require.NoError(t, err)
-
-	f, err := os.CreateTemp("", string(id))
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
-
-	err = handler.DownloadSummary(context.TODO(), id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
-	require.NoError(t, err)
-
-	data, err := io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, string(data), val)
-}
-
-// UploadDownloadMetadata tests metadata uploads and downloads
-func UploadDownloadMetadata(t *testing.T, handler events.MultipartHandler) {
-	val := "this is the metadata file"
-	id := session.NewID()
-	_, err := handler.UploadMetadata(t.Context(), id, bytes.NewBuffer([]byte(val)))
-	require.NoError(t, err)
-
-	f, err := os.CreateTemp("", string(id))
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
-
-	err = handler.DownloadMetadata(context.TODO(), id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
-	require.NoError(t, err)
-
-	data, err := io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, string(data), val)
-}
-
-// UploadDownloadThumbnail tests thumbnail uploads and downloads
-func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
-	val := "thumbnail"
-	id := session.NewID()
-	_, err := handler.UploadThumbnail(t.Context(), id, bytes.NewBuffer([]byte(val)))
-	require.NoError(t, err)
-
-	f, err := os.CreateTemp("", string(id))
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
-
-	err = handler.DownloadThumbnail(context.TODO(), id, f)
-	require.NoError(t, err)
-
-	_, err = f.Seek(0, 0)
-	require.NoError(t, err)
-
-	data, err := io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, string(data), val)
-}
-
 // DownloadNotFound tests handling of the scenario when download is not found
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
@@ -145,7 +77,7 @@ func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	defer f.Close()
 
 	err = handler.Download(context.TODO(), id, f)
-	require.True(t, trace.IsNotFound(err))
+	fixtures.AssertNotFound(t, err)
 }
 
 // EventsSuite is a conformance test suite to verify external event backends
@@ -268,7 +200,8 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 	})
 
 	require.False(t, events.Next())
-	require.True(t, trace.IsNotFound(events.Done()))
+
+	fixtures.AssertNotFound(t, events.Done())
 
 	// try a different day and verify that no chunks are found
 	chunks = s.Log.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
@@ -456,7 +389,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 
 Outer:
-	for range names {
+	for i := 0; i < len(names); i++ {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:     baseTime2,
 			To:       baseTime2.Add(time.Second),
@@ -507,16 +440,20 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 
 	var history []apievents.AuditEvent
 	ctx := context.Background()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:  loginTime.Add(-1 * time.Hour),
 			To:    loginTime.Add(time.Hour),
 			Limit: 100,
 			Order: types.EventOrderAscending,
 		})
-		assert.NoError(t, err)
-		assert.Len(t, history, 1)
-	}, 30*time.Second, 500*time.Millisecond)
+		if err != nil {
+			t.Logf("Retrying searching of events because of: %v", err)
+		}
+		return err
+	})
+	require.NoError(t, err)
+	require.Len(t, history, 1)
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
@@ -559,17 +496,20 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// search for the session event.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
 			To:    s.Clock.Now().UTC().Add(time.Hour),
 			Limit: 100,
 			Order: types.EventOrderAscending,
 		})
-
-		assert.NoError(t, err)
-		assert.Len(t, history, 3)
-	}, 30*time.Second, 500*time.Millisecond)
+		if err != nil {
+			t.Logf("Retrying searching of events because of: %v", err)
+		}
+		return err
+	})
+	require.NoError(t, err)
+	require.Len(t, history, 3)
 
 	require.Equal(t, events.SessionStartEvent, history[1].GetType())
 	require.Equal(t, events.SessionEndEvent, history[2].GetType())

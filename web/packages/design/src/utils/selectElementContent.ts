@@ -23,10 +23,13 @@
  * @param element the element that contains the text to select
  */
 export default function selectElementContent(element: HTMLElement) {
-  const selection = window.getSelection();
-  const range = document.createRange();
-  range.selectNodeContents(element);
-  if (selection) {
+  let range, selection;
+
+  // DELETE remove the if check when Selection API is no longer a working draft
+  if (window.getSelection && document.createRange) {
+    selection = window.getSelection();
+    range = document.createRange();
+    range.selectNodeContents(element);
     selection.removeAllRanges();
     selection.addRange(range);
   }

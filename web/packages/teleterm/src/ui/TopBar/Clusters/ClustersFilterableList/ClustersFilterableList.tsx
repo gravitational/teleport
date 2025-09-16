@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Box, Text } from 'design';
 
 import { Cluster } from 'teleterm/services/tshd/types';
@@ -42,7 +44,7 @@ export function ClustersFilterableList(props: ClustersFilterableListProps) {
           onFilterChange={value =>
             value.length ? setActiveIndex(0) : setActiveIndex(-1)
           }
-          placeholder="Search leaf clusters"
+          placeholder="Search Leaf Cluster"
           Node={({ item, index }) => (
             <ClusterItem
               item={item}

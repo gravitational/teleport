@@ -16,23 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Ref } from 'react';
-import {
-  GroupBase,
-  OnChangeValue,
-  OptionProps,
-  Props as ReactSelectProps,
-  StylesConfig,
-} from 'react-select';
-import { AsyncProps as ReactSelectAsyncProps } from 'react-select/async';
-import { AsyncCreatableProps as ReactSelectAsyncCreatableProps } from 'react-select/async-creatable';
-import { CreatableProps as ReactSelectCreatableProps } from 'react-select/creatable';
+import React, { FocusEvent } from 'react';
+import { StylesConfig } from 'react-select';
 
-export type SelectSize = 'large' | 'medium' | 'small';
-
-export type CommonProps<Opt, IsMulti extends boolean> = {
-  size?: SelectSize;
+export type Props = {
+  inputId?: string;
   hasError?: boolean;
+  isClearable?: boolean;
+  closeMenuOnSelect?: boolean;
+  isSimpleValue?: boolean;
+  isSearchable?: boolean;
+  isDisabled?: boolean;
+  menuIsOpen?: boolean;
+  hideSelectedOptions?: boolean;
+  controlShouldRenderValue?: boolean;
+  maxMenuHeight?: number;
+  onChange(e: Option<any, any> | Option<any, any>[], action?: ActionMeta): void;
+  onKeyDown?(e: KeyboardEvent | React.KeyboardEvent): void;
+  value: null | Option<any, any> | Option<any, any>[];
+  isMulti?: boolean;
+  autoFocus?: boolean;
+  label?: string;
+  placeholder?: string;
+  options?: Option<any, any>[] | GroupOption[];
+  width?: string | number;
+  menuPlacement?: string;
+  name?: string;
+  minMenuHeight?: number;
+  components?: any;
   /**
    * customProps are any props that are not react-select
    * default or option props and need to be accessed through a
@@ -41,45 +52,34 @@ export type CommonProps<Opt, IsMulti extends boolean> = {
    * eg: `selectProps.customProps.<the-prop-name>`
    */
   customProps?: Record<string, any>;
-  /** Whether or not the element is on an elevated platform (such as a dialog). */
+  menuPosition?: 'fixed' | 'absolute';
+  inputValue?: string;
+  filterOption?(): null | boolean;
+  onInputChange?(value: string, actionMeta: ActionMeta): void;
+  // Whether or not the element is on an elevated platform (such as a dialog).
   elevated?: boolean;
   stylesConfig?: StylesConfig;
-  // We redeclare the `value` field to narrow its type a bit. The permissive
-  // definition in react-select is mainly for historical compatibility, and
-  // having this more strict (depending on `IsMulti`) helps us to pass the
-  // correct type to the validation rules in `FieldSelect`.
-  value?: OnChangeValue<Opt, IsMulti>;
-  /** Ref to the wrapper element. */
-  ref?: Ref<HTMLDivElement>;
+  formatCreateLabel?: (i: string) => string;
 };
 
-export type Props<
-  Opt = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Opt> = GroupBase<Opt>,
-> = ReactSelectProps<Opt, IsMulti, Group> & CommonProps<Opt, IsMulti>;
-
-export type AsyncProps<
-  Opt = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Opt> = GroupBase<Opt>,
-> = ReactSelectAsyncProps<Opt, IsMulti, Group> & CommonProps<Opt, IsMulti>;
+export type AsyncProps = Omit<Props, 'options'> & {
+  defaultOptions?: true | Option;
+  cacheOptions?: boolean;
+  defaultMenuIsOpen?: boolean;
+  loadOptions(input: string, o?: Option[]): Promise<Option[] | void>;
+  noOptionsMessage(): string;
+  onMenuClose?(): void;
+  onMenuOpen?(): void;
+  closeMenuOnSelect?: boolean;
+  hideSelectedOptions?: boolean;
+};
 
 /**
  * Properties specific to `react-select`'s Creatable widget.
  */
-export type CreatableProps<
-  Opt = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Opt> = GroupBase<Opt>,
-> = ReactSelectCreatableProps<Opt, IsMulti, Group> & CommonProps<Opt, IsMulti>;
-
-export type AsyncCreatableProps<
-  Opt = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Opt> = GroupBase<Opt>,
-> = ReactSelectAsyncCreatableProps<Opt, IsMulti, Group> &
-  CommonProps<Opt, IsMulti>;
+export type CreatableProps = Props & {
+  onBlur?(e: FocusEvent): void;
+};
 
 // Option defines the data type for select dropdown list.
 export type Option<T = string, S = string> = {
@@ -87,6 +87,11 @@ export type Option<T = string, S = string> = {
   value: T;
   // label is the value user sees in the select options dropdown.
   label: S;
+};
+
+export type GroupOption = {
+  label: string;
+  options: Option[];
 };
 
 export type ActionMeta = {
@@ -106,9 +111,7 @@ export type ActionMeta = {
 export type CustomSelectComponentProps<
   CustomProps,
   CustomOption = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<CustomOption> = GroupBase<CustomOption>,
-> = OptionProps<CustomOption, IsMulti, Group> & CustomOption & {
+> = CustomOption & {
   /**
    * selectProps is the field to use to access the props that were
    * passed down to react-select's component.

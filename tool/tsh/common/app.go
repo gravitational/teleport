@@ -22,10 +22,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -43,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // onAppLogin implements "tsh apps login" command.
@@ -82,45 +79,23 @@ func onAppLogin(cf *CLIConf) error {
 	}
 	defer clusterClient.Close()
 
-	if app.IsMCP() {
-		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
-	}
-
-	if err := validateTargetPort(app, int(cf.TargetPort)); err != nil {
-		return trace.Wrap(err)
-	}
-
 	rootClient, err := clusterClient.ConnectToRootCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	routeToApp := appInfo.RouteToApp
-	if cf.TargetPort != 0 {
-		routeToApp.TargetPort = uint32(cf.TargetPort)
-	}
-
 	appCertParams := client.ReissueParams{
 		RouteToCluster: tc.SiteName,
-		RouteToApp:     routeToApp,
+		RouteToApp:     appInfo.RouteToApp,
 		AccessRequests: appInfo.profile.ActiveRequests,
 	}
 
-	key, err := appLogin(cf.Context, clusterClient, rootClient, appCertParams)
+	key, err := appLogin(cf.Context, tc, clusterClient, rootClient, appCertParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
-		return trace.Wrap(err)
-	}
-
-	appInfo, err = reloadAppInfoFromKeyring(app, appInfo, key)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := writeFilesForExternalApps(appInfo); err != nil {
+	if err := tc.LocalAgent().AddAppKey(key); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -131,45 +106,22 @@ func onAppLogin(cf *CLIConf) error {
 	return nil
 }
 
-func reloadAppInfoFromKeyring(app types.Application, appInfo *appInfo, key *client.KeyRing) (*appInfo, error) {
-	// AWS Access ugin Roles Anywhere integration receive the credentials in the certificate.
-	// For all other apps, the routeToApp is already correct.
-	if app.GetAWSRolesAnywhereProfileARN() == "" {
-		return appInfo, nil
-	}
-
-	// AWS Apps using AWS Roles Anywhere for granting access receive the AWS Credentials in the certificate.
-	appCerts, err := key.AppTLSCertificates()
-	if err != nil {
-		return appInfo, trace.Wrap(err)
-	}
-
-	for _, cert := range appCerts {
-		tlsID, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-		if err != nil {
-			return appInfo, trace.Wrap(err)
-		}
-
-		if tlsID.RouteToApp.Name == appInfo.RouteToApp.Name {
-			appInfo.RouteToApp = tlscaRouteToAppToProto(tlsID.RouteToApp)
-			return appInfo, nil
-		}
-	}
-
-	return appInfo, nil
-}
-
 func appLogin(
 	ctx context.Context,
+	tc *client.TeleportClient,
 	clusterClient *client.ClusterClient,
 	rootClient authclient.ClientI,
 	appCertParams client.ReissueParams,
-) (*client.KeyRing, error) {
-	result, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+) (*client.Key, error) {
+	// TODO (Joerger): DELETE IN v17.0.0
+	var err error
+	appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, tc.Username, appCertParams.RouteToApp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return result.KeyRing, nil
+
+	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+	return key, trace.Wrap(err)
 }
 
 func localProxyRequiredForApp(tc *client.TeleportClient) bool {
@@ -185,15 +137,6 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 
 	switch {
 	case app.IsAWSConsole():
-		if routeToApp.AWSCredentialProcessCredentials != "" {
-			return awsNamedProfileLoginTemplate.Execute(output, map[string]string{
-				"awsAppName":        app.GetName(),
-				"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
-				"awsCmd":            "s3 ls",
-				"awsRoleARN":        routeToApp.AWSRoleARN,
-			})
-		}
-
 		return awsLoginTemplate.Execute(output, map[string]string{
 			"awsAppName":        app.GetName(),
 			"escapedAWSAppName": shsprintf.EscapeDefaultContext(app.GetName()),
@@ -231,7 +174,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		cmd.Stderr = cf.Stderr()
 		cmd.Stdout = output
 
-		logger.DebugContext(cf.Context, "Running automatic az login", "command", logutils.StringerAttr(cmd))
+		log.Debugf("Running automatic az login: %v", cmd.String())
 		if err := cf.RunCommand(cmd); err != nil {
 			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", routeToApp.AzureIdentity)
 		}
@@ -248,14 +191,8 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		})
 
 	case app.IsTCP():
-		appNameWithOptionalTargetPort := app.GetName()
-		if routeToApp.TargetPort != 0 {
-			appNameWithOptionalTargetPort = net.JoinHostPort(app.GetName(), strconv.Itoa(int(routeToApp.GetTargetPort())))
-		}
-
 		return tcpAppLoginTemplate.Execute(output, map[string]string{
-			"appName":                       shsprintf.EscapeDefaultContext(app.GetName()),
-			"appNameWithOptionalTargetPort": appNameWithOptionalTargetPort,
+			"appName": shsprintf.EscapeDefaultContext(app.GetName()),
 		})
 
 	case localProxyRequiredForApp(tc):
@@ -283,7 +220,7 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return webAppLoginTemplate.Execute(output, map[string]any{
+		return webAppLoginTemplate.Execute(output, map[string]interface{}{
 			"appName":  app.GetName(),
 			"curlCmd":  curlCmd,
 			"insecure": cf.InsecureSkipVerify,
@@ -317,7 +254,7 @@ Then connect to the application through this proxy:
 // tcpAppLoginTemplate is the message that gets printed to a user upon successful
 // login into a TCP application.
 var tcpAppLoginTemplate = template.Must(template.New("").Parse(
-	`Logged into TCP app {{.appNameWithOptionalTargetPort}}. Start the local TCP proxy for it:
+	`Logged into TCP app {{.appName}}. Start the local TCP proxy for it:
 
   tsh proxy app {{.appName}}
 
@@ -337,20 +274,6 @@ Example AWS CLI command:
 
 Or start a local proxy:
   tsh proxy aws --app {{.escapedAWSAppName}}
-`))
-
-// awsNamedProfileLoginTemplate is the message that gets printed to a user upon successful login
-// into an AWS Console application which provides AWS credentials in the `credential_process` schema.
-// Used for named profiles, where the profile name is the same as the app name.
-var awsNamedProfileLoginTemplate = template.Must(template.New("").Parse(
-	`Logged into AWS app "{{.awsAppName}}".
-
-Your IAM role:
-  {{.awsRoleARN}}
-
-Example AWS CLI commands:
-  aws --profile {{.awsAppName}} {{.awsCmd}}
-  AWS_PROFILE={{.awsAppName}} aws {{.awsCmd}}
 `))
 
 // azureLoginTemplate is the message that gets printed to a user upon successful login
@@ -396,10 +319,6 @@ func onAppLogout(cf *CLIConf) error {
 		}
 
 		if len(logout) == 0 {
-			// Not logged in but still try to delete any dangling files.
-			if err := tc.LogoutApp(cf.AppName); err != nil {
-				return trace.Wrap(err)
-			}
 			return trace.BadParameter("not logged into app %q", cf.AppName)
 		}
 	} else {
@@ -411,7 +330,6 @@ func onAppLogout(cf *CLIConf) error {
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-
 		err = tc.LogoutApp(app.Name)
 		if err != nil {
 			return trace.Wrap(err)
@@ -420,30 +338,9 @@ func onAppLogout(cf *CLIConf) error {
 		// remove generated local files for the provided app.
 		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name))
 		if err != nil {
-			logger.WarnContext(cf.Context, "Failed to clean up app session",
-				"error", err,
-				"profile", profile.AppLocalCAPath(tc.SiteName, app.Name))
-		}
-
-		if err := removeExternalFilesForApp(app); err != nil {
-			logger.WarnContext(cf.Context, "Failed to clean up app external files",
-				"error", err,
-				"app", cf.AppName)
+			log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(tc.SiteName, app.Name))
 		}
 	}
-
-	if cf.AppName == "" {
-		// Try to delete any dangling files even if the app sessions are expired.
-		if err := tc.LogoutAllApps(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := removeExternalFilesForAllApps(); err != nil {
-			logger.WarnContext(cf.Context, "Failed to clean up apps external files",
-				"error", err)
-		}
-	}
-
 	if len(logout) == 1 {
 		fmt.Printf("Logged out of app %q\n", logout[0].Name)
 	} else {
@@ -471,14 +368,14 @@ func onAppConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	routeToApp := proto.RouteToApp{
-		Name:                            app.Name,
-		PublicAddr:                      app.PublicAddr,
-		ClusterName:                     app.ClusterName,
-		AWSCredentialProcessCredentials: app.AWSCredentialProcessCredentials,
-		AWSRoleARN:                      app.AWSRoleARN,
-		AzureIdentity:                   app.AzureIdentity,
-		GCPServiceAccount:               app.GCPServiceAccount,
-		URI:                             app.GetURI(),
+		Name:              app.Name,
+		SessionID:         app.SessionID,
+		PublicAddr:        app.PublicAddr,
+		ClusterName:       app.ClusterName,
+		AWSRoleARN:        app.AWSRoleARN,
+		AzureIdentity:     app.AzureIdentity,
+		GCPServiceAccount: app.GCPServiceAccount,
+		URI:               app.GetURI(),
 	}
 	conf, err := formatAppConfig(tc, profile, routeToApp, cf.Format)
 	if err != nil {
@@ -503,9 +400,6 @@ const (
 	appFormatJSON = "json"
 	// appFormatYAML prints app URI, CA cert path, cert path, key path, and curl command in YAML format.
 	appFormatYAML = "yaml"
-	// appFormatAWSCredentialProcessOutput prints the credentials for accessing AWS Console using the `credential_process` schema.
-	// See https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sourcing-external.html
-	appFormatAWSCredentialProcessOutput = "aws-credential-process"
 )
 
 func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, routeToApp proto.RouteToApp, format string) (string, error) {
@@ -521,17 +415,15 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		curlInsecureFlag = "--insecure "
 	}
 
-	certPath := profile.AppCertPath(tc.SiteName, routeToApp.Name)
-	keyPath := profile.AppKeyPath(tc.SiteName, routeToApp.Name)
-
 	curlCmd := fmt.Sprintf(`curl %s\
   --cert %q \
   --key %q \
   %v`,
 		curlInsecureFlag,
-		certPath,
-		keyPath,
+		profile.AppCertPath(tc.SiteName, routeToApp.Name),
+		profile.KeyPath(),
 		shsprintf.EscapeDefaultContext(uri))
+
 	format = strings.ToLower(format)
 	switch format {
 	case appFormatURI:
@@ -539,20 +431,18 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 	case appFormatCA:
 		return profile.CACertPathForCluster(tc.SiteName), nil
 	case appFormatCert:
-		return certPath, nil
+		return profile.AppCertPath(tc.SiteName, routeToApp.Name), nil
 	case appFormatKey:
-		return keyPath, nil
+		return profile.KeyPath(), nil
 	case appFormatCURL:
 		return curlCmd, nil
-	case appFormatAWSCredentialProcessOutput:
-		return routeToApp.AWSCredentialProcessCredentials, nil
 	case appFormatJSON, appFormatYAML:
 		appConfig := &appConfigInfo{
 			Name:              routeToApp.Name,
 			URI:               uri,
 			CA:                profile.CACertPathForCluster(tc.SiteName),
-			Cert:              certPath,
-			Key:               keyPath,
+			Cert:              profile.AppCertPath(tc.SiteName, routeToApp.Name),
+			Key:               profile.KeyPath(),
 			Curl:              curlCmd,
 			AWSRoleARN:        routeToApp.AWSRoleARN,
 			AzureIdentity:     routeToApp.AzureIdentity,
@@ -570,8 +460,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		t.AddRow([]string{"Name:     ", routeToApp.Name})
 		t.AddRow([]string{"URI:", uri})
 		t.AddRow([]string{"CA:", profile.CACertPathForCluster(tc.SiteName)})
-		t.AddRow([]string{"Cert:", certPath})
-		t.AddRow([]string{"Key:", keyPath})
+		t.AddRow([]string{"Cert:", profile.AppCertPath(tc.SiteName, routeToApp.Name)})
+		t.AddRow([]string{"Key:", profile.KeyPath()})
 
 		if routeToApp.AWSRoleARN != "" {
 			t.AddRow([]string{"AWS ARN:", routeToApp.AWSRoleARN})
@@ -697,7 +587,7 @@ func (a *appInfo) pickCloudAppLogin(cf *CLIConf, logins []string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		logger.DebugContext(cf.Context, "Retrieved azure identity", "azure_identity", azureIdentity)
+		log.Debugf("Azure identity is %q", azureIdentity)
 		a.AzureIdentity = azureIdentity
 
 	case a.app.IsGCP():
@@ -705,7 +595,7 @@ func (a *appInfo) pickCloudAppLogin(cf *CLIConf, logins []string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		logger.DebugContext(cf.Context, "Retrieved GCP service account", "service_account", gcpServiceAccount)
+		log.Debugf("GCP service account is %q", gcpServiceAccount)
 		a.GCPServiceAccount = gcpServiceAccount
 	}
 
@@ -726,6 +616,10 @@ type appInfo struct {
 
 	// profile is a cached profile status for the current login session.
 	profile *client.ProfileStatus
+}
+
+func (a *appInfo) appLocalCAPath(cluster string) string {
+	return a.profile.AppLocalCAPath(cluster, a.RouteToApp.Name)
 }
 
 // GetApp returns the cached app or fetches it using the app route and
@@ -765,7 +659,7 @@ func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name string) 
 
 	appServer, ok := res.Resources[0].ResourceWithLabels.(types.AppServer)
 	if !ok {
-		logger.WarnContext(ctx, "expected types.AppServer but received unexpected type", "resource_type", logutils.TypeAttr(res.Resources[0].ResourceWithLabels))
+		log.Warnf("expected types.AppServer but received unexpected type %T", res.Resources[0].ResourceWithLabels)
 		return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
 	}
 
@@ -803,13 +697,12 @@ func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (proto.RouteToA
 
 func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
 	return proto.RouteToApp{
-		Name:                            route.Name,
-		PublicAddr:                      route.PublicAddr,
-		ClusterName:                     route.ClusterName,
-		AWSRoleARN:                      route.AWSRoleARN,
-		AWSCredentialProcessCredentials: route.AWSCredentialProcessCredentials,
-		AzureIdentity:                   route.AzureIdentity,
-		GCPServiceAccount:               route.GCPServiceAccount,
-		URI:                             route.URI,
+		Name:              route.Name,
+		PublicAddr:        route.PublicAddr,
+		ClusterName:       route.ClusterName,
+		AWSRoleARN:        route.AWSRoleARN,
+		AzureIdentity:     route.AzureIdentity,
+		GCPServiceAccount: route.GCPServiceAccount,
+		URI:               route.URI,
 	}
 }

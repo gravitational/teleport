@@ -29,17 +29,17 @@ const testCases: {
   {
     title: 'No query params',
     args: { pathname: '/foo' },
-    expected: '/foo?pinnedOnly=false',
+    expected: '/foo',
   },
   {
     title: 'Search string',
     args: { pathname: '/test', searchString: 'something' },
-    expected: '/test?search=something&pinnedOnly=false',
+    expected: '/test?search=something',
   },
   {
     title: 'Search string, encoded',
     args: { pathname: '/test', searchString: 'a$b$c' },
-    expected: '/test?search=a%24b%24c&pinnedOnly=false',
+    expected: '/test?search=a%24b%24c',
   },
   {
     title: 'Advanced search',
@@ -48,7 +48,7 @@ const testCases: {
       searchString: 'foo=="bar"',
       isAdvancedSearch: true,
     },
-    expected: '/test?query=foo%3D%3D%22bar%22&pinnedOnly=false',
+    expected: '/test?query=foo%3D%3D%22bar%22',
   },
   {
     title: 'Search and sort',
@@ -57,7 +57,7 @@ const testCases: {
       searchString: 'foobar',
       sort: { fieldName: 'name', dir: 'ASC' },
     },
-    expected: '/test?search=foobar&sort=name%3Aasc&pinnedOnly=false',
+    expected: '/test?search=foobar&sort=name%3Aasc',
   },
   {
     title: 'Sort only',
@@ -65,19 +65,17 @@ const testCases: {
       pathname: '/test',
       sort: { fieldName: 'name', dir: 'ASC' },
     },
-    expected: '/test?sort=name%3Aasc&pinnedOnly=false',
+    expected: '/test?sort=name%3Aasc',
   },
   {
-    title: 'Search, sort, filter by kind, and filter by statuses',
+    title: 'Search, sort, and filter by kind',
     args: {
       pathname: '/test',
       searchString: 'foo',
       sort: { fieldName: 'name', dir: 'DESC' },
       kinds: ['db', 'node'],
-      statuses: ['healthy', 'unhealthy'],
     },
-    expected:
-      '/test?search=foo&sort=name%3Adesc&pinnedOnly=false&kinds=db&kinds=node&status=healthy&status=unhealthy',
+    expected: '/test?search=foo&sort=name%3Adesc&kinds=db&kinds=node',
   },
 ];
 

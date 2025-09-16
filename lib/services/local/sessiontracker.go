@@ -20,10 +20,10 @@ package local
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -63,7 +63,7 @@ func (s *sessionTracker) loadSession(ctx context.Context, sessionID string) (typ
 
 // UpdatePresence updates the presence status of a user in a session.
 func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user string) error {
-	for range updateRetryLimit {
+	for i := 0; i < updateRetryLimit; i++ {
 		sessionItem, err := s.bk.Get(ctx, backend.NewKey(sessionPrefix, sessionID))
 		if err != nil {
 			return trace.Wrap(err)
@@ -160,7 +160,7 @@ func (s *sessionTracker) getActiveSessionTrackers(ctx context.Context, filter *t
 			for _, item := range noExpiry {
 				if err := s.bk.Delete(ctx, item.Key); err != nil {
 					if !trace.IsNotFound(err) {
-						slog.ErrorContext(ctx, "Failed to remove stale session tracker", "error", err)
+						logrus.WithError(err).Error("Failed to remove stale session tracker")
 					}
 				}
 			}
@@ -202,7 +202,7 @@ func (s *sessionTracker) CreateSessionTracker(ctx context.Context, tracker types
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	for range updateRetryLimit {
+	for i := 0; i < updateRetryLimit; i++ {
 		sessionItem, err := s.bk.Get(ctx, backend.NewKey(sessionPrefix, req.SessionID))
 		if err != nil {
 			return trace.Wrap(err)

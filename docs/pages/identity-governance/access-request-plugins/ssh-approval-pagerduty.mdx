@@ -2,17 +2,14 @@
 title: Run the PagerDuty Access Request Plugin
 sidebar_label: PagerDuty
 description: How to set up Teleport's PagerDuty plugin for privilege elevation approvals.
-labels:
+tags:
  - how-to
  - identity-governance
 ---
 
 With Teleport's PagerDuty integration, engineers can access the infrastructure
 they need to resolve incidents quickly—without longstanding admin permissions
-that can become a vector for attacks. This guide explains how to set up
-Teleport's Access Request plugin for PagerDuty.
-
-## How it works
+that can become a vector for attacks.
 
 Teleport's PagerDuty integration allows you to treat Teleport Role Access
 Requests as PagerDuty incidents, notify the appropriate on-call team, and
@@ -27,11 +24,16 @@ the on-call team for a service affected by an incident.
 
 </details>
 
+This guide will explain how to set up Teleport's Access Request plugin for
+PagerDuty.
+
 ![PagerDuty plugin architecture](../../../img/enterprise/plugins/pagerduty/diagram.png)
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/machine-id/plugin-prerequisites.mdx!)
 
@@ -139,8 +141,6 @@ $ tctl create -f editor-request-rbac.yaml
 role 'editor-reviewer' has been created
 role 'editor-requester' has been created
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 ### `demo-role-requester`
 
@@ -427,7 +427,7 @@ the host where you have Helm installed, create a file called
 
 ```yaml
 teleport:
-  address: ""                 # Teleport Auth Service GRPC API address
+  address: ""                 # Teleport Auth Server GRPC API address
   identitySecretName: ""      # Identity secret name
   identitySecretPath: ""      # Identity secret path
 

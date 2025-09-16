@@ -22,8 +22,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
-	"encoding/asn1"
-	"encoding/base32"
 	"io"
 	"log/slog"
 	"os"
@@ -35,15 +33,13 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/winpki"
 )
 
 func TestMain(m *testing.M) {
@@ -53,17 +49,13 @@ func TestMain(m *testing.M) {
 
 func TestConfigWildcardBaseDN(t *testing.T) {
 	cfg := &WindowsServiceConfig{
-		Discovery: []servicecfg.LDAPDiscoveryConfig{
-			{
-				BaseDN: "*",
-			},
-		},
-		LDAPConfig: servicecfg.LDAPConfig{
+		DiscoveryBaseDN: "*",
+		LDAPConfig: windows.LDAPConfig{
 			Domain: "test.goteleport.com",
 		},
 	}
 	require.NoError(t, cfg.checkAndSetDiscoveryDefaults())
-	require.Equal(t, "DC=test,DC=goteleport,DC=com", cfg.Discovery[0].BaseDN)
+	require.Equal(t, "DC=test,DC=goteleport,DC=com", cfg.DiscoveryBaseDN)
 }
 
 func TestConfigDesktopDiscovery(t *testing.T) {
@@ -103,12 +95,8 @@ func TestConfigDesktopDiscovery(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			cfg := &WindowsServiceConfig{
-				Discovery: []servicecfg.LDAPDiscoveryConfig{
-					{
-						BaseDN:  test.baseDN,
-						Filters: test.filters,
-					},
-				},
+				DiscoveryBaseDN:      test.baseDN,
+				DiscoveryLDAPFilters: test.filters,
 			}
 			test.assert(t, cfg.checkAndSetDiscoveryDefaults())
 		})
@@ -124,7 +112,9 @@ func TestGenerateCredentials(t *testing.T) {
 		domain      = "test.example.com"
 	)
 
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+	testSid := "S-1-5-21-1329593140-2634913955-1900852804-500"
+
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: clusterName,
 		Dir:         t.TempDir(),
 	})
@@ -139,18 +129,7 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, tlsServer.Close())
 	})
 
-	ca, err := authServer.AuthServer.GetCertAuthorities(t.Context(), types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, ca, 1)
-
-	keys := ca[0].GetActiveKeys()
-	require.Len(t, keys.TLS, 1)
-
-	cert, err := tlsca.ParseCertificatePEM(keys.TLS[0].Cert)
-	require.NoError(t, err)
-	commonName := base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + clusterName
-
-	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, client.Close())
@@ -159,75 +138,75 @@ func TestGenerateCredentials(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	testSID := "S-1-5-21-1329593140-2634913955-1900852804-500"
-
 	for _, test := range []struct {
 		name               string
 		activeDirectorySID string
+		cdp                string
+		configure          func(*WindowsServiceConfig)
 	}{
 		{
 			name:               "no ad sid",
 			activeDirectorySID: "",
+			cdp:                `ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
 		},
 		{
 			name:               "with ad sid",
-			activeDirectorySID: testSID,
+			activeDirectorySID: testSid,
+			cdp:                `ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
+		},
+		{
+			name:               "separate PKI domain",
+			activeDirectorySID: "",
+			configure:          func(cfg *WindowsServiceConfig) { cfg.PKIDomain = "pki.example.com" },
+			cdp:                `ldap:///CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=pki,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
 		},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
-				Username:           user,
-				Domain:             domain,
-				TTL:                5 * time.Minute,
-				ClusterName:        clusterName,
-				ActiveDirectorySID: test.activeDirectorySID,
-			})
-			require.NoError(t, err)
-			require.NotNil(t, certb)
-			require.NotNil(t, keyb)
+		w := &WindowsService{
+			clusterName: clusterName,
+			cfg: WindowsServiceConfig{
+				LDAPConfig: windows.LDAPConfig{
+					Domain: domain,
+				},
+				AuthClient: client,
+			},
+		}
+		if test.configure != nil {
+			test.configure(&w.cfg)
+		}
 
-			cert, err := x509.ParseCertificate(certb)
-			require.NoError(t, err)
-			require.NotNil(t, cert)
-
-			require.Equal(t, user, cert.Subject.CommonName)
-			require.Contains(t, cert.CRLDistributionPoints,
-				`ldap:///CN=`+commonName+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
-
-			foundKeyUsage := false
-			foundAltName := false
-			foundAdUserMapping := false
-			for _, extension := range cert.Extensions {
-				switch {
-				case extension.Id.Equal(winpki.EnhancedKeyUsageExtensionOID):
-					foundKeyUsage = true
-					var oids []asn1.ObjectIdentifier
-					_, err = asn1.Unmarshal(extension.Value, &oids)
-					require.NoError(t, err)
-					require.Len(t, oids, 2)
-					require.Contains(t, oids, winpki.ClientAuthenticationOID)
-					require.Contains(t, oids, winpki.SmartcardLogonOID)
-				case extension.Id.Equal(winpki.SubjectAltNameExtensionOID):
-					foundAltName = true
-					var san winpki.SubjectAltName[winpki.UPN]
-					_, err = asn1.Unmarshal(extension.Value, &san)
-					require.NoError(t, err)
-					require.Equal(t, winpki.UPNOtherNameOID, san.OtherName.OID)
-					require.Equal(t, user+"@"+domain, san.OtherName.Value.Value)
-				case extension.Id.Equal(winpki.ADUserMappingExtensionOID):
-					foundAdUserMapping = true
-					var adUserMapping winpki.SubjectAltName[winpki.ADSid]
-					_, err = asn1.Unmarshal(extension.Value, &adUserMapping)
-					require.NoError(t, err)
-					require.Equal(t, winpki.ADUserMappingInternalOID, adUserMapping.OtherName.OID)
-					require.Equal(t, []byte(testSID), adUserMapping.OtherName.Value.Value)
-
-				}
-			}
-			require.True(t, foundKeyUsage)
-			require.True(t, foundAltName)
-			require.Equal(t, test.activeDirectorySID != "", foundAdUserMapping)
+		certb, keyb, err := w.generateCredentials(ctx, generateCredentialsRequest{
+			username:           user,
+			domain:             domain,
+			ttl:                windowsUserCertTTL,
+			activeDirectorySID: test.activeDirectorySID,
 		})
+		require.NoError(t, err)
+		require.NotNil(t, certb)
+		require.NotNil(t, keyb)
+
+		cert, err := x509.ParseCertificate(certb)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+
+		require.Equal(t, user, cert.Subject.CommonName)
+		require.ElementsMatch(t, cert.CRLDistributionPoints, []string{test.cdp})
+
+		foundKeyUsage := false
+		foundAltName := false
+		foundAdUserMapping := false
+		for _, extension := range cert.Extensions {
+			switch {
+			case extension.Id.Equal(windows.EnhancedKeyUsageExtensionOID):
+				foundKeyUsage = true
+			case extension.Id.Equal(windows.SubjectAltNameExtensionOID):
+				foundAltName = true
+			case extension.Id.Equal(windows.ADUserMappingExtensionOID):
+				foundAdUserMapping = true
+			}
+		}
+		require.True(t, foundKeyUsage)
+		require.True(t, foundAltName)
+		require.Equal(t, test.activeDirectorySID != "", foundAdUserMapping)
 	}
 }
 

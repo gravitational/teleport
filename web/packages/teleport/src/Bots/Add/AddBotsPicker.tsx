@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { JSX } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, Link as ExternalLink, Flex, ResourceIcon, Text } from 'design';
 import { Server } from 'design/Icon';
-import { P } from 'design/Text/Text';
-import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
@@ -36,7 +34,6 @@ import {
 } from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
 
-import { InfoGuide } from '../InfoGuide';
 import { BotFlowType } from '../types';
 
 type BotIntegration = {
@@ -47,12 +44,7 @@ type BotIntegration = {
   kind: IntegrationEnrollKind;
 };
 
-const StyledResourceIcon = styled(ResourceIcon)`
-  margin: 0 auto;
-  height: 100%;
-  min-width: 0;
-  max-width: 80px;
-`;
+const StyledResourceIcon = styled(ResourceIcon).attrs({ width: '80px' })``;
 
 const integrations: BotIntegration[] = [
   {
@@ -86,7 +78,7 @@ const integrations: BotIntegration[] = [
   {
     title: 'Ansible',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/access-guides/ansible/',
-    icon: <StyledResourceIcon name="ansible" />,
+    icon: <ResourceIcon name="ansible" />,
     kind: IntegrationEnrollKind.MachineIDAnsible,
     guided: false,
   },
@@ -121,7 +113,7 @@ const integrations: BotIntegration[] = [
   {
     title: 'Kubernetes',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/kubernetes/',
-    icon: <StyledResourceIcon name="kube" />,
+    icon: <ResourceIcon name="kube" />,
     kind: IntegrationEnrollKind.MachineIDKubernetes,
     guided: false,
   },
@@ -138,15 +130,14 @@ export function AddBotsPicker() {
   const ctx = useTeleport();
   return (
     <>
-      <FeatureHeader justifyContent="space-between">
+      <FeatureHeader>
         <FeatureHeaderTitle>Select Bot Type</FeatureHeaderTitle>
-        <InfoGuideButton config={{ guide: <InfoGuide /> }} />
       </FeatureHeader>
 
-      <P mb="5">
+      <Text typography="body1" mb="5">
         Set up Teleport Machine ID to allow CI/CD workflows and other machines
         to access resources protected by Teleport.
-      </P>
+      </Text>
 
       <BotTiles hasCreateBotPermission={ctx.getFeatureFlags().addBots} />
     </>
@@ -256,7 +247,9 @@ export function DisplayTile({
 function TileContent({ icon, title }) {
   return (
     <>
-      <Flex flexBasis={100}>{icon}</Flex>
+      <Box mt={3} mb={2}>
+        {icon}
+      </Box>
       <Text>{title}</Text>
     </>
   );

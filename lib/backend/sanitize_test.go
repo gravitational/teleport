@@ -20,7 +20,7 @@ package backend
 
 import (
 	"context"
-	"iter"
+	"fmt"
 	"testing"
 	"time"
 
@@ -30,94 +30,94 @@ import (
 
 func TestSanitize(t *testing.T) {
 	tests := []struct {
-		inKey  Key
+		inKey  []byte
 		assert require.ErrorAssertionFunc
 	}{
 		{
-			inKey:  NewKey("a-b", "c:d", ".e_f", "01"),
+			inKey:  []byte("a-b/c:d/.e_f/01"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  NewKey("namespaces", "", "params"),
+			inKey:  []byte("/namespaces//params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  NewKey("namespaces", ".."),
+			inKey:  []byte("/namespaces/.."),
 			assert: require.Error,
 		},
 		{
-			inKey:  NewKey("namespaces", "..", "params"),
+			inKey:  []byte("/namespaces/../params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  NewKey("namespaces", "..params"),
+			inKey:  []byte("/namespaces/..params"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  NewKey("namespaces", "."),
+			inKey:  []byte("/namespaces/."),
 			assert: require.Error,
 		},
 		{
-			inKey:  NewKey("namespaces", ".", "params"),
+			inKey:  []byte("/namespaces/./params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  NewKey("namespaces", ".params"),
+			inKey:  []byte("/namespaces/.params"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  NewKey(".."),
+			inKey:  []byte(".."),
 			assert: require.Error,
 		},
 		{
-			inKey:  NewKey("..params"),
+			inKey:  []byte("..params"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  NewKey("..", "params"),
+			inKey:  []byte("../params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  NewKey("."),
+			inKey:  []byte("."),
 			assert: require.Error,
 		},
 		{
-			inKey:  NewKey(".params"),
+			inKey:  []byte(".params"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  NewKey(".", "params"),
+			inKey:  []byte("./params"),
 			assert: require.Error,
 		},
 		{
-			inKey:  RangeEnd(NewKey("a-b", "c:d", ".e_f", "01")),
+			inKey:  RangeEnd([]byte("a-b/c:d/.e_f/01")),
 			assert: require.NoError,
 		},
 		{
-			inKey:  RangeEnd(NewKey("")),
+			inKey:  RangeEnd([]byte("/")),
 			assert: require.NoError,
 		},
 		{
-			inKey:  RangeEnd(NewKey("Malformed \xf0\x90\x28\xbc UTF8")),
+			inKey:  RangeEnd([]byte("Malformed \xf0\x90\x28\xbc UTF8")),
 			assert: require.Error,
 		},
 		{
-			inKey:  NewKey("test+subaddr@example.com"),
+			inKey:  []byte("test+subaddr@example.com"),
 			assert: require.NoError,
 		},
 		{
-			inKey:  NewKey("xyz"),
+			inKey:  []byte("xyz"),
 			assert: require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.inKey.String(), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%v", string(tt.inKey)), func(t *testing.T) {
 			ctx := context.Background()
 			safeBackend := NewSanitizer(&nopBackend{})
 
 			_, err := safeBackend.Get(ctx, tt.inKey)
-			require.NoError(t, err)
+			tt.assert(t, err)
 
 			_, err = safeBackend.Create(ctx, Item{Key: tt.inKey})
 			tt.assert(t, err)
@@ -132,43 +132,11 @@ func TestSanitize(t *testing.T) {
 			tt.assert(t, err)
 
 			err = safeBackend.Delete(ctx, tt.inKey)
-			require.NoError(t, err)
+			tt.assert(t, err)
 
 			err = safeBackend.DeleteRange(ctx, tt.inKey, tt.inKey)
-			require.NoError(t, err)
+			tt.assert(t, err)
 		})
-	}
-}
-
-func BenchmarkIsKeySafe(b *testing.B) {
-	keys := []Key{
-		NewKey("a-b", "c:d", ".e_f", "01"),
-		NewKey("namespaces", "", "params"),
-		NewKey("namespaces", ".."),
-		NewKey("namespaces", "..", "params"),
-		NewKey("namespaces", "..params"),
-		NewKey("namespaces", "."),
-		NewKey("namespaces", ".", "params"),
-		NewKey("namespaces", ".params"),
-		NewKey(".."),
-		NewKey("..params"),
-		NewKey("..", "params"),
-		NewKey("."),
-		NewKey(".params"),
-		NewKey(".", "params"),
-		RangeEnd(NewKey("a-b", "c:d", ".e_f", "01")),
-		RangeEnd(NewKey("")),
-		RangeEnd(NewKey("Malformed \xf0\x90\x28\xbc UTF8")),
-		NewKey("test+subaddr@example.com"),
-		NewKey("xyz"),
-		NewKey("@@"),
-		NewKey("@_:.-+"),
-	}
-
-	for b.Loop() {
-		for _, key := range keys {
-			IsKeySafe(key)
-		}
 	}
 }
 
@@ -184,14 +152,8 @@ func (n *nopBackend) Get(_ context.Context, _ Key) (*Item, error) {
 
 func (n *nopBackend) GetRange(_ context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
 	return &GetResult{Items: []Item{
-		{Key: NewKey("foo"), Value: []byte("bar")},
+		{Key: []byte("foo"), Value: []byte("bar")},
 	}}, nil
-}
-
-func (n *nopBackend) Items(context.Context, ItemsParams) iter.Seq2[Item, error] {
-	return func(yield func(Item, error) bool) {
-		yield(Item{Key: NewKey("foo"), Value: []byte("bar")}, nil)
-	}
 }
 
 func (n *nopBackend) Create(_ context.Context, _ Item) (*Lease, error) {

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonPrimary, Flex, H1, Link, Text } from 'design';
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
+import { Box, ButtonPrimary, Flex, Link, Text } from 'design';
+import { StyledCheckbox } from 'design/Checkbox';
 
 import FormLogin from 'teleport/components/FormLogin';
 import { LogoHero } from 'teleport/components/LogoHero';
@@ -111,7 +111,7 @@ function LicenseAcknowledgement({
     <>
       <LogoHero />
       <LicenseBox>
-        <H1 mb={2}>Welcome to Teleport</H1>
+        <InfoHeader mb={2}>Welcome to Teleport</InfoHeader>
         <InfoText>
           Companies may use Teleport Community Edition on the condition they
           have less than 100 employees and less than $10MM in annual revenue. If
@@ -124,26 +124,24 @@ function LicenseAcknowledgement({
           </Link>{' '}
           to evaluate and use Teleport.
         </InfoText>
-        <FieldCheckbox
-          mt={3}
-          mb={0}
-          checked={checked}
-          onChange={e => {
-            setChecked(e.target.checked);
-          }}
-          label={
-            <>
-              By clicking continue, you agree to our{' '}
-              <Link
-                href="https://github.com/gravitational/teleport/blob/master/build.assets/LICENSE-community"
-                target="_blank"
-              >
-                Terms and Conditions
-              </Link>
-              .
-            </>
-          }
-        />
+        <Flex as="label" mt={3} gap={2} alignItems="center">
+          <StyledCheckbox
+            checked={checked}
+            onChange={e => {
+              setChecked(e.target.checked);
+            }}
+          />
+          <Text>
+            By clicking continue, you agree to our{' '}
+            <Link
+              href="https://github.com/gravitational/teleport/blob/master/build.assets/LICENSE-community"
+              target="_blank"
+            >
+              Terms and Conditions
+            </Link>
+            .
+          </Text>
+        </Flex>
         <ButtonPrimary
           disabled={!checked}
           onClick={() => {
@@ -197,4 +195,10 @@ const InfoText = styled(Text)`
 
   font-size: ${props => props.theme.fontSizes[3]}px;
   color: ${p => p.theme.colors.text.muted};
+`;
+
+const InfoHeader = styled(Text)`
+  line-height: 32px;
+  font-weight: 500;
+  font-size: ${props => props.theme.fontSizes[7]}px;
 `;

@@ -81,6 +81,12 @@ var defaultContentSecurityPolicy = CSPMap{
 var defaultFontSrc = CSPMap{"font-src": {"'self'", "data:"}}
 var defaultConnectSrc = CSPMap{"connect-src": {"'self'", "wss:"}}
 
+var stripeSecurityPolicy = CSPMap{
+	// auto-pay plans in Cloud use stripe.com to manage billing information
+	"script-src": {"https://js.stripe.com"},
+	"frame-src":  {"https://js.stripe.com"},
+}
+
 var wasmSecurityPolicy = CSPMap{
 	"script-src": {"'self'", "'wasm-unsafe-eval'"},
 }
@@ -170,8 +176,12 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 }
 
-func getIndexContentSecurityPolicy(withWasm bool) CSPMap {
+func getIndexContentSecurityPolicy(withStripe, withWasm bool) CSPMap {
 	cspMaps := []CSPMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
+
+	if withStripe {
+		cspMaps = append(cspMaps, stripeSecurityPolicy)
+	}
 
 	if withWasm {
 		cspMaps = append(cspMaps, wasmSecurityPolicy)
@@ -196,17 +206,19 @@ var indexCSPStringCache *cspCache = newCSPCache()
 
 func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
 	// Check for result with this cfg and urlPath in cache
-	if cspString, ok := indexCSPStringCache.get(urlPath); ok {
+	withStripe := cfg.GetIsStripeManaged()
+	key := fmt.Sprintf("%v-%v", withStripe, urlPath)
+	if cspString, ok := indexCSPStringCache.get(key); ok {
 		return cspString
 	}
 
 	// Nothing found in cache, calculate regex and result
 	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath) || sshSessionRe.MatchString(urlPath)
 	cspString := GetContentSecurityPolicyString(
-		getIndexContentSecurityPolicy(withWasm),
+		getIndexContentSecurityPolicy(withStripe, withWasm),
 	)
 	// Add result to cache
-	indexCSPStringCache.set(urlPath, cspString)
+	indexCSPStringCache.set(key, cspString)
 
 	return cspString
 }

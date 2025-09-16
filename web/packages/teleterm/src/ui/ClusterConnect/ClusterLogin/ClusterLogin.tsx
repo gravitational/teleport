@@ -18,30 +18,16 @@
 
 import React from 'react';
 
-import {
-  Box,
-  ButtonIcon,
-  ButtonPrimary,
-  Flex,
-  H2,
-  Indicator,
-  StepSlider,
-  Text,
-} from 'design';
+import { Box, ButtonIcon, Indicator, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import { DialogContent, DialogHeader } from 'design/Dialog';
 import * as Icons from 'design/Icon';
-import { ArrowBack } from 'design/Icon';
-import type { StepComponentProps } from 'design/StepSlider';
-import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { PrimaryAuthType } from 'shared/services';
 
-import { publicAddrWithTargetPort } from 'teleterm/services/tshd/app';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
-import { DetailsView } from 'teleterm/ui/AppUpdater';
+import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 
-import { outermostPadding } from '../spacing';
 import LoginForm from './FormLogin';
 import useClusterLogin, { Props, State } from './useClusterLogin';
 
@@ -51,31 +37,13 @@ export function ClusterLogin(props: Props & { reason: ClusterConnectReason }) {
   return <ClusterLoginPresentation {...state} reason={reason} />;
 }
 
-export const ClusterLoginPresentation = (
-  props: ClusterLoginPresentationProps
-) => {
-  return (
-    <StepSlider
-      flows={loginViews}
-      currFlow="default"
-      css={`
-        // Prevents displaying a scrollbar by the slider.
-        // Instead, the entire dialog should be scrollable.
-        flex-shrink: 0;
-      `}
-      {...props}
-    />
-  );
-};
-
 export type ClusterLoginPresentationProps = State & {
   reason: ClusterConnectReason;
 };
 
-function ClusterLoginForm({
+export function ClusterLoginPresentation({
   title,
   initAttempt,
-  init,
   loginAttempt,
   clearLoginAttempt,
   onLoginWithLocal,
@@ -85,63 +53,36 @@ function ClusterLoginForm({
   onAbort,
   loggedInUserName,
   shouldPromptSsoStatus,
-  passwordlessLoginState,
+  webauthnLogin,
   reason,
-  shouldSkipVersionCheck,
-  disableVersionCheck,
-  platform,
-  next,
-  refCallback,
-  clusterGetter,
-  changeAppUpdatesManagingCluster,
-  appUpdateEvent,
-  cancelAppUpdateDownload,
-  quitAndInstallAppUpdate,
-  downloadAppUpdate,
-  checkForAppUpdates,
-}: ClusterLoginPresentationProps & StepComponentProps) {
+}: ClusterLoginPresentationProps) {
   return (
-    <Flex ref={refCallback} flexDirection="column">
-      <DialogHeader px={outermostPadding}>
-        <H2>
+    <>
+      <DialogHeader px={4} pt={4} mb={0}>
+        <Text typography="h4">
           Log in to <b>{title}</b>
-        </H2>
+        </Text>
         <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
           <Icons.Cross size="medium" />
         </ButtonIcon>
       </DialogHeader>
-      <DialogContent mb={0} gap={2}>
-        {reason && (
-          <Box px={outermostPadding}>
-            <Reason reason={reason} />
-          </Box>
-        )}
+      <DialogContent mb={0}>
+        {reason && <Reason reason={reason} />}
 
         {initAttempt.status === 'error' && (
-          <Flex
-            px={outermostPadding}
-            flexDirection="column"
-            alignItems="flex-start"
-            gap={3}
-          >
-            <Alerts.Danger
-              details={initAttempt.statusText}
-              margin={0}
-              width="100%"
-            >
-              Unable to retrieve cluster auth preferences
-            </Alerts.Danger>
-            <ButtonPrimary onClick={init}>Retry</ButtonPrimary>
-          </Flex>
+          <Alerts.Danger m={4}>
+            Unable to retrieve cluster auth preferences,{' '}
+            {initAttempt.statusText}
+          </Alerts.Danger>
         )}
         {initAttempt.status === 'processing' && (
-          <Box px={outermostPadding} textAlign="center">
+          <Box textAlign="center" m={4}>
             <Indicator delay="none" />
           </Box>
         )}
         {initAttempt.status === 'success' && (
           <LoginForm
-            authSettings={initAttempt.data}
+            {...initAttempt.data}
             primaryAuthType={getPrimaryAuthType(initAttempt.data)}
             loggedInUserName={loggedInUserName}
             onLoginWithSso={onLoginWithSso}
@@ -151,70 +92,13 @@ function ClusterLoginForm({
             loginAttempt={loginAttempt}
             clearLoginAttempt={clearLoginAttempt}
             shouldPromptSsoStatus={shouldPromptSsoStatus}
-            passwordlessLoginState={passwordlessLoginState}
-            shouldSkipVersionCheck={shouldSkipVersionCheck}
-            disableVersionCheck={disableVersionCheck}
-            platform={platform}
-            clusterGetter={clusterGetter}
-            checkForAppUpdates={checkForAppUpdates}
-            changeAppUpdatesManagingCluster={changeAppUpdatesManagingCluster}
-            appUpdateEvent={appUpdateEvent}
-            cancelAppUpdateDownload={cancelAppUpdateDownload}
-            downloadAppUpdate={downloadAppUpdate}
-            quitAndInstallAppUpdate={quitAndInstallAppUpdate}
-            switchToAppUpdateDetails={next}
+            webauthnLogin={webauthnLogin}
           />
         )}
       </DialogContent>
-    </Flex>
+    </>
   );
 }
-
-const AppUpdateDetails = ({
-  refCallback,
-  platform,
-  downloadAppUpdate,
-  checkForAppUpdates,
-  cancelAppUpdateDownload,
-  quitAndInstallAppUpdate,
-  changeAppUpdatesManagingCluster,
-  appUpdateEvent,
-  clusterGetter,
-  onCloseDialog,
-  prev,
-}: ClusterLoginPresentationProps & StepComponentProps) => {
-  return (
-    <Flex ref={refCallback} flexDirection="column">
-      <DialogHeader px={outermostPadding}>
-        <Flex alignItems="center" gap={1}>
-          <ButtonIcon title="Go Back" onClick={prev}>
-            <ArrowBack />
-          </ButtonIcon>
-          <H2>App Updates</H2>
-        </Flex>
-        <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
-          <Icons.Cross size="medium" />
-        </ButtonIcon>
-      </DialogHeader>
-      <Flex px={4}>
-        <DetailsView
-          onInstall={() => quitAndInstallAppUpdate()}
-          platform={platform}
-          changeManagingCluster={clusterUri =>
-            changeAppUpdatesManagingCluster(clusterUri)
-          }
-          updateEvent={appUpdateEvent}
-          onDownload={() => downloadAppUpdate()}
-          onCancelDownload={() => cancelAppUpdateDownload()}
-          clusterGetter={clusterGetter}
-          onCheckForUpdates={() => checkForAppUpdates()}
-        />
-      </Flex>
-    </Flex>
-  );
-};
-
-const loginViews = { default: [ClusterLoginForm, AppUpdateDetails] };
 
 function getPrimaryAuthType(auth: AuthSettings): PrimaryAuthType {
   if (auth.localConnectorName === 'passwordless') {
@@ -233,7 +117,7 @@ function Reason({ reason }: { reason: ClusterConnectReason }) {
   const $targetDesc = getTargetDesc(reason);
 
   return (
-    <Text>
+    <Text px={4} pt={2} mb={0}>
       You tried to connect to {$targetDesc} but your session has expired. Please
       log in to refresh the session.
     </Text>
@@ -261,7 +145,7 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
       }
     }
     case 'reason.vnet-cert-expired': {
-      return <strong>{publicAddrWithTargetPort(reason.routeToApp)}</strong>;
+      return <strong>{reason.publicAddr}</strong>;
     }
     default: {
       reason satisfies never;

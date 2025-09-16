@@ -17,6 +17,7 @@
  */
 
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 
 import { act, render, screen, waitFor } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
@@ -26,13 +27,12 @@ import {
   makeRetryableError,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
-import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import ModalsHost from 'teleterm/ui/ModalsHost';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
-import { ClusterUri, routing } from 'teleterm/ui/uri';
+import { ClusterUri } from 'teleterm/ui/uri';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { SearchAction } from './actions';
@@ -176,7 +176,7 @@ it('includes offline cluster names in the empty results copy', () => {
   );
 });
 
-it('notifies about resource search errors and allows to display details', async () => {
+it('notifies about resource search errors and allows to display details', () => {
   const appContext = setUpContext('/clusters/foo');
 
   const resourceSearchError = new ResourceSearchError(
@@ -224,7 +224,7 @@ it('notifies about resource search errors and allows to display details', async 
   expect(results).toHaveTextContent('Could not fetch resources from foo');
   expect(results).not.toHaveTextContent(resourceSearchError.cause['message']);
 
-  await userEvent.click(screen.getByRole('button', { name: 'Show details' }));
+  act(() => screen.getByText('Show details').click());
 
   expect(appContext.modalsService.openRegularDialog).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -322,18 +322,16 @@ it('shows a login modal when a request to a cluster from the current workspace f
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <AppUpdaterContextProvider>
-        <ConnectionsContextProvider>
-          <VnetContextProvider>
-            <SearchBarConnected />
-            <ModalsHost />
-          </VnetContextProvider>
-        </ConnectionsContextProvider>
-      </AppUpdaterContextProvider>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <SearchBarConnected />
+          <ModalsHost />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 
-  await user.type(screen.getByRole('searchbox'), 'foo');
+  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
 
   // Verify that the login modal was shown after typing in the search box.
   await waitFor(() => {
@@ -342,7 +340,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
   expect(screen.getByTestId('Modal')).toHaveTextContent('Log in to');
 
   // Verify that the search bar stays open after closing the modal.
-  await user.click(screen.getByLabelText('Close'));
+  act(() => screen.getByLabelText('Close').click());
   await waitFor(() => {
     expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
   });
@@ -378,11 +376,12 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
     </MockAppContextProvider>
   );
 
-  await user.type(screen.getByRole('searchbox'), 'foo');
+  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
   expect(screen.getByRole('menu')).toBeInTheDocument();
 
-  await user.click(screen.getByTestId('unfocusable-element'));
-
+  act(() => {
+    screen.getByTestId('unfocusable-element').click();
+  });
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 });
 
@@ -413,11 +412,16 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
 
 const setUpContext = (clusterUri: ClusterUri) => {
   const appContext = new MockAppContext();
-  appContext.addRootCluster(
-    makeRootCluster({
-      uri: clusterUri,
-      name: routing.parseClusterUri(clusterUri).params.rootClusterId,
-    })
-  );
+  appContext.workspacesService.setState(draft => {
+    draft.rootClusterUri = clusterUri;
+    draft.workspaces = {
+      [clusterUri]: {
+        documents: [],
+        location: undefined,
+        localClusterUri: clusterUri,
+        accessRequests: undefined,
+      },
+    };
+  });
   return appContext;
 };

@@ -11,10 +11,11 @@ mkdir -p "$STATE_DIR"
 cat > "$values_yaml" <<EOF
 chartMode: standalone
 clusterName: ${CLUSTER_NAME}.${ROUTE53_ZONE}      # Name of your cluster. Use the FQDN you intend to configure in DNS below.
+teleportVersionOverride: ${TELEPORT_VERSION}
 
 extraArgs: ['--debug']
-image: "public.ecr.aws/gravitational-staging/teleport-distroless-debug"
-enterpriseImage: "public.ecr.aws/gravitational-staging/teleport-ent-distroless-debug"
+image: "public.ecr.aws/gravitational/teleport-distroless-debug"
+enterpriseImage: "public.ecr.aws/gravitational/teleport-ent-distroless-debug"
 
 persistence:
     enabled: false
@@ -27,7 +28,7 @@ highAvailability:
 
 authentication:
   type: local
-  secondFactor: "webauthn"
+  secondFactor: "optional"
   webauthn:
     rp_id: ${CLUSTER_NAME}.${ROUTE53_ZONE}
   connector_name: passwordless

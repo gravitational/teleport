@@ -1,6 +1,6 @@
 db_service:
   # Enables the Database Service.
-  enabled: true
+  enabled: "yes"
 
   # Matchers for database resources created with "tctl create" command or by the
   # discovery service.
@@ -20,8 +20,8 @@ db_service:
     # 'rdsproxy' - discovers and registers Amazon RDS Proxy databases.
     # 'redshift' - discovers and registers Amazon Redshift databases.
     # 'redshift-serverless' - discovers and registers Amazon Redshift Serverless databases.
-    # 'elasticache' - discovers and registers Amazon ElastiCache Redis and Valkey databases.
-    # 'memorydb' - discovers and registers Amazon MemoryDB databases.
+    # 'elasticache' - discovers and registers Amazon ElastiCache Redis databases.
+    # 'memorydb' - discovers and registers Amazon MemoryDB Redis databases.
     # 'opensearch' - discovers and registers Amazon OpenSearch databases.
     # 'docdb' - discovers and registers Amazon DocumentDB databases.
   - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]
@@ -191,11 +191,6 @@ db_service:
       spn: MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433
       # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
       krb5_file: /etc/krb5.conf
-      # Name of the service account Teleport uses to perform LDAP queries for retrieving user SIDs.
-      ldap_service_account_name: "svc-teleport"
-      # SID of the above service account. Teleport uses this to authenticate LDAP queries.
-      # Also required for PKINIT if the user SID must be included in the certificate.
-      ldap_service_account_sid: "S-1-5-21-1111111111-2222222222-3333333333-4444"
 
     # Optional configuration for Azure hosted databases.
     azure:

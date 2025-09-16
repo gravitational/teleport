@@ -1,7 +1,7 @@
 ---
 title: Use Teleport's SAML Provider to authenticate with Grafana
 description: Configure Grafana to use identities provided by Teleport.
-labels:
+tags:
  - how-to
  - identity-governance
 ---
@@ -26,7 +26,7 @@ information about your Grafana deployment to the Teleport SAML IdP.
 - An instance of Grafana Enterprise, with edit access to `grafana.ini`.
   - A trusted certificate authority to create TLS certificates/keys for the SAML connection.
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -55,8 +55,6 @@ Create it with `tctl`:
 $ tctl create sp-manager.yaml
 role 'saml-idp-service-provider-manager' has been created
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 (!docs/pages/includes/add-role-to-user.mdx role="saml_idp_service_provider" !)
 

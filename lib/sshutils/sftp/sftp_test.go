@@ -21,12 +21,9 @@ package sftp
 import (
 	"bytes"
 	"context"
-	cryptorand "crypto/rand"
 	"fmt"
 	"io"
-	"io/fs"
-	mathrand "math/rand/v2"
-	"net"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -37,19 +34,15 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
-	"github.com/pkg/sftp"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const fileMaxSize = 1000
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -296,7 +289,7 @@ func TestUpload(t *testing.T) {
 				"tres",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were specified`, i[0]))
 			},
 		},
@@ -312,7 +305,7 @@ func TestUpload(t *testing.T) {
 				"glob3",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were matched by a glob pattern`, i[0]))
 			},
 		},
@@ -325,7 +318,7 @@ func TestUpload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 				require.ErrorAs(t, err, new(*NonRecursiveDirectoryTransferError))
 			},
@@ -335,7 +328,7 @@ func TestUpload(t *testing.T) {
 			srcPaths: []string{
 				"idontexist",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -365,7 +358,7 @@ func TestUpload(t *testing.T) {
 			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
 			cfg.dstFS = &localFS{}
-			err = cfg.initFS(nil)
+			err = cfg.initFS(nil, nil)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -508,14 +501,14 @@ func TestDownload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 			},
 		},
 		{
 			name:    "non-existent src file",
 			srcPath: "idontexist",
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -543,7 +536,7 @@ func TestDownload(t *testing.T) {
 			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
 			cfg.srcFS = &localFS{}
-			err = cfg.initFS(nil)
+			err = cfg.initFS(nil, nil)
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -590,7 +583,7 @@ func TestHomeDirExpansion(t *testing.T) {
 		{
 			name: "~user path",
 			path: "~user/foo",
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, PathExpansionError{path: "~user/foo"})
 			},
 		},
@@ -623,7 +616,7 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	require.NoError(t, err)
 	// use all local filesystems to avoid SSH overhead
 	cfg.srcFS = &localFS{}
-	err = cfg.initFS(nil)
+	err = cfg.initFS(nil, nil)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -729,10 +722,9 @@ func createFile(t *testing.T, path string) {
 	}()
 
 	// populate file with random amount of random contents
-	buf := make([]byte, mathrand.N(fileMaxSize)+1)
-	_, err = cryptorand.Read(buf)
-	require.NoError(t, err)
-	_, err = f.Write(buf)
+	r := rand.New(rand.NewSource(time.Now().Unix()))
+	lr := io.LimitReader(r, r.Int63n(fileMaxSize)+1)
+	_, err = io.Copy(f, lr)
 	require.NoError(t, err)
 }
 
@@ -820,325 +812,5 @@ func compareFileInfos(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.File
 		require.True(t, dstInfo.ModTime().Equal(srcInfo.ModTime()), "%q and %q mod times not equal", dst, src)
 		// don't check access times, locally they line up but they are
 		// often different when run in CI
-	}
-}
-
-type mockCmdHandlers struct {
-	sftp.Handlers
-}
-
-func (m mockCmdHandlers) Filecmd(req *sftp.Request) error {
-	return trace.Wrap(HandleFilecmd(req, localFS{}))
-}
-
-func TestHandleFilecmd(t *testing.T) {
-	t.Parallel()
-	// We're using a full client/server instead of just calling HandleFilecmd so
-	// the sftp package can handle marshaling attributes.
-	clientConn, serverConn := net.Pipe()
-	srv := sftp.NewRequestServer(serverConn, sftp.Handlers{
-		FileGet:  sftp.InMemHandler().FileGet,
-		FilePut:  sftp.InMemHandler().FilePut,
-		FileCmd:  mockCmdHandlers{},
-		FileList: sftp.InMemHandler().FileList,
-	})
-
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
-	go srv.Serve()
-
-	clt, err := sftp.NewClientPipe(clientConn, clientConn)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, clt.Close()) })
-
-	t.Run("chtimes", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "test.txt")
-		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
-		originalInfo, err := os.Stat(file)
-		require.NoError(t, err)
-		setTime := originalInfo.ModTime().Add(time.Hour).Round(time.Second)
-
-		assert.NoError(t, clt.Chtimes(file, setTime, setTime))
-		updatedInfo, err := os.Stat(file)
-		if assert.NoError(t, err) {
-			assert.Equal(t, setTime, updatedInfo.ModTime())
-		}
-	})
-
-	t.Run("chmod", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "test.txt")
-		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
-
-		assert.NoError(t, clt.Chmod(file, 0o666))
-		fi, err := os.Stat(file)
-		if assert.NoError(t, err) {
-			assert.Equal(t, fs.FileMode(0o666), fi.Mode().Perm())
-		}
-	})
-
-	t.Run("truncate", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "test.txt")
-		require.NoError(t, os.WriteFile(file, []byte(strings.Repeat("a", 100)), 0o644))
-
-		assert.NoError(t, clt.Truncate(file, 50))
-		data, err := os.ReadFile(file)
-		if assert.NoError(t, err) {
-			assert.Len(t, data, 50)
-		}
-	})
-
-	t.Run("rename", func(t *testing.T) {
-		root := t.TempDir()
-		initialFile := filepath.Join(root, "foo.txt")
-		finalFile := filepath.Join(root, "bar.txt")
-		require.NoError(t, os.WriteFile(initialFile, []byte("test"), 0o644))
-
-		assert.NoError(t, clt.Rename(initialFile, finalFile))
-		assert.NoFileExists(t, initialFile)
-		assert.FileExists(t, finalFile)
-	})
-
-	t.Run("rename missing target", func(t *testing.T) {
-		root := t.TempDir()
-		initialFile := filepath.Join(root, "foo.txt")
-		finalFile := filepath.Join(root, "bar.txt")
-		assert.Error(t, clt.Rename(initialFile, finalFile))
-		assert.NoFileExists(t, finalFile)
-	})
-
-	t.Run("rmdir", func(t *testing.T) {
-		root := t.TempDir()
-		dir := filepath.Join(root, "foo")
-		innerFile := filepath.Join(dir, "test.txt")
-		require.NoError(t, os.Mkdir(dir, defaults.DirectoryPermissions))
-		require.NoError(t, os.WriteFile(innerFile, []byte("test"), 0o644))
-
-		assert.NoError(t, clt.RemoveDirectory(dir))
-		assert.NoDirExists(t, dir)
-	})
-
-	t.Run("rmdir not found", func(t *testing.T) {
-		root := t.TempDir()
-		dir := filepath.Join(root, "foo")
-		assert.Error(t, clt.RemoveDirectory(dir))
-	})
-
-	t.Run("rmdir not a dir", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "test.txt")
-		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
-
-		assert.Error(t, clt.RemoveDirectory(file))
-		assert.FileExists(t, file)
-	})
-
-	t.Run("mkdir", func(t *testing.T) {
-		root := t.TempDir()
-		outer := filepath.Join(root, "a")
-		inner := filepath.Join(outer, "b/c")
-		require.NoError(t, os.Mkdir(outer, defaults.DirectoryPermissions))
-
-		assert.NoError(t, clt.Mkdir(inner))
-		assert.DirExists(t, inner)
-	})
-
-	t.Run("link", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "foo.txt")
-		target := filepath.Join(root, "bar.txt")
-		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
-
-		assert.NoError(t, clt.Link(target, file))
-		fi, err := os.Lstat(target)
-		if assert.NoError(t, err) {
-			assert.Zero(t, fi.Mode()&os.ModeSymlink)
-		}
-	})
-
-	t.Run("link missing target", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "foo.txt")
-		target := filepath.Join(root, "bar.txt")
-
-		assert.Error(t, clt.Link(target, file))
-		assert.NoFileExists(t, target)
-	})
-
-	t.Run("link unset target", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "foo.txt")
-		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
-		assert.Error(t, clt.Link(file, ""))
-	})
-
-	t.Run("symlink", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "foo.txt")
-		target := filepath.Join(root, "bar.txt")
-		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
-
-		assert.NoError(t, clt.Symlink(target, file))
-		fi, err := os.Lstat(target)
-		assert.NoError(t, err)
-		assert.NotZero(t, fi.Mode()&os.ModeSymlink)
-	})
-
-	t.Run("symlink unset target", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "foo.txt")
-		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
-		assert.Error(t, clt.Symlink(file, ""))
-	})
-
-	t.Run("remove", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "test.txt")
-		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
-
-		assert.NoError(t, clt.Remove(file))
-		assert.NoFileExists(t, file)
-	})
-
-	t.Run("remove not found", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "test.txt")
-
-		assert.Error(t, clt.Remove(file))
-	})
-
-	t.Run("remove directory", func(t *testing.T) {
-		root := t.TempDir()
-		dir := filepath.Join(root, "dir")
-		require.NoError(t, os.Mkdir(dir, defaults.DirectoryPermissions))
-
-		assert.NoError(t, clt.Remove(dir))
-		assert.NoDirExists(t, dir)
-	})
-
-	t.Run("unsupported operation", func(t *testing.T) {
-		root := t.TempDir()
-		file := filepath.Join(root, "test.txt")
-		require.NoError(t, os.WriteFile(file, []byte("foo"), 0o644))
-		req := sftp.NewRequest(MethodStat, file)
-		assert.Error(t, HandleFilecmd(req, localFS{}))
-	})
-}
-
-type fileInfo struct {
-	name string
-	mode fs.FileMode
-	size int64
-}
-
-func (fi fileInfo) Name() string {
-	return fi.name
-}
-
-func (fi fileInfo) Size() int64 {
-	return fi.size
-}
-
-func (fi fileInfo) Mode() fs.FileMode {
-	return fi.mode
-}
-
-func (fi fileInfo) ModTime() time.Time {
-	return time.Time{}
-}
-
-func (fi fileInfo) IsDir() bool {
-	return false
-}
-
-func (fi fileInfo) Sys() any {
-	return nil
-}
-
-func TestHandleFilelist(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	statMap := make(map[string]fs.FileInfo, 10)
-	for i := range 5 {
-		fileName := fmt.Sprintf("file-%d", i)
-		file := filepath.Join(root, fileName)
-		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
-		statMap[fileName] = fileInfo{
-			name: fileName,
-			mode: 0o644,
-			size: 4,
-		}
-		symlinkName := fmt.Sprintf("file-%d", i+5)
-		symlink := filepath.Join(root, symlinkName)
-		require.NoError(t, os.Symlink(file, symlink))
-		statMap[symlinkName] = fileInfo{
-			name: symlinkName,
-			mode: 0o644,
-			size: 4,
-		}
-	}
-
-	tests := []struct {
-		name           string
-		req            *sftp.Request
-		assert         assert.ErrorAssertionFunc
-		expectedOutput map[string]fs.FileInfo
-	}{
-		{
-			name:           "list",
-			req:            sftp.NewRequest(MethodList, root),
-			assert:         assert.NoError,
-			expectedOutput: statMap,
-		},
-		{
-			name:   "stat",
-			req:    sftp.NewRequest(MethodStat, root+"/file-0"),
-			assert: assert.NoError,
-			expectedOutput: map[string]fs.FileInfo{
-				"file-0": fileInfo{
-					name: "file-0",
-					mode: 0o644,
-					size: 4,
-				},
-			},
-		},
-		{
-			name:   "readlink",
-			req:    sftp.NewRequest(MethodReadlink, root+"/file-5"),
-			assert: assert.NoError,
-			expectedOutput: map[string]fs.FileInfo{
-				root + "/file-0": fileName(root + "/file-0"),
-			},
-		},
-		{
-			name:   "unsupported operation",
-			req:    sftp.NewRequest(MethodRemove, root),
-			assert: assert.Error,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			lister, err := HandleFilelist(tc.req, localFS{})
-			tc.assert(t, err)
-			if tc.expectedOutput == nil {
-				assert.Nil(t, lister)
-				return
-			}
-			assert.NotNil(t, lister)
-
-			list := make([]fs.FileInfo, len(tc.expectedOutput))
-			n, err := lister.ListAt(list, 0)
-			assert.NoError(t, err)
-			assert.Equal(t, len(tc.expectedOutput), n)
-			for _, fi := range list {
-				entry, ok := tc.expectedOutput[fi.Name()]
-				if assert.True(t, ok, "unexpected file %q", fi.Name()) {
-					assert.Equal(t, entry.Name(), fi.Name())
-					assert.Equal(t, entry.Size(), fi.Size(), fi.Name())
-					assert.Equal(t, entry.Mode(), fi.Mode(), fi.Name())
-				}
-			}
-		})
 	}
 }

@@ -17,9 +17,7 @@
  */
 
 // Command query-latest returns the highest semver release for a versionSpec
-// query-latest ignores drafts and pre-releases. If the latest release for
-// a version is in teleport-private, the version tag will be prefixed with
-// "private-".
+// query-latest ignores drafts and pre-releases.
 //
 // For example:
 //
@@ -28,26 +26,21 @@
 //	query-latest v8.0.0-rc3 -> error, no matching release (this is a pre-release, in github and in semver)
 //	query-latest v7.0       -> v7.0.2
 //	query-latest v5         -> v5.2.4
-//	query-latest v17        -> private-v17.5.2 (latest v17 release is in teleport-private)
 package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
+	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
-
-var errNoResults = errors.New("no releases matched")
 
 func main() {
 	versionSpec, err := parseFlags()
@@ -55,17 +48,9 @@ func main() {
 		log.Fatalf("Failed to parse flags: %v.", err)
 	}
 
-	var gh github.GitHub
-	token := os.Getenv("GITHUB_TOKEN")
-	if token != "" {
-		gh = github.NewGitHubWithToken(context.Background(), token)
-	} else {
-		gh = github.NewGitHub()
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	tag, err := getLatest(ctx, versionSpec, gh)
+	tag, err := getLatest(ctx, versionSpec, github.NewGitHub())
 	if err != nil {
 		log.Fatalf("Query failed: %v.", err)
 	}
@@ -87,34 +72,12 @@ func parseFlags() (string, error) {
 }
 
 func getLatest(ctx context.Context, versionSpec string, gh github.GitHub) (string, error) {
-	publicTag, err := getLatestForRepo(ctx, versionSpec, gh, "teleport")
+	releases, err := gh.ListReleases(ctx, "gravitational", "teleport")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	privateTag, err := getLatestForRepo(ctx, versionSpec, gh, "teleport-private")
-	// Ignore errNoResults errors from teleport-private as it is quite possible that
-	// there have been no private releases on a branch or in a particular minor
-	// release set.
-	if err != nil && !errors.Is(err, errNoResults) {
-		return "", trace.Wrap(err)
-	}
-	if err == nil && semver.Compare(publicTag, privateTag) < 0 {
-		return "private-" + privateTag, nil
-	}
-
-	return publicTag, nil
-}
-
-func getLatestForRepo(ctx context.Context, versionSpec string, gh github.GitHub, repo string) (string, error) {
-	releases, err := gh.ListReleases(ctx, "gravitational", repo)
-	if err != nil {
-		return "", trace.Wrap(err, "couldn't list releases for repo %q", repo)
-	}
-	// The repos we check for releases all have releases. If we do not get anything
-	// back, this is an error as something must have gone wrong.
 	if len(releases) == 0 {
-		return "", trace.NotFound("failed to find any releases on GitHub for repo %q", repo)
+		return "", trace.NotFound("failed to find any releases on GitHub")
 	}
 
 	// filter drafts and prereleases, which shouldn't be tracked by latest docker images
@@ -143,5 +106,5 @@ func getLatestForRepo(ctx context.Context, versionSpec string, gh github.GitHub,
 		}
 	}
 
-	return "", trace.Wrap(errNoResults, "version %q, repo %q", versionSpec, repo)
+	return "", trace.NotFound("no releases matched %q", versionSpec)
 }

@@ -26,14 +26,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 func TestGetInstallScript(t *testing.T) {
 	ctx := context.Background()
-	testVersion, err := version.EnsureSemver("1.2.3")
-	require.NoError(t, err)
+	testVersion := "1.2.3"
 	testProxyAddr := "proxy.example.com:443"
 
 	tests := []struct {
@@ -94,6 +92,24 @@ func TestGetInstallScript(t *testing.T) {
 				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameOSS))
 				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.CDNBaseURL()))
 				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s'", testProxyAddr))
+				require.Contains(t, script, "packageSuffix='bin.tar.gz'")
+			},
+		},
+		{
+			name: "Oneoff install with group",
+			opts: InstallScriptOptions{
+				AutoupdateStyle: UpdaterBinaryAutoupdate,
+				TeleportVersion: testVersion,
+				ProxyAddr:       testProxyAddr,
+				TeleportFlavor:  types.PackageNameOSS,
+				Group:           "development",
+			},
+			assertFn: func(t *testing.T, script string) {
+				require.Contains(t, script, "entrypoint='teleport-update'")
+				require.Contains(t, script, fmt.Sprintf("teleportVersion='v%s'", testVersion))
+				require.Contains(t, script, fmt.Sprintf("teleportFlavor='%s'", types.PackageNameOSS))
+				require.Contains(t, script, fmt.Sprintf("cdnBaseURL='%s'", teleportassets.CDNBaseURL()))
+				require.Contains(t, script, fmt.Sprintf("entrypointArgs='enable --proxy %s --group development'", testProxyAddr))
 				require.Contains(t, script, "packageSuffix='bin.tar.gz'")
 			},
 		},

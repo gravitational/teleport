@@ -23,7 +23,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -31,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -42,8 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // MakeTestClient returns MongoDB client connection according to the provided
@@ -84,7 +82,7 @@ type TestServer struct {
 	cfg      common.TestServerConfig
 	listener net.Listener
 	port     string
-	logger   *slog.Logger
+	log      logrus.FieldLogger
 
 	serverVersion    string
 	wireVersion      int
@@ -133,15 +131,16 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := logtest.With(teleport.ComponentKey, defaults.ProtocolMongoDB,
-		"name", config.Name,
-	)
+	log := logrus.WithFields(logrus.Fields{
+		teleport.ComponentKey: defaults.ProtocolMongoDB,
+		"name":                config.Name,
+	})
 	server := &TestServer{
 		cfg: config,
 		// MongoDB uses regular TLS handshake so standard TLS listener will work.
 		listener:      tls.NewListener(config.Listener, tlsConfig),
 		port:          port,
-		logger:        log,
+		log:           log,
 		serverVersion: "7.0.0",
 		usersTracker: usersTracker{
 			userEventsCh: make(chan UserEvent, 100),
@@ -156,27 +155,27 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
-	ctx := context.Background()
-	s.logger.DebugContext(ctx, "Starting test MongoDB server", "listen_addr", s.listener.Addr())
-	defer s.logger.DebugContext(ctx, "Test MongoDB server stopped")
+	s.log.Debugf("Starting test MongoDB server on %v.", s.listener.Addr())
+	defer s.log.Debug("Test MongoDB server stopped.")
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			s.logger.ErrorContext(ctx, "Failed to accept connection", "error", err)
+			s.log.WithError(err).Error("Failed to accept connection.")
 			continue
 		}
-		s.logger.DebugContext(ctx, "Accepted connection")
+		s.log.Debug("Accepted connection.")
 		go func() {
-			defer s.logger.DebugContext(ctx, "Connection done")
+			defer s.log.Debug("Connection done.")
 			defer conn.Close()
 			atomic.AddInt32(&s.activeConnection, 1)
 			defer atomic.AddInt32(&s.activeConnection, -1)
 			if err := s.handleConnection(conn); err != nil {
 				if !utils.IsOKNetworkError(err) {
-					s.logger.ErrorContext(ctx, "Failed to handle connection", "error", err)
+					s.log.Errorf("Failed to handle connection: %v.",
+						trace.DebugReport(err))
 				}
 			}
 		}()
@@ -264,7 +263,7 @@ func (s *TestServer) handleAuth(message protocol.Message) (protocol.Message, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.logger.DebugContext(context.Background(), "Authenticate", "message", logutils.StringerAttr(message))
+	s.log.Debugf("Authenticate: %s.", message)
 	if command != commandAuth {
 		return nil, trace.BadParameter("expected authenticate command, got: %s", message)
 	}
@@ -781,7 +780,7 @@ func makeIsMasterReply(wireVersion int, maxMessageSize uint32) ([]byte, error) {
 }
 
 // makeFindReply builds a document used as a "find" command reply.
-func makeFindReply(result any) ([]byte, error) {
+func makeFindReply(result interface{}) ([]byte, error) {
 	return bson.Marshal(bson.M{
 		"ok": 1,
 		"cursor": bson.M{

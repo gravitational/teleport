@@ -22,7 +22,7 @@ import (
 	"context"
 	"os"
 	"os/user"
-	"path/filepath"
+	"path"
 	"testing"
 	"time"
 
@@ -38,14 +38,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -66,8 +63,8 @@ var wildcardAllow = types.Labels{
 type SrvCtx struct {
 	srv        *regular.Server
 	signer     ssh.Signer
-	server     *authtest.Server
-	clock      *clockwork.FakeClock
+	server     *auth.TestServer
+	clock      clockwork.FakeClock
 	nodeClient *authclient.Client
 	nodeID     string
 	utmpPath   string
@@ -171,8 +168,8 @@ func TestRootUsernameLimit(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	utmpPath := filepath.Join(dir, "utmp")
-	wtmpPath := filepath.Join(dir, "wtmp")
+	utmpPath := path.Join(dir, "utmp")
+	wtmpPath := path.Join(dir, "wtmp")
 
 	err := TouchFile(utmpPath)
 	require.NoError(t, err)
@@ -198,7 +195,7 @@ type upack struct {
 	key []byte
 
 	// pkey is parsed private SSH key
-	pkey any
+	pkey interface{}
 
 	// pub is a public user key
 	pub []byte
@@ -244,8 +241,8 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	tempdir := t.TempDir()
 
 	var err error
-	s.server, err = authtest.NewTestServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
+	s.server, err = auth.NewTestServer(auth.TestServerConfig{
+		Auth: auth.TestAuthServerConfig{
 			ClusterName: "localhost",
 			Dir:         tempdir,
 			Clock:       s.clock,
@@ -254,32 +251,28 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	// set up host private key and certificate
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
-	tlsPublicKey, err := keys.MarshalPublicKey(key.Public())
-	require.NoError(t, err)
-	sshPub, err := ssh.NewPublicKey(key.Public())
-	require.NoError(t, err)
-	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	certs, err := s.server.Auth().GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     s.server.ClusterName(),
 			Role:         types.RoleNode,
-			PublicSSHKey: sshPublicKey,
-			PublicTLSKey: tlsPublicKey,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
 		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
-	s.signer, err = sshutils.NewSigner(privateKeyPEM, certs.SSH)
+	s.signer, err = sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	s.nodeID = uuid.New().String()
-	s.nodeClient, err = s.server.NewClient(authtest.TestIdentity{
+	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: s.nodeID,
@@ -288,9 +281,9 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	uaccDir := t.TempDir()
-	utmpPath := filepath.Join(uaccDir, "utmp")
-	wtmpPath := filepath.Join(uaccDir, "wtmp")
-	btmpPath := filepath.Join(uaccDir, "btmp")
+	utmpPath := path.Join(uaccDir, "utmp")
+	wtmpPath := path.Join(uaccDir, "wtmp")
+	btmpPath := path.Join(uaccDir, "btmp")
 	require.NoError(t, TouchFile(utmpPath))
 	require.NoError(t, TouchFile(wtmpPath))
 	require.NoError(t, TouchFile(btmpPath))
@@ -346,7 +339,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetSessionController(nodeSessionController),
-		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	s.srv = srv

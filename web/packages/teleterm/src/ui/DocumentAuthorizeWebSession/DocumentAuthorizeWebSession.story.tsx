@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react-vite';
-
 import { wait } from 'shared/utils/wait';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
@@ -35,41 +33,65 @@ import { DocumentAuthorizeWebSession } from './DocumentAuthorizeWebSession';
 
 export default {
   title: 'Teleterm/DocumentAuthorizeWebSession',
-  component: Story,
-  argTypes: {
-    isDeviceTrusted: { control: { type: 'boolean' } },
-    isRequestedUserLoggedIn: { control: { type: 'boolean' } },
-  },
-  args: {
-    isDeviceTrusted: true,
-    isRequestedUserLoggedIn: true,
-  },
-} satisfies Meta<StoryProps>;
+};
 
-interface StoryProps {
-  isDeviceTrusted: boolean;
-  isRequestedUserLoggedIn: boolean;
+const doc: types.DocumentAuthorizeWebSession = {
+  uri: '/docs/e2hyt5',
+  rootClusterUri: rootClusterUri,
+  kind: 'doc.authorize_web_session',
+  title: 'Authorize Web Session',
+  webSessionRequest: {
+    redirectUri: '',
+    token: '',
+    id: '',
+    username: 'alice',
+  },
+};
+
+export function DeviceNotTrusted() {
+  const rootCluster = makeRootCluster();
+  const appContext = new MockAppContext();
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(rootCluster.uri, rootCluster);
+  });
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider rootClusterUri={rootCluster.uri}>
+        <DocumentAuthorizeWebSession doc={doc} visible={true} />
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
 }
 
-export function Story(props: StoryProps) {
+export function RequestedUserNotLoggedIn() {
   const rootCluster = makeRootCluster({
-    loggedInUser: makeLoggedInUser({ isDeviceTrusted: props.isDeviceTrusted }),
+    loggedInUser: makeLoggedInUser({ isDeviceTrusted: true }),
   });
-  const doc: types.DocumentAuthorizeWebSession = {
-    uri: '/docs/e2hyt5',
-    rootClusterUri: rootClusterUri,
-    kind: 'doc.authorize_web_session',
-    title: 'Authorize Web Session',
+  const docForDifferentUser: types.DocumentAuthorizeWebSession = {
+    ...doc,
     webSessionRequest: {
-      redirectUri: '',
-      token: '',
-      id: '',
-      username: props.isRequestedUserLoggedIn
-        ? rootCluster.loggedInUser.name
-        : 'bob',
+      ...doc.webSessionRequest,
+      username: 'bob',
     },
   };
+  const appContext = new MockAppContext();
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(rootCluster.uri, rootCluster);
+  });
 
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider rootClusterUri={rootCluster.uri}>
+        <DocumentAuthorizeWebSession doc={docForDifferentUser} visible={true} />
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+}
+
+export function DeviceTrusted() {
+  const rootCluster = makeRootCluster({
+    loggedInUser: makeLoggedInUser({ isDeviceTrusted: true }),
+  });
   const appContext = new MockAppContext();
   appContext.clustersService.setState(draftState => {
     draftState.clusters.set(rootCluster.uri, rootCluster);

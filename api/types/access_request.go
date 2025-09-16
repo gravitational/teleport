@@ -131,20 +131,8 @@ type AccessRequest interface {
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
-	// GetDryRunEnrichment gets the dry run enrichment data.
-	GetDryRunEnrichment() *AccessRequestDryRunEnrichment
-	// SetDryRunEnrichment sets the dry run enrichment data.
-	SetDryRunEnrichment(*AccessRequestDryRunEnrichment)
-	// GetRequestKind gets the kind of request.
-	GetRequestKind() AccessRequestKind
-	// SetRequestKind sets the kind (short/long-term) of request.
-	SetRequestKind(AccessRequestKind)
 	// Copy returns a copy of the access request resource.
 	Copy() AccessRequest
-	// GetLongTermResourceGrouping gets the long-term resource grouping, if present.
-	GetLongTermResourceGrouping() *LongTermResourceGrouping
-	// SetLongTermResourceGrouping sets the long-term resource grouping.
-	SetLongTermResourceGrouping(*LongTermResourceGrouping)
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -161,7 +149,7 @@ func NewAccessRequestWithResources(name string, user string, roles []string, res
 		},
 		Spec: AccessRequestSpecV3{
 			User:                 user,
-			Roles:                slices.Clone(roles),
+			Roles:                utils.CopyStrings(roles),
 			RequestedResourceIDs: append([]ResourceID{}, resourceIDs...),
 		},
 	}
@@ -457,17 +445,12 @@ func (r *AccessRequestV3) SetName(name string) {
 
 // Expiry gets Expiry
 func (r *AccessRequestV3) Expiry() time.Time {
-	// Fallback on existing expiry in metadata if not set in spec.
-	if r.Spec.ResourceExpiry != nil {
-		return *r.Spec.ResourceExpiry
-	}
 	return r.Metadata.Expiry()
 }
 
 // SetExpiry sets Expiry
 func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
-	t := expiry.UTC()
-	r.Spec.ResourceExpiry = &t
+	r.Metadata.SetExpiry(expiry.UTC())
 }
 
 // GetMetadata gets Metadata
@@ -524,46 +507,6 @@ func (r *AccessRequestV3) SetMaxDuration(t time.Time) {
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
-}
-
-// GetDryRunEnrichment gets the dry run enrichment data.
-func (r *AccessRequestV3) GetDryRunEnrichment() *AccessRequestDryRunEnrichment {
-	return r.Spec.DryRunEnrichment
-}
-
-// SetDryRunEnrichment sets the dry run enrichment data.
-func (r *AccessRequestV3) SetDryRunEnrichment(enrichment *AccessRequestDryRunEnrichment) {
-	r.Spec.DryRunEnrichment = enrichment
-}
-
-// GetRequestKind gets the kind of request.
-func (r *AccessRequestV3) GetRequestKind() AccessRequestKind {
-	return r.Spec.RequestKind
-}
-
-// SetRequestKind sets the kind (short/long-term) of request.
-func (r *AccessRequestV3) SetRequestKind(kind AccessRequestKind) {
-	r.Spec.RequestKind = kind
-}
-
-// GetLongTermResourceGrouping gets the long-term resource grouping, if present.
-func (r *AccessRequestV3) GetLongTermResourceGrouping() *LongTermResourceGrouping {
-	return r.Spec.LongTermGrouping
-}
-
-// SetLongTermResourceGrouping sets the long-term resource grouping suggestion.
-func (r *AccessRequestV3) SetLongTermResourceGrouping(grouping *LongTermResourceGrouping) {
-	r.Spec.LongTermGrouping = grouping
-}
-
-// IsLongTerm checks if the request kind is long-term.
-func (a AccessRequestKind) IsLongTerm() bool {
-	return a == AccessRequestKind_LONG_TERM
-}
-
-// IsShortTerm checks if the request kind is explicitly short-term, or is undefined.
-func (a AccessRequestKind) IsShortTerm() bool {
-	return a != AccessRequestKind_LONG_TERM
 }
 
 // Copy returns a copy of the access request resource.
@@ -697,47 +640,6 @@ func (u *AccessRequestUpdate) Check() error {
 		return trace.BadParameter("cannot override roles when setting state: %s", u.State)
 	}
 	return nil
-}
-
-// RequestReasonMode can be either "required" or "optional". Empty-string is treated as "optional".
-// If a role has the request reason mode set to "required", then reason is required for all Access
-// Requests requesting roles or resources allowed by this role. It applies only to users who have
-// this role assigned.
-type RequestReasonMode string
-
-const (
-	// RequestReasonModeRequired indicates required mode. See [[RequestReasonMode]] godoc for
-	// more details.
-	RequestReasonModeRequired RequestReasonMode = "required"
-	// RequestReasonModeRequired indicates optional mode. See [[RequestReasonMode]] godoc for
-	// more details.
-	RequestReasonModeOptional RequestReasonMode = "optional"
-)
-
-var allRequestReasonModes = []RequestReasonMode{
-	RequestReasonModeRequired,
-	RequestReasonModeOptional,
-}
-
-// Required checks if this mode is "required". Empty mode is treated as "optional".
-func (m RequestReasonMode) Required() bool {
-	switch m {
-	case RequestReasonModeRequired:
-		return true
-	default:
-		return false
-	}
-}
-
-// Check validates this mode value. Note that an empty value is considered invalid.
-func (m RequestReasonMode) Check() error {
-	for _, x := range allRequestReasonModes {
-		if m == x {
-			return nil
-		}
-	}
-	return trace.BadParameter("unrecognized request reason mode %q, must be one of: %v",
-		m, allRequestReasonModes)
 }
 
 // RequestStrategy is an indicator of how access requests

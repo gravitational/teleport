@@ -19,13 +19,13 @@
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
-		<string>1.0</string>
+		<string>16.5.15</string>
 		<key>CFBundleSupportedPlatforms</key>
 		<array>
 			<string>MacOSX</string>
 		</array>
 		<key>CFBundleVersion</key>
-		<string>1.0</string>
+		<string>16.5.15</string>
 		<key>DTCompiler</key>
 		<string>com.apple.compilers.llvm.clang.1_0</string>
 		<key>DTPlatformBuild</key>
@@ -43,28 +43,12 @@
 		<key>DTXcodeBuild</key>
 		<string>13C100</string>
 		<key>LSMinimumSystemVersion</key>
-		<string>11.0.0</string>
+		<string>10.15.0</string>
 		<key>NSHumanReadableCopyright</key>
 		<string/>
 		<key>NSMainStoryboardFile</key>
 		<string>Main</string>
 		<key>NSPrincipalClass</key>
 		<string>NSApplication</string>
-		<key>OSLogPreferences</key>
-		<dict>
-			<key>com.gravitational.teleport.tsh.vnetd</key>
-			<dict>
-				<key>DEFAULT-OPTIONS</key>
-				<dict>
-					<key>Level</key>
-					<dict>
-						<key>Enable</key>
-						<string>Info</string>
-						<key>Persist</key>
-						<string>Info</string>
-					</dict>
-				</dict>
-			</dict>
-		</dict>
 	</dict>
 </plist>

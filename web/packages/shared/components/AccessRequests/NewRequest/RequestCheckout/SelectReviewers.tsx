@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { components } from 'react-select';
 import ReactSelectCreatable from 'react-select/creatable';
 import styled from 'styled-components';
@@ -41,7 +41,7 @@ export function SelectReviewers({
     () => reviewers.map(r => ({ value: r, label: r, isDisabled: true }))
   );
 
-  useEffect(() => {
+  React.useEffect(() => {
     // When editing reviewers, auto focus on input box.
     if (editReviewers) {
       reactSelectRef.current.focus();
@@ -202,7 +202,7 @@ function Reviewers({
         `}
       >
         <Text
-          typography="body3"
+          typography="body2"
           bold
           style={{ whiteSpace: 'nowrap', maxWidth: '200px' }}
           title={reviewer.value}
@@ -244,7 +244,7 @@ function Reviewers({
         `}
       >
         <Flex alignItems="baseline" gap={2}>
-          <Text typography="body3">Reviewers (optional)</Text>
+          <Text fontSize={1}>Reviewers (optional)</Text>
           <ButtonBorder
             onClick={e => {
               // By stopping propagation,

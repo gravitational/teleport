@@ -21,13 +21,7 @@ import styled from 'styled-components';
 
 import { Cross } from '../Icon';
 
-export function Pill({
-  label,
-  onDismiss,
-}: {
-  label: string;
-  onDismiss?: (labelName: string) => void;
-}) {
+function Pill({ label, onDismiss }: Props) {
   const dismissable = !!onDismiss;
   return (
     <Wrapper dismissable={dismissable}>
@@ -37,7 +31,7 @@ export function Pill({
         dismissable={dismissable}
         onClick={(e: React.MouseEvent) => {
           e.stopPropagation();
-          onDismiss?.(label);
+          onDismiss(label);
         }}
       >
         <Cross size="small" />
@@ -65,3 +59,11 @@ const Dismiss = styled.button<{ dismissable?: boolean }>`
   cursor: pointer;
   display: ${props => (props.dismissable ? 'inline-block' : 'none')};
 `;
+
+type Props = {
+  label: string;
+  dismissable?: boolean;
+  onDismiss?: (labelName: string) => void;
+};
+
+export { Pill };

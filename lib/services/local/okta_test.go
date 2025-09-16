@@ -263,7 +263,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 					},
 				},
 			},
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "error parsing regexp")
 			},
 		},
@@ -281,7 +281,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 					},
 				},
 			},
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "error parsing regexp")
 			},
 		},
@@ -403,8 +403,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 
 	// Fail to update the status because not enough time has passed.
 	err = service.UpdateOktaAssignmentStatus(ctx, assignment1.GetName(), constants.OktaAssignmentStatusPending, time.Hour)
-	require.ErrorContains(t, err, "only 0s has passed since last transition")
-	require.True(t, trace.IsBadParameter(err))
+	require.ErrorIs(t, err, trace.BadParameter("only 0s has passed since last transition"))
 
 	// Successfully update the status for an assignment.
 	require.NoError(t, assignment1.SetStatus(constants.OktaAssignmentStatusSuccessful))

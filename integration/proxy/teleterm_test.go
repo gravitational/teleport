@@ -19,11 +19,9 @@
 package proxy
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"net"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -51,9 +49,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
-	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -146,7 +143,7 @@ type dbGatewayCertRenewalParams struct {
 	pack          *dbhelpers.DatabasePack
 	albAddr       string
 	databaseURI   uri.ResourceURI
-	webauthnLogin libclient.WebauthnLoginFunc
+	webauthnLogin client.WebauthnLoginFunc
 }
 
 func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewayCertRenewalParams) {
@@ -169,9 +166,9 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewa
 				TargetURI:  params.databaseURI.String(),
 				TargetUser: params.pack.Root.User.GetName(),
 			},
-			testGatewayConnection: mustConnectDatabaseGateway,
-			webauthnLogin:         params.webauthnLogin,
-			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
+			testGatewayConnectionFunc: mustConnectDatabaseGateway,
+			webauthnLogin:             params.webauthnLogin,
+			generateAndSetupUserCreds: func(t *testing.T, tc *client.TeleportClient, ttl time.Duration) {
 				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 					Process:  params.pack.Root.Cluster.Process,
 					Username: tc.Username,
@@ -185,26 +182,23 @@ func testDBGatewayCertRenewal(ctx context.Context, t *testing.T, params dbGatewa
 	)
 }
 
-type generateAndSetupUserCredsFunc func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration)
+type testGatewayConnectionFunc func(*testing.T, *daemon.Service, gateway.Gateway)
+
+type generateAndSetupUserCredsFunc func(t *testing.T, tc *client.TeleportClient, ttl time.Duration)
 
 type gatewayCertRenewalParams struct {
-	tc                        *libclient.TeleportClient
+	tc                        *client.TeleportClient
 	albAddr                   string
 	createGatewayParams       daemon.CreateGatewayParams
-	testGatewayConnection     testGatewayConnectionFunc
-	webauthnLogin             libclient.WebauthnLoginFunc
+	testGatewayConnectionFunc testGatewayConnectionFunc
+	webauthnLogin             client.WebauthnLoginFunc
 	generateAndSetupUserCreds generateAndSetupUserCredsFunc
-	wantPromptMFACallCount    int
 	customCertsExpireFunc     func(gateway.Gateway)
 	expectNoRelogin           bool
 }
 
 func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCertRenewalParams) {
 	t.Helper()
-
-	// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	t.Cleanup(cancel)
 
 	tc := params.tc
 
@@ -278,7 +272,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	gateway, err := daemonService.CreateGateway(ctx, params.createGatewayParams)
 	require.NoError(t, err, trace.DebugReport(err))
 
-	params.testGatewayConnection(ctx, t, daemonService, gateway)
+	params.testGatewayConnectionFunc(t, daemonService, gateway)
 
 	if params.customCertsExpireFunc != nil {
 		params.customCertsExpireFunc(gateway)
@@ -295,7 +289,7 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	// and then it will attempt to reissue the user cert using an expired user cert.
 	// The mocked tshdEventsClient will issue a valid user cert, save it to disk, and the middleware
 	// will let the connection through.
-	params.testGatewayConnection(ctx, t, daemonService, gateway)
+	params.testGatewayConnectionFunc(t, daemonService, gateway)
 
 	expectedReloginCalls := uint32(1)
 	if params.expectNoRelogin {
@@ -306,10 +300,9 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 	require.Equal(t, uint32(0), tshdEventsService.sendNotificationCallCount.Load(),
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
 	if params.webauthnLogin != nil {
-		// By default, there are two calls, one to issue the certs when creating the gateway and then
-		// another to reissue them after relogin.
-		wantCallCount := cmp.Or(params.wantPromptMFACallCount, 2)
-		require.Equal(t, uint32(wantCallCount), tshdEventsService.promptMFACallCount.Load(),
+		// There are two calls, one to issue the certs when creating the gateway and then another to
+		// reissue them after relogin.
+		require.Equal(t, uint32(2), tshdEventsService.promptMFACallCount.Load(),
 			"Unexpected number of calls to TSHDEventsClient.PromptMFA")
 	}
 }
@@ -318,7 +311,7 @@ type mockTSHDEventsService struct {
 	api.UnimplementedTshdEventsServiceServer
 
 	t                         *testing.T
-	tc                        *libclient.TeleportClient
+	tc                        *client.TeleportClient
 	addr                      string
 	reloginCallCount          atomic.Uint32
 	sendNotificationCallCount atomic.Uint32
@@ -326,7 +319,7 @@ type mockTSHDEventsService struct {
 	generateAndSetupUserCreds generateAndSetupUserCredsFunc
 }
 
-func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, generateAndSetupUserCreds generateAndSetupUserCredsFunc) (service *mockTSHDEventsService) {
+func newMockTSHDEventsServiceServer(t *testing.T, tc *client.TeleportClient, generateAndSetupUserCreds generateAndSetupUserCredsFunc) (service *mockTSHDEventsService) {
 	t.Helper()
 
 	ls, err := net.Listen("tcp", "127.0.0.1:0")
@@ -415,7 +408,7 @@ func TestTeletermKubeGateway(t *testing.T) {
 			KubeUsers:        []string{k8User},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -488,6 +481,9 @@ func TestTeletermKubeGateway(t *testing.T) {
 	t.Run("root with per-session MFA", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
 		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
 			suite:         suite,
 			kubeURI:       kubeURI,
@@ -497,6 +493,9 @@ func TestTeletermKubeGateway(t *testing.T) {
 	t.Run("leaf with per-session MFA", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
 		testKubeGatewayCertRenewal(ctx, t, kubeGatewayCertRenewalParams{
 			suite:         suite,
 			kubeURI:       kubeURI,
@@ -545,7 +544,7 @@ type kubeGatewayCertRenewalParams struct {
 	suite                 *Suite
 	kubeURI               uri.ResourceURI
 	albAddr               string
-	webauthnLogin         libclient.WebauthnLoginFunc
+	webauthnLogin         client.WebauthnLoginFunc
 	customCertsExpireFunc func(gateway.Gateway)
 	expectNoRelogin       bool
 }
@@ -553,7 +552,7 @@ type kubeGatewayCertRenewalParams struct {
 func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGatewayCertRenewalParams) {
 	t.Helper()
 
-	var client *kubernetes.Clientset
+	var kubeClient *kubernetes.Clientset
 	var clientOnce sync.Once
 
 	kubeCluster := params.kubeURI.GetKubeName()
@@ -569,7 +568,7 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 	})
 	require.NoError(t, err)
 
-	testKubeConnection := func(ctx context.Context, t *testing.T, daemonService *daemon.Service, gw gateway.Gateway) {
+	testKubeConnection := func(t *testing.T, daemonService *daemon.Service, gw gateway.Gateway) {
 		t.Helper()
 
 		clientOnce.Do(func() {
@@ -579,10 +578,10 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 			kubeconfigPath := kubeGateway.KubeconfigPath()
 			checkKubeconfigPathInCommandEnv(t, daemonService, gw, kubeconfigPath)
 
-			client = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
+			kubeClient = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
 		})
 
-		mustGetKubePod(t, client)
+		mustGetKubePod(t, kubeClient)
 	}
 
 	testGatewayCertRenewal(
@@ -594,11 +593,11 @@ func testKubeGatewayCertRenewal(ctx context.Context, t *testing.T, params kubeGa
 			createGatewayParams: daemon.CreateGatewayParams{
 				TargetURI: params.kubeURI.String(),
 			},
-			testGatewayConnection: testKubeConnection,
-			webauthnLogin:         params.webauthnLogin,
-			customCertsExpireFunc: params.customCertsExpireFunc,
-			expectNoRelogin:       params.expectNoRelogin,
-			generateAndSetupUserCreds: func(t *testing.T, tc *libclient.TeleportClient, ttl time.Duration) {
+			testGatewayConnectionFunc: testKubeConnection,
+			webauthnLogin:             params.webauthnLogin,
+			customCertsExpireFunc:     params.customCertsExpireFunc,
+			expectNoRelogin:           params.expectNoRelogin,
+			generateAndSetupUserCreds: func(t *testing.T, tc *client.TeleportClient, ttl time.Duration) {
 				creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 					Process:  params.suite.root.Process,
 					Username: tc.Username,
@@ -627,7 +626,7 @@ func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service
 // Assumes that MFA is already enabled for the cluster. Per-session MFA should be configured separately.
 //
 // Based on setupUserMFA from e/tool/tsh/tsh_test.go.
-func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, username string, rpid string) libclient.WebauthnLoginFunc {
+func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, username string, rpid string) client.WebauthnLoginFunc {
 	t.Helper()
 
 	// Configure user account.
@@ -662,10 +661,6 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, us
 	})
 	require.NoError(t, err)
 
-	// webauthnLogin is not safe for concurrent use, partly due to the implementation of device, but
-	// mostly because Teleport itself doesn't allow for more than one in-flight MFA challenge. This is
-	// an arbitrary limitation which in theory we could change. But for now, parallel tests that use
-	// webauthnLogin must use a separate user for each test and not trigger parallel MFA prompts.
 	webauthnLogin := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
@@ -728,210 +723,34 @@ func requireSessionMFARole(ctx context.Context, t *testing.T, authServer *auth.S
 	require.NoError(t, err)
 }
 
-type makeTCAndWebauthnLoginFunc func(t *testing.T) (*libclient.TeleportClient, mfa.WebauthnLoginFunc)
-
-func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, makeTCAndWebauthnLogin makeTCAndWebauthnLoginFunc) {
+func testTeletermAppGateway(t *testing.T, pack *appaccess.Pack, tc *client.TeleportClient) {
 	ctx := context.Background()
 
 	t.Run("root cluster", func(t *testing.T) {
-		t.Parallel()
+		profileName := mustGetProfileName(t, pack.RootWebAddr())
+		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
 
-		t.Run("web app", func(t *testing.T) {
-			t.Parallel()
-
-			profileName := mustGetProfileName(t, pack.RootWebAddr())
-			appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootAppName())
-
-			testAppGatewayCertRenewal(ctx, t, pack, makeTCAndWebauthnLogin, appURI)
-		})
-
-		t.Run("TCP app", func(t *testing.T) {
-			t.Parallel()
-
-			profileName := mustGetProfileName(t, pack.RootWebAddr())
-			appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootTCPAppName())
-
-			tc, webauthnLogin := makeTCAndWebauthnLogin(t)
-
-			testGatewayCertRenewal(
-				ctx,
-				t,
-				gatewayCertRenewalParams{
-					tc:                        tc,
-					createGatewayParams:       daemon.CreateGatewayParams{TargetURI: appURI.String()},
-					testGatewayConnection:     makeMustConnectTCPAppGateway(pack.RootTCPMessage()),
-					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-					webauthnLogin:             webauthnLogin,
-				},
-			)
-		})
-
-		t.Run("multi-port TCP app", func(t *testing.T) {
-			t.Parallel()
-			profileName := mustGetProfileName(t, pack.RootWebAddr())
-			appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootTCPMultiPortAppName())
-
-			tc, webauthnLogin := makeTCAndWebauthnLogin(t)
-
-			testGatewayCertRenewal(
-				ctx,
-				t,
-				gatewayCertRenewalParams{
-					tc: tc,
-					createGatewayParams: daemon.CreateGatewayParams{
-						TargetURI:             appURI.String(),
-						TargetSubresourceName: strconv.Itoa(pack.RootTCPMultiPortAppPortAlpha()),
-					},
-					testGatewayConnection: makeMustConnectMultiPortTCPAppGateway(
-						pack.RootTCPMultiPortMessageAlpha(), pack.RootTCPMultiPortAppPortBeta(), pack.RootTCPMultiPortMessageBeta(),
-					),
-					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-					webauthnLogin:             webauthnLogin,
-					// First MFA prompt is made when creating the gateway. Then makeMustConnectMultiPortTCPAppGateway
-					// changes the target port twice, which means two more prompts.
-					//
-					// Then testGatewayCertRenewal expires the certs and calls
-					// makeMustConnectMultiPortTCPAppGateway. The first connection refreshes the expired cert,
-					// then the function changes the target port twice again, resulting in two more prompts.
-					wantPromptMFACallCount: 3 + 3,
-				},
-			)
-		})
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
 	})
 
 	t.Run("leaf cluster", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("web app", func(t *testing.T) {
-			t.Parallel()
-
-			profileName := mustGetProfileName(t, pack.RootWebAddr())
-			appURI := uri.NewClusterURI(profileName).
-				AppendLeafCluster(pack.LeafAppClusterName()).
-				AppendApp(pack.LeafAppName())
-
-			testAppGatewayCertRenewal(ctx, t, pack, makeTCAndWebauthnLogin, appURI)
-		})
-
-		t.Run("TCP app", func(t *testing.T) {
-			t.Parallel()
-
-			profileName := mustGetProfileName(t, pack.RootWebAddr())
-			appURI := uri.NewClusterURI(profileName).AppendLeafCluster(pack.LeafAppClusterName()).AppendApp(pack.LeafTCPAppName())
-
-			tc, webauthnLogin := makeTCAndWebauthnLogin(t)
-
-			testGatewayCertRenewal(
-				ctx,
-				t,
-				gatewayCertRenewalParams{
-					tc:                        tc,
-					createGatewayParams:       daemon.CreateGatewayParams{TargetURI: appURI.String()},
-					testGatewayConnection:     makeMustConnectTCPAppGateway(pack.LeafTCPMessage()),
-					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-					webauthnLogin:             webauthnLogin,
-				},
-			)
-		})
-
-		t.Run("multi-port TCP app", func(t *testing.T) {
-			t.Parallel()
-
-			profileName := mustGetProfileName(t, pack.RootWebAddr())
-			appURI := uri.NewClusterURI(profileName).AppendLeafCluster(pack.LeafAppClusterName()).AppendApp(pack.LeafTCPMultiPortAppName())
-
-			tc, webauthnLogin := makeTCAndWebauthnLogin(t)
-
-			testGatewayCertRenewal(
-				ctx,
-				t,
-				gatewayCertRenewalParams{
-					tc: tc,
-					createGatewayParams: daemon.CreateGatewayParams{
-						TargetURI:             appURI.String(),
-						TargetSubresourceName: strconv.Itoa(pack.LeafTCPMultiPortAppPortAlpha()),
-					},
-					testGatewayConnection: makeMustConnectMultiPortTCPAppGateway(
-						pack.LeafTCPMultiPortMessageAlpha(), pack.LeafTCPMultiPortAppPortBeta(), pack.LeafTCPMultiPortMessageBeta(),
-					),
-					generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-					webauthnLogin:             webauthnLogin,
-					// First MFA prompt is made when creating the gateway. Then makeMustConnectMultiPortTCPAppGateway
-					// changes the target port twice, which means two more prompts.
-					//
-					// Then testGatewayCertRenewal expires the certs and calls
-					// makeMustConnectMultiPortTCPAppGateway. The first connection refreshes the expired cert,
-					// then the function changes the target port twice again, resulting in two more prompts.
-					wantPromptMFACallCount: 3 + 3,
-				},
-			)
-		})
-	})
-}
-
-func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pack, makeTCAndWebauthnLogin makeTCAndWebauthnLoginFunc) {
-	t.Run("target port validation", func(t *testing.T) {
-		t.Parallel()
-
-		tc, _ := makeTCAndWebauthnLogin(t)
-		err := tc.SaveProfile(false /* makeCurrent */)
-		require.NoError(t, err)
-
-		storage, err := clusters.NewStorage(clusters.Config{
-			ClientStore:        tc.ClientStore,
-			InsecureSkipVerify: tc.InsecureSkipVerify,
-		})
-		require.NoError(t, err)
-
-		tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		})
-
-		daemonService, err := daemon.New(daemon.Config{
-			Storage:          storage,
-			TshdEventsClient: tshdEventsClient,
-			CreateClientCacheFunc: func(newClient clientcache.NewClientFunc) (daemon.ClientCache, error) {
-				return clientcache.NewNoCache(newClient), nil
-			},
-			KubeconfigsDir: t.TempDir(),
-			AgentsDir:      t.TempDir(),
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			daemonService.Stop()
-		})
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		t.Cleanup(cancel)
-
-		// Here the test setup ends and actual test code starts.
 		profileName := mustGetProfileName(t, pack.RootWebAddr())
-		appURI := uri.NewClusterURI(profileName).AppendApp(pack.RootTCPMultiPortAppName())
+		appURI := uri.NewClusterURI(profileName).
+			AppendLeafCluster(pack.LeafAppClusterName()).
+			AppendApp(pack.LeafAppName())
 
-		_, err = daemonService.CreateGateway(ctx, daemon.CreateGatewayParams{
-			TargetURI: appURI.String(),
-			// 42 shouldn't be handed out to a non-root user when creating a listener on port 0, so it's
-			// unlikely that 42 is going to end up in the app spec.
-			TargetSubresourceName: "42",
-		})
-		require.True(t, trace.IsBadParameter(err), "Expected BadParameter, got %v", err)
-		require.ErrorContains(t, err, "not included in target ports")
-
-		gateway, err := daemonService.CreateGateway(ctx, daemon.CreateGatewayParams{
-			TargetURI:             appURI.String(),
-			TargetSubresourceName: strconv.Itoa(pack.RootTCPMultiPortAppPortAlpha()),
-		})
-		require.NoError(t, err)
-
-		_, err = daemonService.SetGatewayTargetSubresourceName(ctx, gateway.URI().String(), "42")
-		require.True(t, trace.IsBadParameter(err), "Expected BadParameter, got %v", err)
-		require.ErrorContains(t, err, "not included in target ports")
+		// The test can potentially hang forever if something is wrong with the MFA prompt, add a timeout.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		t.Cleanup(cancel)
+		testAppGatewayCertRenewal(ctx, t, pack, tc, appURI)
 	})
 }
 
-func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, makeTCAndWebauthnLogin makeTCAndWebauthnLoginFunc, appURI uri.ResourceURI) {
+func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appaccess.Pack, tc *client.TeleportClient, appURI uri.ResourceURI) {
 	t.Helper()
-	tc, webauthnLogin := makeTCAndWebauthnLogin(t)
 
 	testGatewayCertRenewal(
 		ctx,
@@ -941,9 +760,9 @@ func testAppGatewayCertRenewal(ctx context.Context, t *testing.T, pack *appacces
 			createGatewayParams: daemon.CreateGatewayParams{
 				TargetURI: appURI.String(),
 			},
-			testGatewayConnection:     mustConnectWebAppGateway,
+			testGatewayConnectionFunc: mustConnectAppGateway,
 			generateAndSetupUserCreds: pack.GenerateAndSetupUserCreds,
-			webauthnLogin:             webauthnLogin,
+			webauthnLogin:             tc.WebauthnLogin,
 		},
 	)
 }

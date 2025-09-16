@@ -20,7 +20,8 @@ package terraformcloud
 
 import (
 	"context"
-	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,25 +30,20 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
-
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type fakeIDP struct {
-	t         *testing.T
-	signer    jose.Signer
-	publicKey crypto.PublicKey
-	server    *httptest.Server
-	audience  string
+	t          *testing.T
+	signer     jose.Signer
+	privateKey *rsa.PrivateKey
+	server     *httptest.Server
+	audience   string
 }
 
 func newFakeIDP(t *testing.T, audience string) *fakeIDP {
-	// Terraform Cloud uses RSA, prefer to test with it.
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(
@@ -57,10 +53,10 @@ func newFakeIDP(t *testing.T, audience string) *fakeIDP {
 	require.NoError(t, err)
 
 	f := &fakeIDP{
-		signer:    signer,
-		publicKey: privateKey.Public(),
-		t:         t,
-		audience:  audience,
+		signer:     signer,
+		privateKey: privateKey,
+		t:          t,
+		audience:   audience,
 	}
 
 	providerMux := http.NewServeMux()
@@ -85,7 +81,7 @@ func (f *fakeIDP) issuer() string {
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
 	// mimic https://app.terraform.io/.well-known/openid-configuration
-	response := map[string]any{
+	response := map[string]interface{}{
 		"claims_supported": []string{
 			"sub",
 			"aud",
@@ -123,7 +119,7 @@ func (f *fakeIDP) handleJWKSEndpoint(w http.ResponseWriter, r *http.Request) {
 	jwks := jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
-				Key: f.publicKey,
+				Key: &f.privateKey.PublicKey,
 			},
 		},
 	}
@@ -152,7 +148,7 @@ func (f *fakeIDP) issueToken(
 		NotBefore: jwt.NewNumericDate(issuedAt),
 		Expiry:    jwt.NewNumericDate(expiry),
 	}
-	customClaims := map[string]any{
+	customClaims := map[string]interface{}{
 		"terraform_organization_name": organizationName,
 		"terraform_workspace_name":    workspaceName,
 		"terraform_project_name":      projectName,
@@ -295,6 +291,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			}
 
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
+				Clock:                  clockwork.NewRealClock(),
 				insecure:               true,
 				issuerHostnameOverride: hostnameOverride,
 			})
@@ -306,9 +303,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				tt.token,
 			)
 			tt.assertError(t, err)
-			require.Empty(t,
-				cmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
-			)
+			require.Equal(t, tt.want, claims)
 		})
 	}
 }

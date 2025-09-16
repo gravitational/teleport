@@ -19,20 +19,15 @@
 package agent
 
 import (
-	"context"
 	"errors"
-	"io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
-const updateConfigFileEnvVar = "TELEPORT_UPDATE_CONFIG_FILE"
+const installDirEnvVar = "TELEPORT_UPDATE_INSTALL_DIR"
 
 // IsManagedByUpdater returns true if the local Teleport binary is managed by teleport-update.
 // Note that true may be returned even if auto-updates is disabled or the version is pinned.
@@ -50,20 +45,64 @@ func IsManagedByUpdater() (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err, "cannot find Teleport binary")
 	}
-	// Consider all installations that have an update.yaml file to be
-	// managed by teleport-update (the "binary" updater).
-	p := findParentMatching(teleportPath, versionsDirName, 4)
-	if p == "" {
-		return false, nil
+	installDir := os.Getenv(installDirEnvVar)
+	if installDir == "" {
+		installDir = defaultInstallDir
 	}
-	_, err = os.Stat(filepath.Join(p, updateConfigName))
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
+	// Check if current binary is under the updater-managed path.
+	managed, err := hasParentDir(teleportPath, installDir)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	return true, nil
+	if !managed {
+		return false, nil
+	}
+	// Return false if the binary is under the updater-managed path, but in the system prefix reserved for the package.
+	system, err := hasParentDir(teleportPath, packageSystemDir)
+	return !system, trace.Wrap(err)
+}
+
+// IsManagedAndDefault returns true if the local Teleport binary is both managed by teleport-update
+// and the default installation (with teleport.service as the unit file name).
+// The binary is considered managed and default if it lives within /opt/teleport/default.
+func IsManagedAndDefault() (bool, error) {
+	systemd, err := hasSystemD()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if !systemd {
+		return false, nil
+	}
+	teleportPath, err := os.Executable()
+	if err != nil {
+		return false, trace.Wrap(err, "cannot find Teleport binary")
+	}
+	installDir := os.Getenv(installDirEnvVar)
+	if installDir == "" {
+		installDir = defaultInstallDir
+	}
+	isDefault, err := hasParentDir(teleportPath, filepath.Join(installDir, defaultNamespace))
+	return isDefault, trace.Wrap(err)
+}
+
+// hasParentDir returns true if dir is any parent directory of parent.
+// hasParentDir does not resolve symlinks, and requires that files be represented the same way in dir and parent.
+func hasParentDir(dir, parent string) (bool, error) {
+	// Note that os.Stat + os.SameFile would be more reliable,
+	// but does not work well for arbitrarily nested subdirectories.
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false, trace.Wrap(err, "cannot get absolute path for directory %s", dir)
+	}
+	absParent, err := filepath.Abs(parent)
+	if err != nil {
+		return false, trace.Wrap(err, "cannot get absolute path for parent directory %s", dir)
+	}
+	sep := string(filepath.Separator)
+	if !strings.HasSuffix(absParent, sep) {
+		absParent += sep
+	}
+	return strings.HasPrefix(absDir, absParent), nil
 }
 
 // ErrUnstableExecutable is returned by StableExecutable when no stable path can be found.
@@ -122,97 +161,13 @@ func stablePathForBinary(origPath, defaultPath string) (string, error) {
 
 // findParentMatching returns the directory above name, if name is at rpos.
 // Otherwise, it returns empty string.
-func findParentMatching(path, parent string, rpos int) string {
-	if parent == "" {
-		return ""
-	}
+func findParentMatching(dir, name string, rpos int) string {
 	var base string
 	for range rpos {
-		path, base = filepath.Split(filepath.Clean(path))
+		dir, base = filepath.Split(filepath.Clean(dir))
 	}
-	if base == parent {
-		return filepath.Clean(path)
+	if base == name {
+		return dir
 	}
 	return ""
-}
-
-// findConfigFile returns the path to the Teleport installation's update.yaml file.
-func findConfigFile() (string, error) {
-	// Note that if the install dir or install suffix changes before the installation
-	// is hard restarted, this path will be incorrect.
-	configPath := os.Getenv(updateConfigFileEnvVar)
-	if configPath != "" {
-		return configPath, nil
-	}
-	teleportPath, err := os.Executable()
-	if err != nil {
-		return "", trace.Wrap(err, "cannot find Teleport binary")
-	}
-	p := findParentMatching(teleportPath, versionsDirName, 4)
-	if p == "" {
-		return "", trace.Errorf("installation not managed by updater")
-	}
-	return filepath.Join(p, updateConfigName), nil
-}
-
-// ReadHelloUpdaterInfo reads the updater config and generates a proto.UpdaterV2Info
-// that can be reported in the inventory hello message.
-// This function performs io operations, its usage must be cached
-// (the downstream inventory handler does this for us).
-func ReadHelloUpdaterInfo(ctx context.Context, log *slog.Logger, hostUUID string) (*types.UpdaterV2Info, error) {
-	info := &types.UpdaterV2Info{}
-
-	configPath, err := findConfigFile()
-	if err != nil {
-		return nil, trace.Wrap(err, "config file not specified")
-	}
-	cfg, err := readConfig(configPath)
-	if err != nil {
-		return nil, trace.Wrap(err, "reading config file %s", configPath)
-	}
-
-	// Note that only IDFile may be read from Status on the initial HELLO.
-	// Any fields set after the agent starts (e.g., active version) will be
-	// outdated until the agent is confirmed healthy.
-
-	info.UpdateGroup = cfg.Spec.Group
-	if info.UpdateGroup == "" {
-		info.UpdateGroup = defaultSetting
-	}
-	if p := cfg.Status.IDFile; p != "" {
-		machineID, err := os.ReadFile(systemdMachineIDFile)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			log.WarnContext(ctx, "Failed to read systemd machine ID.", "path", systemdMachineIDFile, errorKey, err)
-			log.WarnContext(ctx, "Updater ID may be inaccurate for tracking.")
-			machineID = nil
-		}
-		id, err := findDBPIDUUID(p, []byte(hostUUID), machineID, true)
-		if err != nil {
-			log.ErrorContext(ctx, "Failed to determine updater ID.", "path", p, errorKey, err)
-			log.ErrorContext(ctx, "Updater ID cannot be used for tracking this agent.")
-		} else {
-			info.UpdateUUID = id[:]
-		}
-	} else {
-		log.ErrorContext(ctx, "Updater ID is not available to the updater and cannot be used to track this agent.")
-	}
-
-	switch {
-	case !cfg.Spec.Enabled:
-		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_DISABLED
-	case cfg.Spec.Pinned:
-		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_PINNED
-	default:
-		info.UpdaterStatus = types.UpdaterStatus_UPDATER_STATUS_OK
-	}
-	return info, nil
-}
-
-func findDBPIDUUID(path string, systemID, namespaceID []byte, persist bool) (uuid.UUID, error) {
-	id, err := FindDBPID(path, systemID, namespaceID, persist)
-	if err != nil {
-		return uuid.Nil, trace.Wrap(err)
-	}
-	v, err := uuid.Parse(id)
-	return v, trace.Wrap(err)
 }

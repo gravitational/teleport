@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useState, type JSX } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { Alert, Box, ButtonPrimary, Flex, H1, Text } from 'design';
+import { Alert, Box, ButtonPrimary, Flex, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
@@ -52,7 +52,9 @@ export function Setup(props: {
 
   return (
     <Box maxWidth="680px" mx="auto" mt="4" px="5" width="100%">
-      <H1 mb="4">Connect My Computer</H1>
+      <Text typography="h3" mb="4">
+        Connect My Computer
+      </Text>
       {step === 'information' && (
         <Information
           onSetUpAgentClick={() => setStep('agent-setup')}
@@ -467,7 +469,16 @@ function StandardError(props: {
   error: string;
   mb?: number | string;
 }): JSX.Element {
-  return <Alerts.Danger mb={props.mb || 0}>{props.error}</Alerts.Danger>;
+  return (
+    <Alerts.Danger
+      mb={props.mb || 0}
+      css={`
+        white-space: pre-wrap;
+      `}
+    >
+      {props.error}
+    </Alerts.Danger>
+  );
 }
 
 function ClusterAndHostnameCopy(props: {

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { JSX } from 'react';
+import React from 'react';
 
 import {
   AnimatedProgressBar,
@@ -24,7 +24,6 @@ import {
   ButtonSecondary,
   ButtonWarning,
   Flex,
-  H2,
   Text,
 } from 'design';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
@@ -134,7 +133,9 @@ export function CreateDatabaseDialog({
         mb={0}
         textAlign="center"
       >
-        <H2 mb={4}>Database Register</H2>
+        <Text bold caps mb={4}>
+          Database Register
+        </Text>
         {content}
       </DialogContent>
     </Dialog>
@@ -145,7 +146,7 @@ const SuccessContent = ({ dbName, onClick }) => (
   <>
     <Text mb={5}>
       <Icons.Check size="small" ml={1} mr={2} color="success.main" />
-      Database &quot;{dbName}&quot; successfully registered
+      Database "{dbName}" successfully registered
     </Text>
     <ButtonPrimary width="100%" onClick={onClick}>
       Next

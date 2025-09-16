@@ -82,11 +82,7 @@ export const Support = ({
             <H2>Cluster Information</H2>
           </Flex>
         </StyledRow>
-        <StyledRow
-          css={`
-            padding-left: ${props => props.theme.space[6]}px;
-          `}
-        >
+        <StyledContentRow>
           <DataItem title="Cluster Name" data={clusterId} />
           <DataItem title="Teleport Version" data={authVersion} />
           <DataItem title="Public Address" data={publicURL} />
@@ -96,7 +92,28 @@ export const Support = ({
           {isEnterprise && !cfg.isCloud && licenseExpiryDateText && (
             <DataItem title="License Expiry" data={licenseExpiryDateText} />
           )}
-        </StyledRow>
+        </StyledContentRow>
+        {isCloud && (
+          <Flex mt="5">
+            <Icons.Info mr="2" />
+            <Text>
+              Looking for{' '}
+              <Text
+                fontWeight={'bold'}
+                css={`
+                  display: inline;
+                `}
+              >
+                Scheduled Upgrades?
+              </Text>{' '}
+              It is now in{' '}
+              <Link to={cfg.getManageClusterRoute(clusterId)}>
+                Cluster Management
+              </Link>{' '}
+              page.
+            </Text>
+          </Flex>
+        )}
       </StyledMultiRowBox>
       <MobileSeparator />
       <StyledMultiRowBox mb={3}>
@@ -120,11 +137,7 @@ export const Support = ({
             </SupportButtonBox>
           </SupportContentFlex>
         </StyledRow>
-        <StyledRow
-          css={`
-            padding-left: ${props => props.theme.space[6]}px;
-          `}
-        >
+        <StyledContentRow>
           <SupportLinksFlex>
             <Box>
               <H3 ml={2} mb={1}>
@@ -180,7 +193,7 @@ export const Support = ({
               />
             </Box>
           </SupportLinksFlex>
-        </StyledRow>
+        </StyledContentRow>
       </StyledMultiRowBox>
       {children}
     </FeatureBox>
@@ -201,12 +214,16 @@ export const StyledRow = styled(Row)`
   }
 `;
 
+export const StyledContentRow = styled(StyledRow)`
+  padding-left: ${props => props.theme.space[6]}px;
+`;
+
 export const MobileSeparator = styled.div`
   width: 100vw;
   margin-left: -${props => props.theme.space[6]}px;
   @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     border-bottom: ${props =>
-      `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2]}`};
+      `${props.theme.borders[1]} ${props.theme.colors.spotBackground[2]}`};
   }
 `;
 
@@ -215,7 +232,7 @@ export const IconBox = styled(Box)`
   padding: ${props => props.theme.space[2]}px;
   border-radius: ${props => props.theme.radii[3]}px;
   margin-right: ${props => props.theme.space[3]}px;
-  background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  background: ${props => props.theme.colors.spotBackground[0]};
 
   @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
     background: transparent;

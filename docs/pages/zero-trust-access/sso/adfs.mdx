@@ -2,7 +2,7 @@
 title: SSO with Active Directory Federation Services
 description: How to configure Teleport access with Active Directory Federation Services
 h1: Single Sign-On with Active Directory Federation Services
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -16,16 +16,14 @@ allows Teleport administrators to define policies like:
 - Only members of "DBA" group can SSH into machines running PostgreSQL.
 - Developers must never SSH into production servers.
 
-## How it works
-
-(!docs/pages/includes/sso/how-it-works.mdx idp="ADFS"!)
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
 - ADFS installation with Admin access and users assigned to at least two groups.
 - Teleport role with access to maintaining `saml` resources.  This is available in the default `editor` role.
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -68,13 +66,10 @@ help guide you through the Wizard.
 - Set the display name to something along the lines of `Teleport`.
 - Skip the token encryption certificate.
 - Select *"Enable support for SAML 2.0 Web SSO protocol"* and set the URL to
-  `https://<Var name="teleport.example.com" />/v1/webapi/saml/acs`, replacing the domain name
-  with your Teleport Proxy Service URL. If you have a self-hosted cluster with
-  multiple public addresses for the Teleport Proxy Service (the value of
-  `proxy_service.public_addr` in the Teleport configuration file), ensure that this
-  address points to the first one listed.
+  `https://teleport.example.com/v1/webapi/saml/acs`, replacing the domain name
+  with your Teleport proxy URL.
 - Set the relying party trust identifier to
-  `https://<Var name="teleport.example.com" />/v1/webapi/saml/acs` as well.
+  `https://teleport.example.com/v1/webapi/saml/acs` as well.
 - For access control policy select *"Permit everyone"*.
 
 Once the Relying Party Trust has been created, update the Claim Issuance Policy
@@ -150,7 +145,7 @@ the attribute.
 Create a SAML connector resource using `tctl`:
 
 ```code
-$ tctl sso configure saml --acs https://<Var name="teleport.example.com" />/v1/webapi/saml/acs \
+$ tctl sso configure saml --acs https://teleport.example.com/v1/webapi/saml/acs \
   --preset adfs \
   --entity-descriptor https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml \
   --attributes-to-roles http://schemas.xmlsoap.org/claims/Group,teleadmins,editor \

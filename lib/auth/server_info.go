@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const serverInfoBatchSize = 100
@@ -48,7 +49,7 @@ type ServerInfoAccessPoint interface {
 	GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error)
 	// UpdateLabels updates the labels on an instance over the inventory control
 	// stream.
-	UpdateLabels(ctx context.Context, req *proto.InventoryUpdateLabelsRequest) error
+	UpdateLabels(ctx context.Context, req proto.InventoryUpdateLabelsRequest) error
 	// GetClock returns the server clock.
 	GetClock() clockwork.Clock
 }
@@ -57,10 +58,10 @@ type ServerInfoAccessPoint interface {
 // resources with their corresponding Teleport SSH servers.
 func ReconcileServerInfos(ctx context.Context, ap ServerInfoAccessPoint) error {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  retryutils.FullJitter(defaults.MaxWatcherBackoff / 10),
+		First:  utils.FullJitter(defaults.MaxWatcherBackoff / 10),
 		Step:   defaults.MaxWatcherBackoff / 5,
 		Max:    defaults.MaxWatcherBackoff,
-		Jitter: retryutils.HalfJitter,
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  ap.GetClock(),
 	})
 	if err != nil {
@@ -168,7 +169,7 @@ func updateLabelsOnNode(ctx context.Context, ap ServerInfoAccessPoint, node type
 	for _, si := range serverInfos {
 		maps.Copy(newLabels, si.GetNewLabels())
 	}
-	err := ap.UpdateLabels(ctx, &proto.InventoryUpdateLabelsRequest{
+	err := ap.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
 		ServerID: node.GetName(),
 		Kind:     proto.LabelUpdateKind_SSHServerCloudLabels,
 		Labels:   newLabels,

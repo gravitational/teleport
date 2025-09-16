@@ -16,19 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import {
-  Box,
-  ButtonSecondary,
-  ButtonText,
-  Flex,
-  H3,
-  Mark,
-  Subtitle3,
-  Text,
-} from 'design';
+import { Box, ButtonSecondary, ButtonText, Flex, Mark, Text } from 'design';
 import * as Icons from 'design/Icon';
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 
@@ -75,14 +66,16 @@ export function ConnectionDiagnosticResult({
   return (
     <StyledBox mb={5}>
       {numberAndDescriptionOnSameLine ? (
-        <H3 mb={3}>
+        <Text bold mb={3}>
           Step {stepNumber}: {stepDescription}
-        </H3>
+        </Text>
       ) : (
-        <header>
-          <H3>Step {stepNumber}</H3>
-          <Subtitle3 mb={3}>{stepDescription}</Subtitle3>
-        </header>
+        <>
+          <Text bold>Step {stepNumber}</Text>
+          <Text typography="subtitle1" mb={3}>
+            {stepDescription}
+          </Text>
+        </>
       )}
       <Flex alignItems="center" mt={3}>
         {canTestConnection ? (

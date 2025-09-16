@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
@@ -37,7 +37,7 @@ func TestLoadEmptyIdentity(t *testing.T) {
 
 	ctx := context.Background()
 	dir := t.TempDir()
-	dest := destination.Directory{
+	dest := config.DestinationDirectory{
 		Path: dir,
 	}
 	require.NoError(t, dest.CheckAndSetDefaults())

@@ -18,60 +18,52 @@ package vnet
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sync/atomic"
+	"syscall"
 
-	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 )
 
-// platformOSConfigState is not used on darwin.
-type platformOSConfigState struct{}
-
-// platformConfigureOS configures the host OS according to cfg. It is safe to
-// call repeatedly, and it is meant to be called with an empty osConfig to
-// deconfigure anything necessary before exiting.
-func platformConfigureOS(ctx context.Context, cfg *osConfig, _ *platformOSConfigState) error {
+// configureOS configures the host OS according to [cfg]. It is safe to call repeatedly, and it is meant to be
+// called with an empty [osConfig] to deconfigure anything necessary before exiting.
+func configureOS(ctx context.Context, cfg *osConfig) error {
 	// There is no need to remove IP addresses or routes, they will automatically be cleaned up when the
 	// process exits and the TUN is deleted.
 
 	if cfg.tunIPv4 != "" {
-		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
-			"device", cfg.tunName, "address", cfg.tunIPv4)
-		if err := runCommand(ctx,
-			"ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up",
-		); err != nil {
-			return trace.Wrap(err)
+		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv4)
+		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up")
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "running %v", cmd.Args)
 		}
 	}
 	for _, cidrRange := range cfg.cidrRanges {
 		log.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
-		if err := runCommand(ctx,
-			"route", "add", "-net", cidrRange, "-interface", cfg.tunName,
-		); err != nil {
-			return trace.Wrap(err)
+		cmd := exec.CommandContext(ctx, "route", "add", "-net", cidrRange, "-interface", cfg.tunName)
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "running %v", cmd.Args)
 		}
 	}
 
 	if cfg.tunIPv6 != "" {
 		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
-		if err := runCommand(ctx,
-			"ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64",
-		); err != nil {
-			return trace.Wrap(err)
+		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64")
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "running %v", cmd.Args)
 		}
 
 		log.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
-		if err := runCommand(ctx,
-			"route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName,
-		); err != nil {
-			return trace.Wrap(err)
+		cmd = exec.CommandContext(ctx, "route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName)
+		if err := cmd.Run(); err != nil {
+			return trace.Wrap(err, "running %v", cmd.Args)
 		}
 	}
 
-	if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
+	if err := configureDNS(ctx, cfg.dnsAddr, cfg.dnsZones); err != nil {
 		return trace.Wrap(err, "configuring DNS")
 	}
 
@@ -82,14 +74,12 @@ const resolverFileComment = "# automatically installed by Teleport VNet"
 
 var resolverPath = filepath.Join("/", "etc", "resolver")
 
-func configureDNS(ctx context.Context, nameservers []string, zones []string) error {
-	if len(nameservers) == 0 {
-		// There are no nameservers so VNet can't handle any DNS zones. Continue
-		// so that any VNet-managed resolver files can be deleted.
-		zones = nil
+func configureDNS(ctx context.Context, nameserver string, zones []string) error {
+	if len(nameserver) == 0 && len(zones) > 0 {
+		return trace.BadParameter("empty nameserver with non-empty zones")
 	}
 
-	log.DebugContext(ctx, "Configuring DNS.", "nameservers", nameservers, "zones", zones)
+	log.DebugContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
 	if err := os.MkdirAll(resolverPath, os.FileMode(0755)); err != nil {
 		return trace.Wrap(err, "creating %s", resolverPath)
 	}
@@ -99,22 +89,14 @@ func configureDNS(ctx context.Context, nameservers []string, zones []string) err
 		return trace.Wrap(err, "finding VNet managed files in /etc/resolver")
 	}
 
-	// Always attempt to write or clean up all files below, even if encountering
-	// errors with one or more of them.
+	// Always attempt to write or clean up all files below, even if encountering errors with one or more of
+	// them.
 	var allErrors []error
-
-	var fileContents bytes.Buffer
-	fileContents.WriteString(resolverFileComment)
-	fileContents.WriteByte('\n')
-	for _, nameserver := range nameservers {
-		fileContents.WriteString("nameserver ")
-		fileContents.WriteString(nameserver)
-		fileContents.WriteByte('\n')
-	}
 
 	for _, zone := range zones {
 		fileName := filepath.Join(resolverPath, zone)
-		if err := renameio.WriteFile(fileName, fileContents.Bytes(), 0644); err != nil {
+		contents := resolverFileComment + "\nnameserver " + nameserver
+		if err := os.WriteFile(fileName, []byte(contents), 0644); err != nil {
 			allErrors = append(allErrors, trace.Wrap(err, "writing DNS configuration file %s", fileName))
 		} else {
 			// Successfully wrote this file, don't clean it up below.
@@ -158,4 +140,43 @@ func vnetManagedResolverFiles() (map[string]struct{}, error) {
 		}
 	}
 	return matchingFiles, nil
+}
+
+var hasDroppedPrivileges atomic.Bool
+
+// doWithDroppedRootPrivileges drops the privileges of the current process to those of the client
+// process that called the VNet daemon.
+func (c *osConfigurator) doWithDroppedRootPrivileges(ctx context.Context, fn func() error) (err error) {
+	if !hasDroppedPrivileges.CompareAndSwap(false, true) {
+		// At the moment of writing, the VNet daemon wasn't expected to do multiple things in parallel
+		// with dropped privileges. If you run into this error, consider if employing a mutex is going
+		// to be enough or if a more elaborate refactoring is required.
+		return trace.CompareFailed("privileges are being temporarily dropped already")
+	}
+	defer hasDroppedPrivileges.Store(false)
+
+	rootEgid := os.Getegid()
+	rootEuid := os.Geteuid()
+
+	log.InfoContext(ctx, "Temporarily dropping root privileges.", "egid", c.daemonClientCred.Egid, "euid", c.daemonClientCred.Euid)
+
+	if err := syscall.Setegid(c.daemonClientCred.Egid); err != nil {
+		panic(trace.Wrap(err, "setting egid"))
+	}
+	if err := syscall.Seteuid(c.daemonClientCred.Euid); err != nil {
+		panic(trace.Wrap(err, "setting euid"))
+	}
+
+	defer func() {
+		if err := syscall.Seteuid(rootEuid); err != nil {
+			panic(trace.Wrap(err, "reverting euid"))
+		}
+		if err := syscall.Setegid(rootEgid); err != nil {
+			panic(trace.Wrap(err, "reverting egid"))
+		}
+
+		log.InfoContext(ctx, "Restored root privileges.", "egid", rootEgid, "euid", rootEuid)
+	}()
+
+	return trace.Wrap(fn())
 }

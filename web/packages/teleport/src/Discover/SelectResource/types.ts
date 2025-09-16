@@ -17,7 +17,7 @@
  */
 
 import { Platform } from 'design/platform';
-import { ResourceIconName } from 'design/ResourceIcon';
+import type { ResourceIconName } from 'design/ResourceIcon';
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
 import { RdsEngineIdentifier } from 'teleport/services/integrations';
@@ -85,7 +85,7 @@ export interface ResourceSpec {
    * keywords are filter words that user may use to search for
    * this resource.
    */
-  keywords: string[];
+  keywords: string;
   /**
    * hasAccess is a flag to mean that user has
    * the preliminary permissions to add this resource.

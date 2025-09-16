@@ -1,7 +1,7 @@
 ---
 title: Machine ID FAQ
 description: Frequently asked questions about Teleport Machine ID
-labels:
+tags:
  - faq
  - mwi
 ---
@@ -82,7 +82,7 @@ Machine ID.
 ## Can Machine ID be used to generate long-lived certificates?
 
 Machine ID cannot currently be used to generate certificates valid for longer
-than 24 hours, and requests for longer certificates using the `credential_ttl`
+than 24 hours, and requests for longer certificates using the `certificate_ttl`
 parameter will be reduced to this 24 hour limit.
 
 This limit serves multiple purposes. For one, it encourages security best
@@ -97,37 +97,3 @@ If your use case absolutely requires long-lived certificates,
 alternatively be used, however this loses the security benefits of Machine ID's
 short-lived renewable certificates.
 
-## Can Machine ID be used to connect to multiple Kubernetes clusters?
-
-This is possible in Teleport v17.2.7 or higher, using the new `kubernetes/v2`
-output type in `tbot`. This service can expose many clusters at once via
-contexts in the generated `kubeconfig.yaml`, and if label selectors are used,
-will dynamically add contexts as clusters are added and removed in Teleport.
-
-Note that both `tbot` and the Teleport Proxy need to be running v17.2.7 to take
-advantage of this functionality.
-
-Refer to the
-[CLI reference](../../reference/cli/tbot.mdx#tbot-start-kubernetesv2) and
-[config reference](../../reference/machine-id/configuration.mdx#kubernetesv2)
-for more information.
-
-## Does `tbot` support Windows?
-
-Yes, the `tbot` binary is available for Windows. It can be found in the client
-tools archive that also includes `tsh` and `tctl`. See the
-[Installing Teleport guide](../../installation/installation.mdx) for further information.
-
-However, there are a few limitations to be aware of:
-
-- Functionality that relies on Unix Domain Sockets (e.g. SSH multiplexer,
-  SPIFFE Workload API etc.) is not available.
-- Functionality relating to the configuration of Symlink protection on directory
-  destinations is not available.
-- Functionality relating to the management of ACLs on directory destinations is
-  not available.
-- Most delegated join methods are unlikely to function correctly.
-
-In some circumstances, it can be more practical to run `tbot` within Windows
-Subsystem for Linux rather than running it natively on Windows. This will depend
-on where the tools that will consume the output of `tbot` are running.

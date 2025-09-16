@@ -49,7 +49,7 @@ export function useActionAttempts() {
   const { inputValue, filters, pauseUserInteraction } = searchContext;
   const { isSupported: isVnetSupported } = useVnetContext();
   const vnetLauncher = useVnetLauncher();
-  const launchVnet = isVnetSupported ? vnetLauncher.launchVnet : undefined;
+  const launchVnet = isVnetSupported ? vnetLauncher : undefined;
 
   const [resourceSearchAttempt, runResourceSearch, setResourceSearchAttempt] =
     useAsync(useResourceSearch());

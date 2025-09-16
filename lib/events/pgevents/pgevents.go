@@ -412,7 +412,7 @@ func (l *Log) searchEvents(
 	fromTime, toTime time.Time,
 	eventTypes []string, cond *types.WhereExpr, sessionID string,
 	limit int, order types.EventOrder, startKey string,
-) ([]events.EventFields, string, error) {
+) ([]apievents.AuditEvent, string, error) {
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -480,7 +480,7 @@ func (l *Log) searchEvents(
 	const fetchSize = defaults.EventsIterationLimit
 	fetchQuery := fmt.Sprintf("FETCH %d FROM cur", fetchSize)
 
-	var evs []events.EventFields
+	var evs []apievents.AuditEvent
 	var sizeLimit bool
 	var endTime time.Time
 	var endID uuid.UUID
@@ -528,7 +528,12 @@ func (l *Log) searchEvents(
 				}
 				totalSize += len(data)
 
-				evs = append(evs, evf)
+				ev, err := events.FromEventFields(evf)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				evs = append(evs, ev)
 				endTime = t
 				endID = id
 
@@ -569,33 +574,7 @@ func (l *Log) searchEvents(
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	var emptyCond *types.WhereExpr
 	const emptySessionID = ""
-
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
-	if err != nil {
-		return nil, next, trace.Wrap(err)
-	}
-
-	evts, err := events.FromEventFieldsSlice(evtsRaw)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
-}
-
-// SearchUnstructuredEvents implements [events.AuditLogger].
-func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	var emptyCond *types.WhereExpr
-	const emptySessionID = ""
-
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
-	if err != nil {
-		return nil, next, trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSliceToUnstructured(evtsRaw)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -608,15 +587,7 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 
 // SearchSessionEvents implements [events.AuditLogger].
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
-	if err != nil {
-		return nil, next, trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(evtsRaw)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
 }
 
 // sessionIDBase is a randomly-generated UUID used as the basis for deriving

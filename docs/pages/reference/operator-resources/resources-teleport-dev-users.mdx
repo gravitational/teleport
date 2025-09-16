@@ -2,7 +2,7 @@
 title: TeleportUser
 description: Provides a comprehensive list of fields in the TeleportUser resource available through the Teleport Kubernetes operator
 tocDepth: 3
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -42,7 +42,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |connector_id|string|ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'|
 |samlSingleLogoutUrl|string|SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|
-|user_id|string|UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.|
 |username|string|Username is username supplied by external identity provider|
 
 ### spec.oidc_identities items
@@ -51,7 +50,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |connector_id|string|ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'|
 |samlSingleLogoutUrl|string|SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|
-|user_id|string|UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.|
 |username|string|Username is username supplied by external identity provider|
 
 ### spec.saml_identities items
@@ -60,6 +58,5 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |connector_id|string|ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'|
 |samlSingleLogoutUrl|string|SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.|
-|user_id|string|UserID is the ID of the identity. Some connectors like GitHub have an unique ID apart from the username.|
 |username|string|Username is username supplied by external identity provider|
 

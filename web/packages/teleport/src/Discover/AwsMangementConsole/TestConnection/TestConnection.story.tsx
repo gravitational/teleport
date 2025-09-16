@@ -16,10 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+import { MemoryRouter } from 'react-router';
+
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
 import {
-  RequiredDiscoverProviders,
-  resourceSpecAppAwsCliConsole,
-} from 'teleport/Discover/Fixtures/fixtures';
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { app } from '../fixtures';
 import { TestConnection as Comp } from './TestConnection';
@@ -35,30 +41,51 @@ export const TestConnection = () => (
 );
 
 const Provider = ({ children }) => {
+  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    prevStep: () => {},
+    nextStep: () => {},
+    agentMeta: {
+      app: {
+        ...app,
+        awsRoles: [
+          {
+            name: 'static-arn1',
+            arn: 'arn:aws:iam::123456789012:role/static-arn1',
+            display: 'static-arn1',
+            accountId: '123456789012',
+          },
+          {
+            name: 'static-arn2',
+            arn: 'arn:aws:iam::123456789012:role/static-arn2',
+            display: 'static-arn2',
+            accountId: '123456789012',
+          },
+        ],
+      },
+    },
+    currentStep: 0,
+    onSelectResource: () => null,
+    resourceSpec: undefined,
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
+  };
+
   return (
-    <RequiredDiscoverProviders
-      resourceSpec={resourceSpecAppAwsCliConsole}
-      agentMeta={{
-        app: {
-          ...app,
-          awsRoles: [
-            {
-              name: 'static-arn1',
-              arn: 'arn:aws:iam::123456789012:role/static-arn1',
-              display: 'static-arn1',
-              accountId: '123456789012',
-            },
-            {
-              name: 'static-arn2',
-              arn: 'arn:aws:iam::123456789012:role/static-arn2',
-              display: 'static-arn2',
-              accountId: '123456789012',
-            },
-          ],
-        },
-      }}
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'server' } },
+      ]}
     >
-      {children}
-    </RequiredDiscoverProviders>
+      <ContextProvider ctx={ctx}>
+        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };

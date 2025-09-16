@@ -21,12 +21,12 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -173,7 +173,7 @@ func NewSharedWithClient(ctx context.Context, restClient kubernetes.Interface) (
 	ident := os.Getenv(ReleaseNameEnv)
 	if ident == "" {
 		ident = "teleport"
-		slog.WarnContext(ctx, "Var RELEASE_NAME is not set, falling back to default identifier teleport for shared store.")
+		log.Warnf("Var %q is not set, falling back to default identifier %q for shared store.", ReleaseNameEnv, ident)
 	}
 
 	return NewWithConfig(
@@ -278,7 +278,7 @@ func (b *Backend) readSecretData(ctx context.Context, key backend.Key) (*backend
 
 	data, ok := secret.Data[backendKeyToSecret(key)]
 	if !ok || len(data) == 0 {
-		return nil, trace.NotFound("key [%s] not found in secret %s", key.String(), b.SecretName)
+		return nil, trace.NotFound("key [%s] not found in secret %s", string(key), b.SecretName)
 	}
 
 	return &backend.Item{

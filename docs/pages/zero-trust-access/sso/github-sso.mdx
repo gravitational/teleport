@@ -2,7 +2,7 @@
 title: Set up Single Sign-On with GitHub
 description: Setting up GitHub SSO
 videoBanner: XjgN2WWFCX8
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -66,10 +66,7 @@ https://PROXY_ADDRESS/v1/webapi/github/
 ```
 
 Replace `PROXY_ADDRESS` with be the public address of the Teleport Proxy Service
-or your Teleport Cloud workspace URL (e.g., `example.teleport.sh`). If you have
-a self-hosted cluster with multiple public addresses for the Teleport Proxy
-Service (the value of `proxy_service.public_addr` in the Teleport configuration
-file), ensure that this address points to the first one listed.
+or your Teleport Cloud workspace URL (e.g., `example.teleport.sh`).
 
 The app must have the `read:org` scope in order to be able to read org and team
 membership details.
@@ -206,10 +203,8 @@ spec.
 <details>
 <summary>Self-hosting GitHub Enterprise?</summary>
 
-For self-hosted GitHub Enterprise servers, you can specify the server instance
-endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters, replacing
-<Var name="github-enterprise-server-address"/> with your endpoint URL and 
-<Var name="api-github-enterprise-server-address"/> with your API endpoint URL:
+For self-hosted GitHub Enterprise servers, you can specify the server
+instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
 
 ```code
 $ tctl sso configure github \
@@ -344,7 +339,9 @@ GitHub OAuth app:
 Teleport will request only the `read:org` OAuth scope. Read more about OAuth scopes in GitHub's documentation:
 [GitHub OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
 
-After logging in, you will receive a "Login Successful" window, which you can then close.
+After logging in successfully, you will see the following:
+
+![Login success view](../../../img/login-success.png)
 
 You will receive the details of your user session within the CLI:
 

@@ -17,7 +17,6 @@
  */
 
 import { Cluster } from 'teleport/services/clusters';
-import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 export type AuthType = 'local' | 'sso' | 'passwordless';
 
@@ -29,7 +28,6 @@ export interface AccessStrategy {
 export interface AccessCapabilities {
   requestableRoles: string[];
   suggestedReviewers: string[];
-  requireReason: boolean;
 }
 
 export interface UserContext {
@@ -95,7 +93,6 @@ export interface Acl {
   connectionDiagnostic: Access;
   license: Access;
   download: Access;
-  discoverConfigs: Access;
   plugins: Access;
   integrations: AccessWithUse;
   deviceTrust: Access;
@@ -110,9 +107,6 @@ export interface Acl {
   accessMonitoringRule: Access;
   contacts: Access;
   fileTransferAccess: boolean;
-  gitServers: Access;
-  accessGraphSettings: Access;
-  botInstances: Access;
 }
 
 // AllTraits represent all the traits defined for a user.
@@ -137,7 +131,7 @@ export interface User {
   // traits are preset traits defined in Teleport, such as
   // logins, db_role etc. These traits are defiend in UserTraits interface.
   traits?: UserTraits;
-  // allTraits contains both preset traits, as well as externalTraits
+  /// allTraits contains both preset traits, as well as externalTraits
   // such as those created by external IdP attributes to roles mapping
   // or new values as set by Teleport admin.
   allTraits?: AllUserTraits;
@@ -192,14 +186,3 @@ export type OnboardDiscover = {
   // discover page.
   hasVisited?: boolean;
 };
-
-export interface CreateUserVariables {
-  user: User;
-  excludeUserField: ExcludeUserField;
-  mfaResponse?: MfaChallengeResponse;
-}
-
-export interface UpdateUserVariables {
-  user: User;
-  excludeUserField: ExcludeUserField;
-}

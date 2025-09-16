@@ -34,6 +34,10 @@ const (
 	// since we register "teleport.cluster.local" as a DNS in Certificates.
 	APIDomain = "teleport.cluster.local"
 
+	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
+	// recording feature.
+	EnhancedRecordingMinKernel = "5.8.0"
+
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
 	EnhancedRecordingCommand = "command"
@@ -68,7 +72,7 @@ const (
 	Github = "github"
 
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
-	HumanDateFormatSeconds = "Jan 2 2006 15:04:05 UTC"
+	HumanDateFormatSeconds = "Jan _2 2006 15:04:05 UTC"
 
 	// MaxLeases serves as an identifying error string indicating that the
 	// semaphore system is rejecting an acquisition attempt due to max
@@ -186,32 +190,6 @@ var SystemConnectors = []string{
 	HeadlessConnector,
 }
 
-// OIDCPKCEMode represents the mode of PKCE (Proof Key for Code Exchange).
-type OIDCPKCEMode string
-
-const (
-	// OIDCPKCEModeUnknown indicates an unknown or uninitialized state of the PKCE mode.
-	OIDCPKCEModeUnknown OIDCPKCEMode = ""
-	// OIDCPKCEModeEnabled indicates that PKCE is enabled for the OIDC flow.
-	OIDCPKCEModeEnabled OIDCPKCEMode = "enabled"
-	// OIDCPKCEModeDisabled indicates that PKCE is disabled for the OIDC flow.
-	OIDCPKCEModeDisabled OIDCPKCEMode = "disabled"
-)
-
-// OIDCRequestObjectMode represents the Request Object Mode of an OIDC Connector.
-type OIDCRequestObjectMode string
-
-const (
-	// OIDCRequestObjectModeUnknown indicates an unknown or uninitialized state of the request object mode.
-	OIDCRequestObjectModeUnknown OIDCRequestObjectMode = ""
-	// OIDCRequestObjectModeNone indicates that request objects should not be used. Parameters should be encoded
-	// into the URI of the authorization request.
-	OIDCRequestObjectModeNone OIDCRequestObjectMode = "none"
-	// OIDCRequestObjectModeSigned indicates that a signed (unencrypted) request object should be encoded into
-	// the URI of the authorization request.
-	OIDCRequestObjectModeSigned OIDCRequestObjectMode = "signed"
-)
-
 // SecondFactorType is the type of 2FA authentication.
 type SecondFactorType string
 
@@ -308,10 +286,6 @@ const (
 	// DeviceTrustModeRequired enforces the presence of device extensions for
 	// sensitive endpoints.
 	DeviceTrustModeRequired DeviceTrustMode = "required"
-	// DeviceTrustModeRequiredForHumans enforces the presence of device
-	// extensions for sensitive endpoints if the user is human. In this mode,
-	// bots are exempt from device trust checks.
-	DeviceTrustModeRequiredForHumans DeviceTrustMode = "required-for-humans"
 )
 
 const (
@@ -431,13 +405,6 @@ const (
 	// TraitHostUserGID is the name of the variable used to specify
 	// the GID to create host user account with.
 	TraitHostUserGID = "host_user_gid"
-
-	// TraitGitHubOrgs is the name of the variable to specify the GitHub
-	// organizations for GitHub integration.
-	TraitGitHubOrgs = "github_orgs"
-	// TraitMCPTools is the name of the variable to specify the MCP tools for
-	// MCP servers.
-	TraitMCPTools = "mcp_tools"
 )
 
 const (
@@ -449,26 +416,6 @@ const (
 	// MaxAssumeStartDuration latest duration into the future an access request's assume
 	// start time can be
 	MaxAssumeStartDuration = time.Hour * 24 * 7
-)
-
-const (
-	// MaxHealthCheckInterval is the minimum interval between resource health
-	// checks.
-	MinHealthCheckInterval = 30 * time.Second
-	// MaxHealthCheckInterval is the maximum interval between resource health
-	// checks. Since timeout must be less than interval, this is effectively the
-	// maximum health check timeout as well.
-	MaxHealthCheckInterval = 600 * time.Second
-	// MinHealthCheckTimeout is the minimum resource health check timeout.
-	// There is no corresponding MaxHealthCheckTimeout, because timeout is
-	// bounded to be no greater than the interval.
-	MinHealthCheckTimeout = time.Second
-	// MaxHealthCheckHealthyThreshold is the maximum health check healthy
-	// threshold.
-	MaxHealthCheckHealthyThreshold = 10
-	// MaxHealthCheckUnhealthyThreshold is the maximum health check unhealthy
-	// threshold.
-	MaxHealthCheckUnhealthyThreshold = MaxHealthCheckHealthyThreshold
 )
 
 // Constants for TLS routing connection upgrade. See RFD for more details:
@@ -548,8 +495,6 @@ const (
 	EnvVarTerraformIdentityFile = "TF_TELEPORT_IDENTITY_FILE"
 	// EnvVarTerraformIdentityFileBase64 is the environment variable containing the base64-encoded identity file used by the Terraform provider.
 	EnvVarTerraformIdentityFileBase64 = "TF_TELEPORT_IDENTITY_FILE_BASE64"
-	// EnvVarTerraformInsecure is the environment variable used to control whether the Terraform provider will skip verifying the proxy server's TLS certificate.
-	EnvVarTerraformInsecure = "TF_TELEPORT_INSECURE"
 	// EnvVarTerraformRetryBaseDuration is the environment variable configuring the base duration between two Terraform provider retries.
 	EnvVarTerraformRetryBaseDuration = "TF_TELEPORT_RETRY_BASE_DURATION"
 	// EnvVarTerraformRetryCapDuration is the environment variable configuring the maximum duration between two Terraform provider retries.
@@ -566,16 +511,7 @@ const (
 	// joining. The audience tag specifies the optional suffix for the TF_WORKLOAD_IDENTITY_AUDIENCE variable when
 	// specifically using the `terraform` join method.
 	EnvVarTerraformCloudJoinAudienceTag = "TF_TELEPORT_JOIN_AUDIENCE_TAG"
-	// EnvVarGitlabIDTokenEnvVar is the environment variable that specifies the name of the environment variable
-	// that contains the GitLab ID token. This can be used to authenticate to multiple Teleport clusters from a single
-	// GitLab CI job.
-	EnvVarGitlabIDTokenEnvVar = "TF_TELEPORT_GITLAB_ID_TOKEN_ENV_VAR"
 )
 
 // MaxPIVPINCacheTTL defines the maximum allowed TTL for PIV PIN client caches.
 const MaxPIVPINCacheTTL = time.Hour
-
-// AutoUpdateAgentReportPeriod is the period of the autoupdate agent reporting
-// routine running in every auth server. Any report older than this period should
-// be considered stale.
-const AutoUpdateAgentReportPeriod = time.Minute

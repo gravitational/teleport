@@ -24,12 +24,13 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
 // Compression is a compression flag.
@@ -91,9 +92,9 @@ func Extract(reader io.Reader, options ExtractOptions) error {
 
 	tarReader := tar.NewReader(reader)
 
-	var filesDone set.Set[string]
+	var filesDone stringset.StringSet
 	if len(options.Files) > 0 {
-		filesDone = set.New(options.Files...)
+		filesDone = stringset.New(options.Files...)
 	}
 	for filesDone == nil || filesDone.Len() > 0 {
 		header, err := tarReader.Next()
@@ -107,7 +108,7 @@ func Extract(reader io.Reader, options ExtractOptions) error {
 		if filesDone != nil && !filesDone.Contains(header.Name) {
 			continue
 		}
-		filesDone.Remove(header.Name)
+		filesDone.Del(header.Name)
 
 		outFileName := header.Name
 		if strip := int(options.StripComponents); strip > 0 {
@@ -115,10 +116,10 @@ func Extract(reader io.Reader, options ExtractOptions) error {
 			if strip > len(parts)-1 {
 				strip = len(parts) - 1
 			}
-			outFileName = filepath.Join(parts[strip:]...)
+			outFileName = path.Join(parts[strip:]...)
 		}
 
-		outFilePath := filepath.Join(outDir, outFileName)
+		outFilePath := path.Join(outDir, outFileName)
 		outFilePerm := os.FileMode(header.Mode).Perm()
 
 		// fail if the outFilePath is outside outDir, see the "zip slip" vulnerability
@@ -139,7 +140,7 @@ func Extract(reader io.Reader, options ExtractOptions) error {
 	}
 
 	if filesDone.Len() > 0 {
-		return trace.Errorf("files not found in the archive: %s", strings.Join(filesDone.Elements(), ", "))
+		return trace.Errorf("files not found in the archive: %s", strings.Join(filesDone.ToSlice(), ", "))
 	}
 
 	return nil

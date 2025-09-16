@@ -1,7 +1,7 @@
 ---
 title: Run Teleport Identity Security on Self-Hosted Clusters
 description: Describes how to deploy Access Graph on self-hosted clusters.
-labels:
+tags:
  - how-to
  - identity-security
 ---
@@ -22,8 +22,8 @@ configuration file and Teleport credentials.
 
 ## Prerequisites
 
-- A running Teleport Enterprise cluster.
-- An updated Teleport Enterprise license file with Teleport Identity Security enabled.
+- A running Teleport Enterprise cluster v14.3.6 or later.
+- An updated `license.pem` with Identity Security enabled.
 - Docker version v(=docker.version=) or later.
 - A PostgreSQL database server v14 or later.
   - Access Graph needs a dedicated [database](https://www.postgresql.org/docs/current/sql-createdatabase.html) to store its data.
@@ -124,10 +124,10 @@ access_graph:
 
 Then, restart Auth Service instances, followed by Proxy Service instances.
 
-## Step 3/3. View Access Graph data in the Graph Explorer
+## Step 3/3. View the Access Graph in the Web UI
 
-In order to visualize the data from the Access Graph service, use the Graph Explorer in the Web UI. 
-Click **Identity Security** --> **Graph Explorer** and then select a resource to view in the Graph Explorer. 
+You can find Access Graph in the "Access Management" tab in the Web UI.
+![Access Management menu item](../../../img/access-graph/menu-item.png)
 
 To access the interface, your user must have a role that allows `list` and `read` verbs on the `access_graph` resource, e.g.:
 
@@ -148,6 +148,3 @@ spec:
 
 The preset `editor` role has the required permissions by default.
 
-## Next steps
-
-- Configure [Identity Activity Center](./identity-activity-center.mdx)

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"context"
@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
@@ -36,17 +35,15 @@ func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
 	r := authclient.AuthenticateUserRequest{
 		ClientMetadata: &authclient.ForwardedClientMetadata{
-			UserAgent: strings.Repeat("A", auth.MaxUserAgentLen+1),
+			UserAgent: strings.Repeat("A", maxUserAgentLen+1),
 		},
 	}
 	// Ignoring the error here because we really just care that the event was logged.
-	srv := &auth.Server{}
-	srv.SetEmitter(emitter)
-	srv.AuthenticateUserLogin(ctx, r)
+	(&Server{emitter: emitter}).authenticateUserLogin(ctx, r)
 	event := emitter.LastEvent()
 	loginEvent, ok := event.(*apievents.UserLogin)
 	require.True(t, ok)
-	require.LessOrEqual(t, len(loginEvent.UserAgent), auth.MaxUserAgentLen)
+	require.LessOrEqual(t, len(loginEvent.UserAgent), maxUserAgentLen)
 }
 
 func Test_trimUserAgent(t *testing.T) {
@@ -69,7 +66,7 @@ func Test_trimUserAgent(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.wantUserAgent, auth.TrimUserAgent(test.inputUserAgent))
+			require.Equal(t, test.wantUserAgent, trimUserAgent(test.inputUserAgent))
 		})
 	}
 }

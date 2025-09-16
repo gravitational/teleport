@@ -22,10 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
-	"math/rand/v2"
-	"net/http"
-	"net/http/httptest"
+	"math/rand"
 	"net/url"
 	"os"
 	"strconv"
@@ -33,8 +30,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -46,16 +41,14 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const dynamoDBLargeQueryRetries int = 10
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -72,6 +65,7 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 	fakeClock := clockwork.NewFakeClockAt(time.Now().UTC())
 
 	log, err := New(context.Background(), Config{
+		Region:             "us-east-1",
 		Tablename:          fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:              fakeClock,
 		UIDGenerator:       utils.NewFakeUID(),
@@ -128,9 +122,7 @@ func TestSearchSessionEvensBySessionID(t *testing.T) {
 // TestCheckpointOutsideOfWindow tests if [Log] doesn't panic
 // if checkpoint date is outside of the window [fromUTC,toUTC].
 func TestCheckpointOutsideOfWindow(t *testing.T) {
-	tt := &Log{
-		logger: slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB),
-	}
+	tt := &Log{}
 
 	key := checkpointKey{
 		Date: "2022-10-02",
@@ -160,7 +152,7 @@ func TestSizeBreak(t *testing.T) {
 	blob := randStringAlpha(eventSize)
 
 	const eventCount int = 10
-	for i := range eventCount {
+	for i := 0; i < eventCount; i++ {
 		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
@@ -169,7 +161,7 @@ func TestSizeBreak(t *testing.T) {
 				Type: events.UserLoginEvent,
 				Time: tt.suite.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
 			},
-			IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
+			IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
 		})
 		require.NoError(t, err)
 	}
@@ -234,7 +226,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 	tt := setupDynamoContext(t)
 
 	const eventCount = 4000
-	for range eventCount {
+	for i := 0; i < eventCount; i++ {
 		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
@@ -252,7 +244,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 		err     error
 	)
 	ctx := context.Background()
-	for range dynamoDBLargeQueryRetries {
+	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
 		time.Sleep(tt.suite.QueryDelay)
 
 		history, _, err = tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
@@ -283,14 +275,14 @@ func TestFromWhereExpr(t *testing.T) {
 		R: &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "test-user"}}},
 	}}
 
-	params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+	params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]interface{}{}}
 	expr, err := fromWhereExpr(cond, &params)
 	require.NoError(t, err)
 
 	require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND (contains(FieldsMap.#condName1, :condValue2))", expr)
 	require.Equal(t, condFilterParams{
 		attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
-		attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
+		attrValues: map[string]interface{}{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
 	}, params)
 }
 
@@ -512,8 +504,8 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 	const eventCount int = 10
 
 	// create events for two days
-	for dayDiff := range 2 {
-		for i := range eventCount {
+	for dayDiff := 0; dayDiff < 2; dayDiff++ {
+		for i := 0; i < eventCount; i++ {
 			err := tt.suite.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Method:       events.LoginMethodSAML,
 				Status:       apievents.Status{Success: true},
@@ -522,7 +514,7 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 					Type: events.UserLoginEvent,
 					Time: tt.suite.Clock.Now().UTC().Add(time.Hour*24*time.Duration(dayDiff) + time.Second*time.Duration(i)),
 				},
-				IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
+				IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
 			})
 			require.NoError(t, err)
 		}
@@ -601,99 +593,12 @@ func generateEvent(sessionID session.ID, index int64, query string) apievents.Au
 	}
 }
 
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
 func randStringAlpha(n int) string {
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	b := make([]byte, n)
+	b := make([]rune, n)
 	for i := range b {
-		b[i] = letters[rand.N(len(letters))]
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
-}
-
-func TestEndpoints(t *testing.T) {
-	// Don't t.Parallel(), uses t.Setenv and modules.SetTestModules.
-
-	tests := []struct {
-		name          string
-		fips          bool
-		envVarValue   string // value for the _DISABLE_FIPS environment variable
-		wantFIPSError bool
-	}{
-		{
-			name:          "fips",
-			fips:          true,
-			wantFIPSError: true,
-		},
-		{
-			name:          "fips with env skip",
-			fips:          true,
-			envVarValue:   "yes",
-			wantFIPSError: false,
-		},
-		{
-			name:          "without fips",
-			wantFIPSError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("TELEPORT_UNSTABLE_DISABLE_AWS_FIPS", tt.envVarValue)
-
-			fips := types.ClusterAuditConfigSpecV2_FIPS_DISABLED
-			if tt.fips {
-				fips = types.ClusterAuditConfigSpecV2_FIPS_ENABLED
-				modulestest.SetTestModules(t, modulestest.Modules{
-					FIPS: true,
-				})
-			}
-
-			mux := http.NewServeMux()
-			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusTeapot)
-			}))
-
-			server := httptest.NewServer(mux)
-			t.Cleanup(server.Close)
-
-			b, err := New(context.Background(), Config{
-				Region:       "us-west-1",
-				Tablename:    "teleport-test",
-				UIDGenerator: utils.NewFakeUID(),
-				// The prefix is intentionally removed to validate that a scheme
-				// is applied automatically. This validates backwards compatible behavior
-				// with existing configurations and the behavior change from aws-sdk-go to aws-sdk-go-v2.
-				Endpoint:        strings.TrimPrefix(server.URL, "http://"),
-				Insecure:        true,
-				UseFIPSEndpoint: fips,
-				CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
-					return aws.Credentials{}, nil
-				}),
-			})
-			// FIPS mode should fail because it is a violation to enable FIPS
-			// while also setting a custom endpoint.
-			if tt.wantFIPSError {
-				assert.ErrorContains(t, err, "FIPS")
-				return
-			}
-
-			assert.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
-			assert.Nil(t, b, "backend not nil")
-		})
-	}
-}
-
-func TestStartKeyBackCompat(t *testing.T) {
-	const (
-		oldStartKey = `{"date":"2023-04-27","iterator":{"CreatedAt":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"1682583778","NS":null,"NULL":null,"S":null,"SS":null},"CreatedAtDate":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"2023-04-27","SS":null},"EventIndex":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"0","NS":null,"NULL":null,"S":null,"SS":null},"SessionID":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb","SS":null}}}`
-		newStartKey = `{"date":"2023-04-27","iterator":"{\"CreatedAt\":1682583778,\"CreatedAtDate\":\"2023-04-27\",\"EventIndex\":0,\"SessionID\":\"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb\"}"}`
-	)
-
-	oldCP, err := getCheckpointFromStartKey(oldStartKey)
-	require.NoError(t, err)
-
-	newCP, err := getCheckpointFromStartKey(newStartKey)
-	require.NoError(t, err)
-
-	require.Empty(t, cmp.Diff(oldCP, newCP))
 }

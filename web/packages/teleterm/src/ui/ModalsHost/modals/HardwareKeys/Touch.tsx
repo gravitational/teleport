@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Image, P2, Stack } from 'design';
+import { Flex, Image, P2 } from 'design';
 import DialogConfirmation, { DialogContent } from 'design/DialogConfirmation';
 import { PromptHardwareKeyTouchRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
-import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
 import { CliCommand } from 'teleterm/ui/components/CliCommand';
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
 import { CommonHeader } from './CommonHeader';
 
@@ -47,8 +47,9 @@ export function Touch(props: {
       />
 
       <DialogContent mb={4}>
-        <Stack
-          width="100%"
+        <Flex
+          flexDirection="column"
+          gap={2}
           css={`
             position: relative;
           `}
@@ -68,7 +69,7 @@ export function Touch(props: {
             src={svgHardwareKey}
           />
           <LinearProgress />
-        </Stack>
+        </Flex>
       </DialogContent>
     </DialogConfirmation>
   );

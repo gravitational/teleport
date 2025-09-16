@@ -16,50 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-
-import { JoinToken } from 'teleport/services/joinToken';
+import React from 'react';
 
 import { AddApp } from './AddApp';
 
 export default {
-  title: 'Teleport/Discover/Application/Web',
+  title: 'Teleport/Apps/Add',
 };
 
-export const CreatedWithoutLabels = () => {
-  const [token, setToken] = useState<JoinToken>();
+export const Created = () => (
+  <AddApp {...props} attempt={{ status: 'success' }} />
+);
 
-  return (
-    <AddApp
-      {...props}
-      attempt={{ status: 'success' }}
-      token={token}
-      createToken={() => {
-        setToken(props.token);
-        return Promise.resolve(true);
-      }}
-    />
-  );
-};
-
-export const CreatedWithLabels = () => {
-  const [token, setToken] = useState<JoinToken>();
-
-  return (
-    <AddApp
-      {...props}
-      attempt={{ status: 'success' }}
-      labels={[
-        { name: 'env', value: 'staging' },
-        { name: 'fruit', value: 'apple' },
-      ]}
-      token={token}
-      createToken={() => {
-        setToken(props.token);
-        return Promise.resolve(true);
-      }}
-    />
-  );
+export const Loaded = () => {
+  return <AddApp {...props} />;
 };
 
 export const Processing = () => (
@@ -104,10 +74,8 @@ const props = {
   createJoinToken: () => Promise.resolve(null),
   version: '5.0.0-dev',
   reset: () => null,
-  labels: [],
-  setLabels: () => null,
   attempt: {
-    status: 'success',
+    status: '',
     statusText: '',
   } as any,
   token: {

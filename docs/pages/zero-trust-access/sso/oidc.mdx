@@ -1,7 +1,7 @@
 ---
 title: OAuth2 and OIDC authentication
 description: How to configure Teleport access with OAuth2 or OpenID connect (OIDC)
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -15,17 +15,13 @@ policies like:
 - Only members of the "DBA" group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.
 
-## How it works
-
-(!docs/pages/includes/sso/how-it-works.mdx!)
-
 ## Prerequisites
 
 - Admin access to the SSO/IdP being integrated with users assigned to groups/roles.
 - Teleport role with permission to maintain `oidc` resources. This permission is available
   in the default `editor` role.
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -47,7 +43,7 @@ Save the relevant information from your identity provider. To make following
 this guide easier, you can add the Client ID here and it will be included in the
 example commands below:
 
-Client ID: <Var name="CLIENT-ID" description="The Client ID for your Teleport
+Client ID: <Var name="<CLIENT-ID>" description="The Client ID for your Teleport
 application, provided by your IdP"/>
 
 ## OIDC Redirect URL
@@ -56,14 +52,10 @@ OIDC relies on HTTP redirects to return control back to Teleport after
 authentication is complete. The redirect URL must be selected by a Teleport
 administrator in advance.
 
-The redirect URL for OIDC authentication in Teleport is <nobr> <Var
-name="mytenant.teleport.sh:443" description="Your Teleport Cloud tenant or Proxy
-Service address"/>`/v1/webapi/oidc/callback`</nobr>.  Replace <Var
-name="mytenant.teleport.sh:443" /> with your Teleport Cloud tenant or Proxy
-Service address. If you have a self-hosted cluster with multiple public
-addresses for the Teleport Proxy Service (the value of
-`proxy_service.public_addr` in the Teleport configuration file), ensure that
-this address points to the first one listed.
+The redirect URL for OIDC authentication in Teleport is <nobr><Var
+name="mytenant.teleport.sh" description="Your Teleport Cloud tenant or Proxy
+Service address"/>`/v1/webapi/oidc/callback`</nobr>. Replace `mytenant.teleport.sh`
+with your Teleport Cloud tenant or Proxy Service address.
 
 ## OIDC connector configuration
 
@@ -80,7 +72,7 @@ connector resource file in YAML format named `oidc-connector.yaml`:
 ```code
 $ tctl sso configure oidc --name <CONNECTOR-NAME> \
   --issuer-url <PATH-TO-PROVIDER> \
-  --id <Var name="CLIENT-ID" /> \
+  --id <CLIENT-ID> \
   --secret $(cat client-secret.txt) \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,access \
   --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,editor > oidc-connector.yaml
@@ -148,7 +140,7 @@ Before applying the connector to your cluster, you can test that it's configured
 correctly:
 
 ```code
-$ cat oidc-connector.yaml | tctl sso test
+$ cat oidc-connector | tctl sso test
 ```
 
 This should open up your web browser and attempt to log you in to the Teleport

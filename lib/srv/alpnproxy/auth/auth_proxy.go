@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
@@ -38,29 +39,31 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type ClusterGetter interface {
-	Cluster(context.Context, string) (reversetunnelclient.Cluster, error)
+type sitesGetter interface {
+	GetSites() ([]reversetunnelclient.RemoteSite, error)
 }
 
 // NewAuthProxyDialerService create new instance of AuthProxyDialerService.
-func NewAuthProxyDialerService(clusterGetter ClusterGetter, localClusterName string, authServers []string, proxySigner multiplexer.PROXYHeaderSigner, tracer oteltrace.Tracer) *AuthProxyDialerService {
+func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, localClusterName string, authServers []string, proxySigner multiplexer.PROXYHeaderSigner, log logrus.FieldLogger, tracer oteltrace.Tracer) *AuthProxyDialerService {
 	return &AuthProxyDialerService{
-		clusterGetter:    clusterGetter,
-		localClusterName: localClusterName,
-		authServers:      authServers,
-		proxySigner:      proxySigner,
-		tracer:           tracer,
+		reverseTunnelServer: reverseTunnelServer,
+		localClusterName:    localClusterName,
+		authServers:         authServers,
+		proxySigner:         proxySigner,
+		log:                 log,
+		tracer:              tracer,
 	}
 }
 
 // AuthProxyDialerService allows dialing local/remote auth service base on SNI value encoded as destination auth
 // cluster name and ALPN set to teleport-auth protocol.
 type AuthProxyDialerService struct {
-	clusterGetter    ClusterGetter
-	localClusterName string
-	authServers      []string
-	proxySigner      multiplexer.PROXYHeaderSigner
-	tracer           oteltrace.Tracer
+	reverseTunnelServer sitesGetter
+	localClusterName    string
+	authServers         []string
+	proxySigner         multiplexer.PROXYHeaderSigner
+	log                 logrus.FieldLogger
+	tracer              oteltrace.Tracer
 }
 
 func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.Conn, connInfo alpnproxy.ConnectionInfo) error {
@@ -102,7 +105,7 @@ func (s *AuthProxyDialerService) dialAuthServer(ctx context.Context, clusterName
 	if clusterNameFromSNI == s.localClusterName {
 		return s.dialLocalAuthServer(ctx, clientSrcAddr, clientDstAddr)
 	}
-	if s.clusterGetter != nil {
+	if s.reverseTunnelServer != nil {
 		return s.dialRemoteAuthServer(ctx, clusterNameFromSNI, clientSrcAddr, clientDstAddr)
 	}
 	return nil, trace.NotFound("auth server for %q cluster name not found", clusterNameFromSNI)
@@ -160,17 +163,21 @@ func (s *AuthProxyDialerService) dialRemoteAuthServer(ctx context.Context, clust
 		))
 	defer span.End()
 
-	cluster, err := s.clusterGetter.Cluster(ctx, clusterName)
+	sites, err := s.reverseTunnelServer.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	conn, err := cluster.DialAuthServer(reversetunnelclient.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for _, site := range sites {
+		if site.GetName() != clusterName {
+			continue
+		}
+		conn, err := site.DialAuthServer(reversetunnelclient.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
 	}
-
-	return conn, nil
+	return nil, trace.NotFound("cluster name %q not found", clusterName)
 }
 
 func (s *AuthProxyDialerService) proxyConn(ctx context.Context, upstreamConn, downstreamConn net.Conn) error {
@@ -189,7 +196,7 @@ func (s *AuthProxyDialerService) proxyConn(ctx context.Context, upstreamConn, do
 		errC <- trace.Wrap(err)
 	}()
 	var errs []error
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())

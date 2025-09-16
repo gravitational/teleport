@@ -110,7 +110,7 @@ func validateSTSIdentityRequest(req *http.Request, challenge string, cfg *iamReg
 		// invalid sts:GetCallerIdentity request, it's either going to be caused
 		// by a node in a unknown region or an attacker.
 		if err != nil {
-			logger.WarnContext(req.Context(), "Detected an invalid sts:GetCallerIdentity used by a client attempting to use the IAM join method", "error", err)
+			log.WithError(err).Warn("Detected an invalid sts:GetCallerIdentity used by a client attempting to use the IAM join method.")
 		}
 	}()
 
@@ -329,7 +329,7 @@ type iamRegisterConfig struct {
 
 func defaultIAMRegisterConfig(fips bool) *iamRegisterConfig {
 	return &iamRegisterConfig{
-		authVersion: teleport.SemVer(),
+		authVersion: teleport.SemVersion,
 		fips:        fips,
 	}
 }
@@ -348,13 +348,13 @@ func withFips(fips bool) iamRegisterOption {
 	}
 }
 
-// RegisterUsingIAMMethodWithOpts registers the caller using the IAM join method and
+// RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethodWithOpts(
+func (a *Server) RegisterUsingIAMMethod(
 	ctx context.Context,
 	challengeResponse client.RegisterIAMChallengeResponseFunc,
 	opts ...iamRegisterOption,
@@ -366,7 +366,7 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				ctx, err, provisionToken, joinFailureMetadata, joinRequest,
+				err, provisionToken, joinFailureMetadata, joinRequest,
 			)
 		}
 	}()
@@ -378,23 +378,23 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 
 	challenge, err := generateIAMChallenge()
 	if err != nil {
-		return nil, trace.Wrap(err, "generating IAM challenge")
+		return nil, trace.Wrap(err)
 	}
 
 	req, err := challengeResponse(challenge)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting challenge response")
+		return nil, trace.Wrap(err)
 	}
 	joinRequest = req.RegisterUsingTokenRequest
 
 	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err, "validating request parameters")
+		return nil, trace.Wrap(err)
 	}
 
 	// perform common token checks
 	provisionToken, err = a.checkTokenJoinRequestCommon(ctx, req.RegisterUsingTokenRequest)
 	if err != nil {
-		return nil, trace.Wrap(err, "completing common token checks")
+		return nil, trace.Wrap(err)
 	}
 
 	// check that the GetCallerIdentity request is valid and matches the token
@@ -407,7 +407,7 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
+		certs, err := a.generateCertsBot(
 			ctx,
 			provisionToken,
 			req.RegisterUsingTokenRequest,
@@ -420,17 +420,4 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	}
 	certs, err = a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, verifiedIdentity)
 	return certs, trace.Wrap(err, "generating certs")
-}
-
-// RegisterUsingIAMMethod registers the caller using the IAM join method and
-// returns signed certs to join the cluster.
-//
-// The caller must provide a ChallengeResponseFunc which returns a
-// *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
-// including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethod(
-	ctx context.Context,
-	challengeResponse client.RegisterIAMChallengeResponseFunc,
-) (certs *proto.Certs, err error) {
-	return a.RegisterUsingIAMMethodWithOpts(ctx, challengeResponse)
 }

@@ -1,8 +1,7 @@
 ---
 title: Database Access with Oracle Exadata
-sidebar_label: Oracle Exadata
 description: How to configure Teleport database access with Oracle Exadata.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -15,16 +14,16 @@ labels:
 
 <Tabs>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise (Self-Hosted)">
-![Enroll Oracle with a self-hosted Teleport cluster](../../../../img/database-access/guides/oracle_selfhosted.png)
+![Teleport Database Access Self-hosted Oracle](../../../../img/database-access/guides/oracle_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise (Cloud)">
-![Enroll Oracle with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
+![Teleport Database Access Oracle Cloud](../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
 </TabItem>
 </Tabs>
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 - Oracle Exadata server instance 19c or later.
 - The `sqlcl` [Oracle client](https://www.oracle.com/pl/database/sqldeveloper/technologies/sqlcl/) installed and added to your system's `PATH` environment variable or any GUI client that supports JDBC
   Oracle thin client.
@@ -275,7 +274,7 @@ Install the chart:
      -f values.yaml
    ```
 
-Make sure that the Teleport Agent pod is running. You should see one
+Make sure that the Teleport agent pod is running. You should see one
 `teleport-kube-agent` pod with a single ready container:
 
    ```code
@@ -324,7 +323,7 @@ Configure the Teleport Database Service to pull audit logs from Oracle Audit Tra
 
 ```yaml
 db_service:
-  enabled: true
+  enabled: "yes"
   databases:
   - name: <Var name="oracle" />
     protocol: "oracle"

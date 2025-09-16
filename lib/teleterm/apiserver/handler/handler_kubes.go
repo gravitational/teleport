@@ -20,6 +20,7 @@ package handler
 
 import (
 	"context"
+	"sort"
 
 	"github.com/gravitational/trace"
 
@@ -29,6 +30,24 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/ui"
 )
+
+// GetKubes accepts parameterized input to enable searching, sorting, and pagination
+func (s *Handler) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*api.GetKubesResponse, error) {
+	resp, err := s.DaemonService.GetKubes(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &api.GetKubesResponse{
+		TotalCount: int32(resp.TotalCount),
+		StartKey:   resp.StartKey,
+	}
+	for _, kube := range resp.Kubes {
+		response.Agents = append(response.Agents, newAPIKube(kube))
+	}
+
+	return response, nil
+}
 
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
@@ -57,11 +76,22 @@ func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKube
 }
 
 func newAPIKube(kube clusters.Kube) *api.Kube {
-	staticLabels := kube.KubernetesCluster.GetStaticLabels()
-	dynamicLabels := kube.KubernetesCluster.GetDynamicLabels()
-	apiLabels := makeAPILabels(
-		ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels)),
-	)
+	apiLabels := APILabels{}
+	for name, value := range kube.KubernetesCluster.GetStaticLabels() {
+		apiLabels = append(apiLabels, &api.Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	for name, cmd := range kube.KubernetesCluster.GetDynamicLabels() {
+		apiLabels = append(apiLabels, &api.Label{
+			Name:  name,
+			Value: cmd.GetResult(),
+		})
+	}
+
+	sort.Sort(apiLabels)
 
 	return &api.Kube{
 		Name:   kube.KubernetesCluster.GetName(),
@@ -71,7 +101,14 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 }
 
 func newApiKubeResource(resource *types.KubernetesResourceV1, kubeCluster string, resourceURI uri.ResourceURI) *api.KubeResource {
-	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(resource.GetStaticLabels()))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(resource.GetStaticLabels())
+	apiLabels := APILabels{}
+	for _, uiLabel := range uiLabels {
+		apiLabels = append(apiLabels, &api.Label{
+			Name:  uiLabel.Name,
+			Value: uiLabel.Value,
+		})
+	}
 
 	return &api.KubeResource{
 		Uri:       resourceURI.AppendKube(kubeCluster).AppendKubeResourceNamespace(resource.GetName()).String(),

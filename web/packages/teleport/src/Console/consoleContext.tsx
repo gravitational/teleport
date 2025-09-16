@@ -21,11 +21,7 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import Logger from 'shared/libs/logger';
 
-import cfg, {
-  UrlDbConnectParams,
-  UrlKubeExecParams,
-  UrlSshParams,
-} from 'teleport/config';
+import cfg, { UrlKubeExecParams, UrlSshParams } from 'teleport/config';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
 import { getHostName } from 'teleport/services/api';
@@ -43,7 +39,6 @@ import { StoreUserContext } from 'teleport/stores';
 
 import {
   Document,
-  DocumentDb,
   DocumentKubeExec,
   DocumentSsh,
   StoreDocs,
@@ -104,10 +99,6 @@ export default class ConsoleContext {
     this.storeDocs.update(id, partial);
   }
 
-  updateDbDocument(id: number, partial: Partial<DocumentDb>) {
-    this.storeDocs.update(id, partial);
-  }
-
   addNodeDocument(clusterId = cfg.proxyCluster) {
     return this.storeDocs.add({
       clusterId,
@@ -164,19 +155,6 @@ export default class ConsoleContext {
     });
   }
 
-  addDbDocument(params: UrlDbConnectParams) {
-    const url = this.getDbDocumentUrl(params);
-
-    return this.storeDocs.add({
-      kind: 'db',
-      clusterId: params.clusterId,
-      title: params.serviceName,
-      url,
-      created: new Date(),
-      name: params.serviceName,
-    });
-  }
-
   getDocuments() {
     return this.storeDocs.state.items;
   }
@@ -195,10 +173,6 @@ export default class ConsoleContext {
     return kubeExecParams.sid
       ? cfg.getKubeExecSessionRoute(kubeExecParams)
       : cfg.getKubeExecConnectRoute(kubeExecParams);
-  }
-
-  getDbDocumentUrl(dbConnectParams: UrlDbConnectParams) {
-    return cfg.getDbConnectRoute(dbConnectParams);
   }
 
   refreshParties() {
@@ -249,7 +223,9 @@ export default class ConsoleContext {
     const ctx = context.active();
 
     propagator.inject(ctx, carrier, defaultTextMapSetter);
-    let baseUrl = '';
+    const baseUrl =
+      session.kind === 'k8s' ? cfg.api.ttyKubeExecWsAddr : cfg.api.ttyWsAddr;
+
     let ttyParams = {};
     switch (session.kind) {
       case 'ssh':
@@ -259,18 +235,13 @@ export default class ConsoleContext {
           server_id: serverId,
           mode,
         };
-        baseUrl = cfg.api.ttyWsAddr;
         break;
       case 'k8s':
         ttyParams = {
           sid,
           mode,
         };
-
-        baseUrl = cfg.api.ttyKubeExecWsAddr;
         break;
-      case 'db':
-        baseUrl = cfg.api.ttyDbWsAddr;
     }
 
     const ttyUrl = baseUrl

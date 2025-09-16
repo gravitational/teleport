@@ -22,11 +22,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -101,7 +101,7 @@ func (a *AsyncEmitter) forward() {
 				if a.ctx.Err() != nil {
 					return
 				}
-				slog.ErrorContext(a.ctx, "Failed to emit audit event.", "error", err)
+				log.WithError(err).Errorf("Failed to emit audit event.")
 			}
 		}
 	}
@@ -116,7 +116,7 @@ func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context canceled or closed")
 	default:
-		slog.ErrorContext(ctx, "Failed to emit audit event. This server's connection to the auth service appears to be slow.", "event_type", event.GetType(), "event_code", event.GetCode())
+		log.Errorf("Failed to emit audit event %v(%v). This server's connection to the auth service appears to be slow.", event.GetType(), event.GetCode())
 		return nil
 	}
 }
@@ -171,13 +171,13 @@ func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Au
 	auditEmitEvent.Inc()
 	auditEmitEventSizes.Observe(float64(event.Size()))
 	if err := checkAndSetEventFields(event, r.Clock, r.UIDGenerator, r.ClusterName); err != nil {
-		slog.ErrorContext(ctx, "Failed to emit audit event.", "error", err)
+		log.WithError(err).Errorf("Failed to emit audit event.")
 		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
 	if err := r.Inner.EmitAuditEvent(ctx, event); err != nil {
 		AuditFailedEmit.Inc()
-		slog.ErrorContext(ctx, "Failed to emit audit event of type", "event_type", event.GetType(), "error", err)
+		log.WithError(err).Errorf("Failed to emit audit event of type: %s.", event.GetType())
 		return trace.Wrap(err)
 	}
 	return nil
@@ -278,13 +278,14 @@ func (l *LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Aud
 		return trace.Wrap(err)
 	}
 
-	var fields map[string]any
-	if err := utils.FastUnmarshal(data, &fields); err != nil {
+	var fields log.Fields
+	err = utils.FastUnmarshal(data, &fields)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	fields[teleport.ComponentKey] = teleport.ComponentAuditLog
+	fields[teleport.ComponentKey] = teleport.Component(teleport.ComponentAuditLog)
 
-	slog.InfoContext(ctx, "emitting audit event", "event_type", event.GetType(), "fields", fields)
+	log.WithFields(fields).Info(event.GetType())
 	return nil
 }
 
@@ -530,7 +531,7 @@ func (s *ReportingStream) Complete(ctx context.Context) error {
 		Error:     err,
 	}:
 	default:
-		slog.WarnContext(ctx, "Skip send event on a blocked channel.")
+		log.Warningf("Skip send event on a blocked channel.")
 	}
 	return trace.Wrap(err)
 }

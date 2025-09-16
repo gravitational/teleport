@@ -25,10 +25,14 @@ use ironrdp_cliprdr::{Client, CliprdrClient as Cliprdr, CliprdrSvcMessages};
 use ironrdp_core::impl_as_any;
 use ironrdp_pdu::PduResult;
 use log::{debug, error, info, trace, warn};
+use static_init::dynamic;
 use std::fmt::{Debug, Formatter};
 
-const CF_UNICODETEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT);
-const CF_TEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_TEXT);
+#[dynamic]
+static CF_UNICODETEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT);
+
+#[dynamic]
+static CF_TEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_TEXT);
 
 #[derive(Debug)]
 pub struct TeleportCliprdrBackend {
@@ -234,9 +238,9 @@ where
 
 pub fn available_formats(data: &Option<String>) -> Vec<ClipboardFormat> {
     if let Some(s) = data {
-        let mut formats = vec![CF_UNICODETEXT];
+        let mut formats = vec![CF_UNICODETEXT.to_owned()];
         if s.is_ascii() {
-            formats.push(CF_TEXT)
+            formats.push(CF_TEXT.to_owned())
         }
         return formats;
     }

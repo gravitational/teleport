@@ -16,27 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { JSX } from 'react';
-
 import { Flex, P3 } from 'design';
 import { Warning } from 'design/Icon';
 
 export function ProfileStatusError(props: {
   error: string;
-  className?: string;
-}): JSX.Element {
+  mb?: number | string;
+}) {
   return (
-    <Flex className={props.className}>
+    <Flex mb={props.mb}>
       <Warning color="error.main" size="small" mr={1} />
-      <P3
-        color="text.slightlyMuted"
-        css={`
-          text-wrap: auto;
-          line-height: 1.3;
-        `}
-      >
-        {toWellFormattedConnectionError(props.error)}
-      </P3>
+      <P3>{toWellFormattedConnectionError(props.error)}</P3>
     </Flex>
   );
 }

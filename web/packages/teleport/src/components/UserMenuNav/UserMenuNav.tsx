@@ -21,6 +21,7 @@ import styled, { useTheme } from 'styled-components';
 
 import { Box, Text } from 'design';
 import { ChevronDown, Logout as LogoutIcon, Moon, Sun } from 'design/Icon';
+import { getCurrentTheme, getNextTheme } from 'design/ThemeProvider';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
@@ -38,7 +39,6 @@ import {
 import { useFeatures } from 'teleport/FeaturesContext';
 import { focusOutsideTarget } from 'teleport/lib/util/eventTarget';
 import session from 'teleport/services/websession';
-import { getCurrentTheme, getNextTheme } from 'teleport/ThemeProvider';
 import { DeviceTrustStatus } from 'teleport/TopBar/DeviceTrustStatus';
 import { useUser } from 'teleport/User/UserContext';
 

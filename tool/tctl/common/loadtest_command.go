@@ -33,6 +33,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -154,12 +155,12 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 
 	node_ids := make([]string, 0, c.count)
 
-	for range c.count {
+	for i := 0; i < c.count; i++ {
 		node_ids = append(node_ids, uuid.New().String())
 	}
 
 	labels := make(map[string]string, c.labels)
-	for range c.labels {
+	for i := 0; i < c.labels; i++ {
 		labels[uuid.New().String()] = uuid.New().String()
 	}
 
@@ -191,7 +192,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 
 	infof("Estimated serialized node size: %d (bytes)", len(sn))
 
-	for range c.concurrency {
+	for i := 0; i < c.concurrency; i++ {
 		go func() {
 			for id := range workch {
 				_, err = client.UpsertNode(ctx, mknode(id))
@@ -199,7 +200,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 					return
 				}
 				if err != nil {
-					slog.DebugContext(ctx, "Failed to upsert node", "error", err)
+					log.Debugf("Failed to upsert node: %v", err)
 					select {
 					case errch <- err:
 					default:
@@ -225,7 +226,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 		default:
 		}
 
-		for range c.churn {
+		for i := 0; i < c.churn; i++ {
 			node_ids = append(node_ids, uuid.New().String())
 		}
 
@@ -254,7 +255,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 
 func (c *LoadtestCommand) Watch(ctx context.Context, client *authclient.Client) error {
 	var kinds []types.WatchKind
-	for kind := range strings.SplitSeq(c.kind, ",") {
+	for _, kind := range strings.Split(c.kind, ",") {
 		kind = strings.TrimSpace(kind)
 		if kind == "" {
 			continue
@@ -266,7 +267,7 @@ func (c *LoadtestCommand) Watch(ctx context.Context, client *authclient.Client) 
 	}
 
 	ops := make(map[types.OpType]struct{})
-	for op := range strings.SplitSeq(c.ops, ",") {
+	for _, op := range strings.Split(c.ops, ",") {
 		op = strings.TrimSpace(op)
 		if op == "" {
 			continue

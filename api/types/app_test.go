@@ -18,8 +18,6 @@ package types
 
 import (
 	"fmt"
-	"slices"
-	"strconv"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -31,45 +29,58 @@ import (
 // TestAppPublicAddrValidation tests PublicAddr field validation to make sure that
 // an app with internal "kube-teleport-proxy-alpn." ServerName prefix won't be created.
 func TestAppPublicAddrValidation(t *testing.T) {
+	type check func(t *testing.T, err error)
+
+	hasNoErr := func() check {
+		return func(t *testing.T, err error) {
+			require.NoError(t, err)
+		}
+	}
+	hasErrTypeBadParameter := func() check {
+		return func(t *testing.T, err error) {
+			require.True(t, trace.IsBadParameter(err))
+		}
+	}
+
 	tests := []struct {
 		name       string
 		publicAddr string
-		check      require.ErrorAssertionFunc
+		check      check
 	}{
 		{
 			name:       "kubernetes app",
 			publicAddr: "kubernetes.example.com:3080",
-			check:      hasNoErr,
+			check:      hasNoErr(),
 		},
 		{
 			name:       "kubernetes app public addr without port",
 			publicAddr: "kubernetes.example.com",
-			check:      hasNoErr,
+			check:      hasNoErr(),
 		},
 		{
 			name:       "kubernetes app http",
 			publicAddr: "http://kubernetes.example.com:3080",
-			check:      hasNoErr,
+			check:      hasNoErr(),
 		},
 		{
 			name:       "kubernetes app https",
 			publicAddr: "https://kubernetes.example.com:3080",
-			check:      hasNoErr,
+			check:      hasNoErr(),
 		},
 		{
 			name:       "public address with internal kube ServerName prefix",
 			publicAddr: constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
-			check:      hasErrTypeBadParameter,
+			check:      hasErrTypeBadParameter(),
 		},
 		{
 			name:       "https public address with internal kube ServerName prefix",
 			publicAddr: "https://" + constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
-			check:      hasErrTypeBadParameter,
+			check:      hasErrTypeBadParameter(),
 		},
 		{
 			name:       "addr with numbers in the host",
 			publicAddr: "123456789012.teleport.example.com:3080",
-			check:      hasNoErr,
+			check:      hasNoErr(),
 		},
 	}
 
@@ -81,112 +92,6 @@ func TestAppPublicAddrValidation(t *testing.T) {
 				PublicAddr: tc.publicAddr,
 				URI:        "localhost:3080",
 			})
-			tc.check(t, err)
-		})
-	}
-}
-
-func TestAppPortsValidation(t *testing.T) {
-	tests := []struct {
-		name     string
-		tcpPorts []*PortRange
-		uri      string
-		check    require.ErrorAssertionFunc
-	}{
-		{
-			name: "valid ranges and single ports",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 22, EndPort: 25},
-				&PortRange{Port: 26},
-				&PortRange{Port: 65535},
-			},
-			check: hasNoErr,
-		},
-		{
-			name: "valid overlapping ranges",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 100, EndPort: 200},
-				&PortRange{Port: 150, EndPort: 175},
-				&PortRange{Port: 111},
-				&PortRange{Port: 150, EndPort: 210},
-				&PortRange{Port: 1, EndPort: 65535},
-			},
-			check: hasNoErr,
-		},
-		{
-			name: "valid non-TCP app with ports ignored",
-			uri:  "http://localhost:8000",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 123456789},
-				&PortRange{Port: 10, EndPort: 2},
-			},
-			check: hasNoErr,
-		},
-		// Test cases for invalid ports.
-		{
-			name: "port smaller than 1",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 0},
-			},
-			check: hasErrTypeBadParameter,
-		},
-		{
-			name: "port bigger than 65535",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 78787},
-			},
-			check: hasErrTypeBadParameter,
-		},
-		{
-			name: "end port smaller than 2",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 5, EndPort: 1},
-			},
-			check: hasErrTypeBadParameterAndContains("end port must be between 6 and 65535"),
-		},
-		{
-			name: "end port bigger than 65535",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 1, EndPort: 78787},
-			},
-			check: hasErrTypeBadParameter,
-		},
-		{
-			name: "end port smaller than port",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 10, EndPort: 5},
-			},
-			check: hasErrTypeBadParameterAndContains("end port must be between 11 and 65535"),
-		},
-		{
-			name: "uri specifies port",
-			uri:  "tcp://localhost:1234",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 1000, EndPort: 1500},
-			},
-			check: hasErrTypeBadParameterAndContains("must not include a port number"),
-		},
-		{
-			name: "invalid uri",
-			uri:  "%",
-			tcpPorts: []*PortRange{
-				&PortRange{Port: 1000, EndPort: 1500},
-			},
-			check: hasErrAndContains("invalid URL escape"),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			spec := AppSpecV3{
-				URI:      "tcp://localhost",
-				TCPPorts: tc.tcpPorts,
-			}
-			if tc.uri != "" {
-				spec.URI = tc.uri
-			}
-
-			_, err := NewAppV3(Metadata{Name: "TestApp"}, spec)
 			tc.check(t, err)
 		})
 	}
@@ -352,55 +257,6 @@ func TestApplicationGetAWSExternalID(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, test.expectedExternalID, app.GetAWSExternalID())
-		})
-	}
-}
-
-func TestApplicationGetAWSRolesAnywhereProfile(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name                          string
-		appAWS                        *AppAWS
-		expectedProfileARN            string
-		expectedAcceptRoleSessionName bool
-	}{
-		{
-			name: "app aws not configured",
-		},
-		{
-			name: "roles anywhere profile not configured",
-			appAWS: &AppAWS{
-				RolesAnywhereProfile: &AppAWSRolesAnywhereProfile{},
-			},
-			expectedProfileARN:            "",
-			expectedAcceptRoleSessionName: false,
-		},
-		{
-			name: "configured",
-			appAWS: &AppAWS{
-				RolesAnywhereProfile: &AppAWSRolesAnywhereProfile{
-					ProfileARN:            "profile1",
-					AcceptRoleSessionName: true,
-				},
-			},
-			expectedProfileARN:            "profile1",
-			expectedAcceptRoleSessionName: true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			app, err := NewAppV3(Metadata{
-				Name: "aws",
-			}, AppSpecV3{
-				URI: constants.AWSConsoleURL,
-				AWS: test.appAWS,
-			})
-			require.NoError(t, err)
-
-			require.Equal(t, test.expectedProfileARN, app.GetAWSRolesAnywhereProfileARN())
-			require.Equal(t, test.expectedAcceptRoleSessionName, app.GetAWSRolesAnywhereAcceptRoleSessionName())
 		})
 	}
 }
@@ -604,88 +460,6 @@ func TestNewAppV3(t *testing.T) {
 			want:    nil,
 			wantErr: require.Error,
 		},
-		{
-			name: "mcp with command",
-			meta: Metadata{
-				Name: "mcp-everything",
-			},
-			spec: AppSpecV3{
-				MCP: &MCP{
-					Command:       "docker",
-					Args:          []string{"run", "-i", "--rm", "mcp/everything"},
-					RunAsHostUser: "docker",
-				},
-			},
-			want: &AppV3{
-				Kind:    "app",
-				SubKind: "mcp",
-				Version: "v3",
-				Metadata: Metadata{
-					Name:      "mcp-everything",
-					Namespace: "default",
-				},
-				Spec: AppSpecV3{
-					URI: "mcp+stdio://",
-					MCP: &MCP{
-						Command:       "docker",
-						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
-						RunAsHostUser: "docker",
-					},
-				},
-			},
-			wantErr: require.NoError,
-		},
-		{
-			name: "mcp missing spec",
-			meta: Metadata{
-				Name: "mcp-missing-run-as",
-			},
-			spec: AppSpecV3{
-				URI: "mcp+stdio://",
-			},
-			wantErr: require.Error,
-		},
-		{
-			name: "mcp missing run_as_host_user",
-			meta: Metadata{
-				Name: "mcp-missing-spec",
-			},
-			spec: AppSpecV3{
-				MCP: &MCP{
-					Command: "docker",
-					Args:    []string{"run", "-i", "--rm", "mcp/everything"},
-				},
-			},
-			wantErr: require.Error,
-		},
-		{
-			name: "mcp demo",
-			meta: Metadata{
-				Name: "teleport-mcp-demo",
-				Labels: map[string]string{
-					TeleportInternalResourceType: DemoResource,
-				},
-			},
-			spec: AppSpecV3{
-				URI: "mcp+stdio://teleport-mcp-demo",
-			},
-			want: &AppV3{
-				Kind:    "app",
-				SubKind: "mcp",
-				Version: "v3",
-				Metadata: Metadata{
-					Name:      "teleport-mcp-demo",
-					Namespace: "default",
-					Labels: map[string]string{
-						TeleportInternalResourceType: DemoResource,
-					},
-				},
-				Spec: AppSpecV3{
-					URI: "mcp+stdio://teleport-mcp-demo",
-				},
-			},
-			wantErr: require.NoError,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -694,90 +468,4 @@ func TestNewAppV3(t *testing.T) {
 			require.Equal(t, tt.want, actual)
 		})
 	}
-}
-
-func TestPortRangesContains(t *testing.T) {
-	portRanges := PortRanges([]*PortRange{
-		&PortRange{Port: 10, EndPort: 20},
-		&PortRange{Port: 42},
-	})
-
-	tests := []struct {
-		port int
-		want require.BoolAssertionFunc
-	}{
-		{port: 10, want: require.True},
-		{port: 20, want: require.True},
-		{port: 15, want: require.True},
-		{port: 42, want: require.True},
-		{port: 30, want: require.False},
-		{port: 0, want: require.False},
-	}
-
-	for _, tt := range tests {
-		t.Run(strconv.Itoa(tt.port), func(t *testing.T) {
-			tt.want(t, portRanges.Contains(tt.port))
-		})
-	}
-}
-
-func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
-	require.NoError(t, err, msgAndArgs...)
-}
-
-func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
-	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
-}
-
-func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
-		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
-		require.ErrorContains(t, err, msg, msgAndArgs...)
-	}
-}
-
-func hasErrAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
-		require.ErrorContains(t, err, msg, msgAndArgs...)
-	}
-}
-
-func TestGetMCPServerTransportType(t *testing.T) {
-	tests := []struct {
-		name string
-		uri  string
-		want string
-	}{
-		{
-			name: "stdio",
-			uri:  "mcp+stdio://",
-			want: MCPTransportStdio,
-		},
-		{
-			name: "unknown",
-			uri:  "http://localhost",
-			want: "",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, GetMCPServerTransportType(tt.uri))
-		})
-	}
-}
-
-func TestDeduplicateApps(t *testing.T) {
-	var apps []Application
-	for _, name := range []string{"a", "b", "c", "b", "a", "d"} {
-		app_, err := NewAppV3(Metadata{
-			Name: name,
-		}, AppSpecV3{
-			URI: "localhost:3080",
-		})
-		require.NoError(t, err)
-		apps = append(apps, app_)
-	}
-
-	deduped := DeduplicateApps(apps)
-	require.Equal(t, []string{"a", "b", "c", "d"}, slices.Collect(ResourceNames(deduped)))
 }

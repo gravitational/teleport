@@ -2,7 +2,7 @@
 title: Teleport Authentication
 description: This chapter explains how Teleport uses certificate authorities to authenticate users and services.
 h1: Teleport Authentication with Certificates
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -53,9 +53,8 @@ identity to the public key with a certificate authority's signature.
 
 ![x.509 certs](../../../img/architecture/x509-cert@2x.svg)
 
-Teleport uses x.509 certificates for Kubernetes clusters, databases, web
-services and its own internal components, such as the Proxy Service and Auth
-Service, to establish mutually authenticated TLS connections (mTLS).
+Teleport uses x.509 certificates for Kubernetes, databases, web services and its own internal
+components - proxies, auth services to establish mutually authenticated TLS connections - mTLS.
 
 ### OpenSSH certificates
 
@@ -111,7 +110,7 @@ services and rotates SSH and X.509 certificates.
 
 Teleport internal services - the Auth Service, Proxy Service, Agents, and Machine ID Bots - use certificates to identify themselves
 within a cluster. To join services to the cluster and receive certificates, admins should use
-[short-lived tokens or cloud identity services](../../enroll-resources/agents/join-token.mdx).
+[short-lived tokens or cloud identity services](../../enroll-resources/agents/join-services-to-your-cluster/join-token.mdx).
 
 Unlike users and services, internal services receive long-lived certificates.
 
@@ -123,10 +122,8 @@ Take a look at the [Certificate Rotation Guide](../../zero-trust-access/manageme
 learn how to do certificate rotation in practice.
 
 <Admonition type="tip">
-To quickly lock out a potentially compromised Auth Service instance, Proxy
-Service instance, or Teleport Agent without rotating the entire cluster
-certificates, use [session and identity
-locking](../../identity-governance/locking.mdx).
+To quickly lock out the node, proxy or auth service that may be compromised without rotating the entire
+cluster certificates, use node [session and identity locking](../../identity-governance/locking.mdx).
 </Admonition>
 
 ## More concepts

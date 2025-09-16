@@ -51,7 +51,7 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 func (r *webSessions) List(ctx context.Context) ([]types.WebSession, error) {
 	sessions, err := r.listStream(ctx)
 	if err != nil {
-		// TODO(espadolini): DELETE IN 19.0.0
+		// TODO(espadolini): DELETE IN 18.0
 		if trace.IsNotImplemented(err) {
 			return r.listUnary(ctx)
 		}

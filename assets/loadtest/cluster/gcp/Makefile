@@ -1,12 +1,12 @@
 # preview cluster configuration
 .PHONY: plan
 plan:
-	tofu plan
+	terraform plan
 
 # apply cluster configuration
 .PHONY: create-cluster
 create-cluster:
-	tofu apply
+	terraform apply
 
 # authorize kubectl to manage the cluster
 .PHONY: get-creds
@@ -16,14 +16,14 @@ get-creds:
 # destroy the cluster
 .PHONY: destroy
 destroy:
-	tofu destroy
+	terraform destroy
 
 # print cluster name
 .PHONY: get-cluster-name
 get-cluster-name:
-	@tofu output -raw cluster_name
+	@terraform output -raw cluster_name
 
 # print project name
 .PHONY: get-project
 get-project:
-	@tofu output -raw project
+	@terraform output -raw project

@@ -173,7 +173,7 @@ func collectPrivateKeys(privateKeys []secretsscanner.SSHPrivateKey) []*accessgra
 func splitCommaSeparatedSlice(s []string) []string {
 	var result []string
 	for _, entry := range s {
-		for split := range strings.SplitSeq(entry, ",") {
+		for _, split := range strings.Split(entry, ",") {
 			result = append(result, strings.TrimSpace(split))
 		}
 	}

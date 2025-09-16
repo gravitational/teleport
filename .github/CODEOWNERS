@@ -5,7 +5,7 @@
 /build.assets/tooling/cmd/difftest/ @klizhentas @russjones @r0mant @zmb3 @rosstimothy
 
 # Owners for JS dependency updates.
-/pnpm-lock.yaml @avatus @gzdunek @ravicious @zmb3 @r0mant
+/pnpm-lock.yaml @avatus @gzdunek @ravicious
 /web/packages/teleterm/package.json @gzdunek @ravicious
 
 # Owners for Go dependency updates.
@@ -15,7 +15,6 @@
 /assets/backport/go.mod @russjones @r0mant @zmb3 @rosstimothy
 /build.assets/tooling/go.mod @russjones @r0mant @zmb3 @rosstimothy @fheinecke @camscale @doggydogworld
 /integrations/terraform/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato
-/integrations/terraform-mwi/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato @strideynet
 /integrations/event-handler/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato
 
 # Owners for Rust dependency updates.

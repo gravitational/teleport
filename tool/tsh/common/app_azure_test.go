@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
-	"path/filepath"
+	"path"
 	"strings"
 	"testing"
 
@@ -49,9 +49,9 @@ func TestAzure(t *testing.T) {
 	connector := mockConnector(t)
 	user, azureRole := makeUserWithAzureRole(t)
 
-	authProcess, err := testserver.NewTeleportProcess(
-		t.TempDir(),
-		testserver.WithClusterName("localhost"),
+	authProcess := testserver.MakeTestServer(
+		t,
+		testserver.WithClusterName(t, "localhost"),
 		testserver.WithBootstrap(connector, user, azureRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -64,11 +64,6 @@ func TestAzure(t *testing.T) {
 			}
 		}),
 	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, authProcess.Close())
-		require.NoError(t, authProcess.Wait())
-	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -86,8 +81,8 @@ func TestAzure(t *testing.T) {
 
 	getEnvValue := func(cmdEnv []string, key string) string {
 		for _, env := range cmdEnv {
-			if after, ok := strings.CutPrefix(env, key+"="); ok {
-				return after
+			if strings.HasPrefix(env, key+"=") {
+				return strings.TrimPrefix(env, key+"=")
 			}
 		}
 		return ""
@@ -178,8 +173,8 @@ func TestAzure(t *testing.T) {
 
 					require.Equal(t, []string{"az", "vm", "ls", "-g", "my-group"}, cmd.Args)
 
-					require.Equal(t, filepath.Join(tmpHomePath, "azure/localhost/azure-api"), getEnvValue(cmd.Env, "AZURE_CONFIG_DIR"))
-					require.Equal(t, filepath.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue(cmd.Env, "REQUESTS_CA_BUNDLE"))
+					require.Equal(t, path.Join(tmpHomePath, "azure/localhost/azure-api"), getEnvValue(cmd.Env, "AZURE_CONFIG_DIR"))
+					require.Equal(t, path.Join(tmpHomePath, "keys/127.0.0.1/alice@example.com-app/localhost/azure-api-localca.pem"), getEnvValue(cmd.Env, "REQUESTS_CA_BUNDLE"))
 					require.True(t, strings.HasPrefix(getEnvValue(cmd.Env, "HTTPS_PROXY"), "http://127.0.0.1:"))
 
 					tc.assertCommandEnv(t, cmd.Env)
@@ -253,7 +248,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 			requestedIdentity: "",
 			profileIdentities: []string{"id1", "id2"},
 			want:              "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "multiple Azure identities available, choose one with --azure-identity flag")
 			},
 		},
@@ -262,7 +257,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 			requestedIdentity: "",
 			profileIdentities: []string{},
 			want:              "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "no Azure identities available, check your permissions")
 			},
 		},
@@ -286,7 +281,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 			requestedIdentity: "id3",
 			profileIdentities: []string{"id1", "id2"},
 			want:              "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "failed to find the identity matching \"id3\"")
 			},
 		},
@@ -318,7 +313,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 			requestedIdentity: "ID3",
 			profileIdentities: []string{"id1", "id2"},
 			want:              "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "failed to find the identity matching \"ID3\"")
 			},
 		},
@@ -348,7 +343,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 				"/subscriptions/1111111/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
 			},
 			want: "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "provided identity \"id1\" is ambiguous, please specify full identity name")
 			},
 		},
@@ -378,7 +373,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 				"/subscriptions/1111111/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
 			},
 			want: "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "provided identity \"ID1\" is ambiguous, please specify full identity name")
 			},
 		},
@@ -392,7 +387,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 				"/subscriptions/1111111/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/idX",
 			},
 			want: "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "failed to find the identity matching \"id3\"")
 			},
 		},
@@ -436,14 +431,14 @@ func Test_getAzureTokenSecret(t *testing.T) {
 		{
 			name:        "MSI_ENDPOINT with invalid prefix",
 			msiEndpoint: "dummy",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, `"MSI_ENDPOINT" environment variable not empty, but doesn't start with "https://azure-msi.teleport.dev/" as expected`)
 			},
 		},
 		{
 			name:        "MSI_ENDPOINT without secret",
 			msiEndpoint: "https://" + types.TeleportAzureMSIEndpoint + "/",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "MSI secret cannot be empty")
 			},
 		},
@@ -457,7 +452,7 @@ func Test_getAzureTokenSecret(t *testing.T) {
 		{
 			name:           "IDENTITY_HEADER present without endpoint",
 			identityHeader: "secret",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, `IDENTITY_HEADER`)
 			},
 		},

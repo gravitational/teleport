@@ -28,12 +28,13 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/genmap"
 )
 
@@ -104,33 +105,36 @@ func (p *HostAndUserCAPoolInfo) verifyPeerCert() func([][]byte, [][]*x509.Certif
 		peerCert := verifiedChains[0][0]
 		identity, err := tlsca.FromSubject(peerCert.Subject, peerCert.NotAfter)
 		if err != nil {
-			slog.WarnContext(context.TODO(), "Failed to parse identity from client certificate subject", "error", err)
+			log.WithError(err).Warn("Failed to parse identity from client certificate subject")
 			return trace.Wrap(err)
 		}
 		certClusterName := identity.TeleportCluster
 		issuerClusterName, err := tlsca.ClusterName(peerCert.Issuer)
 		if err != nil {
-			slog.WarnContext(context.TODO(), "Failed to parse issuer cluster name from client certificate issuer", "error", err)
+			log.WithError(err).Warn("Failed to parse client certificate")
 			return trace.AccessDenied(invalidCertErrMsg)
 		}
 		if certClusterName != issuerClusterName {
-			slog.WarnContext(context.TODO(), "Client peer certificate was issued by a CA from a different cluster than what the certificate claims to be from", "peer_cert_cluster_name", certClusterName, "issuer_cluster_name", issuerClusterName)
+			log.WithFields(logrus.Fields{
+				"peer_cert_cluster_name": certClusterName,
+				"issuer_cluster_name":    issuerClusterName,
+			}).Warn("Client peer certificate was issued by a CA from a different cluster than what the certificate claims to be from")
 			return trace.AccessDenied(invalidCertErrMsg)
 		}
 
 		ca, ok := p.CATypes[string(peerCert.RawIssuer)]
 		if !ok {
-			slog.WarnContext(context.TODO(), "Could not find issuer CA of client certificate")
+			log.Warn("Could not find issuer CA of client certificate")
 			return trace.AccessDenied(invalidCertErrMsg)
 		}
 
 		// Ensure the CA that issued this client cert is of the appropriate type
 		systemRole := findPrimarySystemRole(identity.Groups)
 		if systemRole != nil && !ca.IsHostCA {
-			slog.WarnContext(context.TODO(), "Client peer certificate has a builtin role but was not issued by a host CA", "role", systemRole.String())
+			log.WithField("role", systemRole.String()).Warn("Client peer certificate has a builtin role but was not issued by a host CA")
 			return trace.AccessDenied(invalidCertErrMsg)
 		} else if systemRole == nil && !ca.IsUserCA {
-			slog.WarnContext(context.TODO(), "Client peer certificate has a local role but was not issued by a user CA")
+			log.Warn("Client peer certificate has a local role but was not issued by a user CA")
 			return trace.AccessDenied(invalidCertErrMsg)
 		}
 
@@ -143,14 +147,6 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// we're going to start the generator, which means that we are potentially
-	// going to read from cfg.TLS at any point after returning, which means that
-	// either the caller must always give us a cloned [tls.Config], or we just
-	// make one here
-	cfg.TLS = cfg.TLS.Clone()
-	// TODO(espadolini): rework the generator so it only deals with
-	// [*x509.CertPool] instead, with an optional
-	// [tls.Config.GetConfigForClient] wrapper factory
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -163,6 +159,7 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 	c.clientTLSPools, err = genmap.New(genmap.Config[string, *HostAndUserCAPoolInfo]{
 		Generator: c.generator,
 	})
+
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -271,7 +268,7 @@ func (c *ClientTLSConfigGenerator) refreshClientTLSConfigs(ctx context.Context) 
 		}
 
 		select {
-		case <-time.After(retryutils.FullJitter(time.Second * 3)):
+		case <-time.After(utils.FullJitter(time.Second * 3)):
 		case <-ctx.Done():
 			return
 		}

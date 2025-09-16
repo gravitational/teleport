@@ -76,13 +76,6 @@ type Server interface {
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 
-	// GetRelayGroup returns the name of the Relay group that the server is
-	// connected to.
-	GetRelayGroup() string
-	// GetRelayIDs returns the list of Relay host IDs that the server is
-	// connected to.
-	GetRelayIDs() []string
-
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
 
@@ -109,9 +102,6 @@ type Server interface {
 	GetAWSInstanceID() string
 	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
 	GetAWSAccountID() string
-
-	// GetGitHub returns the GitHub server spec.
-	GetGitHub() *GitHubServerMetadata
 }
 
 // NewServer creates an instance of Server.
@@ -162,30 +152,6 @@ func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
 			Labels: labels,
 		},
 		Spec: spec,
-	}
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return server, nil
-}
-
-// NewGitHubServer creates a new Git server for GitHub.
-func NewGitHubServer(githubSpec GitHubServerMetadata) (Server, error) {
-	return NewGitHubServerWithName(uuid.NewString(), githubSpec)
-}
-
-// NewGitHubServerWithName creates a new Git server for GitHub with provided
-// name.
-func NewGitHubServerWithName(name string, githubSpec GitHubServerMetadata) (Server, error) {
-	server := &ServerV2{
-		Kind:    KindGitServer,
-		SubKind: SubKindGitHub,
-		Metadata: Metadata{
-			Name: name,
-		},
-		Spec: ServerSpecV2{
-			GitHub: &githubSpec,
-		},
 	}
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -391,22 +357,6 @@ func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
-// GetRelayGroup implements [Server].
-func (s *ServerV2) GetRelayGroup() string {
-	if s == nil {
-		return ""
-	}
-	return s.Spec.RelayGroup
-}
-
-// GetRelayIDs implements [Server].
-func (s *ServerV2) GetRelayIDs() []string {
-	if s == nil {
-		return nil
-	}
-	return s.Spec.RelayIds
-}
-
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
@@ -488,11 +438,6 @@ func (s *ServerV2) IsEICE() bool {
 	}
 
 	return s.GetAWSAccountID() != "" && s.GetAWSInstanceID() != ""
-}
-
-// GetGitHub returns the GitHub server spec.
-func (s *ServerV2) GetGitHub() *GitHubServerMetadata {
-	return s.Spec.GitHub
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
@@ -585,8 +530,6 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 			// if the server is a registered OpenSSH node, allow the name to be
 			// randomly generated
 			s.Metadata.Name = uuid.NewString()
-		case SubKindGitHub:
-			s.Metadata.Name = uuid.NewString()
 		}
 	}
 
@@ -594,32 +537,13 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	switch s.Kind {
-	case "":
+	if s.Kind == "" {
 		return trace.BadParameter("server Kind is empty")
-	case KindNode:
-		if err := s.nodeCheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	case KindGitServer:
-		if err := s.gitServerCheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		if s.SubKind != "" {
-			return trace.BadParameter(`server SubKind must only be set when Kind is "node" or "git_server"`)
-		}
+	}
+	if s.Kind != KindNode && s.SubKind != "" {
+		return trace.BadParameter(`server SubKind must only be set when Kind is "node"`)
 	}
 
-	for key := range s.Spec.CmdLabels {
-		if !IsValidLabelKey(key) {
-			return trace.BadParameter("invalid label key: %q", key)
-		}
-	}
-	return nil
-}
-
-func (s *ServerV2) nodeCheckAndSetDefaults() error {
 	switch s.SubKind {
 	case "", SubKindTeleportNode:
 		// allow but do nothing
@@ -634,48 +558,22 @@ func (s *ServerV2) nodeCheckAndSetDefaults() error {
 		}
 
 	default:
-		return trace.BadParameter("invalid SubKind %q of Kind %q", s.SubKind, s.Kind)
-	}
-	return nil
-}
-
-func (s *ServerV2) gitServerCheckAndSetDefaults() error {
-	switch s.SubKind {
-	case SubKindGitHub:
-		return trace.Wrap(s.githubCheckAndSetDefaults())
-	default:
-		return trace.BadParameter("invalid SubKind %q of Kind %q", s.SubKind, s.Kind)
-	}
-}
-
-func (s *ServerV2) githubCheckAndSetDefaults() error {
-	if s.Spec.GitHub == nil {
-		return trace.BadParameter("github must be set for Subkind %q", s.SubKind)
-	}
-	if s.Spec.GitHub.Integration == "" {
-		return trace.BadParameter("integration must be set for Subkind %q", s.SubKind)
-	}
-	if err := ValidateGitHubOrganizationName(s.Spec.GitHub.Organization); err != nil {
-		return trace.Wrap(err, "invalid GitHub organization name")
+		return trace.BadParameter("invalid SubKind %q", s.SubKind)
 	}
 
-	// Set SSH host port for connection and "fake" hostname for routing. These
-	// values are hard-coded and cannot be customized.
-	s.Spec.Addr = "github.com:22"
-	s.Spec.Hostname = MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
-	if s.Metadata.Labels == nil {
-		s.Metadata.Labels = make(map[string]string)
+	for key := range s.Spec.CmdLabels {
+		if !IsValidLabelKey(key) {
+			return trace.BadParameter("invalid label key: %q", key)
+		}
 	}
-	s.Metadata.Labels[GitHubOrgLabel] = s.Spec.GitHub.Organization
+
 	return nil
 }
 
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *ServerV2) MatchSearch(values []string) bool {
-	switch s.Kind {
-	case KindNode, KindGitServer:
-	default:
+	if s.GetKind() != KindNode {
 		return false
 	}
 Outer:
@@ -896,30 +794,4 @@ func (s Servers) GetFieldVals(field string) ([]string, error) {
 	}
 
 	return vals, nil
-}
-
-// MakeGitHubOrgServerDomain creates a special domain name used in server's
-// host address to identify the GitHub organization.
-func MakeGitHubOrgServerDomain(org string) string {
-	return fmt.Sprintf("%s.%s", org, GitHubOrgServerDomain)
-}
-
-// GetGitHubOrgFromNodeAddr parses the organization from the node address.
-func GetGitHubOrgFromNodeAddr(addr string) (string, bool) {
-	if host, _, err := net.SplitHostPort(addr); err == nil {
-		addr = host
-	}
-	if strings.HasSuffix(addr, "."+GitHubOrgServerDomain) {
-		return strings.TrimSuffix(addr, "."+GitHubOrgServerDomain), true
-	}
-	return "", false
-}
-
-// GetOrganizationURL returns the URL to the GitHub organization.
-func (m *GitHubServerMetadata) GetOrganizationURL() string {
-	if m == nil {
-		return ""
-	}
-	// Public github.com for now.
-	return fmt.Sprintf("%s/%s", GithubURL, m.Organization)
 }

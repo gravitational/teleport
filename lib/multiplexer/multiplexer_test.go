@@ -20,6 +20,8 @@ package multiplexer
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -43,9 +45,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -53,18 +57,17 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
 // TestMux tests multiplexing protocols
 // using the same listener.
 func TestMux(t *testing.T) {
-	_, signer, err := cert.CreateTestEd25519Certificate("foo", ssh.HostCert)
+	_, signer, err := cert.CreateCertificate("foo", ssh.HostCert)
 	require.NoError(t, err)
 
 	// TestMux tests basic use case of multiplexing TLS
@@ -651,7 +654,7 @@ func TestMux(t *testing.T) {
 		httpServer.Close()
 		s.Stop()
 		// wait for both servers to finish
-		for range 2 {
+		for i := 0; i < 2; i++ {
 			err := <-errCh
 			require.NoError(t, err)
 		}
@@ -734,22 +737,22 @@ func TestMux(t *testing.T) {
 		certPool.AppendCertsFromPEM(caCert)
 
 		// Sign server certificate.
-		serverKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		serverRSAKey, err := native.GenerateRSAPrivateKey()
 		require.NoError(t, err)
 		serverPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			Subject:   pkix.Name{CommonName: "localhost"},
-			PublicKey: serverKey.Public(),
+			PublicKey: serverRSAKey.Public(),
 			NotAfter:  time.Now().Add(time.Hour),
 			DNSNames:  []string{"127.0.0.1"},
 		})
 		require.NoError(t, err)
-		serverKeyPEM, err := keys.MarshalPrivateKey(serverKey)
+		serverKeyPEM, err := keys.MarshalPrivateKey(serverRSAKey)
 		require.NoError(t, err)
 		serverCert, err := tls.X509KeyPair(serverPEM, serverKeyPEM)
 		require.NoError(t, err)
 
 		// Sign client certificate with database access identity.
-		clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		clientRSAKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 		require.NoError(t, err)
 		subject, err := (&tlsca.Identity{
 			Username: "alice",
@@ -761,11 +764,11 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 		clientPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 			Subject:   subject,
-			PublicKey: clientKey.Public(),
+			PublicKey: clientRSAKey.Public(),
 			NotAfter:  time.Now().Add(time.Hour),
 		})
 		require.NoError(t, err)
-		clientKeyPEM, err := keys.MarshalPrivateKey(clientKey)
+		clientKeyPEM, err := keys.MarshalPrivateKey(clientRSAKey)
 		require.NoError(t, err)
 		clientCert, err := tls.X509KeyPair(clientPEM, clientKeyPEM)
 		require.NoError(t, err)
@@ -1285,7 +1288,7 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 	mockCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 		return ca, nil
 	}
-	proxyPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	proxyPriv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
 	// Create host identity with role "Proxy"
@@ -1309,6 +1312,7 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 	clock := clockwork.NewFakeClockAt(time.Now())
 	jwtSigner, err := jwt.New(&jwt.Config{
 		Clock:       clock,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		PrivateKey:  proxyPriv,
 	})
@@ -1375,7 +1379,7 @@ func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 	defer backend4.Close()
 
 	b.Run("simulation of signing and verifying PROXY header", func(b *testing.B) {
-		for b.Loop() {
+		for n := 0; n < b.N; n++ {
 			conn, err := net.Dial("tcp", listener4.Addr().String())
 			require.NoError(b, err)
 			defer conn.Close()

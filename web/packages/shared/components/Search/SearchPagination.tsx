@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Flex } from 'design';
 import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
 import { StyledPanel } from 'design/DataTable/StyledTable';

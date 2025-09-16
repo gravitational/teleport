@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -41,7 +40,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 		OnCreate:            s.onCreate,
 		OnUpdate:            s.onUpdate,
 		OnDelete:            s.onDelete,
-		Logger:              s.log.With("kind", types.KindApp),
+		Log:                 s.legacyLog,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -66,7 +65,7 @@ func (s *Server) startReconciler(ctx context.Context) error {
 
 // startResourceWatcher starts watching changes to application resources and
 // registers/unregisters the proxied applications accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Application, readonly.Application], error) {
+func (s *Server) startResourceWatcher(ctx context.Context) (*services.AppWatcher, error) {
 	if len(s.c.ResourceMatchers) == 0 {
 		s.log.DebugContext(ctx, "Not initializing application resource watcher.")
 		return nil, nil
@@ -75,10 +74,9 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 	watcher, err := services.NewAppWatcher(ctx, services.AppWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
-			Logger:    s.log,
+			Log:       s.legacyLog,
 			Client:    s.c.AccessPoint,
 		},
-		AppGetter: s.c.AccessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,7 +85,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 		defer watcher.Close()
 		for {
 			select {
-			case apps := <-watcher.ResourcesC:
+			case apps := <-watcher.AppsC:
 				appsWithAddr := make(types.Apps, 0, len(apps))
 				for _, app := range apps {
 					appsWithAddr = append(appsWithAddr, s.guessPublicAddr(app))
@@ -131,7 +129,7 @@ type FindPublicAddrClient interface {
 	GetProxies() ([]types.Server, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // FindPublicAddr tries to resolve the public address of the proxy of this cluster.
@@ -158,7 +156,7 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 	}
 
 	// Fall back to cluster name.
-	cn, err := client.GetClusterName(context.TODO())
+	cn, err := client.GetClusterName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

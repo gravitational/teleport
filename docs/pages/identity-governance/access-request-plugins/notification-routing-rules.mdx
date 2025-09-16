@@ -2,7 +2,7 @@
 title: Routing Access Request Notifications
 description: How to set up Teleport's Access Monitoring Rules to route Access Request notifications
 sidebar_position: 11
-labels:
+tags:
  - how-to
  - identity-governance
 ---
@@ -27,9 +27,25 @@ Teleport [changelog](../../changelog.mdx) to learn about new plugins.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise Cloud"!)
+- A managed Teleport Enterprise account.
+
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+
+  You can verify the tools you have installed by running the following commands:
+
+  ```code
+  $ tctl version
+  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  You can download these tools by following the appropriate [Installation 
+  instructions](../../installation/installation.mdx) for your environment and Teleport edition.
 
 - At least one of the Teleport Access Plugins that support Access Monitoring Rules is enrolled.
+
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Create an Access Monitoring Rule

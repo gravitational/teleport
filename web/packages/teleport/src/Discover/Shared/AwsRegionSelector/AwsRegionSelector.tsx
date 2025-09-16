@@ -65,8 +65,13 @@ export function AwsRegionSelector({
             mt={1}
             title="Refresh"
             height="40px"
-            width="40px"
-            p={0}
+            width="30px"
+            css={`
+              &:disabled {
+                opacity: 0.35;
+                pointer-events: none;
+              }
+            `}
             disabled={disableSelector || !selectedRegion}
           >
             <RefreshIcon size="medium" />

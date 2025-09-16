@@ -20,18 +20,18 @@ package testlib
 
 import (
 	"context"
-	"log/slog"
-	"math/rand/v2"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zapcore"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -41,6 +41,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -57,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
@@ -88,11 +88,12 @@ func deleteNamespaceForTest(t *testing.T, kc kclient.Client, ns *core.Namespace)
 	require.NoError(t, err)
 }
 
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
+
 func ValidRandomResourceName(prefix string) string {
-	const letters = "abcdefghijklmnopqrstuvwxyz1234567890"
-	b := make([]byte, 5)
+	b := make([]rune, 5)
 	for i := range b {
-		b[i] = letters[rand.N(len(letters))]
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return prefix + string(b)
 }
@@ -112,7 +113,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      slog.Default(),
+		Log:         logrus.StandardLogger(),
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
@@ -129,9 +130,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 		Allow: types.RoleConditions{
 			// the operator has wildcard noe labs to be able to see them
 			// but has no login allowed, so it cannot SSH into them
-			NodeLabels:     types.Labels{"*": []string{"*"}},
-			AppLabels:      types.Labels{"*": []string{"*"}},
-			DatabaseLabels: types.Labels{"*": []string{"*"}},
+			NodeLabels: types.Labels{"*": []string{"*"}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, unrestricted),
 				types.NewRule(types.KindUser, unrestricted),
@@ -141,13 +140,6 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindOktaImportRule, unrestricted),
 				types.NewRule(types.KindAccessList, unrestricted),
 				types.NewRule(types.KindNode, unrestricted),
-				types.NewRule(types.KindTrustedCluster, unrestricted),
-				types.NewRule(types.KindBot, unrestricted),
-				types.NewRule(types.KindWorkloadIdentity, unrestricted),
-				types.NewRule(types.KindAutoUpdateConfig, unrestricted),
-				types.NewRule(types.KindAutoUpdateVersion, unrestricted),
-				types.NewRule(types.KindApp, unrestricted),
-				types.NewRule(types.KindDatabase, unrestricted),
 			},
 		},
 	})
@@ -194,7 +186,6 @@ type TestSetup struct {
 	OperatorCancel           context.CancelFunc
 	OperatorName             string
 	stepByStepReconciliation bool
-	log                      *slog.Logger
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -216,14 +207,8 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	slogLogger := s.log
-	if slogLogger == nil {
-		slogLogger = logtest.NewLogger()
-	}
-
-	logger := logr.FromSlogHandler(slogLogger.Handler())
-	ctrl.SetLogger(logger)
-	setupLog := logger.WithName("setup")
+	setupLog := ctrl.Log.WithName("setup")
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true), zap.Level(zapcore.DebugLevel)))
 
 	pong, err := s.TeleportClient.Ping(context.Background())
 	require.NoError(t, err)

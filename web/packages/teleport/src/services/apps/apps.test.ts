@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import apps from 'teleport/services/apps';
 
@@ -37,21 +36,18 @@ test('correct formatting of apps fetch response', async () => {
         publicAddr: 'app-name.example.com',
         labels: [{ name: 'env', value: 'dev' }],
         clusterId: 'cluster-id',
-        useAnyProxyPublicAddr: false,
         fqdn: 'app-name.example.com',
         friendlyName: '',
         launchUrl:
           '/web/launch/app-name.example.com/cluster-id/app-name.example.com',
         awsRoles: [],
         awsConsole: false,
-        isCloud: false,
-        isTcp: false,
+        isCloudOrTcpEndpoint: false,
         addrWithProtocol: 'https://app-name.example.com',
         userGroups: [],
         samlApp: false,
         samlAppSsoUrl: '',
         integration: '',
-        permissionSets: [],
       },
       {
         kind: 'app',
@@ -63,19 +59,16 @@ test('correct formatting of apps fetch response', async () => {
         labels: [],
         clusterId: 'cluster-id',
         fqdn: '',
-        useAnyProxyPublicAddr: false,
         friendlyName: '',
         launchUrl: '',
         awsRoles: [],
         awsConsole: false,
-        isCloud: true,
-        isTcp: false,
+        isCloudOrTcpEndpoint: true,
         addrWithProtocol: 'cloud://some-addr',
         userGroups: [],
         samlApp: false,
         samlAppSsoUrl: '',
         integration: '',
-        permissionSets: [],
       },
       {
         kind: 'app',
@@ -87,19 +80,16 @@ test('correct formatting of apps fetch response', async () => {
         labels: [],
         clusterId: 'cluster-id',
         fqdn: '',
-        useAnyProxyPublicAddr: false,
         friendlyName: '',
         launchUrl: '',
         awsRoles: [],
         awsConsole: false,
-        isCloud: false,
-        isTcp: true,
+        isCloudOrTcpEndpoint: true,
         addrWithProtocol: 'tcp://some-addr',
         userGroups: [],
         samlApp: false,
         samlAppSsoUrl: '',
         integration: '',
-        permissionSets: [],
       },
       {
         kind: 'app',
@@ -111,74 +101,17 @@ test('correct formatting of apps fetch response', async () => {
         labels: [],
         clusterId: 'cluster-id',
         fqdn: '',
-        useAnyProxyPublicAddr: false,
         friendlyName: '',
         launchUrl: '',
         awsRoles: [],
         awsConsole: false,
-        isCloud: false,
-        isTcp: false,
+        isCloudOrTcpEndpoint: '',
         addrWithProtocol: '',
         userGroups: [],
         samlApp: true,
         samlAppSsoUrl: 'http://localhost/enterprise/saml-idp/login/saml-app',
         samlAppPreset: 'gcp-workforce',
         integration: '',
-        permissionSets: [],
-        samlAppLaunchUrls: [{ url: 'https://example.com' }],
-      },
-      {
-        kind: 'app',
-        id: 'cluster-id-app-with-other-proxy-addr-app-with-other-proxy-addr.example.com',
-        name: 'app-with-other-proxy-addr',
-        useAnyProxyPublicAddr: true,
-        description: 'i have a different proxy addr',
-        uri: 'http://localhost:3001',
-        publicAddr: 'app-with-other-proxy-addr.example.com',
-        labels: [],
-        clusterId: 'cluster-id',
-        fqdn: 'app-with-other-proxy-addr.localhost',
-        friendlyName: '',
-        launchUrl: '/web/launch/app-with-other-proxy-addr.localhost',
-        awsRoles: [],
-        awsConsole: false,
-        isCloud: false,
-        isTcp: false,
-        addrWithProtocol: 'https://app-with-other-proxy-addr.localhost',
-        userGroups: [],
-        samlApp: false,
-        samlAppSsoUrl: '',
-        integration: '',
-        permissionSets: [],
-      },
-      {
-        kind: 'app',
-        id: 'cluster-id-mcp-app-mcp-app.example.com',
-        name: 'mcp-app',
-        useAnyProxyPublicAddr: false,
-        description: 'Some MCP app',
-        uri: 'mcp+stdio://',
-        publicAddr: 'mcp-app.example.com',
-        labels: [],
-        clusterId: 'cluster-id',
-        fqdn: '',
-        friendlyName: '',
-        launchUrl: '',
-        awsRoles: [],
-        awsConsole: false,
-        isCloud: false,
-        isTcp: false,
-        addrWithProtocol: 'mcp+stdio://mcp-app.example.com',
-        userGroups: [],
-        samlApp: false,
-        samlAppSsoUrl: '',
-        integration: '',
-        permissionSets: [],
-        mcp: {
-          command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-everything'],
-          runAsHostUser: 'hostuser',
-        },
       },
     ],
     startKey: mockResponse.startKey,
@@ -209,31 +142,6 @@ test('null labels field in apps fetch response', async () => {
   expect(response.agents[0].labels).toEqual([]);
 });
 
-test('createAppSession', async () => {
-  const backend = jest.spyOn(api, 'post').mockResolvedValue({
-    fqdn: 'app-name.example.com',
-    cookieValue: 'cookie-value',
-    subjectCookieValue: 'subject-cookie-value',
-  });
-
-  const response = await apps.createAppSession({
-    fqdn: 'app-name.example.com',
-    cluster_name: 'example.com',
-    public_addr: 'app-name.example.com',
-  });
-
-  expect(response.fqdn).toEqual('app-name.example.com');
-
-  expect(backend).toHaveBeenCalledWith(
-    cfg.api.appSession,
-    expect.objectContaining({
-      fqdn: 'app-name.example.com',
-      cluster_name: 'example.com',
-      public_addr: 'app-name.example.com',
-    })
-  );
-});
-
 const mockResponse = {
   items: [
     {
@@ -262,28 +170,6 @@ const mockResponse = {
       description: 'SAML Application',
       samlApp: true,
       samlAppPreset: 'gcp-workforce',
-      samlAppLaunchUrls: [{ url: 'https://example.com' }],
-    },
-    {
-      clusterId: 'cluster-id',
-      name: 'app-with-other-proxy-addr',
-      publicAddr: 'app-with-other-proxy-addr.example.com',
-      fqdn: 'app-with-other-proxy-addr.localhost',
-      description: 'i have a different proxy addr',
-      useAnyProxyPublicAddr: true,
-      uri: 'http://localhost:3001',
-    },
-    {
-      clusterId: 'cluster-id',
-      name: 'mcp-app',
-      publicAddr: 'mcp-app.example.com',
-      description: 'Some MCP app',
-      uri: 'mcp+stdio://',
-      mcp: {
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-everything'],
-        runAsHostUser: 'hostuser',
-      },
     },
   ],
   startKey: 'mockKey',

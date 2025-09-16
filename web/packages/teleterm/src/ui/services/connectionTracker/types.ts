@@ -19,7 +19,7 @@
 import {
   AppUri,
   DatabaseUri,
-  DesktopUri,
+  GatewayUri,
   KubeUri,
   ServerUri,
 } from 'teleterm/ui/uri';
@@ -43,25 +43,23 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
   targetName: string;
   targetUser?: string;
   port?: string;
+  gatewayUri: GatewayUri;
   targetSubresourceName?: string;
 }
 
 export interface TrackedKubeConnection extends TrackedConnectionBase {
   kind: 'connection.kube';
+  /**
+   * @deprecated Used only by connections created by doc.terminal_tsh_kube.
+   */
+  kubeConfigRelativePath?: string;
   kubeUri: KubeUri;
-}
-
-export interface TrackedDesktopConnection extends TrackedConnectionBase {
-  kind: 'connection.desktop';
-  desktopUri: DesktopUri;
-  login: string;
 }
 
 export type TrackedConnection =
   | TrackedServerConnection
   | TrackedGatewayConnection
-  | TrackedKubeConnection
-  | TrackedDesktopConnection;
+  | TrackedKubeConnection;
 
 export type ExtendedTrackedConnection = TrackedConnection & {
   clusterName: string;

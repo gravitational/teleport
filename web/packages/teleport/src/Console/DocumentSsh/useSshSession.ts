@@ -17,7 +17,7 @@
  */
 
 import { context, trace } from '@opentelemetry/api';
-import { useEffect, useRef, useState } from 'react';
+import React from 'react';
 
 import cfg from 'teleport/config';
 import ConsoleContext from 'teleport/Console/consoleContext';
@@ -36,16 +36,16 @@ const tracer = trace.getTracer('TTY');
 export default function useSshSession(doc: DocumentSsh) {
   const { clusterId, sid, serverId, login, mode } = doc;
   const ctx = useConsoleContext();
-  const ttyRef = useRef<Tty>(null);
+  const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
-  const [session, setSession] = useState<Session>(null);
-  const [status, setStatus] = useState<Status>('loading');
+  const [session, setSession] = React.useState<Session>(null);
+  const [status, setStatus] = React.useState<Status>('loading');
 
   function closeDocument() {
     ctx.closeTab(doc);
   }
 
-  useEffect(() => {
+  React.useEffect(() => {
     function initTty(session, mode?: ParticipantMode) {
       tracer.startActiveSpan(
         'initTTY',

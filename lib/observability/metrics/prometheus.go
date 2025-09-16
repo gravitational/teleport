@@ -34,13 +34,6 @@ import (
 //   - returns an error if a collector does not fulfill the consistency and
 //     uniqueness criteria
 func RegisterPrometheusCollectors(collectors ...prometheus.Collector) error {
-	return RegisterCollectors(prometheus.DefaultRegisterer, collectors...)
-}
-
-// RegisterCollectors registers the collectors in the registry. Any errors
-// for already registered collectors are ignored. Errors are only returned
-// if a collector does not fulfill the consistency and uniqueness criteria.
-func RegisterCollectors(registry prometheus.Registerer, collectors ...prometheus.Collector) error {
 	var errs []error
 	for _, c := range collectors {
 		if err := prometheus.Register(c); err != nil {

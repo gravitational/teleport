@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -44,21 +43,11 @@ type Provisioner interface {
 	// Imlementations must guarantee that this returns trace.NotFound error if the token doesn't exist
 	DeleteToken(ctx context.Context, token string) error
 
+	// DeleteAllTokens deletes all provisioning tokens
+	DeleteAllTokens() error
+
 	// GetTokens returns all non-expired tokens
-	// Deprecated: use [ListProvisionTokens] instead.
-	// TODO(hugoShaka): DELETE IN 19.0.0
 	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
-
-	// PatchToken performs a conditional update on the named token using
-	// `updateFn`, retrying internally if a comparison failure occurs.
-	PatchToken(
-		ctx context.Context,
-		token string,
-		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
-	) (types.ProvisionToken, error)
-
-	// ListProvisionTokens retrieves a paginated list of provision tokens.
-	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token
@@ -136,18 +125,5 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 		return utils.FastMarshal(provisionToken)
 	default:
 		return nil, trace.BadParameter("unrecognized provision token version %T", provisionToken)
-	}
-}
-
-// CloneProvisionToken returns a deep copy of the given provision token, per
-// `apiutils.CloneProtoMsg()`. Fields in the clone may be modified without
-// affecting the original. Only V2 is supported.
-func CloneProvisionToken(provisionToken types.ProvisionToken) (types.ProvisionToken, error) {
-	switch provisionToken := provisionToken.(type) {
-	case *types.ProvisionTokenV2:
-		clone := apiutils.CloneProtoMsg(provisionToken)
-		return clone, nil
-	default:
-		return nil, trace.BadParameter("cannot clone unsupported provision token version %T", provisionToken)
 	}
 }

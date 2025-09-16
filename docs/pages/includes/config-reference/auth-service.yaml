@@ -109,8 +109,8 @@ teleport:
 
 # This section configures the 'auth service':
 auth_service:
-  # Turns 'auth' role on. Default is true
-  enabled: true
+  # Turns 'auth' role on. Default is 'yes'
+  enabled: yes
 
   # cluster_name is the name used to initiate a new cluster.
   # A cluster name is used as part of a signature in certificates
@@ -156,17 +156,10 @@ auth_service:
     # Defaults to false.
     require_session_mfa: false
 
-    # second_factors is the list of allowed second factors for the cluster.
-    # Possible values: "otp", "webauthn", and "sso". Order does not matter.
-    # Defaults to ["otp"].
-    second_factors: ["webauthn", "otp"]
-
     # second_factor can be 'on', 'otp' or 'webauthn'.
     # - 'on' requires either otp or webauthn second factor.
     # - 'otp' and 'webauthn' require the corresponding second factor.
-    #
-    # Prefer setting second_factors instead.
-    #second_factor: otp
+    second_factor: otp
 
     # Sets whether passwordless authentication is allowed.
     # Passwordless requires WebAuthn.
@@ -258,45 +251,12 @@ auth_service:
       # - 'required' - enables device authentication and device-aware audit.
       #   Additionally, it requires a trusted device for all SSH, Database
       #   and Kubernetes connections.
-      # - 'required-for-humans' - enables device authentication and device-aware
-      #   audit. Additionally, it requires a trusted device for all SSH, Database
-      #   and Kubernetes connections, for human users only (bots are exempt).
       mode: optional # always "off" for Teleport Community Edition
 
     # Determines the default time to live for user certificates
     # issued by this auth server, defaults to 12 hours.  Examples:
     # "14h30m", "1h" etc.
     default_session_ttl: 12h
-
-    stable_unix_user_config:
-      # If set to true, SSH instances will use the same UID for each given
-      # username when automatically creating users. Defaults to false.
-      enabled: false
-
-      # The range of UIDs (including both ends) used for automatic UID
-      # assignment. Ignored if enabled is set to false.
-      #first_uid: 90000
-      #last_uid: 95000
-    
-    # Sets the cryptographic signature algorithm used to sign each kind of 
-    # certificate issued by Teleport.
-    # The following values are supported:
-    #  'legacy'      : For clusters created prior to v17.0.0 with
-    #                  signatures based on 2048-bit RSA keys.
-    #  'balanced-v1' : (default) For self-hosted clusters created v17.0.0+.
-    #                  Ed25519 is used for all SSH certificates and ECDSA with
-    #                  the NIST P-256 curve is used for all TLS certificates.
-    #                  RSA is still used where for compatibility when non-RSA
-    #                  algorithms are unsupported.
-    #  'fips-v1'     : Used by default for FIPS mode clusters created v17.0.0+.
-    #                  Based on 'balanced-v1' and replaces all uses of Ed25519
-    #                  with ECDSA. HSM or KMS configuration is fully supported.
-    #  'hsm-v1'      : Default suite for new clusters created after version 17.0.0
-    #                  that have an HSM or KMS configured. 'hsm-v1' suite is based
-    #                  on the 'balanced-v1' suite but uses ECDSA in place of Ed25519
-    #                  for all Certificate Authority keys. User and host SSH keys
-    #                  still use Ed25519.
-    signature_algorithm_suite: "balanced-v1"
 
   # IP and the port to bind to. Other Teleport Nodes will be connecting to
   # this port (AKA "Auth API" or "Cluster API") to validate client

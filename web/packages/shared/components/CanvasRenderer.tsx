@@ -24,7 +24,7 @@ import React, {
   type CSSProperties,
 } from 'react';
 
-import { Logger } from 'design/logger';
+import { Logger } from 'shared/libs/logger';
 import { BitmapFrame, PngFrame } from 'shared/libs/tdp';
 import { debounce } from 'shared/utils/highbar';
 

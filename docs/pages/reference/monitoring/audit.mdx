@@ -1,7 +1,7 @@
 ---
 title: Audit Events and Records
 description: Reference of Teleport Audit Events and Session Records
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -82,7 +82,7 @@ $ ls -l /var/lib/teleport/log/bbdfe5be-fb97-43af-bf3b-29ef2e302941
 Teleport Enterprise Cloud manages the storage of audit logs for you. You can
 access your audit logs via the Teleport Web UI by clicking:
 
-**Audit** > **Audit Log**
+**Activity** > **Audit Log**
 
 </TabItem>
 </Tabs>
@@ -154,10 +154,6 @@ read [Exporting Teleport Audit Events](../../zero-trust-access/export-audit-even
 | app.session.start | A user accessed an application |
 | app.session.chunk | A record of activity during an app session |
 | join_token.create | A new join token has been created. Adds the following fields: `{"roles": ["Node", "Db"], "join_method": "token"}` |
-| mcp.session.start | An MCP server session has started. |
-| mcp.session.end | An MCP server session has ended. |
-| mcp.session.notification | A notification has been sent from the MCP client. |
-| mcp.session.request | A request has been sent from the MCP client. |
 
 ## Recorded sessions
 

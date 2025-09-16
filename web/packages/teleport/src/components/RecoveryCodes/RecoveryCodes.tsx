@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef } from 'react';
+import React, { useRef } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, Card, Flex, Text } from 'design';
@@ -33,7 +33,7 @@ export default function RecoveryCodesDialog({
   continueText = 'Continue',
   username = '',
 }: RecoveryCodesProps) {
-  const codesRef = useRef(undefined);
+  const codesRef = useRef();
 
   const captureRecoveryCodeEvent = (event: CaptureEvent) => {
     if (username) {

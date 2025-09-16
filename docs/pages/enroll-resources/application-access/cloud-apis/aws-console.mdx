@@ -1,7 +1,7 @@
 ---
 title: Access AWS With Teleport Application Access
 description: How to access AWS with Teleport application access.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -18,14 +18,14 @@ This guide will explain how to:
 - Access the AWS Command Line Interface (CLI) through Teleport.
 - Access applications using AWS SDKs through Teleport.
 
-## How it works
-
 In this setup, the Teleport Application Service has an AWS IAM role that can
 assume one or more target IAM roles. Teleport users access the AWS Management
 Console and APIs through the Teleport Web UI and `tsh`. When a user visits the
 AWS Management Console or executes a command with an AWS client application, the
 Teleport Application Service checks the user's RBAC permissions and, if they are
 authorized, forwards the user's requests to AWS. 
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -125,7 +125,7 @@ AWS APIs.
    ```
    
    Create a file called `app-service-tp.json` with the following content,
-   assigning <Var name="OIDC_ISSUER" /> to the issuer string you retrieved and
+   assigning <Var name="oidc-issuer" /> to the issuer string you retrieved and
    <Var name="EKS_ACCOUNT" /> to the ID of the AWS account that belongs to your
    EKS cluster:
    
@@ -368,8 +368,6 @@ In this step, you will define a Teleport role that confers access to the
    $ tctl create aws-ro-access.yaml
    ```
 
-   (!docs/pages/includes/create-role-using-web.mdx!)
-
 1. (!docs/pages/includes/add-role-to-user.mdx role="aws-ro-access"!)
 
 ## Step 3/4. Set up the Teleport Application Service
@@ -391,8 +389,7 @@ $ tctl tokens add --type=app --ttl=1h --format=text
 <TabItem label="EC2">
 
 On the host where you will install the Teleport Application Service, create a
-file called `/tmp/token` that consists only of your token, assigning 
-<Var name="join-token" /> to the value of the token:
+file called `/tmp/token` that consists only of your token:
 
 ```code
 $ echo <Var name="join-token" /> | sudo tee /tmp/token
@@ -418,13 +415,13 @@ Application Service:
        method: token
      proxy_server: "<Var name="PROXY_ADDR" />"
    auth_service:
-     enabled: false
+     enabled: off
    proxy_service:
-     enabled: false
+     enabled: off
    ssh_service:
-     enabled: false
+     enabled: off
    app_service:
-     enabled: true
+     enabled: "yes"
      apps:
      - name: "awsconsole"
      # The public AWS Console is used after authenticating the user from Teleport
@@ -436,10 +433,7 @@ Application Service:
    `example.teleport.sh:443`.
 
    The `app_service` field configures the Teleport Application Service. Each
-   item within `app_service.apps` is an application configuration. If self-hosting
-   the Teleport cluster, you must have [DNS and a TLS certificate](../getting-started.mdx#subdomains-and-applications)
-   configured for the application domain name associated with the Teleport 
-   Proxy Service, e.g., `awsconsole.teleport.example.com`.
+   item within `app_service.apps` is an application configuration. 
 
 </TabItem>
 <TabItem label="EKS">
@@ -471,14 +465,14 @@ Application Service:
 
 1. (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
-1. Install the Helm chart for Teleport Agent services, `teleport-kube-agent`:
+1. Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
 
    ```code
    $ helm -n teleport-agent install teleport-kube-agent teleport/teleport-kube-agent \
      --values values.yaml --create-namespace
    ```
 
-1. Make sure that the Teleport Agent pod is running. You should see one
+1. Make sure that the Teleport agent pod is running. You should see one
    `teleport-kube-agent` pod with a single ready container:
 
    ```code
@@ -508,7 +502,7 @@ label to the account ID:
 
 ```yaml
 app_service:
-  enabled: true
+  enabled: "yes"
   apps:
   - name: "awsconsole-test"
     uri: "https://console.aws.amazon.com/ec2/v2/home"
@@ -559,7 +553,7 @@ to AWS, users can access AWS resources through Teleport.
 
 ### Access the AWS console
 
-1. Visit the home page of the Teleport Web UI and click **Resources**. If
+1. Visit the home page of the Teleport Web UI or click the **Resources** tab. If
    the Teleport Application Service is proxying the AWS Management Console as
    expected, the Web UI will display the name of the application you registered,
    which this guide assumes is `awsconsole`. (Enter the name of the application
@@ -788,20 +782,6 @@ instance and attach an IAM role to it.
 
 (!docs/pages/includes/aws-no-credential-provider.mdx service="Application"!)
 
-### Missing X-Forwarded-Host HTTP header
-
-You may encounter the error `proxied requests must include X-Forwarded-Host header`
-when making requests to your `tsh` local proxy. This is because Teleport
-expects the HTTP requests to include the `X-Forwarded-Host` header, containing
-a valid AWS endpoint.
-
-Ensure the application using the Teleport AWS local proxy supports HTTPS proxy
-setting. Passing the local proxy address to applications as the AWS endpoint URL
-is no longer supported.
-
-If you were previously using the `--endpoint-url` flag on `tsh proxy aws`
-command, you must update your applications to use the local HTTPS proxy instead.
-
 ## Next steps
 
 Now that you know how to set up Teleport to protect access to the AWS Management
@@ -829,7 +809,7 @@ for all of the variables and functions you can use in the `aws_role_arns` field.
 
 ### Register the AWS application dynamically
 
-You can deploy a pool of Teleport Agents to run the Teleport Application
+You can deploy a pool of Teleport agents to run the Teleport Application
 Service, then enroll an AWS application in your Teleport cluster as a dynamic
 resource. Read more about [dynamically registering
 applications](../guides/dynamic-registration.mdx).
@@ -839,7 +819,7 @@ applications](../guides/dynamic-registration.mdx).
 This guide shows you how to use the **join token method** to enroll the Teleport
 Application Service in your cluster. This is one of several available methods,
 and we recommend reading the [Join Services to your Teleport
-Cluster](../../../index.mdx) guide to configure the
+Cluster](../../agents/join-services-to-your-cluster/join-services-to-your-cluster.mdx) guide to configure the
 most appropriate method for your environment.
 
 ## Further reading

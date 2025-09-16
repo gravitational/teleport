@@ -7,17 +7,10 @@ Teleport Connect (previously Teleport Terminal, package name `teleterm`) is a de
 Please refer to [the _Using Teleport Connect_ page from our
 docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
-### Limitations of the OSS version
-
-Client tools updates are disabled in this version as they are licensed under AGPL. 
-To use Community Edition builds or custom binaries, set the `TELEPORT_CDN_BASE_URL` environment variable.
-
-To use Community Edition builds, start Teleport Connect with:
-```bash
-TELEPORT_CDN_BASE_URL=https://cdn.teleport.dev
-```
-
 ## Building and packaging
+
+**Note: At the moment, the OSS build of Connect is broken. Please refer to
+[#17706](https://github.com/gravitational/teleport/issues/17706) for a temporary workaround.**
 
 Teleport Connect consists of two main components: the `tsh` tool and the Electron app.
 
@@ -51,41 +44,20 @@ cd teleport
 pnpm install && make build/tsh
 ```
 
-The app depends on Rust WASM code. To compile it, the following tools have to be installed:
-* `Rust` and `Cargo`. The required version is specified by `RUST_VERSION` in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11).
-* [`wasm-pack`](https://github.com/rustwasm/wasm-pack). The required version is specified by `WASM_PACK_VERSION` in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12).
-* [`binaryen`](https://github.com/WebAssembly/binaryen) which contains `wasm-opt`. This is required on on linux aarch64 (64-bit ARM).
-  You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
-
-To automatically install `wasm-pack`, run the following command:
-```shell
-make ensure-wasm-deps
-```
-
 To launch `teleterm` in development mode:
 
 ```sh
 cd teleport
-# By default, the dev version assumes that the tsh binary is at build/tsh.
 pnpm start-term
 
-# You can provide a different absolute path to the tsh binary though the CONNECT_TSH_BIN_PATH env var.
+# By default, the dev version assumes that the tsh binary is at build/tsh.
+# You can provide a different absolute path to a tsh binary though the CONNECT_TSH_BIN_PATH env var.
 CONNECT_TSH_BIN_PATH=$PWD/build/tsh pnpm start-term
 ```
 
-To automatically restart the app when tsh gets rebuilt or
-[when the main process or preload scripts change](https://electron-vite.org/guide/hot-reloading),
-use [watchexec](https://github.com/watchexec/watchexec):
-
-```sh
-watchexec --restart --watch build --filter tsh --no-project-ignore -- pnpm start-term -w
-```
-
-This can be combined with a tool like [gow](https://github.com/mitranim/gow) to automatically rebuild tsh:
-
-```sh
-gow -s -S '✅\n' -g make build/tsh
-```
+For a quick restart which restarts the Electron app and the tsh daemon, press `F6` while the
+Electron window is open. If you recompiled tsh, this is going to pick up any new changes as well as
+any changes introduced to the main process of the Electron app.
 
 ### Development-only tools
 
@@ -181,11 +153,6 @@ A zip file containing the DLL can be downloaded from https://www.wintun.net/buil
 Extract the zip file and then pass the path to wintun.dll to `pnpm package-term`
 with the `CONNECT_WINTUN_DLL_PATH` environment variable. By default, electron-builder builds an x64
 version of the app, so you need amd64 version of the DLL.
-
-Another DLL that's not required but one that makes logs in Event Viewer easier to read is
-msgfile.dll. Refer to
-[`lib/utils/log/eventlog/README.md`](/lib/utils/log/eventlog/README.md#message-file) for details on
-how to generate it.
 
 ### macOS
 
@@ -316,34 +283,7 @@ resource availability as possible.
 
 ### PTY communication overview (Renderer Process <=> Shared Process)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant DT as Document Terminal
-    participant PS as PTY Service
-    participant PHS as PTY Host Service
-    participant PP as PTY Process
-
-    DT->>PS: wants new PTY
-    Note over PS,PHS: gRPC communication
-    PS->>PHS: createPtyProcess(options)
-    PHS->>PP: new PtyProcess()
-    PHS-->>PS: ptyId of the process is returned
-    PS->>PHS: establishExchangeEvents(ptyId) channel
-    Note right of DT: client has been created,<br/> so PTY Service can attach <br/> event handlers to the channel <br/>(onData/onOpen/onExit)
-    PS-->>DT: pty process object
-    DT->>PS: start()
-    PS->>PHS: exchangeEvents.start()
-    Note left of PP: exchangeEvents attaches event handlers<br/>to the PTY Process (onData/onOpen/onExit)
-    PHS->>PP: start()
-    PP-->>PHS: onOpen()
-    PHS-->>PS: exchangeEvents.onOpen()
-    PS-->>DT: onOpen()
-    DT->>PS: dispose()
-    PS->>PHS: end exchangeEvents channel
-    PHS->>PP: dispose process and remove it
-
-```
+![PTY communication](docs/ptyCommunication.png)
 
 ### Overview of a deep link launch process
 

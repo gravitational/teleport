@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonIcon, ButtonWarning, H2 } from 'design';
+import { ButtonIcon, ButtonWarning, Text } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
-import { P } from 'design/Text/Text';
 
 export function ChangeAccessRequestKind({
   onCancel,
@@ -44,18 +43,21 @@ export function ChangeAccessRequestKind({
         width: '100%',
       })}
     >
-      <DialogHeader justifyContent="space-between" mb={4}>
-        <H2>Replace selected resources?</H2>
+      <DialogHeader justifyContent="space-between" mb={0}>
+        <Text typography="h5" bold>
+          Replace selected resources?
+        </Text>
         <ButtonIcon onClick={onCancel} color="text.slightlyMuted">
           <Cross size="small" />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>
-        <P>
+        <Text color="text.slightlyMuted" typography="body1">
           Resource Access Request cannot be combined with Role Access Request.
           The current items will be cleared.
-        </P>
-        <P>Do you want to continue?</P>
+          <br />
+          Do you want to continue?
+        </Text>
       </DialogContent>
       <DialogFooter>
         <ButtonWarning size="large" block={true} onClick={onConfirm}>

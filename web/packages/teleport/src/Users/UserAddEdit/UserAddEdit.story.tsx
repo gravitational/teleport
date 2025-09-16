@@ -16,102 +16,54 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { StoryObj } from '@storybook/react-vite';
-import { delay } from 'msw';
+import React, { useState } from 'react';
 
-import type { TraitsOption } from 'shared/components/TraitsEditor';
-
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
-import type { RoleResource } from 'teleport/services/resources';
 import { AllUserTraits } from 'teleport/services/user';
-import { successGetRoles } from 'teleport/test/helpers/roles';
-import { handleUpdateUser } from 'teleport/test/helpers/users';
 
+import type { TraitsOption } from './TraitsEditor';
 import { UserAddEdit } from './UserAddEdit';
 
 export default {
   title: 'Teleport/Users/UserAddEdit',
 };
 
-export const Create: StoryObj = {
-  render() {
-    const p = {
-      ...props,
-      isNew: true,
-      name: '',
-      fetchRoles: async () => [],
-      modifyFetchedData: () => null,
-      selectedRoles: [],
-      user: {
-        name: '',
-        roles: [],
-        authType: 'local',
-        isLocal: true,
-      },
-    };
+export const Create = () => {
+  const p = {
+    ...props,
+    isNew: true,
+    name: '',
+    fetchRoles: async () => [],
+    selectedRoles: [],
+    attempt: { status: '' as const },
+  };
 
-    return (
-      <TeleportProviderBasic>
-        <UserAddEdit {...p} />
-      </TeleportProviderBasic>
-    );
-  },
+  return <UserAddEdit {...p} />;
 };
 
-const roles: RoleResource[] = [
-  { id: '1', name: 'Relupba', content: '', kind: 'role' },
-  { id: '2', name: 'B', content: '', kind: 'role' },
-  { id: '3', name: 'Pilhibo', content: '', kind: 'role' },
-];
-
-export const Edit: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [
-        successGetRoles({
-          startKey: '',
-          items: roles,
-        }),
-      ],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <UserAddEdit {...props} />
-      </TeleportProviderBasic>
-    );
-  },
+export const Edit = () => {
+  const [configuredTraits, setConfiguredTraits] = useState([]);
+  return (
+    <UserAddEdit
+      {...props}
+      attempt={{ status: '' }}
+      configuredTraits={configuredTraits}
+      setConfiguredTraits={setConfiguredTraits}
+    />
+  );
+  return <UserAddEdit {...props} attempt={{ status: '' }} />;
 };
 
-export const Processing: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleUpdateUser(() => delay('infinite'))],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <UserAddEdit {...props} />
-      </TeleportProviderBasic>
-    );
-  },
+export const Processing = () => {
+  return <UserAddEdit {...props} attempt={{ status: 'processing' }} />;
 };
 
-export const Failed: StoryObj = {
-  parameters: {
-    msw: {
-      handlers: [handleUpdateUser(() => delay('infinite'))],
-    },
-  },
-  render() {
-    return (
-      <TeleportProviderBasic>
-        <UserAddEdit {...props} />
-      </TeleportProviderBasic>
-    );
-  },
+export const Failed = () => {
+  return (
+    <UserAddEdit
+      {...props}
+      attempt={{ status: 'failed', statusText: 'server error' }}
+    />
+  );
 };
 
 const props = {
@@ -122,11 +74,7 @@ const props = {
     { value: 'admin', label: 'admin' },
     { value: 'testrole', label: 'testrole' },
   ],
-  user: {
-    name: 'lester',
-    roles: ['editor'],
-  },
-  modifyFetchedData: () => null,
+  name: 'lester',
   isNew: false,
   onChangeName() {},
   onChangeRoles() {},

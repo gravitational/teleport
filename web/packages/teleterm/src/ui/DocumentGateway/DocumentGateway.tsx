@@ -16,102 +16,56 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo } from 'react';
-import { z } from 'zod';
+import React from 'react';
 
-import { getCliCommandArgv0 } from 'teleterm/services/tshd/gateway';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 
-import { PortFieldInput } from '../components/FieldInputs';
-import { FormFields, OfflineGateway } from '../components/OfflineGateway';
-import { useWorkspaceContext } from '../Documents';
+import { OfflineGateway } from '../components/OfflineGateway';
 import { OnlineDocumentGateway } from './OnlineDocumentGateway';
-import { useGateway } from './useGateway';
+import { useDocumentGateway } from './useDocumentGateway';
 
-export function DocumentGateway(props: {
+type Props = {
   visible: boolean;
   doc: types.DocumentGateway;
-}) {
+};
+
+export default function Container(props: Props) {
   const { doc, visible } = props;
-  const { documentsService } = useWorkspaceContext();
-
-  const {
-    connected,
-    // Needed for OfflineGateway.
-    connectAttempt,
-    reconnect,
-    defaultPort,
-    // Needed for OnlineDocumentGateway.
-    gateway,
-    disconnect,
-    disconnectAttempt,
-    changePort,
-    changePortAttempt,
-    changeTargetSubresourceNameAttempt: changeDbNameAttempt,
-    changeTargetSubresourceName: changeDbName,
-  } = useGateway(doc);
-
-  const runCliCommand = () => {
-    const command = getCliCommandArgv0(gateway.gatewayCliCommand);
-    const title = `${command} · ${doc.targetName} (${doc.targetUser})`;
-
-    const cliDoc = documentsService.createGatewayCliDocument({
-      title,
-      targetUri: doc.targetUri,
-      targetUser: doc.targetUser,
-      targetName: doc.targetName,
-      targetProtocol: gateway.protocol,
-    });
-    documentsService.add(cliDoc);
-    documentsService.setLocation(cliDoc.uri);
-  };
-
-  const renderFormControls = useMemo(
-    () => makeRenderFormControlsFromDefaultPort(defaultPort),
-    [defaultPort]
-  );
-
-  if (!connected) {
-    return (
-      <Document visible={visible}>
-        <OfflineGateway
-          connectAttempt={connectAttempt}
-          reconnect={reconnect}
-          targetName={doc.targetName}
-          gatewayKind="database"
-          formSchema={formSchema}
-          renderFormControls={renderFormControls}
-        />
-      </Document>
-    );
-  }
-
+  const state = useDocumentGateway(doc);
   return (
     <Document visible={visible}>
-      <OnlineDocumentGateway
-        disconnect={disconnect}
-        disconnectAttempt={disconnectAttempt}
-        changeDbName={changeDbName}
-        changeDbNameAttempt={changeDbNameAttempt}
-        changePortAttempt={changePortAttempt}
-        gateway={gateway}
-        changePort={changePort}
-        runCliCommand={runCliCommand}
-      />
+      <DocumentGateway {...state} targetName={doc.targetName} />
     </Document>
   );
 }
 
-export const formSchema = z.object({ [FormFields.LocalPort]: z.string() });
+export type DocumentGatewayProps = ReturnType<typeof useDocumentGateway> & {
+  targetName: string;
+};
 
-export const makeRenderFormControlsFromDefaultPort =
-  (defaultPort: string) => (isProcessing: boolean) => (
-    <PortFieldInput
-      name={FormFields.LocalPort}
-      label="Port (optional)"
-      defaultValue={defaultPort}
-      mb={0}
-      readonly={isProcessing}
+export function DocumentGateway(props: DocumentGatewayProps) {
+  if (!props.connected) {
+    return (
+      <OfflineGateway
+        connectAttempt={props.connectAttempt}
+        reconnect={props.reconnect}
+        gatewayPort={{ isSupported: true, defaultPort: props.defaultPort }}
+        targetName={props.targetName}
+        gatewayKind="database"
+      />
+    );
+  }
+
+  return (
+    <OnlineDocumentGateway
+      disconnect={props.disconnect}
+      changeDbName={props.changeDbName}
+      changeDbNameAttempt={props.changeDbNameAttempt}
+      changePortAttempt={props.changePortAttempt}
+      gateway={props.gateway}
+      changePort={props.changePort}
+      runCliCommand={props.runCliCommand}
     />
   );
+}

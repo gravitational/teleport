@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"math/rand/v2"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -37,14 +37,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	clientutils "github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -52,7 +48,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().SetEmitter(mockEmitter)
+	srv.Auth().emitter = mockEmitter
 
 	// Configure cluster and user for MFA, registering various devices.
 	mfa := configureForMFA(t, srv)
@@ -81,7 +77,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Empty(t, devs)
 
 	// verify that password was reset
-	err = srv.Auth().CheckPasswordWOToken(ctx, username, []byte(pass))
+	err = srv.Auth().checkPasswordWOToken(ctx, username, []byte(pass))
 	require.Error(t, err)
 
 	// create another reset token for the same user
@@ -89,10 +85,10 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// previous token must be deleted
-	userTokens, err := stream.Collect(clientutils.Resources(ctx, srv.Auth().ListUserTokens))
+	tokens, err := srv.Auth().GetUserTokens(ctx)
 	require.NoError(t, err)
-	require.Len(t, userTokens, 1)
-	require.Equal(t, userTokens[0].GetName(), token.GetName())
+	require.Len(t, tokens, 1)
+	require.Equal(t, tokens[0].GetName(), token.GetName())
 }
 
 func TestCreateResetPasswordTokenErrors(t *testing.T) {
@@ -101,7 +97,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 	ctx := context.Background()
 
 	username := "joe@example.com"
-	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	type testCase struct {
@@ -221,7 +217,7 @@ func TestFormatAccountName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			accountName, err := auth.FormatAccountName(tt.inDebugAuth, "foo", "00000000-0000-0000-0000-000000000000")
+			accountName, err := formatAccountName(tt.inDebugAuth, "foo", "00000000-0000-0000-0000-000000000000")
 			tt.outError(t, err)
 			require.Equal(t, accountName, tt.outAccountName)
 		})
@@ -233,7 +229,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	username := "joe@example.com"
-	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -267,7 +263,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	username := "joe@example.com"
-	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	req := authclient.CreateUserTokenRequest{
@@ -276,7 +272,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 		Type: authclient.UserTokenTypeResetPasswordInvite,
 	}
 
-	token, err := srv.Auth().NewUserToken(req)
+	token, err := srv.Auth().newUserToken(req)
 	require.NoError(t, err)
 	require.Equal(t, req.Name, token.GetUser())
 	require.Equal(t, req.Type, token.GetSubKind())
@@ -288,16 +284,16 @@ func TestUserTokenCreationSettings(t *testing.T) {
 func TestCreatePrivilegeToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	fakeClock := srv.Clock().(*clockwork.FakeClock)
+	fakeClock := srv.Clock().(clockwork.FakeClock)
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	srv.Auth().SetEmitter(mockEmitter)
+	srv.Auth().emitter = mockEmitter
 	ctx := context.Background()
 
 	// Create a user and client with identity.
 	username := "joe@example.com"
-	_, _, err := authtest.CreateUserAndRoleWithoutRoles(srv.Auth(), username, []string{username})
+	_, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
-	clt, err := srv.NewClient(authtest.TestUser(username))
+	clt, err := srv.NewClient(TestUser(username))
 	require.NoError(t, err)
 
 	// Test a failure when second factor isn't enabled.
@@ -415,14 +411,15 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Create a user and client with identity.
 			username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-			_, _, err := authtest.CreateUserAndRoleWithoutRoles(srv.Auth(), username, []string{username})
+			_, _, err := CreateUserAndRoleWithoutRoles(srv.Auth(), username, []string{username})
 			require.NoError(t, err)
-			clt, err := srv.NewClient(authtest.TestUser(username))
+			clt, err := srv.NewClient(TestUser(username))
 			require.NoError(t, err)
 
 			// Test lock from max failed auth attempts.
@@ -432,9 +429,9 @@ func TestCreatePrivilegeToken_WithLock(t *testing.T) {
 
 				// Test last attempt returns locked error.
 				if i == defaults.MaxLoginAttempts {
-					require.Equal(t, auth.MaxFailedAttemptsErrMsg, err.Error())
+					require.Equal(t, MaxFailedAttemptsErrMsg, err.Error())
 				} else {
-					require.NotEqual(t, auth.MaxFailedAttemptsErrMsg, err.Error())
+					require.NotEqual(t, MaxFailedAttemptsErrMsg, err.Error())
 				}
 			}
 

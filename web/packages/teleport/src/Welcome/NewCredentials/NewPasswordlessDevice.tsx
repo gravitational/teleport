@@ -18,14 +18,14 @@
 
 import React, { useState } from 'react';
 
-import { Box, ButtonPrimary, ButtonText, H2 } from 'design';
+import { Box, ButtonPrimary, ButtonText, Text } from 'design';
 import { Danger } from 'design/Alert';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyBlurb } from 'teleport/components/Passkeys/PasskeyBlurb';
 
 import { SliderProps, UseTokenState } from './types';
@@ -77,7 +77,9 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
     <Validation>
       {({ validator }) => (
         <OnboardCard ref={refCallback} data-testid="passwordless">
-          <H2 mb={3}>Set up Passwordless Authentication</H2>
+          <Text typography="h4" mb={3} color="text.main">
+            Set up Passwordless Authentication
+          </Text>
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
@@ -104,7 +106,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
             onClick={e => handleOnSubmit(e, validator)}
             disabled={submitAttempt.status === 'processing'}
           >
-            {credential ? 'Submit' : 'Create a Passkey'}
+            {credential ? 'Submit' : 'Create a passkey'}
           </ButtonPrimary>
           {primaryAuthType !== 'passwordless' && isPasswordlessEnabled && (
             <Box mt={3} textAlign="center">
@@ -122,7 +124,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
                 onClick={e => switchToLocalFlow(e)}
                 disabled={submitAttempt.status === 'processing'}
               >
-                Use Password
+                Use password
               </ButtonText>
             </Box>
           )}

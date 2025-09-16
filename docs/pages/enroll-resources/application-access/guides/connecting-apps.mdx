@@ -1,7 +1,7 @@
 ---
 title: Web Application Access
 description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -17,7 +17,7 @@ Application Service, which uses a join token to establish trust with the
 Teleport Auth Service. Users visit Teleport-protected web applications through
 the Teleport Web UI. The Teleport Proxy Service routes browser traffic to the
 Teleport Application Service, which forwards HTTP requests to and from target
-applications. 
+applications.
 
 ## Prerequisites
 
@@ -38,7 +38,7 @@ target application, then deploy a Teleport Agent to run the service.
 ### Generate a token
 
 A join token is required to authorize a Teleport Application Service to
-join the cluster. 
+join the cluster.
 
 1. Generate a short-lived join token. Make sure to change `app-name` to the name
    of your application and `app-uri` to the application's domain name and port:
@@ -76,11 +76,11 @@ Application Service:
        method: token
      proxy_server: "teleport.example.com:443"
    auth_service:
-     enabled: false
+     enabled: off
    proxy_service:
-     enabled: false
+     enabled: off
    ssh_service:
-     enabled: false
+     enabled: off
    app_service:
      enabled: true
      apps:
@@ -134,8 +134,6 @@ Application Service:
    $ tctl users add --roles=demo-app-access appuser
    ```
 
-   (!docs/pages/includes/create-role-using-web.mdx!)
-
    When `appuser` attempts to access the application you enrolled earlier
    through the Teleport Web UI, the the Teleport Proxy Service forwards the
    request with a Teleport-signed JSON web token to the Teleport Application
@@ -170,7 +168,7 @@ It can be turned on using `debug_app: true`.
 
 ```yaml
 app_service:
-   enabled: true
+   enabled: yes
    debug_app: true
 ```
 
@@ -195,6 +193,7 @@ address. To override the public address, specify the `public_addr` field:
 ```yaml
 - name: "jira"
   uri: "https://localhost:8001"
+  # The public address must be a unique DNS name and not conflict with the Teleport cluster's public addresses.
   public_addr: "jira.example.com"
 ```
 
@@ -324,7 +323,7 @@ rewritten:
 - Any header matching the pattern `X-Forwarded-*`
 
 Rewritten header values support the same templating variables as
-[role templates](../../../zero-trust-access/rbac-get-started/role-templates.mdx). In the
+[role templates](../../../zero-trust-access/access-controls/guides/role-templates.mdx). In the
 example above, `X-Internal-Trait` header will be populated with the value of
 internal user trait `logins` and `X-External-Trait` header will get the value of
 the user's external `env` trait coming from the identity provider.

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { render, screen, userEvent } from 'design/utils/testing';
@@ -113,7 +114,6 @@ describe('configureBot Component', () => {
       status: '',
       subKind: '',
       version: '',
-      max_session_ttl: { seconds: 43200 },
     });
 
     const botNameInput = screen.getByPlaceholderText('github-actions-cd');

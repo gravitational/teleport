@@ -28,29 +28,19 @@ export default {
   title: 'Teleterm/ModalsHost/ReAuthenticate',
 };
 
-const loginMfaRequest = {
-  reason: '',
-  clusterUri: makeRootCluster().uri,
-  webauthn: false,
-  totp: false,
-  perSessionMfa: false,
-};
-
-const perSessionMfaRequest = {
+const promptMfaRequest = {
   reason: 'MFA is required to access Kubernetes cluster "minikube"',
   clusterUri: makeRootCluster().uri,
   webauthn: false,
   totp: false,
-  perSessionMfa: true,
 };
 
 export const WithWebauthn = () => (
   <MockAppContextProvider>
     <ReAuthenticate
-      promptMfaRequest={{ ...loginMfaRequest, webauthn: true }}
-      onSsoContinue={() => {}}
+      promptMfaRequest={{ ...promptMfaRequest, webauthn: true }}
       onCancel={() => {}}
-      onOtpSubmit={() => {
+      onSuccess={() => {
         window.alert(
           'You somehow submitted a form while only Webauthn was available.'
         );
@@ -65,89 +55,19 @@ const showToken = (otpToken: string) =>
 export const WithTotp = () => (
   <MockAppContextProvider>
     <ReAuthenticate
-      promptMfaRequest={{ ...loginMfaRequest, totp: true }}
-      onSsoContinue={() => {}}
+      promptMfaRequest={{ ...promptMfaRequest, totp: true }}
       onCancel={() => {}}
-      onOtpSubmit={showToken}
+      onSuccess={showToken}
     />
   </MockAppContextProvider>
 );
 
-export const WithTotpPerSessionMfa = () => (
+export const WithWebauthnAndTotp = () => (
   <MockAppContextProvider>
     <ReAuthenticate
-      promptMfaRequest={{
-        ...perSessionMfaRequest,
-        totp: true,
-      }}
-      onSsoContinue={() => {}}
+      promptMfaRequest={{ ...promptMfaRequest, webauthn: true, totp: true }}
       onCancel={() => {}}
-      onOtpSubmit={showToken}
-    />
-  </MockAppContextProvider>
-);
-
-export const WithSso = () => (
-  <MockAppContextProvider>
-    <ReAuthenticate
-      promptMfaRequest={{
-        ...loginMfaRequest,
-        sso: {
-          connectorId: '',
-          connectorType: '',
-          displayName: 'Example SSO',
-          redirectUrl: '',
-        },
-      }}
-      onSsoContinue={() => {}}
-      onCancel={() => {}}
-      onOtpSubmit={() => {
-        window.alert(
-          'You somehow submitted a form while only SSO was available.'
-        );
-      }}
-    />
-  </MockAppContextProvider>
-);
-
-export const WithWebauthnAndTotpAndSSO = () => (
-  <MockAppContextProvider>
-    <ReAuthenticate
-      promptMfaRequest={{
-        ...loginMfaRequest,
-        webauthn: true,
-        totp: true,
-        sso: {
-          connectorId: '',
-          connectorType: '',
-          displayName: 'Example SSO',
-          redirectUrl: '',
-        },
-      }}
-      onSsoContinue={() => {}}
-      onCancel={() => {}}
-      onOtpSubmit={showToken}
-    />
-  </MockAppContextProvider>
-);
-
-export const WithWebauthnAndTotpAndSSOPerSessionMfa = () => (
-  <MockAppContextProvider>
-    <ReAuthenticate
-      promptMfaRequest={{
-        ...perSessionMfaRequest,
-        webauthn: true,
-        totp: true,
-        sso: {
-          connectorId: '',
-          connectorType: '',
-          displayName: 'Example SSO',
-          redirectUrl: '',
-        },
-      }}
-      onSsoContinue={() => {}}
-      onCancel={() => {}}
-      onOtpSubmit={showToken}
+      onSuccess={showToken}
     />
   </MockAppContextProvider>
 );
@@ -156,14 +76,13 @@ export const MultilineTitle = () => (
   <MockAppContextProvider>
     <ReAuthenticate
       promptMfaRequest={{
-        ...loginMfaRequest,
+        ...promptMfaRequest,
         webauthn: true,
         totp: true,
         clusterUri: '/clusters/lorem.cloud.gravitational.io',
       }}
-      onSsoContinue={() => {}}
       onCancel={() => {}}
-      onOtpSubmit={showToken}
+      onSuccess={showToken}
     />
   </MockAppContextProvider>
 );
@@ -172,14 +91,13 @@ export const ForLeafCluster = () => (
   <MockAppContextProvider>
     <ReAuthenticate
       promptMfaRequest={{
-        ...loginMfaRequest,
+        ...promptMfaRequest,
         webauthn: true,
         totp: true,
         clusterUri: makeLeafCluster().uri,
       }}
-      onSsoContinue={() => {}}
       onCancel={() => {}}
-      onOtpSubmit={showToken}
+      onSuccess={showToken}
     />
   </MockAppContextProvider>
 );

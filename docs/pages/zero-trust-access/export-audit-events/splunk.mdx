@@ -1,7 +1,7 @@
 ---
 title: Export Teleport Audit Events to Splunk
 description: How to configure the Teleport Event Handler plugin to send audit logs to Splunk
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -12,13 +12,12 @@ historical analysis, detect unusual behavior, and form a better understanding of
 how users interact with your Teleport cluster.
 
 In this guide, we will show you how to configure the Teleport Event Handler
-plugin to send your Teleport audit logs to Splunk. 
+plugin to send your Teleport audit logs to Splunk. In this setup, the Teleport
+Event Handler plugin forwards audit logs from Teleport to Splunk's Universal
+Forwarder, which stores them in Splunk Cloud Platform or Splunk Enterprise for
+visualization and alerting.
 
-## How it works
-
-In this setup, the Teleport Event Handler plugin forwards audit logs from
-Teleport to Splunk's Universal Forwarder, which stores them in Splunk Cloud
-Platform or Splunk Enterprise for visualization and alerting.
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -410,7 +409,7 @@ and alerts.
 In this guide, we made use of impersonation to supply credentials to the
 Teleport Event Handler to communicate with your Teleport cluster. To learn more
 about impersonation, read [our
-guide](../authentication/impersonation.mdx).
+guide](../access-controls/guides/impersonation.mdx).
 
 While this guide uses the `tctl auth sign` command to issue credentials for the
 Teleport Event Handler, production clusters should use Machine ID for safer,

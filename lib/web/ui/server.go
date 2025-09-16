@@ -71,7 +71,7 @@ type AWSMetadata struct {
 func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
 	serverLabels := server.GetStaticLabels()
 	serverCmdLabels := server.GetCmdLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(serverLabels, ui.TransformCommandLabels(serverCmdLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(serverLabels, transformCommandLabels(serverCmdLabels))
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
@@ -133,7 +133,7 @@ type KubeCluster struct {
 func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
 	staticLabels := cluster.GetStaticLabels()
 	dynamicLabels := cluster.GetDynamicLabels()
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, transformCommandLabels(dynamicLabels))
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
 		Kind:            cluster.GetKind(),
@@ -170,7 +170,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.Acces
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
 		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, ui.TransformCommandLabels(dynamicLabels))
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels, transformCommandLabels(dynamicLabels))
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
@@ -302,28 +302,10 @@ type Database struct {
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
 	DatabaseNames []string `json:"database_names,omitempty"`
-	// DatabaseRoles is the list of allowed Database RBAC roles that the user can login.
-	DatabaseRoles []string `json:"database_roles,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
-	// SupportsInteractive is a flag to indicate the database supports
-	// interactive sessions using database REPLs.
-	SupportsInteractive bool `json:"supports_interactive,omitempty"`
-	// AutoUsersEnabled is a flag to indicate the database has user auto
-	// provisioning enabled
-	AutoUsersEnabled bool `json:"auto_users_enabled,omitempty"`
-	// TargetHealth describes the health status of network connectivity
-	// reported from an agent (db_service) that is proxying this database.
-	//
-	// This field will be empty if the database was not extracted from
-	// a db_server resource. The following endpoints will set this field
-	// since these endpoints query for db_server under the hood and then
-	// extract db from it:
-	// - webapi/sites/:site/databases/:database (singular)
-	// - webapi/sites/:site/resources (unified resources)
-	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
 }
 
 // AWS contains AWS specific fields.
@@ -340,51 +322,22 @@ const (
 	LabelStatus = "status"
 )
 
-// DatabaseInteractiveChecker is used to check if the database supports
-// interactive sessions using database REPLs.
-type DatabaseInteractiveChecker interface {
-	IsSupported(protocol string) bool
-}
-
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
-	var (
-		autoUserEnabled bool
-		dbUsers         []string
-		dbRoles         []string
-	)
-	dbNamesResult := accessChecker.EnumerateDatabaseNames(database)
-	dbNames, _ := dbNamesResult.ToEntities()
-	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
-		dbUsers, _ = res.ToEntities()
-	}
-	if roles, err := accessChecker.CheckDatabaseRoles(database, nil); err == nil {
-		// Avoid assigning empty slice to keep the resulting roles nil.
-		if len(roles) > 0 {
-			dbRoles = roles
-		}
-	}
-	if autoUser, err := accessChecker.DatabaseAutoUserMode(database); err == nil {
-		autoUserEnabled = database.IsAutoUsersEnabled() && autoUser.IsEnabled()
-	}
-
+func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
 
 	db := Database{
-		Kind:                database.GetKind(),
-		Name:                database.GetName(),
-		Desc:                database.GetDescription(),
-		Protocol:            database.GetProtocol(),
-		Type:                database.GetType(),
-		Labels:              uiLabels,
-		DatabaseUsers:       dbUsers,
-		DatabaseNames:       dbNames,
-		DatabaseRoles:       dbRoles,
-		Hostname:            stripProtocolAndPort(database.GetURI()),
-		URI:                 database.GetURI(),
-		RequiresRequest:     requiresRequest,
-		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
-		AutoUsersEnabled:    autoUserEnabled,
+		Kind:            database.GetKind(),
+		Name:            database.GetName(),
+		Desc:            database.GetDescription(),
+		Protocol:        database.GetProtocol(),
+		Type:            database.GetType(),
+		Labels:          uiLabels,
+		DatabaseUsers:   dbUsers,
+		DatabaseNames:   dbNames,
+		Hostname:        stripProtocolAndPort(database.GetURI()),
+		URI:             database.GetURI(),
+		RequiresRequest: requiresRequest,
 	}
 
 	if database.IsAWSHosted() {
@@ -401,18 +354,11 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 	return db
 }
 
-// MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
-func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
-	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
-	db.TargetHealth = dbServer.GetTargetHealth()
-	return db
-}
-
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, accessChecker, interactiveChecker, false /* requiresRequest */)
+		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */)
 		uiServers = append(uiServers, db)
 	}
 

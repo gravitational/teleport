@@ -20,16 +20,18 @@ package expression
 
 import (
 	"github.com/gravitational/trace"
+
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // Evaluate the given boolean expression against the given attributes.
-func Evaluate(expr string, env *Environment) (bool, error) {
+func Evaluate(expr string, attrs *workloadidentityv1.Attrs) (bool, error) {
 	e, err := booleanExpressionParser.Parse(expr)
 	if err != nil {
 		return false, trace.Wrap(err, "parsing expression: %s", expr)
 	}
 
-	rsp, err := e.Evaluate(env)
+	rsp, err := e.Evaluate(attrs)
 	if err != nil {
 		return false, trace.Wrap(err, "evaluating expression: %s", expr)
 	}

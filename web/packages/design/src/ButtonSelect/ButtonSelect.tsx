@@ -20,7 +20,7 @@ import styled from 'styled-components';
 
 import Flex from 'design/Flex';
 
-import { Button } from '../Button/Button';
+import Button from '../Button/Button';
 
 /**
  * ButtonSelect is a segmented button that allows users to select one of the provided options.

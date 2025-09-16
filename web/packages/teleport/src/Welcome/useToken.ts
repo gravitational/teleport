@@ -23,13 +23,13 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg from 'teleport/config';
 import auth, {
   ChangedUserAuthn,
+  DeviceUsage,
   RecoveryCodes,
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   ResetToken,
 } from 'teleport/services/auth';
 import history from 'teleport/services/history';
-import { DeviceUsage } from 'teleport/services/mfa';
 import { UseTokenState } from 'teleport/Welcome/NewCredentials/types';
 
 export default function useToken(tokenId: string): UseTokenState {

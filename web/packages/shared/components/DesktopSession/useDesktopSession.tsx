@@ -25,10 +25,9 @@ import {
   useState,
 } from 'react';
 
-import type { ToastNotificationItem } from 'shared/components/ToastNotification';
+import type { NotificationItem } from 'shared/components/Notification';
 import { Attempt } from 'shared/hooks/useAsync';
 import { ClipboardData, TdpClient } from 'shared/libs/tdp';
-import { isAbortError } from 'shared/utils/error';
 
 declare global {
   interface Window {
@@ -88,11 +87,11 @@ export default function useDesktopSession(
     };
   }, []);
 
-  const [alerts, setAlerts] = useState<ToastNotificationItem[]>([]);
+  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
   const onRemoveAlert = (id: string) => {
     setAlerts(prevState => prevState.filter(alert => alert.id !== id));
   };
-  const addAlert = useCallback((alert: Omit<ToastNotificationItem, 'id'>) => {
+  const addAlert = useCallback((alert: Omit<NotificationItem, 'id'>) => {
     setAlerts(prevState => [
       ...prevState,
       { ...alert, id: crypto.randomUUID() },
@@ -126,24 +125,50 @@ export default function useDesktopSession(
     }
   }
 
-  const onShareDirectory = async () => {
+  const onShareDirectory = () => {
     try {
-      await tdpClient.shareDirectory();
-      setDirectorySharingState({
-        directorySelected: true,
-      });
+      window
+        .showDirectoryPicker()
+        .then(sharedDirHandle => {
+          // Permissions granted and/or directory selected
+          setDirectorySharingState({
+            directorySelected: true,
+          });
+          tdpClient.addSharedDirectory(sharedDirHandle);
+          tdpClient.sendSharedDirectoryAnnounce();
+        })
+        .catch(e => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            directorySelected: false,
+          }));
+          addAlert({
+            severity: 'warn',
+            content: {
+              title: 'Failed to open the directory picker',
+              description: e.message,
+            },
+          });
+        });
     } catch (e) {
-      if (isAbortError(e)) {
-        return;
-      }
       setDirectorySharingState({
         directorySelected: false,
       });
       addAlert({
         severity: 'warn',
+        // This is a gross error message, but should be infrequent enough that its worth just telling
+        // the user the likely problem, while also displaying the error message just in case that's not it.
+        // In a perfect world, we could check for which error message this is and display
+        // context appropriate directions.
         content: {
-          title: 'Could not share a directory',
-          description: e.message,
+          title: 'Encountered an error while attempting to share a directory',
+          description:
+            e.message +
+            '. \n\nYour user role supports directory sharing over desktop access, \
+  however this feature is only available by default on some Chromium \
+  based browsers like Google Chrome or Microsoft Edge. Brave users can \
+  use the feature by navigating to brave://flags/#file-system-access-api \
+  and selecting "Enable". If you\'re not already, please switch to a supported browser.',
         },
       });
     }

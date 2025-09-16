@@ -29,8 +29,7 @@ import (
 )
 
 func TestClient(t *testing.T) {
-	server, err := podman.NewFakeServer(
-		t.TempDir(),
+	server := podman.NewTestServer(t,
 		podman.WithContainer(podman.Container{
 			ID:   "container-1234",
 			Name: "web-server",
@@ -46,14 +45,6 @@ func TestClient(t *testing.T) {
 			Labels: map[string]string{"technology": "node.js"},
 		}),
 	)
-	require.NoError(t, err)
-
-	server.Start()
-	t.Cleanup(func() {
-		if err := server.Close(); err != nil {
-			t.Logf("failed to close http server: %v", err)
-		}
-	})
 
 	client, err := podman.NewClient(server.Addr())
 	require.NoError(t, err)

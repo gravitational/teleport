@@ -16,42 +16,143 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
-import Validation from 'shared/components/Validation';
+import Validation, { Validator } from 'shared/components/Validation';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
 import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
+import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
+import { ApiError } from 'teleport/services/api/parseError';
 import {
-  RoleArnInput,
-  ShowConfigurationScript,
-} from 'teleport/Integrations/shared';
-import { AwsOidcPolicyPreset } from 'teleport/services/integrations';
+  Integration,
+  IntegrationKind,
+  integrationService,
+} from 'teleport/services/integrations';
+import {
+  IntegrationEnrollEvent,
+  IntegrationEnrollEventData,
+  IntegrationEnrollKind,
+  userEventService,
+} from 'teleport/services/userEvent';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ConfigureAwsOidcSummary } from './ConfigureAwsOidcSummary';
 import { FinishDialog } from './FinishDialog';
-import { useAwsOidcIntegration } from './useAwsOidcIntegration';
 
 export function AwsOidc() {
-  const {
-    integrationConfig,
-    setIntegrationConfig,
-    scriptUrl,
-    setScriptUrl,
-    handleOnCreate,
-    createdIntegration,
-    createIntegrationAttempt,
-    generateAwsOidcConfigIdpScript,
-  } = useAwsOidcIntegration();
+  const [integrationName, setIntegrationName] = useState('');
+  const [roleArn, setRoleArn] = useState('');
+  const [roleName, setRoleName] = useState('');
+  const [scriptUrl, setScriptUrl] = useState('');
+  const [createdIntegration, setCreatedIntegration] = useState<Integration>();
+  const { attempt, run, setAttempt } = useAttempt('');
+
   const { clusterId } = useStickyClusterId();
+
+  const location = useLocation<DiscoverUrlLocationState>();
+
+  const [eventData] = useState<IntegrationEnrollEventData>({
+    id: crypto.randomUUID(),
+    kind: IntegrationEnrollKind.AwsOidc,
+  });
+
+  useEffect(() => {
+    // If a user came from the discover wizard,
+    // discover wizard will send of appropriate events.
+    if (location.state?.discover) {
+      return;
+    }
+
+    emitEvent(IntegrationEnrollEvent.Started);
+    // Only send event once on init.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleOnCreate(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    setAttempt({ status: 'processing' });
+
+    try {
+      await integrationService.pingAwsOidcIntegration(
+        {
+          integrationName,
+          clusterId,
+        },
+        { roleArn }
+      );
+    } catch (err) {
+      // DELETE IN v18.0
+      // Ignore not found error and just allow it to create which
+      // is how it used to work before anyways.
+      //
+      // If this request went to an older proxy, that didn't set the
+      // the integrationName empty if roleArn isn't empty, then the backend
+      // will never be able to successfully health check b/c it expects
+      // integration to exist first before creating.
+      const isNotFoundErr =
+        err instanceof ApiError && err.response.status === 404;
+
+      if (!isNotFoundErr) {
+        setAttempt({ status: 'failed', statusText: err.message });
+        return;
+      }
+    }
+
+    run(() =>
+      integrationService
+        .createIntegration({
+          name: integrationName,
+          subKind: IntegrationKind.AwsOidc,
+          awsoidc: {
+            roleArn,
+          },
+        })
+        .then(res => {
+          setCreatedIntegration(res);
+
+          if (location.state?.discover) {
+            return;
+          }
+          emitEvent(IntegrationEnrollEvent.Complete);
+        })
+    );
+  }
+
+  function emitEvent(event: IntegrationEnrollEvent) {
+    userEventService.captureIntegrationEnrollEvent({
+      event,
+      eventData,
+    });
+  }
+
+  function generateAwsOidcConfigIdpScript(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    validator.reset();
+
+    const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
+      integrationName,
+      roleName,
+    });
+
+    setScriptUrl(newScriptUrl);
+  }
 
   return (
     <Box pt={3}>
@@ -97,7 +198,7 @@ export function AwsOidc() {
                   `\n` +
                   `teleport.dev/origin: integration_awsoidc\n` +
                   `teleport.dev/integration: ` +
-                  integrationConfig.name,
+                  integrationName,
               },
             ]}
           />
@@ -107,33 +208,23 @@ export function AwsOidc() {
       <Validation>
         {({ validator }) => (
           <>
-            <Container mb={5} width={800}>
+            <Container mb={5}>
               <Text bold>Step 1</Text>
               <Box width="600px">
                 <FieldInput
                   autoFocus={true}
-                  value={integrationConfig.name}
+                  value={integrationName}
                   label="Give this AWS integration a name"
                   placeholder="Integration Name"
-                  onChange={e =>
-                    setIntegrationConfig({
-                      ...integrationConfig,
-                      name: e.target.value,
-                    })
-                  }
+                  onChange={e => setIntegrationName(e.target.value)}
                   disabled={!!scriptUrl}
                 />
                 <FieldInput
                   rule={requiredIamRoleName}
-                  value={integrationConfig.roleName}
-                  placeholder="Integration role name"
-                  label="Give a name for an AWS IAM role this integration will create"
-                  onChange={e =>
-                    setIntegrationConfig({
-                      ...integrationConfig,
-                      roleName: e.target.value,
-                    })
-                  }
+                  value={roleName}
+                  placeholder="IAM Role Name"
+                  label="IAM Role Name"
+                  onChange={e => setRoleName(e.target.value)}
                   disabled={!!scriptUrl}
                 />
               </Box>
@@ -149,12 +240,7 @@ export function AwsOidc() {
               ) : (
                 <ButtonSecondary
                   mb={3}
-                  onClick={() =>
-                    generateAwsOidcConfigIdpScript(
-                      validator,
-                      AwsOidcPolicyPreset.Unspecified
-                    )
-                  }
+                  onClick={() => generateAwsOidcConfigIdpScript(validator)}
                 >
                   Generate Command
                 </ButtonSecondary>
@@ -162,47 +248,70 @@ export function AwsOidc() {
             </Container>
             {scriptUrl && (
               <>
-                <Container mb={5} width={800}>
+                <Container mb={5}>
                   <Flex gap={1} alignItems="center">
                     <Text bold>Step 2</Text>
                     <ConfigureAwsOidcSummary
-                      roleName={integrationConfig.roleName}
-                      integrationName={integrationConfig.name}
+                      roleName={roleName}
+                      integrationName={integrationName}
                     />
                   </Flex>
-                  <ShowConfigurationScript scriptUrl={scriptUrl} />
+                  <Text mb={2}>
+                    Open{' '}
+                    <Link
+                      href="https://console.aws.amazon.com/cloudshell/home"
+                      target="_blank"
+                    >
+                      AWS CloudShell
+                    </Link>{' '}
+                    and copy and paste the command that configures the
+                    permissions for you:
+                  </Text>
+                  <Box mb={2}>
+                    <TextSelectCopyMulti
+                      lines={[
+                        {
+                          text: `bash -c "$(curl '${scriptUrl}')"`,
+                        },
+                      ]}
+                    />
+                  </Box>
                 </Container>
-                <Container mb={5} width={800}>
+                <Container mb={5}>
                   <Text bold>Step 3</Text>
-                  <RoleArnInput
-                    roleName={integrationConfig.roleName}
-                    roleArn={integrationConfig.roleArn}
-                    setRoleArn={(v: string) =>
-                      setIntegrationConfig({
-                        ...integrationConfig,
-                        roleArn: v,
-                      })
-                    }
-                    disabled={createIntegrationAttempt.status === 'processing'}
+                  After configuring is finished, go to your{' '}
+                  <Link
+                    target="_blank"
+                    href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${roleName}`}
+                  >
+                    IAM Role dashboard
+                  </Link>{' '}
+                  and copy and paste the ARN below.
+                  <FieldInput
+                    mt={2}
+                    rule={requiredRoleArn(roleName)}
+                    value={roleArn}
+                    label="Role ARN (Amazon Resource Name)"
+                    placeholder={`arn:aws:iam::123456789012:role/${roleName}`}
+                    width="430px"
+                    onChange={e => setRoleArn(e.target.value)}
+                    disabled={attempt.status === 'processing'}
+                    toolTipContent={`Unique AWS resource identifier and uses the format: arn:aws:iam::<ACCOUNT_ID>:role/<IAM_ROLE_NAME>`}
                   />
                 </Container>
               </>
             )}
-            {createIntegrationAttempt.status === 'error' && (
+            {attempt.status === 'failed' && (
               <Flex>
                 <Icons.Warning mr={2} color="error.main" size="small" />
-                <Text color="error.main">
-                  Error: {createIntegrationAttempt.statusText}
-                </Text>
+                <Text color="error.main">Error: {attempt.statusText}</Text>
               </Flex>
             )}
             <Box mt={6}>
               <ButtonPrimary
                 onClick={() => handleOnCreate(validator)}
                 disabled={
-                  !scriptUrl ||
-                  createIntegrationAttempt.status === 'processing' ||
-                  !integrationConfig.roleArn
+                  !scriptUrl || attempt.status === 'processing' || !roleArn
                 }
               >
                 Create Integration
@@ -229,6 +338,24 @@ const Container = styled(Box)`
   border-radius: ${p => `${p.theme.space[2]}px`};
   padding: ${p => p.theme.space[3]}px;
 `;
+
+const requiredRoleArn = (roleName: string) => (roleArn: string) => () => {
+  const regex = new RegExp(
+    '^arn:aws.*:iam::\\d{12}:role\\/(' + roleName + ')$'
+  );
+
+  if (regex.test(roleArn)) {
+    return {
+      valid: true,
+    };
+  }
+
+  return {
+    valid: false,
+    message:
+      'invalid role ARN, double check you copied and pasted the correct output',
+  };
+};
 
 const RouteLink = styled(InternalRouteLink)`
   color: ${({ theme }) => theme.colors.buttons.link.default};

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg from 'teleport/config';
+import React from 'react';
 
 import type { AgentStepProps } from '../../types';
 import { Finished as Component } from './Finished';
@@ -51,15 +51,6 @@ export const FinishedWithAutoEnroll = () => (
         requiredVpcsAndSubnets: undefined,
       },
     }}
-  />
-);
-
-export const FinishedWithMessageProps = () => (
-  <Component
-    {...props}
-    title="Resource Added Custom Message"
-    resourceText="Custom completion details"
-    redirect={cfg.routes.discover}
   />
 );
 

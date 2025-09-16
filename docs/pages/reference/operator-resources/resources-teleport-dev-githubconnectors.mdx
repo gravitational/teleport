@@ -2,7 +2,7 @@
 title: TeleportGithubConnector
 description: Provides a comprehensive list of fields in the TeleportGithubConnector resource available through the Teleport Kubernetes operator
 tocDepth: 3
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -37,7 +37,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |endpoint_url|string|EndpointURL is the URL of the GitHub instance this connector is for.|
 |redirect_url|string|RedirectURL is the authorization callback URL.|
 |teams_to_roles|[][object](#specteams_to_roles-items)|TeamsToRoles maps Github team memberships onto allowed roles.|
-|user_matchers|[]string|UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|
 
 ### spec.client_redirect_settings
 

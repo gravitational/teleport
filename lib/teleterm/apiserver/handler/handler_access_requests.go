@@ -26,7 +26,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	"github.com/gravitational/teleport/api/types"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -201,11 +200,6 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		}
 	}
 
-	dryRunEnrichment := req.GetDryRunEnrichment()
-	if dryRunEnrichment == nil {
-		dryRunEnrichment = &types.AccessRequestDryRunEnrichment{}
-	}
-
 	return &api.AccessRequest{
 		Id:                      req.GetName(),
 		State:                   req.GetState().String(),
@@ -225,8 +219,6 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		MaxDuration:             timestamppb.New(req.GetMaxDuration()),
 		RequestTtl:              timestamppb.New(req.Expiry()),
 		SessionTtl:              timestamppb.New(req.GetSessionTLL()),
-		ReasonMode:              string(dryRunEnrichment.ReasonMode),
-		ReasonPrompts:           dryRunEnrichment.ReasonPrompts,
 	}
 }
 

@@ -1,9 +1,8 @@
 ---
 title: Database Access with MongoDB Atlas
-sidebar_label: MongoDB Atlas
 description: How to configure Teleport database access with MongoDB Atlas.
 videoBanner: mu_ZKTjnFJ8
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -27,10 +26,10 @@ or AWS IAM:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Enroll MongoDB with a self-hosted Teleport cluster](../../../../img/database-access/guides/mongodbatlas_selfhosted.png)
+![Teleport Database Access MongoDB Self-Hosted](../../../../img/database-access/guides/mongodbatlas_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Enroll MongoDB with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/mongodbatlas_cloud.png)
+![Teleport Database Access MongoDB Cloud](../../../../img/database-access/guides/mongodbatlas_cloud.png)
 </TabItem>
 
 </Tabs>
@@ -89,12 +88,12 @@ teleport:
   proxy_server: <Var name="example.teleport.sh:443" />
 
 # disable services that are on by default
-ssh_service: { enabled: false }
-proxy_service: { enabled: false }
-auth_service: { enabled: false }
+ssh_service: { enabled: no }
+proxy_service: { enabled: no }
+auth_service: { enabled: no }
 
 db_service:
-  enabled: true
+  enabled: "yes"
   databases:
   - name: "mongodb-atlas"
     protocol: "mongodb"
@@ -165,10 +164,9 @@ click Save.
 
 ### Create a MongoDB user
 
-{/*vale messaging.protocol-products = NO*/}
+{/*lint ignore messaging*/}
 On the Security / Database Access page add a new database user with Certificate
 authentication method:
-{/*vale messaging.protocol-products = YES*/}
 
 ![Add user](../../../../img/database-access/guides/atlas/atlas-add-user@2x.png)
 
@@ -220,13 +218,12 @@ guide, we will the name `teleport-access`.
 
 ### Create a MongoDB User
 
-{/*vale messaging.protocol-products = NO*/}
+{/*lint ignore messaging*/}
 On the Security / Database Access page add a new database user with **AWS IAM**
 authentication method, and choose "IAM Role" as the **IAM User type**. Then, fill in
 the AWS ARN field with the ARN of the newly created IAM role. In the **Database
 User Privileges** section, give the user sufficient privileges to access the
 desired database data.
-{/*vale messaging.protocol-products = YES*/}
 
 ![Create AWS IAM database user](../../../../img/database-access/guides/atlas/atlas-add-aws-iam-user.png)
 

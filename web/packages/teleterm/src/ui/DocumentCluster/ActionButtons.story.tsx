@@ -16,10 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react-vite';
-
 import { Box, Flex, Text } from 'design';
-import { HoverTooltip } from 'design/Tooltip';
 
 import {
   makeApp,
@@ -27,7 +24,6 @@ import {
   makeKube,
   makeRootCluster,
   makeServer,
-  makeWindowsDesktop,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -40,61 +36,49 @@ import {
   ConnectDatabaseActionButton,
   ConnectKubeActionButton,
   ConnectServerActionButton,
-  ConnectWindowsDesktopActionButton,
 } from './ActionButtons';
 
-type StoryProps = {
-  vnet: boolean;
-  lotsOfMenuItems: boolean;
-};
-
-const meta: Meta<StoryProps> = {
+export default {
   title: 'Teleterm/DocumentCluster/ActionButtons',
-  component: Buttons,
-  argTypes: {
-    vnet: { control: { type: 'boolean' } },
-    lotsOfMenuItems: {
-      control: { type: 'boolean' },
-      description:
-        // TODO(ravicious): Support this prop in more places than just TCP ports.
-        'Renders long lists of options in menus. Currently works only with ports for multi-port TCP apps.',
-    },
-  },
-  args: {
-    vnet: true,
-    lotsOfMenuItems: false,
-  },
 };
 
-export default meta;
-
-export function Story(props: StoryProps) {
-  const platform = props.vnet ? 'darwin' : 'win32';
-  const appContext = new MockAppContext({ platform });
+export function ActionButtons() {
+  const appContext = new MockAppContext();
   prepareAppContext(appContext);
 
   return (
     <MockAppContextProvider appContext={appContext}>
       <ConnectionsContextProvider>
         <VnetContextProvider>
-          <Buttons {...props} />
+          <Buttons />
         </VnetContextProvider>
       </ConnectionsContextProvider>
     </MockAppContextProvider>
   );
 }
 
-function Buttons(props: StoryProps) {
+export function WithoutVnet() {
+  const appContext = new MockAppContext({ platform: 'win32' });
+  prepareAppContext(appContext);
+
   return (
-    <Flex gap={4} flexWrap="wrap">
+    <MockAppContextProvider appContext={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Buttons />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </MockAppContextProvider>
+  );
+}
+
+function Buttons() {
+  return (
+    <Flex gap={4}>
       <Flex gap={3} flexDirection="column">
         <Box>
           <Text>TCP app</Text>
           <TcpApp />
-        </Box>
-        <Box>
-          <Text>multi-port TCP app</Text>
-          <TcpMultiPortApp lotsOfMenuItems={props.lotsOfMenuItems} />
         </Box>
         <Box>
           <Text>Web app</Text>
@@ -104,12 +88,6 @@ function Buttons(props: StoryProps) {
           <Text>AWS console</Text>
           <AwsConsole />
         </Box>
-        <HoverTooltip tipContent="Connect doesn't support cloud apps properly yet and shows them as TCP apps instead.">
-          <Box>
-            <Text>Cloud app (GCP)</Text>
-            <CloudApp />
-          </Box>
-        </HoverTooltip>
         <Box>
           <Text>SAML app</Text>
           <SamlApp />
@@ -126,10 +104,6 @@ function Buttons(props: StoryProps) {
       <Box>
         <Text>Kube</Text>
         <Kube />
-      </Box>{' '}
-      <Box>
-        <Text>Windows desktop</Text>
-        <WindowsDesktop />
       </Box>
       <Flex gap={3} flexDirection="column">
         <Box>
@@ -172,28 +146,6 @@ function TcpApp() {
   );
 }
 
-function TcpMultiPortApp(props: { lotsOfMenuItems: boolean }) {
-  let tcpPorts = [
-    { port: 1337, endPort: 0 },
-    { port: 4242, endPort: 0 },
-    { port: 54221, endPort: 61879 },
-  ];
-
-  if (props.lotsOfMenuItems) {
-    tcpPorts = new Array(50).fill(tcpPorts).flat();
-  }
-
-  return (
-    <ConnectAppActionButton
-      app={makeApp({
-        uri: `${testCluster.uri}/apps/bar`,
-        endpointUri: 'tcp://localhost',
-        tcpPorts,
-      })}
-    />
-  );
-}
-
 function HttpApp() {
   return (
     <ConnectAppActionButton
@@ -225,17 +177,6 @@ function AwsConsole() {
             accountId: '123456789012',
           },
         ],
-        uri: `${testCluster.uri}/apps/bar`,
-      })}
-    />
-  );
-}
-
-function CloudApp() {
-  return (
-    <ConnectAppActionButton
-      app={makeApp({
-        endpointUri: 'cloud://GCP',
         uri: `${testCluster.uri}/apps/bar`,
       })}
     />
@@ -279,16 +220,6 @@ function Kube() {
     <ConnectKubeActionButton
       kube={makeKube({
         uri: `${testCluster.uri}/kubes/bar`,
-      })}
-    />
-  );
-}
-
-function WindowsDesktop() {
-  return (
-    <ConnectWindowsDesktopActionButton
-      windowsDesktop={makeWindowsDesktop({
-        uri: `${testCluster.uri}/windows_desktops/bar`,
       })}
     />
   );

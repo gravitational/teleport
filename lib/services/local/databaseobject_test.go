@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
+	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -59,7 +60,7 @@ func getObject(t *testing.T, index int) *dbobjectv1.DatabaseObject {
 }
 
 func prepopulate(t *testing.T, service services.DatabaseObjects, count int) {
-	for i := range count {
+	for i := 0; i < count; i++ {
 		_, err := service.CreateDatabaseObject(context.Background(), getObject(t, i))
 		require.NoError(t, err)
 	}
@@ -157,7 +158,7 @@ func TestUpdateDatabaseObject(t *testing.T) {
 	service := getService(t)
 	prepopulate(t, service, 1)
 
-	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
 	obj := getObject(t, 0)
 	obj.Metadata.Expires = expiry
@@ -226,7 +227,7 @@ func TestListDatabaseObjects(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
@@ -250,7 +251,7 @@ func TestListDatabaseObjects(t *testing.T) {
 					}
 				}
 
-				for i := range count {
+				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),

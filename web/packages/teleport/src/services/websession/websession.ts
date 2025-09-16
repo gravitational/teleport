@@ -36,28 +36,14 @@ let sesstionCheckerTimerId = null;
 
 const session = {
   logout(rememberLocation = false) {
-    let samlSloUrl = '';
-
-    api
-      .delete(cfg.api.webSessionPath)
-      .then(response => {
-        samlSloUrl = response?.samlSloUrl;
-      })
-      .catch(err => {
-        // This request can fail if the session is already expired, which isn't an issue, but we should still catch the error.
-        logger.error(
-          'Failed to delete session. This can happen if the session has already expired.',
-          err
-        );
-      })
-      .finally(() => {
-        this.clear();
-        if (samlSloUrl) {
-          window.open(samlSloUrl, '_self');
-        } else {
-          history.goToLogin({ rememberLocation });
-        }
-      });
+    api.delete(cfg.api.webSessionPath).then(response => {
+      this.clear();
+      if (response.samlSloUrl) {
+        window.open(response.samlSloUrl, '_self');
+      } else {
+        history.goToLogin({ rememberLocation });
+      }
+    });
   },
 
   logoutWithoutSlo({
@@ -160,30 +146,7 @@ const session = {
       return false;
     }
 
-    const token = this._getBearerToken();
-    if (!token) {
-      return false;
-    }
-    // Convert seconds to millis.
-    const expiresIn = (token.expiresIn ?? 0) * 1000;
-    const sessionExpiresIn = (token.sessionExpiresIn ?? 0) * 1000;
-
-    // Session TTL decreases on every renewal, up to a point where it doesn't
-    // make sense to renew anymore, as we won't gain any extra time from it.
-    // Once values are low enough both expiresIn (token expiration) and
-    // sessionExpiresIn are set in lockstep.
-    if (
-      expiresIn > 0 &&
-      sessionExpiresIn > 0 &&
-      expiresIn >= sessionExpiresIn &&
-      sessionExpiresIn <= RENEW_TOKEN_TIME
-    ) {
-      logger.warn(
-        `Session TTL is only ${sessionExpiresIn}ms, the session will expire soon.`
-      );
-      return false;
-    }
-
+    // Renew session if token expiry time is less than 3 minutes.
     // Browsers have js timer throttling behavior in inactive tabs that can go
     // up to 100s between timer calls from testing. 3 minutes seems to be a safe number
     // with extra padding.
@@ -306,7 +269,7 @@ const session = {
   },
 };
 
-function receiveMessage(event: StorageEvent) {
+function receiveMessage(event) {
   const { key, newValue } = event;
 
   // check if logout was triggered from other tabs

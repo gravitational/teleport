@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
 import {
   FeatureBox,
   FeatureHeader,
@@ -71,7 +71,7 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
       >
         <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
         {showActiveSessionsCTA && (
-          <Box>
+          <Box width="340px">
             <ButtonLockedFeature
               height="36px"
               event={CtaEvent.CTA_ACTIVE_SESSIONS}

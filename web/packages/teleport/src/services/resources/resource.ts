@@ -16,45 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AuthProvider } from 'shared/services';
-
 import cfg, { UrlListRolesParams, UrlResourcesParams } from 'teleport/config';
 import api from 'teleport/services/api';
 
 import { ResourcesResponse, UnifiedResource } from '../agents';
-import auth, { MfaChallengeScope } from '../auth/auth';
-import { MfaChallengeResponse } from '../mfa';
-import { isPathNotFoundError } from '../version/unsupported';
-import { yamlService } from '../yaml';
-import { YamlSupportedResourceKind } from '../yaml/types';
-import {
-  CreateOrOverwriteGitServer,
-  DefaultAuthConnector,
-  GitServer,
-  makeResource,
-  makeResourceList,
-  RequestableRole,
-  Resource,
-  Role,
-  RoleResource,
-} from './';
+import { makeResource, makeResourceList, RoleResource } from './';
 import { makeUnifiedResource } from './makeUnifiedResource';
 
 class ResourceService {
-  createOrOverwriteGitServer(
-    clusterId: string,
-    req: CreateOrOverwriteGitServer
-  ): Promise<GitServer> {
-    return api.put(
-      cfg.getGitServerUrl({ clusterId }, 'createOrOverwrite'),
-      req
-    );
-  }
-
-  deleteGitServer(clusterId: string, name: string): Promise<GitServer> {
-    return api.delete(cfg.getGitServerUrl({ clusterId, name }, 'delete'));
-  }
-
   fetchTrustedClusters() {
     return api
       .get(cfg.getTrustedClustersUrl())
@@ -79,85 +48,30 @@ class ResourceService {
       });
   }
 
-  async fetchGithubConnectors(): Promise<{
-    defaultConnector: DefaultAuthConnector;
-    connectors: Resource<'github'>[];
-  }> {
-    // MFA reuse needs to be allowed in case we need to fallback to another default connector
-    const challengeResponse =
-      await await auth.getMfaChallengeResponseForAdminAction(true);
-
+  fetchGithubConnectors() {
     return api
-      .get(cfg.getGithubConnectorsUrl(), undefined, challengeResponse)
-      .then(res => ({
-        defaultConnector: {
-          name: res.defaultConnectorName,
-          type: res.defaultConnectorType,
-        },
-        connectors: makeResourceList<'github'>(res.connectors),
-      }));
+      .get(cfg.getGithubConnectorsUrl())
+      .then(res => makeResourceList<'github'>(res));
   }
 
-  async setDefaultAuthConnector(
-    req: DefaultAuthConnector | { type: 'local' },
-    abortSignal?: AbortSignal
-  ) {
-    // This is an admin action that needs an mfa challenge with reuse allowed.
-    const challenge = await auth.getMfaChallenge({
-      scope: MfaChallengeScope.ADMIN_ACTION,
-      allowReuse: true,
-      isMfaRequiredRequest: {
-        admin_action: {},
-      },
-    });
-
-    const challengeResponse = await auth.getMfaChallengeResponse(challenge);
-
-    return api.put(
-      cfg.api.defaultConnectorPath,
-      req,
-      abortSignal,
-      challengeResponse
-    );
-  }
-
-  async getUserMatchedAuthConnectors(
-    username: string
-  ): Promise<AuthProvider[]> {
-    return api
-      .post(cfg.api.authConnectorsPath, { username })
-      .then(res => res.connectors || []);
-  }
-
-  async fetchRoles(
-    params?: UrlListRolesParams,
-    signal?: AbortSignal
-  ): Promise<{
+  async fetchRoles(params?: UrlListRolesParams): Promise<{
     items: RoleResource[];
     startKey: string;
   }> {
-    return await api.get(cfg.getRoleUrl({ action: 'list', params }), signal);
-  }
+    const response = await api.get(cfg.getListRolesUrl(params));
 
-  async fetchRequestableRoles(
-    params: UrlListRolesParams,
-    // TODO(rudream): DELETE IN v21.0. This is here now to maintain backwards compatibility with an older auth version
-    // that may not have the requestable roles endpoint.
-    allRequestableRoles: string[]
-  ): Promise<{
-    items: RequestableRole[];
-    startKey: string;
-  }> {
-    return await api.get(cfg.getListRequestableRolesUrl(params)).catch(err => {
-      // If the endpoint isn't found due to it being in an older version than the client, fallback to using the full list of requestable roles
-      // to maintain compatibility with the paginated table component which expects a paginated response.
-      // TODO(rudream): DELETE IN v21.0
-      if (isPathNotFoundError(err)) {
-        return makeRequestableRolesPageLocally(params, allRequestableRoles);
-      } else {
-        throw err;
-      }
-    });
+    // This will handle backward compatibility with roles.
+    // The old roles API returns only an array of resources while
+    // the new one sends the paginated object with startKey/requests
+    // If this webclient requests an older proxy
+    // (this may happen in multi proxy deployments),
+    //  this should allow the old request to not break the Web UI.
+    // TODO (gzdunek): DELETE in 17.0.0
+    if (Array.isArray(response)) {
+      return makeRolesPageLocally(params, response);
+    }
+
+    return response;
   }
 
   fetchPresetRoles() {
@@ -166,36 +80,15 @@ class ResourceService {
       .then(res => makeResourceList<'role'>(res));
   }
 
-  /**
-   * @deprecated use standalone fetchRole function defined below this class
-   */
-  async fetchRole(name: string): Promise<RoleResource> {
-    return makeResource<'role'>(
-      await api.get(
-        cfg.getRoleUrl({ action: 'get', name }),
-        undefined,
-        undefined,
-        {
-          allowRoleNotFound: true,
-        }
-      )
-    );
-  }
-
   createTrustedCluster(content: string) {
     return api
       .post(cfg.getTrustedClustersUrl(), { content })
       .then(res => makeResource<'trusted_cluster'>(res));
   }
 
-  createRole(content: string, mfaResponse?: MfaChallengeResponse) {
+  createRole(content: string) {
     return api
-      .post(
-        cfg.api.role.create,
-        { content },
-        undefined /* abort signal */,
-        mfaResponse
-      )
+      .post(cfg.getRoleUrl(), { content })
       .then(res => makeResource<'role'>(res));
   }
 
@@ -211,19 +104,10 @@ class ResourceService {
       .then(res => makeResource<'trusted_cluster'>(res));
   }
 
-  /**
-   * @deprecated use standalone updateRole function defined below this class
-   */
   updateRole(name: string, content: string) {
     return api
-      .put(cfg.getRoleUrl({ action: 'update', name }), { content })
+      .put(cfg.getRoleUrl(name), { content })
       .then(res => makeResource<'role'>(res));
-  }
-
-  fetchGithubConnector(name: string) {
-    return api
-      .get(cfg.getGithubConnectorUrl(name))
-      .then(res => makeResource<'github'>(res));
   }
 
   updateGithubConnector(name: string, content: string) {
@@ -237,7 +121,7 @@ class ResourceService {
   }
 
   deleteRole(name: string) {
-    return api.delete(cfg.getRoleUrl({ action: 'delete', name }));
+    return api.delete(cfg.getRoleUrl(name));
   }
 
   deleteGithubConnector(name: string) {
@@ -247,80 +131,30 @@ class ResourceService {
 
 export default ResourceService;
 
-export async function fetchRole(
-  name: string,
-  signal?: AbortSignal
-): Promise<RoleResource> {
-  return makeResource<'role'>(
-    await api.get(cfg.getRoleUrl({ action: 'get', name }), signal, undefined, {
-      allowRoleNotFound: true,
-    })
-  );
-}
-
-export async function fetchRoleWithYamlParse(name: string): Promise<Role> {
-  const { content } = await fetchRole(name);
-  return yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
-    yaml: content,
-  });
-}
-
-export async function updateRoleWithYamlConversion({
-  name,
-  role,
-}: {
-  name: string;
-  role: Role;
-}) {
-  const content = await yamlService.stringify(YamlSupportedResourceKind.Role, {
-    resource: role,
-  });
-  return updateRole({ name, content });
-}
-
-export async function updateRole({
-  name,
-  content,
-}: {
-  name: string;
-  content: string;
-}): Promise<RoleResource> {
-  return api
-    .put(cfg.getRoleUrl({ action: 'update', name }), { content })
-    .then(res => makeResource<'role'>(res));
-}
-
-/**
- * makeRequestableRolesPageLocally mocks a paginated response for requestable roles so that a list of all requestable roles
- * can be handled by the serverside paginated table component.
- */
-// TODO(rudream): DELETE IN v21.0
-function makeRequestableRolesPageLocally(
+// TODO (gzdunek): DELETE in 17.0.0.
+// See the comment where this function is used.
+function makeRolesPageLocally(
   params: UrlListRolesParams,
-  allRequestableRoles: string[]
+  response: RoleResource[]
 ): {
-  items: RequestableRole[];
+  items: RoleResource[];
   startKey: string;
 } {
   if (params.search) {
-    allRequestableRoles = allRequestableRoles.filter(r =>
-      r.toLowerCase().includes(params.search.toLowerCase())
+    // A serverside search would also match labels, here we only check the name.
+    response = response.filter(p =>
+      p.name.toLowerCase().includes(params.search.toLowerCase())
     );
   }
 
   if (params.startKey) {
-    const startIndex = allRequestableRoles.findIndex(
-      r => r === params.startKey
-    );
-    allRequestableRoles = allRequestableRoles.slice(startIndex);
+    const startIndex = response.findIndex(p => p.name === params.startKey);
+    response = response.slice(startIndex);
   }
 
   const limit = params.limit || 200;
-  const nextKey = allRequestableRoles.at(limit) || '';
-  allRequestableRoles = allRequestableRoles.slice(0, limit);
+  const nextKey = response.at(limit)?.name;
+  response = response.slice(0, limit);
 
-  return {
-    items: allRequestableRoles.map(r => ({ name: r, description: '' })),
-    startKey: nextKey,
-  };
+  return { items: response, startKey: nextKey };
 }

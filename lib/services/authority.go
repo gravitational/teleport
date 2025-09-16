@@ -22,7 +22,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"slices"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -69,14 +69,12 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
-	case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
+	case types.JWTSigner, types.OIDCIdPCA:
 		err = checkJWTKeys(ca)
 	case types.SAMLIDPCA:
 		err = checkSAMLIDPCA(ca)
 	case types.SPIFFECA:
 		err = checkSPIFFECA(ca)
-	case types.AWSRACA:
-		err = checkAWSRACA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -93,17 +91,6 @@ func checkSPIFFECA(cai types.CertAuthority) error {
 	}
 	if len(ca.Spec.ActiveKeys.JWT) == 0 {
 		return trace.BadParameter("certificate authority missing JWT key pairs")
-	}
-	return nil
-}
-
-func checkAWSRACA(cai types.CertAuthority) error {
-	ca, ok := cai.(*types.CertAuthorityV2)
-	if !ok {
-		return trace.BadParameter("unknown CA type %T", cai)
-	}
-	if len(ca.Spec.ActiveKeys.TLS) == 0 {
-		return trace.BadParameter("certificate authority missing TLS key pairs")
 	}
 	return nil
 }
@@ -217,6 +204,7 @@ func checkJWTKeys(cai types.CertAuthority) error {
 			return trace.Wrap(err)
 		}
 		cfg := &jwt.Config{
+			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: ca.GetClusterName(),
 			PrivateKey:  privateKey,
 			PublicKey:   publicKey,
@@ -264,6 +252,7 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 func GetJWTSigner(signer crypto.Signer, clusterName string, clock clockwork.Clock) (*jwt.Key, error) {
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		PrivateKey:  signer,
 	})
@@ -275,7 +264,7 @@ func GetTLSCerts(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedTLSKeyPairs()
 	out := make([][]byte, len(pairs))
 	for i, pair := range pairs {
-		out[i] = slices.Clone(pair.Cert)
+		out[i] = append([]byte{}, pair.Cert...)
 	}
 	return out
 }
@@ -285,7 +274,7 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedSSHKeyPairs()
 	out := make([][]byte, 0, len(pairs))
 	for _, pair := range pairs {
-		out = append(out, slices.Clone(pair.PublicKey))
+		out = append(out, append([]byte{}, pair.PublicKey...))
 	}
 	return out
 }

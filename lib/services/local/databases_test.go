@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestDatabasesCRUD tests backend operations with database resources.
@@ -76,10 +75,6 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.Empty(t, out)
 	require.Empty(t, next)
 
-	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, out)
-
 	// Create both databases.
 	err = service.CreateDatabase(ctx, db1)
 	require.NoError(t, err)
@@ -109,12 +104,6 @@ func TestDatabasesCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Empty(t, next)
-
-	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 
 	// Fetch a specific database.
 	db, err := service.GetDatabase(ctx, db2.GetName())
@@ -157,12 +146,6 @@ func TestDatabasesCRUD(t *testing.T) {
 	))
 	require.Empty(t, next)
 
-	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
 	// Try to delete a database that doesn't exist.
 	err = service.DeleteDatabase(ctx, "doesnotexist")
 	require.IsType(t, trace.NotFound(""), err)
@@ -179,10 +162,6 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.Empty(t, out)
 	require.Empty(t, next)
 
-	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, out)
-
 	// Test pagination
 	expected := make([]types.Database, 0, 50)
 	for i := range 50 {
@@ -193,7 +172,7 @@ func TestDatabasesCRUD(t *testing.T) {
 			URI:      "localhost",
 		})
 		require.NoError(t, err)
-		require.NoError(t, service.CreateDatabase(t.Context(), db))
+		require.NoError(t, service.CreateDatabase(ctx, db))
 		expected = append(expected, db)
 	}
 	slices.SortFunc(expected, func(a, b types.Database) int {
@@ -207,12 +186,12 @@ func TestDatabasesCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	page1, page2Start, err := service.ListDatabases(t.Context(), 10, "")
+	page1, page2Start, err := service.ListDatabases(ctx, 10, "")
 	require.NoError(t, err)
 	assert.Len(t, page1, 10)
 	assert.NotEmpty(t, page2Start)
 
-	page2, next, err := service.ListDatabases(t.Context(), 1000, page2Start)
+	page2, next, err := service.ListDatabases(ctx, 1000, page2Start)
 	require.NoError(t, err)
 	assert.Len(t, page2, len(expected)-10)
 	assert.Empty(t, next)
@@ -222,24 +201,4 @@ func TestDatabasesCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	out, err = stream.Collect(service.RangeDatabases(t.Context(), "", page2Start))
-	require.NoError(t, err)
-	assert.Len(t, out, len(page1))
-	assert.Empty(t, gocmp.Diff(page1, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	out, err = stream.Collect(service.RangeDatabases(t.Context(), "", ""))
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	out, err = stream.Collect(service.RangeDatabases(t.Context(), page2Start, ""))
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected)-10)
-	assert.Empty(t, gocmp.Diff(expected, append(page1, out...),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 }

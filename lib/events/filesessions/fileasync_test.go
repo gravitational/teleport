@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -47,7 +48,7 @@ func TestUploadOK(t *testing.T) {
 	// wait until uploader blocks on the clock
 	p.clock.BlockUntil(1)
 
-	fileStreamer, err := NewStreamer(p.scanDir, nil)
+	fileStreamer, err := NewStreamer(p.scanDir)
 	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
@@ -84,8 +85,8 @@ func TestUploadParallel(t *testing.T) {
 
 	sessions := make(map[string][]apievents.AuditEvent)
 
-	for range 5 {
-		fileStreamer, err := NewStreamer(p.scanDir, nil)
+	for i := 0; i < 5; i++ {
+		fileStreamer, err := NewStreamer(p.scanDir)
 		require.NoError(t, err)
 
 		sessionEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
@@ -202,7 +203,7 @@ func TestUploadResume(t *testing.T) {
 					OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 						event := pe.GetAuditEvent()
 						if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
-							t.Logf("Terminating connection at event %v", event.GetIndex())
+							log.Debugf("Terminating connection at event %v", event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
@@ -234,7 +235,7 @@ func TestUploadResume(t *testing.T) {
 					OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 						event := pe.GetAuditEvent()
 						if event.GetIndex() > 600 && terminateConnection.Add(1) <= 10 {
-							t.Logf("Terminating connection #%v at event %v", terminateConnection.Load(), event.GetIndex())
+							log.Debugf("Terminating connection #%v at event %v", terminateConnection.Load(), event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
@@ -267,7 +268,7 @@ func TestUploadResume(t *testing.T) {
 					OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 						event := pe.GetAuditEvent()
 						if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
-							t.Logf("Terminating connection at event %v", event.GetIndex())
+							log.Debugf("Terminating connection at event %v", event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
@@ -306,7 +307,7 @@ func TestUploadResume(t *testing.T) {
 					if filepath.Ext(fi.Name()) == checkpointExt {
 						err := os.Remove(filepath.Join(uploader.cfg.ScanDir, fi.Name()))
 						require.NoError(t, err)
-						t.Logf("Deleted checkpoint file: %v.", fi.Name())
+						log.Debugf("Deleted checkpoint file: %v.", fi.Name())
 						checkpointsDeleted++
 					}
 				}
@@ -321,7 +322,7 @@ func TestUploadResume(t *testing.T) {
 					OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 						event := pe.GetAuditEvent()
 						if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
-							t.Logf("Terminating connection at event %v", event.GetIndex())
+							log.Debugf("Terminating connection at event %v", event.GetIndex())
 							return trace.ConnectionProblem(nil, "connection terminated")
 						}
 						return nil
@@ -370,7 +371,7 @@ func TestUploadBackoff(t *testing.T) {
 				event := pe.GetAuditEvent()
 				terminateAt := terminateConnectionAt.Load()
 				if terminateAt > 0 && event.GetIndex() >= terminateAt {
-					t.Logf("Terminating connection at event %v", event.GetIndex())
+					log.Debugf("Terminating connection at event %v", event.GetIndex())
 					return trace.ConnectionProblem(nil, "connection terminated at event index %v", terminateAt)
 				}
 				return nil
@@ -382,7 +383,7 @@ func TestUploadBackoff(t *testing.T) {
 	// wait until uploader blocks on the clock before creating the stream
 	p.clock.BlockUntil(1)
 
-	fileStreamer, err := NewStreamer(p.scanDir, nil)
+	fileStreamer, err := NewStreamer(p.scanDir)
 	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 4096})
@@ -406,7 +407,7 @@ func TestUploadBackoff(t *testing.T) {
 	attempts := 10
 	var prev time.Time
 	var diffs []time.Duration
-	for i := range attempts {
+	for i := 0; i < attempts; i++ {
 		// wait for the upload event
 		var event events.UploadEvent
 		select {
@@ -492,7 +493,7 @@ func TestUploadBadSession(t *testing.T) {
 type uploaderPack struct {
 	scanPeriod       time.Duration
 	initialScanDelay time.Duration
-	clock            *clockwork.FakeClock
+	clock            clockwork.FakeClock
 	eventsC          chan events.UploadEvent
 	memEventsC       chan events.UploadEvent
 	memUploader      *eventstest.MemoryUploader
@@ -554,7 +555,7 @@ type wrapStreamerFn func(streamer events.Streamer) (events.Streamer, error)
 
 // runResume runs resume scenario based on the test case specification
 func runResume(t *testing.T, testCase resumeTestCase) {
-	t.Logf("Running test %q.", testCase.name)
+	log.Debugf("Running test %q.", testCase.name)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -589,7 +590,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 
 	defer uploader.Close()
 
-	fileStreamer, err := NewStreamer(scanDir, nil)
+	fileStreamer, err := NewStreamer(scanDir)
 	require.NoError(t, err)
 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
@@ -611,7 +612,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
 
-	for i := range testCase.retries {
+	for i := 0; i < testCase.retries; i++ {
 		if testCase.onRetry != nil {
 			testCase.onRetry(t, i, uploader)
 		}
@@ -669,7 +670,7 @@ func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *ev
 	var reader *events.ProtoReader
 	for i, part := range parts {
 		if i == 0 {
-			reader = events.NewProtoReader(bytes.NewReader(part), nil)
+			reader = events.NewProtoReader(bytes.NewReader(part))
 		} else {
 			err := reader.Reset(bytes.NewReader(part))
 			require.NoError(t, err)

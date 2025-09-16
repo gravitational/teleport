@@ -1,4 +1,5 @@
 //go:build desktop_access_rdp
+// +build desktop_access_rdp
 
 /*
  * Teleport
@@ -73,11 +74,8 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"log/slog"
-	"net"
 	"os"
 	"runtime/cgo"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -85,6 +83,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -96,20 +95,19 @@ func init() {
 	var rustLogLevel string
 
 	// initialize the Rust logger by setting $RUST_LOG based
-	// on the slog log level
+	// on the logrus log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
 	rl := os.Getenv("RUST_LOG")
 	if rl == "" {
-		ctx := context.Background()
-		switch {
-		case slog.Default().Enabled(ctx, logutils.TraceLevel):
+		switch l := logrus.GetLevel(); l {
+		case logrus.TraceLevel:
 			rustLogLevel = "trace"
-		case slog.Default().Enabled(ctx, slog.LevelDebug):
+		case logrus.DebugLevel:
 			rustLogLevel = "debug"
-		case slog.Default().Enabled(ctx, slog.LevelInfo):
+		case logrus.InfoLevel:
 			rustLogLevel = "info"
-		case slog.Default().Enabled(ctx, slog.LevelWarn):
+		case logrus.WarnLevel:
 			rustLogLevel = "warn"
 		default:
 			rustLogLevel = "error"
@@ -122,7 +120,7 @@ func init() {
 		os.Setenv("RUST_LOG", rustLogLevel)
 	}
 
-	C.rdpclient_init_log()
+	C.init()
 }
 
 // Client is the RDP client.
@@ -138,7 +136,6 @@ type Client struct {
 	// Parameters read from the TDP stream
 	requestedWidth, requestedHeight uint16
 	username                        string
-	keyboardLayout                  uint32
 
 	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
@@ -182,9 +179,6 @@ func New(cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 	if err := c.readClientSize(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := c.readClientKeyboardLayout(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return c, nil
@@ -240,7 +234,7 @@ func (c *Client) readClientUsername() error {
 		}
 		u, ok := msg.(tdp.ClientUsername)
 		if !ok {
-			c.cfg.Logger.DebugContext(context.Background(), "Received unexpected ClientUsername message", "message_type", logutils.TypeAttr(msg))
+			c.cfg.Logger.DebugContext(context.Background(), fmt.Sprintf("Expected ClientUsername message, got %T", msg))
 			continue
 		}
 		c.cfg.Logger.DebugContext(context.Background(), "Got RDP username", "username", u.Username)
@@ -253,12 +247,8 @@ func (c *Client) readClientSize() error {
 	for {
 		s, err := c.cfg.Conn.ReadClientScreenSpec()
 		if err != nil {
-			if trace.IsBadParameter(err) {
-				c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
-				continue
-			} else {
-				return err
-			}
+			c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
+			continue
 		}
 
 		if c.cfg.hasSizeOverride() {
@@ -280,7 +270,7 @@ func (c *Client) readClientSize() error {
 				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
 				s.Width, s.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
 			)
-			if err := c.sendTDPAlert(err.Error(), tdp.SeverityError); err != nil {
+			if err := c.sendTDPNotification(err.Error(), tdp.SeverityError); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(err)
@@ -290,30 +280,8 @@ func (c *Client) readClientSize() error {
 	}
 }
 
-func (c *Client) readClientKeyboardLayout() error {
-	msgType, err := c.cfg.Conn.NextMessageType()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if msgType != tdp.TypeClientKeyboardLayout {
-		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
-		return nil
-	}
-	msg, err := c.cfg.Conn.ReadMessage()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	k, ok := msg.(tdp.ClientKeyboardLayout)
-	if !ok {
-		return trace.BadParameter("Unexpected message %T", msg)
-	}
-	c.cfg.Logger.DebugContext(context.Background(), "Got RDP keyboard layout", "keyboard_layout", k.KeyboardLayout)
-	c.keyboardLayout = k.KeyboardLayout
-	return nil
-}
-
-func (c *Client) sendTDPAlert(message string, severity tdp.Severity) error {
-	return c.cfg.Conn.WriteMessage(tdp.Alert{Message: message, Severity: severity})
+func (c *Client) sendTDPNotification(message string, severity tdp.Severity) error {
+	return c.cfg.Conn.WriteMessage(tdp.Notification{Message: message, Severity: severity})
 }
 
 func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error {
@@ -392,7 +360,6 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 			client_id:               cHostID,
-			keyboard_layout:         C.uint32_t(c.keyboardLayout),
 		},
 	)
 
@@ -402,7 +369,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 		defer C.free_string(res.message)
 	}
 
-	// If the client exited with an error, send a TDP notification and return it.
+	// If the client exited with an error, send a tdp error notification and return it.
 	if res.err_code != C.ErrCodeSuccess {
 		var err error
 
@@ -412,7 +379,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			err = trace.Errorf("RDP client exited with an unknown error")
 		}
 
-		c.sendTDPAlert(err.Error(), tdp.SeverityError)
+		c.sendTDPNotification(err.Error(), tdp.SeverityError)
 		return err
 	}
 
@@ -423,8 +390,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 	}
 
 	c.cfg.Logger.InfoContext(ctx, message)
-
-	c.sendTDPAlert(message, tdp.SeverityError)
+	c.sendTDPNotification(message, tdp.SeverityError)
 
 	return nil
 }
@@ -441,9 +407,6 @@ func (c *Client) stopRustRDP() error {
 func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 	c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming starting")
 	defer c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming finished")
-
-	// we will disable ping only if the env var is truthy
-	disableDesktopPing, _ := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING"))
 
 	var withheldResize *tdp.ClientScreenSpec
 	for {
@@ -462,23 +425,6 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		} else if err != nil {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDP input message", "error", err)
 			return err
-		}
-		if m, ok := msg.(tdp.Ping); ok {
-			go func() {
-				// Upon receiving a ping message, we make a connection
-				// to the host and send the same message back to the proxy.
-				// The proxy will then compute the round trip time.
-				if !disableDesktopPing {
-					conn, err := net.Dial("tcp", c.cfg.Addr)
-					if err == nil {
-						conn.Close()
-					}
-				}
-				if err := c.cfg.Conn.WriteMessage(m); err != nil {
-					c.cfg.Logger.WarnContext(context.Background(), "Failed writing TDP ping message", "error", err)
-				}
-			}()
-			continue
 		}
 
 		if atomic.LoadUint32(&c.readyForInput) == 0 {
@@ -995,6 +941,13 @@ func cgo_handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32
 // handleRemoteCopy is called from Rust when data is copied
 // on the remote desktop
 func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
+	// Ignore empty clipboard data to mitigate a part of a clipboard
+	// issue where sometimes the clipboard data is wiped.
+	if len(data) == 0 {
+		c.cfg.Logger.DebugContext(context.Background(), "Received empty clipboard data from Windows desktop, ignoring message")
+		return C.ErrCodeSuccess
+	}
+
 	c.cfg.Logger.DebugContext(context.Background(), "Received clipboard data from Windows desktop", "len", len(data))
 
 	if err := c.cfg.Conn.WriteMessage(tdp.ClipboardData(data)); err != nil {
@@ -1224,6 +1177,7 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
+
 }
 
 //export cgo_tdp_sd_truncate_request
@@ -1250,6 +1204,7 @@ func (c *Client) sharedDirectoryTruncateRequest(req tdp.SharedDirectoryTruncateR
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
+
 }
 
 // GetClientLastActive returns the time of the last recorded activity.

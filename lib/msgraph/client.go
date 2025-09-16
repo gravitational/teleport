@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2024 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -35,13 +34,12 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// graphVersion is the default version of the MS Graph API endpoint.
-const graphVersion = "v1.0"
+// baseURL is the default value for [client.baseURL]. It is the address of MS Graph API v1.0.
+const baseURL = "https://graph.microsoft.com/v1.0"
 
 // defaultPageSize is the page size used when [Config.PageSize] is not specified.
 const defaultPageSize = 500
@@ -67,7 +65,6 @@ func defaultHTTPClient() (*http.Client, error) {
 
 	return &http.Client{
 		Transport: transport,
-		Timeout:   apidefaults.DefaultIOTimeout,
 	}, nil
 }
 
@@ -86,8 +83,6 @@ type Config struct {
 	RetryConfig *retryutils.RetryV2Config
 	// PageSize limits the number of objects to return in one batch when using paginated requests (via the `$top` parameter).
 	PageSize int
-	// GraphEndpoint specifies root domain of the Graph API.
-	GraphEndpoint string
 }
 
 // SetDefaults sets the default values for optional fields.
@@ -104,9 +99,6 @@ func (cfg *Config) SetDefaults() {
 	if cfg.PageSize <= 0 {
 		cfg.PageSize = defaultPageSize
 	}
-	if cfg.GraphEndpoint == "" {
-		cfg.GraphEndpoint = types.MSGraphDefaultEndpoint
-	}
 }
 
 // Validate checks that required fields are set.
@@ -116,9 +108,6 @@ func (cfg *Config) Validate() error {
 	}
 	if cfg.HTTPClient == nil {
 		return trace.BadParameter("HTTPClient must be set")
-	}
-	if err := types.ValidateMSGraphEndpoints("", cfg.GraphEndpoint); err != nil {
-		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -138,7 +127,7 @@ func NewClient(cfg Config) (*Client, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	base, err := url.Parse(cfg.GraphEndpoint)
+	uri, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,14 +136,14 @@ func NewClient(cfg Config) (*Client, error) {
 		tokenProvider: cfg.TokenProvider,
 		clock:         cfg.Clock,
 		retryConfig:   *cfg.RetryConfig,
-		baseURL:       base.JoinPath(graphVersion),
+		baseURL:       uri,
 		pageSize:      cfg.PageSize,
 	}, nil
 }
 
 // request is the base function for HTTP API calls.
 // It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
-func (c *Client) request(ctx context.Context, method string, uri string, header map[string]string, payload []byte) (*http.Response, error) {
+func (c *Client) request(ctx context.Context, method string, uri string, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
 	if len(payload) > 0 {
 		body = bytes.NewReader(payload)
@@ -175,9 +164,6 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		return nil, trace.Wrap(err, "failed to get azure authentication token")
 	}
 	req.Header.Add("Authorization", "Bearer "+token.Token)
-	for i := range header {
-		req.Header.Add(i, header[i])
-	}
 
 	const maxRetries = 5
 	var retryAfter time.Duration
@@ -189,7 +175,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 	}
 
 	var lastErr error
-	for range maxRetries {
+	for i := 0; i < maxRetries; i++ {
 		if retryAfter > 0 {
 			select {
 			case <-c.clock.After(retryAfter):
@@ -241,16 +227,8 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 }
 
 func (c *Client) endpointURI(segments ...string) *url.URL {
-	escapedSegments := make([]string, 0, cap(segments))
-	for _, s := range segments {
-		// Handling of slash vs escaped slash (%2F) in paths is ambiguous and inconsistent.
-		// See e.g.: https://stackoverflow.com/questions/1957115/is-a-slash-equivalent-to-an-encoded-slash-2f-in-the-path-portion-of-a
-		// We do not expect slashes to be needed within a single path segment,
-		// so we just remove slashes from each segment.
-		escapedSegments = append(escapedSegments, url.PathEscape(strings.ReplaceAll(s, "/", "")))
-	}
 	uri := c.baseURL
-	uri = uri.JoinPath(escapedSegments...)
+	uri = uri.JoinPath(segments...)
 	return uri
 }
 
@@ -267,7 +245,7 @@ func roundtrip[T any](ctx context.Context, c *Client, method string, uri string,
 			return zero, trace.Wrap(err)
 		}
 	}
-	resp, err := c.request(ctx, method, uri, nil /* extra headers */, body)
+	resp, err := c.request(ctx, method, uri, body)
 	if err != nil {
 		return zero, trace.Wrap(err)
 	}
@@ -287,7 +265,7 @@ func (c *Client) patch(ctx context.Context, uri string, in any) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	resp, err := c.request(ctx, http.MethodPatch, uri, nil /* extra headers */, body)
+	resp, err := c.request(ctx, http.MethodPatch, uri, body)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -346,17 +324,6 @@ func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 		return nil, trace.Wrap(err)
 	}
 	return out.Value, nil
-}
-
-// GetServicePrincipal returns the service principal for the given principal ID.
-// Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
-func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*ServicePrincipal, error) {
-	uri := c.endpointURI(fmt.Sprintf("servicePrincipals/%s", principalId))
-	out, err := roundtrip[*ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return out, nil
 }
 
 // GrantAppRoleToServicePrincipal grants the given app role to the specified Service Principal.

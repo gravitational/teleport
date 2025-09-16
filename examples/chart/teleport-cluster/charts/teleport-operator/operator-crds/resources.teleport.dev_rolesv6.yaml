@@ -38,17 +38,6 @@ spec:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.
                 properties:
-                  account_assignments:
-                    description: AccountAssignments holds the list of account assignments
-                      affected by this condition.
-                    items:
-                      properties:
-                        account:
-                          type: string
-                        permission_set:
-                          type: string
-                      type: object
-                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -160,18 +149,6 @@ spec:
                       type: string
                     nullable: true
                     type: array
-                  github_permissions:
-                    description: GitHubPermissions defines GitHub integration related
-                      permissions.
-                    items:
-                      properties:
-                        orgs:
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                      type: object
-                    type: array
                   group_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -273,12 +250,9 @@ spec:
                       Role grants access to.
                     items:
                       properties:
-                        api_group:
-                          description: APIGroup specifies the Kubernetes API group
-                            of the Kubernetes resource. It supports wildcards.
-                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
+                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -308,21 +282,6 @@ spec:
                       type: string
                     nullable: true
                     type: array
-                  mcp:
-                    description: MCPPermissions defines MCP servers related permissions.
-                    nullable: true
-                    properties:
-                      tools:
-                        description: Tools defines the list of tools allowed or denied
-                          for this role. Each entry can be a literal string, a glob
-                          pattern (e.g. "prefix_*"), or a regular expression (must
-                          start with '^' and end with '$'). If the list is empty,
-                          no tools are allowed.
-                        items:
-                          type: string
-                        nullable: true
-                        type: array
-                    type: object
                   node_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -379,10 +338,6 @@ spec:
                           "kube_cluster" and enforce requesting any of its subresources.'
                         items:
                           properties:
-                            api_group:
-                              description: APIGroup specifies the Kubernetes Resource
-                                API group.
-                              type: string
                             kind:
                               description: kind specifies the Kubernetes Resource
                                 type.
@@ -395,20 +350,6 @@ spec:
                           is used.
                         format: duration
                         type: string
-                      reason:
-                        description: Reason defines settings for the reason for the
-                          access provided by the user.
-                        nullable: true
-                        properties:
-                          mode:
-                            description: Mode can be either "required" or "optional".
-                              Empty string is treated as "optional". If a role has
-                              the request reason mode set to "required", then reason
-                              is required for all Access Requests requesting roles
-                              or resources allowed by this role. It applies only to
-                              users who have this role assigned.
-                            type: string
-                        type: object
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -649,17 +590,6 @@ spec:
                 description: Deny is the set of conditions evaluated to deny access.
                   Deny takes priority over allow.
                 properties:
-                  account_assignments:
-                    description: AccountAssignments holds the list of account assignments
-                      affected by this condition.
-                    items:
-                      properties:
-                        account:
-                          type: string
-                        permission_set:
-                          type: string
-                      type: object
-                    type: array
                   app_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -771,18 +701,6 @@ spec:
                       type: string
                     nullable: true
                     type: array
-                  github_permissions:
-                    description: GitHubPermissions defines GitHub integration related
-                      permissions.
-                    items:
-                      properties:
-                        orgs:
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
-                      type: object
-                    type: array
                   group_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -884,12 +802,9 @@ spec:
                       Role grants access to.
                     items:
                       properties:
-                        api_group:
-                          description: APIGroup specifies the Kubernetes API group
-                            of the Kubernetes resource. It supports wildcards.
-                          type: string
                         kind:
                           description: Kind specifies the Kubernetes Resource type.
+                            At the moment only "pod" is supported.
                           type: string
                         name:
                           description: Name is the resource name. It supports wildcards.
@@ -919,21 +834,6 @@ spec:
                       type: string
                     nullable: true
                     type: array
-                  mcp:
-                    description: MCPPermissions defines MCP servers related permissions.
-                    nullable: true
-                    properties:
-                      tools:
-                        description: Tools defines the list of tools allowed or denied
-                          for this role. Each entry can be a literal string, a glob
-                          pattern (e.g. "prefix_*"), or a regular expression (must
-                          start with '^' and end with '$'). If the list is empty,
-                          no tools are allowed.
-                        items:
-                          type: string
-                        nullable: true
-                        type: array
-                    type: object
                   node_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -990,10 +890,6 @@ spec:
                           "kube_cluster" and enforce requesting any of its subresources.'
                         items:
                           properties:
-                            api_group:
-                              description: APIGroup specifies the Kubernetes Resource
-                                API group.
-                              type: string
                             kind:
                               description: kind specifies the Kubernetes Resource
                                 type.
@@ -1006,20 +902,6 @@ spec:
                           is used.
                         format: duration
                         type: string
-                      reason:
-                        description: Reason defines settings for the reason for the
-                          access provided by the user.
-                        nullable: true
-                        properties:
-                          mode:
-                            description: Mode can be either "required" or "optional".
-                              Empty string is treated as "optional". If a role has
-                              the request reason mode set to "required", then reason
-                              is required for all Access Requests requesting roles
-                              or resources allowed by this role. It applies only to
-                              users who have this role assigned.
-                            type: string
-                        type: object
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -1404,7 +1286,9 @@ spec:
                       generation and usage
                     type: boolean
                   port_forwarding:
-                    description: 'Deprecated: Use SSHPortForwarding instead'
+                    description: PortForwarding defines if the certificate will have
+                      "permit-port-forwarding" in the certificate. PortForwarding
+                      is "yes" if not set, that's why this is a pointer
                     type: boolean
                   record_session:
                     description: RecordDesktopSession indicates whether desktop access
@@ -1442,26 +1326,6 @@ spec:
                       via SCP or SFTP are allowed over an SSH session. It defaults
                       to true unless explicitly set to false.
                     type: boolean
-                  ssh_port_forwarding:
-                    description: SSHPortForwarding configures what types of SSH port
-                      forwarding are allowed by a role.
-                    nullable: true
-                    properties:
-                      local:
-                        description: Allow local port forwarding.
-                        nullable: true
-                        properties:
-                          enabled:
-                            type: boolean
-                        type: object
-                      remote:
-                        description: Allow remote port forwarding.
-                        nullable: true
-                        properties:
-                          enabled:
-                            type: boolean
-                        type: object
-                    type: object
                 type: object
             type: object
           status:
@@ -1471,8 +1335,16 @@ spec:
                 description: Conditions represent the latest available observations
                   of an object's state
                 items:
-                  description: Condition contains details for one aspect of the current
-                    state of this API Resource.
+                  description: "Condition contains details for one aspect of the current
+                    state of this API Resource.\n---\nThis struct is intended for
+                    direct use as an array at the field path .status.conditions.  For
+                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
+                    observations of a foo's current state.\n\t    // Known .status.conditions.type
+                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
+                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
+                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
+                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
+                    \   // other fields\n\t}"
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -1513,7 +1385,12 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      description: |-
+                        type of condition in CamelCase or in foo.example.com/CamelCase.
+                        ---
+                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
+                        useful (see .node.status.conditions), the ability to deconflict is important.
+                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string

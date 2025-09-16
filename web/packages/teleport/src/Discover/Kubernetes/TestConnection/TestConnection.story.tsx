@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { MemoryRouter } from 'react-router';
-
-import { DiscoverBox } from 'teleport/Discover/Shared';
 
 import { TestConnection } from './TestConnection';
 import type { State } from './useTestConnection';
@@ -29,68 +28,58 @@ export default {
 
 export const InitWithLocal = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <TestConnection {...props} />
-    </DiscoverBox>
+    <TestConnection {...props} />
   </MemoryRouter>
 );
 
 export const InitWithSso = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <TestConnection {...props} authType="sso" />
-    </DiscoverBox>
+    <TestConnection {...props} authType="sso" />
   </MemoryRouter>
 );
 
 export const WithKubeUsers = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <TestConnection
-        {...props}
-        kube={{
-          kind: 'kube_cluster',
-          name: 'some-kube-name',
-          labels: [],
-          users: ['user1', 'user2'],
-          groups: [],
-        }}
-      />
-    </DiscoverBox>
+    <TestConnection
+      {...props}
+      kube={{
+        kind: 'kube_cluster',
+        name: 'some-kube-name',
+        labels: [],
+        users: ['user1', 'user2'],
+        groups: [],
+      }}
+    />
   </MemoryRouter>
 );
 
 export const WithKubeGroups = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <TestConnection
-        {...props}
-        kube={{
-          kind: 'kube_cluster',
-          name: 'some-kube-name',
-          labels: [],
-          users: [],
-          groups: ['group1', 'group2'],
-        }}
-      />
-    </DiscoverBox>
+    <TestConnection
+      {...props}
+      kube={{
+        kind: 'kube_cluster',
+        name: 'some-kube-name',
+        labels: [],
+        users: [],
+        groups: ['group1', 'group2'],
+      }}
+    />
   </MemoryRouter>
 );
 
 export const WithKubeUsersAndGroups = () => (
   <MemoryRouter>
-    <DiscoverBox>
-      <TestConnection
-        {...props}
-        kube={{
-          kind: 'kube_cluster',
-          name: 'some-kube-name',
-          labels: [],
-          users: ['user1', 'user2'],
-          groups: ['group1', 'group2'],
-        }}
-      />
-    </DiscoverBox>
+    <TestConnection
+      {...props}
+      kube={{
+        kind: 'kube_cluster',
+        name: 'some-kube-name',
+        labels: [],
+        users: ['user1', 'user2'],
+        groups: ['group1', 'group2'],
+      }}
+    />
   </MemoryRouter>
 );
 

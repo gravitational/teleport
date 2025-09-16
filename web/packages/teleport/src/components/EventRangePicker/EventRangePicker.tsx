@@ -16,25 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
-import { components, ValueContainerProps } from 'react-select';
+import React, { useState } from 'react';
+import { components } from 'react-select';
 
 import 'react-day-picker/dist/style.css';
 
-import styled from 'styled-components';
-
 import { Box, Text } from 'design';
-import { displayDate } from 'design/datetime';
 import Dialog from 'design/DialogConfirmation';
 import Select, { Option } from 'shared/components/Select';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
+import { displayDate } from 'shared/services/loc';
 
 import { State } from 'teleport/Audit/useAuditEvents';
 
 import { CustomRange } from './Custom';
 import { EventRange } from './utils';
-
-type RangeOption = Option<EventRange, string>;
 
 export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
   const [isPickerOpen, openDayPicker] = useState(false);
@@ -91,18 +87,15 @@ export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
   );
 }
 
-const ValueContainer = ({
-  children,
-  ...props
-}: ValueContainerProps<RangeOption>) => {
+const ValueContainer = ({ children, ...props }) => {
   const { isCustom, from, to } = props.getValue()[0].value;
 
   if (isCustom) {
     return (
       <components.ValueContainer {...props}>
-        <ValueText color="text.main">
+        <Text color="text.main">
           {`${displayDate(from)} - ${displayDate(to)}`}
-        </ValueText>
+        </Text>
         {children}
       </components.ValueContainer>
     );
@@ -112,11 +105,6 @@ const ValueContainer = ({
     <components.ValueContainer {...props}>{children}</components.ValueContainer>
   );
 };
-
-/** Positions the value text on the internal react-select grid. */
-const ValueText = styled(Text)`
-  grid-area: 1/1/2/3;
-`;
 
 type Props = {
   ml?: string | number;

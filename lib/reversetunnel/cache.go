@@ -20,11 +20,12 @@ package reversetunnel
 
 import (
 	"context"
-	"crypto/rsa"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"github.com/gravitational/ttlmap"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -32,34 +33,29 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type certificateCache struct {
-	cache       *utils.FnCache
-	authClient  authclient.ClientI
-	suiteGetter cryptosuites.GetSuiteFunc
+	mu sync.Mutex
+
+	cache      *ttlmap.TTLMap
+	authClient authclient.ClientI
 }
 
 // newHostCertificateCache creates a shared host certificate cache that is
-// used by the forwarding server. [authPrefGetter] technically offers only a
-// subset of [authClient], but it allows for using a cached view of the auth
-// preference.
-func newHostCertificateCache(authClient authclient.ClientI, authPrefGetter cryptosuites.AuthPreferenceGetter, clock clockwork.Clock) (*certificateCache, error) {
-	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   defaults.HostCertCacheTime,
-		Clock: clock,
-	})
+// used by the forwarding server.
+func newHostCertificateCache(authClient authclient.ClientI) (*certificateCache, error) {
+	native.PrecomputeKeys() // ensure native package is set to precompute keys
+	cache, err := ttlmap.New(defaults.HostCertCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &certificateCache{
-		cache:       cache,
-		authClient:  authClient,
-		suiteGetter: cryptosuites.GetCurrentSuiteFromAuthPreference(authPrefGetter),
+		cache:      cache,
+		authClient: authClient,
 	}, nil
 }
 
@@ -69,14 +65,61 @@ func newHostCertificateCache(authClient authclient.ClientI, authPrefGetter crypt
 // This is a tradeoff to prevent long delays here due to the expensive
 // certificate generation call.
 func (c *certificateCache) getHostCertificate(ctx context.Context, addr string, additionalPrincipals []string) (ssh.Signer, error) {
-	principals := append([]string{addr}, additionalPrincipals...)
-	key := strings.Join(principals, ".")
+	var certificate ssh.Signer
+	var err error
+	var ok bool
 
-	certificate, err := utils.FnCacheGet(ctx, c.cache, key, func(ctx context.Context) (ssh.Signer, error) {
-		certificate, err := c.generateHostCert(ctx, principals)
-		return certificate, trace.Wrap(err)
-	})
-	return certificate, trace.Wrap(err)
+	var principals []string
+	principals = append(principals, addr)
+	principals = append(principals, additionalPrincipals...)
+
+	certificate, ok = c.get(strings.Join(principals, "."))
+	if !ok {
+		certificate, err = c.generateHostCert(ctx, principals)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = c.set(addr, certificate, defaults.HostCertCacheTime)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return certificate, nil
+}
+
+// get is goroutine safe and will return a ssh.Signer for a principal from
+// the cache.
+func (c *certificateCache) get(addr string) (ssh.Signer, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	certificate, ok := c.cache.Get(addr)
+	if !ok {
+		return nil, false
+	}
+
+	certificateSigner, ok := certificate.(ssh.Signer)
+	if !ok {
+		return nil, false
+	}
+
+	return certificateSigner, true
+}
+
+// set is goroutine safe and will set a ssh.Signer for a principal in
+// the cache.
+func (c *certificateCache) set(addr string, certificate ssh.Signer, ttl time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	err := c.cache.Set(addr, certificate, ttl)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // generateHostCert will generate a SSH host certificate for a given
@@ -87,25 +130,10 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 	}
 
 	// Generate public/private keypair.
-	hostKey, err := cryptosuites.GenerateKey(ctx, c.suiteGetter, cryptosuites.HostSSH)
+	privBytes, pubBytes, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if _, isRSA := hostKey.Public().(*rsa.PublicKey); isRSA {
-		// Start precomputing RSA keys if we ever generate one.
-		// [cryptosuites.PrecomputeRSAKeys] is idempotent.
-		// Doing this lazily easily handles changing signature algorithm suites
-		// and won't start precomputing keys if they are never needed (a major
-		// benefit in tests).
-		cryptosuites.PrecomputeRSAKeys()
-	}
-
-	sshPub, err := ssh.NewPublicKey(hostKey.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pubBytes := ssh.MarshalAuthorizedKey(sshPub)
 
 	// Generate a SSH host certificate.
 	clusterName, err := c.authClient.GetDomainName(context.TODO())
@@ -128,7 +156,7 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 	certBytes := res.SshCertificate
 
 	// create a *ssh.Certificate
-	sshSigner, err := ssh.NewSignerFromSigner(hostKey)
+	privateKey, err := ssh.ParsePrivateKey(privBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,7 +166,7 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 	}
 
 	// return a ssh.Signer
-	s, err := ssh.NewCertSigner(cert, sshSigner)
+	s, err := ssh.NewCertSigner(cert, privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

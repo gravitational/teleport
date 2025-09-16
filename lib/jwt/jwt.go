@@ -21,8 +21,7 @@ package jwt
 
 import (
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -40,8 +39,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // Config defines the clock and PEM encoded bytes of a public and private
@@ -55,6 +56,9 @@ type Config struct {
 
 	// PrivateKey is used to sign and verify tokens.
 	PrivateKey crypto.Signer
+
+	// Algorithm is algorithm used to sign JWT tokens.
+	Algorithm jose.SignatureAlgorithm
 
 	// ClusterName is the name of the cluster that will be signing the JWT tokens.
 	ClusterName string
@@ -71,6 +75,9 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.PrivateKey == nil && c.PublicKey == nil {
 		return trace.BadParameter("public or private key is required")
+	}
+	if c.Algorithm == "" {
+		return trace.BadParameter("algorithm is required")
 	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("cluster name is required")
@@ -145,25 +152,21 @@ func (k *Key) sign(claims any, opts *jose.SignerOptions) (string, error) {
 
 // signAny will return a signed JWT with the passed in claims embedded within; unlike sign it allows more flexibility in the claim data.
 func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
-	sig, err := k.getSigner(opts)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
-}
-
-func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	if k.config.PrivateKey == nil {
-		return nil, trace.BadParameter("can not sign token with non-signing key")
+		return "", trace.BadParameter("can not sign token with non-signing key")
 	}
 
-	signingKey, err := SigningKeyFromPrivateKey(k.config.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Create a signer with configured private key and algorithm.
+	var signer interface{}
+	switch k.config.PrivateKey.(type) {
+	case *rsa.PrivateKey:
+		signer = k.config.PrivateKey
+	default:
+		signer = cryptosigner.Opaque(k.config.PrivateKey)
+	}
+	signingKey := jose.SigningKey{
+		Algorithm: k.config.Algorithm,
+		Key:       signer,
 	}
 
 	if opts == nil {
@@ -172,44 +175,14 @@ func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
 	opts = opts.WithType("JWT")
 	sig, err := jose.NewSigner(signingKey, opts)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-	return sig, nil
-}
 
-// AlgorithmForPublicKey returns a jose algorithm for the given public key.
-func AlgorithmForPublicKey(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
-	switch pub.(type) {
-	case *rsa.PublicKey:
-		return jose.RS256, nil
-	case *ecdsa.PublicKey:
-		return jose.ES256, nil
-	case ed25519.PublicKey:
-		return jose.EdDSA, nil
-	}
-	return "", trace.BadParameter("unsupported public key type %T", pub)
-}
-
-// SigningKeyFromPrivateKey creates a jose.SigningKey from the given signer,
-// wrapping it in an opaque signer if necessary.
-func SigningKeyFromPrivateKey(priv crypto.Signer) (jose.SigningKey, error) {
-	// Create a signer with configured private key and algorithm.
-	var signer any
-	switch priv.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		signer = priv
-	default:
-		signer = cryptosigner.Opaque(priv)
-	}
-	algorithm, err := AlgorithmForPublicKey(priv.Public())
+	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	if err != nil {
-		return jose.SigningKey{}, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
-
-	return jose.SigningKey{
-		Algorithm: algorithm,
-		Key:       signer,
-	}, nil
+	return token, nil
 }
 
 func (k *Key) Sign(p SignParams) (string, error) {
@@ -234,8 +207,11 @@ func (k *Key) Sign(p SignParams) (string, error) {
 
 	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
 	// We ignore the error because go-jose omits the kid if it is empty.
-	kid, _ := KeyID(k.config.PublicKey)
-	return k.sign(claims, (&jose.SignerOptions{}).WithHeader("kid", kid))
+	so := &jose.SignerOptions{}
+	if v, ok := k.config.PublicKey.(*rsa.PublicKey); ok {
+		so.WithHeader("kid", KeyID(v))
+	}
+	return k.sign(claims, so)
 }
 
 // awsOIDCCustomClaims defines the require claims for the JWT token used in AWS OIDC Integration.
@@ -343,10 +319,12 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	// Whilst optional, the SPIRE reference implementation does set this value
 	// and it will be beneficial for compatibility with a range of consumers
 	// which may require this value.
-	kid, err := KeyID(k.config.PublicKey)
-	if err != nil {
-		return "", trace.Wrap(err, "calculating 'kid'")
+	rsaPubKey, ok := k.config.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return "", trace.BadParameter("expected an RSA public key")
 	}
+	kid := KeyID(rsaPubKey)
+
 	opts := (&jose.SignerOptions{}).
 		WithHeader("kid", kid)
 
@@ -407,10 +385,11 @@ func (k *Key) SignEntraOIDC(p SignParams) (string, error) {
 
 	// Azure expect a `kid` header to be present and non-empty,
 	// unlike e.g. AWS which accepts an empty `kid` string value.
-	kid, err := KeyID(k.config.PublicKey)
-	if err != nil {
-		return "", trace.Wrap(err)
+	publicKey, ok := k.config.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return "", trace.BadParameter("expected an RSA public key")
 	}
+	kid := KeyID(publicKey)
 	opts := (&jose.SignerOptions{}).
 		WithHeader(jose.HeaderKey("kid"), kid)
 	return k.sign(claims, opts)
@@ -691,6 +670,26 @@ type Claims struct {
 	Traits wrappers.Traits `json:"traits"`
 }
 
+// GenerateKeyPair generates and return a PEM encoded private and public
+// key in the format used by this package.
+func GenerateKeyPair() ([]byte, []byte, error) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	public, err := keys.MarshalPublicKey(privateKey.Public())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	private, err := keys.MarshalPrivateKey(privateKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return public, private, nil
+}
+
 // IDToken allows introspecting claims from an OpenID Connect
 // ID Token.
 type IDToken interface {
@@ -743,57 +742,4 @@ func (j *JSONTime) UnmarshalJSON(b []byte) error {
 	}
 	*j = JSONTime(time.Unix(unix, 0))
 	return nil
-}
-
-// SignPayload signs the payload with the key and JSONWebSignature.
-func (k *Key) SignPayload(payload []byte, opts *jose.SignerOptions) (*jose.JSONWebSignature, error) {
-	sig, err := k.getSigner(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signature, err := sig.Sign(payload)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return signature, nil
-}
-
-// PluginTokenParam defines the parameters needed to sign a JWT token for a Teleport plugin.
-type PluginTokenParam struct {
-	// Audience is the Audience for the Token.
-	Audience []string
-	// Issuer is the issuer of the token.
-	Issuer string
-	// Subject is the system that is going to use the token.
-	Subject string
-	// Expires is the time to live for the token.
-	Expires time.Time
-}
-
-// SignPluginToken signs a JWT token for a Teleport plugin.
-func (k *Key) SignPluginToken(p PluginTokenParam) (string, error) {
-	claims := jwt.Claims{
-		Subject:   p.Subject,
-		Issuer:    p.Issuer,
-		Audience:  p.Audience,
-		NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
-		IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
-		Expiry:    jwt.NewNumericDate(p.Expires),
-	}
-
-	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
-	// We ignore the error because go-jose omits the kid if it is empty.
-	kid, _ := KeyID(k.config.PublicKey)
-	return k.sign(claims, (&jose.SignerOptions{}).WithHeader("kid", kid))
-}
-
-// VerifyPluginToken verifies a JWT token for a Teleport plugin.
-func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims, error) {
-	expectedClaims := jwt.Expected{
-		Issuer:   claims.Issuer,
-		Subject:  claims.Subject,
-		Audience: claims.Audience,
-		Time:     k.config.Clock.Now(),
-	}
-	return k.verify(token, expectedClaims)
 }

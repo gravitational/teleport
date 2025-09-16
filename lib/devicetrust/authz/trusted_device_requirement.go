@@ -33,8 +33,7 @@ func CalculateTrustedDeviceRequirement(
 	getRoles func() ([]types.Role, error),
 ) (types.TrustedDeviceRequirement, error) {
 	// Required by cluster mode?
-	switch dtconfig.GetEnforcementMode(dt) {
-	case constants.DeviceTrustModeRequired, constants.DeviceTrustModeRequiredForHumans:
+	if dtconfig.GetEnforcementMode(dt) == constants.DeviceTrustModeRequired {
 		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
 	}
 
@@ -44,8 +43,7 @@ func CalculateTrustedDeviceRequirement(
 		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED, trace.Wrap(err)
 	}
 	for _, role := range roles {
-		switch role.GetOptions().DeviceTrustMode {
-		case constants.DeviceTrustModeRequired, constants.DeviceTrustModeRequiredForHumans:
+		if role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
 			return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
 		}
 	}

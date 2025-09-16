@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Box, Indicator } from 'design';
@@ -24,18 +24,16 @@ import {
   FileTransfer,
   FileTransferActionBar,
   FileTransferContextProvider,
-  useFileTransferContext,
+  FileTransferRequests,
 } from 'shared/components/FileTransfer';
 import { TerminalSearch } from 'shared/components/TerminalSearch';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import * as stores from 'teleport/Console/stores';
-import { useMfaEmitter } from 'teleport/lib/useMfa';
-import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import useWebAuthn from 'teleport/lib/useWebAuthn';
 
 import { useConsoleContext } from '../consoleContextProvider';
 import Document from '../Document';
-import { FileTransferRequests } from './FileTransferRequests';
 import { Terminal, TerminalRef } from './Terminal';
 import { useFileTransfer } from './useFileTransfer';
 import useSshSession from './useSshSession';
@@ -51,21 +49,16 @@ export default function DocumentSshWrapper(props: PropTypes) {
 function DocumentSsh({ doc, visible }: PropTypes) {
   const ctx = useConsoleContext();
   const hasFileTransferAccess = ctx.storeUser.hasFileTransferAccess();
-  const terminalRef = useRef<TerminalRef>(undefined);
+  const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
-
-  const mfa = useMfaEmitter(tty, {
-    // The MFA requirement will be determined by whether we do/don't get
-    // an mfa challenge over the event emitter at session start.
-    isMfaRequired: false,
-    req: {
-      scope: MfaChallengeScope.USER_SESSION,
-    },
-  });
-  const ft = useFileTransfer(tty, session, doc, mfa);
-  const { openedDialog: ftOpenedDialog } = useFileTransferContext();
-
+  const webauthn = useWebAuthn(tty);
+  const {
+    getMfaResponseAttempt,
+    getDownloader,
+    getUploader,
+    fileTransferRequests,
+  } = useFileTransfer(tty, session, doc, webauthn.addMfaToScpUrls);
   const theme = useTheme();
 
   function handleCloseFileTransfer() {
@@ -77,12 +70,9 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   }
 
   useEffect(() => {
-    // If an MFA attempt starts while switching tabs or closing tabs,
-    // automatically focus on visible terminal.
-    if (mfa.challenge) {
-      terminalRef.current?.focus();
-    }
-  }, [visible, mfa.challenge]);
+    // when switching tabs or closing tabs, focus on visible terminal
+    terminalRef.current?.focus();
+  }, [visible, webauthn.requested]);
 
   const onSearchClose = useCallback(() => {
     setShowSearch(false);
@@ -116,15 +106,21 @@ function DocumentSsh({ doc, visible }: PropTypes) {
               <FileTransferRequests
                 onDeny={handleFileTransferDecision}
                 onApprove={handleFileTransferDecision}
-                requests={ft.fileTransferRequests}
+                requests={fileTransferRequests}
               />
             }
             beforeClose={() =>
               window.confirm('Are you sure you want to cancel file transfers?')
             }
+            errorText={
+              getMfaResponseAttempt.status === 'failed'
+                ? getMfaResponseAttempt.statusText
+                : null
+            }
             afterClose={handleCloseFileTransfer}
             transferHandlers={{
-              ...ft,
+              getDownloader,
+              getUploader,
             }}
           />
         </>
@@ -143,15 +139,13 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           <Indicator />
         </Box>
       )}
-      <AuthnDialog
-        mfaState={mfa}
-        onClose={() => {
-          // Don't close the ssh doc if this is just a file transfer request.
-          if (!ftOpenedDialog) {
-            closeDocument();
-          }
-        }}
-      />
+      {webauthn.requested && (
+        <AuthnDialog
+          onContinue={webauthn.authenticate}
+          onCancel={closeDocument}
+          errorText={webauthn.errorText}
+        />
+      )}
       {status === 'initialized' && terminal}
     </Document>
   );

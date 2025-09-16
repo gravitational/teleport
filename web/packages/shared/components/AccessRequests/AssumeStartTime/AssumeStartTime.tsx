@@ -22,17 +22,18 @@ import styled from 'styled-components';
 
 import 'react-day-picker/dist/style.css';
 
-import { addMonths } from 'date-fns';
+import { addMonths, format } from 'date-fns';
 
 import { Box, ButtonIcon, Flex, LabelInput } from 'design';
 import { ButtonSecondary } from 'design/Button';
-import { StyledDateRange } from 'design/DatePicker';
-import { displayShortDate } from 'design/datetime';
 import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
 import FieldSelect from 'shared/components/FieldSelect';
 import Validation from 'shared/components/Validation';
+import cfg from 'shared/config';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 import { AccessRequest } from 'shared/services/accessRequests';
+
+import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
 
 import { TimeOption } from '../Shared/types';
 import {
@@ -117,7 +118,7 @@ export function AssumeStartTime({
 
   const startOrRequestedDate = start || accessRequest.assumeStartTime;
   if (!wantImmediate && startOrRequestedDate) {
-    startDateText = displayShortDate(startOrRequestedDate);
+    startDateText = format(startOrRequestedDate, cfg.dateWithFullMonth);
     startTime = convertStartToTimeOption(
       startOrRequestedDate,
       !start && !!accessRequest.assumeStartTime
@@ -229,7 +230,7 @@ const CalendarPicker = styled(Flex)`
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  &:hover {
+  :hover {
     background-color: ${p => p.theme.colors.spotBackground[0]};
     border: 1px solid ${p => p.theme.colors.text.slightlyMuted};
   }

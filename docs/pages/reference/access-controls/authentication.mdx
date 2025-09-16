@@ -1,7 +1,7 @@
 ---
 title: Authentication options
 description: A reference for Teleport's authentication connectors
-labels:
+tags:
  - reference
  - zero-trust
 ---
@@ -20,10 +20,10 @@ possible values (types) of MFA:
 - `otp` is the default. It implements the [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
   standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator), [Authy](https://www.authy.com/) or any other TOTP client.
 - `webauthn` implements the [Web Authentication standard](https://webauthn.guide) for utilizing
-  multi-factor authenticators and hardware devices.
+  second factor authenticators and hardware devices.
   You can use [YubiKeys](https://www.yubico.com/), [SoloKeys](https://solokeys.com/) or any other authenticator that
   implements FIDO2 or FIDO U2F standards.
-  See our [Harden your Cluster Against IdP Compromises](../../zero-trust-access/authentication/webauthn.mdx) guide for detailed
+  See our [Harden your Cluster Against IdP Compromises](../../zero-trust-access/access-controls/guides/webauthn.mdx) guide for detailed
   instructions on setting up WebAuthn for Teleport.
 - `on` enables both TOTP and WebAuthn, and all local users are required to have at least one MFA device registered.
 - `optional` enables both TOTP and WebAuthn but makes it optional for users. Local users that register a MFA device will
@@ -50,7 +50,7 @@ Add the following to your Teleport configuration file, which is stored in
   auth_service:
     authentication:
       type: local
-      second_factors: ["webauthn"]
+      second_factor: on
       webauthn:
         rp_id: example.teleport.sh
   ```
@@ -71,7 +71,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "on"
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -105,7 +105,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factors: ["webauthn"]
+  second_factor: "on"
   webauthn:
     rp_id: example.teleport.sh
 version: v2
@@ -128,8 +128,7 @@ Overriding a block is available to users with rights to maintain `user` resource
 available in the built-in `editor` role. To turn off a block, update the user entry,
 following these steps.
 
-Open the user resource in your editor, assigning <Var name="username" /> to the
-name of your Teleport user:
+Open the user resource in your editor:
 
 ```code
 $ tctl edit users/<Var name="username" />
@@ -275,7 +274,7 @@ See [GitHub OAuth 2.0](../../zero-trust-access/sso/github-sso.mdx) for details o
 ## Require displaying a message of the day
 
 Teleport can display a custom message of the day (MOTD) for users prior to authenticating
-in the Teleport Web UI and CLI. 
+in the Teleport Web UI and CLI.
 
 ### Self-Hosted
 

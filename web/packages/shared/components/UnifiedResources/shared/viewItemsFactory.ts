@@ -20,13 +20,11 @@ import {
   Application as ApplicationIcon,
   Database as DatabaseIcon,
   Desktop as DesktopIcon,
-  GitHub as GitHubIcon,
   Kubernetes as KubernetesIcon,
-  ModelContextProtocol as MCPIcon,
   Server as ServerIcon,
 } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
-import { AppSubKind, NodeSubKind } from 'shared/services';
+import { NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
 
 import {
@@ -34,7 +32,6 @@ import {
   UnifiedResourceApp,
   UnifiedResourceDatabase,
   UnifiedResourceDesktop,
-  UnifiedResourceGitServer,
   UnifiedResourceKube,
   UnifiedResourceNode,
   UnifiedResourceUi,
@@ -87,7 +84,6 @@ export function makeUnifiedResourceViewItemDatabase(
       secondaryDesc: resource.description,
     },
     requiresRequest: resource.requiresRequest,
-    status: resource.targetHealth?.status,
   };
 }
 
@@ -115,24 +111,6 @@ export function makeUnifiedResourceViewItemApp(
   resource: UnifiedResourceApp,
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
-  if (resource.subKind === AppSubKind.MCP) {
-    // TODO(greedy52) add address for non-stdio based MCP servers.
-    return {
-      name: resource.friendlyName || resource.name,
-      SecondaryIcon: MCPIcon,
-      primaryIconName: guessAppIcon(resource),
-      ActionButton: ui.ActionButton,
-      labels: resource.labels,
-      cardViewProps: {
-        primaryDesc: resource.description || 'MCP server',
-      },
-      listViewProps: {
-        resourceType: 'MCP Server',
-        description: resource.description || 'MCP server',
-      },
-      requiresRequest: resource.requiresRequest,
-    };
-  }
   return {
     name: resource.friendlyName || resource.name,
     SecondaryIcon: ApplicationIcon,
@@ -192,26 +170,6 @@ export function makeUnifiedResourceViewItemUserGroup(
   };
 }
 
-export function makeUnifiedResourceViewItemGitServer(
-  resource: UnifiedResourceGitServer,
-  ui: UnifiedResourceUi
-): UnifiedResourceViewItem {
-  return {
-    name: resource.github ? resource.github.organization : resource.hostname,
-    SecondaryIcon: GitHubIcon,
-    primaryIconName: 'git',
-    ActionButton: ui.ActionButton,
-    labels: resource.labels,
-    cardViewProps: {
-      primaryDesc: 'GitHub Organization',
-    },
-    listViewProps: {
-      resourceType: 'GitHub Organization',
-    },
-    requiresRequest: resource.requiresRequest,
-  };
-}
-
 function formatNodeSubKind(subKind: NodeSubKind): string {
   switch (subKind) {
     case 'openssh-ec2-ice':
@@ -256,7 +214,5 @@ export function mapResourceToViewItem({ resource, ui }: SharedUnifiedResource) {
       return makeUnifiedResourceViewItemDesktop(resource, ui);
     case 'user_group':
       return makeUnifiedResourceViewItemUserGroup(resource, ui);
-    case 'git_server':
-      return makeUnifiedResourceViewItemGitServer(resource, ui);
   }
 }

@@ -1,9 +1,8 @@
 ---
-title: Database Access with Amazon RDS for Microsoft SQL Server with Active Directory authentication
-sidebar_label: Amazon RDS for SQL Server
-description: How to configure Teleport database access with RDS for SQL Server with Active Directory authentication.
+title: Database Access with Microsoft SQL Server with Active Directory authentication
+description: How to configure Teleport database access with Microsoft SQL Server with Active Directory authentication.
 videoBanner: k2wz79XCexY
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -133,37 +132,23 @@ domain:
 <Tabs>
   <TabItem label="Ubuntu 18.04">
     ```code
-    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
-    $ curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
+    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+    $ sudo curl https://packages.microsoft.com/config/ubuntu/18.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
     $ sudo apt-get update
     $ sudo ACCEPT_EULA=Y apt-get install -y adutil
     ```
   </TabItem>
   <TabItem label="Ubuntu 20.04">
     ```code
-    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
-    $ curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
+    $ sudo wget -qO /etc/apt/trusted.gpg.d/microsoft.asc https://packages.microsoft.com/keys/microsoft.asc
+    $ sudo curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
     $ sudo apt-get update
     $ sudo ACCEPT_EULA=Y apt-get install -y adutil
     ```
   </TabItem>
-  <TabItem label="Ubuntu 22.04">
-    ```code
-    $ curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
-    $ curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
-    $ sudo apt-get update
-    $ sudo ACCEPT_EULA=Y apt-get install -y adutil
-    ```
-  </TabItem>
-  <TabItem label="RHEL 8">
+  <TabItem label="RHEL / CentOS 7">
     ```code
     $ sudo curl -o /etc/yum.repos.d/msprod.repo https://packages.microsoft.com/config/rhel/8/prod.repo
-    $ sudo ACCEPT_EULA=Y yum install -y adutil
-    ```
-  </TabItem>
-  <TabItem label="RHEL 9">
-    ```code
-    $ sudo curl -o /etc/yum.repos.d/msprod.repo https://packages.microsoft.com/config/rhel/9/prod.repo
     $ sudo ACCEPT_EULA=Y yum install -y adutil
     ```
   </TabItem>
@@ -291,7 +276,7 @@ Provide Active Directory parameters:
 You can use `ldapsearch` command to see the SPNs registered for your SQL
 Server. Typically, they take a form of `MSSQLSvc/<name>.<ad-domain>:<port>`.
 
-For example, an Amazon RDS SQL Server named `sqlserver` and joined to an AWS managed
+For example, an AWS RDS SQL Server named `sqlserver` and joined to an AWS managed
 Active Directory domain `EXAMPLE.COM` will have the following SPNs registered:
 
 ```code

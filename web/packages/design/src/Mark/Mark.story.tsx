@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Box from 'design/Box';
-import { IconTooltip } from 'design/Tooltip';
+import React from 'react';
 
-import { Mark as M, MarkInverse } from './Mark';
+import Box from 'design/Box';
+
+import { Mark as M } from './Mark';
 
 export default {
   title: 'Design/Mark',
@@ -40,14 +41,5 @@ export const SampleText = () => {
       </M>{' '}
       obcaecati asperiores neque.
     </Box>
-  );
-};
-
-export const MarkInsideTooltip = () => {
-  return (
-    <IconTooltip>
-      Example of <MarkInverse>MarkInverse</MarkInverse> component. Note the{' '}
-      <MarkInverse>inversed</MarkInverse> background and text color.
-    </IconTooltip>
   );
 };

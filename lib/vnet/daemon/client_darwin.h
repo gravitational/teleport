@@ -39,8 +39,10 @@ void OpenSystemSettingsLoginItems(void);
 typedef struct StartVnetRequest {
   const char *bundle_path;
 
-  const char *service_credential_path;
-  const char *client_application_service_addr;
+  const char *socket_path;
+  const char *ipv6_prefix;
+  const char *dns_addr;
+  const char *home_path;
 } StartVnetRequest;
 
 typedef struct StartVnetResult {

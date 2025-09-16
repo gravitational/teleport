@@ -23,15 +23,15 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 
-	"github.com/dustin/go-humanize"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ClientConfig contains configuration for the release client
@@ -95,7 +95,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 	resp, err := c.client.Get(ctx, c.client.Endpoint(types.EnterpriseReleaseEndpoint), nil)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to retrieve releases from release server", "error", err)
+		log.WithError(err).Error("failed to retrieve releases from release server")
 		return nil, trace.Wrap(err)
 	}
 
@@ -124,7 +124,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 				OS:          a.OS,
 				SHA256:      a.SHA256,
 				AssetSize:   a.Size,
-				DisplaySize: humanize.Bytes(uint64(a.Size)),
+				DisplaySize: utils.ByteCount(a.Size),
 				ReleaseIDs:  a.ReleaseIDs,
 				PublicURL:   a.PublicURL,
 			})

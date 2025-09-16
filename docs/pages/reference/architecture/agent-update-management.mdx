@@ -1,7 +1,7 @@
 ---
 title: Managed Updates
-description: This chapter explains how Teleport Agent Managed Updates work.
-labels:
+description: This chapter explains how Teleport agent Managed Updates work.
+tags:
  - conceptual
  - platform-wide
 ---
@@ -92,9 +92,9 @@ The agent version is subject to the following constraints:
 - the agent must always be no more than one major version below the Proxy or Auth
   Service version.
 
-The best practice is to always align the agent version with the version of the
-Proxy Service and Auth Service. To upgrade the Auth Service and Proxy Service,
-follow [the Teleport Cluster upgrade guide](../../upgrading/upgrading.mdx).
+The best practice is to always align the agent version with the Proxy and Auth
+ones. To upgrade Auth and Proxy, follow [the Teleport Cluster upgrade guide
+](../../upgrading/upgrading.mdx).
 
 Updaters are discovering the version they should run by querying the Teleport
 proxy.

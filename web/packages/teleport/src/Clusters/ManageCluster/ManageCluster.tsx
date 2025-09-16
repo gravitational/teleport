@@ -21,11 +21,11 @@ import { useParams } from 'react-router';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Alert } from 'design/Alert';
+import Alert from 'design/Alert';
 import Box, { BoxProps } from 'design/Box';
 import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
-import { Indicator } from 'design/Indicator';
+import Indicator from 'design/Indicator';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
 import { ShimmerBox } from 'design/ShimmerBox';
 import Text, { H2 } from 'design/Text';
@@ -122,7 +122,7 @@ export function ClusterInformation({
 }: ClusterInformationProps) {
   const isLoading = attempt.status === 'processing';
   return (
-    <MultiRowBox mb={3} minWidth="180px" style={style} {...rest}>
+    <MultiRowBox mb={3} minWidth="180px" style={style} {...(rest as any)}>
       <Row>
         <Flex alignItems="center" justifyContent="start">
           <IconBox>

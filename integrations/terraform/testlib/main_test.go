@@ -34,13 +34,11 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
@@ -140,32 +138,27 @@ func (s *TerraformBaseSuite) SetupSuite() {
 func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, outputPath string) {
 	s.T().Helper()
 
-	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	key, err := libclient.GenerateRSAKey()
 	require.NoError(s.T(), err)
-	publicKeyPEM, err := keys.MarshalPublicKey(signer.Public())
-	require.NoError(s.T(), err)
-	privateKey, err := keys.NewPrivateKey(signer)
-	require.NoError(s.T(), err)
-	// Identity files only support a single private key for SSH and TLS.
-	keyRing := libclient.NewKeyRing(privateKey, privateKey)
 
 	certs, err := s.client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		TLSPublicKey: publicKeyPEM,
-		Username:     user.GetName(),
-		Expires:      time.Now().Add(time.Hour),
-		Format:       constants.CertificateFormatStandard,
+		PublicKey: key.MarshalSSHPublicKey(),
+		Username:  user.GetName(),
+		Expires:   time.Now().Add(time.Hour),
+		Format:    constants.CertificateFormatStandard,
 	})
 	require.NoError(s.T(), err)
-	keyRing.TLSCert = certs.TLS
+	key.Cert = certs.SSH
+	key.TLSCert = certs.TLS
 
 	hostCAs, err := s.client.GetCertAuthorities(ctx, types.HostCA, false)
 	require.NoError(s.T(), err)
-	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
 
 	// write the cert+private key to the output:
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           outputPath,
-		KeyRing:              keyRing,
+		Key:                  key,
 		Format:               identityfile.FormatTLS,
 		OverwriteDestination: false,
 		Writer:               &identityfile.StandardConfigWriter{},

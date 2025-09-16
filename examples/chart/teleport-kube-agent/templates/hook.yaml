@@ -1,0 +1,109 @@
+{{- $deployment := (lookup "apps/v1" "Deployment"  .Release.Namespace .Release.Name ) -}}
+{{- if $deployment }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-hook
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-4"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-hook
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    resourceNames: ["{{ .Release.Name }}"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["pods",]
+    verbs: ["get", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments",]
+    resourceNames: ["{{ .Release.Name }}"]
+    verbs: ["get", "delete", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-hook
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-2"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-hook
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Name }}-hook
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-hook
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      name: {{ .Release.Name }}-hook
+{{- if .Values.annotations.pod }}
+      annotations:
+  {{- toYaml .Values.annotations.pod | nindent 8 }}
+{{- end }}
+      labels:
+        app: {{ .Release.Name }}
+{{- if .Values.extraLabels.pod }}
+  {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+{{- end }}
+    spec:
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 6 }}
+{{- end }}
+      serviceAccountName: {{ .Release.Name }}-hook
+      restartPolicy: OnFailure
+{{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+{{- end }}
+      containers:
+      - name: post-install-job
+        image: alpine/k8s:1.26.0
+        command:
+        - sh
+        - "-c"
+        - |
+            /bin/sh <<'EOF'
+              set -eu -o pipefail
+              # wait until statefulset is ready
+              kubectl rollout status --watch --timeout=600s statefulset/{{ .Release.Name }}
+              # delete deployment
+              kubectl delete deployment/{{ .Release.Name }}
+            EOF
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
+        {{- if .Values.resources }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
+        {{- end }}
+{{- end}}

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { BotUiFlow } from 'teleport/services/bot/types';
@@ -24,10 +26,10 @@ import { ViewBotProps } from './types';
 import { ViewBot } from './ViewBot';
 
 export default {
-  title: 'Teleport/Bots/Github Actions',
+  title: 'Teleport/Bots/Add/ViewBot',
 };
 
-export const GithubActionsSsh = () => {
+export const GitHubActionsSsh = () => {
   const ctx = createTeleportContext();
 
   return (
@@ -43,7 +45,7 @@ const props: ViewBotProps = {
     type: BotUiFlow.GitHubActionsSsh,
     namespace: '',
     description: '',
-    labels: new Map(),
+    labels: null,
     revision: '',
     traits: [],
     status: '',
@@ -51,7 +53,6 @@ const props: ViewBotProps = {
     version: '',
     kind: '',
     roles: [],
-    max_session_ttl: { seconds: 0 },
   },
   onClose: () => {},
 };

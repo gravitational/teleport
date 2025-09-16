@@ -1,0 +1,783 @@
+suite: Deployment
+templates:
+  - deployment.yaml
+  - config.yaml
+release:
+  upgrade: true
+tests:
+  - it: creates a Deployment if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/all-v6.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - hasDocuments:
+          count: 1
+
+  - it: sets Deployment labels when specified if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: metadata.labels.app\.kubernetes\.io/name
+          value: teleport-kube-agent
+      - equal:
+          path: metadata.labels.resource
+          value: deployment
+      - matchSnapshot:
+          path: spec
+
+  - it: sets Pod labels when specified if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/extra-labels.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.app\.kubernetes\.io/name
+          value: teleport-kube-agent
+      - equal:
+          path: spec.template.metadata.labels.resource
+          value: pod
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: sets Deployment annotations when specified if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/deployment-different
+          value: 3
+      - matchSnapshot: {}
+
+  - it: sets Pod annotations when specified if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          value: test-annotation
+      - equal:
+          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          value: 4
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should have one replica when replicaCount is not set if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should have multiple replicas when replicaCount is set (using .replicaCount, deprecated) if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+       replicaCount: 3
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should have multiple replicas when replicaCount is set (using highAvailability.replicaCount) if action is Upgrade
+    template: deployment.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+      highAvailability:
+        replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set affinity when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/affinity.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set required affinity when highAvailability.requireAntiAffinity is set if action is Upgrade
+    template: deployment.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+
+      highAvailability:
+        replicaCount: 2
+        requireAntiAffinity: true
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - isNull:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set preferred affinity when more than one replica is used if action is Upgrade
+    template: deployment.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+
+      highAvailability:
+        replicaCount: 3
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity
+      - isNotNull:
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution
+      - isNull:
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set tolerations when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/tolerations.yaml
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.tolerations
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set resources when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set SecurityContext if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 9807
+            seccompProfile:
+              type: RuntimeDefault
+
+  - it: should set image and tag correctly if action is Upgrade
+    template: deployment.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+
+      teleportVersionOverride: 12.2.1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should have only one container when no `extraContainers` is set in values
+    template: deployment.yaml
+    set:
+      extraContainers: []
+      proxyAddr: helm-lint.example.com
+      kubeClusterName: helm-lint.example.com
+      unitTestUpgrade: true
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0]
+      - isNull:
+          path: spec.template.spec.containers[1]
+
+  - it: should add one more container when `extraContainers` is set in values
+    template: deployment.yaml
+    set:
+      unitTestUpgrade: true
+    values:
+      - ../.lint/extra-containers.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1]
+          value:
+            name: nscenter
+            command:
+              - /bin/bash
+              - -c
+              - sleep infinity & wait
+            image: praqma/network-multitool
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              privileged: true
+              runAsNonRoot: false
+
+  - it: should mount extraVolumes and extraVolumeMounts if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/volumes.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-mount
+            secret:
+              secretName: mySecret
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set imagePullPolicy when set in values if action is Upgrade
+    template: deployment.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+
+      imagePullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set environment when extraEnv set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+
+      proxyAddr: helm-lint.example.com
+      authToken: sample-auth-token-dont-use-this
+      kubeClusterName: helm-lint.example.com
+      extraEnv:
+        - name: HTTPS_PROXY
+          value: "http://username:password@my.proxy.host:3128"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: "http://username:password@my.proxy.host:3128"
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should provision initContainer correctly when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: "echo test"
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: "teleport-init"
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "alpine"
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add insecureSkipProxyTLSVerify to args when set in values if action is Upgrade
+    template: deployment.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+
+      insecureSkipProxyTLSVerify: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "--insecure"
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should expose diag port if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: diag
+            containerPort: 3000
+            protocol: TCP
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set nodeSelector if set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/node-selector.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            gravitational.io/k8s-role: node
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add emptyDir for data when existingDataVolume is not set if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/teleport
+            name: data
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should correctly configure existingDataVolume when set if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/existing-data-volume.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/teleport
+            name: teleport-kube-agent-data
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount jamfCredentialsSecret.name when role is jamf and action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/jamf-service.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jamf-api-credentials
+            secret:
+              secretName: teleport-jamf-api-credentials
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-jamf-api-credentials
+            name: jamf-api-credentials
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount jamfCredentialsSecret if it already exists and when role is jamf and action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/jamf-service-existing-secret.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jamf-api-credentials
+            secret:
+              secretName: existing-teleport-jamf-secret
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-jamf-api-credentials
+            name: jamf-api-credentials
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set environment when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set extra environment when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+      - ../.lint/extra-env.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: http://username:password@my.proxy.host:3128
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set priorityClassName when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/priority-class-name.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: teleport-kube-agent
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set not set priorityClassName when not set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.priorityClassName
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set serviceAccountName when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/service-account-name.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: teleport-kube-agent-sa
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set default serviceAccountName when not set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: RELEASE-NAME
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set probeTimeoutSeconds when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/probe-timeout-seconds.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set dnsConfig when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - notEqual:
+          path: spec.template.spec.dnsConfig
+          value: null
+      - matchSnapshot:
+          path: spec.template.spec.dnsConfig
+
+  - it: should set dnsPolicy when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+
+  - it: should not render Deployment if action is fresh install without storage
+    template: deployment.yaml
+    release:
+      upgrade: false
+    values:
+      - ../.lint/all-v6.yaml
+    set:
+      storage:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: sets by default a container security context if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.template.spec.initContainers[0].securityContext
+      - matchSnapshot:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: sets no container security context when manually unset and if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/initcontainers.yaml
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext
+          value: null
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value: null
+
+  - it: should enable maintenance schedule export when updater is enabled if action is Upgrade
+    template: deployment.yaml
+    values:
+      - ../.lint/updater.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+      teleportVersionOverride: 13.4.5
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_EXT_UPGRADER
+            value: kube
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_EXT_UPGRADER_VERSION
+            value: 13.4.5

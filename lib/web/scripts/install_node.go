@@ -158,8 +158,8 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
-	err = installNodeBashScript.Execute(&buf, map[string]any{
-		"token":    shsprintf.EscapeDefaultContext(opts.Token),
+	err = installNodeBashScript.Execute(&buf, map[string]interface{}{
+		"token":    opts.Token,
 		"hostname": hostname,
 		"port":     portStr,
 		// The install.sh script has some manually generated configs and some
@@ -172,7 +172,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 		"packageName":             opts.InstallOptions.TeleportFlavor,
 		"repoChannel":             repoChannel,
 		"installUpdater":          opts.InstallOptions.AutoupdateStyle.String(),
-		"version":                 shsprintf.EscapeDefaultContext(opts.InstallOptions.TeleportVersion.String()),
+		"version":                 shsprintf.EscapeDefaultContext(opts.InstallOptions.TeleportVersion),
 		"appInstallMode":          strconv.FormatBool(opts.AppServiceEnabled),
 		"appServerResourceLabels": appServerResourceLabels,
 		"appName":                 shsprintf.EscapeDefaultContext(opts.AppName),

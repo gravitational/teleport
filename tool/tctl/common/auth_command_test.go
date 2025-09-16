@@ -39,8 +39,8 @@ import (
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -168,7 +168,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				proxyAddr:     "file://proxy-from-flag.example.com",
 			},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
 				require.Equal(t, "expected --proxy URL with http or https scheme", err.Error())
 			},
@@ -194,7 +194,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				proxyAddr:     "1https://proxy-from-flag.example.com",
 			},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "specified --proxy URL is invalid")
 			},
@@ -282,7 +282,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				}},
 				testInsecureSkipVerify: true,
 			},
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
 				require.Equal(t, `couldn't find leaf cluster named "doesnotexist.example.com"`, err.Error())
 			},
@@ -329,6 +329,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			// Generate kubeconfig.
@@ -398,7 +399,7 @@ type mockClient struct {
 	crl            []byte
 }
 
-func (c *mockClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
 
@@ -498,7 +499,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		cas: []types.CertAuthority{dbCA},
 	}
 
-	keyRing, err := generateKeyRing(context.Background(), authClient, cryptosuites.DatabaseClient)
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -522,7 +523,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "postgres.example.com"},
 			outServerNames: []string{"postgres.example.com"},
 			wantFiles: map[string][]byte{
-				"db.key": keyRing.TLSPrivateKey.PrivateKeyPEM(),
+				"db.key": key.PrivateKeyPEM(),
 				"db.crt": certBytes,
 				"db.cas": dbClientCABytes,
 			},
@@ -536,7 +537,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "mysql.external.net"},
 			outServerNames: []string{"mysql.external.net", "mysql.internal.net", "192.168.1.1"},
 			wantFiles: map[string][]byte{
-				"db.key": keyRing.TLSPrivateKey.PrivateKeyPEM(),
+				"db.key": key.PrivateKeyPEM(),
 				"db.crt": certBytes,
 				"db.cas": dbClientCABytes,
 			},
@@ -550,7 +551,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "mongo.example.com", Organization: []string{"example.com"}},
 			outServerNames: []string{"mongo.example.com"},
 			wantFiles: map[string][]byte{
-				"mongo.crt": append(certBytes, keyRing.TLSPrivateKey.PrivateKeyPEM()...),
+				"mongo.crt": append(certBytes, key.PrivateKeyPEM()...),
 				"mongo.cas": dbClientCABytes,
 			},
 		},
@@ -562,7 +563,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "node"},
 			outServerNames: []string{"node", "localhost", "roach1"}, // "node" principal should always be added
 			wantFiles: map[string][]byte{
-				"node.key":      keyRing.TLSPrivateKey.PrivateKeyPEM(),
+				"node.key":      key.PrivateKeyPEM(),
 				"node.crt":      certBytes,
 				"ca.crt":        dbServerCABytes,
 				"ca-client.crt": dbClientCABytes,
@@ -577,7 +578,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 			outSubject:     pkix.Name{CommonName: "localhost"},
 			outServerNames: []string{"localhost", "redis1", "172.0.0.1"},
 			wantFiles: map[string][]byte{
-				"db.key": keyRing.TLSPrivateKey.PrivateKeyPEM(),
+				"db.key": key.PrivateKeyPEM(),
 				"db.crt": certBytes,
 				"db.cas": dbClientCABytes,
 			},
@@ -602,7 +603,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 				genTTL:        time.Hour,
 			}
 
-			err = ac.generateDatabaseKeysForKeyRing(context.Background(), authClient, keyRing)
+			err = ac.generateDatabaseKeysForKey(context.Background(), authClient, key)
 			if test.genKeyErrMsg == "" {
 				require.NoError(t, err)
 			} else {
@@ -686,7 +687,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 			outDir:      t.TempDir(),
 			outFileBase: "app-2",
 			appName:     "app-2",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -964,34 +965,20 @@ func TestGenerateAndSignKeys(t *testing.T) {
 	}
 }
 
-func TestExportCRL(t *testing.T) {
+func TestGenerateCRLForCA(t *testing.T) {
 	ctx := context.Background()
-	name, err := types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "name", ClusterID: "clusterID"})
-	require.NoError(t, err)
-	cas := make([]types.CertAuthority, len(allowedCRLCertificateTypes))
-	for i, certificateType := range allowedCRLCertificateTypes {
-		cas[i], err = types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.CertAuthType(certificateType),
-			ClusterName: "name",
-			ActiveKeys: types.CAKeySet{
-				TLS: []*types.TLSKeyPair{{
-					CRL:  []byte{},
-					Cert: []byte{1},
-				}}},
-		})
-		require.NoError(t, err)
-	}
-	authClient := &mockClient{crl: []byte{}, clusterName: name, cas: cas}
 
 	for _, caType := range allowedCRLCertificateTypes {
 		t.Run(caType, func(t *testing.T) {
 			ac := AuthCommand{caType: caType}
-			require.NoError(t, ac.ExportCRL(ctx, authClient))
+			authClient := &mockClient{crl: []byte{}}
+			require.NoError(t, ac.GenerateCRLForCA(ctx, authClient))
 		})
 	}
 
 	t.Run("InvalidCAType", func(t *testing.T) {
 		ac := AuthCommand{caType: "wrong-ca"}
-		require.Error(t, ac.ExportCRL(ctx, authClient))
+		authClient := &mockClient{crl: []byte{}}
+		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
 	})
 }

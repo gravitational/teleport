@@ -1,12 +1,12 @@
 ---
 title: Session and Identity Locking
 description: How to lock compromised users or agents
-labels:
+tags:
  - how-to
  - identity-governance
 ---
 
-System administrators can disable a compromised user or Teleport Agent—or
+System administrators can disable a compromised user or Teleport agent—or
 prevent access during cluster maintenance—by placing a lock
 on a session, user or host identity.
 
@@ -21,12 +21,10 @@ A lock can target the following objects or attributes:
 - a Teleport [trusted device](device-trust/enforcing-device-trust.mdx#locking-a-device) by the device ID
 - an MFA device by the device's UUID
 - an OS/UNIX login
-- a Teleport Agent by the Agent's server UUID (effectively unregistering it from the
+- a Teleport agent by the agent's server UUID (effectively unregistering it from the
   cluster)
 - a Windows desktop by the desktop's name
 - an [Access Request](access-requests/access-requests.mdx) by UUID
-- a bot instance ID (for Machine & Workload Identity bots)
-- a join token name (for Machine & Workload Identity bots using a [delegated join method](../reference/join-methods.mdx#delegated-join-methods))
 
 ## How it works
 
@@ -96,29 +94,6 @@ with one of the following options:
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
   ```
   </TabItem>
-  <TabItem label="Machine & Workload Identity Bot">
-  The most appropriate locking target for a Machine & Workload Identity bot
-  depends on its join method.
-
-  For [delegated join methods](../reference/join-methods.mdx#secret-vs-delegated),
-  it's best to target the specific join token the bot is using to join:
-  ```code
-  $ tctl lock --join-token=example-token-name
-  ```
-
-  The join token name cannot be targeted for bots joined using the `token` join
-  method, so it's best to use the
-  [bot instance ID](../reference/architecture/machine-id-architecture.mdx#bot-instances):
-  ```code
-  $ tctl lock --bot-instance-id aabbccdd-1234-5678-0000-3b04d7d03acc
-  ```
-
-  In all cases, you may also target the bot user, which will lock all instances
-  of a bot that share the same underlying user:
-  ```code
-  $ tctl lock --user bot-example
-  ```
-  </TabItem>
 </Tabs>
 
 <details>
@@ -151,8 +126,6 @@ Create the role:
 $ tctl create -f locksmith.yaml
 # role 'locksmith' has been created
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 (!docs/pages/includes/add-role-to-user.mdx role="locksmith"!)
 
@@ -245,7 +218,7 @@ auth_service:
 
 Restart or redeploy the Auth Service for the change to take effect.
 
-If not, edit your cluster authentication preference resource:
+If not, edit your cluster authentication preference resource: 
 
 ```code
 $ tctl edit cap

@@ -19,12 +19,11 @@
 package services
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"regexp"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -145,19 +144,13 @@ TraitMappingLoop:
 			// show at most maxMismatchedTraitValuesLogged trait values to prevent huge log lines
 			switch l := len(mismatched); {
 			case l > maxMismatchedTraitValuesLogged:
-				slog.
-					DebugContext(context.Background(), "trait value(s) did not match (showing first %d values)",
-						"mismatch_count", len(mismatched),
-						"max_mismatch_logged", maxMismatchedTraitValuesLogged,
-						"expression", mapping.Value,
-						"values", mismatched[0:maxMismatchedTraitValuesLogged],
-					)
+				log.WithField("expression", mapping.Value).
+					WithField("values", mismatched[0:maxMismatchedTraitValuesLogged]).
+					Debugf("%d trait value(s) did not match (showing first %d values)", len(mismatched), maxMismatchedTraitValuesLogged)
 			case l > 0:
-				slog.DebugContext(context.Background(), "trait value(s) did not match",
-					"mismatch_count", len(mismatched),
-					"expression", mapping.Value,
-					"values", mismatched,
-				)
+				log.WithField("expression", mapping.Value).
+					WithField("values", mismatched).
+					Debugf("%d trait value(s) did not match", len(mismatched))
 			}
 		}
 	}

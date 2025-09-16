@@ -107,7 +107,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			args: args{
 				kubeBackend: &fakeKubeBackend{
 					getData: &backend.Item{
-						Key:   backend.KeyFromString(hostUUIDKey),
+						Key:   []byte(hostUUIDKey),
 						Value: []byte(id),
 					},
 					getErr: nil,

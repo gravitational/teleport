@@ -16,59 +16,54 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Table, { Cell, LabelCell } from 'design/DataTable';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { SearchPanel } from 'shared/components/Search';
+import React from 'react';
 
-import { SeversidePagination } from 'teleport/components/hooks/useServersidePagination';
+import { Cell, LabelCell } from 'design/DataTable';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+
+import { ClientSearcheableTableWithQueryParamSupport } from 'teleport/components/ClientSearcheableTableWithQueryParamSupport';
 import { Access, User, UserOrigin } from 'teleport/services/user';
 
 export default function UserList({
+  users = [],
+  pageSize = 20,
   onEdit,
   onDelete,
   onReset,
-  onSearchChange,
-  search,
-  serversidePagination,
   usersAcl,
 }: Props) {
-  const canEdit = usersAcl.edit;
-  const canDelete = usersAcl.remove;
-
   return (
-    <Table
-      data={serversidePagination.fetchedData.agents}
-      fetching={{
-        fetchStatus: serversidePagination.fetchStatus,
-        onFetchNext: serversidePagination.fetchNext,
-        onFetchPrev: serversidePagination.fetchPrev,
-      }}
-      serversideProps={{
-        sort: undefined,
-        setSort: () => undefined,
-        serversideSearchPanel: (
-          <SearchPanel
-            updateSearch={onSearchChange}
-            updateQuery={null}
-            hideAdvancedSearch={true}
-            filter={{ search }}
-            disableSearch={serversidePagination.fetchStatus === 'loading'}
-          />
-        ),
-      }}
+    <ClientSearcheableTableWithQueryParamSupport
+      data={users}
       columns={[
         {
           key: 'name',
           headerText: 'Name',
+          isSortable: true,
         },
         {
           key: 'roles',
           headerText: 'Roles',
+          isSortable: true,
+          onSort: (a: string[], b: string[]) => {
+            const aStr = a.toString();
+            const bStr = b.toString();
+
+            if (aStr < bStr) {
+              return -1;
+            }
+            if (aStr > bStr) {
+              return 1;
+            }
+
+            return 0;
+          },
           render: ({ roles }) => <LabelCell data={roles} />,
         },
         {
           key: 'authType',
           headerText: 'Type',
+          isSortable: true,
           render: ({ authType, origin, isBot }) => (
             <Cell style={{ textTransform: 'capitalize' }}>
               {renderAuthType(authType, origin, isBot)}
@@ -77,20 +72,19 @@ export default function UserList({
         },
         {
           altKey: 'options-btn',
-          render: (user: User) => (
+          render: user => (
             <ActionCell
+              acl={usersAcl}
               user={user}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              onEdit={() => onEdit(user)}
-              onReset={() => onReset(user)}
-              onDelete={() => onDelete(user)}
+              onEdit={onEdit}
+              onReset={onReset}
+              onDelete={onDelete}
             />
           ),
         },
       ]}
       emptyText="No Users Found"
-      isSearchable
+      pagination={{ pageSize }}
     />
   );
 
@@ -124,19 +118,20 @@ export default function UserList({
 
 const ActionCell = ({
   user,
-  canEdit,
-  canDelete,
   onEdit,
   onReset,
   onDelete,
+  acl,
 }: {
   user: User;
-  canEdit: boolean;
-  canDelete: boolean;
-  onEdit: () => void;
-  onReset: () => void;
-  onDelete: () => void;
+  onEdit: (user: User) => void;
+  onReset: (user: User) => void;
+  onDelete: (user: User) => void;
+  acl: Access;
 }) => {
+  const canEdit = acl.edit;
+  const canDelete = acl.remove;
+
   if (!(canEdit || canDelete)) {
     return <Cell align="right" />;
   }
@@ -148,22 +143,27 @@ const ActionCell = ({
   return (
     <Cell align="right">
       <MenuButton>
-        {canEdit && <MenuItem onClick={onEdit}>Edit...</MenuItem>}
+        {canEdit && <MenuItem onClick={() => onEdit(user)}>Edit...</MenuItem>}
         {canEdit && (
-          <MenuItem onClick={onReset}>Reset Authentication...</MenuItem>
+          <MenuItem onClick={() => onReset(user)}>
+            Reset Authentication...
+          </MenuItem>
         )}
-        {canDelete && <MenuItem onClick={onDelete}>Delete...</MenuItem>}
+        {canDelete && (
+          <MenuItem onClick={() => onDelete(user)}>Delete...</MenuItem>
+        )}
       </MenuButton>
     </Cell>
   );
 };
 
 type Props = {
+  users: User[];
+  pageSize?: number;
   onEdit(user: User): void;
   onDelete(user: User): void;
   onReset(user: User): void;
-  onSearchChange(search: string): void;
-  search: string;
-  serversidePagination: SeversidePagination<User>;
+  // determines if the viewer is able to edit/delete users. This is used
+  // to conditionally render the edit/delete buttons in the ActionCell
   usersAcl: Access;
 };

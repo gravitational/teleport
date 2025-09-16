@@ -86,7 +86,7 @@ func newKubernetesRestConfig(ctx context.Context, tc *client.TeleportClient) (*r
 // getKubeTLSClientConfig returns a TLS client config for the kubernetes cluster
 // that the client wants to connected to.
 func getKubeTLSClientConfig(ctx context.Context, tc *client.TeleportClient) (rest.TLSClientConfig, error) {
-	var k *client.KeyRing
+	var k *client.Key
 	err := client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
 		k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
@@ -99,14 +99,14 @@ func getKubeTLSClientConfig(ctx context.Context, tc *client.TeleportClient) (res
 		return rest.TLSClientConfig{}, trace.Wrap(err)
 	}
 
-	cred := k.KubeTLSCredentials[tc.KubernetesCluster]
+	certPem := k.KubeTLSCerts[tc.KubernetesCluster]
 
-	keyPEM, err := cred.PrivateKey.SoftwarePrivateKeyPEM()
+	rsaKeyPEM, err := k.PrivateKey.RSAPrivateKeyPEM()
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
 	}
 
-	credentials, err := tc.LocalAgent().GetCoreKeyRing()
+	credentials, err := tc.LocalAgent().GetCoreKey()
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
 	}
@@ -132,8 +132,8 @@ func getKubeTLSClientConfig(ctx context.Context, tc *client.TeleportClient) (res
 
 	return rest.TLSClientConfig{
 		CAData:     bytes.Join(clusterCAs, []byte("\n")),
-		CertData:   cred.Cert,
-		KeyData:    keyPEM,
+		CertData:   certPem,
+		KeyData:    rsaKeyPEM,
 		ServerName: tlsServerName,
 	}, nil
 }

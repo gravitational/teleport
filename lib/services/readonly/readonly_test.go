@@ -183,6 +183,6 @@ func TestAccessGraphSettings(t *testing.T) {
 
 // pointersEqual is a helper function that compares two pointers for equality. used to improve readability
 // and avoid incorrect lints.
-func pointersEqual(a, b any) bool {
+func pointersEqual(a, b interface{}) bool {
 	return a == b
 }

@@ -21,6 +21,8 @@ package client
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -33,8 +35,9 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -142,7 +145,7 @@ func (c *CertChecker) SetCert(cert tls.Certificate) {
 
 // GetOrIssueCert gets the CertChecker's certificate, or issues a new
 // certificate if the it is invalid (e.g. expired) or missing.
-func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate, err error) {
+func (c *CertChecker) GetOrIssueCert(ctx context.Context) (tls.Certificate, error) {
 	c.certMu.Lock()
 	defer c.certMu.Unlock()
 
@@ -150,7 +153,7 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate,
 		return c.cert, nil
 	}
 
-	cert, err = c.certIssuer.IssueCert(ctx)
+	cert, err := c.certIssuer.IssueCert(ctx)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -161,10 +164,7 @@ func (c *CertChecker) GetOrIssueCert(ctx context.Context) (cert tls.Certificate,
 	}
 
 	certTTL := cert.Leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	log.DebugContext(ctx, "Certificate renewed",
-		"valid_until", cert.Leaf.NotAfter.Format(time.RFC3339),
-		"cert_ttl", certTTL,
-	)
+	log.Debugf("Certificate renewed: valid until %s [valid for %v]", cert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
 
 	c.cert = cert
 	return c.cert, nil
@@ -212,12 +212,12 @@ func (c *DBCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WarnContext(ctx, "unable to load profile, requesting database certs without access requests", "error", err)
+		log.WithError(err).Warn("unable to load profile, requesting database certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests
 	}
 
-	var keyRing *KeyRing
+	var key *Key
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
 		dbCertParams := ReissueParams{
 			RouteToCluster:  c.Client.SiteName,
@@ -232,26 +232,26 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			return trace.Wrap(err)
 		}
 
-		result, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
-		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddDatabaseKeyRing(result.KeyRing); err != nil {
+		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddDatabaseKey(newKey); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = result.KeyRing
+		key = newKey
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	dbCert, err := keyRing.DBTLSCert(c.RouteToDatabase.ServiceName)
+	dbCert, err := key.DBTLSCert(c.RouteToDatabase.ServiceName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -279,12 +279,12 @@ func (c *AppCertIssuer) CheckCert(cert *x509.Certificate) error {
 func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 	var accessRequests []string
 	if profile, err := c.Client.ProfileStatus(); err != nil {
-		log.WarnContext(ctx, "unable to load profile, requesting app certs without access requests", "error", err)
+		log.WithError(err).Warn("unable to load profile, requesting app certs without access requests")
 	} else {
 		accessRequests = profile.ActiveRequests
 	}
 
-	var keyRing *KeyRing
+	var key *Key
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
 		appCertParams := ReissueParams{
 			RouteToCluster: c.Client.SiteName,
@@ -299,26 +299,36 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			return trace.Wrap(err)
 		}
 
-		result, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
+		// TODO (Joerger): DELETE IN v17.0.0
+		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, c.Client.Username, appCertParams.RouteToApp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
-		if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddAppKeyRing(result.KeyRing); err != nil {
+		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
+			if err := c.Client.LocalAgent().AddAppKey(newKey); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = result.KeyRing
+		key = newKey
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := keyRing.AppTLSCert(c.RouteToApp.Name)
+	appCert, err := key.AppTLSCert(c.RouteToApp.Name)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -377,7 +387,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 		return cert, nil
 	}
 
-	certKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	certKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -391,7 +401,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 	subject.CommonName = host
 
 	certPem, err := certAuthority.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: certKey.Public(),
+		PublicKey: &certKey.PublicKey,
 		Subject:   subject,
 		NotAfter:  certAuthority.Cert.NotAfter,
 		DNSNames:  []string{host},
@@ -444,10 +454,7 @@ func (r *LocalCertGenerator) ensureValidCA(ctx context.Context) error {
 	}
 
 	certTTL := time.Until(caTLSCert.Leaf.NotAfter).Round(time.Minute)
-	log.DebugContext(ctx, "Local CA renewed",
-		"valid_until", caTLSCert.Leaf.NotAfter.Format(time.RFC3339),
-		"cert_ttl", certTTL,
-	)
+	log.Debugf("Local CA renewed: valid until %s [valid for %v]", caTLSCert.Leaf.NotAfter.Format(time.RFC3339), certTTL)
 
 	// Clear cert cache and use CA for hostnames in the CA.
 	r.certsByHost = make(map[string]*tls.Certificate)

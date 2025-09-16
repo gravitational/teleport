@@ -1,6 +1,4 @@
-import { TransformStream } from 'node:stream/web';
 import { TextDecoder, TextEncoder } from 'node:util';
-import { BroadcastChannel } from 'node:worker_threads';
 
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
 
@@ -25,19 +23,15 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     // TODO(sshah): Remove this once JSDOM provides structuredClone.
     // https://github.com/jsdom/jsdom/issues/3363
     if (!global.structuredClone) {
-      global.structuredClone = structuredClone;
+      global.structuredClone = val => {
+        return JSON.parse(JSON.stringify(val));
+      };
     }
 
     // TODO(gzdunek): Remove this once JSDOM provides scrollIntoView.
     // https://github.com/jsdom/jsdom/issues/1695#issuecomment-449931788
     if (!global.Element.prototype.scrollIntoView) {
       global.Element.prototype.scrollIntoView = () => {};
-    }
-
-    // TODO(ryanclark): Remove this once JSDOM provides scrollTo.
-    // https://github.com/jsdom/jsdom/issues/2751
-    if (!global.Element.prototype.scrollTo) {
-      global.Element.prototype.scrollTo = () => {};
     }
 
     // TODO(gzdunek): Remove this once JSDOM provides matchMedia.
@@ -55,33 +49,12 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
       });
     }
 
-    // TODO(ravicious): JSDOM doesn't have BroadcastChannel and TransformStream which are used by msw.
-    // https://github.com/mswjs/msw/issues/2340
-    if (!global.BroadcastChannel) {
-      global.BroadcastChannel = BroadcastChannel;
-    }
-    if (!global.TransformStream) {
-      global.TransformStream = TransformStream;
-    }
-
-    // If a test actually depends on a working ResizeObserver implementation, call
-    // mockResizeObserver provided by jsdom-testing-mocks.
-    if (!global.ResizeObserver) {
-      function NullResizeObserver() {
-        this.observe = () => {};
-        this.unobserve = () => {};
-        this.disconnect = () => {};
-      }
-
-      global.ResizeObserver = NullResizeObserver;
-    }
-
-    if (!global.navigator.permissions) {
-      global.navigator.permissions = {
-        query: async () => ({
-          onchange: () => {},
-        }),
-      };
+    // TODO(gzdunek): JSDOM doesn't support AbortSignal.any().
+    // Overwriting only this function doesn't help much, something between
+    // AbortSignal and AbortController is missing.
+    if (!global.AbortSignal.any) {
+      global.AbortSignal = AbortSignal;
+      global.AbortController = AbortController;
     }
   }
 }

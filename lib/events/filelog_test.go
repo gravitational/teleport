@@ -273,7 +273,7 @@ func TestLargeEvent(t *testing.T) {
 // are many very small string fields that will require quoting.
 func makeLargeMongoQuery() (string, error) {
 	record := map[string]string{"_id": `{"$oid":"63a0dd6da68baaeb828581fe"}`}
-	for i := range 100 {
+	for i := 0; i < 100; i++ {
 		t := fmt.Sprintf("%v", i)
 		record[t] = t
 	}

@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -40,13 +39,11 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/sso"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/teleterm/services/desktop"
 	"github.com/gravitational/teleport/lib/teleterm/services/unifiedresources"
 	"github.com/gravitational/teleport/lib/teleterm/services/userpreferences"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -88,7 +85,6 @@ func New(cfg Config) (*Service, error) {
 		closeContext:           closeContext,
 		cancel:                 cancel,
 		gateways:               make(map[string]gateway.Gateway),
-		desktopSessions:        make(map[string]*desktop.Session),
 		usageReporter:          connectUsageReporter,
 		headlessWatcherClosers: make(map[string]context.CancelFunc),
 		headlessAuthSemaphore:  newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton),
@@ -209,64 +205,6 @@ func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clus
 	return cluster, nil
 }
 
-// ConnectToDesktop establishes a desktop connection.
-func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], desktopURI uri.ResourceURI, login string) error {
-	ctx := stream.Context()
-
-	cluster, clusterClient, err := s.ResolveClusterURI(desktopURI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cachedClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	session, cleanup, err := s.newDesktopSession(desktopURI, login)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer cleanup()
-
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		return trace.Wrap(session.Start(ctx, stream, clusterClient, cachedClient.ProxyClient))
-	})
-	return trace.Wrap(err)
-}
-
-// newDesktopSession creates a new desktop session for the specified desktop URI and login.
-//
-// If a session already exists for the given desktop URI and login, it returns an error.
-// On success, it returns the created session and a cleanup function that should be called to remove
-// the session from the service when it is no longer used.
-func (s *Service) newDesktopSession(desktopURI uri.ResourceURI, login string) (*desktop.Session, func(), error) {
-	s.desktopSessionsMu.Lock()
-	defer s.desktopSessionsMu.Unlock()
-
-	key := desktopSessionKey(desktopURI, login)
-
-	if _, ok := s.desktopSessions[key]; ok {
-		return nil, nil, trace.AlreadyExists("session for desktop %q and login %q already exists", desktopURI, login)
-	}
-
-	session, err := desktop.NewSession(desktopURI, login)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	s.desktopSessions[key] = session
-
-	cleanup := func() {
-		s.desktopSessionsMu.Lock()
-		defer s.desktopSessionsMu.Unlock()
-
-		delete(s.desktopSessions, key)
-	}
-
-	return session, cleanup, nil
-}
-
 // RemoveCluster removes cluster
 func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	cluster, _, err := s.ResolveCluster(uri)
@@ -323,8 +261,6 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
 	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI)
-	clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
-
 	return cluster, clusterClient, nil
 }
 
@@ -395,10 +331,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return gateway, nil
 	}
 
-	if err := s.checkIfGatewayAlreadyExists(targetURI, params); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	clusterClient, err := s.GetCachedClient(ctx, targetURI.GetClusterURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -422,7 +354,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log().WarnContext(ctx, "Failed to handle a gateway connection", "error", err)
+			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
@@ -481,7 +413,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			},
 		})
 		if notifyErr != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Failed to send a notification for an error encountered during gateway cert reissue", "error", notifyErr)
+			s.cfg.Log.WithError(notifyErr).Error("Failed to send a notification for an error encountered during gateway cert reissue")
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -576,42 +508,13 @@ func (s *Service) GetGatewayCLICommand(ctx context.Context, gateway gateway.Gate
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
+func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
 	s.gatewaysMu.Lock()
 	defer s.gatewaysMu.Unlock()
 
 	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if err := s.checkIfGatewayAlreadyExists(gateway.TargetURI(), CreateGatewayParams{
-		TargetURI:             gateway.TargetURI().String(),
-		TargetSubresourceName: targetSubresourceName,
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	targetURI := gateway.TargetURI()
-	switch {
-	case targetURI.IsApp():
-		clusterClient, err := s.GetCachedClient(ctx, targetURI)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		var app types.Application
-		if err := clusters.AddMetadataToRetryableError(ctx, func() error {
-			var err error
-			app, err = clusters.GetApp(ctx, clusterClient.CurrentCluster(), targetURI.GetAppName())
-			return trace.Wrap(err)
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if _, err := clusters.ValidateTargetPort(app, targetSubresourceName); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	gateway.SetTargetSubresourceName(targetSubresourceName)
@@ -653,9 +556,9 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 		// Rather than continuing in presence of the race condition, let's attempt to close the new
 		// gateway (since it shouldn't be used anyway) and return the error.
 		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
-			newGateway.Log().WarnContext(s.closeContext,
-				"Failed to close the new gateway after failing to close the old gateway",
-				"error", newGatewayCloseErr,
+			newGateway.Log().Warnf(
+				"Failed to close the new gateway after failing to close the old gateway: %v",
+				newGatewayCloseErr,
 			)
 		}
 		return nil, trace.Wrap(err)
@@ -665,11 +568,31 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 
 	go func() {
 		if err := newGateway.Serve(); err != nil {
-			newGateway.Log().WarnContext(s.closeContext, "Failed to handle a gateway connection", "error", err)
+			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
 	return newGateway, nil
+}
+
+// GetServers accepts parameterized input to enable searching, sorting, and pagination.
+func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
+	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetServers(ctx, req, proxyClient.CurrentCluster())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
 }
 
 func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
@@ -889,6 +812,26 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
+// GetKubes accepts parameterized input to enable searching, sorting, and pagination.
+func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
+	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetKubes(ctx, proxyClient.CurrentCluster(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
+}
+
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
 // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
 func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *api.ListKubernetesResourcesRequest) ([]types.ResourceWithLabels, error) {
@@ -924,27 +867,6 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 	return resources, trace.Wrap(err)
 }
 
-// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
-func (s *Service) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*clusters.GetDatabaseServersResponse, error) {
-	clusterURI, err := uri.Parse(req.GetClusterUri())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, _, err := s.ResolveClusterURI(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.ListDatabaseServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
-	return response, trace.Wrap(err)
-}
-
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
 	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
 	if err != nil {
@@ -959,7 +881,7 @@ func (s *Service) Stop() {
 	s.gatewaysMu.RLock()
 	defer s.gatewaysMu.RUnlock()
 
-	s.cfg.Logger.InfoContext(s.closeContext, "Stopping")
+	s.cfg.Log.Info("Stopping")
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
@@ -968,14 +890,14 @@ func (s *Service) Stop() {
 	s.StopHeadlessWatchers()
 
 	if err := s.clientCache.Clear(); err != nil {
-		s.cfg.Logger.ErrorContext(s.closeContext, "Failed to close remote clients", "error", err)
+		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
 
 	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
-		s.cfg.Logger.ErrorContext(timeoutCtx, "Gracefully stopping usage reporter failed", "error", err)
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of
@@ -1178,6 +1100,7 @@ func (s *Service) GetUserPreferences(ctx context.Context, clusterURI uri.Resourc
 		preferences, err = userpreferences.Get(ctx, rootAuthClient, leafAuthClient)
 		return trace.Wrap(err)
 	})
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1274,26 +1197,6 @@ func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
-// SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
-// If there is no active desktop session associated with the specified desktop_uri and login,
-// an error is returned.
-func (s *Service) SetSharedDirectoryForDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string) error {
-	s.desktopSessionsMu.Lock()
-	defer s.desktopSessionsMu.Unlock()
-
-	session, ok := s.desktopSessions[desktopSessionKey(desktopURI, login)]
-	if !ok {
-		return trace.BadParameter("there is no desktop session for desktop %s and login %q", desktopURI, login)
-	}
-
-	err := session.SetSharedDirectory(path)
-	return trace.Wrap(err)
-}
-
-func desktopSessionKey(desktopURI uri.ResourceURI, login string) string {
-	return desktopURI.String() + "-" + login
-}
-
 // Service is the daemon service
 type Service struct {
 	cfg *Config
@@ -1308,13 +1211,6 @@ type Service struct {
 	gateways map[string]gateway.Gateway
 	// gatewaysMu guards gateways.
 	gatewaysMu sync.RWMutex
-
-	// desktopSessions maps a desktop key (derived from desktop URI and login) to desktop sessions.
-	//
-	// Each session is created by the ConnectToDesktop RPC and later used by the SetSharedDirectoryForDesktopSession RPC
-	// to share a directory within the session.
-	desktopSessions   map[string]*desktop.Session
-	desktopSessionsMu sync.Mutex
 
 	// The Electron App can display multiple important modals by showing the latest one and hiding the others.
 	// However, we should be careful with it, and generally try to limit the number of prompts on the tshd side,

@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth"
 )
 
 func TestDecisionServiceRequiresLocalAdmin(t *testing.T) {
@@ -34,10 +34,10 @@ func TestDecisionServiceRequiresLocalAdmin(t *testing.T) {
 	env := NewTestenv(t)
 	ctx := context.Background()
 
-	_, _, err := authtest.CreateUserAndRoleWithoutRoles(env.AuthAdminClient, "alice", []string{"alice"})
+	_, _, err := auth.CreateUserAndRoleWithoutRoles(env.AuthAdminClient, "alice", []string{"alice"})
 	require.NoError(t, err, "Creating use alice failed")
 
-	aliceClient, err := env.TestServer.NewClient(authtest.TestUser("alice"))
+	aliceClient, err := env.TestServer.NewClient(auth.TestUser("alice"))
 	require.NoError(t, err, "NewClient failed")
 	t.Cleanup(func() {
 		assert.NoError(t, aliceClient.Close(), "aliceClient.Close() failed")
@@ -67,17 +67,6 @@ func TestDecisionServiceRequiresLocalAdmin(t *testing.T) {
 
 				_, err := test.client.EvaluateSSHAccess(ctx, &decisionpb.EvaluateSSHAccessRequest{})
 				assert.ErrorAs(t, err, &test.expectedError, "EvaluateSSHAccess error mismatch")
-			})
-		}
-	})
-
-	t.Run("EvaluateSSHJoin", func(t *testing.T) {
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				t.Parallel()
-
-				_, err := test.client.EvaluateSSHJoin(ctx, &decisionpb.EvaluateSSHJoinRequest{})
-				assert.ErrorAs(t, err, &test.expectedError, "EvaluateSSHJoin error mismatch")
 			})
 		}
 	})

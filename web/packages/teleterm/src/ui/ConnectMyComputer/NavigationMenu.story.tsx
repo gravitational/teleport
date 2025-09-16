@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
@@ -32,7 +32,7 @@ export default {
   title: 'Teleterm/ConnectMyComputer/NavigationMenu',
 };
 
-export function AgentNotConfigured() {
+export function AgenNotConfigured() {
   return (
     <ShowState
       agentProcessState={{ status: 'not-started' }}
@@ -161,7 +161,16 @@ function ShowState({
   const cluster = makeRootCluster({
     proxyVersion: '17.0.0',
   });
-  appContext.addRootCluster(cluster);
+  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = cluster.uri;
+    draftState.workspaces[cluster.uri] = {
+      localClusterUri: cluster.uri,
+      documents: [],
+      location: undefined,
+      accessRequests: undefined,
+    };
+  });
 
   appContext.mainProcessClient.getAgentState = () => agentProcessState;
   appContext.connectMyComputerService.isAgentConfigFileCreated =

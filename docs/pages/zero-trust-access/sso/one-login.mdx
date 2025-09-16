@@ -2,7 +2,7 @@
 title: Teleport Authentication with OneLogin as an SSO Provider
 description: How to configure Teleport access using OneLogin as an SSO provider
 h1: Teleport Authentication with OneLogin
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -19,9 +19,7 @@ to define policies like:
 - Developers must never SSH into production servers.
 - ... and many others.
 
-## How it works
-
-(!docs/pages/includes/sso/how-it-works.mdx idp="OneLogin"!)
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -29,7 +27,7 @@ to define policies like:
 - Teleport role with access to maintaining `saml` resources.  This is available
   in the default `editor` role.
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -50,16 +48,13 @@ to define policies like:
    - <a href={SquareIcon} download>Square Icon</a>
    - <a href={RectangleIcon} download>Rectangular Icon</a>
 
-1. From the application's **Configuration** page, set the following values. Set
-   <Var name="teleport.example.com:443" description="Your Teleport Proxy Service
-   address and port, or cloud tenant." /> here with your Teleport Proxy Service
-   address and port, or Teleport Enterprise Cloud tenant (e.g.
-   `company.teleport.sh:443`) to fill out the values below.
+1. From the application's **Configuration** page, set the following values:
 
-   If you have a self-hosted cluster with multiple public addresses for the
-   Teleport Proxy Service (the value of `proxy_service.public_addr` in the
-   Teleport configuration file), ensure that this address points to the first
-   one listed.
+   <Admonition type="tip">
+   Set <Var name="teleport.example.com:443" description="Your Teleport Proxy Service address and port, or cloud tenant." />
+   here with your Teleport Proxy Service address and port, or Teleport Enterprise
+   Cloud tenant (e.g. `company.teleport.sh:443`) to fill out the values below.
+   </Admonition>
    
    - **Login URL**:
      - `https://`<Var name="teleport.example.com:443"/>`/web/login`
@@ -99,42 +94,7 @@ to define policies like:
    SAML metadata. We recommend copying the address so the Auth Service can use
    the most up-to-date information.
 
-## Step 2/3. Create a new Teleport role
-
-We are going to create a new that'll use external username data from OneLogin
-to map to a host linux login.
-
-In the role described below, Devs are only allowed to login to nodes labelled with
-`access: relaxed` Teleport label. Developers can log in as either `ubuntu` to a
-username that arrives in their assertions. Developers also do not have any
-rules needed to obtain admin access to Teleport.
-
-```yaml
-# dev.yaml
-kind: role
-version: v5
-metadata:
-  name: dev
-spec:
-  options:
-    max_session_ttl: "24h"
-  allow:
-    logins: [ "{{external.username}}", ubuntu ]
-    node_labels:
-      access: relaxed
-```
-
-**Notice:** Replace `ubuntu` with linux login available on your servers!
-
-Create the role:
-
-```code
-$ tctl create -f dev.yaml
-```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
-
-## Step 3/3. Create a SAML connector
+## Step 2/3. Create a SAML connector
 
 Create a SAML connector using `tctl`. Update <Var name="xml-path"/> to the URL
 of the XML document that you copied in the previous step. If you downloaded the
@@ -171,6 +131,39 @@ $ tctl create -f onelogin.yaml
 ```
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
+
+## Step 3/3. Create a new Teleport role
+
+We are going to create a new that'll use external username data from OneLogin
+to map to a host linux login.
+
+In the role described below, Devs are only allowed to login to nodes labelled with
+`access: relaxed` Teleport label. Developers can log in as either `ubuntu` to a
+username that arrives in their assertions. Developers also do not have any
+rules needed to obtain admin access to Teleport.
+
+```yaml
+# dev.yaml
+kind: role
+version: v5
+metadata:
+  name: dev
+spec:
+  options:
+    max_session_ttl: "24h"
+  allow:
+    logins: [ "{{external.username}}", ubuntu ]
+    node_labels:
+      access: relaxed
+```
+
+**Notice:** Replace `ubuntu` with linux login available on your servers!
+
+Create the role:
+
+```code
+$ tctl create -f dev.yaml
+```
 
 ## Troubleshooting
 

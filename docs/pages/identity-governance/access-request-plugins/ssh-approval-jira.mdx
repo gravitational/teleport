@@ -2,7 +2,7 @@
 title: Run the Jira Access Request Plugin
 sidebar_label: Jira
 description: How to set up the Teleport Jira plugin to notify users when another user requests elevated privileges.
-labels:
+tags:
  - how-to
  - identity-governance
 ---
@@ -11,6 +11,12 @@ This guide explains how to set up the Teleport Access Request plugin for Jira.
 Teleport's Jira integration allows you to manage Access Requests as
 Jira issues.
 
+The Teleport Jira plugin synchronizes a Jira project board with the Access
+Requests processed by your Teleport cluster. When you change the status of an
+Access Request within Teleport, the plugin updates the board. And when you
+update the status of an Access Request on the board, the plugin notifies a Jira
+webhook run by the plugin, which modifies the Access Request in Teleport.
+
 <details>
 <summary>This integration is hosted on Teleport Cloud</summary>
 
@@ -18,17 +24,11 @@ Jira issues.
 
 </details>
 
-## How it works
-
-The Teleport Jira plugin synchronizes a Jira project board with the Access
-Requests processed by your Teleport cluster. When you change the status of an
-Access Request within Teleport, the plugin updates the board. And when you
-update the status of an Access Request on the board, the plugin notifies a Jira
-webhook run by the plugin, which modifies the Access Request in Teleport.
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/machine-id/plugin-prerequisites.mdx!)
 

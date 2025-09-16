@@ -31,10 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/email"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -234,132 +231,6 @@ func (s *EmailSuiteOSS) TestDenial() {
 	require.Contains(t, messages[0].Body, "Status: ❌ DENIED (not okay)")
 }
 
-// TestRecipientsFromAccessMonitoringRule tests access monitoring rules are
-// applied to the recipient selection process.
-func (s *EmailSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
-	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
-
-	_, err := s.ClientByName(integration.RulerUserName).
-		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
-			Kind:    types.KindAccessMonitoringRule,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test-email-amr",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
-				Subjects:  []string{types.KindAccessRequest},
-				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
-					Name: "email",
-					Recipients: []string{
-						integration.Reviewer1UserName,
-					},
-				},
-			},
-		})
-	require.NoError(t, err)
-
-	// Test execution: create an access request
-	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
-	pluginData := s.checkPluginData(ctx, req.GetName(), func(data email.PluginData) bool {
-		return len(data.EmailThreads) > 0
-	})
-	require.Len(t, pluginData.EmailThreads, 1)
-
-	messages := s.getMessages(ctx, t, 1)
-	require.Len(t, messages, 1)
-	require.Equal(t, integration.Reviewer1UserName, messages[0].Recipient)
-
-	require.NoError(t, s.ClientByName(integration.RulerUserName).
-		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-email-amr"))
-}
-
-// TestRecipientsFromAccessMonitoringRuleAfterUpdate tests access monitoring
-// rules are respected after the rule is updated.
-func (s *EmailSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
-	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
-
-	// Setup base config to ensure access monitoring rule recipient take precidence
-	s.appConfig.RoleToRecipients = common.RawRecipientsMap{
-		types.Wildcard: []string{
-			integration.Reviewer2UserName,
-		},
-	}
-
-	_, err := s.ClientByName(integration.RulerUserName).
-		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
-			Kind:    types.KindAccessMonitoringRule,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test-email-amr-2",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
-				Subjects:  []string{types.KindAccessRequest},
-				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
-					Name: "email",
-					Recipients: []string{
-						integration.Reviewer1UserName,
-					},
-				},
-			},
-		})
-	require.NoError(t, err)
-
-	// Test execution: create an access request
-	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
-	pluginData := s.checkPluginData(ctx, req.GetName(), func(data email.PluginData) bool {
-		return len(data.EmailThreads) > 0
-	})
-	require.Len(t, pluginData.EmailThreads, 1)
-
-	messages := s.getMessages(ctx, t, 1)
-	require.Len(t, messages, 1)
-	require.Equal(t, integration.Reviewer1UserName, messages[0].Recipient)
-
-	// Update the Access Monitoring Rule so it is no longer applied
-	_, err = s.ClientByName(integration.RulerUserName).
-		AccessMonitoringRulesClient().
-		UpdateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
-			Kind:    types.KindAccessMonitoringRule,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test-email-amr-2",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
-				Subjects:  []string{"someOtherKind"},
-				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
-					Name: "email",
-					Recipients: []string{
-						integration.Reviewer1UserName,
-					},
-				},
-			},
-		})
-	require.NoError(t, err)
-
-	// Test execution: create an access request
-	req = s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
-	pluginData = s.checkPluginData(ctx, req.GetName(), func(data email.PluginData) bool {
-		return len(data.EmailThreads) > 0
-	})
-	require.Len(t, pluginData.EmailThreads, 1)
-
-	messages = s.getMessages(ctx, t, 1)
-	require.Len(t, messages, 1)
-	require.Equal(t, allRecipient, messages[0].Recipient)
-
-	require.NoError(t, s.ClientByName(integration.RulerUserName).
-		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-email-amr-2"))
-}
-
 // TestReviewReplies tests that a followup email is sent after the access request
 // is reviewed.
 func (s *EmailSuiteEnterprise) TestReviewReplies() {
@@ -554,7 +425,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 	}
 
 	process := lib.NewProcess(ctx)
-	for range s.raceNumber {
+	for i := 0; i < s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			req, err := types.NewAccessRequest(uuid.New().String(), integration.Requester1UserName, "editor")
 			if err != nil {
@@ -569,7 +440,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 	}
 
 	// 3 original messages + 2*3 reviews + 3 resolve
-	for range messageCountPerThread * s.raceNumber {
+	for i := 0; i < messageCountPerThread*s.raceNumber; i++ {
 		process.SpawnCritical(func(ctx context.Context) error {
 			msg, err := s.mockMailgun.GetMessage(ctx)
 			if err != nil {
@@ -612,7 +483,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 	<-process.Done()
 	require.NoError(t, raceErr)
 
-	threadIDs.Range(func(key, value any) bool {
+	threadIDs.Range(func(key, value interface{}) bool {
 		next := true
 
 		val, loaded := threadIDs.LoadAndDelete(key)
@@ -625,7 +496,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 		return next
 	})
 
-	replyIDs.Range(func(key, value any) bool {
+	replyIDs.Range(func(key, value interface{}) bool {
 		next := true
 
 		val, loaded := replyIDs.LoadAndDelete(key)
@@ -638,7 +509,7 @@ func (s *EmailSuiteEnterprise) TestRace() {
 		return next
 	})
 
-	resolveIDs.Range(func(key, value any) bool {
+	resolveIDs.Range(func(key, value interface{}) bool {
 		next := true
 
 		val, loaded := resolveIDs.LoadAndDelete(key)

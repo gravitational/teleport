@@ -2,7 +2,7 @@
 title: Using Teleport with OpenSSH in agentless mode (manual installation)
 description: This guide shows you how to set up Teleport to enable secure access to OpenSSH servers so you can protect legacy systems that do not run a Teleport binary.
 videoBanner: x0eYFUEIOrM
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -15,12 +15,10 @@ Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 `teleport` SSH servers have support for multiple features that are incompatible with OpenSSH:
 
-- RBAC and resource filtering based on [dynamically updated labels](../../../zero-trust-access/rbac-get-started/labels.mdx)
+- RBAC and resource filtering based on [dynamically updated labels](../../../zero-trust-access/management/admin/labels.mdx)
 - [Session recording without SSH connection termination](../guides/recording-proxy-mode.mdx)
 - [Session sharing](../../../connect-your-client/tsh.mdx)
 - [Advanced session recording](../guides/bpf-session-recording.mdx)
-
-## How it works
 
 Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles.
 
@@ -44,6 +42,8 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
   Teleport is able to perform many of the steps we show in this guide automatically.
 
 </Admonition>
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -87,7 +87,9 @@ and `spec.hostname` to the name of the node as you would like users to see it in
 
 The `metadata.labels` field labels the SSH Service instance so you can apply RBAC rules to it.
 
-The `metadata.name` field isn't mandatory, but if supplied, it must be a universal unique identifier (UUID).  To generate a new UUID suitable for a `node` name, use the `uuidgen` command
+The `metadata.name` field isn't mandatory, but setting it here will save you some work later.
+
+To generate a new universal unique identifier (UUID) suitable for a `node` name, use the `uuidgen` command
 on Linux or macOS, or use the `New-Guid` cmdlet in Powershell on Windows.
 
 Create the node resource:
@@ -171,8 +173,6 @@ Create the role resource:
 $ tctl create host-certifier.yaml
 # role 'host-certifier' has been created
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 (!docs/pages/includes/add-role-to-user.mdx role="host-certifier"!)
 

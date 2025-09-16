@@ -70,8 +70,6 @@ export function makeAccessRequest(json?): AccessRequest {
       ? new Date(json.assumeStartTime)
       : null,
     assumeStartTimeDuration: getAssumeStartDurationText(json.assumeStartTime),
-    reasonMode: json.reasonMode || 'optional',
-    reasonPrompts: json.reasonPrompts || [],
   };
 }
 

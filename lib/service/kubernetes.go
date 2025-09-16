@@ -78,7 +78,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		return trace.Wrap(err)
 	}
 
-	teleportClusterName := conn.ClusterName()
+	teleportClusterName := conn.ServerIdentity.ClusterName
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	// This service can run in 2 modes:
@@ -128,11 +128,11 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
 				Component:            teleport.ComponentKube,
-				HostUUID:             conn.HostID(),
+				HostUUID:             conn.ServerIdentity.ID.HostUUID,
 				Resolver:             conn.TunnelProxyResolver(),
 				Client:               conn.Client,
 				AccessPoint:          accessPoint,
-				AuthMethods:          conn.ClientAuthMethods(),
+				HostSigner:           conn.ServerIdentity.KeySigner,
 				Cluster:              teleportClusterName,
 				Server:               shtl,
 				FIPS:                 process.Config.FIPS,
@@ -173,7 +173,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentKube,
-			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -186,12 +186,12 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		ClusterName: teleportClusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -210,20 +210,21 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:                     apidefaults.Namespace,
-			Keygen:                        cfg.Keygen,
-			ClusterName:                   teleportClusterName,
-			Authz:                         authorizer,
-			AuthClient:                    conn.Client,
-			Emitter:                       asyncEmitter,
-			DataDir:                       cfg.DataDir,
-			CachingAuthClient:             accessPoint,
-			HostID:                        cfg.HostUUID,
-			Context:                       process.ExitContext(),
-			KubeconfigPath:                cfg.Kube.KubeconfigPath,
-			KubeClusterName:               cfg.Kube.KubeClusterName,
-			KubeServiceType:               kubeproxy.KubeService,
-			Component:                     teleport.ComponentKube,
+			Namespace:         apidefaults.Namespace,
+			Keygen:            cfg.Keygen,
+			ClusterName:       teleportClusterName,
+			Authz:             authorizer,
+			AuthClient:        conn.Client,
+			Emitter:           asyncEmitter,
+			DataDir:           cfg.DataDir,
+			CachingAuthClient: accessPoint,
+			HostID:            cfg.HostUUID,
+			Context:           process.ExitContext(),
+			KubeconfigPath:    cfg.Kube.KubeconfigPath,
+			KubeClusterName:   cfg.Kube.KubeClusterName,
+			KubeServiceType:   kubeproxy.KubeService,
+			Component:         teleport.ComponentKube,
+
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
@@ -239,9 +240,8 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		StaticLabels:         cfg.Kube.StaticLabels,
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
-		Log:                  process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+		Log:                  process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
-		InventoryHandle:      process.inventoryHandle,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -269,7 +269,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	})
 
 	// Cleanup, when process is exiting.
-	process.OnExit("kube.shutdown", func(payload any) {
+	process.OnExit("kube.shutdown", func(payload interface{}) {
 		// Clean up items in reverse order from their initialization.
 		if payload != nil {
 			// Graceful shutdown.

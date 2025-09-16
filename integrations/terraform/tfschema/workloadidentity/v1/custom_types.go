@@ -22,7 +22,4 @@ var (
 	GenSchemaTimestamp = resource153.GenSchemaTimestamp
 	CopyToTimestamp    = resource153.CopyToTimestamp
 	CopyFromTimestamp  = resource153.CopyFromTimestamp
-	GenSchemaDuration  = resource153.GenSchemaDuration
-	CopyToDuration     = resource153.CopyToDuration
-	CopyFromDuration   = resource153.CopyFromDuration
 )

@@ -22,17 +22,17 @@ import (
 	"crypto"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 )
 
@@ -50,16 +50,15 @@ type AzureTokenMiddleware struct {
 	// ClientID to be returned in a claim.
 	ClientID string
 
+	// Key used to sign JWT
+	Key crypto.Signer
+
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// Log is the Logger.
-	Log *slog.Logger
+	Log logrus.FieldLogger
 	// Secret to be provided by the client.
 	Secret string
-
-	// privateKey used to sign JWT
-	privateKey   crypto.Signer
-	privateKeyMu sync.RWMutex
 }
 
 var _ LocalProxyHTTPMiddleware = &AzureTokenMiddleware{}
@@ -69,9 +68,12 @@ func (m *AzureTokenMiddleware) CheckAndSetDefaults() error {
 		m.Clock = clockwork.NewRealClock()
 	}
 	if m.Log == nil {
-		m.Log = slog.With(teleport.ComponentKey, "azure_token")
+		m.Log = logrus.WithField(teleport.ComponentKey, "azure_token")
 	}
 
+	if m.Key == nil {
+		return trace.BadParameter("missing Key")
+	}
 	if m.Secret == "" {
 		return trace.BadParameter("missing Secret")
 	}
@@ -95,31 +97,15 @@ func (m *AzureTokenMiddleware) HandleRequest(rw http.ResponseWriter, req *http.R
 	case types.TeleportAzureIdentityEndpoint:
 		err = m.handleEndpoint(rw, req, IdentityResourceFieldName, req.Header.Get(IdentitySecretHeader))
 	default:
-		m.Log.DebugContext(req.Context(), "Unsupported token host", "host", req.Host)
+		m.Log.Debugf("Unsupported token host %q", req.Host)
 		return false
 	}
 	if err != nil {
-		m.Log.WarnContext(req.Context(), "Bad token request", "error", err)
+		m.Log.Warnf("Bad token request: %s", err)
 		trace.WriteError(rw, trace.Wrap(err))
 	}
 
 	return true
-}
-
-// SetPrivateKey updates the private key.
-func (m *AzureTokenMiddleware) SetPrivateKey(privateKey crypto.Signer) {
-	m.privateKeyMu.Lock()
-	defer m.privateKeyMu.Unlock()
-	m.privateKey = privateKey
-}
-func (m *AzureTokenMiddleware) getPrivateKey() (crypto.Signer, error) {
-	m.privateKeyMu.RLock()
-	defer m.privateKeyMu.RUnlock()
-	if m.privateKey == nil {
-		// Use a plain error to return status code 500.
-		return nil, trace.Errorf("missing private key set in AzureTokenMiddleware")
-	}
-	return m.privateKey, nil
 }
 
 // handleEndpoint handles the Azure identity token generation.
@@ -146,7 +132,7 @@ func (m *AzureTokenMiddleware) handleEndpoint(rw http.ResponseWriter, req *http.
 	// check that resource field matches expected Azure Identity
 	requestedAzureIdentity := req.Form.Get(resourceFieldName)
 	if requestedAzureIdentity != m.Identity {
-		m.Log.WarnContext(req.Context(), "Requested unexpected identity", "requested_identity", requestedAzureIdentity, "expected_identity", m.Identity)
+		m.Log.Warnf("Requested unexpected identity %q, expected %q", requestedAzureIdentity, m.Identity)
 		return trace.BadParameter("unexpected value for parameter '%s': %v", resourceFieldName, requestedAzureIdentity)
 	}
 
@@ -155,7 +141,7 @@ func (m *AzureTokenMiddleware) handleEndpoint(rw http.ResponseWriter, req *http.
 		return trace.Wrap(err)
 	}
 
-	m.Log.InfoContext(req.Context(), "Returning token for identity", "identity", m.Identity)
+	m.Log.Infof("MSI: returning token for identity %v", m.Identity)
 
 	rw.Header().Add("Content-Type", "application/json; charset=utf-8")
 	rw.Header().Add("Content-Length", fmt.Sprintf("%v", len(respBody)))
@@ -199,14 +185,11 @@ func (m *AzureTokenMiddleware) fetchLoginResp(resource string) ([]byte, error) {
 }
 
 func (m *AzureTokenMiddleware) toJWT(claims jwt.AzureTokenClaims) (string, error) {
-	privateKey, err := m.getPrivateKey()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
 	// Create a new key that can sign and verify tokens.
 	key, err := jwt.New(&jwt.Config{
 		Clock:      m.Clock,
-		PrivateKey: privateKey,
+		PrivateKey: m.Key,
+		Algorithm:  defaults.ApplicationTokenAlgorithm,
 		// TODO(gabrielcorado): use the cluster name. This value must match the
 		// one used by the proxy.
 		ClusterName: types.TeleportAzureMSIEndpoint,

@@ -16,24 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { botsFixture } from 'teleport/Bots/fixtures';
 import { BotList } from 'teleport/Bots/List/BotList';
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
 
 import { EmptyState } from './EmptyState/EmptyState';
 
 export default {
-  title: 'Teleport/Bots/List',
+  title: 'Teleport/Bots',
 };
 
 export const Empty = () => {
   return (
     <MemoryRouter>
-      <TeleportProviderBasic>
-        <EmptyState />
-      </TeleportProviderBasic>
+      <EmptyState />
     </MemoryRouter>
   );
 };
@@ -48,9 +46,11 @@ export const List = () => {
       onClose={() => {}}
       onDelete={() => {}}
       onEdit={() => {}}
-      onSelect={() => {}}
+      fetchRoles={async () => []}
       selectedBot={null}
+      selectedRoles={[]}
       setSelectedBot={() => {}}
+      setSelectedRoles={() => {}}
     />
   );
 };

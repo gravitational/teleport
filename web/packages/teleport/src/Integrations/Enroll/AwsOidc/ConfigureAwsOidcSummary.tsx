@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, H3, Text } from 'design';
-import { IconTooltip } from 'design/Tooltip';
 import TextEditor from 'shared/components/TextEditor';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
@@ -61,7 +62,7 @@ export function ConfigureAwsOidcSummary({
 }`;
 
   return (
-    <IconTooltip sticky={true} maxWidth={800}>
+    <ToolTipInfo sticky={true} maxWidth={800}>
       <H3 mb={2}>Running the command in AWS CloudShell does the following:</H3>
       <Text>1. Configures an AWS IAM OIDC Identity Provider (IdP)</Text>
       <Text>
@@ -76,7 +77,7 @@ export function ConfigureAwsOidcSummary({
           />
         </EditorWrapper>
       </Box>
-    </IconTooltip>
+    </ToolTipInfo>
   );
 }
 

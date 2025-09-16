@@ -18,10 +18,7 @@ package types
 
 import (
 	"fmt"
-	"iter"
 	"net/url"
-	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -30,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
-	netutils "github.com/gravitational/teleport/api/utils/net"
 )
 
 var _ compare.IsEqual[Application] = (*AppV3)(nil)
@@ -71,18 +67,12 @@ type Application interface {
 	IsGCP() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
-	// IsMCP returns true if this app represents a MCP server.
-	IsMCP() bool
 	// GetProtocol returns the application protocol.
 	GetProtocol() string
 	// GetAWSAccountID returns value of label containing AWS account ID on this app.
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
-	// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
-	GetAWSRolesAnywhereProfileARN() string
-	// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
-	GetAWSRolesAnywhereAcceptRoleSessionName() bool
 	// GetUserGroups will get the list of user group IDs associated with the application.
 	GetUserGroups() []string
 	// SetUserGroups will set the list of user group IDs associated with the application.
@@ -94,18 +84,8 @@ type Application interface {
 	GetIntegration() string
 	// GetRequiredAppNames will return a list of required apps names that should be authenticated during this apps authentication process.
 	GetRequiredAppNames() []string
-	// GetUseAnyProxyPublicAddr will return true if a client should rebuild this app's fqdn based on the proxy's public addr.
-	GetUseAnyProxyPublicAddr() bool
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
-	// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
-	GetTCPPorts() PortRanges
-	// SetTCPPorts sets port ranges to which connections can be forwarded to.
-	SetTCPPorts([]*PortRange)
-	// GetIdentityCenter fetches identity center info for the app, if any.
-	GetIdentityCenter() *AppIdentityCenter
-	// GetMCP fetches MCP specific configuration.
-	GetMCP() *MCP
 }
 
 // NewAppV3 creates a new app resource.
@@ -291,27 +271,14 @@ func (a *AppV3) IsTCP() bool {
 	return IsAppTCP(a.Spec.URI)
 }
 
-// IsMCP returns true if provided uri is an MCP app.
-func (a *AppV3) IsMCP() bool {
-	return IsAppMCP(a.Spec.URI)
-}
-
 func IsAppTCP(uri string) bool {
 	return strings.HasPrefix(uri, "tcp://")
-}
-
-// IsAppMCP returns true if provided uri is an MCP app.
-func IsAppMCP(uri string) bool {
-	return GetMCPServerTransportType(uri) != ""
 }
 
 // GetProtocol returns the application protocol.
 func (a *AppV3) GetProtocol() string {
 	if a.IsTCP() {
 		return "TCP"
-	}
-	if a.IsMCP() {
-		return "MCP"
 	}
 	return "HTTP"
 }
@@ -329,22 +296,6 @@ func (a *AppV3) GetAWSExternalID() string {
 	return a.Spec.AWS.ExternalID
 }
 
-// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
-func (a *AppV3) GetAWSRolesAnywhereProfileARN() string {
-	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhereProfile == nil {
-		return ""
-	}
-	return a.Spec.AWS.RolesAnywhereProfile.ProfileARN
-}
-
-// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
-func (a *AppV3) GetAWSRolesAnywhereAcceptRoleSessionName() bool {
-	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhereProfile == nil {
-		return false
-	}
-	return a.Spec.AWS.RolesAnywhereProfile.AcceptRoleSessionName
-}
-
 // GetUserGroups will get the list of user group IDss associated with the application.
 func (a *AppV3) GetUserGroups() []string {
 	return a.Spec.UserGroups
@@ -353,16 +304,6 @@ func (a *AppV3) GetUserGroups() []string {
 // SetUserGroups will set the list of user group IDs associated with the application.
 func (a *AppV3) SetUserGroups(userGroups []string) {
 	a.Spec.UserGroups = userGroups
-}
-
-// GetTCPPorts returns port ranges supported by the app to which connections can be forwarded to.
-func (a *AppV3) GetTCPPorts() PortRanges {
-	return a.Spec.TCPPorts
-}
-
-// SetTCPPorts sets port ranges to which connections can be forwarded to.
-func (a *AppV3) SetTCPPorts(ports []*PortRange) {
-	a.Spec.TCPPorts = ports
 }
 
 // GetIntegration will return the Integration.
@@ -384,10 +325,6 @@ func (a *AppV3) Copy() *AppV3 {
 
 func (a *AppV3) GetRequiredAppNames() []string {
 	return a.Spec.RequiredAppNames
-}
-
-func (a *AppV3) GetUseAnyProxyPublicAddr() bool {
-	return a.Spec.UseAnyProxyPublicAddr
 }
 
 func (a *AppV3) GetCORS() *CORSPolicy {
@@ -418,14 +355,10 @@ func (a *AppV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("app %q invalid label key: %q", a.GetName(), key)
 		}
 	}
-
 	if a.Spec.URI == "" {
-		switch {
-		case a.Spec.Cloud != "":
+		if a.Spec.Cloud != "" {
 			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
-		case a.Spec.MCP != nil && a.Spec.MCP.Command != "":
-			a.Spec.URI = SchemaMCPStdio
-		default:
+		} else {
 			return trace.BadParameter("app %q URI is empty", a.GetName())
 		}
 	}
@@ -446,13 +379,13 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	if !strings.Contains(publicAddr, "//") && strings.Contains(publicAddr, ":") {
 		publicAddr = "//" + publicAddr
 	}
-	publicAddrURL, err := url.Parse(publicAddr)
+	url, err := url.Parse(publicAddr)
 	if err != nil {
 		return trace.BadParameter("invalid PublicAddr format: %v", err)
 	}
 	host := a.Spec.PublicAddr
-	if publicAddrURL.Host != "" {
-		host = publicAddrURL.Host
+	if url.Host != "" {
+		host = url.Host
 	}
 
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
@@ -469,93 +402,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if len(a.Spec.TCPPorts) != 0 {
-		if err := a.checkTCPPorts(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if a.IsMCP() {
-		a.SetSubKind(SubKindMCP)
-		if err := a.checkMCP(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
-}
-
-func (a *AppV3) checkTCPPorts() error {
-	// Parsing the URI here does not break compatibility. The URI is parsed only if Ports are present.
-	// This means that old apps that do have invalid URIs but don't use Ports can continue existing.
-	uri, err := url.Parse(a.Spec.URI)
-	if err != nil {
-		return trace.BadParameter("invalid app URI format: %v", err)
-	}
-
-	// The scheme of URI is enforced to be "tcp" on purpose. This way in the future we can add
-	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
-	// web app gets downgraded to a version which supports multi-port only for TCP apps.
-	//
-	// For now, we simply ignore the Ports field set on non-TCP apps.
-	if uri.Scheme != "tcp" {
-		return nil
-	}
-
-	if uri.Port() != "" {
-		return trace.BadParameter("TCP app URI %q must not include a port number when the app spec defines a list of ports", a.Spec.URI)
-	}
-
-	for _, portRange := range a.Spec.TCPPorts {
-		if err := netutils.ValidatePortRange(int(portRange.Port), int(portRange.EndPort)); err != nil {
-			return trace.Wrap(err, "validating a port range of a TCP app")
-		}
-	}
-
-	return nil
-}
-
-func (a *AppV3) checkMCP() error {
-	switch GetMCPServerTransportType(a.Spec.URI) {
-	case MCPTransportStdio:
-		return trace.Wrap(a.checkMCPStdio())
-	default:
-		return trace.BadParameter("unsupported MCP server %q with URI %q", a.GetName(), a.Spec.URI)
-	}
-}
-
-func (a *AppV3) checkMCPStdio() error {
-	// Skip validation for internal demo resource.
-	if resourceType, _ := a.GetLabel(TeleportInternalResourceType); resourceType == DemoResource {
-		return nil
-	}
-	if a.Spec.MCP == nil {
-		return trace.BadParameter("MCP server %q is missing 'mcp' spec", a.GetName())
-	}
-	if a.Spec.MCP.Command == "" {
-		return trace.BadParameter("MCP server %q is missing 'command' which specifies the executable to launch the MCP server. Arguments should be specified through the 'args' field", a.GetName())
-	}
-	if a.Spec.MCP.RunAsHostUser == "" {
-		return trace.BadParameter("MCP server %q is missing 'run_as_host_user' which specifies a valid host user to execute the command", a.GetName())
-	}
-	return nil
-}
-
-// GetIdentityCenter returns the Identity Center information for the app, if any.
-// May be nil.
-func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
-	return a.Spec.IdentityCenter
-}
-
-// GetDisplayName fetches a human-readable display name for the App.
-func (a *AppV3) GetDisplayName() string {
-	// Only Identity Center apps have a display name at this point. Returning
-	// the empty string signals to the caller they should fall back to whatever
-	// they have been using in the past.
-	if a.Spec.IdentityCenter == nil {
-		return ""
-	}
-	return a.Metadata.Description
 }
 
 // IsEqual determines if two application resources are equivalent to one another.
@@ -566,34 +413,20 @@ func (a *AppV3) IsEqual(i Application) bool {
 	return false
 }
 
-// GetMCP returns MCP specific configuration.
-func (a *AppV3) GetMCP() *MCP {
-	return a.Spec.MCP
-}
-
 // DeduplicateApps deduplicates apps by combination of app name and public address.
 // Apps can have the same name but also could have different addresses.
-func DeduplicateApps(apps []Application) []Application {
-	return slices.Collect(DeduplicatedApps(slices.Values(apps)))
-}
-
-// DeduplicatedApps iterates deduplicated apps by combination of app name and
-// public address. This is the iter.Seq version of DeduplicateApps.
-func DeduplicatedApps(apps iter.Seq[Application]) iter.Seq[Application] {
+func DeduplicateApps(apps []Application) (result []Application) {
 	type key struct{ name, addr string }
 	seen := make(map[key]struct{})
-	return func(yield func(Application) bool) {
-		for app := range apps {
-			key := key{app.GetName(), app.GetPublicAddr()}
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			if !yield(app) {
-				return
-			}
+	for _, app := range apps {
+		key := key{app.GetName(), app.GetPublicAddr()}
+		if _, ok := seen[key]; ok {
+			continue
 		}
+		seen[key] = struct{}{}
+		result = append(result, app)
 	}
+	return result
 }
 
 // Apps is a list of app resources.
@@ -625,55 +458,3 @@ func (a Apps) Less(i, j int) bool { return a[i].GetName() < a[j].GetName() }
 
 // Swap swaps two apps.
 func (a Apps) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-
-// GetPermissionSets fetches the list of permission sets from the Identity Center
-// app information. Handles nil identity center values.
-func (a *AppIdentityCenter) GetPermissionSets() []*IdentityCenterPermissionSet {
-	if a == nil {
-		return nil
-	}
-	return a.PermissionSets
-}
-
-// PortRanges is a list of port ranges.
-type PortRanges []*PortRange
-
-// Contains checks if targetPort is within any of the port ranges.
-func (p PortRanges) Contains(targetPort int) bool {
-	return slices.ContainsFunc(p, func(portRange *PortRange) bool {
-		return netutils.IsPortInRange(int(portRange.Port), int(portRange.EndPort), targetPort)
-	})
-}
-
-// String returns a string representation of port ranges.
-func (p PortRanges) String() string {
-	var builder strings.Builder
-	for i, portRange := range p {
-		if i > 0 {
-			builder.WriteString(", ")
-		}
-		builder.WriteString(portRange.String())
-	}
-	return builder.String()
-}
-
-// String returns a string representation of a port range.
-func (p *PortRange) String() string {
-	if p.EndPort == 0 {
-		return strconv.Itoa(int(p.Port))
-	} else {
-		return fmt.Sprintf("%d-%d", p.Port, p.EndPort)
-	}
-}
-
-// GetMCPServerTransportType returns the transport of the MCP server based on
-// the URI. If no MCP transport type can be determined from the URI, an empty
-// string is returned.
-func GetMCPServerTransportType(uri string) string {
-	switch {
-	case strings.HasPrefix(uri, SchemaMCPStdio):
-		return MCPTransportStdio
-	default:
-		return ""
-	}
-}

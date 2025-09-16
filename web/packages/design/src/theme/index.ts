@@ -20,7 +20,5 @@ import bblpTheme from './themes/bblpTheme';
 import darkTheme from './themes/darkTheme';
 import lightTheme from './themes/lightTheme';
 
-export * from './themes/types';
-
 export { darkTheme, lightTheme, bblpTheme };
 export { breakpointsPx } from './themes/sharedStyles';

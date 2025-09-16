@@ -1,0 +1,247 @@
+---
+title: Workload Attestation
+description: An overview of the Teleport Workload Identity Workload Attestation feature.
+---
+
+Workload Attestation is the process completed by `tbot` to assert the identity
+of a workload that has connected to the Workload API and requested certificates.
+The information gathered during attestation is used to decide which, if any,
+SPIFFE IDs should be encoded into an SVID and issued to the workload.
+
+Workload Attestors are the individual components that perform this attestation.
+They use the process ID of the workload to gather information about the workload
+from platform-specific APIs. For example, the Kubernetes Workload Attestor
+queries the local Kubelet API to determine which Kubernetes pod the process
+belongs to.
+
+The result of the attestation process is known as attestation metadata. This
+attestation metadata is referred to by the rules you configured for `tbot`'s
+Workload API service. For example, you may state that only workloads running in
+a specific Kubernetes namespace should be issued a specific SPIFFE ID.
+
+Additionally, this metadata is included in the log messages output by `tbot`
+when it issues an SVID. This allows you to audit the issuance of SVIDs and
+understand why a specific SPIFFE ID was issued to a workload.
+
+## Unix
+
+The Unix Workload Attestor is the most basic attestor and allows you to restrict
+the issuance of SVIDs to specific Unix processes based on a range of criteria.
+
+### Attestation Metadata
+
+The following metadata is produced by the Unix Workload Attestor and is
+available to be used when configuring rules for `tbot`'s Workload API service:
+
+| Field             | Description                                                                  |
+|-------------------|------------------------------------------------------------------------------|
+| `unix.attested`   | Indicates that the workload has been attested by the Unix Workload Attestor. |
+| `unix.pid`        | The process ID of the attested workload.                                     |
+| `unix.uid`        | The effective user ID of the attested workload.                              |
+| `unix.gid`        | The effective primary group ID of the attested workload.                     |
+
+### Support for non-standard procfs mounting
+
+To resolve information about a process from the PID, the Unix Workload Attestor
+reads information from the procfs filesystem. By default, it expects procfs to
+be mounted at `/proc`.
+
+If procfs is mounted at a different location, you must configure the Unix
+Workload Attestor to read from that alternative location by setting the
+`HOST_PROC` environment variable.
+
+This is a sensitive configuration option, and you should ensure that it is
+set correctly or not set at all. If misconfigured, an attacker could provide
+falsified information about processes, and this could lead to the issuance of
+SVIDs to unauthorized workloads.
+
+## Kubernetes
+
+The Kubernetes Workload Attestor allows you to restrict the issuance of SVIDs
+to specific Kubernetes workloads based on a range of criteria.
+
+It works by first determining the pod ID for a given process ID and then by
+querying the local kubelet API for details about that pod.
+
+### Attestation Metadata
+
+The following metadata is produced by the Kubernetes Workload Attestor and is
+available to be used when configuring rules for `tbot`'s Workload API service:
+
+| Field                        | Description                                                                        |
+|------------------------------|------------------------------------------------------------------------------------|
+| `kubernetes.attested`      | Indicates that the workload has been attested by the Kubernetes Workload Attestor. |
+| `kubernetes.namespace`       | The namespace of the Kubernetes Pod.                                               |
+| `kubernetes.service_account` | The service account of the Kubernetes Pod.                                         |
+| `kubernetes.pod_name`        | The name of the Kubernetes Pod.                                                    |
+
+### Deployment Guidance
+
+To use Kubernetes Workload Attestation, `tbot` must be deployed as a daemon
+set. This is because the unix domain socket can only be accessed by pods on the
+same node as the agent. Additionally, the daemon set must have the `hostPID`
+property set to `true` to allow the agent to access information about
+processes within other containers.
+
+The daemon set must also have a service account assigned that allows it to query
+the Kubelet API. This is an example role with the required RBAC:
+
+```yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tbot
+rules:
+  - resources: ["pods","nodes","nodes/proxy"]
+    apiGroups: [""]
+    verbs: ["get"]
+```
+
+Mapping the Workload API Unix domain socket into the containers of workloads
+can be done in two ways:
+
+- Directly configuring a hostPath volume for the `tbot` daemonset and workloads
+  which will need to connect to it.
+- Using [spiffe-csi-driver](https://github.com/spiffe/spiffe-csi).
+
+Example manifests for required Kubernetes resources:
+
+```yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tbot
+rules:
+  - resources: ["pods","nodes","nodes/proxy"]
+    apiGroups: [""]
+    verbs: ["get"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: tbot
+subjects:
+  - kind: ServiceAccount
+    name: tbot
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: tbot
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tbot
+  namespace: default
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tbot-config
+  namespace: default
+data:
+  tbot.yaml: |
+    version: v2
+    onboarding:
+      join_method: kubernetes
+      # replace with the name of a join token you have created.
+      token: example-token
+    storage:
+      type: memory
+    # ensure this is configured to the address of your Teleport Proxy Service.
+    proxy_server: example.teleport.sh:443
+    services:
+      - type: spiffe-workload-api
+        listen: unix:///run/tbot/sockets/workload.sock
+        attestor:
+          kubernetes:
+            enabled: true
+            kubelet:
+              # skip verification of the Kubelet API certificate as this is not
+              # usually issued by the cluster CA.
+              skip_verify: true
+        # replace the svid entries with the SPIFFE IDs that you wish to issue,
+        # using the `rules` blocks to restrict these to specific Kubernetes
+        # workloads.
+        svids:
+          - path: /my-service
+            rules:
+              - kubernetes:
+                  namespace: default
+                  service_account: example-sa
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: tbot
+spec:
+  selector:
+      matchLabels:
+        app: tbot
+  template:
+    metadata:
+      labels:
+        app: tbot
+    spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+      hostPID: true
+      containers:
+        - name: tbot
+          image: public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          args:
+            - start
+            - -c
+            - /config/tbot.yaml
+            - --log-format
+            - json
+          volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+            - name: tbot-sockets
+              mountPath: /run/tbot/sockets
+              readOnly: false
+          env:
+            - name: TELEPORT_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/tokens/join-sa-token
+      serviceAccountName: tbot
+      volumes:
+        - name: tbot-sockets
+          hostPath:
+            path: /run/tbot/sockets
+            type: DirectoryOrCreate
+        - name: config
+          configMap:
+            name: tbot-config
+        - name: join-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: join-sa-token
+                  # 600 seconds is the minimum that Kubernetes supports. We
+                  # recommend this value is used.
+                  expirationSeconds: 600
+                  # `example.teleport.sh` must be replaced with the name of
+                  # your Teleport cluster.
+                  audience: example.teleport.sh
+```
+
+## Next steps
+
+- [Workload Identity Overview](./introduction.mdx): Overview of Teleport
+Workload Identity.
+- [Best Practices](./best-practices.mdx): Best practices for using Workload
+Identity in Production.
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
+all the available configuration options.

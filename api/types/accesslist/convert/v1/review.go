@@ -34,35 +34,35 @@ func FromReviewProto(msg *accesslistv1.Review) (*accesslist.Review, error) {
 		return nil, trace.BadParameter("access list review message is nil")
 	}
 
-	if msg.GetSpec() == nil {
+	if msg.Spec == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
 
 	// Manually check for the presence of the time so that we can be sure that the review date is
 	// zero if the proto message's review date is nil.
 	var reviewDate time.Time
-	if msg.GetSpec().GetReviewDate() != nil {
-		reviewDate = msg.GetSpec().GetReviewDate().AsTime()
+	if msg.Spec.ReviewDate != nil {
+		reviewDate = msg.Spec.ReviewDate.AsTime()
 	}
 
 	var reviewChanges accesslist.ReviewChanges
-	if msg.GetSpec().GetChanges() != nil {
-		if msg.GetSpec().GetChanges().GetMembershipRequirementsChanged() != nil {
+	if msg.Spec.Changes != nil {
+		if msg.Spec.Changes.MembershipRequirementsChanged != nil {
 			reviewChanges.MembershipRequirementsChanged = &accesslist.Requires{
-				Roles:  msg.GetSpec().GetChanges().GetMembershipRequirementsChanged().GetRoles(),
-				Traits: traitv1.FromProto(msg.GetSpec().GetChanges().GetMembershipRequirementsChanged().GetTraits()),
+				Roles:  msg.Spec.Changes.MembershipRequirementsChanged.Roles,
+				Traits: traitv1.FromProto(msg.Spec.Changes.MembershipRequirementsChanged.Traits),
 			}
 		}
-		reviewChanges.RemovedMembers = msg.GetSpec().GetChanges().GetRemovedMembers()
-		reviewChanges.ReviewFrequencyChanged = accesslist.ReviewFrequency(msg.GetSpec().GetChanges().GetReviewFrequencyChanged())
-		reviewChanges.ReviewDayOfMonthChanged = accesslist.ReviewDayOfMonth(msg.GetSpec().GetChanges().GetReviewDayOfMonthChanged())
+		reviewChanges.RemovedMembers = msg.Spec.Changes.RemovedMembers
+		reviewChanges.ReviewFrequencyChanged = accesslist.ReviewFrequency(msg.Spec.Changes.ReviewFrequencyChanged)
+		reviewChanges.ReviewDayOfMonthChanged = accesslist.ReviewDayOfMonth(msg.Spec.Changes.ReviewDayOfMonthChanged)
 	}
 
-	member, err := accesslist.NewReview(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.ReviewSpec{
-		AccessList: msg.GetSpec().GetAccessList(),
-		Reviewers:  msg.GetSpec().GetReviewers(),
+	member, err := accesslist.NewReview(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.ReviewSpec{
+		AccessList: msg.Spec.AccessList,
+		Reviewers:  msg.Spec.Reviewers,
 		ReviewDate: reviewDate,
-		Notes:      msg.GetSpec().GetNotes(),
+		Notes:      msg.Spec.Notes,
 		Changes:    reviewChanges,
 	})
 	if err != nil {

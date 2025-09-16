@@ -92,9 +92,6 @@ type Role interface {
 	// GetRoleConditions gets the RoleConditions for the RoleConditionType.
 	GetRoleConditions(rct RoleConditionType) RoleConditions
 
-	// GetRequestReasonMode gets the RequestReasonMode for the RoleConditionType.
-	GetRequestReasonMode(RoleConditionType) RequestReasonMode
-
 	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
 	// type [kind] this role is allowed or denied access to.
 	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
@@ -152,8 +149,6 @@ type Role interface {
 	// SetKubeResources configures the Kubernetes Resources for the RoleConditionType.
 	SetKubeResources(rct RoleConditionType, pods []KubernetesResource)
 
-	// GetRequestKubernetesResources returns the request Kubernetes resources.
-	GetRequestKubernetesResources(rct RoleConditionType) []RequestKubernetesResource
 	// SetRequestKubernetesResources sets the request kubernetes resources.
 	SetRequestKubernetesResources(rct RoleConditionType, resources []RequestKubernetesResource)
 
@@ -288,38 +283,15 @@ type Role interface {
 	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
-
-	// GetGitHubPermissions returns the allow or deny GitHub-related permissions.
-	GetGitHubPermissions(RoleConditionType) []GitHubPermission
-	// SetGitHubPermissions sets the allow or deny GitHub-related permissions.
-	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
-
-	// GetIdentityCenterAccountAssignments fetches the allow or deny Account
-	// Assignments for the role
-	GetIdentityCenterAccountAssignments(RoleConditionType) []IdentityCenterAccountAssignment
-	// GetIdentityCenterAccountAssignments sets the allow or deny Account
-	// Assignments for the role
-	SetIdentityCenterAccountAssignments(RoleConditionType, []IdentityCenterAccountAssignment)
-
-	// GetMCPPermissions returns the allow or deny MCP permissions.
-	GetMCPPermissions(RoleConditionType) *MCPPermissions
-	// SetMCPPermissions sets the allow or deny MCP permissions.
-	SetMCPPermissions(RoleConditionType, *MCPPermissions)
-
-	// Clone creats a copy of the role.
-	Clone() Role
 }
 
-// DefaultRoleVersion for NewRole() and test helpers.
-// When incrementing the role version, make sure to update the
-// role version in the asset file used by the UI.
-// See: web/packages/teleport/src/Roles/templates/role.yaml
-const DefaultRoleVersion = V8
-
-// NewRole constructs new standard V8 role.
-// This creates a V8 role with V4+ RBAC semantics.
+// NewRole constructs new standard V7 role.
+// This creates a V7 role with V4+ RBAC semantics.
 func NewRole(name string, spec RoleSpecV6) (Role, error) {
-	role, err := NewRoleWithVersion(name, DefaultRoleVersion, spec)
+	// When incrementing the role version, make sure to update the
+	// role version in the asset file used by the UI.
+	// See: web/packages/teleport/src/Roles/templates/role.yaml
+	role, err := NewRoleWithVersion(name, V7, spec)
 	return role, trace.Wrap(err)
 }
 
@@ -440,7 +412,7 @@ func (r *RoleV6) GetLogins(rct RoleConditionType) []string {
 
 // SetLogins sets system logins for allow or deny condition.
 func (r *RoleV6) SetLogins(rct RoleConditionType, logins []string) {
-	lcopy := slices.Clone(logins)
+	lcopy := utils.CopyStrings(logins)
 
 	if rct == Allow {
 		r.Spec.Allow.Logins = lcopy
@@ -459,7 +431,7 @@ func (r *RoleV6) GetKubeGroups(rct RoleConditionType) []string {
 
 // SetKubeGroups sets kubernetes groups for allow or deny condition.
 func (r *RoleV6) SetKubeGroups(rct RoleConditionType, groups []string) {
-	lcopy := slices.Clone(groups)
+	lcopy := utils.CopyStrings(groups)
 
 	if rct == Allow {
 		r.Spec.Allow.KubeGroups = lcopy
@@ -472,108 +444,24 @@ func (r *RoleV6) SetKubeGroups(rct RoleConditionType, groups []string) {
 // access to.
 func (r *RoleV6) GetKubeResources(rct RoleConditionType) []KubernetesResource {
 	if rct == Allow {
-		out := r.convertAllowKubernetesResourcesBetweenRoleVersions(r.Spec.Allow.KubernetesResources)
-		// We need to support `kubectl auth can-i` as we prompt the user to use this when they get an access denied error.
-		// Inject a selfsubjectaccessreviews resource to allow for it. It can still be explicitly denied by the role if
-		// set in the `deny` section.
-		out = append(out, KubernetesResourceSelfSubjectAccessReview)
-		return out
+		return r.convertKubernetesResourcesBetweenRoleVersions(r.Spec.Allow.KubernetesResources)
 	}
-	return r.convertKubernetesResourcesBetweenRoleVersions(r.Spec.Deny.KubernetesResources)
+	return r.Spec.Deny.KubernetesResources
 }
 
-// convertKubernetesResourcesBetweenRoleVersions converts Kubernetes resources between role versions.
+// convertKubeResourcesBetweenRoleVersions converts Kubernetes resources between role versions.
 // This is required to keep compatibility between role versions to avoid breaking changes
-// when using an older role version.
-//
-// For roles v8, it returns the list as it is.
-//
-// For roles <=v7, it maps the legacy teleport Kinds to k8s plurals and sets the APIGroup to wildcard.
-//
-// Must be in sync with RoleV6.convertRequestKubernetesResourcesBetweenRoleVersions.
-func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
-	switch r.Version {
-	case V8:
-		return resources
-	default:
-		v7resources := slices.Clone(resources)
-		var extraResources []KubernetesResource
-		for i, r := range v7resources {
-			// "namespace" kind used to mean "namespaces" and all resources in the namespace.
-			// It is now represented by 'namespaces' for the resource itself and wildcard for
-			// all resources in the namespace.
-			if r.Kind == KindKubeNamespace {
-				r.Kind = Wildcard
-				if r.Name == Wildcard {
-					r.Namespace = "^.+$"
-				} else {
-					r.Namespace = r.Name
-				}
-				r.Name = Wildcard
-				r.APIGroup = Wildcard
-				v7resources[i] = r
-				extraResources = append(extraResources, KubernetesResource{
-					Kind:  "namespaces",
-					Name:  r.Namespace,
-					Verbs: r.Verbs,
-				})
-				continue
-			}
-			// The namespace field was ignored in v7 for global resources.
-			if r.Namespace != "" && slices.Contains(KubernetesClusterWideResourceKinds, r.Kind) {
-				r.Namespace = ""
-			}
-			if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok { // Can be empty if the kind is a wildcard.
-				r.APIGroup = KubernetesResourcesV7KindGroups[r.Kind]
-				r.Kind = k
-			} else {
-				r.APIGroup = Wildcard
-			}
-			v7resources[i] = r
-			if r.Kind == Wildcard { // If we have a wildcard, inject the clusterwide resources.
-				for _, elem := range KubernetesClusterWideResourceKinds {
-					if elem == KindKubeNamespace { // Namespace is handled separately.
-						continue
-					}
-					extraResources = append(extraResources, KubernetesResource{
-						Kind:     KubernetesResourcesKindsPlurals[elem],
-						Name:     r.Name,
-						Verbs:    r.Verbs,
-						APIGroup: Wildcard,
-					})
-				}
-			}
-		}
-		return append(v7resources, extraResources...)
-	}
-}
-
-// convertAllowKubeResourcesBetweenRoleVersions converts Kubernetes resources between role versions.
-// This is required to keep compatibility between role versions to avoid breaking changes
-// when using an older role version.
-//
-// For roles v8, it returns the list as it is.
-//
-// For roles v7, if we have a Wildcard kind, add the v7 cluster-wide resources to maintain
-// the existing behavior as in Teleport <=v17, those resources ignored the namespace value
-// of the rbac entry. Earlier roles didn't support wildcard so it is not a concern.
-//
-// For roles v7, if we have a "namespace" kind, map it to a wildcard + namespaces kind.
-//
-// For roles <=v7, it sets the APIGroup to wildcard for all resources and maps the legacy
-// teleport Kinds to k8s plurals.
-//
+// when upgrading Teleport.
+// For roles v7, it returns the list as it is.
 // For older roles <v7, if the kind is pod and name and namespace are wildcards,
 // then return a wildcard resource since RoleV6 and below do not restrict access
 // to other resources. This is a simple optimization to reduce the number of resources.
-//
 // Finally, if the older role version is not a wildcard, then it returns the pod resources as is
-// and append the other supported resources - KubernetesResourcesKinds - for Role v8.
-func (r *RoleV6) convertAllowKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
+// and append the other supported resources - KubernetesResourcesKinds - for Role v7.
+func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []KubernetesResource) []KubernetesResource {
 	switch r.Version {
-	case V7, V8:
-		// V7 and v8 uses the same logic for allow and deny.
-		return r.convertKubernetesResourcesBetweenRoleVersions(resources)
+	case V7:
+		return resources
 	// Teleport does not support role versions < v3.
 	case V6, V5, V4, V3:
 		switch {
@@ -586,32 +474,19 @@ func (r *RoleV6) convertAllowKubernetesResourcesBetweenRoleVersions(resources []
 			// This check ignores the Kind field because `validateKubeResources` ensures
 			// that for older roles, the Kind field can only be pod.
 		case len(resources) == 1 && resources[0].Name == Wildcard && resources[0].Namespace == Wildcard:
-			return []KubernetesResource{{Kind: Wildcard, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}, APIGroup: Wildcard}}
+			return []KubernetesResource{{Kind: Wildcard, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}}}
 		default:
-			v6resources := slices.Clone(resources)
-			for i, r := range v6resources {
-				if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok {
-					r.APIGroup = KubernetesResourcesV7KindGroups[r.Kind]
-					r.Kind = k
-				} else {
-					r.APIGroup = Wildcard
-				}
-				v6resources[i] = r
-			}
-
-			for _, resource := range KubernetesResourcesKinds { // Iterate over the list to have deterministic order.
-				group := KubernetesResourcesV7KindGroups[resource]
-				resource = KubernetesResourcesKindsPlurals[resource]
+			for _, resource := range KubernetesResourcesKinds {
 				// Ignore Pod resources for older roles because Pods were already supported
 				// so we don't need to keep backwards compatibility for them.
 				// Also ignore Namespace resources because it grants access to all resources
 				// in the namespace.
-				if resource == "pods" || resource == "namespaces" {
+				if resource == KindKubePod || resource == KindNamespace {
 					continue
 				}
-				v6resources = append(v6resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}, APIGroup: group})
+				resources = append(resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}})
 			}
-			return v6resources
+			return resources
 		}
 	default:
 		return nil
@@ -625,20 +500,6 @@ func (r *RoleV6) SetKubeResources(rct RoleConditionType, pods []KubernetesResour
 	} else {
 		r.Spec.Deny.KubernetesResources = pods
 	}
-}
-
-// GetRequestKubernetesResources returns the upgraded request kubernetes resources.
-func (r *RoleV6) GetRequestKubernetesResources(rct RoleConditionType) []RequestKubernetesResource {
-	if rct == Allow {
-		if r.Spec.Allow.Request == nil {
-			return nil
-		}
-		return r.convertRequestKubernetesResourcesBetweenRoleVersions(r.Spec.Allow.Request.KubernetesResources)
-	}
-	if r.Spec.Deny.Request == nil {
-		return nil
-	}
-	return r.convertRequestKubernetesResourcesBetweenRoleVersions(r.Spec.Deny.Request.KubernetesResources)
 }
 
 // SetRequestKubernetesResources sets the request kubernetes resources.
@@ -663,7 +524,7 @@ func (r *RoleV6) GetKubeUsers(rct RoleConditionType) []string {
 
 // SetKubeUsers sets kubernetes user for allow or deny condition.
 func (r *RoleV6) SetKubeUsers(rct RoleConditionType, users []string) {
-	lcopy := slices.Clone(users)
+	lcopy := utils.CopyStrings(users)
 
 	if rct == Allow {
 		r.Spec.Allow.KubeUsers = lcopy
@@ -682,40 +543,6 @@ func (r *RoleV6) GetAccessRequestConditions(rct RoleConditionType) AccessRequest
 		return AccessRequestConditions{}
 	}
 	return *cond
-}
-
-// convertRequestKubernetesResourcesBetweenRoleVersions converts Access Request Kubernetes resources between role versions.
-//
-// This is required to keep compatibility between role versions to avoid breaking changes
-// when using an older role version.
-//
-// For roles v8, it returns the list as it is.
-//
-// For roles <=v7, it maps the legacy teleport Kinds to k8s plurals and sets the APIGroup to wildcard.
-//
-// Must be in sync with RoleV6.convertDenyKubernetesResourcesBetweenRoleVersions.
-func (r *RoleV6) convertRequestKubernetesResourcesBetweenRoleVersions(resources []RequestKubernetesResource) []RequestKubernetesResource {
-	if len(resources) == 0 {
-		return nil
-	}
-	switch r.Version {
-	case V8:
-		return resources
-	default:
-		v7resources := slices.Clone(resources)
-		for i, r := range v7resources {
-			if k, ok := KubernetesResourcesKindsPlurals[r.Kind]; ok { // Can be empty if the kind is a wildcard.
-				r.APIGroup = KubernetesResourcesV7KindGroups[r.Kind]
-				r.Kind = k
-			} else if r.Kind == KindKubeNamespace {
-				r.Kind = "namespaces"
-			} else {
-				r.APIGroup = Wildcard
-			}
-			v7resources[i] = r
-		}
-		return v7resources
-	}
 }
 
 // SetAccessRequestConditions sets allow/deny conditions for access requests.
@@ -758,7 +585,7 @@ func (r *RoleV6) GetNamespaces(rct RoleConditionType) []string {
 
 // SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 func (r *RoleV6) SetNamespaces(rct RoleConditionType, namespaces []string) {
-	ncopy := slices.Clone(namespaces)
+	ncopy := utils.CopyStrings(namespaces)
 
 	if rct == Allow {
 		r.Spec.Allow.Namespaces = ncopy
@@ -1055,7 +882,7 @@ func (r *RoleV6) GetWindowsLogins(rct RoleConditionType) []string {
 
 // SetWindowsLogins sets Windows desktop logins for the role's allow or deny condition.
 func (r *RoleV6) SetWindowsLogins(rct RoleConditionType, logins []string) {
-	lcopy := slices.Clone(logins)
+	lcopy := utils.CopyStrings(logins)
 
 	if rct == Allow {
 		r.Spec.Allow.WindowsDesktopLogins = lcopy
@@ -1093,7 +920,7 @@ func (r *RoleV6) GetHostGroups(rct RoleConditionType) []string {
 
 // SetHostGroups sets all groups for provisioned user
 func (r *RoleV6) SetHostGroups(rct RoleConditionType, groups []string) {
-	ncopy := slices.Clone(groups)
+	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
 		r.Spec.Allow.HostGroups = ncopy
 	} else {
@@ -1111,7 +938,7 @@ func (r *RoleV6) GetDesktopGroups(rct RoleConditionType) []string {
 
 // SetDesktopGroups sets all groups for provisioned user
 func (r *RoleV6) SetDesktopGroups(rct RoleConditionType, groups []string) {
-	ncopy := slices.Clone(groups)
+	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
 		r.Spec.Allow.DesktopGroups = ncopy
 	} else {
@@ -1129,7 +956,7 @@ func (r *RoleV6) GetHostSudoers(rct RoleConditionType) []string {
 
 // GetHostSudoers sets the list of sudoers entries for the role
 func (r *RoleV6) SetHostSudoers(rct RoleConditionType, sudoers []string) {
-	ncopy := slices.Clone(sudoers)
+	ncopy := utils.CopyStrings(sudoers)
 	if rct == Allow {
 		r.Spec.Allow.HostSudoers = ncopy
 	} else {
@@ -1154,23 +981,6 @@ func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCo
 	}
 }
 
-// GetGitHubPermissions returns the allow or deny GitHubPermission.
-func (r *RoleV6) GetGitHubPermissions(rct RoleConditionType) []GitHubPermission {
-	if rct == Allow {
-		return r.Spec.Allow.GitHubPermissions
-	}
-	return r.Spec.Deny.GitHubPermissions
-}
-
-// SetGitHubPermissions sets the allow or deny GitHubPermission.
-func (r *RoleV6) SetGitHubPermissions(rct RoleConditionType, perms []GitHubPermission) {
-	if rct == Allow {
-		r.Spec.Allow.GitHubPermissions = perms
-	} else {
-		r.Spec.Deny.GitHubPermissions = perms
-	}
-}
-
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
 func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	switch r.Spec.Options.RequireMFAType {
@@ -1190,11 +1000,11 @@ func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
-	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 && r.Version != V7 {
+	if r.Version != V3 && r.Version != V4 && r.Version != V5 && r.Version != V6 {
 		// When incrementing the role version, make sure to update the
 		// role version in the asset file used by the UI.
 		// See: web/packages/teleport/src/Roles/templates/role.yaml
-		r.Version = V8
+		r.Version = V7
 	}
 }
 
@@ -1236,9 +1046,7 @@ func (c *SPIFFERoleCondition) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults checks validity of all parameters and sets defaults.
-// Must be kept in sync with
-// `web/packages/teleport/src/Roles/RoleEditor/withDefaults.ts`.
+// CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (r *RoleV6) CheckAndSetDefaults() error {
 	r.setStaticFields()
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
@@ -1252,12 +1060,14 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if r.Spec.Options.MaxSessionTTL.Value() == 0 {
 		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
 	}
+	if r.Spec.Options.PortForwarding == nil {
+		r.Spec.Options.PortForwarding = NewBoolOption(true)
+	}
 	if len(r.Spec.Options.BPF) == 0 {
 		r.Spec.Options.BPF = defaults.EnhancedEvents()
 	}
-	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Allow.Namespaces); err != nil {
-		// Using trace.BadParameter instead of trace.Wrap for a better error message.
-		return trace.BadParameter("allow: %s", err)
+	if r.Spec.Allow.Namespaces == nil {
+		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
 	if r.Spec.Options.RecordSession == nil {
 		r.Spec.Options.RecordSession = &RecordSession{
@@ -1281,13 +1091,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
 	}
 	if r.Spec.Options.IDP == nil {
-		if IsLegacySAMLRBAC(r.GetVersion()) {
-			// By default, allow users to access the IdP.
-			r.Spec.Options.IDP = &IdPOptions{
-				SAML: &IdPSAMLOptions{
-					Enabled: NewBoolOption(true),
-				},
-			}
+		// By default, allow users to access the IdP.
+		r.Spec.Options.IDP = &IdPOptions{
+			SAML: &IdPSAMLOptions{
+				Enabled: NewBoolOption(true),
+			},
 		}
 	}
 
@@ -1331,39 +1139,26 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 				},
 			}
 		}
-		fallthrough
+
+		setDefaultKubernetesVerbs(&r.Spec)
+		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
+			return trace.Wrap(err)
+		}
+
 	case V6:
 		setDefaultKubernetesVerbs(&r.Spec)
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
 	case V7:
-		// Kubernetes resources default to {kind:*, name:*, namespace:*, verbs:[*]} for v7 roles.
+		// Kubernetes resources default to {kind:*, name:*, namespace:*} for v7 roles.
 		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
-				// Full access to everything.
 				{
 					Kind:      Wildcard,
 					Namespace: Wildcard,
 					Name:      Wildcard,
 					Verbs:     []string{Wildcard},
-				},
-			}
-		}
-		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
-			return trace.Wrap(err)
-		}
-	case V8:
-		// Kubernetes resources default to {kind:*, name:*, namespace:*, api_group:*, verbs:[*]} for v8 roles.
-		if len(r.Spec.Allow.KubernetesResources) == 0 && r.HasLabelMatchers(Allow, KindKubernetesCluster) {
-			r.Spec.Allow.KubernetesResources = []KubernetesResource{
-				// Full access to everything.
-				{
-					Kind:      Wildcard,
-					Namespace: Wildcard,
-					Name:      Wildcard,
-					Verbs:     []string{Wildcard},
-					APIGroup:  Wildcard,
 				},
 			}
 		}
@@ -1375,9 +1170,8 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		return trace.BadParameter("unrecognized role version: %v", r.Version)
 	}
 
-	if err := checkAndSetRoleConditionNamespaces(&r.Spec.Deny.Namespaces); err != nil {
-		// Using trace.BadParameter instead of trace.Wrap for a better error message.
-		return trace.BadParameter("deny: %s", err)
+	if r.Spec.Deny.Namespaces == nil {
+		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
 
 	// Validate request.kubernetes_resources fields are all valid.
@@ -1518,27 +1312,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 		if err := r.Spec.Deny.Impersonate.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-func checkAndSetRoleConditionNamespaces(namespaces *[]string) error {
-	// If nil use the default.
-	// This distinguishes between nil and empty (in accordance to legacy code).
-	if *namespaces == nil {
-		*namespaces = []string{defaults.Namespace}
-		return nil
-	}
-
-	for i, ns := range *namespaces {
-		if ns == Wildcard {
-			continue // OK, wildcard is accepted.
-		}
-		if err := ValidateNamespaceDefault(ns); err != nil {
-			// Using trace.BadParameter instead of trace.Wrap for a better error message.
-			return trace.BadParameter("namespaces[%d]: %s", i, err)
 		}
 	}
 
@@ -1967,7 +1740,10 @@ func (r *RoleV6) SetSearchAsRoles(rct RoleConditionType, roles []string) {
 // purposes of viewing details such as the hostname and labels of requested
 // resources.
 func (r *RoleV6) GetPreviewAsRoles(rct RoleConditionType) []string {
-	roleConditions := r.GetRoleConditions(rct)
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
 	if roleConditions.ReviewRequests == nil {
 		return nil
 	}
@@ -1982,15 +1758,6 @@ func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
 	}
 
 	return roleConditions
-}
-
-// GetRoleConditions returns the role conditions for the role.
-func (r *RoleV6) GetRequestReasonMode(rct RoleConditionType) RequestReasonMode {
-	roleConditions := r.GetRoleConditions(rct)
-	if roleConditions.Request == nil || roleConditions.Request.Reason == nil {
-		return ""
-	}
-	return roleConditions.Request.Reason.Mode
 }
 
 // SetPreviewAsRoles sets the list of extra roles which should apply to a
@@ -2034,14 +1801,17 @@ func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
 }
 
 // validateKubeResources validates the following rules for each kubeResources entry:
-// - Kind belongs to KubernetesResourcesKinds for roles <=v7, is set and doesn't belong to that list for >=v8
+// - Kind belongs to KubernetesResourcesKinds
 // - Name is not empty
 // - Namespace is not empty
-// - APIGroup is empty for roles <=v7 and not empty for >=v8
 func validateKubeResources(roleVersion string, kubeResources []KubernetesResource) error {
 	for _, kubeResource := range kubeResources {
+		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
+			return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
+		}
+
 		for _, verb := range kubeResource.Verbs {
-			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard && !strings.Contains(verb, "{{") {
+			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard {
 				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)
 			}
 			if verb == Wildcard && len(kubeResource.Verbs) > 1 {
@@ -2049,54 +1819,23 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			}
 		}
 
+		// Only Pod resources are supported in role version <=V6.
+		// This is mandatory because we must append the other resources to the
+		// kubernetes resources.
 		switch roleVersion {
 		// Teleport does not support role versions < v3.
 		case V6, V5, V4, V3:
-			// Only Pod resources are supported in role version <=V6.
-			// This is mandatory because we must append the other resources to the
-			// kubernetes resources.
 			if kubeResource.Kind != KindKubePod {
-				return trace.BadParameter("KubernetesResource kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V8)
+				return trace.BadParameter("KubernetesResource %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
 			}
 			if len(kubeResource.Verbs) != 1 || kubeResource.Verbs[0] != Wildcard {
-				return trace.BadParameter("Role version %q only supports %q verb. Upgrade the role version to %q", roleVersion, Wildcard, V8)
-			}
-			fallthrough
-		case V7:
-			if kubeResource.APIGroup != "" {
-				return trace.BadParameter("API Group %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.APIGroup, roleVersion, V8)
-			}
-			if kubeResource.Kind != Wildcard && !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
-				return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
-			}
-			if kubeResource.Namespace == "" && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
-				return trace.BadParameter("KubernetesResource kind %q must include Namespace", kubeResource.Kind)
-			}
-		case V8:
-			if kubeResource.Kind == "" {
-				return trace.BadParameter("KubernetesResource kind %q is required in role version %q", kubeResource.Kind, roleVersion)
-			}
-			// If we have a kind that match a role v7 one, check the api group.
-			if slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
-				// If the api group is a wildcard or match v7, then it is mostly definitely a mistake, reject the role.
-				if kubeResource.APIGroup == Wildcard || kubeResource.APIGroup == KubernetesResourcesV7KindGroups[kubeResource.Kind] {
-					return trace.BadParameter("KubernetesResource kind %q is invalid. Please use plural name for role version %q", kubeResource.Kind, roleVersion)
-				}
-			}
-			// Only allow empty string for known core resources.
-			if kubeResource.APIGroup == "" {
-				if _, ok := KubernetesCoreResourceKinds[kubeResource.Kind]; !ok {
-					return trace.BadParameter("KubernetesResource api_group is required for resource %q in role version %q", kubeResource.Kind, roleVersion)
-				}
-			}
-			// Best effort attempt to validate if the namespace field is needed.
-			if kubeResource.Namespace == "" {
-				if apiGroup, ok := kubernetesNamespacedResourceKinds[kubeResource.Kind]; ok && apiGroup == kubeResource.APIGroup {
-					return trace.BadParameter("KubernetesResource %q must include Namespace", kubeResource.Kind)
-				}
+				return trace.BadParameter("Role version %q only supports %q verb. Upgrade the role version to %q", roleVersion, Wildcard, V7)
 			}
 		}
 
+		if len(kubeResource.Namespace) == 0 && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
+			return trace.BadParameter("KubernetesResource must include Namespace")
+		}
 		if len(kubeResource.Name) == 0 {
 			return trace.BadParameter("KubernetesResource must include Name")
 		}
@@ -2105,50 +1844,24 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 }
 
 // validateRequestKubeResources validates each kubeResources entry for `allow.request.kubernetes_resources` field.
-// Currently the only supported field for this particular field are:
-//   - Kind
-//   - APIGroup
+// Currently the only supported field for this particular field is:
+//   - Kind (belonging to KubernetesResourcesKinds)
 //
 // Mimics types.KubernetesResource data model, but opted to create own type as we don't support other fields yet.
 func validateRequestKubeResources(roleVersion string, kubeResources []RequestKubernetesResource) error {
 	for _, kubeResource := range kubeResources {
+		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
+			return trace.BadParameter("request.kubernetes_resource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
+		}
+
+		// Only Pod resources are supported in role version <=V6.
+		// This is mandatory because we must append the other resources to the
+		// kubernetes resources.
 		switch roleVersion {
-		case V8:
-			if kubeResource.Kind == "" {
-				return trace.BadParameter("request.kubernetes_resource kind is required in role version %q", roleVersion)
-			}
-			// If we have a kind that match a role v7 one, check the api group.
-			if slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
-				// If the api group is a wildcard or match v7, then it is mostly definitely a mistake, reject the role.
-				if kubeResource.APIGroup == Wildcard || kubeResource.APIGroup == KubernetesResourcesV7KindGroups[kubeResource.Kind] {
-					return trace.BadParameter("request.kubernetes_resource kind %q is invalid. Please use plural name for role version %q", kubeResource.Kind, roleVersion)
-				}
-			}
-			// Only allow empty string for known core resources.
-			if kubeResource.APIGroup == "" {
-				if _, ok := KubernetesCoreResourceKinds[kubeResource.Kind]; !ok {
-					return trace.BadParameter("request.kubernetes_resource api_group is required for resource %q in role version %q", kubeResource.Kind, roleVersion)
-				}
-			}
-		case V7:
-			if kubeResource.APIGroup != "" {
-				return trace.BadParameter("request.kubernetes_resource api_group is not supported in role version %q. Upgrade the role version to %q", roleVersion, V8)
-			}
-			if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
-				return trace.BadParameter("request.kubernetes_resource kind %q is invalid or unsupported in role version %q; Supported: %v",
-					kubeResource.Kind, roleVersion, append([]string{Wildcard}, KubernetesResourcesKinds...))
-			}
 		// Teleport does not support role versions < v3.
 		case V6, V5, V4, V3:
-			if kubeResource.APIGroup != "" {
-				return trace.BadParameter("request.kubernetes_resource api_group is not supported in role version %q. Upgrade the role version to %q", roleVersion, V8)
-			}
-			// Only Pod resources are supported in role version <=V6.
-			// This is mandatory because we must append the other resources to the
-			// kubernetes resources.
 			if kubeResource.Kind != KindKubePod {
-				return trace.BadParameter("request.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q",
-					kubeResource.Kind, roleVersion, V8)
+				return trace.BadParameter("request.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
 			}
 		}
 	}
@@ -2157,8 +1870,8 @@ func validateRequestKubeResources(roleVersion string, kubeResources []RequestKub
 
 // ClusterResource returns the resource name in the following format
 // <namespace>/<name>.
-func (m *KubernetesResource) ClusterResource() string {
-	return path.Join(m.Namespace, m.Name)
+func (k *KubernetesResource) ClusterResource() string {
+	return path.Join(k.Namespace, k.Name)
 }
 
 // IsEmpty will return true if the condition is empty.
@@ -2208,10 +1921,7 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.NodeLabels, cond.NodeLabelsExpression}, nil
 	case KindKubernetesCluster:
 		return LabelMatchers{cond.KubernetesLabels, cond.KubernetesLabelsExpression}, nil
-	case KindApp, KindSAMLIdPServiceProvider:
-		// app_labels will be applied to both app and saml_idp_service_provider resources.
-		// Access to the saml_idp_service_provider can be controlled by the both
-		// app_labels and verbs targeting saml_idp_service_provider resource.
+	case KindApp:
 		return LabelMatchers{cond.AppLabels, cond.AppLabelsExpression}, nil
 	case KindDatabase:
 		return LabelMatchers{cond.DatabaseLabels, cond.DatabaseLabelsExpression}, nil
@@ -2219,14 +1929,10 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.DatabaseServiceLabels, cond.DatabaseServiceLabelsExpression}, nil
 	case KindWindowsDesktop:
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
-	case KindDynamicWindowsDesktop:
-		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindWindowsDesktopService:
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
-	case KindGitServer:
-		return r.makeGitServerLabelMatchers(cond), nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
 	}
@@ -2255,10 +1961,7 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 		cond.KubernetesLabels = labelMatchers.Labels
 		cond.KubernetesLabelsExpression = labelMatchers.Expression
 		return nil
-	case KindApp, KindSAMLIdPServiceProvider:
-		// app_labels will be applied to both app and saml_idp_service_provider resources.
-		// Access to the saml_idp_service_provider can be controlled by the both
-		// app_labels and verbs targeting saml_idp_service_provider resource.
+	case KindApp:
 		cond.AppLabels = labelMatchers.Labels
 		cond.AppLabelsExpression = labelMatchers.Expression
 		return nil
@@ -2334,58 +2037,6 @@ func (r *RoleV6) SetOrigin(origin string) {
 func (r *RoleV6) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
 	return MatchSearch(fieldVals, values, nil)
-}
-
-func (r *RoleV6) makeGitServerLabelMatchers(cond *RoleConditions) LabelMatchers {
-	var all []string
-	for _, perm := range cond.GitHubPermissions {
-		all = append(all, perm.Organizations...)
-	}
-	return LabelMatchers{
-		Labels: Labels{
-			GitHubOrgLabel: all,
-		},
-	}
-}
-
-// GetIdentityCenterAccountAssignments fetches the allow or deny Identity Center
-// Account Assignments for the role
-func (r *RoleV6) GetIdentityCenterAccountAssignments(rct RoleConditionType) []IdentityCenterAccountAssignment {
-	if rct == Allow {
-		return r.Spec.Allow.AccountAssignments
-	}
-	return r.Spec.Deny.AccountAssignments
-}
-
-// SetIdentityCenterAccountAssignments sets the allow or deny Identity Center
-// Account Assignments for the role
-func (r *RoleV6) SetIdentityCenterAccountAssignments(rct RoleConditionType, assignments []IdentityCenterAccountAssignment) {
-	cond := &r.Spec.Deny
-	if rct == Allow {
-		cond = &r.Spec.Allow
-	}
-	cond.AccountAssignments = assignments
-}
-
-// GetMCPPermissions returns the allow or deny MCP permissions.
-func (r *RoleV6) GetMCPPermissions(rct RoleConditionType) *MCPPermissions {
-	if rct == Allow {
-		return r.Spec.Allow.MCP
-	}
-	return r.Spec.Deny.MCP
-}
-
-// SetMCPPermissions sets the allow or deny MCP permissions.
-func (r *RoleV6) SetMCPPermissions(rct RoleConditionType, perms *MCPPermissions) {
-	if rct == Allow {
-		r.Spec.Allow.MCP = perms
-	} else {
-		r.Spec.Deny.MCP = perms
-	}
-}
-
-func (r *RoleV6) Clone() Role {
-	return utils.CloneProtoMsg(r)
 }
 
 // LabelMatcherKinds is the complete list of resource kinds that support label
@@ -2544,23 +2195,8 @@ func (h CreateDatabaseUserMode) encode() (string, error) {
 func (h *CreateDatabaseUserMode) decode(val any) error {
 	var str string
 	switch val := val.(type) {
-	case int32:
-		return trace.Wrap(h.setFromEnum(val))
-	case int64:
-		return trace.Wrap(h.setFromEnum(int32(val)))
-	case int:
-		return trace.Wrap(h.setFromEnum(int32(val)))
-	case float64:
-		return trace.Wrap(h.setFromEnum(int32(val)))
-	case float32:
-		return trace.Wrap(h.setFromEnum(int32(val)))
 	case string:
 		str = val
-	case bool:
-		if val {
-			return trace.BadParameter("create_database_user_mode cannot be true, got %v", val)
-		}
-		str = createHostUserModeOffString
 	default:
 		return trace.BadParameter("bad value type %T, expected string", val)
 	}
@@ -2578,15 +2214,6 @@ func (h *CreateDatabaseUserMode) decode(val any) error {
 		return trace.BadParameter("invalid database user mode %v", val)
 	}
 
-	return nil
-}
-
-// setFromEnum sets the value from enum value as int32.
-func (h *CreateDatabaseUserMode) setFromEnum(val int32) error {
-	if _, ok := CreateDatabaseUserMode_name[val]; !ok {
-		return trace.BadParameter("invalid database user creation mode %v", val)
-	}
-	*h = CreateDatabaseUserMode(val)
 	return nil
 }
 
@@ -2636,15 +2263,4 @@ func (h *CreateDatabaseUserMode) UnmarshalJSON(data []byte) error {
 // IsEnabled returns true if database automatic user provisioning is enabled.
 func (m CreateDatabaseUserMode) IsEnabled() bool {
 	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
-}
-
-// GetAccount fetches the Account ID from a Role Condition Account Assignment
-func (a IdentityCenterAccountAssignment) GetAccount() string {
-	return a.Account
-}
-
-// IsLegacySAMLRBAC matches a role version
-// v7 and below, considered as the legacy SAML IdP RBAC.
-func IsLegacySAMLRBAC(roleVersion string) bool {
-	return slices.Contains([]string{V7, V6, V5, V4, V3, V2, V1}, roleVersion)
 }

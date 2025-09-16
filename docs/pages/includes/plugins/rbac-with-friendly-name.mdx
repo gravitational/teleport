@@ -32,10 +32,6 @@ spec:
       # permission to read the role resource.
       - resources: ['role']
         verbs: ['read']
-      # Optional: To have the users traits apply when evaluating the roles,
-      # the plugin also needs permission to read users.
-      - resources: ['user']
-        verbs: ['read']
 
     # Optional: To display user-friendly names in resource-based Access
     # Requests instead of resource IDs, the plugin also needs permission
@@ -81,5 +77,3 @@ Create the user and role:
 ```code
 $ tctl create -f access-plugin.yaml
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)

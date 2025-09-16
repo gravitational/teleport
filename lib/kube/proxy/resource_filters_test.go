@@ -30,6 +30,7 @@ import (
 	"text/template"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -41,11 +42,10 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func Test_filterBuffer(t *testing.T) {
+	log := logrus.New()
 	type objectAndAPI struct {
 		obj string
 		api string
@@ -155,7 +155,6 @@ func Test_filterBuffer(t *testing.T) {
 			allowedResources := []types.KubernetesResource{
 				{
 					Kind:      r,
-					APIGroup:  "*",
 					Namespace: "default",
 					Name:      "*",
 					Verbs:     []string{types.KubeVerbList},
@@ -167,7 +166,7 @@ func Test_filterBuffer(t *testing.T) {
 				require.NoError(t, err)
 				data := &bytes.Buffer{}
 				name := filepath.Base(tt.args.dataFile)
-				err = temp.ExecuteTemplate(data, name, map[string]any{
+				err = temp.ExecuteTemplate(data, name, map[string]interface{}{
 					"Kind": teleToKubeResource[r].obj,
 					"API":  teleToKubeResource[r].api,
 				},
@@ -176,17 +175,7 @@ func Test_filterBuffer(t *testing.T) {
 
 				buf, decompress := newMemoryResponseWriter(t, data.Bytes(), tt.args.contentEncoding)
 
-				mr := metaResource{
-					requestedResource: apiResource{
-						resourceKind: r,
-						apiGroup:     "",
-					},
-					resourceDefinition: &metav1.APIResource{
-						Namespaced: true,
-					},
-					verb: types.KubeVerbList,
-				}
-				err = filterBuffer(newResourceFilterer(mr, &globalKubeCodecs, allowedResources, nil, logtest.NewLogger()), buf)
+				err = filterBuffer(newResourceFilterer(r, types.KubeVerbList, &globalKubeCodecs, allowedResources, nil, log), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.
@@ -199,43 +188,43 @@ func Test_filterBuffer(t *testing.T) {
 				var resources []string
 				switch o := obj.(type) {
 				case *corev1.SecretList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *appsv1.DeploymentList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *appsv1.DaemonSetList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *appsv1.StatefulSetList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *authv1.RoleBindingList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *batchv1.CronJobList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *batchv1.JobList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *corev1.PodList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *corev1.ConfigMapList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *corev1.ServiceAccountList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *appsv1.ReplicaSetList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *corev1.ServiceList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *corev1.PersistentVolumeClaimList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *authv1.RoleList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *networkingv1.IngressList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *extensionsv1beta1.IngressList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *extensionsv1beta1.DaemonSetList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *extensionsv1beta1.ReplicaSetList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *extensionsv1beta1.DeploymentList:
-					resources = collectResourcesFromResponse(libslices.ToPointers(o.Items))
+					resources = collectResourcesFromResponse(arrayToPointerArray(o.Items))
 				case *metav1.Table:
 					for i := range o.Rows {
 						row := &(o.Rows[i])
@@ -246,7 +235,7 @@ func Test_filterBuffer(t *testing.T) {
 							require.NoError(t, err)
 						}
 
-						resource, err := getKubeResourcePartialMetadataObject(r, "", "list", row.Object.Object)
+						resource, err := getKubeResourcePartialMetadataObject(r, "list", row.Object.Object)
 						require.NoError(t, err)
 						resources = append(resources, resource.Namespace+"/"+resource.Name)
 					}

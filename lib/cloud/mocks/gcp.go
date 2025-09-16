@@ -20,7 +20,7 @@ package mocks
 
 import (
 	"context"
-	"crypto"
+	"crypto/tls"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -38,10 +38,8 @@ var _ gcp.SQLAdminClient = (*GCPSQLAdminClientMock)(nil)
 type GCPSQLAdminClientMock struct {
 	// DatabaseInstance is returned from GetDatabaseInstance.
 	DatabaseInstance *sqladmin.DatabaseInstance
-	// GetDatabaseInstanceError is returned from GetDatabaseInstance.
-	GetDatabaseInstanceError error
 	// EphemeralCert is returned from GenerateEphemeralCert.
-	EphemeralCert string
+	EphemeralCert *tls.Certificate
 	// DatabaseUser is returned from GetUser.
 	DatabaseUser *sqladmin.User
 }
@@ -58,10 +56,10 @@ func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, db types.Databas
 }
 
 func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, db types.Database) (*sqladmin.DatabaseInstance, error) {
-	return g.DatabaseInstance, g.GetDatabaseInstanceError
+	return g.DatabaseInstance, nil
 }
 
-func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(_ context.Context, _ types.Database, _ time.Time, _ crypto.PublicKey) (string, error) {
+func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, certExpiry time.Time) (*tls.Certificate, error) {
 	return g.EphemeralCert, nil
 }
 

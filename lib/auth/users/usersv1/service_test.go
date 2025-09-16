@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"slices"
 	"testing"
 	"time"
 
@@ -133,7 +132,13 @@ func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace 
 
 // HasRole checks if the checker includes the role
 func (f *fakeChecker) HasRole(target string) bool {
-	return slices.Contains(f.roles, target)
+	for _, role := range f.roles {
+		if role == target {
+			return true
+		}
+	}
+
+	return false
 }
 
 type serviceOpt = func(config *usersv1.ServiceConfig)
@@ -162,16 +167,11 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		return nil, trace.Wrap(err, "creating memory backend")
 	}
 
-	identityService, err := local.NewTestIdentityService(bk)
-	if err != nil {
-		return nil, trace.Wrap(err, "initializing identity service")
-	}
-
 	service := struct {
 		services.Identity
 		services.Access
 	}{
-		Identity: identityService,
+		Identity: local.NewTestIdentityService(bk),
 		Access:   local.NewAccessService(bk),
 	}
 
@@ -491,7 +491,7 @@ func TestListUsers(t *testing.T) {
 
 	// Create addition users to test pagination
 	createdUsers := []*types.UserV2{llama.(*types.UserV2)}
-	for i := range 22 {
+	for i := 0; i < 22; i++ {
 		user, err := types.NewUser(fmt.Sprintf("user_%d", i))
 		require.NoError(t, err, "creating new user %d", i)
 		require.NoError(t, generateUserSecrets(user), "generating user secrets")

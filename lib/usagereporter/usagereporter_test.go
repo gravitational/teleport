@@ -66,7 +66,7 @@ func newFailingSubmitter(size int) (SubmitFunc[TestEvent], chan []*SubmittedEven
 // newTestingUsageReporter creates a new usage reporter that can be used in
 // tests.
 func newTestingUsageReporter(
-	clock *clockwork.FakeClock, submitClock *clockwork.FakeClock,
+	clock clockwork.FakeClock, submitClock clockwork.FakeClock,
 	submitter SubmitFunc[TestEvent],
 ) (*UsageReporter[TestEvent], context.CancelFunc, chan struct{}) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -101,7 +101,7 @@ func newTestingUsageReporter(
 func createDummyEvents(start, count int) []*TestEvent {
 	var ret []*TestEvent
 
-	for i := range count {
+	for i := 0; i < count; i++ {
 		ret = append(ret, &TestEvent{
 			count: start + i,
 		})
@@ -113,7 +113,7 @@ func createDummyEvents(start, count int) []*TestEvent {
 func compareUsageEvents(t *testing.T, reporter *UsageReporter[TestEvent], inputs []*TestEvent, outputs []*SubmittedEvent[TestEvent]) {
 	require.Len(t, outputs, len(inputs))
 
-	for i := range inputs {
+	for i := 0; i < len(inputs); i++ {
 		input := inputs[i]
 		output := outputs[i]
 
@@ -122,7 +122,7 @@ func compareUsageEvents(t *testing.T, reporter *UsageReporter[TestEvent], inputs
 }
 
 // advanceClocks advances all the given clocks by the same duration
-func advanceClocks(dur time.Duration, clocks ...*clockwork.FakeClock) {
+func advanceClocks(dur time.Duration, clocks ...clockwork.FakeClock) {
 	for _, c := range clocks {
 		c.Advance(dur)
 	}

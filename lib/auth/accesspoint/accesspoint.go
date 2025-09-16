@@ -27,11 +27,13 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
@@ -61,8 +63,6 @@ type Config struct {
 	// TracingProvider is the provider to be used for exporting
 	// traces. No-op tracers will be used if no provider is set.
 	TracingProvider *tracing.Provider
-	// Registerer is used to register prometheus metrics.
-	Registerer prometheus.Registerer
 
 	// The following services are provided to the Cache to allow it to
 	// populate its resource collections. They will either be the local service
@@ -74,7 +74,6 @@ type Config struct {
 	AccessMonitoringRules   services.AccessMonitoringRules
 	AppSession              services.AppSession
 	Applications            services.Applications
-	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	CrownJewels             services.CrownJewels
 	DatabaseObjects         services.DatabaseObjects
@@ -92,9 +91,10 @@ type Config struct {
 	Provisioner             services.Provisioner
 	Restrictions            services.Restrictions
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+	SAMLIdPSession          services.SAMLIdPSession
 	SecReports              services.SecReports
 	SnowflakeSession        services.SnowflakeSession
-	SPIFFEFederations       services.SPIFFEFederations
+	SPIFFEFederations       cache.SPIFFEFederationReader
 	StaticHostUsers         services.StaticHostUser
 	Trust                   services.Trust
 	UserGroups              services.UserGroups
@@ -103,17 +103,9 @@ type Config struct {
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
-	WorkloadIdentity        services.WorkloadIdentities
-	DynamicWindowsDesktops  services.DynamicWindowsDesktops
+	WorkloadIdentity        cache.WorkloadIdentityReader
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
-	ProvisioningStates      services.ProvisioningStates
-	IdentityCenter          services.IdentityCenter
-	PluginStaticCredentials services.PluginStaticCredentials
-	GitServers              services.GitServers
-	HealthCheckConfig       services.HealthCheckConfigReader
-	RecordingEncryption     services.RecordingEncryption
-	Plugin                  services.Plugins
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -133,10 +125,26 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	log.Debugf("Creating in-memory backend for %v.", cfg.CacheName)
+	mem, err := memory.New(memory.Config{
+		Context:   cfg.Context,
+		EventsOff: !cfg.EventsSystem,
+		Mirror:    true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var tracer oteltrace.Tracer
 	if cfg.TracingProvider != nil {
 		tracer = cfg.TracingProvider.Tracer(teleport.ComponentCache)
+	}
+	reporter, err := backend.NewReporter(backend.ReporterConfig{
+		Component: teleport.ComponentCache,
+		Backend:   mem,
+		Tracer:    tracer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	component := slices.Clone(cfg.CacheName)
@@ -147,14 +155,15 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	component = append(component, teleport.ComponentCache)
 	metricComponent := append(slices.Clone(cfg.CacheName), teleport.ComponentCache)
 
-	cacheCfg := cache.Config{
-		Context:                 cfg.Context,
-		Component:               teleport.Component(component...),
-		MetricComponent:         teleport.Component(metricComponent...),
-		Tracer:                  tracer,
-		Registerer:              cfg.Registerer,
-		MaxRetryPeriod:          cfg.MaxRetryPeriod,
-		Unstarted:               cfg.Unstarted,
+	cacheCfg := &cache.Config{
+		Context:         cfg.Context,
+		Backend:         reporter,
+		Component:       teleport.Component(component...),
+		MetricComponent: teleport.Component(metricComponent...),
+		Tracer:          tracer,
+		MaxRetryPeriod:  cfg.MaxRetryPeriod,
+		Unstarted:       cfg.Unstarted,
+
 		Access:                  cfg.Access,
 		AccessLists:             cfg.AccessLists,
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
@@ -178,6 +187,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Provisioner:             cfg.Provisioner,
 		Restrictions:            cfg.Restrictions,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		SAMLIdPSession:          cfg.SAMLIdPSession,
 		SecReports:              cfg.SecReports,
 		SnowflakeSession:        cfg.SnowflakeSession,
 		SPIFFEFederations:       cfg.SPIFFEFederations,
@@ -191,16 +201,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		WebToken:                cfg.WebToken,
 		WorkloadIdentity:        cfg.WorkloadIdentity,
 		WindowsDesktops:         cfg.WindowsDesktops,
-		DynamicWindowsDesktops:  cfg.DynamicWindowsDesktops,
-		ProvisioningStates:      cfg.ProvisioningStates,
-		IdentityCenter:          cfg.IdentityCenter,
-		PluginStaticCredentials: cfg.PluginStaticCredentials,
-		GitServers:              cfg.GitServers,
-		HealthCheckConfig:       cfg.HealthCheckConfig,
-		BotInstanceService:      cfg.BotInstance,
-		RecordingEncryption:     cfg.RecordingEncryption,
-		Plugin:                  cfg.Plugin,
 	}
 
-	return cache.New(cfg.Setup(cacheCfg))
+	return cache.New(cfg.Setup(*cacheCfg))
 }

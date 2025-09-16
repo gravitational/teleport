@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"maps"
 	"os"
 	"strings"
@@ -35,7 +34,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/durationpb"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"github.com/gravitational/teleport"
@@ -50,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/set"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -61,13 +59,12 @@ type BotsCommand struct {
 	lockExpires string
 	lockTTL     time.Duration
 
-	botName       string
-	botRoles      string
-	tokenID       string
-	tokenTTL      time.Duration
-	addRoles      string
-	instanceID    string
-	maxSessionTTL time.Duration
+	botName    string
+	botRoles   string
+	tokenID    string
+	tokenTTL   time.Duration
+	addRoles   string
+	instanceID string
 
 	allowedLogins []string
 	addLogins     string
@@ -100,7 +97,6 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
 	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsAdd.Flag("logins", "List of allowed SSH logins for the bot user").StringsVar(&c.allowedLogins)
-	c.botsAdd.Flag("max-session-ttl", "Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.").DurationVar(&c.maxSessionTTL)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
 	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
@@ -117,7 +113,6 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsUpdate.Flag("add-roles", "Adds a comma-separated list of roles to an existing bot.").StringVar(&c.addRoles)
 	c.botsUpdate.Flag("set-logins", "Sets the bot's logins to the given comma-separated list, replacing any existing logins.").StringVar(&c.setLogins)
 	c.botsUpdate.Flag("add-logins", "Adds a comma-separated list of logins to an existing bot.").StringVar(&c.addLogins)
-	c.botsUpdate.Flag("set-max-session-ttl", "Sets the max session TTL. 168h maximum.").DurationVar(&c.maxSessionTTL)
 
 	c.botsInstances = bots.Command("instances", "Manage bot instances.").Alias("instance")
 
@@ -265,7 +260,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 
 	roles := splitEntries(c.botRoles)
 	if len(roles) == 0 {
-		slog.WarnContext(ctx, "No roles specified - the bot will not be able to produce outputs until a role is added to the bot")
+		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
 	}
 	var token types.ProvisionToken
 	if c.tokenID == "" {
@@ -310,14 +305,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 		}
 	}
 
-	var maxSessionTTL *durationpb.Duration
-	if c.maxSessionTTL > 0 {
-		maxSessionTTL = durationpb.New(c.maxSessionTTL)
-	}
-
 	bot := &machineidv1pb.Bot{
-		Kind:    types.KindBot,
-		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: c.botName,
 		},
@@ -329,7 +317,6 @@ func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) err
 					Values: flattenSlice(c.allowedLogins),
 				},
 			},
-			MaxSessionTtl: maxSessionTTL,
 		},
 	}
 
@@ -399,41 +386,48 @@ func (c *BotsCommand) LockBot(ctx context.Context, client *authclient.Client) er
 
 // updateBotLogins applies updates from CLI arguments to a bot's logins trait,
 // updating the field mask if any updates were made.
-func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
+func (c *BotsCommand) updateBotLogins(bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
 	traits := map[string][]string{}
 	for _, t := range bot.Spec.GetTraits() {
 		traits[t.Name] = t.Values
 	}
 
-	currentLogins := set.New[string]()
+	currentLogins := make(map[string]struct{})
 	if logins, exists := traits[constants.TraitLogins]; exists {
-		currentLogins.Add(logins...)
+		for _, login := range logins {
+			currentLogins[login] = struct{}{}
+		}
 	}
 
-	var desiredLogins set.Set[string]
+	var desiredLogins map[string]struct{}
 	if c.setLogins != "" {
-		desiredLogins = set.New[string](splitEntries(c.setLogins)...)
+		desiredLogins = make(map[string]struct{})
+		for _, login := range splitEntries(c.setLogins) {
+			desiredLogins[login] = struct{}{}
+		}
 	} else {
-		desiredLogins = currentLogins.Clone()
+		desiredLogins = maps.Clone(currentLogins)
 	}
 
 	addLogins := splitEntries(c.addLogins)
 	if len(addLogins) > 0 {
-		desiredLogins.Add(addLogins...)
+		for _, login := range addLogins {
+			desiredLogins[login] = struct{}{}
+		}
 	}
 
-	desiredLoginsArray := desiredLogins.Elements()
+	desiredLoginsArray := utils.StringsSliceFromSet(desiredLogins)
 
 	if maps.Equal(currentLogins, desiredLogins) {
-		slog.InfoContext(ctx, "Logins will be left unchanged", "logins", desiredLoginsArray)
+		log.Infof("Logins will be left unchanged: %+v", desiredLoginsArray)
 		return nil
 	}
 
-	slog.InfoContext(ctx, "Desired logins for bot", "bot", c.botName, "logins", desiredLoginsArray)
+	log.Infof("Desired logins for bot %q: %+v", c.botName, desiredLoginsArray)
 
-	if desiredLogins.Len() == 0 {
+	if len(desiredLogins) == 0 {
 		delete(traits, constants.TraitLogins)
-		slog.InfoContext(ctx, "Removing logins trait from bot user")
+		log.Infof("Removing logins trait from bot user")
 	} else {
 		traits[constants.TraitLogins] = desiredLoginsArray
 	}
@@ -459,27 +453,35 @@ type clientRoleGetter interface {
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
 func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGetter, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
-	currentRoles := set.New[string](bot.Spec.Roles...)
+	currentRoles := make(map[string]struct{})
+	for _, role := range bot.Spec.Roles {
+		currentRoles[role] = struct{}{}
+	}
 
-	var desiredRoles set.Set[string]
+	var desiredRoles map[string]struct{}
 	if c.botRoles != "" {
-		desiredRoles = set.New(splitEntries(c.botRoles)...)
+		desiredRoles = make(map[string]struct{})
+		for _, role := range splitEntries(c.botRoles) {
+			desiredRoles[role] = struct{}{}
+		}
 	} else {
-		desiredRoles = currentRoles.Clone()
+		desiredRoles = maps.Clone(currentRoles)
 	}
 
 	if c.addRoles != "" {
-		desiredRoles.Add(splitEntries(c.addRoles)...)
+		for _, role := range splitEntries(c.addRoles) {
+			desiredRoles[role] = struct{}{}
+		}
 	}
 
-	desiredRolesArray := desiredRoles.Elements()
+	desiredRolesArray := utils.StringsSliceFromSet(desiredRoles)
 
 	if maps.Equal(currentRoles, desiredRoles) {
-		slog.InfoContext(ctx, "Roles will be left unchanged", "roles", desiredRolesArray)
+		log.Infof("Roles will be left unchanged: %+v", desiredRolesArray)
 		return nil
 	}
 
-	slog.InfoContext(ctx, "Desired roles for bot", "bot", c.botName, "roles", desiredRolesArray)
+	log.Infof("Desired roles for bot %q:  %+v", c.botName, desiredRolesArray)
 
 	// Validate roles (server does not do this yet).
 	for roleName := range desiredRoles {
@@ -508,7 +510,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 	}
 
 	if c.setLogins != "" || c.addLogins != "" {
-		if err := c.updateBotLogins(ctx, bot, fieldMask); err != nil {
+		if err := c.updateBotLogins(bot, fieldMask); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -519,15 +521,8 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 		}
 	}
 
-	if c.maxSessionTTL > 0 {
-		bot.Spec.MaxSessionTtl = durationpb.New(c.maxSessionTTL)
-		if err := fieldMask.Append(&machineidv1pb.Bot{}, "spec.max_session_ttl"); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	if len(fieldMask.Paths) == 0 {
-		slog.InfoContext(ctx, "No changes requested, nothing to do")
+		log.Infof("No changes requested, nothing to do.")
 		return nil
 	}
 
@@ -539,7 +534,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) 
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Bot has been updated, roles will take effect on its next renewal", "bot", c.botName)
+	log.Infof("Bot %q has been updated. Roles will take effect on its next renewal.", c.botName)
 
 	return nil
 }
@@ -775,7 +770,7 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client *authclient.Cl
 		heartbeatTable = "No heartbeat records."
 	}
 
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"executable":                   os.Args[0],
 		"instance":                     instance,
 		"initial_authentication_table": initialAuthenticationTable,
@@ -834,7 +829,7 @@ func outputToken(wr io.Writer, format string, client *authclient.Client, bot *ma
 		joinMethod = types.JoinMethodToken
 	}
 
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"token":       token.GetName(),
 		"addr":        addr,
 		"join_method": joinMethod,
@@ -849,7 +844,7 @@ func outputToken(wr io.Writer, format string, client *authclient.Client, bot *ma
 // ignoring empty or whitespace-only elements.
 func splitEntries(flag string) []string {
 	var roles []string
-	for s := range strings.SplitSeq(flag, ",") {
+	for _, s := range strings.Split(flag, ",") {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			continue

@@ -16,19 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import Table, { LabelCell } from 'design/DataTable';
 
 import { DeleteBot } from 'teleport/Bots/DeleteBot';
+import { EditBot } from 'teleport/Bots/EditBot';
 import { BotOptionsCell } from 'teleport/Bots/List/ActionCell';
 import { BotListProps } from 'teleport/Bots/types';
 
-import { EditDialog } from '../Edit/EditDialog';
 import { ViewBot } from '../ViewBot';
 
 enum Interaction {
-  GITHUB_EXAMPLE,
+  VIEW,
   EDIT,
   DELETE,
   NONE,
@@ -39,12 +39,14 @@ export function BotList({
   bots,
   disabledEdit,
   disabledDelete,
+  fetchRoles,
   onClose,
   onDelete,
   onEdit,
-  onSelect,
   selectedBot,
   setSelectedBot,
+  selectedRoles,
+  setSelectedRoles,
 }: BotListProps) {
   const [interaction, setInteraction] = useState<Interaction>(Interaction.NONE);
 
@@ -62,8 +64,8 @@ export function BotList({
             key: 'roles',
             headerText: 'Roles',
             isSortable: true,
-            onSort: (a, b) =>
-              a.roles.toString().localeCompare(b.roles.toString()),
+            onSort: (a: string[], b: string[]) =>
+              a.toString().localeCompare(b.toString()),
             render: ({ roles }) => <LabelCell data={roles} />,
           },
           {
@@ -73,12 +75,13 @@ export function BotList({
                 bot={bot}
                 onClickView={() => {
                   setSelectedBot(bot);
-                  setInteraction(Interaction.GITHUB_EXAMPLE);
+                  setInteraction(Interaction.VIEW);
                 }}
                 disabledEdit={disabledEdit}
                 disabledDelete={disabledDelete}
                 onClickEdit={() => {
                   setSelectedBot(bot);
+                  setSelectedRoles(bot.roles);
                   setInteraction(Interaction.EDIT);
                 }}
                 onClickDelete={() => {
@@ -92,10 +95,6 @@ export function BotList({
         emptyText="No Bots Found"
         isSearchable
         pagination={{ pageSize: 20 }}
-        row={{
-          onClick: onSelect,
-          getStyle: () => ({ cursor: 'pointer' }),
-        }}
       />
       {selectedBot && interaction === Interaction.DELETE && (
         <DeleteBot
@@ -106,13 +105,17 @@ export function BotList({
         />
       )}
       {selectedBot && interaction === Interaction.EDIT && (
-        <EditDialog
-          botName={selectedBot.name}
-          onCancel={onClose}
-          onSuccess={onEdit}
+        <EditBot
+          fetchRoles={fetchRoles}
+          attempt={attempt}
+          name={selectedBot.name}
+          onClose={onClose}
+          onEdit={onEdit}
+          selectedRoles={selectedRoles}
+          setSelectedRoles={setSelectedRoles}
         />
       )}
-      {selectedBot && interaction === Interaction.GITHUB_EXAMPLE && (
+      {selectedBot && interaction === Interaction.VIEW && (
         <ViewBot onClose={onClose} bot={selectedBot} />
       )}
     </>

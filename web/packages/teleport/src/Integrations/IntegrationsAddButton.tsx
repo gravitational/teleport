@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { Link } from 'react-router-dom';
 
 import { Button } from 'design';
-import { HoverTooltip } from 'design/Tooltip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import cfg from 'teleport/config';
 
@@ -36,7 +37,6 @@ export function IntegrationsAddButton({
 
   return (
     <HoverTooltip
-      placement="bottom"
       tipContent={
         canCreateIntegrations ? null : (
           <MissingPermissionsTooltip

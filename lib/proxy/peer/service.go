@@ -59,7 +59,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		"src", dial.Source.Addr,
 		"dst", dial.Destination.Addr,
 	)
-	log.DebugContext(stream.Context(), "dial request from peer")
+	log.DebugContext(stream.Context(), "Dial request from peer.")
 
 	_, clusterName, err := splitServerID(dial.NodeID)
 	if err != nil {
@@ -103,7 +103,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 
 	err = utils.ProxyConn(stream.Context(), streamConn, nodeConn)
 	sent, received := streamConn.Stat()
-	log.DebugContext(stream.Context(), "closing dial request from peer", "sent", sent, "received", received)
+	log.DebugContext(stream.Context(), "Closing dial request from peer.", "sent", sent, "received", received)
 	return trace.Wrap(err)
 }
 

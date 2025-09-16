@@ -17,7 +17,6 @@
 package workloadidentityv1
 
 import (
-	"cmp"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -29,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -61,25 +59,6 @@ type KeyStorer interface {
 	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
 }
 
-// SigstorePolicyEvaluator implements the actual Sigstore verification logic.
-type SigstorePolicyEvaluator interface {
-	// Evaluate the Sigstore policies against the given workload attributes.
-	Evaluate(ctx context.Context, policyNames []string, attrs *workloadidentityv1pb.Attrs) (map[string]error, error)
-}
-
-// OSSSigstorePolicyEvaluator is the Community Edition implementation of the
-// SigstorePolicyEvaluator interface. It simply returns a licensing error if
-// any policy names or sigstore payloads are given.
-type OSSSigstorePolicyEvaluator struct{}
-
-// Evaluate satisfies the SigstorePolicyEvaluator interface.
-func (OSSSigstorePolicyEvaluator) Evaluate(_ context.Context, policyNames []string, attrs *workloadidentityv1pb.Attrs) (map[string]error, error) {
-	if len(policyNames) != 0 || len(attrs.GetWorkload().GetSigstore().GetPayloads()) != 0 {
-		return nil, trace.AccessDenied("Sigstore workload attestation is only available with an enterprise license")
-	}
-	return make(map[string]error), nil
-}
-
 type issuerCache interface {
 	workloadIdentityReader
 	GetProxies() ([]types.Server, error)
@@ -88,14 +67,12 @@ type issuerCache interface {
 
 // IssuanceServiceConfig holds configuration options for the IssuanceService.
 type IssuanceServiceConfig struct {
-	Authorizer                 authz.Authorizer
-	Cache                      issuerCache
-	Clock                      clockwork.Clock
-	Emitter                    apievents.Emitter
-	Logger                     *slog.Logger
-	KeyStore                   KeyStorer
-	OverrideGetter             services.WorkloadIdentityX509CAOverrideGetter
-	GetSigstorePolicyEvaluator func() SigstorePolicyEvaluator
+	Authorizer authz.Authorizer
+	Cache      issuerCache
+	Clock      clockwork.Clock
+	Emitter    apievents.Emitter
+	Logger     *slog.Logger
+	KeyStore   KeyStorer
 
 	ClusterName string
 }
@@ -105,14 +82,12 @@ type IssuanceServiceConfig struct {
 type IssuanceService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityIssuanceServiceServer
 
-	authorizer                 authz.Authorizer
-	cache                      issuerCache
-	clock                      clockwork.Clock
-	emitter                    apievents.Emitter
-	logger                     *slog.Logger
-	keyStore                   KeyStorer
-	overrideGetter             services.WorkloadIdentityX509CAOverrideGetter
-	getSigstorePolicyEvaluator func() SigstorePolicyEvaluator
+	authorizer authz.Authorizer
+	cache      issuerCache
+	clock      clockwork.Clock
+	emitter    apievents.Emitter
+	logger     *slog.Logger
+	keyStore   KeyStorer
 
 	clusterName string
 }
@@ -128,13 +103,8 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.KeyStore == nil:
 		return nil, trace.BadParameter("key store is required")
-	case cfg.OverrideGetter == nil:
-		return nil, trace.BadParameter("override getter is required")
-
 	case cfg.ClusterName == "":
 		return nil, trace.BadParameter("cluster name is required")
-	case cfg.GetSigstorePolicyEvaluator == nil:
-		return nil, trace.BadParameter("sigstore policy evaluator is required")
 	}
 
 	if cfg.Logger == nil {
@@ -144,15 +114,12 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &IssuanceService{
-		authorizer:                 cfg.Authorizer,
-		cache:                      cfg.Cache,
-		clock:                      cfg.Clock,
-		emitter:                    cfg.Emitter,
-		logger:                     cfg.Logger,
-		keyStore:                   cfg.KeyStore,
-		overrideGetter:             cfg.OverrideGetter,
-		getSigstorePolicyEvaluator: cfg.GetSigstorePolicyEvaluator,
-
+		authorizer:  cfg.Authorizer,
+		cache:       cfg.Cache,
+		clock:       cfg.Clock,
+		emitter:     cfg.Emitter,
+		logger:      cfg.Logger,
+		keyStore:    cfg.KeyStore,
 		clusterName: cfg.ClusterName,
 	}, nil
 }
@@ -182,14 +149,7 @@ func (s *IssuanceService) deriveAttrs(
 	return attrs, nil
 }
 
-const (
-	// defaultMaxTTL defines the max requestable TTL for SVIDs where the
-	// workload identity resource does not specify a maximum TTL.
-	defaultMaxTTL = 24 * time.Hour
-	// defaultTTL defines the TTL when a client has not requested a specific
-	// TTL.
-	defaultTTL = 1 * time.Hour
-)
+var defaultMaxTTL = 24 * time.Hour
 
 func (s *IssuanceService) IssueWorkloadIdentity(
 	ctx context.Context,
@@ -227,7 +187,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
+	decision := decide(ctx, wi, attrs)
 	if !decision.shouldIssue {
 		return nil, trace.Wrap(decision.reason, "workload identity failed evaluation")
 	}
@@ -235,22 +195,17 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	var cred *workloadidentityv1pb.Credential
 	switch v := req.GetCredential().(type) {
 	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams:
-		ca, chain, err := s.getX509CA(ctx, v.X509SvidParams.GetUseIssuerOverrides())
+		ca, err := s.getX509CA(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
 		}
 		cred, err = s.issueX509SVID(
 			ctx,
-			issueX509SVIDParams{
-				ca:                    ca,
-				chain:                 chain,
-				workloadIdentity:      decision.templatedWorkloadIdentity,
-				x509Params:            v.X509SvidParams,
-				requestedTTL:          req.RequestedTtl.AsDuration(),
-				attrs:                 attrs,
-				sigstorePolicyResults: decision.sigstorePolicyResults,
-				nameSelector:          req.GetName(),
-			},
+			ca,
+			decision.templatedWorkloadIdentity,
+			v.X509SvidParams,
+			req.RequestedTtl.AsDuration(),
+			attrs,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing X509 SVID")
@@ -262,16 +217,12 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		}
 		cred, err = s.issueJWTSVID(
 			ctx,
-			issueJWTSVIDParams{
-				issuerKey:             key,
-				issuerURI:             issuer,
-				workloadIdentity:      decision.templatedWorkloadIdentity,
-				jwtParams:             v.JwtSvidParams,
-				requestedTTL:          req.RequestedTtl.AsDuration(),
-				attrs:                 attrs,
-				sigstorePolicyResults: decision.sigstorePolicyResults,
-				nameSelector:          req.GetName(),
-			},
+			key,
+			issuer,
+			decision.templatedWorkloadIdentity,
+			v.JwtSvidParams,
+			req.RequestedTtl.AsDuration(),
+			attrs,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing JWT SVID")
@@ -329,7 +280,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	// that should not be issued.
 	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
 	for _, wi := range workloadIdentities {
-		decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
+		decision := decide(ctx, wi, attrs)
 		if decision.shouldIssue {
 			shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
 		}
@@ -342,25 +293,21 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		}
 	}
 
-	creds := make([]*workloadidentityv1pb.Credential, 0, len(shouldIssue))
+	var creds = make([]*workloadidentityv1pb.Credential, 0, len(shouldIssue))
 	switch v := req.GetCredential().(type) {
 	case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams:
-		ca, chain, err := s.getX509CA(ctx, v.X509SvidParams.GetUseIssuerOverrides())
+		ca, err := s.getX509CA(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
 		}
 		for _, wi := range shouldIssue {
 			cred, err := s.issueX509SVID(
 				ctx,
-				issueX509SVIDParams{
-					ca:               ca,
-					chain:            chain,
-					workloadIdentity: wi,
-					x509Params:       v.X509SvidParams,
-					requestedTTL:     req.RequestedTtl.AsDuration(),
-					attrs:            attrs,
-					labelSelectors:   req.LabelSelectors,
-				},
+				ca,
+				wi,
+				v.X509SvidParams,
+				req.RequestedTtl.AsDuration(),
+				attrs,
 			)
 			if err != nil {
 				return nil, trace.Wrap(
@@ -379,15 +326,12 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		for _, wi := range shouldIssue {
 			cred, err := s.issueJWTSVID(
 				ctx,
-				issueJWTSVIDParams{
-					issuerKey:        key,
-					issuerURI:        issuer,
-					workloadIdentity: wi,
-					jwtParams:        v.JwtSvidParams,
-					requestedTTL:     req.RequestedTtl.AsDuration(),
-					attrs:            attrs,
-					labelSelectors:   req.LabelSelectors,
-				},
+				key,
+				issuer,
+				wi,
+				v.JwtSvidParams,
+				req.RequestedTtl.AsDuration(),
+				attrs,
 			)
 			if err != nil {
 				return nil, trace.Wrap(
@@ -466,37 +410,23 @@ func x509Template(
 
 func (s *IssuanceService) getX509CA(
 	ctx context.Context,
-	useIssuerOverrides bool,
-) (_ *tlsca.CertAuthority, _ [][]byte, err error) {
+) (_ *tlsca.CertAuthority, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/getX509CA")
 	defer func() { tracing.EndSpan(span, err) }()
 
-	const loadKeysTrue = true
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: s.clusterName,
-	}, loadKeysTrue)
-
+	}, true)
 	tlsCert, tlsSigner, err := s.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "getting CA cert and key")
+		return nil, trace.Wrap(err, "getting CA cert and key")
 	}
 	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	if !useIssuerOverrides {
-		return tlsCA, nil, nil
-	}
-	// TODO(espadolini): support alternate overrides depending on the trust
-	// domain, once that's fleshed out
-	newCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", tlsCA)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "getting CA override")
-	}
-
-	return newCA, chain, nil
+	return tlsCA, nil
 }
 
 func rawAttrsToStruct(in *workloadidentityv1pb.Attrs) (*apievents.Struct, error) {
@@ -519,44 +449,11 @@ func baseEvent(
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	spiffeID spiffeid.ID,
 	attrs *workloadidentityv1pb.Attrs,
-	sigstorePolicyResults map[string]error,
-	nameSelector string,
-	labelSelectors []*workloadidentityv1pb.LabelSelector,
 ) (*apievents.SPIFFESVIDIssued, error) {
 	structAttrs, err := rawAttrsToStruct(attrs)
 	if err != nil {
 		return nil, trace.Wrap(err, "marshaling attributes")
 	}
-
-	workloadFields := structAttrs.GetFields()["workload"].GetStructValue().GetFields()
-	if workloadFields != nil {
-		delete(workloadFields, "sigstore")
-		if len(sigstorePolicyResults) != 0 {
-			policyResults := make(map[string]any)
-			for name, err := range sigstorePolicyResults {
-				result := map[string]any{
-					"satisfied": err == nil,
-				}
-				if err != nil {
-					result["reason"] = err.Error()
-				}
-				policyResults[name] = result
-			}
-			field, err := apievents.EncodeMap(map[string]any{
-				"payload_count":      len(attrs.GetWorkload().GetSigstore().GetPayloads()),
-				"evaluated_policies": policyResults,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err, "marshaling sigstore attributes")
-			}
-			workloadFields["sigstore"] = &gogotypes.Value{
-				Kind: &gogotypes.Value_StructValue{
-					StructValue: &field.Struct,
-				},
-			}
-		}
-	}
-
 	return &apievents.SPIFFESVIDIssued{
 		Metadata: apievents.Metadata{
 			Type: events.SPIFFESVIDIssuedEvent,
@@ -569,92 +466,55 @@ func baseEvent(
 		WorkloadIdentity:         wi.GetMetadata().GetName(),
 		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
 		Attributes:               structAttrs,
-		NameSelector:             nameSelector,
-		LabelSelectors:           labelSelectorsToAudit(labelSelectors),
 	}, nil
 }
 
-func labelSelectorsToAudit(
-	in []*workloadidentityv1pb.LabelSelector,
-) []*apievents.LabelSelector {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*apievents.LabelSelector, 0, len(in))
-	for _, ls := range in {
-		out = append(out, &apievents.LabelSelector{
-			Key:    ls.Key,
-			Values: ls.Values,
-		})
-	}
-	return out
-}
-
 func calculateTTL(
-	ctx context.Context,
-	log *slog.Logger,
 	clock clockwork.Clock,
 	requestedTTL time.Duration,
-	configuredMaxTTL time.Duration,
 ) (time.Time, time.Time, time.Time, time.Duration) {
-	ttl := cmp.Or(requestedTTL, defaultTTL)
-	maxTTL := cmp.Or(configuredMaxTTL, defaultMaxTTL)
-
-	if ttl > maxTTL {
-		log.InfoContext(
-			ctx,
-			"Requested SVID TTL exceeds maximum, using maximum instead",
-			"requested_ttl", ttl,
-			"max_ttl", maxTTL)
-		ttl = maxTTL
+	ttl := time.Hour
+	if requestedTTL != 0 {
+		ttl = requestedTTL
+		if ttl > defaultMaxTTL {
+			ttl = defaultMaxTTL
+		}
 	}
-
 	now := clock.Now()
 	notBefore := now.Add(-1 * time.Minute)
 	notAfter := now.Add(ttl)
 	return now, notBefore, notAfter, ttl
 }
 
-type issueX509SVIDParams struct {
-	ca                    *tlsca.CertAuthority
-	chain                 [][]byte
-	workloadIdentity      *workloadidentityv1pb.WorkloadIdentity
-	x509Params            *workloadidentityv1pb.X509SVIDParams
-	requestedTTL          time.Duration
-	attrs                 *workloadidentityv1pb.Attrs
-	sigstorePolicyResults map[string]error
-	nameSelector          string
-	labelSelectors        []*workloadidentityv1pb.LabelSelector
-}
-
-func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVIDParams) (_ *workloadidentityv1pb.Credential, err error) {
+func (s *IssuanceService) issueX509SVID(
+	ctx context.Context,
+	ca *tlsca.CertAuthority,
+	wid *workloadidentityv1pb.WorkloadIdentity,
+	params *workloadidentityv1pb.X509SVIDParams,
+	requestedTTL time.Duration,
+	attrs *workloadidentityv1pb.Attrs,
+) (_ *workloadidentityv1pb.Credential, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/issueX509SVID")
 	defer func() { tracing.EndSpan(span, err) }()
 
 	switch {
-	case params.x509Params == nil:
+	case params == nil:
 		return nil, trace.BadParameter("x509_svid_params: is required")
-	case len(params.x509Params.PublicKey) == 0:
+	case len(params.PublicKey) == 0:
 		return nil, trace.BadParameter("x509_svid_params.public_key: is required")
 	}
 
 	spiffeID, err := spiffeid.FromURI(&url.URL{
 		Scheme: "spiffe",
 		Host:   s.clusterName,
-		Path:   params.workloadIdentity.GetSpec().GetSpiffe().GetId(),
+		Path:   wid.GetSpec().GetSpiffe().GetId(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing SPIFFE ID")
 	}
-	_, notBefore, notAfter, ttl := calculateTTL(
-		ctx,
-		s.logger,
-		s.clock,
-		params.requestedTTL,
-		params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetMaximumTtl().AsDuration(),
-	)
+	_, notBefore, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
 
-	pubKey, err := x509.ParsePKIXPublicKey(params.x509Params.PublicKey)
+	pubKey, err := x509.ParsePKIXPublicKey(params.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing public key")
 	}
@@ -672,32 +532,24 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 			notBefore,
 			notAfter,
 			spiffeID,
-			params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetDnsSans(),
-			params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate(),
+			wid.GetSpec().GetSpiffe().GetX509().GetDnsSans(),
+			wid.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate(),
 		),
-		params.ca.Cert,
+		ca.Cert,
 		pubKey,
-		params.ca.Signer,
+		ca.Signer,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	evt, err := baseEvent(
-		ctx,
-		params.workloadIdentity,
-		spiffeID,
-		params.attrs,
-		params.sigstorePolicyResults,
-		params.nameSelector,
-		params.labelSelectors,
-	)
+	evt, err := baseEvent(ctx, wid, spiffeID, attrs)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating base event")
 	}
 	evt.SVIDType = "x509"
 	evt.SerialNumber = serialString
-	evt.DNSSANs = params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetDnsSans()
+	evt.DNSSANs = wid.GetSpec().GetSpiffe().GetX509().GetDnsSans()
 	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
 		s.logger.WarnContext(
 			ctx,
@@ -708,11 +560,11 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 	}
 
 	return &workloadidentityv1pb.Credential{
-		WorkloadIdentityName:     params.workloadIdentity.GetMetadata().GetName(),
-		WorkloadIdentityRevision: params.workloadIdentity.GetMetadata().GetRevision(),
+		WorkloadIdentityName:     wid.GetMetadata().GetName(),
+		WorkloadIdentityRevision: wid.GetMetadata().GetRevision(),
 
 		SpiffeId: spiffeID.String(),
-		Hint:     params.workloadIdentity.GetSpec().GetSpiffe().GetHint(),
+		Hint:     wid.GetSpec().GetSpiffe().GetHint(),
 
 		ExpiresAt: timestamppb.New(notAfter),
 		Ttl:       durationpb.New(ttl),
@@ -721,7 +573,6 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 			X509Svid: &workloadidentityv1pb.X509SVIDCredential{
 				Cert:         certBytes,
 				SerialNumber: serialString,
-				Chain:        params.chain,
 			},
 		},
 	}, nil
@@ -765,74 +616,56 @@ func (s *IssuanceService) getJWTIssuerKey(
 	return jwtKey, issuer, nil
 }
 
-type issueJWTSVIDParams struct {
-	issuerKey             *jwt.Key
-	issuerURI             string
-	workloadIdentity      *workloadidentityv1pb.WorkloadIdentity
-	jwtParams             *workloadidentityv1pb.JWTSVIDParams
-	requestedTTL          time.Duration
-	attrs                 *workloadidentityv1pb.Attrs
-	sigstorePolicyResults map[string]error
-	nameSelector          string
-	labelSelectors        []*workloadidentityv1pb.LabelSelector
-}
-
-func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDParams) (_ *workloadidentityv1pb.Credential, err error) {
+func (s *IssuanceService) issueJWTSVID(
+	ctx context.Context,
+	issuerKey *jwt.Key,
+	issuerURI string,
+	wid *workloadidentityv1pb.WorkloadIdentity,
+	params *workloadidentityv1pb.JWTSVIDParams,
+	requestedTTL time.Duration,
+	attrs *workloadidentityv1pb.Attrs,
+) (_ *workloadidentityv1pb.Credential, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/issueJWTSVID")
 	defer func() { tracing.EndSpan(span, err) }()
 
 	switch {
-	case params.jwtParams == nil:
+	case params == nil:
 		return nil, trace.BadParameter("jwt_svid_params: is required")
-	case len(params.jwtParams.Audiences) == 0:
+	case len(params.Audiences) == 0:
 		return nil, trace.BadParameter("jwt_svid_params.audiences: at least one audience should be specified")
 	}
 
 	spiffeID, err := spiffeid.FromURI(&url.URL{
 		Scheme: "spiffe",
 		Host:   s.clusterName,
-		Path:   params.workloadIdentity.GetSpec().GetSpiffe().GetId(),
+		Path:   wid.GetSpec().GetSpiffe().GetId(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing SPIFFE ID")
 	}
-	now, _, notAfter, ttl := calculateTTL(
-		ctx,
-		s.logger,
-		s.clock,
-		params.requestedTTL,
-		params.workloadIdentity.GetSpec().GetSpiffe().GetJwt().GetMaximumTtl().AsDuration(),
-	)
+	now, _, notAfter, ttl := calculateTTL(s.clock, requestedTTL)
 
 	jti, err := utils.CryptoRandomHex(jtiLength)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating JTI")
 	}
 
-	signed, err := params.issuerKey.SignJWTSVID(jwt.SignParamsJWTSVID{
-		Audiences: params.jwtParams.Audiences,
+	signed, err := issuerKey.SignJWTSVID(jwt.SignParamsJWTSVID{
+		Audiences: params.Audiences,
 		SPIFFEID:  spiffeID,
 		JTI:       jti,
-		Issuer:    params.issuerURI,
+		Issuer:    issuerURI,
 
 		SetIssuedAt: now,
 		SetExpiry:   notAfter,
 
-		PrivateClaims: params.workloadIdentity.GetSpec().GetSpiffe().GetJwt().GetExtraClaims().AsMap(),
+		PrivateClaims: wid.GetSpec().GetSpiffe().GetJwt().GetExtraClaims().AsMap(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "signing jwt")
 	}
 
-	evt, err := baseEvent(
-		ctx,
-		params.workloadIdentity,
-		spiffeID,
-		params.attrs,
-		params.sigstorePolicyResults,
-		params.nameSelector,
-		params.labelSelectors,
-	)
+	evt, err := baseEvent(ctx, wid, spiffeID, attrs)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating base event")
 	}
@@ -848,11 +681,11 @@ func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDP
 	}
 
 	return &workloadidentityv1pb.Credential{
-		WorkloadIdentityName:     params.workloadIdentity.GetMetadata().GetName(),
-		WorkloadIdentityRevision: params.workloadIdentity.GetMetadata().GetRevision(),
+		WorkloadIdentityName:     wid.GetMetadata().GetName(),
+		WorkloadIdentityRevision: wid.GetMetadata().GetRevision(),
 
 		SpiffeId: spiffeID.String(),
-		Hint:     params.workloadIdentity.GetSpec().GetSpiffe().GetHint(),
+		Hint:     wid.GetSpec().GetSpiffe().GetHint(),
 
 		ExpiresAt: timestamppb.New(notAfter),
 		Ttl:       durationpb.New(ttl),

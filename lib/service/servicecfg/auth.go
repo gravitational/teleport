@@ -302,10 +302,13 @@ func (cfg *GCPKMSConfig) CheckAndSetDefaults() error {
 type AWSKMSConfig struct {
 	// AWSAccount is the AWS account ID where the keys will reside.
 	AWSAccount string
-	// AWSRegion is the region used for KMS key operations.
+	// AWSRegion is the AWS region where the keys will reside.
 	AWSRegion string
 	// MultiRegion contains configuration for multi-region AWS KMS.
-	MultiRegion MultiRegionKeyStore
+	MultiRegion struct {
+		// Enabled configures new keys to be multi-region.
+		Enabled bool
+	}
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
 	// tag is added automatically if not specified in the set of tags. Changing tags
 	// after Teleport has already created KMS keys may require manually updating
@@ -323,14 +326,4 @@ func (c *AWSKMSConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("AWS region is required")
 	}
 	return nil
-}
-
-// MultiRegionKeyStore contains configuration for a multi-region keystore
-type MultiRegionKeyStore struct {
-	// Enabled configures new keys to be multi-region.
-	Enabled bool `yaml:"enabled"`
-	// PrimaryRegion is the region the primary key is located.
-	PrimaryRegion string `yaml:"primary_region"`
-	// ReplicaRegions is a list of regions keys will be replicated to.
-	ReplicaRegions []string `yaml:"replica_regions"`
 }

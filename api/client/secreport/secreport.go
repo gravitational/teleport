@@ -20,9 +20,9 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
-	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types/secreports"
 	v1 "github.com/gravitational/teleport/api/types/secreports/convert/v1"
 )
@@ -114,22 +114,6 @@ func (c *Client) ListSecurityReports(ctx context.Context, pageSize int, token st
 		return nil, "", trace.Wrap(err)
 	}
 	return reports, resp.GetNextPageToken(), nil
-}
-
-func (c *Client) ListSecurityReportsStates(ctx context.Context, pageSize int, token string) ([]*secreports.ReportState, string, error) {
-	resp, err := c.grpcClient.ListReportStates(ctx, &pb.ListReportStatesRequest{
-		PageSize:  int32(pageSize),
-		PageToken: token,
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	states, err := v1.FromProtoReportStates(resp.ReportStates)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return states, resp.GetNextPageToken(), nil
 }
 
 // GetSecurityReportExecutionState returns the execution state of the report.

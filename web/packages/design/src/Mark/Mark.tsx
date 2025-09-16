@@ -18,24 +18,11 @@
 
 import styled from 'styled-components';
 
-export const Mark = styled.mark`
+export const Mark = styled.mark<{ light?: boolean }>`
   padding: 2px 5px;
   border-radius: 6px;
   font-family: ${p => p.theme.fonts.mono};
   font-size: ${p => p.theme.fontSizes[1]}px;
   background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
   color: inherit;
-`;
-
-/**
- * Returns a MarkInverse that inverts the colors from its parent Mark.
- * For example, if current theme is dark theme, parent Mark would use
- * light colors, but MarkInverse will use dark colors.
- *
- * Intended for use in tooltips since tooltips uses inverse background
- * color of the current theme.
- */
-export const MarkInverse = styled(Mark)`
-  background-color: ${p => p.theme.colors.tooltip.inverseBackground};
-  color: ${p => p.theme.colors.text.main};
 `;

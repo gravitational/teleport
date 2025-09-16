@@ -238,7 +238,7 @@ func TestUpsertTask(t *testing.T) {
 		},
 	}
 
-	semVer := teleport.SemVer()
+	semVer := *teleport.SemVersion
 	semVer.PreRelease = ""
 	taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{TeleportVersionTag: semVer.String()})
 	require.NoError(t, err)

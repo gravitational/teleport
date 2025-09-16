@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/gcp"
@@ -48,18 +49,17 @@ func (a *Server) checkGCPJoinRequest(
 
 	claims, err := a.gcpIDTokenValidator.Validate(ctx, req.IDToken)
 	if err != nil {
-		a.logger.WarnContext(ctx, "Unable to validate GCP IDToken",
-			"error", err,
-			"claims", claims,
-			"token", pt.GetName(),
-		)
+		log.WithFields(logrus.Fields{
+			"claims": claims,
+			"token":  pt.GetName(),
+		}).WithError(err).Warn("Unable to validate GCP IDToken")
 		return nil, trace.Wrap(err)
 	}
 
-	a.logger.InfoContext(ctx, "GCP VM trying to join cluster",
-		"claims", claims,
-		"token", pt.GetName(),
-	)
+	log.WithFields(logrus.Fields{
+		"claims": claims,
+		"token":  pt.GetName(),
+	}).Info("GCP VM trying to join cluster")
 
 	if err := checkGCPAllowRules(token, claims); err != nil {
 		return nil, trace.Wrap(err)

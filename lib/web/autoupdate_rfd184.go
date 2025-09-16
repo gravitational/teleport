@@ -21,14 +21,13 @@ package web
 import (
 	"context"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/webclient"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 // automaticUpdateSettings184 crafts the automatic updates part of the ping/find response
@@ -52,7 +51,7 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updater
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to resolve AgentVersion", "error", err)
 		// Defaulting to current version
-		agentVersion = teleport.SemVer()
+		agentVersion = teleport.Version
 	}
 	// If the source of truth is RFD 109 configuration (channels + CMC) we must emulate the
 	// RFD109 agent maintenance window behavior by looking up the CMC and checking if
@@ -64,17 +63,11 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updater
 		shouldUpdate = false
 	}
 
-	toolsVersion, err := getToolsVersion(autoUpdateVersion)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to get tools version", "error", err)
-		toolsVersion = teleport.SemVer()
-	}
-
 	return webclient.AutoUpdateSettings{
 		ToolsAutoUpdate:          getToolsAutoUpdate(autoUpdateConfig),
-		ToolsVersion:             toolsVersion.String(),
+		ToolsVersion:             getToolsVersion(autoUpdateVersion),
 		AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
-		AgentVersion:             agentVersion.String(),
+		AgentVersion:             agentVersion,
 		AgentAutoUpdate:          shouldUpdate,
 	}
 }
@@ -90,11 +83,11 @@ func getToolsAutoUpdate(config *autoupdatepb.AutoUpdateConfig) bool {
 	return false
 }
 
-func getToolsVersion(v *autoupdatepb.AutoUpdateVersion) (*semver.Version, error) {
+func getToolsVersion(version *autoupdatepb.AutoUpdateVersion) string {
 	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
 	// This ensures we always advertise a version compatible with the cluster.
-	if v.GetSpec().GetTools() == nil {
-		return teleport.SemVer(), nil
+	if version.GetSpec().GetTools() == nil {
+		return api.Version
 	}
-	return version.EnsureSemver(v.GetSpec().GetTools().GetTargetVersion())
+	return version.GetSpec().GetTools().GetTargetVersion()
 }

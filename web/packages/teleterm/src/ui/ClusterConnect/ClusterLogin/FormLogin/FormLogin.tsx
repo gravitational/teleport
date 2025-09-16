@@ -16,89 +16,54 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactNode } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonText, Flex } from 'design';
+import { Box, ButtonText, Flex, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import { StepSlider, type StepComponentProps } from 'design/StepSlider';
-import { AuthSettings } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import { Attempt } from 'shared/hooks/useAsync';
 import type { PrimaryAuthType } from 'shared/services';
 
-import { Platform } from 'teleterm/mainProcess/types';
-import { AppUpdateEvent } from 'teleterm/services/appUpdater';
-import { ClusterGetter, WidgetView } from 'teleterm/ui/AppUpdater';
 import * as types from 'teleterm/ui/services/clusters/types';
-import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { outermostPadding } from '../../spacing';
-import type { PasswordlessLoginState } from '../useClusterLogin';
-import { CompatibilityWarning } from './CompatibilityWarning';
+import type { WebauthnLogin } from '../useClusterLogin';
 import { FormLocal } from './FormLocal';
 import { FormPasswordless } from './FormPasswordless';
 import { FormSso } from './FormSso';
-import { PromptPasswordless } from './PromptPasswordless';
 import PromptSsoStatus from './PromptSsoStatus';
+import { PromptWebauthn } from './PromptWebauthn';
 
 export default function LoginForm(props: Props) {
   const {
     loginAttempt,
     onAbort,
-    authSettings: { authProviders, localAuthEnabled = true },
+    authProviders,
+    localAuthEnabled = true,
     shouldPromptSsoStatus,
-    passwordlessLoginState,
+    webauthnLogin,
   } = props;
 
-  if (passwordlessLoginState) {
-    return (
-      <OutermostPadding>
-        <PromptPasswordless onCancel={onAbort} {...passwordlessLoginState} />
-      </OutermostPadding>
-    );
+  if (webauthnLogin) {
+    return <PromptWebauthn onCancel={onAbort} {...webauthnLogin} />;
   }
 
   if (shouldPromptSsoStatus) {
-    return (
-      <OutermostPadding>
-        <PromptSsoStatus onCancel={onAbort} />
-      </OutermostPadding>
-    );
+    return <PromptSsoStatus onCancel={onAbort} />;
   }
 
-  const compatibilityWarningProps = {
-    authSettings: props.authSettings,
-    shouldSkipVersionCheck: props.shouldSkipVersionCheck,
-    disableVersionCheck: props.disableVersionCheck,
-    platform: props.platform,
-    isAnyClusterProvidingUpdates:
-      props.appUpdateEvent.autoUpdatesStatus?.options.clusters.some(
-        c => c.toolsAutoUpdate
-      ),
-    onSwitchToAppUpdateDetails: props.switchToAppUpdateDetails,
-  };
-  const appUpdateWidgetViewProps = {
-    updateEvent: props.appUpdateEvent,
-    onDownload: () => props.downloadAppUpdate(),
-    onInstall: () => props.quitAndInstallAppUpdate(),
-    platform: props.platform,
-    onMore: () => props.switchToAppUpdateDetails(),
-    clusterGetter: props.clusterGetter,
-  };
   const ssoEnabled = authProviders?.length > 0;
 
   // If local auth was not enabled, disregard any primary auth type config
   // and display sso providers if any.
   if (!localAuthEnabled && ssoEnabled) {
     return (
-      <FlexBordered px={outermostPadding}>
+      <FlexBordered p={4} pb={5}>
         {loginAttempt.status === 'error' && (
-          <Alerts.Danger m={0} details={loginAttempt.statusText}>
-            Could not log in
+          <Alerts.Danger m={5} mb={0}>
+            {loginAttempt.statusText}
           </Alerts.Danger>
         )}
-        <CompatibilityWarning {...compatibilityWarningProps} />
-        <WidgetView {...appUpdateWidgetViewProps} />
         <FormSso {...props} />
       </FlexBordered>
     );
@@ -106,39 +71,24 @@ export default function LoginForm(props: Props) {
 
   if (!localAuthEnabled) {
     return (
-      <FlexBordered px={outermostPadding}>
-        <Alerts.Danger
-          m={0}
-          details="The ability to login has not been enabled. Please contact your system administrator for more information."
-        >
-          Login has not been enabled
-        </Alerts.Danger>
-        <CompatibilityWarning {...compatibilityWarningProps} />
-        <WidgetView {...appUpdateWidgetViewProps} />
+      <FlexBordered p={4}>
+        <Alerts.Danger>Login has not been enabled</Alerts.Danger>
+        <Text mb={2} typography="paragraph2">
+          The ability to login has not been enabled. Please contact your system
+          administrator for more information.
+        </Text>
       </FlexBordered>
     );
   }
 
   // Everything below requires local auth to be enabled.
   return (
-    // No extra padding so that StepSlider children can span the whole width of the parent
-    // component. This way when they slide, they slide from one side to the other, without
-    // disappearing behind padding.
     <FlexBordered>
       {loginAttempt.status === 'error' && (
-        <Alerts.Danger
-          mx={outermostPadding}
-          my={0}
-          details={loginAttempt.statusText}
-        >
-          Could not log in
+        <Alerts.Danger m={4} mb={0}>
+          {loginAttempt.statusText}
         </Alerts.Danger>
       )}
-      <CompatibilityWarning
-        mx={outermostPadding}
-        {...compatibilityWarningProps}
-      />
-      <WidgetView mx={outermostPadding} {...appUpdateWidgetViewProps} />
       <StepSlider<typeof loginViews>
         flows={loginViews}
         currFlow={'default'}
@@ -156,9 +106,9 @@ const Primary = ({
   hasTransitionEnded,
   ...otherProps
 }: Props & StepComponentProps) => {
-  const ssoEnabled = otherProps.authSettings.authProviders?.length > 0;
+  const ssoEnabled = otherProps.authProviders?.length > 0;
   let otherOptionsAvailable = true;
-  let $primary: ReactNode;
+  let $primary;
 
   switch (otherProps.primaryAuthType) {
     case 'passwordless':
@@ -168,8 +118,7 @@ const Primary = ({
       $primary = <FormSso {...otherProps} autoFocus={true} />;
       break;
     case 'local':
-      otherOptionsAvailable =
-        otherProps.authSettings.allowPasswordless || ssoEnabled;
+      otherOptionsAvailable = otherProps.allowPasswordless || ssoEnabled;
       $primary = (
         <FormLocal
           {...otherProps}
@@ -181,13 +130,8 @@ const Primary = ({
   }
 
   return (
-    <Flex
-      px={outermostPadding}
-      flexDirection="column"
-      gap={2}
-      ref={refCallback}
-    >
-      <Box>{$primary}</Box>
+    <Box ref={refCallback} px={4} py={3}>
+      <Box mb={3}>{$primary}</Box>
       {otherOptionsAvailable && (
         <Box textAlign="center">
           <ButtonText
@@ -202,7 +146,7 @@ const Primary = ({
           </ButtonText>
         </Box>
       )}
-    </Flex>
+    </Box>
   );
 };
 
@@ -216,13 +160,10 @@ const Secondary = ({
   refCallback,
   ...otherProps
 }: Props & StepComponentProps) => {
-  const ssoEnabled = otherProps.authSettings.authProviders?.length > 0;
-  const {
-    primaryAuthType,
-    authSettings: { allowPasswordless },
-  } = otherProps;
+  const ssoEnabled = otherProps.authProviders?.length > 0;
+  const { primaryAuthType, allowPasswordless } = otherProps;
 
-  let $secondary: ReactNode;
+  let $secondary;
   switch (primaryAuthType) {
     case 'passwordless':
       if (ssoEnabled) {
@@ -255,7 +196,7 @@ const Secondary = ({
         $secondary = (
           <>
             <FormPasswordless {...otherProps} autoFocus={true} />
-            {allowPasswordless && ssoEnabled && <Divider />}
+            {otherProps.allowPasswordless && ssoEnabled && <Divider />}
             {ssoEnabled && <FormSso {...otherProps} />}
           </>
         );
@@ -266,24 +207,20 @@ const Secondary = ({
   }
 
   return (
-    <Flex
-      px={outermostPadding}
-      flexDirection="column"
-      gap={2}
-      ref={refCallback}
-    >
-      <div>{$secondary}</div>
-      <ButtonText
-        alignSelf="center"
-        disabled={otherProps.loginAttempt.status === 'processing'}
-        onClick={() => {
-          otherProps.clearLoginAttempt();
-          prev();
-        }}
-      >
-        Back
-      </ButtonText>
-    </Flex>
+    <Box ref={refCallback} px={4} py={3}>
+      {$secondary}
+      <Box pt={3} textAlign="center">
+        <ButtonText
+          disabled={otherProps.loginAttempt.status === 'processing'}
+          onClick={() => {
+            otherProps.clearLoginAttempt();
+            prev();
+          }}
+        >
+          Back
+        </ButtonText>
+      </Box>
+    </Box>
   );
 };
 
@@ -302,11 +239,9 @@ const Divider = () => (
   </Flex>
 );
 
-const FlexBordered = styled(Flex).attrs({
-  justifyContent: 'center',
-  flexDirection: 'column',
-  gap: 3,
-})``;
+const FlexBordered = props => (
+  <Flex justifyContent="center" flexDirection="column" {...props} />
+);
 
 const StyledOr = styled.div`
   background: ${props => props.theme.colors.levels.surface};
@@ -324,10 +259,9 @@ const loginViews = { default: [Primary, Secondary] };
 
 type LoginAttempt = Attempt<void>;
 
-export type Props = {
-  authSettings: AuthSettings;
+export type Props = types.AuthSettings & {
   shouldPromptSsoStatus: boolean;
-  passwordlessLoginState: PasswordlessLoginState;
+  webauthnLogin: WebauthnLogin;
   loginAttempt: LoginAttempt;
   clearLoginAttempt(): void;
   primaryAuthType: PrimaryAuthType;
@@ -335,19 +269,11 @@ export type Props = {
   onAbort(): void;
   onLoginWithSso(provider: types.AuthProvider): void;
   onLoginWithPasswordless(): void;
-  onLogin(username: string, password: string): void;
+  onLogin(
+    username: string,
+    password: string,
+    token: string,
+    auth2fa: types.Auth2faType
+  ): void;
   autoFocus?: boolean;
-  shouldSkipVersionCheck: boolean;
-  disableVersionCheck(): void;
-  platform: Platform;
-  switchToAppUpdateDetails(): void;
-  appUpdateEvent: AppUpdateEvent;
-  downloadAppUpdate(): Promise<void>;
-  cancelAppUpdateDownload(): Promise<void>;
-  checkForAppUpdates(): Promise<void>;
-  quitAndInstallAppUpdate(): void;
-  changeAppUpdatesManagingCluster(clusterUri: RootClusterUri): Promise<void>;
-  clusterGetter: ClusterGetter;
 };
-
-const OutermostPadding = styled(Box).attrs({ px: outermostPadding })``;

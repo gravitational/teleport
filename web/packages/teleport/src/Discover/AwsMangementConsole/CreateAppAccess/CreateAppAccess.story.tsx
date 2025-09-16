@@ -16,33 +16,42 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { delay, http, HttpResponse } from 'msw';
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
 
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import {
-  RequiredDiscoverProviders,
-  resourceSpecAppAwsCliConsole,
-} from 'teleport/Discover/Fixtures/fixtures';
-import { AgentMeta } from 'teleport/Discover/useDiscover';
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
+import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { CreateAppAccess } from './CreateAppAccess';
 
+initialize();
+
 export default {
   title: 'Teleport/Discover/Application/AwsConsole/CreateApp',
+  loaders: [mswLoader],
 };
 
 export const Success = () => <Component />;
 Success.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccess.createV2, () =>
-        HttpResponse.json({ name: 'app-1' })
+      rest.post(cfg.api.awsAppAccessPath, (req, res, ctx) =>
+        res(ctx.json({ name: 'app-1' }))
       ),
     ],
   },
@@ -55,9 +64,8 @@ export const Loading = () => {
 Loading.parameters = {
   msw: {
     handlers: [
-      http.post(
-        cfg.api.awsAppAccess.createV2,
-        async () => await delay('infinite')
+      rest.post(cfg.api.awsAppAccessPath, (req, res, ctx) =>
+        res(ctx.delay('infinite'))
       ),
     ],
   },
@@ -67,12 +75,10 @@ export const Failed = () => <Component />;
 Failed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccess.createV2, () =>
-        HttpResponse.json(
-          {
-            message: 'Some kind of error message',
-          },
-          { status: 403 }
+      rest.post(cfg.api.awsAppAccessPath, (req, res, ctx) =>
+        res(
+          ctx.status(403),
+          ctx.json({ message: 'Some kind of error message' })
         )
       ),
     ],
@@ -80,29 +86,60 @@ Failed.parameters = {
 };
 
 const Component = () => {
-  const agentMeta: AgentMeta = {
-    resourceName: 'aws-console',
-    agentMatcherLabels: [],
-    awsIntegration: {
-      kind: IntegrationKind.AwsOidc,
-      name: 'some-oidc-name',
-      resourceType: 'integration',
-      spec: {
-        roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-        issuerS3Bucket: '',
-        issuerS3Prefix: '',
+  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {
+      resourceName: 'aws-console',
+      agentMatcherLabels: [],
+      awsIntegration: {
+        kind: IntegrationKind.AwsOidc,
+        name: 'some-oidc-name',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
+        statusCode: IntegrationStatusCode.Running,
       },
-      statusCode: IntegrationStatusCode.Running,
     },
+    currentStep: 0,
+    nextStep: () => null,
+    prevStep: () => null,
+    onSelectResource: () => null,
+    resourceSpec: {
+      name: '',
+      kind: ResourceKind.Application,
+      icon: null,
+      keywords: '',
+      event: DiscoverEventResource.ApplicationHttp,
+      appMeta: {
+        awsConsole: true,
+      },
+    },
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
   };
 
+  cfg.proxyCluster = 'localhost';
   return (
-    <RequiredDiscoverProviders
-      agentMeta={agentMeta}
-      resourceSpec={resourceSpecAppAwsCliConsole}
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'application' } },
+      ]}
     >
-      <Info>Devs: Click next to see next state</Info>
-      <CreateAppAccess />
-    </RequiredDiscoverProviders>
+      <ContextProvider ctx={ctx}>
+        <DiscoverProvider mockCtx={discoverCtx}>
+          <Info>Devs: Click next to see next state</Info>
+          <CreateAppAccess />
+        </DiscoverProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };

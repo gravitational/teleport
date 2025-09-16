@@ -332,16 +332,16 @@ export function useUserTraits() {
     setAttempt({ status: 'processing' });
     try {
       await ctx.userService
-        .updateUser({
-          user: {
+        .updateUser(
+          {
             ...user,
             traits: {
               ...user.traits,
               ...newDynamicTraits,
             },
           },
-          excludeUserField: ExcludeUserField.AllTraits,
-        })
+          ExcludeUserField.AllTraits
+        )
         .catch((error: Error) => {
           emitErrorEvent(`error updating user traits: ${error.message}`);
           throw error;
@@ -379,7 +379,7 @@ export function useUserTraits() {
   let onPrev;
   if (
     resourceSpec.kind === ResourceKind.Database &&
-    (agentMeta as DbMeta).serviceDeploy?.method !== 'auto'
+    (agentMeta as DbMeta).serviceDeployedMethod !== 'auto'
   ) {
     onPrev = prevStep;
   }

@@ -22,25 +22,7 @@ import { isObject } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 
-const SENSITIVE_PROPERTIES = [
-  'password',
-  'authClusterId',
-  'pin',
-  'puk',
-  // Filter out output of auxiliary commands run as a part of VNet diag report.
-  // Diagnostics are run periodically and the command outputs are typically dozens of lines long, so
-  // it'd be a waste of space to log them.
-  //
-  // TODO(ravicious): Do not filter out commands if RuntimeSettings.debug is true.
-  'commands',
-];
-
-// Skips logging requests/responses for given methods.
-// Only errors are logged.
-const OMITTED_METHODS = new Set([
-  // This RPC sends and receives a lot of requests/responses per-second.
-  'ConnectToDesktop',
-]);
+const SENSITIVE_PROPERTIES = ['password', 'authClusterId', 'pin', 'puk'];
 
 export function loggingInterceptor(logger: Logger): RpcInterceptor {
   return {
@@ -152,15 +134,9 @@ function makeMethodLogger(logger: Logger, method: MethodInfo<object, object>) {
 
   return {
     logRequest: (input: object) => {
-      if (OMITTED_METHODS.has(method.name)) {
-        return;
-      }
       logger.info(`send ${methodDesc}`, filterSensitiveProperties(input));
     },
     logResponse: (output: object) => {
-      if (OMITTED_METHODS.has(method.name)) {
-        return;
-      }
       const toLog = output ? filterSensitiveProperties(output) : null;
       logger.info(`receive ${methodDesc}`, toLog);
     },

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTheme } from 'styled-components';
 
 import { Box, Indicator } from 'design';
@@ -25,7 +25,7 @@ import Document from 'teleport/Console/Document';
 import useKubeExecSession from 'teleport/Console/DocumentKubeExec/useKubeExecSession';
 import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
 import * as stores from 'teleport/Console/stores/types';
-import { useMfaEmitter } from 'teleport/lib/useMfa';
+import useWebAuthn from 'teleport/lib/useWebAuthn';
 
 import KubeExecData from './KubeExecDataDialog';
 
@@ -35,10 +35,10 @@ type Props = {
 };
 
 export default function DocumentKubeExec({ doc, visible }: Props) {
-  const terminalRef = useRef<TerminalRef>(undefined);
+  const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, sendKubeExecData } =
     useKubeExecSession(doc);
-  const mfa = useMfaEmitter(tty);
+  const webauthn = useWebAuthn(tty);
   useEffect(() => {
     // when switching tabs, closing tabs, or
     // when the pod information modal is dismissed
@@ -46,7 +46,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
     if (status === 'initialized') {
       terminalRef.current?.focus();
     }
-  }, [visible, mfa.challenge, status]);
+  }, [visible, webauthn.requested, status]);
   const theme = useTheme();
 
   const terminal = (
@@ -67,7 +67,13 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      <AuthnDialog mfaState={mfa} onClose={closeDocument} />
+      {webauthn.requested && (
+        <AuthnDialog
+          onContinue={webauthn.authenticate}
+          onCancel={closeDocument}
+          errorText={webauthn.errorText}
+        />
+      )}
 
       {status === 'waiting-for-exec-data' && (
         <KubeExecData onExec={sendKubeExecData} onClose={closeDocument} />

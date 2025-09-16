@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Text } from 'design';
 
 export function PageIndicatorText({
@@ -33,10 +35,12 @@ export function PageIndicatorText({
 
   return (
     <Text
-      typography="body3"
+      typography="body2"
       mr={1}
+      fontWeight={500}
       style={{
         whiteSpace: 'nowrap',
+        letterSpacing: '0.15px',
       }}
     >
       Showing <strong>{from}</strong> - <strong>{to}</strong> of{' '}

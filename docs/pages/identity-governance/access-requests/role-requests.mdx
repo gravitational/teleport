@@ -2,7 +2,7 @@
 title: Role Access Requests
 description: Use Just-in-time Access Requests to request new roles with elevated privileges.
 h1: Teleport Role Access Requests
-labels:
+tags:
  - how-to
  - identity-governance
 ---
@@ -13,7 +13,7 @@ via ChatOps or anywhere else via our flexible Authorization Workflow API.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -78,7 +78,7 @@ spec:
 <Admonition type="warning" title="Requires Teleport Enterprise">
 Roles containing a `review_requests` rule can only be used in Teleport
 Enterprise. In Teleport Community Edition, Access Requests must be approved by an admin
-running `tctl` on the Auth Service.
+running `tctl` on the Auth Server.
 </Admonition>
 
 ## Requesting Access
@@ -86,7 +86,7 @@ running `tctl` on the Auth Service.
 While Teleport Enterprise supports the same CLI-based workflows for requesting
 access to roles, most users will prefer to request access via the web UI.
 
-To request access to one or more roles, navigate to the Access Requests page.
+To request access to one or more roles, navigate to the access requests page.
 You can find this page by selecting **Resources** on the side bar, expanding the
 *Access Requests* menu, and selecting **New Request**.
 
@@ -111,7 +111,7 @@ can review and submit the request.
 ## Reviewing Access Requests via the Web UI
 
 Reviewers can see a list of open requests by navigating to
-**Identity Governance** > **Access Requests** > **Needs Review** in the web UI.
+**Management** > **Access Requests** > **Review Requests** in the web UI.
 
 <Admonition type="warning">
 Granting access to a role with the ability to edit other roles could allow a
@@ -129,7 +129,7 @@ with the `tsh` command line:
 $ tsh request review --approve <request-id>
 ```
 
-## Using an approved Access Request
+## Using an approved access request
 
 Once a request has been approved, the requestor can elevate their access for
 both command-line workflows and web UI workflows.
@@ -143,12 +143,16 @@ $ tsh login --request-id=bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 
 In the web UI, the requestor can open their request on the **Review Requests**
 page and click **ASSUME ROLES** to gain access to additional roles. Note:
-role-based Access Requests are additive. The user will have access to their
+role-based access requests are additive. The user will have access to their
 standard role set in addition to the roles granted by the request.
 
-A banner will appear at the top of the page while the approved Access Request is
+![Approved Request](../../../img/access-requests/approved-request.png)
+
+A banner will appear at the top of the page while the approved access request is
 active. When elevated access is no longer necessary, click **Switch Back** to revert
 to the original set of roles.
+
+![Assumed Roles](../../../img/access-requests/role-assumed.png)
 
 ## Next Steps
 

@@ -21,7 +21,6 @@ package peer
 import (
 	"context"
 	"crypto/tls"
-	"log/slog"
 	"math/rand/v2"
 	"net"
 	"sync"
@@ -29,31 +28,28 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/quic-go/quic-go"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
+	expcredentials "google.golang.org/grpc/experimental/credentials"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
-	peerquic "github.com/gravitational/teleport/lib/proxy/peer/quic"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AccessPoint is the subset of the auth cache consumed by the [Client].
 type AccessPoint interface {
+	authclient.CAGetter
 	types.Events
-	services.ProxyGetter
 }
 
 // ClientConfig configures a Client instance.
@@ -66,16 +62,10 @@ type ClientConfig struct {
 	AuthClient authclient.ClientI
 	// AccessPoint is a caching auth client
 	AccessPoint AccessPoint
-	// GetTLSCertificate returns a the client TLS certificate to use when
-	// connecting to other proxies.
-	GetTLSCertificate utils.GetCertificateFunc
-	// GetTLSRoots returns a certificate pool used to validate TLS connections
-	// to other proxies.
-	GetTLSRoots utils.GetRootsFunc
-	// TLSCipherSuites optionally contains a list of TLS ciphersuites to use.
-	TLSCipherSuites []uint16
+	// TLSConfig is the proxy client TLS configuration.
+	TLSConfig *tls.Config
 	// Log is the proxy client logger.
-	Log *slog.Logger
+	Log logrus.FieldLogger
 	// Clock is used to control connection monitoring ticker.
 	Clock clockwork.Clock
 	// GracefulShutdownTimout is used set the graceful shutdown
@@ -83,9 +73,10 @@ type ClientConfig struct {
 	GracefulShutdownTimeout time.Duration
 	// ClusterName is the name of the cluster.
 	ClusterName string
-	// QUICTransport, if set, will be used to dial peer proxies that advertise
-	// support for peering connections over QUIC.
-	QUICTransport *quic.Transport
+
+	// getConfigForServer updates the client tls config.
+	// configurable for testing purposes.
+	getConfigForServer func() (*tls.Config, error)
 
 	// connShuffler determines the order client connections will be used.
 	connShuffler connShuffler
@@ -115,10 +106,10 @@ func noopConnShuffler() connShuffler {
 // checkAndSetDefaults checks and sets default values
 func (c *ClientConfig) checkAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = slog.Default()
+		c.Log = logrus.New()
 	}
 
-	c.Log = c.Log.With(
+	c.Log = c.Log.WithField(
 		teleport.ComponentKey,
 		teleport.Component(teleport.ComponentProxyPeer),
 	)
@@ -151,15 +142,20 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("missing cluster name")
 	}
 
-	if c.GetTLSCertificate == nil {
-		return trace.BadParameter("missing tls certificate getter")
+	if c.TLSConfig == nil {
+		return trace.BadParameter("missing tls config")
 	}
-	if c.GetTLSRoots == nil {
-		return trace.BadParameter("missing tls roots getter")
+
+	if len(c.TLSConfig.Certificates) == 0 {
+		return trace.BadParameter("missing tls certificate")
 	}
 
 	if c.connShuffler == nil {
 		c.connShuffler = randomConnShuffler()
+	}
+
+	if c.getConfigForServer == nil {
+		c.getConfigForServer = getConfigForServer(c.Context, c.TLSConfig, c.AccessPoint, c.Log, c.ClusterName)
 	}
 
 	return nil
@@ -411,15 +407,14 @@ func (c *Client) sync() {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.Component(teleport.ComponentProxyPeer),
 			Client:    c.config.AccessPoint,
-			Logger:    c.config.Log,
+			Log:       c.config.Log,
 		},
-		ProxyGetter: c.config.AccessPoint,
 		ProxyDiffer: func(old, new types.Server) bool {
 			return old.GetPeerAddr() != new.GetPeerAddr()
 		},
 	})
 	if err != nil {
-		c.config.Log.ErrorContext(c.ctx, "error initializing proxy peer watcher", "error", err)
+		c.config.Log.Errorf("Error initializing proxy peer watcher: %+v.", err)
 		return
 	}
 	defer proxyWatcher.Close()
@@ -427,14 +422,14 @@ func (c *Client) sync() {
 	for {
 		select {
 		case <-c.ctx.Done():
-			c.config.Log.DebugContext(c.ctx, "stopping peer proxy sync: context done")
+			c.config.Log.Debug("Stopping peer proxy sync: context done.")
 			return
 		case <-proxyWatcher.Done():
-			c.config.Log.DebugContext(c.ctx, "stopping peer proxy sync: proxy watcher done")
+			c.config.Log.Debug("Stopping peer proxy sync: proxy watcher done.")
 			return
-		case proxies := <-proxyWatcher.ResourcesC:
+		case proxies := <-proxyWatcher.ProxiesC:
 			if err := c.updateConnections(proxies); err != nil {
-				c.config.Log.ErrorContext(c.ctx, "error syncing peer proxies", "error", err)
+				c.config.Log.Errorf("Error syncing peer proxies: %+v.", err)
 			}
 		}
 	}
@@ -481,18 +476,16 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		}
 
 		// establish new connections
-		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
 		proxyGroup, _ := proxy.GetLabel(types.ProxyGroupIDLabel)
 		conn, err := c.connect(connectParams{
-			peerID:       id,
-			peerAddr:     proxy.GetPeerAddr(),
-			peerHost:     proxy.GetHostname(),
-			peerGroup:    proxyGroup,
-			supportsQUIC: supportsQUIC == "yes",
+			peerID:    id,
+			peerAddr:  proxy.GetPeerAddr(),
+			peerHost:  proxy.GetHostname(),
+			peerGroup: proxyGroup,
 		})
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
-			c.config.Log.DebugContext(c.ctx, "error dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
+			c.config.Log.Debugf("Error dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
 		}
@@ -689,18 +682,16 @@ func (c *Client) getConnections(proxyIDs []string) ([]internal.ClientConn, bool,
 			continue
 		}
 
-		supportsQUIC, _ := proxy.GetLabel(types.UnstableProxyPeerQUICLabel)
 		proxyGroup, _ := proxy.GetLabel(types.ProxyGroupIDLabel)
 		conn, err := c.connect(connectParams{
-			peerID:       id,
-			peerAddr:     proxy.GetPeerAddr(),
-			peerHost:     proxy.GetHostname(),
-			peerGroup:    proxyGroup,
-			supportsQUIC: supportsQUIC == "yes",
+			peerID:    id,
+			peerAddr:  proxy.GetPeerAddr(),
+			peerHost:  proxy.GetHostname(),
+			peerGroup: proxyGroup,
 		})
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
-			c.config.Log.DebugContext(c.ctx, "error direct dialing peer proxy", "peer_id", id, "peer_addr", proxy.GetPeerAddr())
+			c.config.Log.Debugf("Error direct dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
 		}
@@ -725,55 +716,24 @@ func (c *Client) getConnections(proxyIDs []string) ([]internal.ClientConn, bool,
 }
 
 type connectParams struct {
-	peerID       string
-	peerAddr     string
-	peerHost     string
-	peerGroup    string
-	supportsQUIC bool
+	peerID    string
+	peerAddr  string
+	peerHost  string
+	peerGroup string
 }
 
 // connect dials a new connection to a peer proxy with the given ID and address.
 func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
-	if params.supportsQUIC && c.config.QUICTransport != nil {
-		conn, err := peerquic.NewClientConn(peerquic.ClientConnConfig{
-			PeerAddr: params.peerAddr,
-
-			LocalID:     c.config.ID,
-			ClusterName: c.config.ClusterName,
-
-			PeerID:    params.peerID,
-			PeerHost:  params.peerHost,
-			PeerGroup: params.peerGroup,
-
-			Log: c.config.Log,
-
-			GetTLSCertificate: c.config.GetTLSCertificate,
-			GetTLSRoots:       c.config.GetTLSRoots,
-
-			Transport: c.config.QUICTransport,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return conn, nil
+	tlsConfig, err := c.config.getConfigForServer()
+	if err != nil {
+		return nil, trace.Wrap(err, "Error updating client tls config")
 	}
-	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
-	tlsConfig.ServerName = apiutils.EncodeClusterName(c.config.ClusterName)
-	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		tlsCert, err := c.config.GetTLSCertificate()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return tlsCert, nil
-	}
-	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(c.config.GetTLSRoots)
 
-	expectedPeer := utils.HostFQDN(params.peerID, c.config.ClusterName)
+	expectedPeer := authclient.HostFQDN(params.peerID, c.config.ClusterName)
 
 	conn, err := grpc.Dial(
 		params.peerAddr,
-		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, params.peerAddr, c.config.Log, credentials.NewTLS(tlsConfig))),
+		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, params.peerAddr, c.config.Log, expcredentials.NewTLSWithALPNDisabled(tlsConfig))),
 		grpc.WithStatsHandler(newStatsHandler(c.reporter)),
 		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, interceptors.GRPCClientStreamErrorInterceptor),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -781,7 +741,7 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 			Timeout:             peerTimeout,
 			PermitWithoutStream: true,
 		}),
-		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin": {}}]}`),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "Error dialing proxy %q", params.peerID)

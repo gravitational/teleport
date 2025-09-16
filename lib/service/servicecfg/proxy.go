@@ -162,11 +162,6 @@ type ProxyConfig struct {
 	// proxy built-in version server to retrieve target versions. This is part
 	// of the automatic upgrades.
 	AutomaticUpgradesChannels automaticupgrades.Channels
-
-	// QUICProxyPeering will make it so that proxy peering will support inbound
-	// QUIC connections and will use QUIC to connect to peer proxies that
-	// advertise support for it.
-	QUICProxyPeering bool
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that
@@ -236,7 +231,7 @@ func (c ProxyConfig) PublicPeerAddr() (*utils.NetAddr, error) {
 	}
 
 	port := addr.Port(defaults.ProxyPeeringListenPort)
-	addr, err = utils.ParseAddr(net.JoinHostPort(ip.String(), strconv.Itoa(port)))
+	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

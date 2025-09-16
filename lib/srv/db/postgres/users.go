@@ -205,10 +205,10 @@ func (e *Engine) applyPermissions(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	fetcher, err := objects.GetObjectFetcher(ctx, sessionCtx.Database, objects.ObjectFetcherConfig{
-		ImportRules: e.AuthClient,
-		Auth:        e.Auth,
-		GCPClients:  e.GCPClients,
-		Log:         e.Log,
+		ImportRules:  e.AuthClient,
+		Auth:         e.Auth,
+		CloudClients: e.CloudClients,
+		Log:          e.Log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -666,14 +666,14 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 		First:  0,
 		Step:   100 * time.Millisecond,
 		Max:    750 * time.Millisecond,
-		Jitter: retryutils.HalfJitter,
+		Jitter: retryutils.NewHalfJitter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// retry a finite number of times before giving up.
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		err := f()
 		if err == nil {
 			return nil

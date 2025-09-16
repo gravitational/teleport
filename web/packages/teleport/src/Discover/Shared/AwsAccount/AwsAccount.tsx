@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import {
@@ -28,7 +28,7 @@ import {
   Indicator,
   Text,
 } from 'design';
-import { FieldSelect } from 'shared/components/FieldSelect';
+import FieldSelect from 'shared/components/FieldSelect';
 import { Option as BaseOption } from 'shared/components/Select';
 import TextEditor from 'shared/components/TextEditor';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -44,7 +44,7 @@ import {
 } from 'teleport/Discover/yamlTemplates';
 import { App } from 'teleport/services/apps';
 import {
-  IntegrationAwsOidc,
+  Integration,
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
@@ -59,7 +59,7 @@ import {
 } from '../../Shared';
 import { DiscoverUrlLocationState, useDiscover } from '../../useDiscover';
 
-type Option = BaseOption<IntegrationAwsOidc>;
+type Option = BaseOption<Integration>;
 
 export function AwsAccount() {
   const {
@@ -161,9 +161,9 @@ export function AwsAccount() {
 
   if (!hasAccess) {
     return (
-      <>
+      <Box maxWidth="700px">
         <Heading />
-        <Box>
+        <Box maxWidth="700px">
           <Text mt={4}>
             You don’t have the permissions required to set up this integration.
             <br />
@@ -179,30 +179,30 @@ export function AwsAccount() {
           </Flex>
         </Box>
         <ActionButtons onPrev={prevStep} />
-      </>
+      </Box>
     );
   }
 
   if (attempt.status === '' || attempt.status === 'processing') {
     return (
-      <>
+      <Box maxWidth="700px">
         <Heading />
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
-      </>
+      </Box>
     );
   }
 
   if (attempt.status === 'error') {
     return (
-      <>
+      <Box maxWidth="700px">
         <Heading />
-        <Alert kind="danger">{attempt.statusText}</Alert>
+        <Alert kind="danger" children={attempt.statusText} />
         <ButtonPrimary mt={2} onClick={fetch}>
           Retry
         </ButtonPrimary>
-      </>
+      </Box>
     );
   }
 
@@ -267,7 +267,7 @@ export function AwsAccount() {
     } as DiscoverUrlLocationState,
   };
   return (
-    <>
+    <Box maxWidth="700px">
       <Heading />
       {healthCheckAttempt.status === 'error' && (
         <Alert
@@ -286,16 +286,18 @@ export function AwsAccount() {
                   </Text>
                   <Box width="300px" mb={6}>
                     <FieldSelect
+                      disabled
                       label="AWS Integrations"
-                      rule={requiredField<Option>('Region is required')}
+                      rule={requiredField('Region is required')}
                       placeholder="Select the AWS Integration to Use"
                       isSearchable
+                      isSimpleValue
                       value={selectedAwsIntegration}
                       onChange={i => setSelectedAwsIntegration(i as Option)}
                       options={awsIntegrations.map(makeAwsIntegrationOption)}
                     />
                   </Box>
-                  <ButtonText as={Link} to={locationState} compact>
+                  <ButtonText as={Link} to={locationState} pl={2} pr={2}>
                     Or click here to set up a different AWS account
                   </ButtonText>
                 </>
@@ -324,11 +326,11 @@ export function AwsAccount() {
           )}
         </Validation>
       </Box>
-    </>
+    </Box>
   );
 }
 
-function makeAwsIntegrationOption(integration: IntegrationAwsOidc): Option {
+function makeAwsIntegrationOption(integration: Integration): Option {
   return {
     value: integration,
     label: integration.name,
@@ -339,7 +341,7 @@ async function fetchAwsIntegrationsWithApps(
   clusterId: string,
   isAddingAwsApp: boolean
 ): Promise<{
-  awsIntegrations: IntegrationAwsOidc[];
+  awsIntegrations: Integration[];
   apps: App[];
 }> {
   const integrationPage = await integrationService.fetchIntegrations();

@@ -2,7 +2,7 @@
 title: TeleportOIDCConnector
 description: Provides a comprehensive list of fields in the TeleportOIDCConnector resource available through the Teleport Kubernetes operator
 tocDepth: 3
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -41,14 +41,10 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |google_service_account_uri|string|GoogleServiceAccountURI is a path to a google service account uri.|
 |issuer_url|string|IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.|
 |max_age|string|MaxAge is the amount of time that user logins are valid for. If a user logs in, but then does not login again within this time period, they will be forced to re-authenticate.|
-|mfa|[object](#specmfa)|MFASettings contains settings to enable SSO MFA checks through this auth connector.|
-|pkce_mode|string|PKCEMode represents the configuration state for PKCE (Proof Key for Code Exchange). It can be "enabled" or "disabled"|
 |prompt|string|Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|
 |provider|string|Provider is the external identity provider.|
 |redirect_url|[]string|RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.|
-|request_object_mode|string|RequestObjectMode determines how JWT-Secured Authorization Requests will be used for authorization requests. JARs, or request objects, can provide integrity protection, source authentication, and confidentiality for authorization request parameters.|
 |scope|[]string|Scope specifies additional scopes set by provider.|
-|user_matchers|[]string|UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.|
 |username_claim|string|UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.|
 
 ### spec.claims_to_roles items
@@ -65,15 +61,4 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |allowed_https_hostnames|[]string|a list of hostnames allowed for https client redirect URLs|
 |insecure_allowed_cidr_ranges|[]string|a list of CIDRs allowed for HTTP or HTTPS client redirect URLs|
-
-### spec.mfa
-
-|Field|Type|Description|
-|---|---|---|
-|acr_values|string|AcrValues are Authentication Context Class Reference values. The meaning of the ACR value is context-specific and varies for identity providers. Some identity providers support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.|
-|client_id|string|ClientID is the OIDC OAuth app client ID.|
-|client_secret|string|ClientSecret is the OIDC OAuth app client secret.|
-|enabled|boolean|Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.|
-|max_age|string|MaxAge is the amount of time in nanoseconds that an IdP session is valid for. Defaults to 0 to always force re-authentication for MFA checks. This should only be set to a non-zero value if the IdP is setup to perform MFA checks on top of active user sessions.|
-|prompt|string|Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|
 

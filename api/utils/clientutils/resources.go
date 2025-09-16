@@ -30,7 +30,6 @@ import (
 // IterateResources is a helper that iterates through each resource from all
 // pages and passes them one by one to the provided callback.
 // Deprecated: Prefer using [Resources] instead.
-// TODO(tross): DELETE IN 19.0.0
 func IterateResources[T any](
 	ctx context.Context,
 	pageFunc func(context.Context, int, string) ([]T, string, error),
@@ -91,7 +90,7 @@ func rangeInternal[T any](ctx context.Context, params rangeParams[T]) iter.Seq2[
 					continue
 				}
 
-				yield(*new(T), trace.Wrap(err))
+				yield(*new(T), err)
 				return
 			}
 

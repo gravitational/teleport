@@ -38,6 +38,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -165,7 +166,7 @@ func TestNewExporter(t *testing.T) {
 	}{
 		{
 			name: "invalid config",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, i...)
 				require.True(t, trace.IsBadParameter(err), i...)
 			},
@@ -177,7 +178,7 @@ func TestNewExporter(t *testing.T) {
 				Service:     "test",
 				ExporterURL: "tcp://localhost:123",
 			},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err, i...)
 				require.True(t, trace.IsBadParameter(err), i...)
 			},
@@ -358,7 +359,7 @@ func TestTraceProvider(t *testing.T) {
 				return
 			}
 
-			for i := range spansCreated {
+			for i := 0; i < spansCreated; i++ {
 				_, span := provider.Tracer("test").Start(ctx, fmt.Sprintf("test%d", i))
 				span.End()
 			}
@@ -514,8 +515,8 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			}
 			require.Empty(t, cmp.Diff(tt.expectedCfg, tt.cfg,
 				cmpopts.IgnoreUnexported(Config{}),
-				cmpopts.IgnoreFields(Config{}, "Logger"),
-			))
+				cmpopts.IgnoreInterfaces(struct{ logrus.FieldLogger }{})),
+			)
 			require.NotNil(t, tt.cfg.Logger)
 		})
 	}

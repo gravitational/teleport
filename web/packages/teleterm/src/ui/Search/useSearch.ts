@@ -50,7 +50,6 @@ const SUPPORTED_RESOURCE_TYPES: ResourceTypeFilter[] = [
   'app',
   'db',
   'kube_cluster',
-  'windows_desktop',
 ];
 
 /**
@@ -411,5 +410,4 @@ export const resourceTypeToReadableName: Record<ResourceTypeFilter, string> = {
   app: 'apps',
   node: 'servers',
   kube_cluster: 'kubes',
-  windows_desktop: 'desktops',
 };

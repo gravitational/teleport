@@ -17,6 +17,7 @@
  */
 
 import { formatDistanceStrict } from 'date-fns';
+import React from 'react';
 
 import { ButtonSecondary, Text } from 'design';
 import Dialog, {

@@ -21,12 +21,9 @@ package controller
 import (
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 const (
@@ -269,49 +266,46 @@ func newPodSpecWithImage(image string) v1.PodSpec {
 }
 
 func Test_getWorkloadVersion(t *testing.T) {
-	testVersion, err := version.EnsureSemver(versionMid)
-	require.NoError(t, err)
-
 	tests := []struct {
 		name      string
 		podSpec   v1.PodSpec
-		expected  *semver.Version
+		expected  string
 		assertErr require.ErrorAssertionFunc
 	}{
 		{
 			name:      "OK regular podSpec, semver tag no digest",
 			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + ":" + versionMid),
-			expected:  testVersion,
+			expected:  "v" + versionMid,
 			assertErr: require.NoError,
 		},
 		{
 			name:      "OK regular podSpec, semver tag with digest",
 			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + ":" + versionMid + "@" + defaultImageDigest.String()),
-			expected:  testVersion,
+			expected:  "v" + versionMid,
 			assertErr: require.NoError,
 		},
 		{
 			name:      "KO regular podSpec, non-semver tag no digest",
 			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + ":" + nonSemverTag),
-			expected:  nil,
+			expected:  "",
 			assertErr: errorIsType(&trace.BadParameterError{}),
 		},
 		{
 			name:      "KO regular podSpec, non-semver tag with digest",
 			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + ":" + nonSemverTag + "@" + defaultImageDigest.String()),
-			expected:  nil,
+			expected:  "",
 			assertErr: errorIsType(&trace.BadParameterError{}),
 		},
 		{
 			name:      "KO regular podSpec, no tag, only digest",
 			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + "@" + defaultImageDigest.String()),
-			expected:  nil,
+			expected:  "",
 			assertErr: errorIsType(&trace.BadParameterError{}),
 		},
 		{
 			name:      "KO regular podSpec, no tag, no digest",
 			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath),
-			expected:  nil,
+			expected:  "",
 			assertErr: errorIsType(&trace.BadParameterError{}),
 		},
 		{
@@ -328,7 +322,7 @@ func Test_getWorkloadVersion(t *testing.T) {
 					},
 				},
 			},
-			expected:  testVersion,
+			expected:  "v" + versionMid,
 			assertErr: require.NoError,
 		},
 		{
@@ -341,7 +335,7 @@ func Test_getWorkloadVersion(t *testing.T) {
 					},
 				},
 			},
-			expected:  nil,
+			expected:  "",
 			assertErr: require.Error,
 		},
 	}

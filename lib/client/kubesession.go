@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -62,7 +61,7 @@ type KubeSessionConfig struct {
 	TLSConfig                     *tls.Config
 	Mode                          types.SessionParticipantMode
 	AuthClient                    func(context.Context) (authclient.ClientI, error)
-	Ceremony                      *mfa.Ceremony
+	Ceremony                      mfa.Prompt
 	Stdin                         io.Reader
 	Stdout                        io.Writer
 	Stderr                        io.Writer
@@ -89,7 +88,7 @@ func NewKubeSession(ctx context.Context, cfg KubeSessionConfig) (*KubeSession, e
 		}
 
 		body, _ := io.ReadAll(resp.Body)
-		var respData map[string]any
+		var respData map[string]interface{}
 		if err := json.Unmarshal(body, &respData); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -108,7 +107,7 @@ func NewKubeSession(ctx context.Context, cfg KubeSessionConfig) (*KubeSession, e
 		}
 
 		if err := ws.Close(); err != nil {
-			log.DebugContext(ctx, "Close stream in response to context termination", "error", err)
+			log.Debugf("Close stream in response to context termination %v", err)
 		}
 	}()
 
@@ -207,7 +206,7 @@ func handleResizeEvents(ctx context.Context, stream *streamproto.SessionStream, 
 	}
 }
 
-func (s *KubeSession) handleMFA(ctx context.Context, authFn func(context.Context) (authclient.ClientI, error), ceremony *mfa.Ceremony, mode types.SessionParticipantMode, stdout io.Writer) error {
+func (s *KubeSession) handleMFA(ctx context.Context, authFn func(context.Context) (authclient.ClientI, error), ceremony mfa.Prompt, mode types.SessionParticipantMode, stdout io.Writer) error {
 	if s.stream.MFARequired && mode == types.SessionModeratorMode {
 		auth, err := authFn(ctx)
 		if err != nil {
@@ -216,9 +215,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, authFn func(context.Context
 
 		go func() {
 			defer auth.Close()
-			if err := RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), ceremony); err != nil {
-				slog.DebugContext(ctx, "Presence check terminated unexpectedly", "error", err)
-			}
+			RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), ceremony)
 		}()
 	}
 
@@ -248,7 +245,7 @@ func (s *KubeSession) pipeInOut(ctx context.Context, stdout io.Writer, enableEsc
 		default:
 			handleNonPeerControls(mode, s.term, func() {
 				if err := s.stream.ForceTerminate(); err != nil {
-					log.DebugContext(ctx, "Error sending force termination request", "error", err)
+					log.Debugf("Error sending force termination request: %v", err)
 					fmt.Print("\n\rError while sending force termination request\n\r")
 				}
 			})

@@ -33,7 +33,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/jonboulle/clockwork"
 
-	token "github.com/gravitational/teleport/integrations/terraform/tfschema"
+	token "github.com/gravitational/teleport/integrations/terraform/tfschema/token"
 )
 
 // resourceTeleportProvisionTokenType is the resource metadata type
@@ -119,7 +119,6 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 		
 	// Not really an inferface, just using the same name for easier templating.
 	var provisionTokenI apitypes.ProvisionToken
-	// Try getting the resource until it exists.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
@@ -127,13 +126,12 @@ func (r resourceTeleportProvisionToken) Create(ctx context.Context, req tfsdk.Cr
 		provisionTokenI, err = r.p.Client.GetToken(ctx, id)
 		if trace.IsNotFound(err) {
 			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Wrap(err), "token"))
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Wrap(bErr), "token"))
 				return
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading ProvisionToken (tried %d times) - state outdated, please import resource", tries)
 				resp.Diagnostics.AddError(diagMessage, "token")
-				return
 			}
 			continue
 		}

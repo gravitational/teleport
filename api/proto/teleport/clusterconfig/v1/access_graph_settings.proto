@@ -32,32 +32,12 @@ message AccessGraphSettings {
   teleport.header.v1.Metadata metadata = 4;
   // spec is the spec of the resource.
   AccessGraphSettingsSpec spec = 5;
-  // status is the status of the configured access graph service
-  AccessGraphSettingsStatus status = 6;
-}
-
-// AccessGraphSettingsStatus is the status of the configured access graph service
-message AccessGraphSettingsStatus {
-  // initial_sync_complete indicates if the access graph service has sent resources to access graph at least once.
-  bool initial_sync_complete = 1;
 }
 
 // AccessGraphSettingsSpec is the spec for the Access Graph service configuration settings.
 message AccessGraphSettingsSpec {
   // secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
   AccessGraphSecretsScanConfig secrets_scan_config = 1;
-  // demo_mode is used to determine if some features should be available for use in a demo capacity
-  AccessGraphDemoMode demo_mode = 2;
-}
-
-// AccessGraphDemoMode is used to determine if some features should be available for use in a demo capacity
-enum AccessGraphDemoMode {
-  // ACCESS_GRAPH_DEMO_MODE_UNSPECIFIED is an unknown demo mode configuration.
-  ACCESS_GRAPH_DEMO_MODE_UNSPECIFIED = 0;
-  // ACCESS_GRAPH_DEMO_MODE_DISABLED is a disabled demo mode configuration.
-  ACCESS_GRAPH_DEMO_MODE_DISABLED = 1;
-  // ACCESS_GRAPH_DEMO_MODE_ENABLED is an enabled demo mode configuration.
-  ACCESS_GRAPH_DEMO_MODE_ENABLED = 2;
 }
 
 // AccessGraphSecretsScanConfig is used to configure the parameters for the secrets scanning functionality.

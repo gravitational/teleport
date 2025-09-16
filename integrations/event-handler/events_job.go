@@ -22,11 +22,13 @@ import (
 	"github.com/gravitational/trace"
 	limiter "github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/events/export"
 )
 
@@ -48,6 +50,8 @@ func NewEventsJob(app *App) *EventsJob {
 
 // run runs the event consumption logic
 func (j *EventsJob) run(ctx context.Context) error {
+	log := logger.Get(ctx)
+
 	// Create cancellable context which handles app termination
 	ctx, cancel := context.WithCancel(ctx)
 	j.app.Process.OnTerminate(func(_ context.Context) error {
@@ -63,11 +67,11 @@ func (j *EventsJob) run(ctx context.Context) error {
 		for {
 			select {
 			case <-logTicker.C:
-				ll := j.app.log.With("events_per_minute", j.eventsProcessed.Swap(0))
+				ll := log.WithField("events_per_minute", j.eventsProcessed.Swap(0))
 				if td := j.targetDate.Load(); td != nil {
-					ll = ll.With("date", td.Format(time.DateOnly))
+					ll = ll.WithField("date", td.Format(time.DateOnly))
 				}
-				ll.InfoContext(ctx, "Event processing")
+				ll.Info("event processing")
 			case <-ctx.Done():
 				return
 			}
@@ -90,14 +94,11 @@ func (j *EventsJob) run(ctx context.Context) error {
 	for {
 		err := j.runPolling(ctx)
 		if err == nil || ctx.Err() != nil {
-			j.app.log.DebugContext(ctx, "Watch loop exiting")
+			log.Debug("watch loop exiting")
 			return trace.Wrap(err)
 		}
 
-		j.app.log.ErrorContext(
-			ctx, "Unexpected error in watch loop. Reconnecting in 5s...",
-			"error", err,
-		)
+		log.WithError(err).Error("unexpected error in watch loop. reconnecting in 5s...")
 
 		select {
 		case <-time.After(time.Second * 5):
@@ -186,7 +187,7 @@ func (j *EventsJob) runPolling(ctx context.Context) error {
 			date := exporter.GetCurrentDate()
 			j.targetDate.Store(&date)
 			if err := j.app.State.SetCursorV2State(exporter.GetState()); err != nil {
-				j.app.log.ErrorContext(ctx, "Failed to save cursor_v2 values, will retry", "error", err)
+				log.WithError(err).Error("Failed to save cursor_v2 values, will retry")
 			}
 		case <-ctx.Done():
 			exporter.Close()
@@ -212,6 +213,8 @@ func (j *EventsJob) runLegacyPolling(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	log := logger.Get(ctx)
+
 	lc, err := j.app.State.GetLegacyCursorValues()
 	if err != nil {
 		return trace.Wrap(err)
@@ -225,9 +228,7 @@ func (j *EventsJob) runLegacyPolling(ctx context.Context) error {
 		lc.WindowStartTime = *st
 	}
 
-	eventWatcher := NewLegacyEventsWatcher(
-		j.app.Config, j.app.client, *lc, j.handleEvent, j.app.log,
-	)
+	eventWatcher := NewLegacyEventsWatcher(j.app.Config, j.app.client, *lc, j.handleEvent)
 
 	// periodically sync cursor values to disk
 	go func() {
@@ -245,7 +246,7 @@ func (j *EventsJob) runLegacyPolling(ctx context.Context) error {
 					continue
 				}
 				if err := j.app.State.SetLegacyCursorValues(currentCursorValues); err != nil {
-					j.app.log.ErrorContext(ctx, "Failed to save cursor values, will retry", "error", err)
+					log.WithError(err).Error("Failed to save cursor values, will retry")
 					continue
 				}
 				lastCursorValues = currentCursorValues
@@ -319,6 +320,8 @@ func (j *EventsJob) TryLockUser(ctx context.Context, evt *TeleportEvent) error {
 		return nil
 	}
 
+	log := logger.Get(ctx)
+
 	_, _, _, ok, err := j.rl.Take(ctx, evt.FailedLoginData.Login)
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,7 +335,7 @@ func (j *EventsJob) TryLockUser(ctx context.Context, evt *TeleportEvent) error {
 		return trace.Wrap(err)
 	}
 
-	j.app.log.InfoContext(ctx, "User login is locked", "data", evt.FailedLoginData)
+	log.WithField("data", evt.FailedLoginData).Info("User login is locked")
 
 	return nil
 }

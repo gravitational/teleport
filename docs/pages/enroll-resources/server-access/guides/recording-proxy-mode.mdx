@@ -1,7 +1,7 @@
 ---
 title: Teleport Recording Proxy Mode
 description: Use Recording Proxy Mode to capture OpenSSH server activity
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -10,14 +10,14 @@ Teleport Recording Proxy Mode was added to allow Teleport users
 to enable session recording for servers running `sshd`, which is helpful
 when gradually transitioning large server fleets to Teleport.
 
-![Teleport OpenSSH Recording Proxy](../../../../img/server-access/openssh-proxy.png)
+![Teleport OpenSSH Recording Proxy](../../../../img/server-access/openssh-proxy.svg)
 
 <Admonition type="warning">
 
 Teleport Cloud only supports session recording at the Node level. If you are
 interested in setting up session recording, read our
-[getting started guide](../getting-started.mdx) so you can start
-replacing your OpenSSH servers with Teleport Agents.
+[Server Access Getting Started Guide](../getting-started.mdx) so you can start
+replacing your OpenSSH servers with Teleport Nodes.
 
 </Admonition>
 
@@ -38,7 +38,7 @@ The Teleport Proxy Service should be available to clients and set up with TLS.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="self-hosted Teleport"!)
+(!docs/pages/includes/self-hosted-prereqs-tabs.mdx!)
 
 - A host where you will run an OpenSSH server.
 - (!docs/pages/includes/tctl.mdx!)
@@ -81,7 +81,7 @@ possibility for Person-in-the-Middle attacks and is not recommended.
 ```yaml
 # snippet from /etc/teleport.yaml
 auth_service:
-  proxy_checks_host_keys: false
+  proxy_checks_host_keys: no
 ```
 
 ## Step 2/3. Configure `sshd`

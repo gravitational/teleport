@@ -22,7 +22,9 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
@@ -43,12 +45,14 @@ var (
 // ExternalAuditStorageService manages External Audit Storage resources in the Backend.
 type ExternalAuditStorageService struct {
 	backend backend.Backend
+	logger  *logrus.Entry
 }
 
 // NewExternalAuditStorageService returns a new *ExternalAuditStorageService or an error if it fails.
 func NewExternalAuditStorageService(backend backend.Backend) *ExternalAuditStorageService {
 	return &ExternalAuditStorageService{
 		backend: backend,
+		logger:  logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage.backend"),
 	}
 }
 
@@ -249,19 +253,19 @@ func (s *ExternalAuditStorageService) DisableClusterExternalAuditStorage(ctx con
 
 // checkAWSIntegration checks that [integrationName] names an AWS OIDC integration that currently exists, and
 // returns the backend key and revision if the AWS OIDC integration.
-func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, integrationName string) (backend.Key, string, error) {
+func (s *ExternalAuditStorageService) checkAWSIntegration(ctx context.Context, integrationName string) (key backend.Key, revision string, err error) {
 	integrationsSvc, err := NewIntegrationsService(s.backend)
 	if err != nil {
-		return backend.Key{}, "", trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 	integration, err := integrationsSvc.GetIntegration(ctx, integrationName)
 	if err != nil {
-		return backend.Key{}, "", trace.Wrap(err, "getting integration")
+		return nil, "", trace.Wrap(err, "getting integration")
 	}
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return backend.Key{}, "", trace.BadParameter("%q is not an AWS OIDC integration", integrationName)
+		return nil, "", trace.BadParameter("%q is not an AWS OIDC integration", integrationName)
 	}
-	return integrationsSvc.svc.MakeKey(backend.NewKey(integrationName)), integration.GetRevision(), nil
+	return integrationsSvc.svc.MakeKey(integrationName), integration.GetRevision(), nil
 }
 
 func getExternalAuditStorage(ctx context.Context, bk backend.Backend, key backend.Key) (*externalauditstorage.ExternalAuditStorage, error) {

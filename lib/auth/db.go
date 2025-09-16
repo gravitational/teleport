@@ -28,7 +28,6 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -45,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/winpki"
 )
 
 // GenerateDatabaseCert generates client certificate used by a database
@@ -63,7 +61,7 @@ func (a *Server) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 // generateDatabaseServerCert generates database server certificate used by a
 // database to authenticate itself to a database service.
 func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -97,7 +95,7 @@ func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.Data
 // generateDatabaseClientCert generates client certificate used by a database
 // service to authenticate with the database instance.
 func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -156,28 +154,14 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		Subject:   csr.Subject,
 		NotAfter:  a.clock.Now().UTC().Add(req.TTL.Get()),
 	}
-
 	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
 		// Pass through ExtKeyUsage (which we need for Smartcard Logon usage)
 		// and SubjectAltName (which we need for otherName SAN, not supported
 		// out of the box in crypto/x509) extensions only.
-		certReq.ExtraExtensions = filterExtensions(a.CloseContext(), a.logger, csr.Extensions, oidExtKeyUsage, oidSubjectAltName, oidADUserMapping)
+		certReq.ExtraExtensions = filterExtensions(csr.Extensions, oidExtKeyUsage, oidSubjectAltName)
 		certReq.KeyUsage = x509.KeyUsageDigitalSignature
-		// CRL Distribution Points (CDP) are required for Windows smartcard certs.
-		// The CDP is computed here by the auth server issuing the cert and not provided
-		// by the client because the CDP is based on the identity of the issuer, which is
-		// necessary in order to support clusters with multiple issuing certs (HSMs).
-		// If there's only 1 active key we don't include SKID in CDP for backward compatibility.
-		if req.CRLDomain != "" {
-			includeSKID := len(ca.GetActiveKeys().TLS) > 1
-			cdp := winpki.CRLDistributionPoint(req.CRLDomain, types.DatabaseClientCA, tlsCA, includeSKID)
-			certReq.CRLDistributionPoints = []string{cdp}
-		} else if req.CRLEndpoint != "" {
-			// legacy clients will specify CRL endpoint instead of CRL domain
-			// DELETE IN v20 (zmb3)
-			certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
-			a.logger.DebugContext(ctx, "Generating Database cert with legacy CDP")
-		}
+		// CRL is required for Windows smartcard certs.
+		certReq.CRLDistributionPoints = []string{req.CRLEndpoint}
 	} else {
 		// Include provided server names as SANs in the certificate, CommonName
 		// has been deprecated since Go 1.15:
@@ -185,7 +169,7 @@ func (a *Server) generateDatabaseCert(ctx context.Context, req *proto.DatabaseCe
 		certReq.DNSNames = getServerNames(req)
 
 		// The windows smartcard cert req already does the same in
-		// lib/winpki/windows.go, along with another ExtKeyUsage for
+		// lib/auth/windows/windows.go, along with another ExtKeyUsage for
 		// smartcard logon that we don't want to override above.
 		switch ca.GetType() {
 		case types.DatabaseCA:
@@ -232,9 +216,9 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
 
-	a.logger.DebugContext(ctx, "Signing database CSR for cluster", "cluster", req.ClusterName)
+	log.Debugf("Signing database CSR for cluster %v.", req.ClusterName)
 
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -321,7 +305,7 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 			"this Teleport cluster is not licensed for database access, please contact the cluster administrator")
 	}
 
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -364,7 +348,7 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 		return nil, trace.Wrap(err)
 	}
 
-	subject, issuer := getSnowflakeJWTParams(ctx, req.AccountName, req.UserName, pubKey)
+	subject, issuer := getSnowflakeJWTParams(req.AccountName, req.UserName, pubKey)
 
 	_, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
@@ -387,7 +371,7 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	}, nil
 }
 
-func getSnowflakeJWTParams(ctx context.Context, accountName, userName string, publicKey []byte) (string, string) {
+func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (string, string) {
 	// Use only the first part of the account name to generate JWT
 	// Based on:
 	// https://github.com/snowflakedb/snowflake-connector-python/blob/f2f7e6f35a162484328399c8a50a5015825a5573/src/snowflake/connector/auth_keypair.py#L83
@@ -399,10 +383,7 @@ func getSnowflakeJWTParams(ctx context.Context, accountName, userName string, pu
 	accnToken, _, _ := strings.Cut(accountName, accNameSeparator)
 	accnTokenCap := strings.ToUpper(accnToken)
 	userNameCap := strings.ToUpper(userName)
-	logger.DebugContext(ctx, "Signing database JWT token",
-		"account_name", accnTokenCap,
-		"user_name", userNameCap,
-	)
+	log.Debugf("Signing database JWT token for %s %s", accnTokenCap, userNameCap)
 
 	subject := fmt.Sprintf("%s.%s", accnTokenCap, userNameCap)
 
@@ -415,29 +396,22 @@ func getSnowflakeJWTParams(ctx context.Context, accountName, userName string, pu
 	return subject, issuer
 }
 
-func filterExtensions(ctx context.Context, logger *slog.Logger, extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
+func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
 	filtered := make([]pkix.Extension, 0, len(oids))
 	for _, e := range extensions {
-		matched := false
 		for _, id := range oids {
 			if e.Id.Equal(id) {
-				matched = true
+				filtered = append(filtered, e)
 			}
-		}
-		if matched {
-			filtered = append(filtered, e)
-		} else {
-			logger.WarnContext(ctx, "filtering out unexpected certificate extension; this may indicate Teleport bug", "oid", e.Id.String(), "value", e.Value, "critical", e.Critical)
 		}
 	}
 	return filtered
 }
 
-// TODO(gavin): move OIDs from here and in lib/winpki to lib/tlsca package.
+// TODO(gavin): move OIDs from here and in lib/auth/windows to tlsca package.
 var (
 	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
 	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
-	oidADUserMapping  = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 25, 2}
 
 	oidExtKeyUsageServerAuth       = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 1}
 	oidExtKeyUsageClientAuth       = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 2}

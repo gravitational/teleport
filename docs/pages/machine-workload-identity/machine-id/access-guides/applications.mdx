@@ -1,7 +1,7 @@
 ---
 title: Machine ID with Application Access
 description: How to use Machine ID to access applications
-labels:
+tags:
  - how-to
  - mwi
 ---
@@ -19,7 +19,7 @@ used to access an application enrolled in your Teleport cluster.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - If you have not already connected your application to Teleport, follow
-  the [Protect a Web Application with Teleport](../../../enroll-resources/application-access/getting-started.mdx).
+  [Protect a Web Application with Teleport](../../../enroll-resources/application-access/getting-started.mdx).
 - (!docs/pages/includes/tctl.mdx!)
 - `tbot` must already be installed and configured on the machine that will
   access applications. For more information, see the
@@ -52,8 +52,6 @@ modify these labels to grant access to only the applications that the machine
 will need access to.
 
 Use `tctl create -f ./role.yaml` to create the role.
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 Now, use `tctl bots update` to add the role to the Bot. Replace `example`
 with the name of the Bot you created in the deployment guide and `example-role`
@@ -106,9 +104,6 @@ services:
 Replace:
 - `dumper` with the name of the application you registered in Teleport.
 - `listen` with the address and port you wish the service to bind to.
-
-Ensure that `tbot` is not configured to run in one-shot mode, as the application
-tunnel will not start in this mode.
 
 Restart `tbot` to apply the new configuration.
 </TabItem>

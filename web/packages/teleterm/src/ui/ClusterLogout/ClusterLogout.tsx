@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonIcon, ButtonWarning, H2 } from 'design';
+import React from 'react';
+
+import { ButtonIcon, ButtonPrimary, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import DialogConfirmation, {
   DialogContent,
@@ -24,7 +26,6 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
-import { P } from 'design/Text/Text';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -65,11 +66,13 @@ export function ClusterLogout({
       <form
         onSubmit={e => {
           e.preventDefault();
-          void removeClusterAndClose();
+          removeClusterAndClose();
         }}
       >
-        <DialogHeader justifyContent="space-between">
-          <H2 style={{ whiteSpace: 'nowrap' }}>Log out from {clusterTitle}</H2>
+        <DialogHeader justifyContent="space-between" mb={0}>
+          <Text typography="h5" bold style={{ whiteSpace: 'nowrap' }}>
+            Log out from cluster {clusterTitle}
+          </Text>
           <ButtonIcon
             type="button"
             disabled={status === 'processing'}
@@ -79,24 +82,23 @@ export function ClusterLogout({
             <Cross size="medium" />
           </ButtonIcon>
         </DialogHeader>
-        <DialogContent mb={4} gap={2}>
-          <P>Are you sure you want to log out?</P>
-          {status === 'error' && (
-            <Alerts.Danger mb={0} details={statusText}>
-              Could not log out
-            </Alerts.Danger>
-          )}
+        <DialogContent mb={4}>
+          <Text color="text.slightlyMuted" typography="body1">
+            Are you sure you want to log out?
+          </Text>
+          {status === 'error' && <Alerts.Danger mb={5} children={statusText} />}
         </DialogContent>
         <DialogFooter>
-          <ButtonWarning
+          <ButtonPrimary
+            kind="warning"
             disabled={status === 'processing'}
             size="large"
             block={true}
             autoFocus
             type="submit"
           >
-            Log Out
-          </ButtonWarning>
+            Log out
+          </ButtonPrimary>
         </DialogFooter>
       </form>
     </DialogConfirmation>

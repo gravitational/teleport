@@ -19,20 +19,17 @@
 package apiserver
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	autoupdateapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	vnetapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
-	"github.com/gravitational/teleport/lib/teleterm/autoupdate"
 	"github.com/gravitational/teleport/lib/teleterm/vnet"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -65,14 +62,6 @@ func New(cfg Config) (*APIServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateService, err := autoupdate.New(autoupdate.Config{
-		ClusterProvider:    cfg.Daemon,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create the listener, set up the server.
 
 	ls, err := newListener(cfg.HostAddr, cfg.ListeningC)
@@ -81,13 +70,12 @@ func New(cfg Config) (*APIServer, error) {
 	}
 
 	grpcServer := grpc.NewServer(cfg.TshdServerCreds,
-		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Logger)),
+		grpc.ChainUnaryInterceptor(withErrorHandling(cfg.Log)),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 
 	api.RegisterTerminalServiceServer(grpcServer, serviceHandler)
 	vnetapi.RegisterVnetServiceServer(grpcServer, vnetService)
-	autoupdateapi.RegisterAutoUpdateServiceServer(grpcServer, autoupdateService)
 
 	return &APIServer{
 		Config:      cfg,
@@ -108,7 +96,7 @@ func (s *APIServer) Stop() {
 	// immediate. Closing the VNet service before the gRPC server gives some time for the VNet admin
 	// process to notice that the client is gone and shut down as well.
 	if err := s.vnetService.Close(); err != nil {
-		slog.ErrorContext(context.Background(), "Error while closing VNet service", "error", err)
+		log.WithError(err).Error("Error while closing VNet service")
 	}
 
 	s.grpcServer.GracefulStop()
@@ -132,7 +120,7 @@ func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener
 		listeningC <- addr
 	}
 
-	slog.InfoContext(context.Background(), "tsh daemon listener created", "listen_addr", addr.FullAddress())
+	log.Infof("tsh daemon is listening on %v.", addr.FullAddress())
 
 	return lis, nil
 }

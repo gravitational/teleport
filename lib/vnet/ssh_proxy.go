@@ -19,12 +19,12 @@ package vnet
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"sync"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // sshConn represents an established SSH client or server connection.
@@ -32,16 +32,6 @@ type sshConn struct {
 	conn  ssh.Conn
 	chans <-chan ssh.NewChannel
 	reqs  <-chan *ssh.Request
-}
-
-// Close closes the connection and drains all channels.
-func (c *sshConn) Close() error {
-	err := trace.Wrap(c.conn.Close())
-	go ssh.DiscardRequests(c.reqs)
-	for newChan := range c.chans {
-		newChan.Reject(0, "")
-	}
-	return err
 }
 
 // proxySSHConnection transparently proxies SSH channels and requests
@@ -54,8 +44,8 @@ func proxySSHConnection(
 	clientConn sshConn,
 ) {
 	closeConnections := sync.OnceFunc(func() {
-		clientConn.Close()
-		serverConn.Close()
+		clientConn.conn.Close()
+		serverConn.conn.Close()
 	})
 	// Close both connections if the context is canceled.
 	stop := context.AfterFunc(ctx, closeConnections)
@@ -170,134 +160,60 @@ func proxyChannel(
 		return
 	}
 
-	// Copy channel data and requests from the incoming channel to the target
-	// channel, and vice-versa.
-	target := newSSHChan(targetChan, targetChanRequests, slog.With("direction", "client->target"))
-	incoming := newSSHChan(incomingChan, incomingChanRequests, slog.With("direction", "target->client"))
-
+	// Copy channel requests in both directions concurrently. If either fails or
+	// exits it will cancel the context so that utils.ProxyConn below will close
+	// both channels so the other goroutine can also exit.
 	var wg sync.WaitGroup
 	wg.Add(2)
+	ctx, cancel := context.WithCancel(ctx)
 	go func() {
-		target.writeFrom(ctx, incoming)
+		proxyChannelRequests(ctx, log, targetChan, incomingChanRequests, cancel)
+		cancel()
 		wg.Done()
 	}()
 	go func() {
-		incoming.writeFrom(ctx, target)
+		proxyChannelRequests(ctx, log, incomingChan, targetChanRequests, cancel)
+		cancel()
 		wg.Done()
 	}()
+
+	// ProxyConn copies channel data bidirectionally. If the context is
+	// canceled it will terminate, it always closes both channels before
+	// returning.
+	if err := utils.ProxyConn(ctx, incomingChan, targetChan); err != nil &&
+		!utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) {
+		log.DebugContext(ctx, "Unexpected error proxying channel data", "error", err)
+	}
+
+	// Wait for all goroutines to terminate.
 	wg.Wait()
 }
 
-// sshChan manages all writes to an SSH channel and handles closing the channel
-// once no more data or requests will be written to it.
-type sshChan struct {
-	ch       ssh.Channel
-	requests <-chan *ssh.Request
-	log      *slog.Logger
-}
-
-func newSSHChan(ch ssh.Channel, requests <-chan *ssh.Request, log *slog.Logger) *sshChan {
-	return &sshChan{
-		ch:       ch,
-		requests: requests,
-		log:      log,
-	}
-}
-
-// writeFrom writes channel data and requests from the source to this SSH channel.
-//
-// In the happy path it waits for:
-// - channel data reads from source to return EOF
-// - the source request channel to be closed
-// and then closes this channel.
-//
-// Channel data reads from source can return EOF at any time if it has sent
-// SSH_MSG_CHANNEL_EOF but it is still valid to send more channel requests
-// after this.
-//
-// If an unrecoverable error is encountered it immediately closes both
-// channels.
-func (c *sshChan) writeFrom(ctx context.Context, source *sshChan) {
-	// Close the channel after all data and request writes are complete.
-	defer c.ch.Close()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		c.writeDataFrom(ctx, source)
-		wg.Done()
-	}()
-	go func() {
-		c.writeRequestsFrom(ctx, source)
-		wg.Done()
-	}()
-	wg.Wait()
-}
-
-// writeDataFrom writes channel data from source to this SSH channel.
-// It handles standard channel data and extended channel data of type stderr.
-func (c *sshChan) writeDataFrom(ctx context.Context, source *sshChan) {
-	// Close the channel for writes only after both the standard and stderr
-	// streams are finished writing.
-	defer c.ch.CloseWrite()
-
-	errors := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(c.ch, source.ch)
-		errors <- err
-	}()
-	go func() {
-		_, err := io.Copy(c.ch.Stderr(), source.ch.Stderr())
-		errors <- err
-	}()
-
-	// Read both errors to make sure both goroutines terminate, but only do
-	// anything on the first non-nil error, the second error is likely either
-	// the same as the first one or caused by closing the channel.
-	handledError := false
-	for range 2 {
-		err := <-errors
-		if err != nil && !handledError {
-			handledError = true
-			// Failed to write channel data from source to this channel. This was
-			// not an EOF from source or io.Copy would have returned nil. The
-			// stream might be missing data so close both channels.
-			//
-			// This should also unblock the stderr stream if the regular stream
-			// returned an error, and vice-versa.
-			c.log.ErrorContext(ctx, "Fatal error proxying SSH channel data", "error", err)
-			c.ch.Close()
-			source.ch.Close()
-		}
-	}
-}
-
-// writeRequestsFrom forwards channel requests from source to this SSH channel.
-func (c *sshChan) writeRequestsFrom(ctx context.Context, source *sshChan) {
-	log := c.log.With("request_layer", "channel")
+func proxyChannelRequests(
+	ctx context.Context,
+	log *slog.Logger,
+	targetChan ssh.Channel,
+	reqs <-chan *ssh.Request,
+	closeChannels func(),
+) {
+	log = log.With("request_layer", "channel")
 	sendRequest := func(name string, wantReply bool, payload []byte) (bool, []byte, error) {
-		ok, err := c.ch.SendRequest(name, wantReply, payload)
+		ok, err := targetChan.SendRequest(name, wantReply, payload)
 		// Replies to channel requests never have a payload.
 		return ok, nil, err
 	}
-	// Must forcibly close both channels if there was a fatal error proxying
-	// channel requests so that we don't continue in a bad state.
-	onFatalError := func() {
-		c.ch.Close()
-		source.ch.Close()
-	}
-	proxyRequests(ctx, log, sendRequest, source.requests, onFatalError)
+	proxyRequests(ctx, log, sendRequest, reqs, closeChannels)
 }
 
 func proxyGlobalRequests(
 	ctx context.Context,
 	targetConn ssh.Conn,
 	reqs <-chan *ssh.Request,
-	onFatalError func(),
+	closeConnections func(),
 ) {
 	log := log.With("request_layer", "global")
 	sendRequest := targetConn.SendRequest
-	proxyRequests(ctx, log, sendRequest, reqs, onFatalError)
+	proxyRequests(ctx, log, sendRequest, reqs, closeConnections)
 }
 
 func proxyRequests(
@@ -305,7 +221,7 @@ func proxyRequests(
 	log *slog.Logger,
 	sendRequest func(name string, wantReply bool, payload []byte) (bool, []byte, error),
 	reqs <-chan *ssh.Request,
-	onFatalError func(),
+	closeRequestSources func(),
 ) {
 	for req := range reqs {
 		log := log.With("request_type", req.Type)
@@ -313,20 +229,23 @@ func proxyRequests(
 		ok, reply, err := sendRequest(req.Type, req.WantReply, req.Payload)
 		if err != nil {
 			// We failed to send the request, the target must be dead.
-			log.DebugContext(ctx, "Failed to forward SSH request", "error", err)
-			onFatalError()
-			req.Reply(false, nil)
-			ssh.DiscardRequests(reqs)
-			return
+			log.DebugContext(ctx, "Failed to forward SSH request", "request_type", req.Type, "error", err)
+			// Close both connections or channels to clean up but we must
+			// continue handling requests on the chan until it is closed by
+			// crypto/ssh.
+			closeRequestSources()
+			_ = req.Reply(false, nil)
+			continue
 		}
 		if err := req.Reply(ok, reply); err != nil {
 			// A reply was expected and returned by the target but we failed to
 			// forward it back, the connection that initiated the request must
 			// be dead.
-			log.DebugContext(ctx, "Failed to reply to SSH request", "error", err)
-			onFatalError()
-			ssh.DiscardRequests(reqs)
-			return
+			log.DebugContext(ctx, "Failed to reply to SSH request", "request_type", req.Type, "error", err)
+			// Close both connections or channels to clean up but we must
+			// continue handling requests on the chan until it is closed by
+			// crypto/ssh.
+			closeRequestSources()
 		}
 	}
 }

@@ -1,8 +1,7 @@
 ---
 title: Database Access with Amazon Redshift Serverless
-sidebar_label: Amazon Redshift Serverless
 description: How to configure Teleport database access with Amazon Redshift Serverless.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -20,10 +19,10 @@ This guide will help you to:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Enroll Redshift with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/redshift_selfhosted_serverless.png)
+![Teleport Database Access Redshift Self-Hosted](../../../../img/database-access/guides/redshift_selfhosted_serverless.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Enroll Redshift with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/redshift_cloud_serverless.png)
+![Teleport Database Access Redshift Cloud](../../../../img/database-access/guides/redshift_cloud_serverless.png)
 </TabItem>
 
 </Tabs>
@@ -194,8 +193,6 @@ $ tctl create -f redshift-role.yaml
 role 'redshift-serverless-access' has been created
 ```
 
-(!docs/pages/includes/create-role-using-web.mdx!)
-
 (!docs/pages/includes/add-role-to-user.mdx role="redshift-serverless-access"!)
 
 ## Step 5/5. Connect
@@ -207,9 +204,9 @@ Service or cloud tenant:
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
-Name        Description Labels
------------ ----------- ------
-my-redshift             ...
+Name        Description                    Labels
+----------- ------------------------------ --------
+my-redshift                                ...
 ```
 
 To connect to the Redshift Serverless instance:
@@ -224,8 +221,6 @@ Type "help" for help.
 
 dev=>
 ```
-
-(!docs/pages/includes/database-access/pg-access-webui.mdx!)
 
 To log out of the database and remove credentials:
 

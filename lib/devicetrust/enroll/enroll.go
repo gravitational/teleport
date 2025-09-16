@@ -20,14 +20,12 @@ package enroll
 
 import (
 	"context"
-	"errors"
-	"io"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
@@ -94,7 +92,8 @@ func (c *Ceremony) RunAdmin(
 
 	rewordAccessDenied := func(err error, action string) error {
 		if trace.IsAccessDenied(trail.FromGRPC(err)) {
-			slog.DebugContext(ctx, "Device Trust: Redacting access denied error with user-friendly message", "error", err)
+			log.WithError(err).Debug(
+				"Device Trust: Redacting access denied error with user-friendly message")
 			return trace.AccessDenied(
 				"User does not have permissions to %s. Contact your cluster device administrator.",
 				action,
@@ -114,12 +113,9 @@ func (c *Ceremony) RunAdmin(
 	for _, dev := range findResp.Devices {
 		if dev.OsType == osType {
 			currentDev = dev
-			slog.DebugContext(ctx, "Device Trust: Found device",
-				slog.Group("device",
-					slog.String("asset_tag", currentDev.AssetTag),
-					slog.String("os", devicetrust.FriendlyOSType(currentDev.OsType)),
-					slog.String("id", currentDev.Id),
-				),
+			log.Debugf(
+				"Device Trust: Found device %q/%v, id=%q",
+				currentDev.AssetTag, devicetrust.FriendlyOSType(currentDev.OsType), currentDev.Id,
 			)
 			break
 		}
@@ -150,13 +146,10 @@ func (c *Ceremony) RunAdmin(
 		if err != nil {
 			return currentDev, outcome, trace.Wrap(rewordAccessDenied(err, "create device enrollment tokens"))
 		}
-		slog.DebugContext(ctx, "Device Trust: Created enrollment token for device",
-			slog.Group("device",
-				slog.String("asset_tag", currentDev.AssetTag),
-				slog.String("os", devicetrust.FriendlyOSType(currentDev.OsType)),
-				slog.String("id", currentDev.Id),
-			),
-		)
+		log.Debugf(
+			"Device Trust: Created enrollment token for device %q/%s",
+			currentDev.AssetTag,
+			devicetrust.FriendlyOSType(currentDev.OsType))
 	}
 	token := currentDev.EnrollToken.GetToken()
 
@@ -198,10 +191,7 @@ func (c *Ceremony) run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 		Payload: &devicepb.EnrollDeviceRequest_Init{
 			Init: init,
 		},
-	}); err != nil && !errors.Is(err, io.EOF) {
-		// [io.EOF] indicates that the server has closed the stream.
-		// The client should handle the underlying error on the subsequent Recv call.
-		// All other errors are client-side errors and should be returned.
+	}); err != nil {
 		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
 	resp, err := stream.Recv()
@@ -255,13 +245,7 @@ func (c *Ceremony) enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDe
 			},
 		},
 	})
-	if err != nil && !errors.Is(err, io.EOF) {
-		// [io.EOF] indicates that the server has closed the stream.
-		// The client should handle the underlying error on the subsequent Recv call.
-		// All other errors are client-side errors and should be returned.
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse, debug bool) error {
@@ -284,11 +268,5 @@ func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTr
 			TpmChallengeResponse: challengeResponse,
 		},
 	})
-	// [io.EOF] indicates that the server has closed the stream.
-	// The client should handle the underlying error on the subsequent Recv call.
-	// All other errors are client-side errors and should be returned.
-	if err != nil && !errors.Is(err, io.EOF) {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(err)
 }

@@ -1,7 +1,7 @@
 ---
 title: Scaling
 description: How to configure Teleport for large-scale deployments
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -10,6 +10,10 @@ This section explains the recommended configuration settings for large-scale
 self-hosted deployments of Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## Prerequisites
+
+- Teleport v(=teleport.version=) Open Source or Enterprise.
 
 ## Hardware recommendations
 
@@ -31,6 +35,7 @@ to `65000`.
 teleport:
   connection_limits:
     max_connections: 65000
+    max_users: 1000
 ```
 
 ## Agent configuration
@@ -44,7 +49,7 @@ parameter to something in the 8-16 minute range can help mitigate this effect:
 ```yaml
 teleport:
   cache:
-    enabled: true
+    enabled: yes
     max_backoff: 12m
 ```
 

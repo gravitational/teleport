@@ -2,39 +2,24 @@
 title: Access Requests with Microsoft Teams
 sidebar_label: Microsoft Teams
 description: How to set up Teleport's Microsoft Teams plugin for privilege elevation approvals.
-labels:
+tags:
  - how-to
  - identity-governance
 ---
 
 This guide will explain how to set up Microsoft Teams to receive Access Request messages
-from Teleport. 
-
-<details>
-<summary>This integration is hosted on Teleport Enterprise (Cloud)</summary>
-
-(!docs/pages/includes/plugins/enroll.mdx name="the Microsoft Teams integration"!)
-
-![Create Microsoft Teams Bot](../../../img/enterprise/plugins/msteams/enroll-bot.png)
-
-Once enrolled you can download the required `app.zip` file from the integrations status page.
-
-![Download app.zip](../../../img/enterprise/plugins/msteams/app-zip.png)
-
-</details>
-
-## How it works
-
-Teleport's Microsoft Teams integration notifies individuals of Access Requests.
-Users can then approve and deny Access Requests by following the message link,
-making it easier to implement security best practices without compromising
-productivity.
+from Teleport. Teleport's Microsoft Teams integration notifies individuals of
+Access Requests. Users can then approve and deny Access Requests by following the
+message link, making it easier to implement security best practices without
+compromising productivity.
 
 ![The Microsoft Teams Access Request plugin](../../../img/enterprise/plugins/msteams.png)
 
+{/* lint ignore page-structure remark-lint */}
+
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/machine-id/plugin-prerequisites.mdx!)
 
@@ -44,7 +29,7 @@ productivity.
 - An Azure resource group in the same directory. This will host resources for
   the Microsoft Teams Access Request plugin. You should have enough
   permissions to create and edit Azure Bot Services in this resource group.
-- Someone with Global Admin rights on Microsoft Entra ID in order to grant
+- Someone with Global Admin rights on the Azure Active Directory that will grant
   permissions to the plugin.
 - Someone with the `Teams administrator` role that can approve installation
   requests for Microsoft Teams Apps.

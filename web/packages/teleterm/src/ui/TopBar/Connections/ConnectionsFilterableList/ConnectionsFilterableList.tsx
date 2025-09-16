@@ -64,7 +64,7 @@ export function ConnectionsFilterableList(props: {
     <FilterableList<ExtendedTrackedConnection | VnetConnection>
       items={items}
       filterBy="title"
-      placeholder="Search connections"
+      placeholder="Search Connections"
       onFilterChange={value =>
         value.length ? setActiveIndex(0) : setActiveIndex(-1)
       }

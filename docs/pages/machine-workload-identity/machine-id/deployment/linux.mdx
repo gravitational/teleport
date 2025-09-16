@@ -1,14 +1,12 @@
 ---
-title: Deploying tbot on Linux
+title: Deploying Machine ID on Linux
 description: How to install and configure Machine ID on a Linux host
-labels:
+tags:
  - how-to
  - mwi
 ---
 
 This page explains how to deploy Machine ID on a Linux host.
-
-## How it works
 
 The process in which `tbot` initially authenticates with the Teleport cluster is
 known as joining. A join method is a specific technique for the bot to prove its
@@ -19,6 +17,8 @@ only available join method is `token`. The `token` join method is special as
 it is the only join method that relies on a shared secret. In order to mitigate
 the risks associated with this, the `token` join method is single use and it
 is not possible to use the same token multiple times.
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -74,7 +74,7 @@ outputs: []
 
 Replace:
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
-  Auth Service. Prefer using the address of a Teleport Proxy.
+  Auth Server. Prefer using the address of a Teleport Proxy.
 - `(=presets.tokens.first=)` with the token that was returned by `tctl bots add`
   in the previous step.
 

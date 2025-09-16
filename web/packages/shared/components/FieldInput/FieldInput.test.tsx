@@ -17,12 +17,14 @@
  */
 
 import { screen } from '@testing-library/react';
+import React from 'react';
 
 import { darkTheme } from 'design/theme';
 import { fireEvent, render } from 'design/utils/testing';
 
 import * as useRule from '../Validation/useRule';
 import FieldInput from './FieldInput';
+import { Fields } from './FieldInput.story';
 
 test('valid values, autofocus, onChange, onKeyPress', () => {
   const rule = jest.fn();
@@ -37,7 +39,6 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
       placeholder="placeholderText"
       autoFocus={true}
       label="labelText"
-      helperText="helperText"
       rule={rule}
       onChange={onChange}
       onKeyPress={onKeyPress}
@@ -46,9 +47,6 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
 
   // test label is displayed
   expect(screen.getByText('labelText')).toBeInTheDocument();
-
-  // helper text is displayed
-  expect(screen.getByText('helperText')).toBeInTheDocument();
 
   // test autofocus prop is respected
   const inputEl = screen.getByPlaceholderText('placeholderText');
@@ -65,7 +63,7 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
 
 test('input validation error state', () => {
   const rule = jest.fn();
-  const errorColor = darkTheme.colors.interactive.solid.danger.default;
+  const errorColor = darkTheme.colors.error.main;
 
   // mock negative validation
   jest
@@ -81,18 +79,18 @@ test('input validation error state', () => {
     />
   );
 
-  // error message is attached to the input
-  const inputEl = screen.getByPlaceholderText('placeholderText');
-  expect(screen.getByRole('textbox', { description: 'errorMsg' })).toBe(
-    inputEl
-  );
-
   // test !valid values renders with error message
   const labelEl = screen.getByText('errorMsg');
   expect(labelEl).toHaveStyle({ color: errorColor });
 
   // test !valid values renders error colors
+  const inputEl = screen.getByPlaceholderText('placeholderText');
   expect(inputEl).toHaveStyle({
     'border-color': errorColor,
   });
+});
+
+test('snapshot tests', () => {
+  const { container } = render(<Fields />);
+  expect(container).toMatchSnapshot();
 });

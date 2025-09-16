@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"context"
@@ -28,8 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/circleci"
 )
@@ -45,8 +43,8 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 		validContextB = "valid-context-b"
 	)
 	// stand up auth server with mocked CircleCI token validator
-	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
-		server.SetCircleCITokenValidate(func(
+	var withTokenValidator ServerOption = func(server *Server) error {
+		server.circleCITokenValidate = func(
 			ctx context.Context, organizationID, token string,
 		) (*circleci.IDTokenClaims, error) {
 			if organizationID == validOrg && token == validIDToken {
@@ -57,7 +55,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 				}, nil
 			}
 			return nil, errMockInvalidToken
-		})
+		}
 		return nil
 	}
 	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
@@ -67,7 +65,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
 		return &types.RegisterUsingTokenRequest{
@@ -87,12 +85,12 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 	}
 
 	// helpers for error assertions
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		messageMatch := assert.ErrorContains(t, err, "id token claims did not match any allow rules")
 		typeMatch := assert.True(t, trace.IsAccessDenied(err))
 		require.True(t, messageMatch && typeMatch)
 	})
-	tokenNotMatched := func(t require.TestingT, err error, i ...any) {
+	tokenNotMatched := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, errMockInvalidToken)
 	}
 	tests := []struct {
@@ -165,7 +163,7 @@ func TestAuth_RegisterUsingToken_CircleCI(t *testing.T) {
 					},
 				},
 			}),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "IDToken not provided")
 			},

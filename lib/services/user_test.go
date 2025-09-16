@@ -21,9 +21,9 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"slices"
 	"testing"
 
+	"github.com/coreos/go-oidc/jose"
 	"github.com/google/go-cmp/cmp"
 	saml2 "github.com/russellhaering/gosaml2"
 	samltypes "github.com/russellhaering/gosaml2/types"
@@ -74,7 +74,7 @@ func TestTraits(t *testing.T) {
 
 type oidcInput struct {
 	comment       string
-	claims        map[string]any
+	claims        jose.Claims
 	expectedRoles []string
 	warnings      []string
 }
@@ -89,7 +89,7 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "no match",
-				claims:        map[string]any{"a": "b"},
+				claims:        jose.Claims{"a": "b"},
 				expectedRoles: nil,
 			},
 		},
@@ -103,27 +103,27 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "no match",
-				claims:        map[string]any{"a": "b"},
+				claims:        jose.Claims{"a": "b"},
 				expectedRoles: nil,
 			},
 			{
 				comment:       "no value match",
-				claims:        map[string]any{"role": "b"},
+				claims:        jose.Claims{"role": "b"},
 				expectedRoles: nil,
 			},
 			{
 				comment:       "direct admin value match",
-				claims:        map[string]any{"role": "admin"},
+				claims:        jose.Claims{"role": "admin"},
 				expectedRoles: []string{"admin", "bob"},
 			},
 			{
 				comment:       "direct user value match",
-				claims:        map[string]any{"role": "user"},
+				claims:        jose.Claims{"role": "user"},
 				expectedRoles: []string{"user"},
 			},
 			{
 				comment:       "direct user value match with array",
-				claims:        map[string]any{"role": []string{"user"}},
+				claims:        jose.Claims{"role": []string{"user"}},
 				expectedRoles: []string{"user"},
 			},
 		},
@@ -136,27 +136,27 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "no match",
-				claims:        map[string]any{"a": "b"},
+				claims:        jose.Claims{"a": "b"},
 				expectedRoles: nil,
 			},
 			{
 				comment:       "no match - subprefix",
-				claims:        map[string]any{"role": "adminz"},
+				claims:        jose.Claims{"role": "adminz"},
 				expectedRoles: nil,
 			},
 			{
 				comment:       "value with capture match",
-				claims:        map[string]any{"role": "admin-hello"},
+				claims:        jose.Claims{"role": "admin-hello"},
 				expectedRoles: []string{"role-hello", "bob"},
 			},
 			{
 				comment:       "multiple value with capture match, deduplication",
-				claims:        map[string]any{"role": []string{"admin-hello", "admin-ola"}},
+				claims:        jose.Claims{"role": []string{"admin-hello", "admin-ola"}},
 				expectedRoles: []string{"role-hello", "bob", "role-ola"},
 			},
 			{
 				comment:       "first matches, second does not",
-				claims:        map[string]any{"role": []string{"hello", "admin-ola"}},
+				claims:        jose.Claims{"role": []string{"hello", "admin-ola"}},
 				expectedRoles: []string{"role-ola", "bob"},
 			},
 		},
@@ -171,7 +171,7 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "invalid regexp",
-				claims:        map[string]any{"role": []string{"admin-hello", "dev"}},
+				claims:        jose.Claims{"role": []string{"admin-hello", "dev"}},
 				expectedRoles: []string{"role-hello", "bob"},
 				warnings: []string{
 					`case-insensitive expression "^admin-(?!)$" is not a valid regexp`,
@@ -180,7 +180,7 @@ var oidcTestCases = []struct {
 			},
 			{
 				comment:       "regexp are not compiled if not needed",
-				claims:        map[string]any{},
+				claims:        jose.Claims{},
 				expectedRoles: nil,
 				// if the regexp were compiled, we would have the same warnings as above
 				warnings: nil,
@@ -195,7 +195,7 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "value with capture match",
-				claims:        map[string]any{"role": "admin-hello"},
+				claims:        jose.Claims{"role": "admin-hello"},
 				expectedRoles: []string{"bob"},
 			},
 		},
@@ -208,12 +208,12 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "empty value match",
-				claims:        map[string]any{"role": ""},
+				claims:        jose.Claims{"role": ""},
 				expectedRoles: []string{"admin"},
 			},
 			{
 				comment:       "any value match",
-				claims:        map[string]any{"role": "zz"},
+				claims:        jose.Claims{"role": "zz"},
 				expectedRoles: []string{"admin"},
 			},
 		},
@@ -229,28 +229,28 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment: "Matches multiple groups",
-				claims: map[string]any{
+				claims: jose.Claims{
 					"groups": []string{"DemoCorp - Backend Engineers", "DemoCorp Infrastructure"},
 				},
 				expectedRoles: []string{"backend", "approver"},
 			},
 			{
 				comment: "Matches one group",
-				claims: map[string]any{
+				claims: jose.Claims{
 					"groups": []string{"DemoCorp - SRE"},
 				},
 				expectedRoles: []string{"approver"},
 			},
 			{
 				comment: "Matches one group with multiple roles",
-				claims: map[string]any{
+				claims: jose.Claims{
 					"groups": []string{"DemoCorp Infrastructure"},
 				},
 				expectedRoles: []string{"approver", "backend"},
 			},
 			{
 				comment: "No match only due to case-sensitivity",
-				claims: map[string]any{
+				claims: jose.Claims{
 					"groups": []string{"Democorp - SRE"},
 				},
 				expectedRoles: []string(nil),
@@ -303,7 +303,7 @@ func BenchmarkTraitToRoles(b *testing.B) {
 			traits := SAMLAssertionsToTraits(claimsToAttributes(input.claims))
 
 			b.Run(testCaseInputName, func(b *testing.B) {
-				for b.Loop() {
+				for i := 0; i < b.N; i++ {
 					TraitsToRoles(mappings, traits)
 				}
 			})
@@ -319,35 +319,33 @@ func claimMappingsToAttributeMappings(in []types.ClaimMapping) []types.Attribute
 		out = append(out, types.AttributeMapping{
 			Name:  m.Claim,
 			Value: m.Value,
-			Roles: slices.Clone(m.Roles),
+			Roles: append([]string{}, m.Roles...),
 		})
 	}
 	return out
 }
 
 // oidcClaimsToTraits converts OIDC-style claims into teleport-specific trait format
-func oidcClaimsToTraits(claims map[string]any) map[string][]string {
+func oidcClaimsToTraits(claims jose.Claims) map[string][]string {
 	traits := make(map[string][]string)
 
-	for claimName, v := range claims {
-
-		switch claimValue := v.(type) {
-		case string:
+	for claimName := range claims {
+		claimValue, ok, _ := claims.StringClaim(claimName)
+		if ok {
 			traits[claimName] = []string{claimValue}
-		case []string:
-			traits[claimName] = claimValue
-		case []any:
-			for _, vv := range claimValue {
-				traits[claimName] = append(traits[claimName], vv.(string))
-			}
+			continue
+		}
+		claimValues, ok, _ := claims.StringsClaim(claimName)
+		if ok {
+			traits[claimName] = claimValues
 		}
 	}
 
 	return traits
 }
 
-// claimsToAttributes maps map[string]any type to attributes for testing
-func claimsToAttributes(claims map[string]any) saml2.AssertionInfo {
+// claimsToAttributes maps jose.Claims type to attributes for testing
+func claimsToAttributes(claims jose.Claims) saml2.AssertionInfo {
 	info := saml2.AssertionInfo{
 		Values: make(map[string]samltypes.Attribute),
 	}

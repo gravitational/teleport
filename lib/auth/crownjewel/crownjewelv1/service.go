@@ -111,7 +111,7 @@ func (s *Service) CreateCrownJewel(ctx context.Context, req *crownjewelv1.Create
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -185,6 +185,7 @@ func (s *Service) GetCrownJewel(ctx context.Context, req *crownjewelv1.GetCrownJ
 	}
 
 	return rsp, nil
+
 }
 
 // UpdateCrownJewel updates crown jewel resource.
@@ -198,7 +199,7 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -214,7 +215,6 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 	rsp, err := s.backend.UpdateCrownJewel(ctx, req.CrownJewel)
 
 	s.emitUpdateAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
-
 	return rsp, trace.Wrap(err)
 }
 
@@ -250,7 +250,7 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -266,12 +266,12 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 	rsp, err := s.backend.UpsertCrownJewel(ctx, req.CrownJewel)
 
 	s.emitUpsertAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return rsp, nil
+
 }
 
 func (s *Service) emitUpsertAuditEvent(ctx context.Context, old, new *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
@@ -280,6 +280,7 @@ func (s *Service) emitUpsertAuditEvent(ctx context.Context, old, new *crownjewel
 		return
 	}
 	s.emitUpdateAuditEvent(ctx, old, new, authCtx, err)
+
 }
 
 // DeleteCrownJewel deletes crown jewel resource.
@@ -293,7 +294,7 @@ func (s *Service) DeleteCrownJewel(ctx context.Context, req *crownjewelv1.Delete
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

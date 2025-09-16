@@ -17,7 +17,7 @@ Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
 <div align="center">
    <a href="https://goteleport.com/download">
-   <img src="./assets/img/hero-teleport-platform.png" width=750/>
+   <img src="./assets/img/hero-teleport-platform.svg" width=750/>
    </a>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/download">
@@ -55,12 +55,12 @@ Teleport includes an identity-aware access proxy, a CA that issues short-lived c
 
 We have implemented Teleport as a single Go binary that integrates with multiple protocols and cloud services:
 
-* [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
-* [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
+* [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/).
+* [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/)
 * [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/).
-* [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
-* [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
-* [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
+* [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/).
+* [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/).
+* [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/).
 
 You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/).
 
@@ -69,7 +69,7 @@ Teleport focuses on best practices for infrastructure security:
 - No need to manage shared secrets such as SSH keys or Kubernetes tokens: it uses certificate-based auth with certificate expiration for all protocols.
 - Two-factor authentication (2FA) for everything.
 - Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Microsoft Entra ID.
+- Single sign-on (SSO) for everything via GitHub Auth, OpenID Connect, or SAML with endpoints like Okta or Active Directory.
 - Infrastructure introspection: Use Teleport via the CLI or Web UI to view the status of every SSH node, database instance, Kubernetes cluster, or internal web app.
 
 Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully compatible with OpenSSH_, `sshd` servers, and `ssh` clients, Kubernetes clusters and more.
@@ -87,7 +87,7 @@ Teleport uses [Go crypto](https://godoc.org/golang.org/x/crypto). It is _fully c
 ## Installing and Running
 
 To set up a single-instance Teleport cluster, follow our [getting started
-guide](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo/). You can then register your
+guide](https://goteleport.com/docs/get-started). You can then register your
 servers, Kubernetes clusters, and other infrastructure with your Teleport
 cluster.
 
@@ -110,12 +110,15 @@ If you wish to deploy Teleport inside a Docker container see the
 
 ### For Local Testing and Development
 
+Follow the instructions in the [docker/README](docker/README.md) file.
+
 To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies)
 
 ## Building Teleport
 
 The `teleport` repository contains the Teleport daemon binary (written in Go)
-and a web UI written in TypeScript.
+and a web UI written in Javascript (a git submodule located in the `webassets/`
+directory).
 
 If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current
@@ -137,27 +140,23 @@ make -C build.assets build-binaries
 
 #### Dependencies
 
-The following dependencies are required to build Teleport from source. For
-maximum compatibility, install the versions of these dependencies using the
-versions listed in [`build.assets/versions.mk`](/build.assets/versions.mk):
+Ensure you have installed correct versions of necessary dependencies:
+* `Go` version from
+  [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
+* If you wish to build the Rust-powered features like Desktop Access, see the
+  `Rust` and `Cargo` versions in
+  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
+  (search for `RUST_VERSION`)
+* For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
+* To build the web UI:
+  * [`pnpm`](https://pnpm.io/installation#using-corepack). If you have Node.js installed, run `corepack enable pnpm` to make `pnpm` available.
+  * If you prefer not to install/use pnpm, but have docker available, you can run `make docker-ui` instead.
+  * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
+  * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required.
+  * [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually
+    on linux aarch64 (64-bit ARM). You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
 
-1. [`Go`](https://golang.org/dl/)
-1. [`Rust`](https://www.rust-lang.org/tools/install)
-1. [`Node.js`](https://nodejs.org/en/download/)
-1. [`wasm-pack`](https://github.com/rustwasm/wasm-pack)
-1. [`libfido2`](https://github.com/Yubico/libfido2)
-1. [`pkg-config`](https://www.freedesktop.org/wiki/Software/pkg-config/)
-
-For an example of Dev Environment setup on a Mac, see [these
-instructions](/BUILD_macos.md).
-
-##### Linux 64-bit ARM Dependencies
-
-1. On Linux aarch64 (64-bit ARM), you may need to manually install
-   [`binaryen`](https://github.com/WebAssembly/binaryen). Check with `which
-   wasm-opt`. If not found, install with `apt-get install binaryen`
-   (Debian-based systems). On other platforms, `wasm-pack` installs it
-   automatically.
+For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md).
 
 #### Perform a build
 
@@ -184,29 +183,30 @@ To perform a build
 make full
 ```
 
-`tsh` dynamically links against libfido2 by default, to support development
-environments, as long as the library itself can be found:
+To build `tsh` with Apple TouchID support enabled:
+
+> **Important**
+>
+>`tsh` binaries with Touch ID support are only functional using binaries signed
+with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
+maintainer, ask the team for access.
 
 ```shell
-$ brew install libfido2 pkg-config  # Replace with your package manager of choice
-
-$ make build/tsh
-> libfido2 found, setting FIDO2=dynamic
-> (...)
+make build/tsh TOUCHID=yes
 ```
 
-Release binaries are linked statically against libfido2. You may switch the
-linking mode using the FIDO2 variable:
+To build `tsh` with `libfido`:
 
-```shell
-make build/tsh FIDO2=dynamic # dynamic linking
-make build/tsh FIDO2=static  # static linking, for an easy setup use `make enter`
-                             # or `build.assets/macos/build-fido2-macos.sh`.
-make build/tsh FIDO2=off     # doesn't link libfido2 in any way
-```
+  ```shell
+  make build/tsh FIDO2=dynamic
+  ```
 
-`tsh` builds with Touch ID support require access to an Apple Developer account.
-If you are a Teleport maintainer, ask the team for access.
+  * On a Mac, with `libfido` and `openssl 3` installed via `homebrew`
+
+    ```shell
+    export PKG_CONFIG_PATH="$(brew --prefix openssl@3)/lib/pkgconfig"
+    make build/tsh FIDO2=dynamic
+    ```
 
 #### Build output and run locally
 
@@ -362,7 +362,7 @@ We had a choice, either start a security consulting business or build a solution
 
 * [Teleport Getting Started](https://goteleport.com/docs/get-started/)
 * [Teleport
-  Architecture](https://goteleport.com/docs/reference/architecture/)
+  Architecture](https://goteleport.com/teleport/docs/architecture/introduction)
 * [Reference](https://goteleport.com/docs/reference/)
 * [FAQ](https://goteleport.com/docs/faq)
 

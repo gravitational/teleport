@@ -30,16 +30,12 @@ var pathServers = urlpath.New("/clusters/:cluster/servers/:serverUUID")
 var pathLeafServers = urlpath.New("/clusters/:cluster/leaves/:leaf/servers/:serverUUID")
 var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
-var pathDbServers = urlpath.New("/clusters/:cluster/db_servers/:dbServer")
-var pathLeafDbServers = urlpath.New("/clusters/:cluster/leaves/:leaf/db_servers/:dbServer")
 var pathKubes = urlpath.New("/clusters/:cluster/kubes/:kubeName")
 var pathLeafKubes = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName")
 var pathKubeResourceNamespace = urlpath.New("/clusters/:cluster/kubes/:kubeName/namespaces/:kubeNamespaceName")
 var pathLeafKubeResourceNamespace = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName/namespaces/:kubeNamespaceName")
 var pathApps = urlpath.New("/clusters/:cluster/apps/:appName")
 var pathLeafApps = urlpath.New("/clusters/:cluster/leaves/:leaf/apps/:appName")
-var pathWindowsDesktops = urlpath.New("/clusters/:cluster/windows_desktops/:windowsDesktopName")
-var pathLeafWindowsDesktops = urlpath.New("/clusters/:cluster/leaves/:leaf/windows_desktops/:windowsDesktopName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -113,21 +109,6 @@ func (r ResourceURI) GetDbName() string {
 	return ""
 }
 
-// GetDBServerName extracts the database server name from r. Returns an empty string if path is not a db_servers URI.
-func (r ResourceURI) GetDBServerName() string {
-	result, ok := pathDbServers.Match(r.path)
-	if ok {
-		return result.Params["dbServer"]
-	}
-
-	result, ok = pathLeafDbServers.Match(r.path)
-	if ok {
-		return result.Params["dbServer"]
-	}
-
-	return ""
-}
-
 // GetKubeName extracts the kube name from r. Returns an empty string if path is not a kube URI.
 func (r ResourceURI) GetKubeName() string {
 	result, ok := pathKubes.Match(r.path)
@@ -173,21 +154,6 @@ func (r ResourceURI) GetAppName() string {
 	return ""
 }
 
-// GetWindowsDesktopName extracts the Windows desktop name from r. Returns an empty string if the path is not a Windows desktop URI.
-func (r ResourceURI) GetWindowsDesktopName() string {
-	result, ok := pathWindowsDesktops.Match(r.path)
-	if ok {
-		return result.Params["windowsDesktopName"]
-	}
-
-	result, ok = pathLeafWindowsDesktops.Match(r.path)
-	if ok {
-		return result.Params["windowsDesktopName"]
-	}
-
-	return ""
-}
-
 // GetServerUUID extracts the server UUID from r. Returns an empty string if path is not a server URI.
 func (r ResourceURI) GetServerUUID() string {
 	result, ok := pathServers.Match(r.path)
@@ -224,12 +190,6 @@ func (r ResourceURI) AppendServer(id string) ResourceURI {
 	return r
 }
 
-// AppendDBServer appends db_server segment to the URI
-func (r ResourceURI) AppendDBServer(id string) ResourceURI {
-	r.path = fmt.Sprintf("%v/db_servers/%v", r.path, id)
-	return r
-}
-
 // AppendLeafCluster appends leaf cluster segment to the URI if name is not empty.
 func (r ResourceURI) AppendLeafCluster(name string) ResourceURI {
 	if name == "" {
@@ -243,12 +203,6 @@ func (r ResourceURI) AppendLeafCluster(name string) ResourceURI {
 // AppendKube appends kube segment to the URI
 func (r ResourceURI) AppendKube(name string) ResourceURI {
 	r.path = fmt.Sprintf("%v/kubes/%v", r.path, name)
-	return r
-}
-
-// AppendWindowsDesktop appends Windows desktop name segment to the URI.
-func (r ResourceURI) AppendWindowsDesktop(name string) ResourceURI {
-	r.path = fmt.Sprintf("%v/windows_desktops/%v", r.path, name)
 	return r
 }
 
@@ -300,9 +254,4 @@ func (r ResourceURI) IsKube() bool {
 // IsApp returns true if URI is an app resource.
 func (r ResourceURI) IsApp() bool {
 	return r.GetAppName() != ""
-}
-
-// IsWindowsDesktop returns true if URI is a windows desktop resource.
-func (r ResourceURI) IsWindowsDesktop() bool {
-	return r.GetWindowsDesktopName() != ""
 }

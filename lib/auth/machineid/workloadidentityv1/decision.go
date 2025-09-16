@@ -19,7 +19,6 @@ package workloadidentityv1
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -37,36 +36,32 @@ type decision struct {
 	templatedWorkloadIdentity *workloadidentityv1pb.WorkloadIdentity
 	shouldIssue               bool
 	reason                    error
-	sigstorePolicyResults     map[string]error
 }
 
 func decide(
 	ctx context.Context,
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	attrs *workloadidentityv1pb.Attrs,
-	sigstore SigstorePolicyEvaluator,
 ) *decision {
 	d := &decision{
 		templatedWorkloadIdentity: proto.Clone(wi).(*workloadidentityv1pb.WorkloadIdentity),
-		sigstorePolicyResults:     make(map[string]error),
 	}
 
 	// First, evaluate the rules.
-	err := evaluateRules(ctx, wi, attrs, sigstore, d.sigstorePolicyResults)
-	if err != nil {
+	if err := evaluateRules(wi, attrs); err != nil {
 		d.reason = trace.Wrap(err, "attributes did not pass rule evaluation")
 		return d
 	}
 
 	// Now we can cook up some templating...
-	templated, err := expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetId(), &expression.Environment{Attrs: attrs})
+	templated, err := expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetId(), attrs)
 	if err != nil {
 		d.reason = trace.Wrap(err, "templating spec.spiffe.id")
 		return d
 	}
 	d.templatedWorkloadIdentity.Spec.Spiffe.Id = templated
 
-	templated, err = expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetHint(), &expression.Environment{Attrs: attrs})
+	templated, err = expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetHint(), attrs)
 	if err != nil {
 		d.reason = trace.Wrap(err, "templating spec.spiffe.hint")
 		return d
@@ -74,7 +69,7 @@ func decide(
 	d.templatedWorkloadIdentity.Spec.Spiffe.Hint = templated
 
 	for i, san := range wi.GetSpec().GetSpiffe().GetX509().GetDnsSans() {
-		templated, err = expression.RenderTemplate(san, &expression.Environment{Attrs: attrs})
+		templated, err = expression.RenderTemplate(san, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.dns_sans[%d]", i)
 			return d
@@ -94,7 +89,7 @@ func decide(
 	if st != nil {
 		dst := d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate
 
-		templated, err = expression.RenderTemplate(st.CommonName, &expression.Environment{Attrs: attrs})
+		templated, err = expression.RenderTemplate(st.CommonName, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -104,7 +99,7 @@ func decide(
 		}
 		dst.CommonName = templated
 
-		templated, err = expression.RenderTemplate(st.Organization, &expression.Environment{Attrs: attrs})
+		templated, err = expression.RenderTemplate(st.Organization, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -114,7 +109,7 @@ func decide(
 		}
 		dst.Organization = templated
 
-		templated, err = expression.RenderTemplate(st.OrganizationalUnit, &expression.Environment{Attrs: attrs})
+		templated, err = expression.RenderTemplate(st.OrganizationalUnit, attrs)
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -187,48 +182,16 @@ func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string
 }
 
 func evaluateRules(
-	ctx context.Context,
 	wi *workloadidentityv1pb.WorkloadIdentity,
 	attrs *workloadidentityv1pb.Attrs,
-	sigstore SigstorePolicyEvaluator,
-	sigstorePolicyResults map[string]error,
 ) error {
 	if len(wi.GetSpec().GetRules().GetAllow()) == 0 {
 		return nil
 	}
-
-	sigstoreEvaluator := expression.SigstorePolicyEvaluatorFunc(func(policyNames []string) (bool, error) {
-		// Evaluate policies we haven't already evaluated.
-		var unevaluated []string
-		for _, name := range policyNames {
-			if _, evaluated := sigstorePolicyResults[name]; !evaluated {
-				unevaluated = append(unevaluated, name)
-			}
-		}
-		if len(unevaluated) != 0 {
-			resultMap, err := sigstore.Evaluate(ctx, unevaluated, attrs)
-			if err != nil {
-				return false, err
-			}
-			maps.Copy(sigstorePolicyResults, resultMap)
-		}
-
-		// If any of them resulted in an error, return false.
-		for _, name := range policyNames {
-			if sigstorePolicyResults[name] != nil {
-				return false, nil
-			}
-		}
-		return true, nil
-	})
-
 ruleLoop:
 	for _, rule := range wi.GetSpec().GetRules().GetAllow() {
 		if rule.GetExpression() != "" {
-			pass, err := expression.Evaluate(rule.GetExpression(), &expression.Environment{
-				Attrs:                   attrs,
-				SigstorePolicyEvaluator: sigstoreEvaluator,
-			})
+			pass, err := expression.Evaluate(rule.GetExpression(), attrs)
 			if err != nil {
 				return err
 			}
@@ -288,7 +251,7 @@ func templateExtraClaims(templates *structpb.Struct, attrs *workloadidentityv1pb
 
 		// We treat string values as templates.
 		case *structpb.Value_StringValue:
-			renderedString, err := expression.RenderTemplate(value.StringValue, &expression.Environment{Attrs: attrs})
+			renderedString, err := expression.RenderTemplate(value.StringValue, attrs)
 			if err != nil {
 				return nil, trace.Wrap(err, "templating claim: %s", fieldName)
 			}

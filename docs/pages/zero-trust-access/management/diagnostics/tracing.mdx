@@ -1,7 +1,7 @@
 ---
 title: Distributed Tracing
 description: How to enable tracing within Teleport.
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -19,7 +19,7 @@ For a detailed description of these configuration fields, see the [configuration
 
 ```yaml
 tracing_service:
-   enabled: true
+   enabled: yes
    exporter_url: grpc://collector.example.com:4317
    sampling_rate_per_million: 1000000
 ```

@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2 } from 'design';
+import React from 'react';
+
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { Cross } from 'design/Icon';
-import { P } from 'design/Text/Text';
 import { pluralize } from 'shared/utils/text';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -60,8 +61,14 @@ export function DocumentsReopen(props: {
           props.onConfirm();
         }}
       >
-        <DialogHeader justifyContent="space-between" alignItems="baseline">
-          <H2>Reopen previous session</H2>
+        <DialogHeader
+          justifyContent="space-between"
+          mb={0}
+          alignItems="baseline"
+        >
+          <Text typography="h4" bold>
+            Reopen previous session
+          </Text>
           <ButtonIcon
             type="button"
             onClick={props.onDiscard}
@@ -72,14 +79,17 @@ export function DocumentsReopen(props: {
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <P
+          <Text typography="body1" color="text.slightlyMuted">
+            Do you want to reopen tabs from the previous session?
+          </Text>
+          <Text
+            typography="body1"
+            color="text.slightlyMuted"
             // Split long continuous cluster names into separate lines.
             css={`
               word-wrap: break-word;
             `}
           >
-            Do you want to reopen tabs from the previous session?
-            <br />
             {/*
               We show this mostly because we needed to show the cluster name somewhere during UI
               initialization. When you open the app and have some tabs to restore, the UI will show
@@ -92,14 +102,14 @@ export function DocumentsReopen(props: {
               {pluralize(props.numberOfDocuments, 'tab')}
             </strong>{' '}
             open in <strong>{clusterName}</strong>.
-          </P>
+          </Text>
         </DialogContent>
         <DialogFooter>
           <ButtonPrimary autoFocus mr={3} type="submit">
             Reopen
           </ButtonPrimary>
           <ButtonSecondary type="button" onClick={props.onDiscard}>
-            Start New Session
+            Start new session
           </ButtonSecondary>
         </DialogFooter>
       </form>

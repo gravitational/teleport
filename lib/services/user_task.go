@@ -33,11 +33,15 @@ type UserTasks interface {
 	// GetUserTask returns the user tasks resource by name.
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
 	// ListUserTasks returns the user tasks resources.
-	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
+	// ListUserTasksByIntegration returns the user tasks resources filtered by integration.
+	ListUserTasksByIntegration(ctx context.Context, pageSize int64, nextToken string, integration string) ([]*usertasksv1.UserTask, string, error)
 	// UpdateUserTask updates the user tasks resource.
 	UpdateUserTask(context.Context, *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 	// DeleteUserTask deletes the user tasks resource by name.
 	DeleteUserTask(context.Context, string) error
+	// DeleteAllUserTasks deletes all user tasks.
+	DeleteAllUserTasks(context.Context) error
 }
 
 // MarshalUserTask marshals the UserTask object into a JSON byte array.
@@ -48,18 +52,4 @@ func MarshalUserTask(object *usertasksv1.UserTask, opts ...MarshalOption) ([]byt
 // UnmarshalUserTask unmarshals the UserTask object from a JSON byte array.
 func UnmarshalUserTask(data []byte, opts ...MarshalOption) (*usertasksv1.UserTask, error) {
 	return UnmarshalProtoResource[*usertasksv1.UserTask](data, opts...)
-}
-
-func MatchUserTask(ut *usertasksv1.UserTask, filters *usertasksv1.ListUserTasksFilters) bool {
-	integrationFilter := filters.GetIntegration()
-	if integrationFilter != "" && integrationFilter != ut.GetSpec().GetIntegration() {
-		return false
-	}
-
-	stateFilter := filters.GetTaskState()
-	if stateFilter != "" && stateFilter != ut.GetSpec().GetState() {
-		return false
-	}
-
-	return true
 }

@@ -25,6 +25,7 @@ import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/tru
 import {
   makeLoggedInUser,
   makeRootCluster,
+  rootClusterUri,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -72,11 +73,28 @@ test.each([
   },
 ])('$name', async testCase => {
   const appContext = new MockAppContext();
-  appContext.addRootCluster(
-    makeRootCluster({
-      loggedInUser: testCase.user,
-    })
-  );
+  appContext.clustersService.setState(draft => {
+    draft.clusters.set(
+      rootClusterUri,
+      makeRootCluster({
+        uri: rootClusterUri,
+        loggedInUser: testCase.user,
+      })
+    );
+  });
+
+  appContext.workspacesService.setState(draft => {
+    draft.rootClusterUri = rootClusterUri;
+    draft.workspaces[rootClusterUri] = {
+      localClusterUri: rootClusterUri,
+      documents: [],
+      location: undefined,
+      accessRequests: {
+        isBarCollapsed: true,
+        pending: { kind: 'resource', resources: new Map() },
+      },
+    };
+  });
 
   render(
     <MockAppContextProvider appContext={appContext}>

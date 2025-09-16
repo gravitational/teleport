@@ -42,7 +42,7 @@ func TestLegacyCompat(t *testing.T) {
 
 	// basic into legacy compat
 	s, err = legacy.Collect(IntoLegacy(func(yield func(int, error) bool) {
-		for i := range 4 {
+		for i := 0; i < 4; i++ {
 			if !yield(i, nil) {
 				return
 			}

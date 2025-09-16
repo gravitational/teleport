@@ -20,28 +20,21 @@ package main
 
 import (
 	"path/filepath"
-	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/tbot/cli"
-	"github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-func onDBCommand(globalCfg *cli.GlobalArgs, dbCmd *cli.DBCommand) error {
-	botConfig, err := cli.LoadConfigWithMutators(globalCfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	wrapper, err := tshwrap.New()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	destination, err := tshwrap.GetDestinationDirectory(dbCmd.DestinationDir, botConfig)
+	destination, err := tshwrap.GetDestinationDirectory(botConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -51,22 +44,22 @@ func onDBCommand(globalCfg *cli.GlobalArgs, dbCmd *cli.DBCommand) error {
 		return trace.Wrap(err)
 	}
 
-	identityPath := filepath.Join(destination.Path, identity.IdentityFilePath)
+	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
 	identity, err := tshwrap.LoadIdentity(identityPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	args := []string{"-i", identityPath, "db", "--proxy=" + dbCmd.ProxyServer}
-	if dbCmd.Cluster != "" {
+	args := []string{"-i", identityPath, "db", "--proxy=" + cf.ProxyServer}
+	if cf.Cluster != "" {
 		// If we caught --cluster in our args, pass it through.
-		args = append(args, "--cluster="+dbCmd.Cluster)
-	} else if !slices.ContainsFunc(*dbCmd.RemainingArgs, func(s string) bool { return strings.HasPrefix(s, "--cluster") }) {
+		args = append(args, "--cluster="+cf.Cluster)
+	} else if !utils.HasPrefixAny("--cluster", cf.RemainingArgs) {
 		// If no `--cluster` was provided after a `--`, pass along the cluster
 		// name in the identity.
 		args = append(args, "--cluster="+identity.RouteToCluster)
 	}
-	args = append(args, *dbCmd.RemainingArgs...)
+	args = append(args, cf.RemainingArgs...)
 
 	// Pass through the debug flag, and prepend to satisfy argument ordering
 	// needs (`-d` must precede `db`).

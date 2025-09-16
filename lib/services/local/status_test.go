@@ -19,6 +19,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -35,7 +36,8 @@ func TestClusterAlerts(t *testing.T) {
 	const alertCount = 20
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	clock := clockwork.NewFakeClock()
 
@@ -49,7 +51,7 @@ func TestClusterAlerts(t *testing.T) {
 
 	status := NewStatusService(backend)
 
-	for i := range alertCount {
+	for i := 0; i < alertCount; i++ {
 		// use a label to create two "groups" of alerts
 		group := "odd"
 		if i%2 == 0 {

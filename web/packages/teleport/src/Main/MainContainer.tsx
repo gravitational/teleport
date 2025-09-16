@@ -26,11 +26,13 @@ import styled from 'styled-components';
 export const MainContainer = styled.div`
   display: flex;
   flex: 1;
-  --sidenav-width: 84px;
-  --sidenav-panel-width: 264px;
-  overflow: hidden;
+  min-height: 0;
+  --sidebar-width: 256px;
   margin-top: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     margin-top: ${p => p.theme.topBarHeight[1]}px;
+  }
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
+    margin-top: ${p => p.theme.topBarHeight[2]}px;
   }
 `;

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, type JSX } from 'react';
+import React, { useState } from 'react';
+import ReactSelect from 'react-select';
 import styled from 'styled-components';
 
-import { H2, Text } from 'design';
-import { Alert } from 'design/Alert';
+import Alert from 'design/Alert';
 import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
@@ -29,8 +29,9 @@ import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
 import Input from 'design/Input';
 import Link from 'design/Link';
+import Text from 'design/Text';
 import FieldInput from 'shared/components/FieldInput';
-import Select from 'shared/components/Select';
+import { StyledSelect } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import cfg from 'teleport/config';
@@ -126,7 +127,9 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
       <Validation>
         {({ validator }) => (
           <Box mt="3">
-            <H2 mb="3">Step 2: Input Your GitHub Account Info</H2>
+            <Text bold fontSize={4} mb="3">
+              Step 2: Input Your GitHub Account Info
+            </Text>
             <Text mb="3">
               These fields will be combined with your bot's permissions to
               create a join token and generate a sample GitHub Actions file.
@@ -181,14 +184,18 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                       </Box>
                       <Box minWidth="160px">
                         <Text ml="1">Ref Type</Text>
-                        <RefTypeSelect
-                          isDisabled={isLoading}
-                          isMulti={false}
-                          value={repoRules[i].refType}
-                          onChange={o => handleChange(i, 'refType', o)}
-                          options={refTypeOptions}
-                          menuPlacement="auto"
-                        />
+                        <RefTypeSelect>
+                          <ReactSelect
+                            disabled={isLoading}
+                            isMulti={false}
+                            value={repoRules[i].refType}
+                            onChange={o => handleChange(i, 'refType', o)}
+                            options={refTypeOptions}
+                            menuPlacement="auto"
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                          />
+                        </RefTypeSelect>
                       </Box>
                     </Flex>
                   </FormItem>
@@ -274,15 +281,14 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
   );
 }
 
-const RefTypeSelect = styled(Select<RefTypeOption>)`
+const RefTypeSelect = styled(StyledSelect)`
   .react-select__control {
     border-radius: 0 4px 4px 0;
-    border-left-color: transparent;
+    border-left: none;
   }
 
-  .react-select__control--is-focused {
-    border-left-color: ${props =>
-      props.theme.colors.interactive.solid.primary.default};
+  .react-select__control:hover {
+    border-left: none;
   }
 `;
 

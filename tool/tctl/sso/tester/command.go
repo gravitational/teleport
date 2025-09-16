@@ -28,15 +28,12 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/sso"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -207,26 +204,16 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType st
 	defer rd.Close()
 
 	initSSO := func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
-		sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(c))
+		key, err := client.GenerateRSAKey()
 		if err != nil {
-			return "nil", trace.Wrap(err)
-		}
-		sshPub, err := ssh.NewPublicKey(sshKey.Public())
-		if err != nil {
-			return "nil", trace.Wrap(err)
-		}
-		tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
-		if err != nil {
-			return "nil", trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 
 		req := client.SSOLoginConsoleReq{
-			ConnectorID: "-sso-test",
-			RedirectURL: clientCallbackURL,
-			UserPublicKeys: client.UserPublicKeys{
-				SSHPubKey: ssh.MarshalAuthorizedKey(sshPub),
-				TLSPubKey: tlsPub,
-			},
+			ConnectorID:          "-sso-test",
+			RedirectURL:          clientCallbackURL,
+			PublicKey:            key.MarshalSSHPublicKey(),
+			AttestationStatement: key.GetAttestationStatement(),
 		}
 
 		initResp, err := initiateSSOLoginFn(req)

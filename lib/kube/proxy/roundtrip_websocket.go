@@ -59,7 +59,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	// request headers. This is necessary to forward the original user's impersonation
 	// when multiple kubernetes_users are available.
 	copyImpersonationHeaders(header, w.originalHeaders)
-	if err := setupImpersonationHeaders(w.sess, header); err != nil {
+	if err := setupImpersonationHeaders(w.log, w.sess, header); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -17,7 +17,7 @@
  */
 
 import ace from 'ace-builds/src-min-noconflict/ace';
-import { Component } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
 import 'ace-builds/src-noconflict/mode-json';
@@ -34,7 +34,7 @@ import StyledTextEditor from './StyledTextEditor';
 
 const { UndoManager } = ace.require('ace/undomanager');
 
-class TextEditor extends Component {
+class TextEditor extends React.Component {
   onChange = () => {
     const isClean = this.editor.session.getUndoManager().isClean();
     if (this.props.onDirty) {
@@ -54,9 +54,6 @@ class TextEditor extends Component {
   componentDidUpdate(prevProps) {
     if (prevProps.activeIndex !== this.props.activeIndex) {
       this.setActiveSession(this.props.activeIndex);
-    }
-    if (prevProps.readOnly !== this.props.readOnly) {
-      this.editor.setReadOnly(this.props.readOnly);
     }
 
     this.editor.resize();
@@ -81,9 +78,7 @@ class TextEditor extends Component {
     }
 
     this.editor.setSession(activeSession);
-    if (!this.props.readOnly) {
-      this.editor.focus();
-    }
+    this.editor.focus();
   }
 
   initSessions(data = []) {
@@ -106,10 +101,7 @@ class TextEditor extends Component {
     this.editor.setReadOnly(readOnly);
     this.editor.setTheme({ cssClass: 'ace-teleport' });
     this.initSessions(data);
-
-    if (!readOnly) {
-      this.editor.focus();
-    }
+    this.editor.focus();
   }
 
   componentWillUnmount() {

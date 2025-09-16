@@ -251,7 +251,7 @@ test('after creating an access request, pending requests and specifiable fields 
   );
 
   expect(mockedCreateAccessRequestFn).toHaveBeenCalledWith({
-    rootClusterUri,
+    rootClusterUri: '/clusters/teleport-local',
     resourceIds: [
       {
         clusterName: 'teleport-local',
@@ -293,7 +293,7 @@ test('after creating an access request, pending requests and specifiable fields 
     })
   );
   expect(mockedCreateAccessRequestFn).toHaveBeenCalledWith({
-    rootClusterUri,
+    rootClusterUri: '/clusters/teleport-local',
     resourceIds: [
       {
         clusterName: 'teleport-local',

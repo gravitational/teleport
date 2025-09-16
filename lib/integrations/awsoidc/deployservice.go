@@ -34,7 +34,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
@@ -446,22 +445,14 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		return nil, trace.Wrap(err)
 	}
 
+	serviceDashboardURL := fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services/%s", req.Region, aws.ToString(req.ClusterName), aws.ToString(req.ServiceName))
+
 	return &DeployServiceResponse{
 		ClusterARN:          aws.ToString(cluster.ClusterArn),
 		ServiceARN:          aws.ToString(service.ServiceArn),
 		TaskDefinitionARN:   taskDefinitionARN,
-		ServiceDashboardURL: serviceDashboardURL(req.Region, aws.ToString(req.ClusterName), aws.ToString(service.ServiceName)),
+		ServiceDashboardURL: serviceDashboardURL,
 	}, nil
-}
-
-// serviceDashboardURL builds the ECS Service dashboard URL using the AWS Region, the ECS Cluster and Service Names.
-// It returns an empty string if region is not valid.
-func serviceDashboardURL(region, clusterName, serviceName string) string {
-	if err := apiaws.IsValidRegion(region); err != nil {
-		return ""
-	}
-
-	return fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services/%s", region, clusterName, serviceName)
 }
 
 type upsertTaskRequest struct {

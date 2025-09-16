@@ -37,7 +37,7 @@ export function ClusterItem(props: ClusterItemProps) {
     index: props.index,
     onRun: props.onSelect,
   });
-  const ref = useRef<HTMLLIElement>(null);
+  const ref = useRef<HTMLLIElement>();
 
   const clusterName = props.item.name;
 
@@ -59,7 +59,7 @@ export function ClusterItem(props: ClusterItemProps) {
         width="100%"
         minWidth="0"
       >
-        <Text typography="body2" title={clusterName}>
+        <Text typography="body1" title={clusterName}>
           {clusterName}
         </Text>
         <Flex>

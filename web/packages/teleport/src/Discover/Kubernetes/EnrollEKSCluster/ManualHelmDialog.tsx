@@ -17,28 +17,24 @@
  */
 
 import React, { Suspense, useEffect, useState } from 'react';
+import styled from 'styled-components';
 
 import {
   Box,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
-  H2,
-  H3,
   Indicator,
+  Text,
 } from 'design';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import * as Icons from 'design/Icon';
-import { P } from 'design/Text/Text';
 
 import { CatchError } from 'teleport/components/CatchError';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import { ResourceKind, StyledBox, TextIcon } from 'teleport/Discover/Shared';
+import { ResourceKind, TextIcon } from 'teleport/Discover/Shared';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
-import {
-  clearCachedJoinTokenResult,
-  useJoinTokenSuspender,
-} from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { JoinToken } from 'teleport/services/joinToken';
 
 type ManualHelmDialogProps = {
@@ -81,7 +77,9 @@ const DialogWrapper = ({
   return (
     <Dialog onClose={cancel} open={true}>
       <DialogContent width="850px" mb={0}>
-        <H2 mb={4}>Manual EKS Cluster Enrollment</H2>
+        <Text bold caps mb={4}>
+          Manual EKS Cluster Enrollment
+        </Text>
         {children}
       </DialogContent>
       <DialogFooter alignItems="center" as={Flex} gap={4}>
@@ -120,35 +118,31 @@ const FallbackDialog = ({
   );
 };
 
-const resourceKinds = [
-  ResourceKind.Kubernetes,
-  ResourceKind.Application,
-  ResourceKind.Discovery,
-];
-
 export function ManualHelmDialog({
   setJoinTokenAndGetCommand,
   cancel,
   confirmedCommands,
 }: ManualHelmDialogProps) {
-  const { joinToken } = useJoinTokenSuspender({
-    resourceKinds,
-  });
+  const { joinToken } = useJoinTokenSuspender([
+    ResourceKind.Kubernetes,
+    ResourceKind.Application,
+    ResourceKind.Discovery,
+  ]);
   const [command, setCommand] = useState('');
 
   useEffect(() => {
     if (joinToken && !command) {
       setCommand(setJoinTokenAndGetCommand(joinToken));
     }
-
-    return () => clearCachedJoinTokenResult(resourceKinds);
   }, [joinToken, command, setJoinTokenAndGetCommand]);
 
   return (
     <DialogWrapper cancel={cancel} next={confirmedCommands}>
       <StyledBox mb={5}>
-        <H3>Step 1</H3>
-        <P mb={3}>Add teleport-agent chart to your charts repository</P>
+        <Text bold>Step 1</Text>
+        <Text typography="subtitle1" mb={3}>
+          Add teleport-agent chart to your charts repository
+        </Text>
         <TextSelectCopyMulti
           lines={[
             {
@@ -160,12 +154,12 @@ export function ManualHelmDialog({
       <CommandBox
         header={
           <>
-            <H3>Step 2</H3>
-            <P mb={3}>
+            <Text bold>Step 2</Text>
+            <Text typography="subtitle1" mb={3}>
               Run the command below on the server your target EKS cluster is at.
               It may take up to a minute for the Teleport Service to join after
               running the command.
-            </P>
+            </Text>
           </>
         }
       >
@@ -174,3 +168,10 @@ export function ManualHelmDialog({
     </DialogWrapper>
   );
 }
+
+const StyledBox = styled(Box)`
+  max-width: 1000px;
+  background-color: ${props => props.theme.colors.spotBackground[0]};
+  padding: ${props => `${props.theme.space[3]}px`};
+  border-radius: ${props => `${props.theme.space[2]}px`};
+`;

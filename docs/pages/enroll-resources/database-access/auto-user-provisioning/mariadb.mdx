@@ -1,8 +1,7 @@
 ---
 title: MariaDB Automatic User Provisioning 
-sidebar_label: MariaDB
 description: Configure automatic user provisioning for MariaDB.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -13,7 +12,7 @@ labels:
 
 ## Prerequisites
 
-- Teleport cluster with a configured [self-hosted
+- Teleport cluster v14.1.3 or higher with a configured [self-hosted
   MariaDB](../enroll-self-hosted-databases/mysql-self-hosted.mdx) or [RDS MariaDB](../enroll-aws-databases/rds.mdx)
   database.
 - Ability to connect to and create user accounts in the target database.
@@ -35,8 +34,8 @@ The admin user must have privileges within the database to create users and
 grant them privileges. The admin user must also have privileges to monitor user
 processes and role assignments.
 
-In addition, a database is required for the admin user to log into by default.
-This database is also used to store custom user attributes and stored procedures.
+In addition, a schema is required for the admin user to log into by default.
+This schema is also used to store custom user attributes and stored procedures.
 
 <Tabs>
 <TabItem label="RDS MariaDB">
@@ -53,7 +52,9 @@ CREATE DATABASE IF NOT EXISTS `teleport`;
 GRANT ALL ON `teleport`.* TO 'teleport-admin' WITH GRANT OPTION;
 ```
 
-(!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
+Note that Teleport uses `teleport` as the name of the default schema but the
+name is configurable in the Teleport database definition. Replace the database
+name in the last two lines if you wish to use another database name.
 
 <Admonition type="warning" title ="Role Admin">
 In order for the admin user to grant a role to a database user, they must be
@@ -87,7 +88,9 @@ CREATE DATABASE IF NOT EXISTS `teleport`;
 GRANT ALL ON `teleport`.* TO 'teleport-admin' WITH GRANT OPTION;
 ```
 
-(!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
+Note that Teleport uses `teleport` as the name of the default schema but the
+name is configurable in the Teleport database definition. Replace the database
+name in the last two lines if you wish to use another database name.
 
 <Admonition type="warning" title ="Role Admin">
 In order for the admin user to grant a role to a database user, they must be
@@ -165,5 +168,5 @@ database queries in the Teleport Audit Logs, when the Teleport username is over
 ## Next steps
 
 - Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
-- Learn about [role templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
+- Learn about [role templating](../../../zero-trust-access/access-controls/guides/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

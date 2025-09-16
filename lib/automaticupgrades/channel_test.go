@@ -22,7 +22,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -162,8 +161,8 @@ func Test_Channel_CheckAndSetDefaults(t *testing.T) {
 		name                        string
 		channel                     *Channel
 		assertError                 require.ErrorAssertionFunc
-		expectedVersionGetterType   any
-		expectedCriticalTriggerType any
+		expectedVersionGetterType   interface{}
+		expectedCriticalTriggerType interface{}
 	}{
 		{
 			name:        "empty (invalid)",
@@ -211,46 +210,41 @@ func Test_Channel_GetVersion(t *testing.T) {
 	tests := []struct {
 		name            string
 		targetVersion   string
-		expectedVersion *semver.Version
+		expectedVersion string
 		assertErr       require.ErrorAssertionFunc
-		assertCheckErr  require.ErrorAssertionFunc
 	}{
 		{
 			name:            "normal version",
 			targetVersion:   "v1.2.3",
-			expectedVersion: semver.Must(version.EnsureSemver("v1.2.3")),
+			expectedVersion: "v1.2.3",
 			assertErr:       require.NoError,
 		},
 		{
 			name:            "no version",
 			targetVersion:   constants.NoVersion,
-			expectedVersion: nil,
+			expectedVersion: "",
 			assertErr:       require.Error,
 		},
 		{
 			name:            "version too high",
 			targetVersion:   "v99.1.1",
-			expectedVersion: teleport.SemVer(),
+			expectedVersion: "v" + teleport.Version,
 			assertErr:       require.NoError,
 		},
 		{
-			name:           "version invalid",
-			targetVersion:  "foobar",
-			assertCheckErr: require.Error,
+			name:          "version invalid",
+			targetVersion: "foobar",
+			assertErr:     require.Error,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ch := Channel{StaticVersion: tt.targetVersion}
-			if tt.assertCheckErr != nil {
-				tt.assertCheckErr(t, ch.CheckAndSetDefaults())
-			} else {
-				require.NoError(t, ch.CheckAndSetDefaults())
-				result, err := ch.GetVersion(ctx)
+			require.NoError(t, ch.CheckAndSetDefaults())
 
-				tt.assertErr(t, err)
-				require.Equal(t, tt.expectedVersion, result)
-			}
+			result, err := ch.GetVersion(ctx)
+			tt.assertErr(t, err)
+			require.Equal(t, tt.expectedVersion, result)
 		})
 	}
 }

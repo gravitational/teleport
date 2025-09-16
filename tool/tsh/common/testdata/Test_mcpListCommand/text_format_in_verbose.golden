@@ -1,5 +1,0 @@
-Name       Description Type  Labels  Command Args Allowed Tools          
----------- ----------- ----- ------- ------- ---- ---------------------- 
-allow-read description stdio env=dev test    arg  [read_*]               
-deny-write description stdio env=dev test    arg  [*], except: [write_*] 
-

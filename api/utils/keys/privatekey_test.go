@@ -41,7 +41,6 @@ import (
 )
 
 func TestMarshalAndParseKey(t *testing.T) {
-	//nolint:forbidigo // Generating a small RSA key allowed for test.
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	require.NoError(t, err)
 	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -304,7 +303,9 @@ func TestHardwareKeyMethods(t *testing.T) {
 	// Test hardware key methods with a software key.
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	key, err := keys.NewPrivateKey(priv)
+	keyPEM, err := keys.MarshalPrivateKey(priv)
+	require.NoError(t, err)
+	key, err := keys.NewPrivateKey(priv, keyPEM)
 	require.NoError(t, err)
 
 	require.Nil(t, key.GetAttestationStatement())

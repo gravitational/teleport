@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import Table from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
 

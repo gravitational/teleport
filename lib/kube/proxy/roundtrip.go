@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -32,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -90,7 +90,7 @@ type roundTripperConfig struct {
 	// headers instead of relying on the certificate to transport it.
 	useIdentityForwarding bool
 	// log specifies the logger.
-	log *slog.Logger
+	log log.FieldLogger
 
 	proxier func(*http.Request) (*url.URL, error)
 }
@@ -209,7 +209,7 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	copyImpersonationHeaders(header, s.originalHeaders)
 	header.Set(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
 	header.Set(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
-	if err := setupImpersonationHeaders(s.sess, header); err != nil {
+	if err := setupImpersonationHeaders(log.StandardLogger(), s.sess, header); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -298,21 +298,26 @@ func extractKubeAPIStatusFromReq(rsp *http.Response) error {
 	return &upgradeFailureError{Cause: fmt.Errorf("unable to upgrade connection: %s", responseError)}
 }
 
+func isTeleportUpgradeFailure(err error) bool {
+	var upgradeErr *upgradeFailureError
+	return errors.As(err, &upgradeErr)
+}
+
 // upgradeFailureError encapsulates the cause for why the streaming
 // upgrade request failed. Implements error interface.
 type upgradeFailureError struct {
 	Cause error
 }
 
-func (u *upgradeFailureError) Error() string {
-	return u.Cause.Error()
+func (e *upgradeFailureError) Error() string {
+	if e.Cause == nil {
+		return "upgrade failed"
+	}
+	return fmt.Sprintf("upgrade failed: %v", e.Cause)
 }
-
-func (u *upgradeFailureError) Unwrap() error {
-	return u.Cause
-}
-
-func isTeleportUpgradeFailure(err error) bool {
-	var upgradeErr *upgradeFailureError
-	return errors.As(err, &upgradeErr)
+func (e *upgradeFailureError) Unwrap() error {
+	if e.Cause == nil {
+		return nil
+	}
+	return e.Cause
 }

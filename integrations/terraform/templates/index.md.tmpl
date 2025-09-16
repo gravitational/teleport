@@ -1,7 +1,7 @@
 ---
 title: "Teleport Terraform Provider"
 description: Reference documentation of the Teleport Terraform provider.
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -135,7 +135,7 @@ This auth method has the following limitations:
 - This auth method does not work against Teleport clusters with MFA set to `webauthn`.
   On such clusters, Teleport will reject any long-lived certificate and require
   [an additional MFA challenge for administrative
-  actions](../../zero-trust-access/authentication/mfa-for-admin-actions.mdx).
+  actions](../../zero-trust-access/access-controls/guides/mfa-for-admin-actions.mdx).
 
 ### With a token (native MachineID)
 
@@ -164,7 +164,7 @@ This auth method has the following limitations:
 - This auth method does not work against Teleport clusters with MFA set to `webauthn`.
   On such clusters, Teleport will reject any long-lived certificate and require
   [an additional MFA challenge for administrative
-  actions](../../zero-trust-access/authentication/mfa-for-admin-actions.mdx).
+  actions](../../zero-trust-access/access-controls/guides/mfa-for-admin-actions.mdx).
 
 {{ .SchemaMarkdown | trimspace }}
 

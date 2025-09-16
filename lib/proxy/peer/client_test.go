@@ -19,6 +19,9 @@
 package peer
 
 import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"testing"
 	"time"
 
@@ -36,7 +39,7 @@ import (
 func TestClientConn(t *testing.T) {
 	ca := newSelfSignedCA(t)
 
-	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy)
+	client := setupClient(t, ca, ca, types.RoleProxy)
 	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
 	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
 
@@ -79,7 +82,7 @@ func TestClientConn(t *testing.T) {
 func TestClientUpdate(t *testing.T) {
 	ca := newSelfSignedCA(t)
 
-	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy)
+	client := setupClient(t, ca, ca, types.RoleProxy)
 	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy)
 	server2, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
 
@@ -135,25 +138,22 @@ func TestClientUpdate(t *testing.T) {
 func TestCAChange(t *testing.T) {
 	clientCA := newSelfSignedCA(t)
 	serverCA := newSelfSignedCA(t)
-	currentServerCA := newAtomicCA(serverCA)
 
-	client := setupClient(t, clientCA, currentServerCA, types.RoleProxy)
-	server, ts := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
-	t.Cleanup(func() { server.Close() })
+	client := setupClient(t, clientCA, serverCA, types.RoleProxy)
+	server, _ := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
 
 	// dial server and send a test data frame
-	const supportsQUICFalse = false
 	conn, err := client.connect(connectParams{
-		peerID:       "s1",
-		peerAddr:     ts.GetPeerAddr(),
-		peerHost:     "s1",
-		peerGroup:    "",
-		supportsQUIC: supportsQUICFalse,
+		peerID:    "s1",
+		peerAddr:  server.config.Listener.Addr().String(),
+		peerHost:  "s1",
+		peerGroup: "",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	stream, err := proto.NewProxyServiceClient(conn.(*grpcClientConn).cc).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
@@ -161,17 +161,15 @@ func TestCAChange(t *testing.T) {
 	// rotate server ca
 	require.NoError(t, server.Close())
 	newServerCA := newSelfSignedCA(t)
-	server2, ts := setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
-	t.Cleanup(func() { server2.Close() })
+	server, _ = setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
 
 	// new connection should fail because client tls config still references old
 	// RootCAs.
 	conn, err = client.connect(connectParams{
-		peerID:       "s1",
-		peerAddr:     ts.GetPeerAddr(),
-		peerHost:     "s1",
-		peerGroup:    "",
-		supportsQUIC: supportsQUICFalse,
+		peerID:    "s1",
+		peerAddr:  server.config.Listener.Addr().String(),
+		peerHost:  "s1",
+		peerGroup: "",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
@@ -182,14 +180,19 @@ func TestCAChange(t *testing.T) {
 
 	// new connection should succeed because client tls config references new
 	// RootCAs.
-	currentServerCA.Store(newServerCA)
+	client.config.getConfigForServer = func() (*tls.Config, error) {
+		config := client.config.TLSConfig.Clone()
+		rootCAs := x509.NewCertPool()
+		rootCAs.AddCert(newServerCA.Cert)
+		config.RootCAs = rootCAs
+		return config, nil
+	}
 
 	conn, err = client.connect(connectParams{
-		peerID:       "s1",
-		peerAddr:     ts.GetPeerAddr(),
-		peerHost:     "s1",
-		peerGroup:    "",
-		supportsQUIC: supportsQUICFalse,
+		peerID:    "s1",
+		peerAddr:  server.config.Listener.Addr().String(),
+		peerHost:  "s1",
+		peerGroup: "",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, conn)
@@ -201,7 +204,7 @@ func TestCAChange(t *testing.T) {
 
 func TestBackupClient(t *testing.T) {
 	ca := newSelfSignedCA(t)
-	client := setupClient(t, ca, newAtomicCA(ca), types.RoleProxy)
+	client := setupClient(t, ca, ca, types.RoleProxy)
 	dialCalled := false
 
 	// Force the first client connection to fail.

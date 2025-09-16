@@ -1,7 +1,7 @@
 ---
 title: Automatically Register Resources with Teleport
 description: Learn how to use the Teleport API to start agents automatically when you add resources to your infrastructure.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
@@ -12,15 +12,13 @@ infrastructure with your Teleport cluster.
 Teleport already supports the automatic discovery of [Kubernetes
 clusters](../../enroll-resources/auto-discovery/kubernetes/kubernetes.mdx) in AWS, Azure, and
 Google Cloud, as well as
-[servers](../../enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery.mdx) on
+[servers](../../enroll-resources/auto-discovery/servers/ec2-discovery.mdx) on
 Amazon EC2.  To support other resources and cloud providers, you can use the API
 to write your own workflow.
 
 In this guide, we will demonstrate some libraries you can use to automatically
 register resources with Teleport. We will use an example you can run locally on
 your workstation.
-
-## How it works
 
 Automatic registration consists of the following steps:
 
@@ -40,6 +38,8 @@ The program we build in this guide is intended as a learning tool. **Do not
 connect it to your production Teleport cluster.**  Use a demo cluster instead.
 
 </Admonition>
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -125,8 +125,6 @@ $ tctl create -f register-apps.yaml
 role 'register-apps' has been created
 user "register-apps" has been created
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 ### Enable impersonation of the client application
 

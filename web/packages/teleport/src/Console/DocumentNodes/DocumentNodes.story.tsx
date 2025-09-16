@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { Node } from 'teleport/services/nodes/types';
 
 import { TestLayout } from './../Console.story';

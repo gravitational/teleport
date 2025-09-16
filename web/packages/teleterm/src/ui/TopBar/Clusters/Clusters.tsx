@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box } from 'design';
@@ -31,7 +31,7 @@ import { ClustersFilterableList } from './ClustersFilterableList/ClustersFiltera
 import { useClusters } from './useClusters';
 
 export function Clusters() {
-  const iconRef = useRef(undefined);
+  const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const clusters = useClusters();
 

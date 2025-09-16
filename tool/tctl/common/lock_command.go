@@ -59,8 +59,6 @@ func (c *LockCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.mainCmd.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.expires)
 	c.mainCmd.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.ttl)
 	c.mainCmd.Flag("server-id", "UUID of a Teleport server to disable.").StringVar(&c.spec.Target.ServerID)
-	c.mainCmd.Flag("bot-instance-id", "UUID of a bot instance to disable").StringVar(&c.spec.Target.BotInstanceID)
-	c.mainCmd.Flag("join-token", "Bot join token name to disable").StringVar(&c.spec.Target.JoinToken)
 }
 
 // TryRun attempts to run subcommands.

@@ -21,11 +21,12 @@ package local
 import (
 	"context"
 	"encoding/json"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -74,7 +75,14 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	var extItems []backend.Item
 	var err error
 
-	switch r := resource.(type) {
+	// Unwrap "new style" resources.
+	// We always want to switch over the underlying type.
+	var res any = resource
+	if w, ok := res.(types.Resource153Unwrapper); ok {
+		res = w.Unwrap()
+	}
+
+	switch r := res.(type) {
 	case types.User:
 		item, err = itemFromUser(r)
 		if auth := r.GetLocalAuth(); err == nil && auth != nil {
@@ -100,12 +108,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromClusterNetworkingConfig(r)
 	case types.AuthPreference:
 		item, err = itemFromAuthPreference(r)
-	case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
-		item, err = itemFromAutoUpdateConfig(r.UnwrapT())
-	case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
-		item, err = itemFromAutoUpdateVersion(r.UnwrapT())
-	case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
-		item, err = itemFromHealthCheckConfig(r.UnwrapT())
+	case *autoupdatev1pb.AutoUpdateConfig:
+		item, err = itemFromAutoUpdateConfig(r)
+	case *autoupdatev1pb.AutoUpdateVersion:
+		item, err = itemFromAutoUpdateVersion(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -430,17 +436,17 @@ var fullUsersPrefix = backend.ExactKey(webPrefix, usersPrefix)
 
 // splitUsernameAndSuffix is a helper for extracting usernames and suffixes from
 // backend key values.
-func splitUsernameAndSuffix(key backend.Key) (name string, suffix []string, err error) {
+func splitUsernameAndSuffix(key backend.Key) (name string, suffix string, err error) {
 	if !key.HasPrefix(fullUsersPrefix) {
-		return "", nil, trace.BadParameter("expected format '%s/<name>/<suffix>', got '%s'", fullUsersPrefix, key)
+		return "", "", trace.BadParameter("expected format '%s/<name>/<suffix>', got '%s'", fullUsersPrefix, key)
 	}
 	k := key.TrimPrefix(fullUsersPrefix)
 
 	components := k.Components()
 	if len(components) < 2 {
-		return "", nil, trace.BadParameter("expected format <name>/<suffix>, got %q", key)
+		return "", "", trace.BadParameter("expected format <name>/<suffix>, got %q", key)
 	}
-	return components[0], k.Components()[1:], nil
+	return string(components[0]), k.String()[len(components[0])+utf8.RuneLen(backend.Separator):], nil
 }
 
 // collectUserItems handles the case where multiple items pertain to the same user resource.
@@ -487,20 +493,20 @@ type userItems struct {
 }
 
 // Set attempts to set a field by suffix.
-func (u *userItems) Set(suffix []string, item backend.Item) (ok bool) {
-	switch {
-	case len(suffix) == 0:
-		return false
-	case suffix[0] == paramsPrefix:
+func (u *userItems) Set(suffix string, item backend.Item) (ok bool) {
+	switch suffix {
+	case paramsPrefix:
 		u.params = &item
-	case suffix[0] == pwdPrefix:
+	case pwdPrefix:
 		u.pwd = &item
-	case suffix[0] == webauthnLocalAuthPrefix:
+	case webauthnLocalAuthPrefix:
 		u.webauthnLocalAuth = &item
-	case suffix[0] == mfaDevicePrefix:
-		u.mfa = append(u.mfa, &item)
 	default:
-		return false
+		if strings.HasPrefix(suffix, mfaDevicePrefix) {
+			u.mfa = append(u.mfa, &item)
+		} else {
+			return false
+		}
 	}
 	return true
 }

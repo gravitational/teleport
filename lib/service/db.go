@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func (process *TeleportProcess) shouldInitDatabases() bool {
@@ -76,21 +77,21 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Create database resources from databases defined in the static configuration.
 	var databases types.Databases
-	for _, dbSpec := range process.Config.Databases.Databases {
-		database, err := dbSpec.ToDatabase()
+	for _, db := range process.Config.Databases.Databases {
+		db, err := db.ToDatabase()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := services.ValidateDatabase(database); err != nil {
+		if err := services.ValidateDatabase(db); err != nil {
 			return trace.Wrap(err)
 		}
-		databases = append(databases, database)
+		databases = append(databases, db)
 	}
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDatabase,
-			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 			Client:    conn.Client,
 		},
 	})
@@ -98,17 +99,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	clusterName := conn.ClusterName()
+	clusterName := conn.ServerIdentity.ClusterName
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -137,7 +138,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		ServerID:       process.Config.HostUUID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
-		Logger:         process.logger,
+		Logger:         process.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -164,7 +165,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentDatabase),
 		ConnectionMonitor:    connMonitor,
 		ConnectedProxyGetter: proxyGetter,
-		InventoryHandle:      process.inventoryHandle,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -183,12 +183,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
 			Component:            teleport.ComponentDatabase,
-			HostUUID:             conn.HostID(),
+			HostUUID:             conn.ServerIdentity.ID.HostUUID,
 			Resolver:             tunnelAddrResolver,
 			Client:               conn.Client,
 			Server:               dbService,
 			AccessPoint:          conn.Client,
-			AuthMethods:          conn.ClientAuthMethods(),
+			HostSigner:           conn.ServerIdentity.KeySigner,
 			Cluster:              clusterName,
 			FIPS:                 process.Config.FIPS,
 			ConnectedProxyGetter: proxyGetter,
@@ -206,7 +206,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	// Execute this when the process running database proxy service exits.
-	process.OnExit("db.stop", func(payload any) {
+	process.OnExit("db.stop", func(payload interface{}) {
 		if dbService != nil {
 			if payload == nil {
 				logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
@@ -227,7 +227,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	})
 
 	process.BroadcastEvent(Event{Name: DatabasesReady, Payload: nil})
-	logger.InfoContext(process.ExitContext(), "Database service has successfully started.", "database", databases)
+	logger.InfoContext(process.ExitContext(), "Database service has successfully started",
+		"databases", logutils.StringerSliceAttr(databases),
+	)
 
 	// Block and wait while the server and agent pool are running.
 	if err := dbService.Wait(); err != nil {

@@ -17,14 +17,13 @@
  */
 
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import React from 'react';
 
 import { fireEvent, render } from 'design/utils/testing';
 
-import Modal, { ModalProps } from './Modal';
+import Modal from './Modal';
 
-const renderModal = (props: Omit<ModalProps, 'open'>) => {
+const renderModal = props => {
   return render(
     <Modal open={true} {...props}>
       <div>Hello</div>
@@ -138,27 +137,11 @@ test('respects backdropProps prop invisible', () => {
   });
 
   expect(screen.getByTestId('backdrop')).toHaveStyle({
-    'background-color': 'rgba(0, 0, 0, 0)',
+    'background-color': 'transparent',
   });
 });
 
-test('restores focus on close', async () => {
-  const user = userEvent.setup();
-  render(<ToggleableModal />);
-  const toggleModalButton = screen.getByRole('button', { name: 'Toggle' });
-
-  await user.click(toggleModalButton);
-  // Type in the input inside the modal to shift focus into another element.
-  const input = screen.getByLabelText('Input in modal');
-  await user.type(input, 'a');
-
-  const closeModal = screen.getByRole('button', { name: 'Close modal' });
-  await user.click(closeModal);
-
-  expect(toggleModalButton).toHaveFocus();
-});
-
-test('closing dialog when attachCustomKeyEventHandler is set only hides it with DOM', async () => {
+test('closing dialog when keepInDOMAfterClose is set only hides it with DOM', async () => {
   const { rerender } = render(
     <Modal open={true} keepInDOMAfterClose>
       <div>Hello</div>
@@ -175,26 +158,3 @@ test('closing dialog when attachCustomKeyEventHandler is set only hides it with 
 
   expect(screen.getByText('Hello')).not.toBeVisible();
 });
-
-const ToggleableModal = () => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <>
-      <button type="button" onClick={() => setIsOpen(!isOpen)}>
-        Toggle
-      </button>
-      <Modal open={isOpen}>
-        <form>
-          <label>
-            Input in modal
-            <input />
-          </label>
-          <button type="button" onClick={() => setIsOpen(false)}>
-            Close modal
-          </button>
-        </form>
-      </Modal>
-    </>
-  );
-};

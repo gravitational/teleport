@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.
@@ -18,23 +19,22 @@
 package sshagent
 
 import (
-	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"os/exec"
-	"os/user"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/Microsoft/go-winio"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 const namedPipe = `\\.\pipe\openssh-ssh-agent`
@@ -105,7 +105,7 @@ func dialCygwin(socket string) (net.Conn, error) {
 	}
 	key := sockMatches[3]
 
-	u, err := user.Current()
+	u, err := apiutils.CurrentUser()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -216,7 +216,7 @@ func getCygwinUIDFromPS() (uint32, error) {
 // preform a successful handshake with it. Handshake details here:
 // https://stackoverflow.com/questions/23086038/what-mechanism-is-used-by-msys-cygwin-to-emulate-unix-domain-sockets
 func attemptCygwinHandshake(port, key string, uid uint32) (net.Conn, error) {
-	slog.DebugContext(context.Background(), "[KEY AGENT] attempting a handshake with Cygwin ssh-agent socket", "port", port, "uid", uid)
+	logrus.Debugf("[KEY AGENT] attempting a handshake with Cygwin ssh-agent socket; port=%s uid=%d", port, uid)
 
 	conn, err := net.Dial("tcp", "localhost:"+port)
 	if err != nil {

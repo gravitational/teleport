@@ -23,14 +23,13 @@ import (
 	"crypto/tls"
 	"log/slog"
 	"net"
-	"runtime/debug"
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -49,7 +48,7 @@ type Proxy struct {
 	// TLSConfig is the proxy TLS configuration.
 	TLSConfig *tls.Config
 	// Middleware is the auth middleware.
-	Middleware *authz.Middleware
+	Middleware *auth.Middleware
 	// Service is used to connect to a remote database service.
 	Service common.Service
 	// Log is used for logging.
@@ -82,7 +81,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// has a chance to close the connection from its side.
 	defer func() {
 		if r := recover(); r != nil {
-			p.Log.WarnContext(ctx, "Recovered in MySQL proxy while handling connectionv.", "from", clientConn.RemoteAddr(), "problem", r, "stack", debug.Stack())
+			p.Log.WarnContext(ctx, "Recovered in MySQL proxy while handling connectionv.", "from", clientConn.RemoteAddr(), "to", r)
 			err = trace.BadParameter("failed to handle MySQL client connection")
 		}
 		if err != nil {

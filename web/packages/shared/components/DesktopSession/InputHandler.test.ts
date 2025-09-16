@@ -16,11 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  ButtonState,
-  selectDirectoryInBrowser,
-  TdpClient,
-} from 'shared/libs/tdp';
+import { ButtonState, TdpClient } from 'shared/libs/tdp';
 
 import { InputHandler } from './InputHandler';
 
@@ -45,10 +41,7 @@ describe('InputHandler', () => {
 
   beforeEach(() => {
     inputHandler = new InputHandler();
-    mockTdpClient = new TdpClient(
-      () => null,
-      selectDirectoryInBrowser
-    ) as jest.Mocked<TdpClient>;
+    mockTdpClient = new TdpClient(() => null) as jest.Mocked<TdpClient>;
   });
 
   afterEach(() => {

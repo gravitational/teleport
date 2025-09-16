@@ -1,15 +1,13 @@
 ---
 title: Jamf Pro Integration
 description: Sync your Jamf Pro inventory into Teleport
-labels:
+tags:
  - how-to
  - identity-governance
 ---
 
 Device Trust Jamf Pro integration lets you automatically sync your Jamf Pro computer
 inventory into Teleport.
-
-## How it works
 
 The Teleport Jamf Pro service is a distinct `teleport` process that periodically
 reads your computer inventory from Jamf Pro and syncs it to Teleport. It performs
@@ -29,9 +27,11 @@ and behavior.
 
 </details>
 
+{/* lint ignore page-structure remark-lint */}
+
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
@@ -50,17 +50,12 @@ specific for Teleport.
 
 Make sure that your Jamf role has the "Read Computers" privilege.
 
-You can test your client credentials using the following Jamf query, replacing
-<Var name="(=jamf.api_endpoint=)" description="Jamf API URL" /> with your Jamf
-API endpoint, <Var name="(=jamf.client_id=)" description="Jamf API client ID" />
-with your client ID, and 
-<Var name="(=jamf.client_secret=)" description="Jamf API client secret" /> with
-your client secret:
+You can test your client credentials using the following Jamf query:
 
 ```code
-$ URL='<Var name="(=jamf.api_endpoint=)" />'
-$ CLIENT_ID='<Var name="(=jamf.client_id=)" />'
-$ CLIENT_SECRET='<Var name="(=jamf.client_secret=)" />'
+$ URL='<Var name="(=jamf.api_endpoint=)" description="Jamf API URL"/>'
+$ CLIENT_ID='<Var name="(=jamf.client_id=)" description="Jamf API client ID" />'
+$ CLIENT_SECRET='<Var name="(=jamf.client_secret=)" description="Jamf API client secret" />'
 
 ## Acquire access token from Jamf.
 $ TOKEN_RESP="$(curl -X POST "$URL/api/oauth/token" \

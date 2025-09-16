@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package teleport.machineid.v1;
 
-import "google/protobuf/duration.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
@@ -59,10 +58,6 @@ message BotSpec {
   // Where multiple specified with the same name, these will be merged by the
   // server.
   repeated Trait traits = 2;
-  // The max session TTL value for the bot's internal role. Unless specified,
-  // bots may not request a value beyond the default maximum TTL of 12 hours.
-  // This value may not be larger than 7 days (168 hours).
-  google.protobuf.Duration max_session_ttl = 3;
 }
 
 // Fields that are set by the server as results of operations. These should not

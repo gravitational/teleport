@@ -19,16 +19,17 @@
 package athena
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -43,6 +44,7 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -91,7 +93,8 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		c := newSqsMessagesCollector(cfg)
 		eventsChan := c.getEventsChan()
 
-		readSQSCtx := t.Context()
+		readSQSCtx, readCancel := context.WithCancel(context.Background())
+		defer readCancel()
 		go c.fromSQS(readSQSCtx)
 
 		// receiver is used to read messages from eventsChan.
@@ -163,7 +166,8 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 
 		eventsChan := c.getEventsChan()
 
-		readSQSCtx := t.Context()
+		readSQSCtx, readCancel := context.WithCancel(context.Background())
+		defer readCancel()
 
 		go c.fromSQS(readSQSCtx)
 
@@ -208,7 +212,8 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 
 		eventsChan := c.getEventsChan()
 
-		readSQSCtx := t.Context()
+		readSQSCtx, readCancel := context.WithCancel(context.Background())
+		defer readCancel()
 
 		go c.fromSQS(readSQSCtx)
 
@@ -218,7 +223,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 
 		// When over 100 unique days are sent
 		eventsToSend := make([]apievents.AuditEvent, 0, 101)
-		for i := range 101 {
+		for i := 0; i < 101; i++ {
 			day := fclock.Now().Add(time.Duration(i) * 24 * time.Hour)
 			eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
 		}
@@ -246,7 +251,7 @@ func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
 		queueURL:          "test-queue",
 		payloadBucket:     "bucket",
 		payloadDownloader: &fakeS3manager{},
-		logger:            slog.Default(),
+		logger:            utils.NewLoggerForTests(),
 		errHandlingFn: func(ctx context.Context, errC chan error) {
 			err, ok := <-errC
 			if ok && err != nil {
@@ -411,7 +416,7 @@ func (m *mockReceiver) ReceiveMessage(ctx context.Context, params *sqs.ReceiveMe
 }
 
 func TestConsumerRunContinuouslyOnSingleAuth(t *testing.T) {
-	log := slog.Default()
+	log := utils.NewLoggerForTests()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	defer backend.Close()
@@ -556,6 +561,101 @@ func TestRunWithMinInterval(t *testing.T) {
 	})
 }
 
+func TestErrHandlingFnFromSQS(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	log := utils.NewLoggerForTests()
+	// buf is used as output of logs, that we will use for assertions.
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+
+	metrics, err := newAthenaMetrics(athenaMetricsConfig{
+		batchInterval:        defaultBatchInterval,
+		externalAuditStorage: false,
+	})
+	require.NoError(t, err)
+
+	cfg := &Config{
+		LogEntry: log.WithField(teleport.ComponentKey, "test"),
+		metrics:  metrics,
+	}
+
+	t.Run("a lot of errors, make sure only up to maxErrorCountForLogsOnSQSReceive are printed and total count", func(t *testing.T) {
+		buf.Reset()
+		noOfErrors := maxErrorCountForLogsOnSQSReceive + 1
+		errorC := make(chan error, noOfErrors)
+		go func() {
+			for i := 0; i < noOfErrors; i++ {
+				errorC <- errors.New("some error")
+			}
+			close(errorC)
+		}()
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
+		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
+		require.Contains(t, buf.String(), fmt.Sprintf("Got %d errors from SQS collector, printed only first", noOfErrors))
+	})
+
+	t.Run("few errors, no total count should be printed", func(t *testing.T) {
+		buf.Reset()
+		noOfErrors := 5
+		errorC := make(chan error, noOfErrors)
+		go func() {
+			for i := 0; i < noOfErrors; i++ {
+				errorC <- errors.New("some error")
+			}
+			close(errorC)
+		}()
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
+		require.Equal(t, noOfErrors, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
+		require.NotContains(t, buf.String(), "printed only first")
+	})
+	t.Run("no errors at all", func(t *testing.T) {
+		buf.Reset()
+		errorC := make(chan error, 10)
+		go func() {
+			// close without any errors sent means receiving loop finished without any err
+			close(errorC)
+		}()
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
+		require.Empty(t, buf.String())
+	})
+	t.Run("no errors at all - stopped via ctx cancel", func(t *testing.T) {
+		buf.Reset()
+		errorC := make(chan error, 10)
+		defer close(errorC)
+
+		ctx, inCancel := context.WithCancel(ctx)
+		inCancel()
+
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
+		require.Empty(t, buf.String())
+	})
+
+	t.Run("there were a lot of errors, stopped via ctx cancel", func(t *testing.T) {
+		buf.Reset()
+		// unbuffered channel and a more messages,
+		// just make sure that errors are processed
+		// before cancel happen, used to avoid sleeping.
+		noOfErrors := maxErrorCountForLogsOnSQSReceive + 10
+
+		errorC := make(chan error)
+		defer close(errorC)
+
+		ctx, inCancel := context.WithCancel(ctx)
+		go func() {
+			for i := 0; i < noOfErrors; i++ {
+				errorC <- errors.New("some error")
+			}
+			inCancel()
+		}()
+
+		errHandlingFnFromSQS(cfg)(ctx, errorC)
+		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
+		require.Contains(t, buf.String(), "printed only first")
+	})
+}
+
 // TestConsumerWriteToS3 checks if writing parquet files per date works.
 // It receives events from different dates and make sure that multiple
 // files are created and compare it against file in testdata.
@@ -663,7 +763,7 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 
 	handlesGen := func(n int) []string {
 		out := make([]string, 0, n)
-		for i := range n {
+		for i := 0; i < n; i++ {
 			out = append(out, fmt.Sprintf("handle-%d", i))
 		}
 		return out

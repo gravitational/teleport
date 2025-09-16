@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { forwardRef, useRef, useState } from 'react';
+import React, { forwardRef, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
 import { blink, Box, Button, Indicator, Menu, MenuItem } from 'design';
@@ -44,7 +44,7 @@ import {
 type IndicatorStatus = AttemptStatus | 'not-configured';
 
 export function NavigationMenu() {
-  const iconRef = useRef(undefined);
+  const iconRef = useRef();
   const [isMenuOpened, setIsMenuOpened] = useState(false);
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { isAgentConfiguredAttempt, currentAction, canUse } =
@@ -174,14 +174,13 @@ interface MenuIconProps {
   indicatorStatus: IndicatorStatus;
 }
 
-export const MenuIcon = forwardRef<HTMLButtonElement, MenuIconProps>(
+export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
   (props, ref) => {
     return (
       <StyledButton
-        ref={ref}
+        setRef={ref}
         onClick={props.onClick}
-        intent="neutral"
-        fill="filled"
+        kind="secondary"
         size="small"
         title="Open Connect My Computer"
         data-testid="connect-my-computer-icon"
@@ -199,6 +198,7 @@ export const MenuIcon = forwardRef<HTMLButtonElement, MenuIconProps>(
 
 const StyledButton = styled(Button)`
   position: relative;
+  background: ${props => props.theme.colors.spotBackground[0]};
   padding: 0;
   width: ${props => props.theme.space[5]}px;
   height: ${props => props.theme.space[5]}px;

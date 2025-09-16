@@ -21,7 +21,6 @@ import styled from 'styled-components';
 
 import { ButtonIcon, Flex, Text } from 'design';
 import { Trash, Unlink } from 'design/Icon';
-import { typography, TypographyProps } from 'design/system';
 
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ListItem } from 'teleterm/ui/components/ListItem';
@@ -58,7 +57,7 @@ export function ConnectionItem(props: {
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
-  const ref = useRef<HTMLLIElement>(null);
+  const ref = useRef<HTMLLIElement>();
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -90,7 +89,7 @@ export function ConnectionItem(props: {
           `}
         >
           <Text
-            typography="body2"
+            typography="body1"
             bold
             color="text.main"
             title={props.item.title}
@@ -99,9 +98,18 @@ export function ConnectionItem(props: {
               line-height: 16px;
             `}
           >
-            <ConnectionKindIndicator>
+            <span
+              css={`
+                font-size: 10px;
+                background: ${props => props.theme.colors.spotBackground[2]};
+                opacity: 0.85;
+                padding: 1px 2px;
+                margin-right: 4px;
+                border-radius: 4px;
+              `}
+            >
               {getKindName(props.item)}
-            </ConnectionKindIndicator>
+            </span>
             <span
               css={`
                 vertical-align: middle;
@@ -114,7 +122,7 @@ export function ConnectionItem(props: {
           {props.showClusterName && (
             <Text
               color="text.slightlyMuted"
-              typography="body3"
+              typography="body2"
               title={props.item.clusterName}
             >
               {props.item.clusterName}
@@ -144,16 +152,6 @@ const ConnectionListItem = styled(ListItem)<{ $showClusterName?: boolean }>`
   height: unset;
 `;
 
-export const ConnectionKindIndicator = styled.span<TypographyProps>`
-  font-size: 10px;
-  background: ${props => props.theme.colors.spotBackground[2]};
-  opacity: 0.85;
-  padding: 1px 2px;
-  margin-right: 4px;
-  border-radius: 4px;
-  ${typography}
-`;
-
 function getKindName(connection: ExtendedTrackedConnection): string {
   switch (connection.kind) {
     case 'connection.gateway':
@@ -168,8 +166,6 @@ function getKindName(connection: ExtendedTrackedConnection): string {
       return 'SSH';
     case 'connection.kube':
       return 'KUBE';
-    case 'connection.desktop':
-      return 'DESKTOP';
     default:
       return 'UNKNOWN';
   }

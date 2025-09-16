@@ -20,6 +20,7 @@ package machineidv1_test
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/x509"
 	"testing"
 	"time"
@@ -31,8 +32,8 @@ import (
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 )
 
@@ -77,14 +78,14 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := authtest.CreateUser(
+	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
 		role,
 	)
 	require.NoError(t, err)
-	unauthorizedUser, err := authtest.CreateUser(
+	unauthorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"unauthorized",
@@ -93,7 +94,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	privateKey, err := native.GenerateRSAPrivateKey()
 	require.NoError(t, err)
 	pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
 	require.NoError(t, err)
@@ -219,10 +220,10 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			client, err := srv.NewClient(auth.TestUser(tt.user))
 			require.NoError(t, err)
 
-			res, err := machineidv1pb.NewWorkloadIdentityServiceClient(client.GetConnection()).
+			res, err := client.WorkloadIdentityServiceClient().
 				SignX509SVIDs(ctx, tt.req)
 			tt.requireError(t, err)
 			if tt.assertResponse != nil {
@@ -261,14 +262,14 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := authtest.CreateUser(
+	authorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
 		role,
 	)
 	require.NoError(t, err)
-	unauthorizedUser, err := authtest.CreateUser(
+	unauthorizedUser, err := auth.CreateUser(
 		ctx,
 		srv.Auth(),
 		"unauthorized",
@@ -286,8 +287,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 	jwtSigner, err := srv.Auth().GetKeyStore().GetJWTSigner(ctx, jwtCA)
 	require.NoError(t, err)
 
-	kid, err := libjwt.KeyID(jwtSigner.Public())
-	require.NoError(t, err)
+	kid := libjwt.KeyID(jwtSigner.Public().(*rsa.PublicKey))
 
 	// Upsert a fake proxy to ensure we have a public address to use for the
 	// issuer.
@@ -390,10 +390,10 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			client, err := srv.NewClient(auth.TestUser(tt.user))
 			require.NoError(t, err)
 
-			res, err := machineidv1pb.NewWorkloadIdentityServiceClient(client.GetConnection()).
+			res, err := client.WorkloadIdentityServiceClient().
 				SignJWTSVIDs(ctx, tt.req)
 			tt.requireError(t, err)
 			if tt.assertResponse != nil {

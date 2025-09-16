@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
-
 import { useAppContext } from '../appContextProvider';
 
 export function useAccessRequestsButton() {
   const ctx = useAppContext();
-  useWorkspaceServiceState();
+  ctx.workspacesService.useState();
 
   const workspaceAccessRequest =
     ctx.workspacesService.getActiveWorkspaceAccessRequestsService();

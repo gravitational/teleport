@@ -36,7 +36,7 @@ import (
 
 var samlSpec = &types.SAMLConnectorSpecV2{
 	Issuer:                   "issuer",
-	SSO:                      "https://example.com",
+	SSO:                      "sso",
 	AssertionConsumerService: "acs",
 	Audience:                 "audience",
 	ServiceProviderIssuer:    "spi",

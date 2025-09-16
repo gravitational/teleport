@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useLayoutEffect } from 'react';
+import React, { useLayoutEffect } from 'react';
 
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
@@ -25,6 +25,7 @@ import {
   makeRootCluster,
   makeServer,
 } from 'teleterm/services/tshd/testHelpers';
+import AppContext from 'teleterm/ui/appContext';
 import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -193,6 +194,22 @@ export function AgentVersionTooNewWithFailedAutoStart() {
   );
 }
 
+// Shows only cluster upgrade instructions.
+// Downgrading the app would result in installing a version that doesn't support 'Connect My Computer'.
+// DELETE IN 17.0.0 (gzdunek): by the time 17.0 releases, 14.x will no longer be
+// supported, so downgrade will be always possible.
+export function AgentVersionTooNewButOnlyClusterCanBeUpgraded() {
+  const appContext = new MockAppContext({ appVersion: '14.1.0' });
+
+  return (
+    <ShowState
+      agentProcessState={{ status: 'not-started' }}
+      appContext={appContext}
+      proxyVersion={'13.3.0'}
+    />
+  );
+}
+
 export function AgentVersionTooOld() {
   const appContext = new MockAppContext({ appVersion: '14.1.0' });
 
@@ -219,7 +236,7 @@ export function UpgradeAgentSuggestion() {
 
 function ShowState(props: {
   agentProcessState: AgentProcessState;
-  appContext?: MockAppContext;
+  appContext?: AppContext;
   proxyVersion?: string;
   autoStart?: boolean;
 }) {
@@ -231,7 +248,18 @@ function ShowState(props: {
     new MockAppContext({ appVersion: cluster.proxyVersion });
 
   appContext.mainProcessClient.getAgentState = () => props.agentProcessState;
-  appContext.addRootCluster(cluster);
+  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = cluster.uri;
+    draftState.workspaces = {
+      [cluster.uri]: {
+        localClusterUri: cluster.uri,
+        documents: [],
+        location: '/docs/1234',
+        accessRequests: undefined,
+      },
+    };
+  });
 
   if (props.autoStart) {
     appContext.workspacesService.setConnectMyComputerAutoStart(

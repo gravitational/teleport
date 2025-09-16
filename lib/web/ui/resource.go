@@ -24,7 +24,6 @@ import (
 	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -69,6 +68,12 @@ func NewResourceItem(resource types.Resource) (*ResourceItem, error) {
 func NewRoles(roles []types.Role) ([]ResourceItem, error) {
 	items := make([]ResourceItem, 0, len(roles))
 	for _, role := range roles {
+		// filter out system roles from web UI
+		// TODO(gzdunek): DELETE IN 17.0.0: We filter out the roles in the auth server.
+		if types.IsSystemResource(role) {
+			continue
+		}
+
 		item, err := NewResourceItem(role)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -78,29 +83,6 @@ func NewRoles(roles []types.Role) ([]ResourceItem, error) {
 	}
 
 	return items, nil
-}
-
-// RequestableRole is a role that a user can request, containing only the name and description.
-type RequestableRole struct {
-	// Name is the role name.
-	Name string `json:"name"`
-	// Description is the role description.
-	Description string `json:"description,omitempty"`
-}
-
-// RequestableRolesFromProto converts a slice of proto.ListRequestableRolesResponse_RequestableRole into a slice of ui.RequestableRole
-func RequestableRolesFromProto(roles []*proto.ListRequestableRolesResponse_RequestableRole) []RequestableRole {
-	out := make([]RequestableRole, 0, len(roles))
-	for _, role := range roles {
-		item := &RequestableRole{
-			Name:        role.Name,
-			Description: role.Description,
-		}
-
-		out = append(out, *item)
-	}
-
-	return out
 }
 
 // NewGithubConnectors creates resource item for each github connector.

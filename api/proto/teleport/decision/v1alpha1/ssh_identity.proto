@@ -22,14 +22,6 @@ import "teleport/trait/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
 
-// SSHAuthority identifies the authority that issued an SSHIdentity.
-message SSHAuthority {
-  // ClusterName is the name of the issuing cluster.
-  string cluster_name = 1;
-  // AuthorityType is the type of authority that issued the identity.
-  string authority_type = 2;
-}
-
 // SSHIdentity is the identity used for SSH connections.
 message SSHIdentity {
   // --- common identity fields ---
@@ -147,18 +139,6 @@ message SSHIdentity {
   // DeviceCredentialID is the identifier for the credential used by the device
   // to authenticate itself.
   string device_credential_id = 31;
-
-  // GitHubUserID indicates the GitHub user ID identified by the GitHub
-  // connector.
-  string github_user_id = 32;
-
-  // GitHubUsername indicates the GitHub username identified by the GitHub
-  // connector.
-  string github_username = 33;
-
-  // JoinToken is the name of the join token used for bot joining. It is unset
-  // for other identity types, or for bots using the `token` join method.
-  string join_token = 34;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type

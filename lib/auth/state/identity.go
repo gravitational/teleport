@@ -35,7 +35,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // IdentityID is a combination of role, host UUID, and node name.
@@ -122,7 +121,13 @@ func (i *Identity) HasTLSConfig() bool {
 
 // HasPrincipals returns whether identity has principals
 func (i *Identity) HasPrincipals(additionalPrincipals []string) bool {
-	return libslices.ContainsAll(i.Cert.ValidPrincipals, additionalPrincipals) == nil
+	set := utils.StringsSet(i.Cert.ValidPrincipals)
+	for _, principal := range additionalPrincipals {
+		if _, ok := set[principal]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // HasDNSNames returns true if TLS certificate has required DNS names or IP
@@ -303,8 +308,10 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	if len(cert.ValidPrincipals) < 1 {
 		return nil, trace.BadParameter("valid principals: at least one valid principal is required")
 	}
-	if slices.Contains(cert.ValidPrincipals, "") {
-		return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+	for _, validPrincipal := range cert.ValidPrincipals {
+		if validPrincipal == "" {
+			return nil, trace.BadParameter("valid principal can not be empty: %q", cert.ValidPrincipals)
+		}
 	}
 
 	// check permissions on certificate

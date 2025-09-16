@@ -17,12 +17,12 @@
 package configure
 
 import (
-	"context"
-	"log/slog"
+	"io"
 	"os"
-	"path/filepath"
+	"path"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -50,15 +50,16 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 
 	dir := t.TempDir()
 
-	edBadFile := filepath.Join(dir, "entity_descriptor_bad.xml")
+	edBadFile := path.Join(dir, "entity_descriptor_bad.xml")
 	require.NoError(t, os.WriteFile(edBadFile, []byte("foo bar baz"), 0777))
 
-	edGoodFile := filepath.Join(dir, "entity_descriptor_good.xml")
+	edGoodFile := path.Join(dir, "entity_descriptor_good.xml")
 	require.NoError(t, os.WriteFile(edGoodFile, []byte(edOk), 0777))
 
 	tests := []struct {
 		name             string
 		entityDescriptor string
+		log              *logrus.Entry
 
 		wantErr bool
 		want    types.SAMLConnectorSpecV2
@@ -98,10 +99,13 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 		},
 	}
 
+	log := logrus.New()
+	log.Out = io.Discard
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			spec := types.SAMLConnectorSpecV2{}
-			err := processEntityDescriptorFlag(context.Background(), &spec, tt.entityDescriptor, slog.New(slog.DiscardHandler))
+			err := processEntityDescriptorFlag(&spec, tt.entityDescriptor, logrus.NewEntry(log))
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

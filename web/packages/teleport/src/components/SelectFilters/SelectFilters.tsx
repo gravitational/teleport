@@ -83,7 +83,7 @@ export default function SelectFilters({
     applyFilters(selectedOptions.map(o => o.filter));
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
+  function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       setShowSelector(false);
     }

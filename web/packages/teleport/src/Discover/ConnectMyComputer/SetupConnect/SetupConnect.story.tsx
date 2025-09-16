@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { withoutQuery } from 'web/packages/build/storybook';
 
 import {
   OverrideUserAgent,
@@ -27,7 +28,6 @@ import {
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { DiscoverBox } from 'teleport/Discover/Shared';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import { UserContext } from 'teleport/User/UserContext';
@@ -45,93 +45,89 @@ const setupConnectProps = {
   showHintTimeout: oneDay,
 };
 
+initialize();
+
 export default {
   title: 'Teleport/Discover/ConnectMyComputer/SetupConnect',
+  loaders: [mswLoader],
 };
 
-const noNodesHandler = http.get(withoutQuery(cfg.api.nodesPath), () =>
-  HttpResponse.json({ items: [] })
+const noNodesHandler = rest.get(cfg.api.nodesPath, (req, res, ctx) =>
+  res(ctx.json({ items: [] }))
 );
 
-export const macOS = () => {
-  return (
-    <OverrideUserAgent userAgent={UserAgent.macOS}>
-      <Provider>
-        <SetupConnect {...setupConnectProps} />
-      </Provider>
-    </OverrideUserAgent>
-  );
-};
+export const macOS = () => (
+  <OverrideUserAgent userAgent={UserAgent.macOS}>
+    <Provider>
+      <SetupConnect {...setupConnectProps} />
+    </Provider>
+  </OverrideUserAgent>
+);
+
 macOS.parameters = {
   msw: {
     handlers: [noNodesHandler],
   },
 };
 
-export const Linux = () => {
-  return (
-    <OverrideUserAgent userAgent={UserAgent.Linux}>
-      <Provider>
-        <SetupConnect {...setupConnectProps} />
-      </Provider>
-    </OverrideUserAgent>
-  );
-};
+export const Linux = () => (
+  <OverrideUserAgent userAgent={UserAgent.Linux}>
+    <Provider>
+      <SetupConnect {...setupConnectProps} />
+    </Provider>
+  </OverrideUserAgent>
+);
+
 Linux.parameters = {
   msw: {
     handlers: [noNodesHandler],
   },
 };
 
-export const Polling = () => {
-  return (
-    <Provider>
-      <SetupConnect {...setupConnectProps} />
-    </Provider>
-  );
-};
+export const Polling = () => (
+  <Provider>
+    <SetupConnect {...setupConnectProps} />
+  </Provider>
+);
+
 Polling.parameters = {
   msw: {
     handlers: [noNodesHandler],
   },
 };
 
-export const PollingSuccess = () => {
-  return (
-    <Provider>
-      <SetupConnect {...setupConnectProps} pingInterval={5} />
-    </Provider>
-  );
-};
+export const PollingSuccess = () => (
+  <Provider>
+    <SetupConnect {...setupConnectProps} pingInterval={5} />
+  </Provider>
+);
+
 PollingSuccess.parameters = {
   msw: {
     handlers: [
-      http.get(
-        withoutQuery(cfg.api.nodesPath),
-        () => {
-          return HttpResponse.json({ items: [] });
-        },
-        { once: true }
-      ),
-      http.get(withoutQuery(cfg.api.nodesPath), () => {
-        return HttpResponse.json({ items: [{ id: '1234', hostname: 'foo' }] });
+      rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+        return res.once(ctx.json({ items: [] }));
+      }),
+      rest.get(cfg.api.nodesPath, (req, res, ctx) => {
+        return res(ctx.json({ items: [{ id: '1234', hostname: 'foo' }] }));
       }),
     ],
   },
 };
 
-export const HintTimeout = () => {
-  return (
-    <Provider>
-      <SetupConnect {...setupConnectProps} showHintTimeout={1} />
-    </Provider>
-  );
-};
+export const HintTimeout = () => (
+  <Provider>
+    <SetupConnect {...setupConnectProps} showHintTimeout={1} />
+  </Provider>
+);
 
 HintTimeout.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.webRenewTokenPath, () => HttpResponse.json({})),
+      noNodesHandler,
+      rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
     ],
   },
 };
@@ -145,7 +141,6 @@ const Provider = ({ children }) => {
   const updatePreferences = () => Promise.resolve();
   const getClusterPinnedResources = () => Promise.resolve([]);
   const updateClusterPinnedResources = () => Promise.resolve();
-  const updateDiscoverResourcePreferences = () => Promise.resolve();
 
   return (
     <MemoryRouter>
@@ -155,12 +150,9 @@ const Provider = ({ children }) => {
           updatePreferences,
           getClusterPinnedResources,
           updateClusterPinnedResources,
-          updateDiscoverResourcePreferences,
         }}
       >
-        <ContextProvider ctx={ctx}>
-          <DiscoverBox>{children}</DiscoverBox>
-        </ContextProvider>
+        <ContextProvider ctx={ctx}>{children}</ContextProvider>
       </UserContext.Provider>
     </MemoryRouter>
   );

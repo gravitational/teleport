@@ -2,7 +2,7 @@
 title: TeleportRoleV7
 description: Provides a comprehensive list of fields in the TeleportRoleV7 resource available through the Teleport Kubernetes operator
 tocDepth: 3
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -37,7 +37,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|account_assignments|[][object](#specallowaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
 |app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
@@ -54,7 +53,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
-|github_permissions|[][object](#specallowgithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
 |group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
@@ -67,7 +65,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_resources|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
 |logins|[]string|Logins is a list of *nix system logins.|
-|mcp|[object](#specallowmcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specallowrequest)||
@@ -81,25 +78,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
 |workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
-### spec.allow.account_assignments items
-
-|Field|Type|Description|
-|---|---|---|
-|account|string||
-|permission_set|string||
-
 ### spec.allow.db_permissions items
 
 |Field|Type|Description|
 |---|---|---|
 |match|object|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
-
-### spec.allow.github_permissions items
-
-|Field|Type|Description|
-|---|---|---|
-|orgs|[]string||
 
 ### spec.allow.impersonate
 
@@ -122,17 +106,10 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|api_group|string|APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.|
-|kind|string|Kind specifies the Kubernetes Resource type.|
+|kind|string|Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported.|
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
-
-### spec.allow.mcp
-
-|Field|Type|Description|
-|---|---|---|
-|tools|[]string|Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.|
 
 ### spec.allow.request
 
@@ -142,7 +119,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specallowrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |kubernetes_resources|[][object](#specallowrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
-|reason|[object](#specallowrequestreason)|Reason defines settings for the reason for the access provided by the user.|
 |roles|[]string|Roles is the name of roles which will match the request rule.|
 |search_as_roles|[]string|SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|
 |suggested_reviewers|[]string|SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.|
@@ -160,14 +136,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|api_group|string|APIGroup specifies the Kubernetes Resource API group.|
 |kind|string|kind specifies the Kubernetes Resource type.|
-
-### spec.allow.request.reason
-
-|Field|Type|Description|
-|---|---|---|
-|mode|string|Mode can be either "required" or "optional". Empty string is treated as "optional". If a role has the request reason mode set to "required", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.|
 
 ### spec.allow.request.thresholds items
 
@@ -227,7 +196,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|account_assignments|[][object](#specdenyaccount_assignments-items)|AccountAssignments holds the list of account assignments affected by this condition.|
 |app_labels|object|AppLabels is a map of labels used as part of the RBAC system.|
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
@@ -244,7 +212,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |db_users|[]string|DatabaseUsers is a list of databases users this role is allowed to connect as.|
 |desktop_groups|[]string|DesktopGroups is a list of groups for created desktop users to be added to|
 |gcp_service_accounts|[]string|GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.|
-|github_permissions|[][object](#specdenygithub_permissions-items)|GitHubPermissions defines GitHub integration related permissions.|
 |group_labels|object|GroupLabels is a map of labels used as part of the RBAC system.|
 |group_labels_expression|string|GroupLabelsExpression is a predicate expression used to allow/deny access to user groups.|
 |host_groups|[]string|HostGroups is a list of groups for created users to be added to|
@@ -257,7 +224,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_resources|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
 |logins|[]string|Logins is a list of *nix system logins.|
-|mcp|[object](#specdenymcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |node_labels_expression|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
 |request|[object](#specdenyrequest)||
@@ -271,25 +237,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |workload_identity_labels|object|WorkloadIdentityLabels controls whether or not specific WorkloadIdentity resources can be invoked. Further authorization controls exist on the WorkloadIdentity resource itself.|
 |workload_identity_labels_expression|string|WorkloadIdentityLabelsExpression is a predicate expression used to allow/deny access to issuing a WorkloadIdentity.|
 
-### spec.deny.account_assignments items
-
-|Field|Type|Description|
-|---|---|---|
-|account|string||
-|permission_set|string||
-
 ### spec.deny.db_permissions items
 
 |Field|Type|Description|
 |---|---|---|
 |match|object|Match is a list of object labels that must be matched for the permission to be granted.|
 |permissions|[]string|Permission is the list of string representations of the permission to be given, e.g. SELECT, INSERT, UPDATE, ...|
-
-### spec.deny.github_permissions items
-
-|Field|Type|Description|
-|---|---|---|
-|orgs|[]string||
 
 ### spec.deny.impersonate
 
@@ -312,17 +265,10 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|api_group|string|APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.|
-|kind|string|Kind specifies the Kubernetes Resource type.|
+|kind|string|Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported.|
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
-
-### spec.deny.mcp
-
-|Field|Type|Description|
-|---|---|---|
-|tools|[]string|Tools defines the list of tools allowed or denied for this role. Each entry can be a literal string, a glob pattern (e.g. "prefix_*"), or a regular expression (must start with '^' and end with '$'). If the list is empty, no tools are allowed.|
 
 ### spec.deny.request
 
@@ -332,7 +278,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specdenyrequestclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |kubernetes_resources|[][object](#specdenyrequestkubernetes_resources-items)|kubernetes_resources can optionally enforce a requester to request only certain kinds of kube resources. Eg: Users can make request to either a resource kind "kube_cluster" or any of its subresources like "namespaces". This field can be defined such that it prevents a user from requesting "kube_cluster" and enforce requesting any of its subresources.|
 |max_duration|string|MaxDuration is the amount of time the access will be granted for. If this is zero, the default duration is used.|
-|reason|[object](#specdenyrequestreason)|Reason defines settings for the reason for the access provided by the user.|
 |roles|[]string|Roles is the name of roles which will match the request rule.|
 |search_as_roles|[]string|SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request.|
 |suggested_reviewers|[]string|SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.|
@@ -350,14 +295,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|api_group|string|APIGroup specifies the Kubernetes Resource API group.|
 |kind|string|kind specifies the Kubernetes Resource type.|
-
-### spec.deny.request.reason
-
-|Field|Type|Description|
-|---|---|---|
-|mode|string|Mode can be either "required" or "optional". Empty string is treated as "optional". If a role has the request reason mode set to "required", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.|
 
 ### spec.deny.request.thresholds items
 
@@ -441,13 +379,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |mfa_verification_interval|string|MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.|
 |permit_x11_forwarding|boolean|PermitX11Forwarding authorizes use of X11 forwarding.|
 |pin_source_ip|boolean|PinSourceIP forces the same client IP for certificate generation and usage|
-|port_forwarding|boolean|Deprecated: Use SSHPortForwarding instead|
+|port_forwarding|boolean|PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer|
 |record_session|[object](#specoptionsrecord_session)|RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.|
 |request_access|string|RequestAccess defines the request strategy (optional|reason|always) where optional is the default.|
 |request_prompt|string|RequestPrompt is an optional message which tells users what they aught to request.|
 |require_session_mfa|string or integer|RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". Can be either the string or the integer representation of each option.|
 |ssh_file_copy|boolean|SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|
-|ssh_port_forwarding|[object](#specoptionsssh_port_forwarding)|SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.|
 
 ### spec.options.cert_extensions items
 
@@ -477,23 +414,4 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |default|string|Default indicates the default value for the services.|
 |desktop|boolean|Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.|
 |ssh|string|SSH indicates the session mode used on SSH sessions.|
-
-### spec.options.ssh_port_forwarding
-
-|Field|Type|Description|
-|---|---|---|
-|local|[object](#specoptionsssh_port_forwardinglocal)|Allow local port forwarding.|
-|remote|[object](#specoptionsssh_port_forwardingremote)|Allow remote port forwarding.|
-
-### spec.options.ssh_port_forwarding.local
-
-|Field|Type|Description|
-|---|---|---|
-|enabled|boolean||
-
-### spec.options.ssh_port_forwarding.remote
-
-|Field|Type|Description|
-|---|---|---|
-|enabled|boolean||
 

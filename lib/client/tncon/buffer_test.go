@@ -82,7 +82,7 @@ func TestBufferedChannelPipeWrite(t *testing.T) {
 			}()
 
 			p := make([]byte, tc.len)
-			for n := range tc.len {
+			for n := 0; n < tc.len; n++ {
 				p[n] = byte(n)
 			}
 
@@ -133,7 +133,7 @@ func TestBufferedChannelPipeRead(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, buffer.Close()) })
 
 			write := make([]byte, tc.writeLen)
-			for i := range tc.writeLen {
+			for i := 0; i < tc.writeLen; i++ {
 				write[i] = byte(i)
 			}
 
@@ -153,31 +153,26 @@ func BenchmarkBufferedChannelPipe(b *testing.B) {
 	for _, s := range []int{1, 10, 100, 500, 1000} {
 		data := make([]byte, 1000)
 		b.Run(fmt.Sprintf("size=%d", s), func(b *testing.B) {
+			b.StopTimer() // stop timer during setup
 			buffer := newBufferedChannelPipe(s)
 			b.Cleanup(func() { require.NoError(b, buffer.Close()) })
 
-			errCh := make(chan error, 1)
-			readCh := make(chan struct{})
-			defer close(readCh)
+			errCh := make(chan error)
 			go func() {
-				readBuffer := make([]byte, len(data))
-				for range readCh {
-					_, err := io.ReadFull(buffer, readBuffer)
-					errCh <- err
-					if err != nil {
-						return
-					}
-				}
+				readBuffer := make([]byte, b.N*len(data))
+				_, err := io.ReadFull(buffer, readBuffer)
+				errCh <- err
 			}()
 
 			// benchmark write+read
-			for b.Loop() {
-				readCh <- struct{}{}
+			b.StartTimer()
+			for n := 0; n < b.N; n++ {
 				written, err := buffer.Write(data)
 				require.NoError(b, err)
 				require.Len(b, data, written)
-				require.NoError(b, <-errCh)
 			}
+			require.NoError(b, <-errCh)
+			b.StopTimer()
 		})
 	}
 }

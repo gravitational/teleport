@@ -21,15 +21,16 @@ package utils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
-	"math/rand/v2"
+	"math/rand"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,12 +38,12 @@ import (
 	"unicode"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // WriteContextCloser provides close method with context
@@ -123,17 +124,13 @@ func NewTracer(description string) *Tracer {
 
 // Start logs start of the trace
 func (t *Tracer) Start() *Tracer {
-	slog.DebugContext(context.Background(), "Tracer started",
-		"trace", t.Description)
+	log.Debugf("Tracer started %v.", t.Description)
 	return t
 }
 
 // Stop logs stop of the trace
 func (t *Tracer) Stop() *Tracer {
-	slog.DebugContext(context.Background(), "Tracer completed",
-		"trace", t.Description,
-		"duration", time.Since(t.Started),
-	)
+	log.Debugf("Tracer completed %v in %v.", t.Description, time.Since(t.Started))
 	return t
 }
 
@@ -142,6 +139,52 @@ func ThisFunction() string {
 	var pc [32]uintptr
 	runtime.Callers(2, pc[:])
 	return runtime.FuncForPC(pc[0]).Name()
+}
+
+// SyncString is a string value
+// that can be concurrently accessed
+type SyncString struct {
+	sync.Mutex
+	string
+}
+
+// Value returns value of the string
+func (s *SyncString) Value() string {
+	s.Lock()
+	defer s.Unlock()
+	return s.string
+}
+
+// Set sets the value of the string
+func (s *SyncString) Set(v string) {
+	s.Lock()
+	defer s.Unlock()
+	s.string = v
+}
+
+// ClickableURL fixes address in url to make sure
+// it's clickable, e.g. it replaces "undefined" address like
+// 0.0.0.0 used in network listeners format with loopback 127.0.0.1
+func ClickableURL(in string) string {
+	out, err := url.Parse(in)
+	if err != nil {
+		return in
+	}
+	host, port, err := net.SplitHostPort(out.Host)
+	if err != nil {
+		return in
+	}
+	ip := net.ParseIP(host)
+	// If address is not an IP address, return it unchanged.
+	if ip == nil && out.Host != "" {
+		return out.String()
+	}
+	// if address is unspecified, e.g. all interfaces 0.0.0.0 or multicast,
+	// replace with localhost that is clickable
+	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() {
+		out.Host = fmt.Sprintf("127.0.0.1:%v", port)
+	}
+	return out.String()
 }
 
 // AsBool converts string to bool, in case of the value is empty
@@ -184,8 +227,47 @@ func ParseAdvertiseAddr(advertiseIP string) (string, string, error) {
 	return host, port, nil
 }
 
-// DNSName extracts DNS name from host:port string,
-// returning an error if the hostname is an IP address.
+// StringsSliceFromSet returns a sorted strings slice from set
+func StringsSliceFromSet(in map[string]struct{}) []string {
+	if in == nil {
+		return nil
+	}
+	out := make([]string, 0, len(in))
+	for key := range in {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// StringsSet creates set of string (map[string]struct{})
+// from a list of strings
+func StringsSet(in []string) map[string]struct{} {
+	if in == nil {
+		return map[string]struct{}{}
+	}
+	out := make(map[string]struct{})
+	for _, v := range in {
+		out[v] = struct{}{}
+	}
+	return out
+}
+
+// IsGroupMember returns whether currently logged user is a member of a group
+func IsGroupMember(gid int) (bool, error) {
+	groups, err := os.Getgroups()
+	if err != nil {
+		return false, trace.ConvertSystemError(err)
+	}
+	for _, group := range groups {
+		if group == gid {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// DNSName extracts DNS name from host:port string.
 func DNSName(hostport string) (string, error) {
 	host, err := Host(hostport)
 	if err != nil {
@@ -240,14 +322,9 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
-// HostFQDN consists of host UUID and cluster name joined via '.'
-func HostFQDN(hostUUID, clusterName string) string {
-	return hostUUID + "." + clusterName
-}
-
 // IsValidHostname checks if a string represents a valid hostname.
 func IsValidHostname(hostname string) bool {
-	for label := range strings.SplitSeq(hostname, ".") {
+	for _, label := range strings.Split(hostname, ".") {
 		if len(validation.IsDNS1035Label(label)) > 0 {
 			return false
 		}
@@ -400,10 +477,58 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	return PortList{ports: list}, nil
 }
 
+// StringSliceSubset returns true if b is a subset of a.
+func StringSliceSubset(a []string, b []string) error {
+	aset := make(map[string]bool)
+	for _, v := range a {
+		aset[v] = true
+	}
+
+	for _, v := range b {
+		_, ok := aset[v]
+		if !ok {
+			return trace.BadParameter("%v not in set", v)
+		}
+
+	}
+	return nil
+}
+
+// UintSliceSubset returns true if b is a subset of a.
+func UintSliceSubset(a []uint16, b []uint16) error {
+	aset := make(map[uint16]bool)
+	for _, v := range a {
+		aset[v] = true
+	}
+
+	for _, v := range b {
+		_, ok := aset[v]
+		if !ok {
+			return trace.BadParameter("%v not in set", v)
+		}
+
+	}
+	return nil
+}
+
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
 func RemoveFromSlice(slice []string, values ...string) []string {
-	remove := set.New(values...)
-	return slices.DeleteFunc(slice, func(s string) bool { return remove.Contains(s) })
+	output := make([]string, 0, len(slice))
+
+	remove := make(map[string]bool)
+	for _, value := range values {
+		remove[value] = true
+	}
+
+	for _, s := range slice {
+		_, ok := remove[s]
+		if ok {
+			continue
+		}
+		output = append(output, s)
+	}
+
+	return output
 }
 
 // ChooseRandomString returns a random string from the given slice.
@@ -414,7 +539,7 @@ func ChooseRandomString(slice []string) string {
 	case 1:
 		return slice[0]
 	default:
-		return slice[rand.N(len(slice))]
+		return slice[rand.Intn(len(slice))]
 	}
 }
 
@@ -444,7 +569,10 @@ func AddrsFromStrings(s apiutils.Strings, defaultPort int) ([]NetAddr, error) {
 // FileExists checks whether a file exists at a given path
 func FileExists(fp string) bool {
 	_, err := os.Stat(fp)
-	return !errors.Is(err, fs.ErrNotExist)
+	if err != nil && os.IsNotExist(err) {
+		return false
+	}
+	return true
 }
 
 // StoreErrorOf stores the error returned by f within *err.
@@ -482,6 +610,32 @@ func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 	return data, err
 }
 
+// HasPrefixAny determines if any of the string values have the given prefix.
+func HasPrefixAny(prefix string, values []string) bool {
+	for _, val := range values {
+		if strings.HasPrefix(val, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ByteCount converts a size in bytes to a human-readable string.
+func ByteCount(b int64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB",
+		float64(b)/float64(div), "kMGTPE"[exp])
+}
+
 // ErrLimitReached means that the read limit is reached.
 //
 // TODO(gavin): this should be converted to a 413 StatusRequestEntityTooLarge
@@ -502,30 +656,10 @@ const (
 	CertTeleportClusterName = "x-teleport-cluster-name"
 	// CertTeleportUserCertificate is the certificate of the authenticated in user.
 	CertTeleportUserCertificate = "x-teleport-certificate"
-	// extIntSuffix is the suffix common to all internal extensions.
-	extIntSuffix = "@teleport.internal"
 	// ExtIntCertType is an internal extension used to propagate cert type.
-	ExtIntCertType = "certtype" + extIntSuffix
+	ExtIntCertType = "certtype@teleport"
 	// ExtIntCertTypeHost indicates a host-type certificate.
-	ExtIntCertTypeHost = "host" + extIntSuffix
+	ExtIntCertTypeHost = "host"
 	// ExtIntCertTypeUser indicates a user-type certificate.
-	ExtIntCertTypeUser = "user" + extIntSuffix
-	// ExtIntSSHAccessPermit is an internal extension used to propagate
-	// the access permit for the user.
-	ExtIntSSHAccessPermit = "ssh-access-permit" + extIntSuffix
-	// ExtIntSSHJoinPermi is an internal extension used to propagate
-	// the join permit for the user.
-	ExtIntSSHJoinPermit = "ssh-join-permit" + extIntSuffix
-	// ExtIntProxyingPermit is an internal extension used to propagate
-	// the proxying permit for the user.
-	ExtIntProxyingPermit = "proxying-permit" + extIntSuffix
-	// ExtIntGitForwardingPermit is an internal extension used to propagate
-	// the git forwarding permit for the user.
-	ExtIntGitForwardingPermit = "git-forwarding-permit" + extIntSuffix
+	ExtIntCertTypeUser = "user"
 )
-
-// IsInternalSSHExtension returns true if the extension has the internal
-// extension suffix.
-func IsInternalSSHExtension(extension string) bool {
-	return strings.HasSuffix(extension, extIntSuffix)
-}

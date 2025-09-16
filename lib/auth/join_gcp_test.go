@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"context"
@@ -27,8 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/gcp"
 )
@@ -64,8 +62,8 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 			},
 		},
 	}
-	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
-		server.SetGCPIDTokenValidator(idTokenValidator)
+	var withTokenValidator ServerOption = func(server *Server) error {
+		server.gcpIDTokenValidator = idTokenValidator
 		return nil
 	}
 	ctx := context.Background()
@@ -76,7 +74,7 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
 		return &types.RegisterUsingTokenRequest{
@@ -100,7 +98,7 @@ func TestAuth_RegisterUsingToken_GCP(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -241,7 +239,7 @@ func TestIsGCPZoneInLocation(t *testing.T) {
 	}
 	for _, tc := range passingCases {
 		t.Run("accept "+tc.name, func(t *testing.T) {
-			require.True(t, auth.IsGCPZoneInLocation(tc.location, tc.zone))
+			require.True(t, isGCPZoneInLocation(tc.location, tc.zone))
 		})
 	}
 
@@ -288,7 +286,7 @@ func TestIsGCPZoneInLocation(t *testing.T) {
 	}
 	for _, tc := range failingCases {
 		t.Run("reject "+tc.name, func(t *testing.T) {
-			require.False(t, auth.IsGCPZoneInLocation(tc.location, tc.zone))
+			require.False(t, isGCPZoneInLocation(tc.location, tc.zone))
 		})
 	}
 }

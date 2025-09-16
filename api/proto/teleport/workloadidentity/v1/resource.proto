@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package teleport.workloadidentity.v1;
 
-import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "teleport/header/v1/metadata.proto";
 
@@ -134,26 +133,12 @@ message WorkloadIdentitySPIFFEX509 {
   //
   // If not provided, the X509-SVID will be issued with an empty Subject DN.
   X509DistinguishedNameTemplate subject_template = 2;
-  // Control the maximum TTL of X509-SVIDs issued using this WorkloadIdentity.
-  //
-  // If a X509-SVID is requested with a TTL greater than this value, then the
-  // returned X509-SVID will have a TTL of this value.
-  //
-  // Defaults to 24 hours. The maximum this value can be set to is 14 days.
-  google.protobuf.Duration maximum_ttl = 3;
 }
 
 // Configuration specific to the issuance of JWT-SVIDs.
 message WorkloadIdentitySPIFFEJWT {
   // Additional claims that will be added to the JWT.
   google.protobuf.Struct extra_claims = 1;
-  // Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.
-  //
-  // If a JWT-SVID is requested with a TTL greater than this value, then the
-  // returned JWT-SVID will have a TTL of this value.
-  //
-  // Defaults to 24 hours. The maximum this value can be set to is 24 hours.
-  google.protobuf.Duration maximum_ttl = 2;
 }
 
 // Configuration pertaining to the issuance of SPIFFE-compatible workload

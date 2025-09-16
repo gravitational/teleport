@@ -1,7 +1,7 @@
 ---
 title: Running Teleport with a Custom Configuration using Helm
 description: Install and configure a Teleport cluster with a custom configuration using Helm
-labels:
+tags:
  - how-to
  - platform-wide
 ---
@@ -31,6 +31,12 @@ as a ConfigMap. The chart applies Teleport-recommended defaults for any field
 not included in your custom configurations.
 
 ## Prerequisites
+
+<Admonition type="warning">
+Those instructions are both for v12+ Teleport and the v12+ `teleport-cluster` chart.
+If you are running an older Teleport version, use the version selector at the top
+of this page to choose the correct version.
+</Admonition>
 
 (!docs/pages/includes/kubernetes-access/helm/teleport-cluster-prereqs.mdx!)
 
@@ -210,7 +216,7 @@ replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 
 If you're not migrating an existing Teleport cluster, you'll need to create a
 user to be able to log into Teleport. This needs to be done on the Teleport
-Auth Service, so we can run the command using `kubectl`:
+auth server, so we can run the command using `kubectl`:
 
 <Tabs>
 <TabItem scope={["oss"]} label="Teleport Community Edition">
@@ -276,7 +282,7 @@ install a new version with the appropriate values.
 ## Next steps
 
 Now that you have deployed a Teleport cluster, read the [Manage
-Access](../../authentication/authentication.mdx) section to get started enrolling
+Access](../../../zero-trust-access/access-controls/access-controls.mdx) section to get started enrolling
 users and setting up RBAC.
 
 To see all of the options you can set in the values file for the

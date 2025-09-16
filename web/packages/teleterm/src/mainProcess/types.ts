@@ -18,7 +18,6 @@
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
-import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -116,45 +115,13 @@ export type MainProcessClient = {
   showFileSaveDialog(
     filePath: string
   ): Promise<{ canceled: boolean; filePath: string | undefined }>;
-  /**
-   * saveTextToFile shows the save file dialog that lets the user pick a file location. Once the
-   * location is picked, it saves the text to the location, overwriting an existing file if any.
-   *
-   * If the user closes the dialog, saveTextToFile returns early with canceled set to true. The
-   * caller must inspect this value before assuming that the file was saved.
-   *
-   * If writing to the file fails, saveTextToFile returns a rejected promise.
-   */
-  saveTextToFile(options: {
-    text: string;
-    /**
-     * The name for the file that will be suggested in the save file dialog.
-     */
-    defaultBasename: string;
-  }): Promise<{
-    /**
-     * Whether the dialog was closed by the user or not.
-     */
-    canceled: boolean;
-  }>;
   configService: ConfigService;
   fileStorage: FileStorage;
   removeKubeConfig(options: {
     relativePath: string;
     isDirectory?: boolean;
   }): Promise<void>;
-  /**
-   * Tells the OS to focus the window. If wait is true, polls periodically for window status and
-   * resolves when it's focused or after a short timeout.
-   *
-   * Most of the time wait shouldn't be used, it's there for use cases where it's important for the
-   * app to be focused (e.g., the business logic needs to use the clipboard API). Even in that case,
-   * the logic must handle a scenario where focus wasn't received as focus cannot be guaranteed.
-   * Any app can steal focus at any time.
-   */
-  forceFocusWindow(
-    args?: { wait?: false } | { wait: true; signal?: AbortSignal }
-  ): Promise<void>;
+  forceFocusWindow(): void;
   /**
    * The promise returns true if tsh got successfully symlinked, false if the user closed the
    * osascript prompt. The promise gets rejected if osascript encountered an error.
@@ -190,40 +157,8 @@ export type MainProcessClient = {
   tryRemoveConnectMyComputerAgentBinary(): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   getAgentLogs(args: { rootClusterUri: RootClusterUri }): string;
-  /**
-   * Signals to the windows manager that the UI has been fully initialized, that is the user has
-   * interacted with the relevant modals during startup and is free to use the app.
-   */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
   refreshClusterList(): void;
-  /**
-   * Opens the Electron directory picker and sends the selected path to tshd through SetSharedDirectoryForDesktopSession.
-   * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
-   * Once that's done, everything is ready on the tsh daemon to intercept and handle the file system events.
-   *
-   * Returns selected directory name.
-   */
-  selectDirectoryForDesktopSession(args: {
-    desktopUri: string;
-    login: string;
-  }): Promise<string>;
-  changeAppUpdatesManagingCluster(
-    clusterUri: RootClusterUri | undefined
-  ): Promise<void>;
-  maybeRemoveAppUpdatesManagingCluster(
-    clusterUri: RootClusterUri
-  ): Promise<void>;
-  supportsAppUpdates(): boolean;
-  checkForAppUpdates(): Promise<void>;
-  downloadAppUpdate(): Promise<void>;
-  cancelAppUpdateDownload(): Promise<void>;
-  quitAndInstallAppUpdate(): Promise<void>;
-  subscribeToAppUpdateEvents(listener: (args: AppUpdateEvent) => void): {
-    cleanup: () => void;
-  };
-  subscribeToOpenAppUpdateDialog(listener: () => void): {
-    cleanup: () => void;
-  };
 };
 
 export type ChildProcessAddresses = {
@@ -329,8 +264,6 @@ export enum RendererIpc {
   NativeThemeUpdate = 'renderer-native-theme-update',
   ConnectMyComputerAgentUpdate = 'renderer-connect-my-computer-agent-update',
   DeepLinkLaunch = 'renderer-deep-link-launch',
-  OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
-  AppUpdateEvent = 'renderer-app-update-event',
 }
 
 export enum MainProcessIpc {
@@ -339,16 +272,6 @@ export enum MainProcessIpc {
   RefreshClusterList = 'main-process-refresh-cluster-list',
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
-  SaveTextToFile = 'main-process-save-text-to-file',
-  ForceFocusWindow = 'main-process-force-focus-window',
-  SelectDirectoryForDesktopSession = 'main-process-select-directory-for-desktop-session',
-  CheckForAppUpdates = 'main-process-check-for-app-updates',
-  DownloadAppUpdate = 'main-process-download-app-update',
-  CancelAppUpdateDownload = 'main-process-cancel-app-update-download',
-  QuiteAndInstallAppUpdate = 'main-process-quit-and-install-app-update',
-  ChangeAppUpdatesManagingCluster = 'main-process-change-app-updates-managing-cluster',
-  MaybeRemoveAppUpdatesManagingCluster = 'main-process-maybe-remove-app-updates-managing-cluster',
-  SupportsAppUpdates = 'main-process-supports-app-updates',
 }
 
 export enum WindowsManagerIpc {

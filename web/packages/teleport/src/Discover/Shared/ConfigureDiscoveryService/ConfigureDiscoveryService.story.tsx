@@ -16,22 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { Info } from 'design/Alert';
 
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { resourceSpecAwsRdsPostgres } from 'teleport/Discover/Fixtures/databases';
+import { ServerLocation } from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
 import {
-  RequiredDiscoverProviders,
-  resourceSpecAwsEc2Ssm,
-} from 'teleport/Discover/Fixtures/fixtures';
-import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
-import { AgentMeta } from 'teleport/Discover/useDiscover';
+  DiscoverContextState,
+  DiscoverProvider,
+} from 'teleport/Discover/useDiscover';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
+import {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEventResource,
+} from 'teleport/services/userEvent';
 
 import { ConfigureDiscoveryService as Comp } from './ConfigureDiscoveryService';
 
@@ -40,95 +47,117 @@ export default {
 };
 
 export const Server = () => {
-  return <Component resourceSpec={resourceSpecAwsEc2Ssm} />;
+  return <Component kind={ResourceKind.Server} />;
 };
 
 export const Database = () => {
-  return <Component resourceSpec={resourceSpecAwsRdsPostgres} />;
+  return <Component kind={ResourceKind.Database} />;
 };
 
 export const WithCreateConfig = () => {
-  return (
-    <Component
-      resourceSpec={resourceSpecAwsRdsPostgres}
-      withCreateConfig={true}
-    />
-  );
+  return <Component kind={ResourceKind.Database} withCreateConfig={true} />;
 };
 WithCreateConfig.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
     ],
   },
 };
 
 export const WithCreateConfigFailed = () => {
-  return (
-    <Component
-      resourceSpec={resourceSpecAwsRdsPostgres}
-      withCreateConfig={true}
-    />
-  );
+  return <Component kind={ResourceKind.Database} withCreateConfig={true} />;
 };
 WithCreateConfigFailed.parameters = {
   msw: {
     handlers: [
-      http.post(
-        cfg.api.discoveryConfigPath,
-        () =>
-          HttpResponse.json(
-            {
-              message: 'Whoops, creating config error',
-            },
-            { status: 403 }
-          ),
-        { once: true }
+      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
+        res.once(
+          ctx.status(403),
+          ctx.json({ message: 'Whoops, creating config error' })
+        )
       ),
-      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
     ],
   },
 };
 
 const Component = ({
-  resourceSpec,
+  kind,
   withCreateConfig = false,
 }: {
-  resourceSpec: SelectResourceSpec;
+  kind: ResourceKind;
   withCreateConfig?: boolean;
 }) => {
-  const agentMeta: AgentMeta = {
-    resourceName: 'aws-console',
-    agentMatcherLabels: [],
-    awsRegion: 'ap-south-1',
-    awsIntegration: {
-      kind: IntegrationKind.AwsOidc,
-      name: 'some-oidc-name',
-      resourceType: 'integration',
-      spec: {
-        roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-        issuerS3Bucket: '',
-        issuerS3Prefix: '',
+  const ctx = createTeleportContext();
+  const discoverCtx: DiscoverContextState = {
+    agentMeta: {
+      resourceName: 'aws-console',
+      agentMatcherLabels: [],
+      awsRegion: 'ap-south-1',
+      awsIntegration: {
+        kind: IntegrationKind.AwsOidc,
+        name: 'some-oidc-name',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+          issuerS3Bucket: '',
+          issuerS3Prefix: '',
+        },
+        statusCode: IntegrationStatusCode.Running,
       },
-      statusCode: IntegrationStatusCode.Running,
-    },
-    autoDiscovery: {
-      config: {
-        name: 'discovery-config-name',
-        discoveryGroup: 'discovery-group-name',
-        aws: [],
+      autoDiscovery: {
+        config: {
+          name: 'discovery-config-name',
+          discoveryGroup: 'discovery-group-name',
+          aws: [],
+        },
       },
     },
+    currentStep: 0,
+    nextStep: () => null,
+    prevStep: () => null,
+    onSelectResource: () => null,
+    resourceSpec: {
+      name: '',
+      kind,
+      icon: null,
+      keywords: '',
+      event: DiscoverEventResource.Ec2Instance,
+      nodeMeta: {
+        location: ServerLocation.Aws,
+        discoveryConfigMethod: DiscoverDiscoveryConfigMethod.AwsEc2Ssm,
+      },
+    },
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: () => null,
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
   };
+
+  cfg.proxyCluster = 'localhost';
   return (
-    <RequiredDiscoverProviders
-      agentMeta={agentMeta}
-      resourceSpec={resourceSpec}
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: '' } },
+      ]}
     >
-      {withCreateConfig && (
-        <Info>Devs: Click next to see create config dialog</Info>
-      )}
-      <Comp withCreateConfig={withCreateConfig} />
-    </RequiredDiscoverProviders>
+      <ContextProvider ctx={ctx}>
+        <DiscoverProvider mockCtx={discoverCtx}>
+          {withCreateConfig && (
+            <Info>Devs: Click next to see create config dialog</Info>
+          )}
+          <Comp withCreateConfig={withCreateConfig} />
+        </DiscoverProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };

@@ -33,7 +33,6 @@ import (
 	"image/png"
 	"io"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
@@ -76,16 +75,13 @@ const (
 	TypeSharedDirectoryListRequest      = MessageType(25)
 	TypeSharedDirectoryListResponse     = MessageType(26)
 	TypePNG2Frame                       = MessageType(27)
-	TypeAlert                           = MessageType(28)
+	TypeNotification                    = MessageType(28)
 	TypeRDPFastPathPDU                  = MessageType(29)
 	TypeRDPResponsePDU                  = MessageType(30)
 	TypeRDPConnectionInitialized        = MessageType(31)
 	TypeSyncKeys                        = MessageType(32)
 	TypeSharedDirectoryTruncateRequest  = MessageType(33)
 	TypeSharedDirectoryTruncateResponse = MessageType(34)
-	TypeLatencyStats                    = MessageType(35)
-	TypePing                            = MessageType(36)
-	TypeClientKeyboardLayout            = MessageType(37)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -146,8 +142,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeClipboardData(in, maxClipboardDataLength)
 	case TypeError:
 		return decodeError(in)
-	case TypeAlert:
-		return decodeAlert(in)
+	case TypeNotification:
+		return decodeNotification(in)
 	case TypeMFA:
 		return DecodeMFA(in)
 	case TypeSharedDirectoryAnnounce:
@@ -186,12 +182,6 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeSharedDirectoryTruncateRequest(in)
 	case TypeSharedDirectoryTruncateResponse:
 		return decodeSharedDirectoryTruncateResponse(in)
-	case TypeLatencyStats:
-		return decodeLatencyStats(in)
-	case TypePing:
-		return decodePing(in)
-	case TypeClientKeyboardLayout:
-		return decodeClientKeyboardLayout(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
@@ -561,11 +551,8 @@ func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 }
 
 // Error is used to send a fatal error message to the browser.
-//
 // In Teleport 12 and up, Error is deprecated and Notification
-// should be preferred. Nevertheless, IT SHOULD NOT BE DELETED
-// in order for older session recordings to continue to work.
-//
+// should be preferred.
 // | message type (9) | message_length uint32 | message []byte |
 type Error struct {
 	Message string
@@ -581,7 +568,7 @@ func (m Error) Encode() ([]byte, error) {
 }
 
 func decodeError(in io.Reader) (Error, error) {
-	message, err := decodeString(in, tdpMaxAlertMessageLength)
+	message, err := decodeString(in, tdpMaxNotificationMessageLength)
 	if err != nil {
 		return Error{}, trace.Wrap(err)
 	}
@@ -596,19 +583,18 @@ const (
 	SeverityError   Severity = 2
 )
 
-// Alert is an informational message sent from Teleport
+// Notification is an informational message sent from Teleport
 // to the Web UI. It can be used for fatal errors or non-fatal
 // warnings.
-//
 // | message type (28) | message_length uint32 | message []byte | severity byte |
-type Alert struct {
+type Notification struct {
 	Message  string
 	Severity Severity
 }
 
-func (m Alert) Encode() ([]byte, error) {
+func (m Notification) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeAlert))
+	buf.WriteByte(byte(TypeNotification))
 	if err := encodeString(buf, m.Message); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -616,16 +602,16 @@ func (m Alert) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeAlert(in byteReader) (Alert, error) {
-	message, err := decodeString(in, tdpMaxAlertMessageLength)
+func decodeNotification(in byteReader) (Notification, error) {
+	message, err := decodeString(in, tdpMaxNotificationMessageLength)
 	if err != nil {
-		return Alert{}, trace.Wrap(err)
+		return Notification{}, trace.Wrap(err)
 	}
 	severity, err := in.ReadByte()
 	if err != nil {
-		return Alert{}, trace.Wrap(err)
+		return Notification{}, trace.Wrap(err)
 	}
-	return Alert{Message: message, Severity: Severity(severity)}, nil
+	return Notification{Message: message, Severity: Severity(severity)}, nil
 }
 
 // MouseWheelAxis identifies a scroll axis on the mouse wheel.
@@ -747,10 +733,10 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 	}
 	s := string(mt)
 	switch s {
-	case defaults.WebsocketMFAChallenge:
+	case defaults.WebsocketWebauthnChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"got mfa type %v, expected %v (MFAChallenge)", mt, defaults.WebsocketMFAChallenge)
+			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
 	}
 
 	var length uint32
@@ -790,10 +776,10 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 	}
 	s := string(mt)
 	switch s {
-	case defaults.WebsocketMFAChallenge:
+	case defaults.WebsocketWebauthnChallenge:
 	default:
 		return nil, trace.BadParameter(
-			"got mfa type %v, expected %v (MFAChallenge)", mt, defaults.WebsocketMFAChallenge)
+			"got mfa type %v, expected %v (WebAuthn)", mt, defaults.WebsocketWebauthnChallenge)
 	}
 
 	var length uint32
@@ -1641,86 +1627,6 @@ func decodeSharedDirectoryTruncateResponse(in io.Reader) (SharedDirectoryTruncat
 	return res, err
 }
 
-// LatencyStats is used to report the latency of the connection(s) to the client.
-type LatencyStats struct {
-	ClientLatency uint32
-	ServerLatency uint32
-}
-
-func (l LatencyStats) Encode() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeLatencyStats))
-	writeUint32(buf, l.ClientLatency)
-	writeUint32(buf, l.ServerLatency)
-	return buf.Bytes(), nil
-}
-
-func decodeLatencyStats(in io.Reader) (LatencyStats, error) {
-	var latencyStats LatencyStats
-	if err := binary.Read(in, binary.BigEndian, &latencyStats.ClientLatency); err != nil {
-		return latencyStats, trace.Wrap(err)
-	}
-	if err := binary.Read(in, binary.BigEndian, &latencyStats.ServerLatency); err != nil {
-		return latencyStats, trace.Wrap(err)
-	}
-	return latencyStats, nil
-}
-
-// Ping is used to measure the latency of the connection(s) between proxy and desktop (includes
-// latency between proxy and Windows Desktop Service and between WDS and desktop).
-type Ping struct {
-
-	// UUID is used to correlate message send by proxy and received from the Windows Desktop Service
-	UUID uuid.UUID
-}
-
-func (p Ping) Encode() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypePing))
-	buf.Write(p.UUID[:])
-	return buf.Bytes(), nil
-}
-
-func decodePing(in io.Reader) (Ping, error) {
-	var ping Ping
-	_, err := io.ReadFull(in, ping.UUID[:])
-	if err != nil {
-		return ping, trace.Wrap(err)
-	}
-	return ping, nil
-}
-
-// ClientKeyboardLayout is the client keyboard layout.
-// | messsage type (37) | length uint32 | keyboard_layout uint32 |
-type ClientKeyboardLayout struct {
-	KeyboardLayout uint32
-}
-
-func (c ClientKeyboardLayout) Encode() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeClientKeyboardLayout))
-	writeUint32(buf, 4) // length of uint32
-	writeUint32(buf, c.KeyboardLayout)
-	return buf.Bytes(), nil
-}
-
-func decodeClientKeyboardLayout(in io.Reader) (ClientKeyboardLayout, error) {
-	var payloadLength uint32
-	if err := binary.Read(in, binary.BigEndian, &payloadLength); err != nil {
-		return ClientKeyboardLayout{}, trace.Wrap(err)
-	}
-
-	const expectedPayloadLength = 4
-	if payloadLength != expectedPayloadLength {
-		_, _ = io.CopyN(io.Discard, in, int64(payloadLength))
-		return ClientKeyboardLayout{}, trace.BadParameter("expected payload length of 4, got %v", payloadLength)
-	}
-
-	var c ClientKeyboardLayout
-	err := binary.Read(in, binary.BigEndian, &c)
-	return c, trace.Wrap(err)
-}
-
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with
 // a 32-bit length prefix (in bytes):
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#field-types
@@ -1779,9 +1685,9 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 }
 
 const (
-	// tdpMaxAlertMessageLength is somewhat arbitrary, as it is only sent *to*
+	// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
 	// the browser (Teleport never receives this message, so won't be decoding it)
-	tdpMaxAlertMessageLength = 10240
+	tdpMaxNotificationMessageLength = 10240
 
 	// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
 	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465

@@ -1,15 +1,13 @@
 ---
 title: Register a Kubernetes Cluster using IAM Joining
 description: Connecting a Kubernetes cluster to Teleport with IAM joining.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
 
 In this guide, we will show you how to register a Kubernetes cluster with
 Teleport by using the agent's IAM identity to automatically join the Teleport cluster.
-
-## How it works
 
 You can register multiple Kubernetes clusters with Teleport by deploying the
 Teleport Kubernetes Service on each cluster you want to register without having
@@ -18,6 +16,11 @@ to distribute a joining secret to the Kubernetes cluster.
 Once the Kubernetes cluster is registered for the first time, the agent will store
 its Teleport identity in a Kubernetes secret. The agent will use this identity
 to automatically join the cluster on subsequent restarts.
+
+Support for joining a cluster with the Proxy Service behind a layer 7 load
+balancer or reverse proxy is available in Teleport 13.0+.
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -40,7 +43,7 @@ IAM identity they are running as. It allows you to register Kubernetes
 clusters running in AWS without having to distribute a joining secret to the
 Kubernetes cluster.
 
-To securely join the cluster without relying on the EKS node's Identity, a Teleport Agent
+To securely join the cluster without relying on the EKS node's Identity, a Teleport agent
 must run as a separate Kubernetes service account with an attached IAM role. Relying
 on the node's identity is not recommended as it can be easily compromised since every
 pod running on the node has access to the node's identity if IAM Roles for Service Accounts
@@ -263,7 +266,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --version (=teleport.version=)
 ```
 
-Make sure that the Teleport Agent pod is running. You should see one Teleport
+Make sure that the Teleport agent pod is running. You should see one Teleport
 agent pod pod with a single ready container:
 
 ```code

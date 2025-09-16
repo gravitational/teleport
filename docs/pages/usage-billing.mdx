@@ -2,7 +2,7 @@
 title: Usage Reporting and Billing
 description: Provides a detailed breakdown of Teleport usage reporting and billing.
 tocDepth: 3
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -82,16 +82,16 @@ calculate three types of billing metrics:
 <Admonition type="note">
 
 This will be displayed only for those on usage-based plans. Users will need permission to read the billing resource.
-
 </Admonition>
 
-1. Go to https://teleport.sh/ and enter your tenant name.
-1. Sign in using your administrator credentials.
-1. Click on your username at the top right to expand the dropdown menu.
-1. Click on "Billing Summary".
-1. Usage data for the current billing cycle will be displayed. Example:
 
-![Billing Cycle](../img/webui_billing_cycle.png)
+  1. Go to https://teleport.sh/ and enter your tenant name.
+  1. Sign in using your administrator credentials.
+  1. Click on "Access Management" at the top.
+  1. Click on "Summary" under "Usage and Billing" at the left-hand side.
+  1. Usage data for the current billing cycle will be displayed. Example:
+  
+  ![Billing Cycle](../img/webui_billing_cycle.png)
 
 ### Monthly Active Users
 
@@ -111,7 +111,7 @@ provider, as user activity.
 
 Note: when configured to perform single-sign-on against an external identity
 provider, Teleport creates temporary user records that are valid for the
-duration of the SSO session. As a result, the _Users_ page in Teleport's web UI
+duration of the SSO session. As a result, the *Users* page in Teleport's web UI
 will only show users who have recently logged in and is not a true
 representation of all active users over the last month.
 
@@ -166,10 +166,10 @@ Identity Governance Monthly Active Users (IG MAU) is the aggregate number of uni
 We aggregate IG MAU over each monthly period starting on the subscription start date and ending on each monthly anniversary thereafter.
 
 Identity Governance "active user" means a user having performed any of the following activities:
-- Submitting an Access Request
-- Reviewing an Access Request
-- Getting roles assigned during login through Access List membership
-- Reviewing an Access List
+- Submitting an access request
+- Reviewing an access request
+- Getting roles assigned during login through access list membership
+- Reviewing an access list
 - Logging in to a service provider application via Teleport SAML IdP
 
 IG MAU is calculated separately from standard MAU and represents users specifically engaging with Teleport's Identity Governance features. A user can contribute to both standard MAU and IG MAU billing metrics within the same period if they perform activities that qualify for both metrics.
@@ -193,7 +193,7 @@ self-hosted Teleport infrastructure or Teleport Cloud, depending on the user's
 plan. The submission service persists usage reports in the case of a submission
 failure, and deletes the reports after a successful submission. It is not
 possible to set up a third-party destination for usage events to independently
-verify usage event data.
+verify usage event data. 
 
 If you are using Teleport Enterprise (Cloud), your usage data is accurate as
 long as Teleport-managed reporting infrastructure works as expected (check the
@@ -231,3 +231,4 @@ to Teleport during a given time period. The Teleport documentation includes
 [how-to guides](zero-trust-access/export-audit-events/export-audit-events.mdx) for
 exporting audit events to common log management solutions so you can identify
 users that have authenticated using an SSO provider.
+

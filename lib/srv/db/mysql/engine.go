@@ -31,16 +31,13 @@ import (
 	"github.com/go-mysql-org/go-mysql/packet"
 	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
-	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -116,7 +113,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := serverConn.Quit()
+		err := serverConn.Close()
 		if err != nil {
 			e.Log.ErrorContext(ctx, "Failed to close connection to MySQL server.", "error", err)
 		}
@@ -225,9 +222,8 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		return nil, trace.Wrap(err)
 	}
 	user := sessionCtx.DatabaseUser
-	connectOpt := func(conn *client.Conn) error {
+	connectOpt := func(conn *client.Conn) {
 		conn.SetTLSConfig(tlsConfig)
-		return nil
 	}
 
 	var dialer client.Dialer
@@ -240,7 +236,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		}
 	case sessionCtx.Database.IsCloudSQL():
 		// Get the client once for subsequent calls (it acquires a read lock).
-		gcpClient, err := e.GCPClients.GetGCPSQLAdminClient(ctx)
+		gcpClient, err := e.CloudClients.GetGCPSQLAdminClient(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -260,19 +256,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		// the instance requires SSL. Also use a TLS dialer instead of
 		// the default net dialer when GCP requires SSL.
 		if requireSSL {
-			err = cloud.AppendGCPClientCert(ctx, &cloud.AppendGCPClientCertRequest{
-				GCPClient:   gcpClient,
-				GenerateKey: e.Auth.GenerateDatabaseClientKey,
-				Expiry:      sessionCtx.GetExpiry(),
-				Database:    sessionCtx.Database,
-				TLSConfig:   tlsConfig,
-			})
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, gcpClient, tlsConfig)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			connectOpt = func(*client.Conn) error {
-				return nil
-			}
+			connectOpt = func(*client.Conn) {}
 			dialer = newGCPTLSDialer(tlsConfig)
 		}
 	case sessionCtx.Database.IsAzure():
@@ -309,12 +297,11 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	return conn, nil
 }
 
-func withClientCapabilities(caps ...uint32) func(conn *client.Conn) error {
-	return func(conn *client.Conn) error {
+func withClientCapabilities(caps ...uint32) func(conn *client.Conn) {
+	return func(conn *client.Conn) {
 		for _, cap := range caps {
 			conn.SetCapability(cap)
 		}
-		return nil
 	}
 }
 
@@ -498,21 +485,13 @@ func newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
 		// by creating a TLS connection to the Cloud Proxy port overriding the
 		// MySQL client's connection. MySQL on the default port does not trust
 		// the ephemeral certificate's CA but Cloud Proxy does.
-		address = getGCPTLSAddress(address)
+		host, port, err := net.SplitHostPort(address)
+		if err == nil && port == gcpSQLListenPort {
+			address = net.JoinHostPort(host, gcpSQLProxyListenPort)
+		}
 		tlsDialer := tls.Dialer{Config: tlsConfig}
 		return tlsDialer.DialContext(ctx, network, address)
 	}
-}
-
-// getGCPTLSAddress returns the appropriate address for a Cloud SQL MySQL
-// instance, possibly overriding the default port to instead use the Cloud Proxy
-// port.
-func getGCPTLSAddress(address string) string {
-	host, port, err := net.SplitHostPort(address)
-	if err == nil && port == gcpSQLListenPort {
-		return net.JoinHostPort(host, gcpSQLProxyListenPort)
-	}
-	return address
 }
 
 // FetchMySQLVersion connects to MySQL database and tries to read the handshake packet and return the version.
@@ -536,54 +515,3 @@ const (
 	// gcpSQLProxyListenPort is the port used by Cloud Proxy for MySQL instances.
 	gcpSQLProxyListenPort = "3307"
 )
-
-// resolverClients are API clients needed to resolve MySQL endpoints.
-type resolverClients interface {
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
-}
-
-// NewEndpointsResolver returns a database target endpoint resolver.
-func NewEndpointsResolver(_ context.Context, db types.Database, cfg endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	return newEndpointsResolver(db, cfg.GCPClients)
-}
-
-func newEndpointsResolver(db types.Database, clients resolverClients) (endpoints.Resolver, error) {
-	switch {
-	case db.IsCloudSQL():
-		return newCloudSQLEndpointResolver(db, clients), nil
-	default:
-		return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-			return []string{db.GetURI()}, nil
-		}), nil
-	}
-}
-
-func newCloudSQLEndpointResolver(db types.Database, clients resolverClients) endpoints.Resolver {
-	// avoid checking the ssl mode more than once every 15 minutes.
-	sometimes := rate.Sometimes{Interval: 15 * time.Minute}
-	var requireSSL bool
-	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
-		var requireSSLErr error
-		sometimes.Do(func() {
-			clt, err := clients.GetGCPSQLAdminClient(ctx)
-			if err != nil {
-				requireSSLErr = trace.Wrap(err)
-				return
-			}
-
-			requireSSL, err = cloud.GetGCPRequireSSL(ctx, db, clt)
-			if err != nil && !trace.IsAccessDenied(err) {
-				requireSSLErr = trace.Wrap(err)
-				return
-			}
-		})
-		if requireSSLErr != nil {
-			return nil, trace.Wrap(requireSSLErr)
-		}
-		if requireSSL {
-			return []string{getGCPTLSAddress(db.GetURI())}, nil
-		}
-		return []string{db.GetURI()}, nil
-	})
-}

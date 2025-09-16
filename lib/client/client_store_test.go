@@ -20,14 +20,8 @@ package client
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
-	"fmt"
-	"math/big"
 	"net"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -44,7 +38,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -56,59 +49,53 @@ type testAuthority struct {
 	keygen       *testauthority.Keygen
 	tlsCA        *tlsca.CertAuthority
 	trustedCerts authclient.TrustedCerts
-	clock        clockwork.Clock
 }
 
 func newTestAuthority(t *testing.T) testAuthority {
 	tlsCA, trustedCerts, err := newSelfSignedCA(CAPriv, "localhost")
 	require.NoError(t, err)
 
-	clock := clockwork.NewFakeClock()
 	return testAuthority{
-		keygen:       testauthority.NewWithClock(clock),
+		keygen:       testauthority.New(),
 		tlsCA:        tlsCA,
 		trustedCerts: trustedCerts,
-		clock:        clock,
 	}
 }
 
-// makeSignedKeyRing helper returns a new user key ring signed by CAPriv key.
-func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeExpired bool) *KeyRing {
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(context.Context) (types.SignatureAlgorithmSuite, error) {
-		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
-	})
-	require.NoError(t, err)
-	sshPriv, err := keys.NewPrivateKey(sshKey)
-	require.NoError(t, err)
-	tlsPriv, err := keys.NewPrivateKey(tlsKey)
+// makeSignedKey helper returns a new user key signed by CAPriv key.
+func (s *testAuthority) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired bool) *Key {
+	priv, err := s.keygen.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	keyRing := NewKeyRing(sshPriv, tlsPriv)
-	keyRing.KeyRingIndex = idx
+	key := NewKey(priv)
+	key.KeyIndex = idx
 
-	s.signKeyRing(t, keyRing, makeExpired)
-	return keyRing
+	s.signKey(t, key, makeExpired)
+	return key
 }
 
-func (s *testAuthority) signKeyRing(t *testing.T, keyRing *KeyRing, makeExpired bool) {
+func (s *testAuthority) signKey(t *testing.T, key *Key, makeExpired bool) {
 	t.Helper()
-	allowedLogins := []string{keyRing.Username, "root"}
+
+	allowedLogins := []string{key.Username, "root"}
 	ttl := 20 * time.Minute
 	if makeExpired {
 		ttl = -ttl
 	}
 
+	// reuse the same RSA keys for SSH and TLS keys
+	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
-		Username: keyRing.Username,
+		Username: key.Username,
 		Groups:   []string{"groups"},
 	}
 	subject, err := identity.Subject()
 	require.NoError(t, err)
 	tlsCert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     s.clock,
-		PublicKey: keyRing.TLSPrivateKey.Public(),
+		Clock:     clock,
+		PublicKey: key.Public(),
 		Subject:   subject,
-		NotAfter:  s.clock.Now().UTC().Add(ttl),
+		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
 	require.NoError(t, err)
 
@@ -117,26 +104,21 @@ func (s *testAuthority) signKeyRing(t *testing.T, keyRing *KeyRing, makeExpired 
 
 	cert, err := s.keygen.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      caSigner,
-		PublicUserKey: keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+		PublicUserKey: ssh.MarshalAuthorizedKey(key.SSHPublicKey()),
 		TTL:           ttl,
 		Identity: sshca.Identity{
-			Username:              keyRing.Username,
+			Username:              key.Username,
 			Principals:            allowedLogins,
 			PermitAgentForwarding: false,
 			PermitPortForwarding:  true,
-			GitHubUserID:          "1234567",
-			GitHubUsername:        "github-username",
 		},
 	})
 	require.NoError(t, err)
 
-	keyRing.Cert = cert
-	keyRing.TLSCert = tlsCert
-	keyRing.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
-	keyRing.DBTLSCredentials["example-db"] = TLSCredential{
-		Cert:       tlsCert,
-		PrivateKey: keyRing.TLSPrivateKey,
-	}
+	key.Cert = cert
+	key.TLSCert = tlsCert
+	key.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
+	key.DBTLSCerts["example-db"] = tlsCert
 }
 
 func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, authclient.TrustedCerts, error) {
@@ -184,27 +166,27 @@ func testEachClientStore(t *testing.T, testFunc func(t *testing.T, clientStore *
 
 func TestClientStore(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
 	a := newTestAuthority(t)
 	hwks := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
 
 	// create a test software and hardware key.
-	idx := KeyRingIndex{"test.proxy.com", "test-user", "root"}
-	softKeyRing := a.makeSignedKeyRing(t, idx, false)
+	idx := KeyIndex{"test.proxy.com", "test-user", "root"}
+	softKey := a.makeSignedKey(t, idx, false)
 	keyInfo := idx.contextualKeyInfo()
 	hwPriv, err := keys.NewHardwarePrivateKey(ctx, hwks, hardwarekey.PrivateKeyConfig{
 		ContextualKeyInfo: keyInfo,
 	})
 	require.NoError(t, err)
-	hardKeyRing := NewKeyRing(hwPriv, hwPriv)
-	hardKeyRing.KeyRingIndex = idx
-	a.signKeyRing(t, hardKeyRing, false)
+	hardKey := NewKey(hwPriv)
+	hardKey.KeyIndex = idx
+	a.signKey(t, hardKey, false)
 
-	for name, keyRing := range map[string]*KeyRing{
-		"software key": softKeyRing,
-		"hardware key": hardKeyRing,
+	for name, key := range map[string]*Key{
+		"software key": softKey,
+		"hardware key": hardKey,
 	} {
+		key := key
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -212,41 +194,38 @@ func TestClientStore(t *testing.T) {
 				clientStore.HardwareKeyService = hwks
 
 				// Add key should add the key and trusted certs to their respective stores.
-				err := clientStore.AddKeyRing(keyRing)
+				err := clientStore.AddKey(key)
 				require.NoError(t, err)
 
 				// the key's trusted certs should be added to the trusted certs store.
 				retrievedTrustedCerts, err := clientStore.GetTrustedCerts(idx.ProxyHost)
 				require.NoError(t, err)
-				require.Equal(t, keyRing.TrustedCerts, retrievedTrustedCerts)
+				require.Equal(t, key.TrustedCerts, retrievedTrustedCerts)
 
 				// Getting the key from the key store should have no trusted certs.
-				retrievedKeyRing, err := clientStore.KeyStore.GetKeyRing(idx, clientStore.HardwareKeyService, WithAllCerts...)
+				retrievedKey, err := clientStore.KeyStore.GetKey(idx, clientStore.HardwareKeyService, WithAllCerts...)
 				require.NoError(t, err)
-				expectKeyRing := keyRing.Copy()
-				expectKeyRing.TrustedCerts = nil
-				assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
+				expectKey := key.Copy()
+				expectKey.TrustedCerts = nil
+				require.Equal(t, expectKey, retrievedKey)
 
 				// Getting the key from the client store should fill in the trusted certs.
-				retrievedKeyRing, err = clientStore.GetKeyRing(idx, WithAllCerts...)
+				retrievedKey, err = clientStore.GetKey(idx, WithAllCerts...)
 				require.NoError(t, err)
-				assertEqualKeyRings(t, keyRing, retrievedKeyRing)
+				require.Equal(t, key, retrievedKey)
 
 				// Get the key, now without cluster name. It should retrieve the key without certs
-				// and without a cluster name in the KeyRingIndex or ContextualKeyInfo (hardware keys).
-				retrievedKeyRing, err = clientStore.GetKeyRing(KeyRingIndex{idx.ProxyHost, idx.Username, ""})
+				// and without a cluster name in the KeyIndex or ContextualKeyInfo (hardware keys).
+				retrievedKey, err = clientStore.GetKey(KeyIndex{idx.ProxyHost, idx.Username, ""})
 				require.NoError(t, err)
-				expectKeyRing = keyRing.Copy()
-				expectKeyRing.ClusterName = ""
-				expectKeyRing.Cert = nil
-				expectKeyRing.DBTLSCredentials = make(map[string]TLSCredential)
-				if hwPriv, ok := expectKeyRing.TLSPrivateKey.Signer.(*hardwarekey.Signer); ok {
+				expectKey = key.Copy()
+				expectKey.ClusterName = ""
+				expectKey.Cert = nil
+				expectKey.DBTLSCerts = make(map[string][]byte)
+				if hwPriv, ok := expectKey.PrivateKey.Signer.(*hardwarekey.Signer); ok {
 					hwPriv.KeyInfo.ClusterName = ""
 				}
-				if hwPriv, ok := expectKeyRing.SSHPrivateKey.Signer.(*hardwarekey.Signer); ok {
-					hwPriv.KeyInfo.ClusterName = ""
-				}
-				assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
+				require.Equal(t, expectKey, retrievedKey)
 
 				var profileDir string
 				if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {
@@ -261,7 +240,7 @@ func TestClientStore(t *testing.T) {
 				}
 				err = clientStore.SaveProfile(profile, true)
 				require.NoError(t, err)
-				expectStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
+				expectStatus, err := profileStatusFromKey(key, profileOptions{
 					ProfileName:       profile.Name(),
 					WebProxyAddr:      profile.WebProxyAddr,
 					ProfileDir:        profileDir,
@@ -281,9 +260,9 @@ func TestClientStore(t *testing.T) {
 
 				// FullProfileStatus should return the current profile status, and any
 				// other available profiles' statuses.
-				otherKey := keyRing.Copy()
+				otherKey := key.Copy()
 				otherKey.ProxyHost = "other.example.com"
-				err = clientStore.AddKeyRing(otherKey)
+				err = clientStore.AddKey(otherKey)
 				require.NoError(t, err)
 
 				otherProfile := profile.Copy()
@@ -291,7 +270,7 @@ func TestClientStore(t *testing.T) {
 				err = clientStore.SaveProfile(otherProfile, false)
 				require.NoError(t, err)
 
-				expectOtherStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
+				expectOtherStatus, err := profileStatusFromKey(key, profileOptions{
 					ProfileName:       otherProfile.Name(),
 					WebProxyAddr:      otherProfile.WebProxyAddr,
 					ProfileDir:        profileDir,
@@ -322,23 +301,23 @@ func TestProxySSHConfig(t *testing.T) {
 	testEachClientStore(t, func(t *testing.T, clientStore *Store) {
 		t.Parallel()
 
-		idx := KeyRingIndex{"host.a", "bob", "root"}
-		keyRing := auth.makeSignedKeyRing(t, idx, false)
+		idx := KeyIndex{"host.a", "bob", "root"}
+		key := auth.makeSignedKey(t, idx, false)
 
 		caPub, _, _, _, err := ssh.ParseAuthorizedKey(CAPub)
 		require.NoError(t, err)
 
-		err = clientStore.AddKeyRing(keyRing)
+		err = clientStore.AddKey(key)
 		require.NoError(t, err)
 
 		firsthost := "127.0.0.1"
 		err = clientStore.AddTrustedHostKeys(idx.ProxyHost, firsthost, caPub)
 		require.NoError(t, err)
 
-		retrievedKeyRing, err := clientStore.GetKeyRing(idx, WithSSHCerts{})
+		retrievedKey, err := clientStore.GetKey(idx, WithSSHCerts{})
 		require.NoError(t, err)
 
-		clientConfig, err := retrievedKeyRing.ProxyClientSSHConfig(firsthost)
+		clientConfig, err := retrievedKey.ProxyClientSSHConfig(firsthost)
 		require.NoError(t, err)
 
 		var called atomic.Int32
@@ -410,103 +389,14 @@ func TestProxySSHConfig(t *testing.T) {
 
 		// The ProxyClientSSHConfig should create configuration that validates server authority only based on
 		// second-host instead of all known hosts.
-		retrievedKeyRing, err = clientStore.GetKeyRing(idx, WithSSHCerts{})
+		retrievedKey, err = clientStore.GetKey(idx, WithSSHCerts{})
 		require.NoError(t, err)
-		clientConfig, err = retrievedKeyRing.ProxyClientSSHConfig("second-host")
+		clientConfig, err = retrievedKey.ProxyClientSSHConfig("second-host")
 		require.NoError(t, err)
 
 		// ssh server cert doesn't match second-host user known host thus connection should fail.
 		_, err = ssh.Dial("tcp", srv.Addr(), clientConfig)
 		require.Error(t, err)
-	})
-}
-
-// BenchmarkLoadKeysToKubeFromStore benchmarks the namesake function used in the
-// `tsh kube credentials` command called by kubectl. It should be reasonably
-// fast to avoid adding latency to all kubectl calls. It should tolerate being
-// called many times in parallel.
-func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(b, err)
-
-	template := x509.Certificate{
-		Subject: pkix.Name{
-			CommonName: "k8scluster",
-		},
-		SerialNumber: big.NewInt(1),
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, key.Public(), key)
-	require.NoError(b, err)
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	require.NotEmpty(b, certPEM)
-
-	privateKey, err := keys.NewPrivateKey(key)
-	require.NoError(b, err)
-
-	kubeCred := TLSCredential{
-		PrivateKey: privateKey,
-		Cert:       certPEM,
-	}
-
-	dir := b.TempDir()
-	fsKeyStore := NewFSKeyStore(dir)
-
-	keyRing := &KeyRing{
-		KeyRingIndex: KeyRingIndex{
-			ProxyHost:   "teleport.example.com",
-			Username:    "tester",
-			ClusterName: "teleportcluster",
-		},
-		TLSPrivateKey:      privateKey,
-		SSHPrivateKey:      privateKey,
-		TLSCert:            certPEM,
-		KubeTLSCredentials: make(map[string]TLSCredential, 10),
-	}
-
-	kubeClusterNames := make([]string, 0, 10)
-	for i := range 10 {
-		kubeClusterName := fmt.Sprintf("kubecluster-%d", i)
-		keyRing.KubeTLSCredentials[kubeClusterName] = kubeCred
-		kubeClusterNames = append(kubeClusterNames, kubeClusterName)
-	}
-
-	err = fsKeyStore.AddKeyRing(keyRing)
-	require.NoError(b, err)
-
-	b.Run("LoadKeysToKubeFromStore", func(b *testing.B) {
-		for b.Loop() {
-			var wg sync.WaitGroup
-			wg.Add(len(kubeClusterNames))
-			for _, kubeClusterName := range kubeClusterNames {
-				go func() {
-					defer wg.Done()
-					keyPEM, certPEM, err := LoadKeysToKubeFromStore(&profile.Profile{
-						SiteName: "teleport.example.com",
-						Username: "tester",
-					}, dir, "teleportcluster", kubeClusterName)
-					require.NoError(b, err)
-					require.NotEmpty(b, certPEM)
-					require.NotEmpty(b, keyPEM)
-				}()
-			}
-			wg.Wait()
-		}
-	})
-
-	// Compare against a naive GetKeyRing call which loads the key and cert for
-	// all active kube clusters, not just the one requested.
-	b.Run("GetKeyRing", func(b *testing.B) {
-		for b.Loop() {
-			for _, kubeClusterName := range kubeClusterNames {
-				keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
-				require.NoError(b, err)
-				require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
-				require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
-			}
-		}
 	})
 }
 

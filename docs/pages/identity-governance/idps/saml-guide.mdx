@@ -2,7 +2,7 @@
 title: Using Teleport as a SAML identity provider
 description: How to configure and use Teleport as a SAML identity provider.
 h1: Teleport as a SAML identity provider
-labels:
+tags:
  - how-to
  - identity-governance
 ---
@@ -21,7 +21,7 @@ includes information about the application.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 - If you're new to SAML, consider reviewing our [SAML Identity Provider
@@ -42,10 +42,15 @@ of the service provider.
 
 Below we'll show both of the configuration options.
 
-First, in the Web UI, under **Zero Trust Access**, click **Auth Connectors** in the menu.
-Choose the appropriate SAML application integration tile. Click the tile and follow the resulting steps.
+First, in the Web UI, under **Access Management**, click **Enroll New Resource** menu.
+In the search box, enter "saml", which will show the SAML application
+integration tile. Click the tile.
 
-![Enroll SAML app](../../../img/access-controls/saml-idp/saml-idp.png)
+![Enroll SAML app](../../../img/access-controls/saml-idp/enroll-saml-app.png)
+
+The first configuration step, **Configure Service Provider with Teleport's Identity Provider Metadata**
+shows Teleport SAML IdP metadata values. For this guide, you can move to next step by clicking **Next** button
+which takes to **Add Service Provider To Teleport** step.
 
 ### Option 1: Configure with Entity ID and ACS URL
 
@@ -180,7 +185,7 @@ already available to access under resources page.
 
 ## Step 3/3. Verify access to iamshowcase protected page
 
-To verify everything works, navigate to **Resources** page in Teleport Web UI and look for the app.
+To verify everything works, navigate to **Resources** page in Teleport Web UI.
 
 ![Access app](../../../img/access-controls/saml-idp/access-app.png)
 
@@ -227,8 +232,6 @@ Create the role with `tctl`:
 $ tctl create sp-manager.yaml
 role 'saml-idp-service-provider-manager' has been created
 ```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
 
 Next, add the role to your user.
 

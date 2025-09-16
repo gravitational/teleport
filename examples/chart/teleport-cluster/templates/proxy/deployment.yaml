@@ -1,7 +1,6 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $replicable := or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName $proxy.ingress.enabled -}}
 {{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
-{{- $topologySpreadConstraints := and (semverCompare ">=1.18.0-0" .Capabilities.KubeVersion.Version) (not $proxy.disableTopologySpreadConstraints) }}
 # Deployment is {{ if not $replicable }}not {{end}}replicable
 {{- if and $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
 {{- fail "Cannot set both highAvailability.certManager.enabled and tls.existingSecretName, choose one or the other" }}
@@ -62,23 +61,6 @@ spec:
     spec:
 {{- if $proxy.nodeSelector }}
       nodeSelector: {{- toYaml $proxy.nodeSelector | nindent 8 }}
-{{- end }}
-{{- if $topologySpreadConstraints }}
-  {{- if $proxy.topologySpreadConstraints }}
-      topologySpreadConstraints: {{- toYaml $proxy.topologySpreadConstraints | nindent 8 }}
-  {{- else }}
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels: {{- include "teleport-cluster.proxy.selectorLabels" . | nindent 14 }}
-        - maxSkew: 1
-          topologyKey: topology.kubernetes.io/zone
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels: {{- include "teleport-cluster.proxy.selectorLabels" . | nindent 14 }}
-  {{- end }}
 {{- end }}
       affinity:
 {{- if $proxy.affinity }}

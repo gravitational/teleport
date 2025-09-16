@@ -20,7 +20,8 @@ package githubactions
 
 import (
 	"context"
-	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,26 +30,21 @@ import (
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
-
-	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 type fakeIDP struct {
 	t             *testing.T
 	signer        jose.Signer
-	publicKey     crypto.PublicKey
+	privateKey    *rsa.PrivateKey
 	server        *httptest.Server
 	entepriseSlug string
 	ghesMode      bool
 }
 
 func newFakeIDP(t *testing.T, ghesMode bool, enterpriseSlug string) *fakeIDP {
-	// Github uses RSA2048, prefer to test with it.
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
 	signer, err := jose.NewSigner(
@@ -60,7 +56,7 @@ func newFakeIDP(t *testing.T, ghesMode bool, enterpriseSlug string) *fakeIDP {
 	f := &fakeIDP{
 		signer:        signer,
 		ghesMode:      ghesMode,
-		publicKey:     privateKey.Public(),
+		privateKey:    privateKey,
 		t:             t,
 		entepriseSlug: enterpriseSlug,
 	}
@@ -99,7 +95,7 @@ func (f *fakeIDP) issuer() string {
 
 func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
 	// mimic https://token.actions.githubusercontent.com/.well-known/openid-configuration
-	response := map[string]any{
+	response := map[string]interface{}{
 		"claims_supported": []string{
 			"sub",
 			"aud",
@@ -146,7 +142,7 @@ func (f *fakeIDP) handleJWKSEndpoint(w http.ResponseWriter, r *http.Request) {
 	jwks := jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
-				Key: f.publicKey,
+				Key: &f.privateKey.PublicKey,
 			},
 		},
 	}
@@ -173,7 +169,7 @@ func (f *fakeIDP) issueToken(
 		NotBefore: jwt.NewNumericDate(issuedAt),
 		Expiry:    jwt.NewNumericDate(expiry),
 	}
-	customClaims := map[string]any{
+	customClaims := map[string]interface{}{
 		"actor": actor,
 	}
 	token, err := jwt.Signed(f.signer).
@@ -342,6 +338,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
+				Clock:            clockwork.NewRealClock(),
 				GitHubIssuerHost: tt.defaultIDPHost,
 				insecure:         true,
 			})
@@ -350,18 +347,16 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				ctx, tt.ghesHost, tt.enterpriseSlug, tt.token,
 			)
 			tt.assertError(t, err)
-			require.Empty(t,
-				cmp.Diff(claims, tt.want, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
-			)
+			require.Equal(t, tt.want, claims)
 		})
 	}
 }
 
 func testSigner(t *testing.T) ([]byte, jose.Signer) {
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.ES256, Key: key},
+		jose.SigningKey{Algorithm: jose.RS256, Key: privateKey},
 		(&jose.SignerOptions{}).
 			WithType("JWT").
 			WithHeader("kid", "foo"),
@@ -370,9 +365,9 @@ func testSigner(t *testing.T) ([]byte, jose.Signer) {
 
 	jwks := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
 		{
-			Key:       key.Public(),
+			Key:       privateKey.Public(),
 			Use:       "sig",
-			Algorithm: string(jose.ES256),
+			Algorithm: string(jose.RS256),
 			KeyID:     "foo",
 		},
 	}}
@@ -381,7 +376,9 @@ func testSigner(t *testing.T) ([]byte, jose.Signer) {
 	return jwksData, signer
 }
 
+//nolint:govet // there's some weird json struct tag overlap here
 type claims struct {
+	jwt.Claims
 	IDTokenClaims
 	Subject string `json:"sub"`
 }
@@ -407,14 +404,14 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			claims: claims{
 				IDTokenClaims: IDTokenClaims{
 					Repository: "123",
-					TokenClaims: oidc.TokenClaims{
-						Audience:   oidc.Audience{clusterName},
-						IssuedAt:   oidc.FromTime(now.Add(-1 * time.Minute)),
-						NotBefore:  oidc.FromTime(now.Add(-1 * time.Minute)),
-						Expiration: oidc.FromTime(now.Add(10 * time.Minute)),
-					},
 				},
 				Subject: "foo",
+				Claims: jwt.Claims{
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
 			},
 			wantResult: &IDTokenClaims{
 				Sub:        "foo",
@@ -427,14 +424,14 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			claims: claims{
 				IDTokenClaims: IDTokenClaims{
 					Repository: "123",
-					TokenClaims: oidc.TokenClaims{
-						Audience:   oidc.Audience{clusterName},
-						IssuedAt:   oidc.FromTime(now.Add(-1 * time.Minute)),
-						NotBefore:  oidc.FromTime(now.Add(-1 * time.Minute)),
-						Expiration: oidc.FromTime(now.Add(10 * time.Minute)),
-					},
 				},
 				Subject: "foo",
+				Claims: jwt.Claims{
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
 			},
 			wantResult: &IDTokenClaims{
 				Sub:        "foo",
@@ -448,14 +445,14 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			claims: claims{
 				IDTokenClaims: IDTokenClaims{
 					Repository: "123",
-					TokenClaims: oidc.TokenClaims{
-						Audience:   oidc.Audience{clusterName},
-						IssuedAt:   oidc.FromTime(now.Add(-2 * time.Minute)),
-						NotBefore:  oidc.FromTime(now.Add(-2 * time.Minute)),
-						Expiration: oidc.FromTime(now.Add(-1 * time.Minute)),
-					},
 				},
 				Subject: "foo",
+				Claims: jwt.Claims{
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-2 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+				},
 			},
 			wantErr: "token is expired",
 		},
@@ -465,14 +462,14 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			claims: claims{
 				IDTokenClaims: IDTokenClaims{
 					Repository: "123",
-					TokenClaims: oidc.TokenClaims{
-						Audience:   oidc.Audience{clusterName},
-						IssuedAt:   oidc.FromTime(now.Add(2 * time.Minute)),
-						NotBefore:  oidc.FromTime(now.Add(2 * time.Minute)),
-						Expiration: oidc.FromTime(now.Add(4 * time.Minute)),
-					},
 				},
 				Subject: "foo",
+				Claims: jwt.Claims{
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(2 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(2 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(4 * time.Minute)),
+				},
 			},
 			wantErr: "token not valid yet",
 		},
@@ -491,9 +488,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Empty(t,
-				cmp.Diff(result, tt.wantResult, cmpopts.IgnoreTypes(oidc.TokenClaims{})),
-			)
+			require.Equal(t, tt.wantResult, result)
 		})
 	}
 }

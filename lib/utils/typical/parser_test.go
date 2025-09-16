@@ -20,7 +20,6 @@ package typical_test
 
 import (
 	"errors"
-	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -29,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vulcand/predicate"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -398,75 +398,8 @@ func TestParser(t *testing.T) {
 				"haha",
 			},
 		},
-		{
-			desc:        "integer equality (true)",
-			expr:        `1 == 1`,
-			expectMatch: true,
-		},
-		{
-			desc:        "integer equality (false)",
-			expr:        `1 == 2`,
-			expectMatch: false,
-		},
-		{
-			desc:        "equality lhs dynamic",
-			expr:        `ifelse(1 == 1, 1, "one") == 1`,
-			expectMatch: true,
-		},
-		{
-			desc:        "equality rhs dynamic",
-			expr:        `1 == ifelse(1 == 1, 1, "one")`,
-			expectMatch: true,
-		},
-		{
-			desc: "equality both operands dynamic",
-			expr: `ifelse(1 == 1, 1, "one") == ifelse(1 == 1, 1, "one")`,
-			expectParseError: []string{
-				"operator (==) can only be used when at least one operand type is known at parse time",
-			},
-		},
-		{
-			desc: "equality unsupported operand type",
-			expr: `traits == traits`,
-			expectParseError: []string{
-				"operator (==) not supported for type: map[string][]string",
-			},
-		},
-		{
-			desc:        "integer inequality (true)",
-			expr:        `1 != 2`,
-			expectMatch: true,
-		},
-		{
-			desc:        "integer inequality (false)",
-			expr:        `1 != 1`,
-			expectMatch: false,
-		},
-		{
-			desc:        "inequality lhs dynamic",
-			expr:        `ifelse(1 == 1, 1, "one") != 2`,
-			expectMatch: true,
-		},
-		{
-			desc:        "inequality rhs dynamic",
-			expr:        `2 != ifelse(1 == 1, 1, "one")`,
-			expectMatch: true,
-		},
-		{
-			desc: "iequality both operands dynamic",
-			expr: `ifelse(1 == 1, 1, "one") != ifelse(1 == 1, 1, "one")`,
-			expectParseError: []string{
-				"operator (!=) can only be used when at least one operand type is known at parse time",
-			},
-		},
-		{
-			desc: "inequality unsupported operand type",
-			expr: `traits != traits`,
-			expectParseError: []string{
-				"operator (!=) not supported for type: map[string][]string",
-			},
-		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			expr, err := parser.Parse(tc.expr)
@@ -565,7 +498,7 @@ func TestUnknownIdentifier(t *testing.T) {
 			name:               "unknown variable",
 			expression:         "unknown",
 			knownVariablesOnly: true,
-			parseAssertion: func(t require.TestingT, err error, i ...any) {
+			parseAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				var u typical.UnknownIdentifierError
 				require.ErrorAs(t, err, &u, i...)
 				require.ErrorAs(t, trace.Wrap(err), &u, i...)
@@ -583,6 +516,7 @@ func TestUnknownIdentifier(t *testing.T) {
 	}
 
 	for _, test := range cases {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			spec := typical.ParserSpec[resource]{
 				Functions: map[string]typical.Function{

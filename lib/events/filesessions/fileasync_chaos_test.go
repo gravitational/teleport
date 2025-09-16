@@ -1,4 +1,5 @@
 //go:build !race
+// +build !race
 
 /*
  * Teleport
@@ -31,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -50,7 +52,8 @@ func TestChaosUpload(t *testing.T) {
 		t.Skip("Skipping chaos test in short mode.")
 	}
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	eventsC := make(chan events.UploadEvent, 100)
 	memUploader := eventstest.NewMemoryUploader(eventsC)
@@ -70,7 +73,7 @@ func TestChaosUpload(t *testing.T) {
 		OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 			event := pe.GetAuditEvent()
 			if event.GetIndex() > 700 && terminateConnection.Add(1) < 5 {
-				t.Logf("Terminating connection at event %v", event.GetIndex())
+				log.Debugf("Terminating connection at event %v", event.GetIndex())
 				return trace.ConnectionProblem(nil, "connection terminated")
 			}
 			return nil
@@ -99,7 +102,7 @@ func TestChaosUpload(t *testing.T) {
 					if fi.Name() == sid.String()+checkpointExt {
 						err := os.Remove(filepath.Join(scanDir, fi.Name()))
 						require.NoError(t, err)
-						t.Logf("Deleted checkpoint file: %v.", fi.Name())
+						log.Debugf("Deleted checkpoint file: %v.", fi.Name())
 						break
 					}
 				}
@@ -121,7 +124,7 @@ func TestChaosUpload(t *testing.T) {
 	go uploader.Serve(ctx)
 	defer uploader.Close()
 
-	fileStreamer, err := NewStreamer(scanDir, nil)
+	fileStreamer, err := NewStreamer(scanDir)
 	require.NoError(t, err)
 
 	parallelStreams := 20
@@ -131,7 +134,7 @@ func TestChaosUpload(t *testing.T) {
 		err    error
 	}
 	streamsCh := make(chan streamState, parallelStreams)
-	for range parallelStreams {
+	for i := 0; i < parallelStreams; i++ {
 		go func() {
 			inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 4096})
 			sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
@@ -161,7 +164,7 @@ func TestChaosUpload(t *testing.T) {
 
 	// wait for all streams to be completed
 	streams := make(map[string]streamState)
-	for range parallelStreams {
+	for i := 0; i < parallelStreams; i++ {
 		select {
 		case status := <-streamsCh:
 			require.NoError(t, status.err)
@@ -173,7 +176,7 @@ func TestChaosUpload(t *testing.T) {
 
 	require.Len(t, streams, parallelStreams)
 
-	for range parallelStreams {
+	for i := 0; i < parallelStreams; i++ {
 		select {
 		case event := <-eventsC:
 			require.NoError(t, event.Error)

@@ -61,7 +61,7 @@ discovery_service:
 
 // cfgMap is a shorthand for a type that can hold the nested key-value
 // representation of a parsed YAML file.
-type cfgMap map[any]any
+type cfgMap map[interface{}]interface{}
 
 // editConfig takes the minimal YAML configuration file, de-serializes it into a
 // nested key-value dictionary suitable for manipulation by a test case,
@@ -80,8 +80,8 @@ func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected any) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual any, msgAndArgs ...any) {
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -213,6 +213,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "otp",
 				}
 			},
+			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "otp",
@@ -225,6 +226,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "off",
 				}
 			},
+			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "off",
@@ -237,14 +239,15 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "u2f",
 					"u2f": cfgMap{
 						"app_id": "https://graviton:3080",
-						"facets": []any{"https://graviton:3080"},
-						"device_attestation_cas": []any{
+						"facets": []interface{}{"https://graviton:3080"},
+						"device_attestation_cas": []interface{}{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate\n-----END CERTIFICATE-----",
 						},
 					},
 				}
 			},
+			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "u2f",
@@ -267,17 +270,18 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "webauthn",
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
-						"attestation_allowed_cas": []any{
+						"attestation_allowed_cas": []interface{}{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
 						},
-						"attestation_denied_cas": []any{
+						"attestation_denied_cas": []interface{}{
 							"-----BEGIN CERTIFICATE-----\nfake certificate2\n-----END CERTIFICATE-----",
 							"testdata/u2f_attestation_ca.pam",
 						},
 					},
 				}
 			},
+			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "webauthn",
@@ -301,7 +305,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "on",
 					"u2f": cfgMap{
 						"app_id": "https://example.com",
-						"facets": []any{
+						"facets": []interface{}{
 							"https://example.com",
 						},
 					},
@@ -310,6 +314,7 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				}
 			},
+			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "on",
@@ -334,6 +339,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"connector_name": "passwordless",
 				}
 			},
+			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "on",
@@ -356,6 +362,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"connector_name": "headless",
 				}
 			},
+			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				Type:         "local",
 				SecondFactor: "on",
@@ -377,6 +384,7 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				}
 			},
+			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				DeviceTrust: &DeviceTrust{
 					Mode: "required",
@@ -395,88 +403,11 @@ func TestAuthenticationSection(t *testing.T) {
 					},
 				}
 			},
+			expectError: require.NoError,
 			expected: &AuthenticationConfig{
 				DeviceTrust: &DeviceTrust{
 					Mode:       "required",
 					AutoEnroll: "yes",
-				},
-			},
-		}, {
-			desc: "signature suite empty",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"signature_algorithm_suite": "",
-				}
-			},
-			expected: &AuthenticationConfig{
-				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
-			},
-		}, {
-			desc: "signature suite legacy",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"signature_algorithm_suite": "legacy",
-				}
-			},
-			expected: &AuthenticationConfig{
-				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
-			},
-		}, {
-			desc: "signature suite balanced-v1",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"signature_algorithm_suite": "balanced-v1",
-				}
-			},
-			expected: &AuthenticationConfig{
-				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			},
-		}, {
-			desc: "signature suite fips-v1",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"signature_algorithm_suite": "fips-v1",
-				}
-			},
-			expected: &AuthenticationConfig{
-				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1,
-			},
-		}, {
-			desc: "signature suite hsm-v1",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"signature_algorithm_suite": "hsm-v1",
-				}
-			},
-			expected: &AuthenticationConfig{
-				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
-			},
-		}, {
-			desc: "signature suite typo",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"signature_algorithm_suite": "balanced-v0",
-				}
-			},
-			expectError: func(t require.TestingT, err error, msgAndArgs ...any) {
-				require.ErrorContains(t, err, "invalid value: balanced-v0")
-			},
-		}, {
-			desc: "stable unix users",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"stable_unix_user_config": cfgMap{
-						"enabled":   true,
-						"first_uid": 100,
-						"last_uid":  10,
-					},
-				}
-			},
-			expected: &AuthenticationConfig{
-				StableUNIXUserConfig: &StableUNIXUserConfig{
-					Enabled:  true,
-					FirstUID: 100,
-					LastUID:  10,
 				},
 			},
 		},
@@ -485,11 +416,7 @@ func TestAuthenticationSection(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			text := bytes.NewBuffer(editConfig(t, tt.mutate))
 			cfg, err := ReadConfig(text)
-			if tt.expectError != nil {
-				tt.expectError(t, err)
-				return
-			}
-			require.NoError(t, err)
+			tt.expectError(t, err)
 
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
 		})
@@ -855,30 +782,6 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 	}
 }
 
-func TestAuthenticationConfig_Parse_StableUNIXUserConfig(t *testing.T) {
-	text := editConfig(t, func(cfg cfgMap) {
-		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-			"stable_unix_user_config": nil,
-		}
-	})
-	cfg, err := ReadConfig(bytes.NewBuffer(text))
-	require.NoError(t, err)
-	_, err = cfg.Auth.Authentication.Parse()
-	require.NoError(t, err)
-
-	text = editConfig(t, func(cfg cfgMap) {
-		cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-			"stable_unix_user_config": cfgMap{
-				"enabled": true,
-			},
-		}
-	})
-	cfg, err = ReadConfig(bytes.NewBuffer(text))
-	require.NoError(t, err)
-	_, err = cfg.Auth.Authentication.Parse()
-	require.ErrorContains(t, err, "UID range includes negative or system UIDs")
-}
-
 // TestSSHSection tests the config parser for the SSH config block
 func TestSSHSection(t *testing.T) {
 	t.Parallel()
@@ -1021,7 +924,7 @@ func TestHardwareKeyConfig(t *testing.T) {
 					},
 				}
 			},
-			expectParseError: func(t require.TestingT, err error, i ...any) {
+			expectParseError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},
@@ -1198,7 +1101,7 @@ func TestX11Config(t *testing.T) {
 					"max_display":    100,
 				}
 			},
-			expectConfigError: func(t require.TestingT, err error, i ...any) {
+			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},
@@ -1285,49 +1188,6 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "no", fc.Proxy.EnabledFlag)
 		require.Equal(t, "no", fc.Auth.EnabledFlag)
 		require.Equal(t, "yes", fc.Apps.EnabledFlag)
-	})
-
-	t.Run("App role with MCP Demo server", func(t *testing.T) {
-		fc, err := MakeSampleFileConfig(SampleFlags{
-			Roles:         "app",
-			MCPDemoServer: true,
-		})
-		require.NoError(t, err)
-		require.Equal(t, "no", fc.SSH.EnabledFlag)
-		require.Equal(t, "no", fc.Proxy.EnabledFlag)
-		require.Equal(t, "no", fc.Auth.EnabledFlag)
-		require.Equal(t, "yes", fc.Apps.EnabledFlag)
-		require.True(t, fc.Apps.MCPDemoServer)
-	})
-
-	t.Run("App name and MCP Demo Server", func(t *testing.T) {
-		_, err := MakeSampleFileConfig(SampleFlags{
-			Roles:         "app",
-			AppURI:        "localhost:8080",
-			MCPDemoServer: true,
-		})
-		require.Error(t, err)
-
-		_, err = MakeSampleFileConfig(SampleFlags{
-			Roles:         "app",
-			AppName:       "nginx",
-			MCPDemoServer: true,
-		})
-		require.Error(t, err)
-
-		fc, err := MakeSampleFileConfig(SampleFlags{
-			Roles:         "app",
-			AppURI:        "localhost:8080",
-			AppName:       "nginx",
-			MCPDemoServer: true,
-		})
-		require.NoError(t, err)
-
-		require.Equal(t, "no", fc.SSH.EnabledFlag)
-		require.Equal(t, "no", fc.Proxy.EnabledFlag)
-		require.Equal(t, "no", fc.Auth.EnabledFlag)
-		require.Equal(t, "yes", fc.Apps.EnabledFlag)
-		require.True(t, fc.Apps.MCPDemoServer)
 	})
 
 	t.Run("Proxy role", func(t *testing.T) {

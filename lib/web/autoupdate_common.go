@@ -20,15 +20,15 @@ package web
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -37,7 +37,8 @@ import (
 // If the cluster contains an autoupdate_agent_rollout resource from RFD184 it should take precedence.
 // If the resource is not there, we fall back to RFD109-style updates with channels
 // and maintenance window derived from the cluster_maintenance_config resource.
-func (h *Handler) autoUpdateAgentVersion(ctx context.Context, group, updaterUUID string) (*semver.Version, error) {
+// Version returned follows semver without the leading "v".
+func (h *Handler) autoUpdateAgentVersion(ctx context.Context, group, updaterUUID string) (string, error) {
 	rollout, err := h.cfg.AccessPoint.GetAutoUpdateAgentRollout(ctx)
 	if err != nil {
 		// Fallback to channels if there is no autoupdate_agent_rollout.
@@ -45,7 +46,7 @@ func (h *Handler) autoUpdateAgentVersion(ctx context.Context, group, updaterUUID
 			return getVersionFromChannel(ctx, h.cfg.AutomaticUpgradesChannels, group)
 		}
 		// Something is broken, we don't want to fallback to channels, this would be harmful.
-		return nil, trace.Wrap(err, "getting autoupdate_agent_rollout")
+		return "", trace.Wrap(err, "getting autoupdate_agent_rollout")
 	}
 
 	return getVersionFromRollout(rollout, group, updaterUUID)
@@ -57,10 +58,14 @@ type handlerVersionGetter struct {
 }
 
 // GetVersion implements version.Getter.
-func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
+func (h *handlerVersionGetter) GetVersion(ctx context.Context) (string, error) {
 	const group, updaterUUID = "", ""
 	agentVersion, err := h.autoUpdateAgentVersion(ctx, group, updaterUUID)
-	return agentVersion, trace.Wrap(err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	// We add the leading v required by the version.Getter interface.
+	return fmt.Sprintf("v%s", agentVersion), nil
 }
 
 // autoUpdateAgentShouldUpdate returns if the agent should update now to based on its group
@@ -93,58 +98,42 @@ func (h *Handler) autoUpdateAgentShouldUpdate(ctx context.Context, group, update
 // This logic is pretty complex and described in RFD 184.
 // The spec is summed up in the following table:
 // https://github.com/gravitational/teleport/blob/master/rfd/0184-agent-auto-updates.md#rollout-status-disabled
+// Version returned follows semver without the leading "v".
 func getVersionFromRollout(
 	rollout *autoupdatepb.AutoUpdateAgentRollout,
 	groupName, updaterUUID string,
-) (*semver.Version, error) {
+) (string, error) {
 	switch rollout.GetSpec().GetAutoupdateMode() {
 	case autoupdate.AgentsUpdateModeDisabled:
 		// If AUs are disabled, we always answer the target version
-		return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
+		return rollout.GetSpec().GetTargetVersion(), nil
 	case autoupdate.AgentsUpdateModeSuspended, autoupdate.AgentsUpdateModeEnabled:
 		// If AUs are enabled or suspended, we modulate the response based on the schedule and agent group state
 	default:
-		return nil, trace.BadParameter("unsupported agent update mode %q", rollout.GetSpec().GetAutoupdateMode())
+		return "", trace.BadParameter("unsupported agent update mode %q", rollout.GetSpec().GetAutoupdateMode())
 	}
 
 	// If the schedule is immediate, agents always update to the latest version
 	if rollout.GetSpec().GetSchedule() == autoupdate.AgentsScheduleImmediate {
-		return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
+		return rollout.GetSpec().GetTargetVersion(), nil
 	}
 
 	// Else we follow the regular schedule and answer based on the agent group state
 	group, err := getGroup(rollout, groupName)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting group %q", groupName)
+		return "", trace.Wrap(err, "getting group %q", groupName)
 	}
 
 	switch group.GetState() {
 	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
-		return version.EnsureSemver(rollout.GetSpec().GetStartVersion())
+		return rollout.GetSpec().GetStartVersion(), nil
 	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
-		return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
-	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
-		if updaterIsCanary(group, updaterUUID) {
-			return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
-		}
-		return version.EnsureSemver(rollout.GetSpec().GetStartVersion())
+		return rollout.GetSpec().GetTargetVersion(), nil
 	default:
-		return nil, trace.NotImplemented("unsupported group state %q", group.GetState())
+		return "", trace.NotImplemented("unsupported group state %q", group.GetState())
 	}
-}
-
-func updaterIsCanary(group *autoupdatepb.AutoUpdateAgentRolloutStatusGroup, updaterUUID string) bool {
-	if updaterUUID == "" {
-		return false
-	}
-	for _, canary := range group.GetCanaries() {
-		if canary.UpdaterId == updaterUUID {
-			return true
-		}
-	}
-	return false
 }
 
 // getTriggerFromRollout returns the version we should serve to the agent based
@@ -183,8 +172,6 @@ func getTriggerFromRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, groupNa
 		return true, nil
 	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 		return rollout.GetSpec().GetStrategy() == autoupdate.AgentsStrategyHaltOnError, nil
-	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
-		return updaterIsCanary(group, updaterUUID), nil
 	default:
 		return false, trace.NotImplemented("Unsupported group state %q", group.GetState())
 	}
@@ -215,7 +202,14 @@ func getGroup(
 }
 
 // getVersionFromChannel gets the target version from the RFD109 channels.
-func getVersionFromChannel(ctx context.Context, channels automaticupgrades.Channels, groupName string) (version *semver.Version, err error) {
+// Version returned follows semver without the leading "v".
+func getVersionFromChannel(ctx context.Context, channels automaticupgrades.Channels, groupName string) (version string, err error) {
+	// RFD109 channels return the version with the 'v' prefix.
+	// We can't change the internals for backward compatibility, so we must trim the prefix if it's here.
+	defer func() {
+		version = strings.TrimPrefix(version, "v")
+	}()
+
 	if channel, ok := channels[groupName]; ok {
 		return channel.GetVersion(ctx)
 	}

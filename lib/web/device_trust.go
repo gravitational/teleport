@@ -40,7 +40,7 @@ import (
 //
 // The result of this call is a redirect to "/web", regardless of the outcome of
 // the ConfirmDeviceWebAuthentication RPC.
-func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sessionCtx *SessionContext) (any, error) {
+func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sessionCtx *SessionContext) (interface{}, error) {
 	query := r.URL.Query()
 
 	// Read input parameters.
@@ -66,54 +66,46 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	})
 	switch {
 	case err != nil:
-		h.logger.WarnContext(ctx, "Device web authentication confirm failed",
-			"error", err,
-			"user", sessionCtx.GetUser(),
-		)
+		h.log.
+			WithError(err).
+			WithField("user", sessionCtx.GetUser()).
+			Warn("Device web authentication confirm failed")
 		// err swallowed on purpose.
 	default:
 		// Preemptively release session from cache, as its certificates are now
 		// updated.
 		// The WebSession watcher takes care of this in other proxy instances
 		// (see [sessionCache.watchWebSessions]).
-		h.auth.releaseResources(r.Context(), sessionCtx.GetUser(), sessionCtx.GetSessionID())
+		h.auth.releaseResources(sessionCtx.GetUser(), sessionCtx.GetSessionID())
 	}
 
 	// Always redirect back to the dashboard, regardless of outcome.
 	app.SetRedirectPageHeaders(w.Header(), "" /* nonce */)
 
-	redirectTo, err := h.getRedirectURL(r.Host, unsafeRedirectURI)
+	redirectTo, err := h.getRedirectPath(unsafeRedirectURI)
 	if err != nil {
-		h.logger.DebugContext(ctx, "Unable to parse redirectURI",
-			"error", err,
-			"redirect_uri", unsafeRedirectURI,
-		)
-		http.Error(w, http.StatusText(trace.ErrorToCode(err)), trace.ErrorToCode(err))
-		return nil, nil
+		h.log.
+			WithError(err).
+			WithField("redirect_uri", unsafeRedirectURI).
+			Debug("Unable to parse redirectURI")
 	}
 	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
 
 	return nil, nil
 }
 
-// getRedirectPath tries to parse the given unsafeRedirectURI.
-// It returns a full URL if the unsafeRedirectURI points to SAML IdP SSO endpoint.
-// In any other case, as long as the redirect URL is parsable, it returns
-// a path ensuring its prefixed with "/web".
-func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error) {
-	const (
-		basePath                = "/web"
-		samlSPInitiatedSSOPath  = "/enterprise/saml-idp/sso"
-		samlIDPInitiatedSSOPath = "/enterprise/saml-idp/login"
-	)
+// getRedirectPath tries to parse the given redirectURI. It will always return a redirect url
+// even if the parse fails (in case of failture, the returned string is "/web")
+func (h *Handler) getRedirectPath(redirectURI string) (string, error) {
+	const basePath = "/web"
 
-	if unsafeRedirectURI == "" {
+	if redirectURI == "" {
 		return basePath, nil
 	}
 
-	parsedURL, err := url.Parse(unsafeRedirectURI)
+	parsedURL, err := url.Parse(redirectURI)
 	if err != nil {
-		return basePath, trace.BadParameter("invalid redirect URL")
+		return basePath, trace.Wrap(err)
 	}
 
 	cleanPath := path.Clean(parsedURL.Path)
@@ -122,25 +114,6 @@ func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error)
 		cleanPath = "/"
 	} else if !strings.HasPrefix(cleanPath, "/") {
 		cleanPath = "/" + cleanPath
-	}
-
-	// IDP initiated SSO path format: "/enterprise/saml-idp/login/<service provider name>"
-	isIdpInitiatedSSOPath := strings.HasPrefix(cleanPath, samlIDPInitiatedSSOPath) && len(strings.Split(cleanPath, "/")) == 5
-	if cleanPath == samlSPInitiatedSSOPath || isIdpInitiatedSSOPath {
-		if parsedURL.Host != host {
-			return "", trace.BadParameter("host mismatch")
-		}
-		path := samlSPInitiatedSSOPath
-		if isIdpInitiatedSSOPath {
-			path = cleanPath
-		}
-		ensuredURL := &url.URL{
-			Scheme:   "https",
-			Host:     host,
-			Path:     path,
-			RawQuery: parsedURL.RawQuery,
-		}
-		return ensuredURL.String(), nil
 	}
 
 	// Prepend "/web" only if it's not already present

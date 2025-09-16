@@ -20,7 +20,6 @@ package inventory
 
 import (
 	"hash/maphash"
-	"iter"
 	"sync"
 	"sync/atomic"
 )
@@ -62,12 +61,6 @@ func NewStore() *Store {
 // is selected pseudorandomly from the available set.
 func (s *Store) Get(serverID string) (handle UpstreamHandle, ok bool) {
 	return s.getShard(serverID).get(serverID)
-}
-
-// Handles attempts to load all known handlers for the given server ID.
-// If you only need one handler, use Get instead.
-func (s *Store) Handles(serverID string) iter.Seq[UpstreamHandle] {
-	return s.getShard(serverID).handles(serverID)
 }
 
 // Insert adds a new handle to the store.
@@ -149,26 +142,6 @@ func (s *shard) get(serverID string) (handle UpstreamHandle, ok bool) {
 	idx := entry.ct.Add(1) % uint64(len(entry.handles))
 	handle = entry.handles[int(idx)]
 	return handle, true
-}
-
-// handles gets all handles registered for a given hostID.
-// To get a random handle, use get() instead.
-func (s *shard) handles(serverID string) iter.Seq[UpstreamHandle] {
-	return func(yield func(UpstreamHandle) bool) {
-		s.rw.RLock()
-		defer s.rw.RUnlock()
-
-		entry, ok := s.m[serverID]
-		if !ok {
-			return
-		}
-
-		for _, handle := range entry.handles {
-			if !yield(handle) {
-				return
-			}
-		}
-	}
 }
 
 func (s *shard) iter(fn func(UpstreamHandle)) {

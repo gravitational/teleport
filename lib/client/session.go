@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"os"
 	"os/signal"
@@ -58,6 +57,9 @@ const (
 )
 
 type NodeSession struct {
+	// namespace is a session this namespace belongs to
+	namespace string
+
 	// id is the Teleport session ID
 	id session.ID
 
@@ -128,6 +130,7 @@ func newSession(ctx context.Context,
 	ns := &NodeSession{
 		env:                   env,
 		nodeClient:            client,
+		namespace:             client.Namespace,
 		closer:                utils.NewCloseBroadcaster(),
 		closeWait:             &sync.WaitGroup{},
 		enableEscapeSequences: enableEscapeSequences,
@@ -144,17 +147,29 @@ func newSession(ctx context.Context,
 		}
 
 		ns.id = session.ID(sessionID)
+		ns.namespace = joinSession.GetMetadata().Namespace
 
 		if ns.terminal.IsAttached() {
 			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))
 			if err != nil {
-				log.ErrorContext(ctx, "Failed to resize terminal", "error", err)
+				log.Error(err)
 			}
 
 		}
-
-		ns.env[sshutils.SessionEnvVar] = string(ns.id)
+		// new session!
+	} else {
+		// TODO(capnspacehook): DELETE IN 17.0.0
+		// clients shouldn't set TELEPORT_SESSION when they aren't joining
+		// a session, and won't need to once all supported Proxy/Node
+		// versions set the session ID for new sessions
+		sid, ok := ns.env[sshutils.SessionEnvVar]
+		if !ok {
+			sid = string(session.NewID())
+		}
+		ns.id = session.ID(sid)
 	}
+
+	ns.env[sshutils.SessionEnvVar] = string(ns.id)
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
@@ -165,7 +180,7 @@ func newSession(ctx context.Context,
 
 		if ns.shouldClearOnExit {
 			if err := ns.terminal.Clear(); err != nil {
-				log.WarnContext(ctx, "Failed to clear screen", "error", err)
+				log.Warnf("Failed to clear screen: %v.", err)
 			}
 		}
 		ns.terminal.Close()
@@ -228,10 +243,12 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 		}
 	}
 	// pass environment variables set by client
-	maps.Copy(envs, ns.env)
+	for key, val := range ns.env {
+		envs[key] = val
+	}
 
 	if err := sess.SetEnvs(ctx, envs); err != nil {
-		log.WarnContext(ctx, "Failed to set environment variables", "error", err)
+		log.Warn(err)
 	}
 
 	// if agent forwarding was requested (and we have a agent to forward),
@@ -240,7 +257,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 	targetAgent := selectKeyAgent(ctx, tc)
 
 	if targetAgent != nil {
-		log.DebugContext(ctx, "Forwarding Selected Key Agent")
+		log.Debugf("Forwarding Selected Key Agent")
 		err = sshagent.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, targetAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -259,13 +276,13 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 func selectKeyAgent(ctx context.Context, tc *TeleportClient) sshagent.ClientGetter {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
-		log.DebugContext(ctx, "Selecting system key agent")
+		log.Debugf("Selecting system key agent.")
 		return sshagent.NewSystemAgentClient
 	case ForwardAgentLocal:
-		log.DebugContext(ctx, "Selecting local Teleport key agent")
+		log.Debugf("Selecting local Teleport key agent.")
 		return sshagent.NewStaticClientGetter(tc.localAgent.ExtendedAgent)
 	default:
-		log.DebugContext(ctx, "No Key Agent selected")
+		log.Debugf("No Key Agent selected.")
 		return nil
 	}
 }
@@ -339,7 +356,7 @@ func (ns *NodeSession) allocateTerminal(ctx context.Context, termType string, s 
 	if ns.terminal.IsAttached() {
 		realWidth, realHeight, err := ns.terminal.Size()
 		if err != nil {
-			log.ErrorContext(ctx, "Unable to determine terminal size", "error", err)
+			log.Error(err)
 		} else {
 			width = int(realWidth)
 			height = int(realHeight)
@@ -374,7 +391,7 @@ func (ns *NodeSession) allocateTerminal(ctx context.Context, termType string, s 
 	}
 	go func() {
 		if _, err := io.Copy(ns.nodeClient.TC.Stderr, stderr); err != nil {
-			log.DebugContext(ctx, "Error reading remote STDERR", "error", err)
+			log.Debugf("Error reading remote STDERR: %v", err)
 		}
 	}()
 	return utils.NewPipeNetConn(
@@ -391,7 +408,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 
 	lastWidth, lastHeight, err := ns.terminal.Size()
 	if err != nil {
-		log.ErrorContext(ctx, "Unable to get window size", "error", err)
+		log.Errorf("Unable to get window size: %v", err)
 		return
 	}
 
@@ -416,7 +433,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 
 			currWidth, currHeight, err := ns.terminal.Size()
 			if err != nil {
-				log.WarnContext(ctx, "Unable to get window size", "error", err)
+				log.Warnf("Unable to get window size: %v.", err)
 				continue
 			}
 
@@ -427,16 +444,11 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 
 			// Send the "window-change" request over the channel.
 			if err = s.WindowChange(ctx, int(currHeight), int(currWidth)); err != nil {
-				log.WarnContext(ctx, "Unable to send window change request", "error", err)
+				log.Warnf("Unable to send %v request: %v.", sshutils.WindowChangeRequest, err)
 				continue
 			}
 
-			log.DebugContext(ctx, "Updated window size from due to SIGWINCH.",
-				"original_width", lastWidth,
-				"original_height", lastHeight,
-				"current_width", currWidth,
-				"current_height", currHeight,
-			)
+			log.Debugf("Updated window size from (%d, %d) to (%d, %d) due to SIGWINCH.", lastWidth, lastHeight, currWidth, currHeight)
 
 			lastWidth, lastHeight = currWidth, currHeight
 
@@ -449,18 +461,14 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 
 			terminalParams, err := session.UnmarshalTerminalParams(event.GetString(events.TerminalSize))
 			if err != nil {
-				log.WarnContext(ctx, "Unable to unmarshal terminal parameters", "error", err)
+				log.Warnf("Unable to unmarshal terminal parameters: %v.", err)
 				continue
 			}
 
 			lastSize := terminalParams.Winsize()
 			lastWidth = int16(lastSize.Width)
 			lastHeight = int16(lastSize.Height)
-			log.DebugContext(ctx, "Received window size from node in session",
-				"width", lastSize.Width,
-				"height", lastSize.Height,
-				"session_id", event.GetString(events.SessionEventID),
-			)
+			log.Debugf("Received window size %v from node in session %v.", lastSize, event.GetString(events.SessionEventID))
 
 		// Update size of local terminal with the last size received from remote server.
 		case <-tickerCh.C:
@@ -468,7 +476,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 			// received.
 			currWidth, currHeight, err := ns.terminal.Size()
 			if err != nil {
-				log.WarnContext(ctx, "Unable to get current terminal size", "error", err)
+				log.Warnf("Unable to get current terminal size: %v.", err)
 				continue
 			}
 
@@ -481,16 +489,11 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 			// the window.
 			err = ns.terminal.Resize(lastWidth, lastHeight)
 			if err != nil {
-				log.WarnContext(ctx, "Unable to update terminal size", "error", err)
+				log.Warnf("Unable to update terminal size: %v.", err)
 				continue
 			}
 
-			log.DebugContext(ctx, "Updated window size due to remote window change",
-				"original_width", lastWidth,
-				"original_height", lastHeight,
-				"current_width", currWidth,
-				"current_height", currHeight,
-			)
+			log.Debugf("Updated window size from (%d, %d) to (%d, %d) due to remote window change.", currWidth, currHeight, lastWidth, lastHeight)
 		case <-ns.closer.C:
 			return
 		}
@@ -600,10 +603,10 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 		// Ctrl-C.
 		case <-ctx.Done():
 			if err := s.Close(); err != nil {
-				log.DebugContext(ctx, "Unable to close SSH channel", "error", err)
+				log.Debugf("Unable to close SSH channel: %v", err)
 			}
 			if err := ns.NodeClient().Client.Close(); err != nil {
-				log.DebugContext(ctx, "Unable to close SSH client", "error", err)
+				log.Debugf("Unable to close SSH client: %v", err)
 			}
 			return trace.ConnectionProblem(ctx.Err(), "connection canceled")
 		}
@@ -638,7 +641,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 			case <-ctrlCSignal:
 				_, err := shell.Write([]byte{ctrlCharC})
 				if err != nil {
-					log.ErrorContext(context.Background(), "Failed to forward ctrl+c", "error", err)
+					log.Error(err.Error())
 				}
 			case <-ns.closer.C:
 				return
@@ -654,7 +657,7 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 			if _, ok := event.(terminal.StopEvent); ok {
 				_, err := shell.Write([]byte{ctrlCharZ})
 				if err != nil {
-					log.ErrorContext(context.Background(), "Failed to forward ctrl+z", "error", err)
+					log.Error(err.Error())
 				}
 			}
 		}
@@ -696,7 +699,7 @@ func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, rem
 		// by tsh. These can be used to force a client disconnect since CTRL-C is merely passed
 		// to the other end and not interpreted as an exit request locally
 		stdin = escape.NewReader(stdin, term.Stderr(), func(err error) {
-			log.DebugContext(context.Background(), "escape.NewReader error", "error", err)
+			log.Debugf("escape.NewReader error: %v", err)
 
 			switch {
 			case errors.Is(err, escape.ErrDisconnect):
@@ -711,7 +714,7 @@ func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, rem
 
 	_, err := io.Copy(remoteStdin, stdin)
 	if err != nil {
-		log.DebugContext(context.Background(), "Error copying data to remote peer", "error", err)
+		log.Debugf("Error copying data to remote peer: %v", err)
 		fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
 		forceDisconnect = true
 	}
@@ -726,8 +729,8 @@ func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, 
 	go func() {
 		defer ns.closer.Close()
 		_, err := io.Copy(ns.terminal.Stdout(), shell)
-		if err != nil && !utils.IsOKNetworkError(err) {
-			log.ErrorContext(ctx, "Failed copying data to session", "error", err)
+		if err != nil {
+			log.Error(err.Error())
 		}
 	}()
 

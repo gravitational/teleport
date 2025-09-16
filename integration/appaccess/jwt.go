@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -45,6 +46,7 @@ func verifyJWT(t *testing.T, pack *Pack, token, appURI string) {
 	// Verify JWT.
 	key, err := jwt.New(&jwt.Config{
 		PublicKey:   publicKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: pack.jwtAppClusterName,
 	})
 	require.NoError(t, err)

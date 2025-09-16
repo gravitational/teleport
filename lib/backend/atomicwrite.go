@@ -187,7 +187,7 @@ type ConditionalAction struct {
 
 // Check validates the basic correctness of the conditional action.
 func (c *ConditionalAction) Check() error {
-	if len(c.Key.s) == 0 {
+	if len(c.Key) == 0 {
 		return trace.BadParameter("conditional action missing required parameter 'Key'")
 	}
 
@@ -218,8 +218,6 @@ const (
 	// MaxAtomicWriteSize is the maximum number of conditional actions that may
 	// be applied via a single atomic write. The exact number is subject to change
 	// but must always be less than the minimum value supported across all backends.
-	//
-	// NOTE:The buckets for backendmetrics.AtomicWriteSize must stay in sync with this constant.
 	MaxAtomicWriteSize = 64
 )
 
@@ -250,7 +248,7 @@ func ValidateAtomicWrite(condacts []ConditionalAction) error {
 
 		containsWrite = containsWrite || condacts[i].Action.IsWrite()
 
-		key := condacts[i].Key.String()
+		key := string(condacts[i].Key)
 
 		if _, ok := keys[key]; ok {
 			return trace.BadParameter("multiple conditional actions target key %q", key)

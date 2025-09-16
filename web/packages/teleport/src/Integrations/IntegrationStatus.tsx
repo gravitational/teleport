@@ -16,19 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { useParams } from 'react-router';
 
-import { AwsOidcRoutes } from 'teleport/Integrations/status/AwsOidc/AwsOidcRoutes';
 import { IntegrationKind, PluginKind } from 'teleport/services/integrations';
 
 export function IntegrationStatus() {
   const { type: integrationType } = useParams<{
     type: PluginKind | IntegrationKind;
   }>();
-
-  if (integrationType === 'aws-oidc') {
-    return <AwsOidcRoutes />;
-  }
 
   return <>Status for integration type {integrationType} is not supported</>;
 }

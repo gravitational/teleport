@@ -113,34 +113,6 @@ type SPIFFEFederationSyncerConfig struct {
 	SPIFFEFetchOptions []federation.FetchOption
 }
 
-// CheckAndSetDefaults checks the configuration and sets defaults where
-// necessary.
-func (c *SPIFFEFederationSyncerConfig) CheckAndSetDefaults() error {
-	switch {
-	case c.Backend == nil:
-		return trace.BadParameter("backend: must be non-nil")
-	case c.Store == nil:
-		return trace.BadParameter("store: must be non-nil")
-	case c.Logger == nil:
-		return trace.BadParameter("logger: must be non-nil")
-	case c.Clock == nil:
-		return trace.BadParameter("clock: must be non-nil")
-	}
-	if c.MinSyncInterval == 0 {
-		c.MinSyncInterval = minRefreshInterval
-	}
-	if c.MaxSyncInterval == 0 {
-		c.MaxSyncInterval = maxRefreshInterval
-	}
-	if c.DefaultSyncInterval == 0 {
-		c.DefaultSyncInterval = defaultRefreshInterval
-	}
-	if c.SyncTimeout == 0 {
-		c.SyncTimeout = defaultSyncTimeout
-	}
-	return nil
-}
-
 // SPIFFEFederationSyncer is a syncer that manages the trust bundles of
 // federated clusters. It runs on a single elected auth server.
 type SPIFFEFederationSyncer struct {
@@ -159,8 +131,27 @@ const (
 
 // NewSPIFFEFederationSyncer creates a new SPIFFEFederationSyncer.
 func NewSPIFFEFederationSyncer(cfg SPIFFEFederationSyncerConfig) (*SPIFFEFederationSyncer, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err, "validating SPIFFE federation syncer config")
+	switch {
+	case cfg.Backend == nil:
+		return nil, trace.BadParameter("backend: must be non-nil")
+	case cfg.Store == nil:
+		return nil, trace.BadParameter("store: must be non-nil")
+	case cfg.Logger == nil:
+		return nil, trace.BadParameter("logger: must be non-nil")
+	case cfg.Clock == nil:
+		return nil, trace.BadParameter("clock: must be non-nil")
+	}
+	if cfg.MinSyncInterval == 0 {
+		cfg.MinSyncInterval = minRefreshInterval
+	}
+	if cfg.MaxSyncInterval == 0 {
+		cfg.MaxSyncInterval = maxRefreshInterval
+	}
+	if cfg.DefaultSyncInterval == 0 {
+		cfg.DefaultSyncInterval = defaultRefreshInterval
+	}
+	if cfg.SyncTimeout == 0 {
+		cfg.SyncTimeout = defaultSyncTimeout
 	}
 	return &SPIFFEFederationSyncer{
 		cfg: cfg,
@@ -170,7 +161,7 @@ func NewSPIFFEFederationSyncer(cfg SPIFFEFederationSyncerConfig) (*SPIFFEFederat
 func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 	// Loop to retry if acquiring lock fails, with some backoff to avoid pinning
 	// the CPU.
-	waitWithJitter := retryutils.SeventhJitter(time.Second * 10)
+	waitWithJitter := retryutils.NewSeventhJitter()(time.Second * 10)
 	for {
 		err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
@@ -183,12 +174,15 @@ func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 				RetryInterval: time.Second * 30,
 			},
 		}, s.syncTrustDomains)
-		if err != nil && ctx.Err() == nil {
+		if ctx.Err() != nil {
+			return nil
+		}
+		if err != nil {
 			s.cfg.Logger.ErrorContext(
 				ctx,
-				"SPIFFEFederation syncer encountered a fatal error, it will restart after backoff",
+				"SPIFFEFederation syncer exited with an error",
 				"error", err,
-				"restart_after", waitWithJitter,
+				"retry_after", waitWithJitter,
 			)
 		}
 		select {
@@ -200,13 +194,9 @@ func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 }
 
 type trustDomainSyncState struct {
-	// putEventsCh is a channel for passing PUT events to a specific
+	// eventsCh is an unbuffered channel for passing events to a specific
 	// SPIFFEFederations syncer.
-	putEventsCh chan types.Event
-	// stopCh is a channel for signaling a specific SPIFFEFederations
-	// syncer to stop syncing. This is closed when the watcher detects that the
-	// resource has been deleted.
-	stopCh chan struct{}
+	eventsCh chan types.Event
 }
 
 // syncTrustDomains is the core loop of the syncer that runs on a single auth
@@ -249,11 +239,9 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 			return
 		}
 
-		eventsCh := make(chan types.Event, 1)
-		stopCh := make(chan struct{})
+		eventsCh := make(chan types.Event)
 		states[trustDomain] = trustDomainSyncState{
-			putEventsCh: eventsCh,
-			stopCh:      stopCh,
+			eventsCh: eventsCh,
 		}
 
 		wg.Add(1)
@@ -264,7 +252,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 				mu.Unlock()
 				wg.Done()
 			}()
-			s.syncTrustDomainLoop(ctx, trustDomain, eventsCh, stopCh)
+			s.syncTrustDomainLoop(ctx, trustDomain, eventsCh)
 		}()
 	}
 
@@ -322,40 +310,33 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 				"Received event from SPIFFEFederation watcher",
 				"evt_type", evt.Type,
 			)
-			switch evt.Type {
-			case types.OpPut:
-				mu.Lock()
-				existingState, ok := states[evt.Resource.GetName()]
-				mu.Unlock()
-				// If it already exists, we can just pass the event along. If
-				// there's already a sync queued due to an event, we don't need to
-				// queue another since it fetches the latest resource anyway.
-				if ok {
-					select {
-					case existingState.putEventsCh <- evt:
-					default:
-						s.cfg.Logger.DebugContext(
-							ctx,
-							"Sync already queued for trust domain, ignoring event",
-						)
-					}
-					continue
+			if evt.Type != types.OpPut && evt.Type != types.OpDelete {
+				continue
+			}
+
+			mu.Lock()
+			existingState, ok := states[evt.Resource.GetName()]
+			mu.Unlock()
+
+			// If it already exists, we can just pass the event along. If
+			// there's already a sync queued due to an event, we don't need to
+			// queue another since it fetches the latest resource anyway.
+			if ok {
+				select {
+				case existingState.eventsCh <- evt:
+				default:
+					s.cfg.Logger.DebugContext(
+						ctx,
+						"Sync already queued for trust domain, ignoring event",
+					)
 				}
+				continue
+			}
+			if evt.Type == types.OpPut {
 				// If it doesn't exist, we should kick off a goroutine to start
 				// managing it. That routine will sync automatically on first
 				// run so we don't need to pass the event along.
 				startSyncingFederation(evt.Resource.GetName())
-			case types.OpDelete:
-				mu.Lock()
-				existingState, ok := states[evt.Resource.GetName()]
-				// If it exists, close the stopCh to tell it to exit and remove
-				// it from the states map.
-				if ok {
-					close(existingState.stopCh)
-					delete(states, evt.Resource.GetName())
-				}
-				mu.Unlock()
-			default:
 			}
 		case <-w.Done():
 			if err := w.Error(); err != nil {
@@ -371,8 +352,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 	ctx context.Context,
 	name string,
-	putEventsCh <-chan types.Event,
-	stopCh <-chan struct{},
+	eventsCh <-chan types.Event,
 ) {
 	log := s.cfg.Logger.With("trust_domain", name)
 	log.InfoContext(ctx, "Starting sync loop for trust domain")
@@ -385,7 +365,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 		Step:   time.Second,
 		Max:    time.Second * 10,
 		Clock:  s.cfg.Clock,
-		Jitter: retryutils.SeventhJitter,
+		Jitter: retryutils.NewSeventhJitter(),
 	})
 	if err != nil {
 		log.ErrorContext(
@@ -412,7 +392,15 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 			log.DebugContext(ctx, "Next sync time has passed, trying sync")
 		case <-nextRetry:
 			log.InfoContext(ctx, "Wait for backoff complete, retrying sync")
-		case evt := <-putEventsCh:
+		case evt := <-eventsCh:
+			if evt.Type == types.OpDelete {
+				log.DebugContext(
+					ctx,
+					"Resource has been deleted, stopping sync loop for trust domain",
+				)
+				// If we've been deleted, we should stop syncing.
+				return
+			}
 			// If we've just synced, we can effectively expect an "echo" of our
 			// last update. We can ignore this event safely.
 			if synced != nil {
@@ -424,12 +412,9 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 					"Resource has been updated, trying to sync trust domain immediately",
 				)
 			}
-		// Note, we explicitly don't use the resource within the event.
-		// Instead, we will fetch the latest upon starting the sync. This
-		// avoids completing multiple syncs if multiple changes are queued.
-		case <-stopCh:
-			log.DebugContext(ctx, "Stop signal received, stopping sync loop")
-			return
+			// Note, we explicitly don't use the resource within the event.
+			// Instead, we will fetch the latest upon starting the sync. This
+			// avoids completing multiple syncs if multiple changes are queued.
 		case <-ctx.Done():
 			return
 		}
@@ -479,9 +464,10 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 	}
 }
 
-func (s *SPIFFEFederationSyncer) shouldSyncTrustDomain(
+func shouldSyncTrustDomain(
 	ctx context.Context,
 	log *slog.Logger,
+	clock clockwork.Clock,
 	in *machineidv1.SPIFFEFederation,
 ) string {
 	if in.Status == nil {
@@ -498,7 +484,7 @@ func (s *SPIFFEFederationSyncer) shouldSyncTrustDomain(
 	}
 	// Check if we've passed the next sync time.
 	nextSyncAt := in.Status.NextSyncAt.AsTime()
-	now := s.cfg.Clock.Now()
+	now := clock.Now()
 	if !nextSyncAt.IsZero() && now.After(nextSyncAt) {
 		log.DebugContext(
 			ctx,
@@ -543,7 +529,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	}
 
 	// Determine - should we sync...
-	syncReason := s.shouldSyncTrustDomain(ctx, log, current)
+	syncReason := shouldSyncTrustDomain(ctx, log, s.cfg.Clock, current)
 	if syncReason == "" {
 		log.DebugContext(ctx, "Skipping sync as is not required")
 		return current, nil
@@ -561,7 +547,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	var bundle *spiffebundle.Bundle
 	var nextSyncIn time.Duration
 	switch {
-	case current.GetSpec().GetBundleSource().GetHttpsWeb() != nil:
+	case current.Spec.BundleSource.HttpsWeb != nil:
 		url := current.Spec.BundleSource.HttpsWeb.BundleEndpointUrl
 		log.DebugContext(
 			ctx,
@@ -597,7 +583,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 				nextSyncIn = refreshHint
 			}
 		}
-	case current.GetSpec().GetBundleSource().GetStatic() != nil:
+	case current.Spec.BundleSource.Static != nil:
 		log.DebugContext(
 			ctx, "Fetching bundle using spec.bundle_source.static.bundle",
 		)

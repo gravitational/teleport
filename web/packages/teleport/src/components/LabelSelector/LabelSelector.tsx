@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Link, Pill, Popover, Text } from 'design';
@@ -33,9 +33,9 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
   const [validLabel, setValidLabel] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
 
-  const infoIconRef = useRef<HTMLDivElement>(null);
-  const addLabelInputRef = useRef<HTMLInputElement>(null);
-  const addLabelContainerRef = useRef<HTMLDivElement>(null);
+  const infoIconRef = useRef<HTMLDivElement>();
+  const addLabelInputRef = useRef<HTMLInputElement>();
+  const addLabelContainerRef = useRef<HTMLDivElement>();
 
   useEffect(() => {
     setValidLabel(VALID_LABEL.test(newLabel));
@@ -86,6 +86,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
               />
             </div>
             <Popover
+              id="simple-popper"
               open={showTooltip}
               anchorOrigin={{
                 vertical: 'bottom',

@@ -18,7 +18,7 @@
 
 import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
 import type { KubeImpersonation } from 'teleport/services/agents';
-import type { MfaChallengeResponse } from 'teleport/services/mfa';
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 import type { AgentStepProps } from '../../types';
 import { KubeMeta } from '../../useDiscover';
@@ -33,7 +33,7 @@ export function useTestConnection(props: AgentStepProps) {
 
   function testConnection(
     impersonate: KubeImpersonation,
-    mfaResponse?: MfaChallengeResponse
+    mfaResponse?: MfaAuthnResponse
   ) {
     runConnectionDiagnostic(
       {

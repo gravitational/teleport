@@ -1,7 +1,7 @@
 ---
 title: Introduction to Enrolling Applications
 description: How to set up Teleport to protect applications and cloud provider APIs
-labels:
+tags:
  - zero-trust
 ---
 
@@ -23,9 +23,9 @@ If you are running applications on Kubernetes, you can [enroll them in your
 Teleport cluster automatically](../auto-discovery/kubernetes-applications/kubernetes-applications.mdx).
 
 Teleport protects applications through the Teleport Application Service, which
-is a Teleport Agent service. For more information on agent services, read
+is a Teleport agent service. For more information on agent services, read
 [Teleport Agent Architecture](../../reference/architecture/agents.mdx). You can also learn
-how to deploy a [pool of Teleport Agents](../agents/agents.mdx) to run
+how to deploy a [pool of Teleport agents](../agents/introduction.mdx) to run
 multiple agent services.
 
 ## Getting started
@@ -72,3 +72,12 @@ Teleport-signed JSON web tokens to implement authentication and authorization.
 
 - [Introduction](./jwt/introduction.mdx): Introduction to JWT tokens with application access.
 - [Elasticsearch](./jwt/elasticsearch.mdx): How to use JWT authentication with Elasticsearch.
+
+## Okta applications
+
+Teleport can import and grant access to Okta applications and user groups. Users
+can access Okta applications through the Teleport Web UI and `tsh`, and
+administrators can manage access to these applications by defining RBAC policies
+in Teleport roles.
+
+Learn more about the [Teleport Okta integration](okta/okta.mdx).

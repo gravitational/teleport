@@ -1,7 +1,7 @@
 ---
 title: Managed Updates Resource Reference
 description: This page describes the details of the Managed Updates v2 resources.
-labels:
+tags:
  - reference
  - platform-wide
 ---
@@ -53,19 +53,6 @@ A single rollout is active at a time. Each Auth Service updates the rollout ever
 
 Reports how many agents are connected to each auth, and which version they are running.
 This is used to track update progress and automatically progress the rollout.
-Each Teleport Auth Service instance generate one report evert minute.
-
-Agents are counted in the report only if:
-- they are connected for at least a minute
-- they are automatically updating with `teleport-update`
-  (`teleport-kube-agent` updater support will be included in a future version)
-- managed updates are enabled (the updater is not disabled or pinned to a specific version)
-
-Due to the reporting period, an agent can take up to 2 minutes to appear in the
-reports, and 3 minutes to appear in the rollout:
-- 1 minute for the agent to be counted as healthy
-- 1 minute for the next report to be generated
-- 1 minute for the next `autoupdate_agent_rollout` update
 
 (!docs/pages/includes/reference/resources/autoupdate_agent_report.mdx!)
 
@@ -177,19 +164,6 @@ In halt-on-error strategy, if the previous group is not done updating, the next 
 For example, if you have 2 groups:
 - `dev` updating everyday at 13:00
 - `prod` updating on weekdays at 15:00
-
-A group is considered updated once at least 90% of its agents are running the target version.
-The group initial agent count is measured when the group starts updating.
-
-<Admonition type="warning">
-In case of heavy downscale during the update window, the rollout will get stuck
-as the group agent count will never reach 90% of its initial value.
-
-In such case, Teleport cannot differentiate between agents that got legitimately
-downscaled and agents that might be unable to connect because of the new version.
-Agents will be considered missing and the rollout will require manual
-intervention to resume (`tctl autoupdate agents mark-done $GROUP_NAME`).
-</Admonition>
 
 If `dev` finishes updating Friday at 16:30, `prod` will not start updating immediately as update windows are
 1-hour-long and `prod`'s update window is over. `prod` update will start on Monday at 15:00.

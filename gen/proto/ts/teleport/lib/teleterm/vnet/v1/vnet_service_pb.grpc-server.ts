@@ -20,14 +20,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-import { AutoConfigureSSHResponse } from "./vnet_service_pb";
-import { AutoConfigureSSHRequest } from "./vnet_service_pb";
-import { RunDiagnosticsResponse } from "./vnet_service_pb";
-import { RunDiagnosticsRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
-import { GetServiceInfoResponse } from "./vnet_service_pb";
-import { GetServiceInfoRequest } from "./vnet_service_pb";
+import { ListDNSZonesResponse } from "./vnet_service_pb";
+import { ListDNSZonesRequest } from "./vnet_service_pb";
 import { StopResponse } from "./vnet_service_pb";
 import { StopRequest } from "./vnet_service_pb";
 import { StartResponse } from "./vnet_service_pb";
@@ -52,11 +48,19 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      */
     stop: grpc.handleUnaryCall<StopRequest, StopResponse>;
     /**
-     * GetServiceInfo returns info about the running VNet service.
+     * ListDNSZones returns DNS zones of all root and leaf clusters with non-expired user certs. This
+     * includes the proxy service hostnames and custom DNS zones configured in vnet_config.
      *
-     * @generated from protobuf rpc: GetServiceInfo(teleport.lib.teleterm.vnet.v1.GetServiceInfoRequest) returns (teleport.lib.teleterm.vnet.v1.GetServiceInfoResponse);
+     * This is fetched independently of what the Electron app thinks the current state of the cluster
+     * looks like, since the VNet admin process also fetches this data independently of the Electron
+     * app.
+     *
+     * Just like the admin process, it skips root and leaf clusters for which the vnet_config couldn't
+     * be fetched (due to e.g., a network error or an expired cert).
+     *
+     * @generated from protobuf rpc: ListDNSZones(teleport.lib.teleterm.vnet.v1.ListDNSZonesRequest) returns (teleport.lib.teleterm.vnet.v1.ListDNSZonesResponse);
      */
-    getServiceInfo: grpc.handleUnaryCall<GetServiceInfoRequest, GetServiceInfoResponse>;
+    listDNSZones: grpc.handleUnaryCall<ListDNSZonesRequest, ListDNSZonesResponse>;
     /**
      * GetBackgroundItemStatus returns the status of the background item responsible for launching
      * VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
@@ -64,20 +68,6 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
      */
     getBackgroundItemStatus: grpc.handleUnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
-    /**
-     * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
-     * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
-     *
-     * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
-     */
-    runDiagnostics: grpc.handleUnaryCall<RunDiagnosticsRequest, RunDiagnosticsResponse>;
-    /**
-     * AutoConfigureSSH automatically configures OpenSSH-compatible clients for
-     * connections to Teleport SSH hosts.
-     *
-     * @generated from protobuf rpc: AutoConfigureSSH(teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest) returns (teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse);
-     */
-    autoConfigureSSH: grpc.handleUnaryCall<AutoConfigureSSHRequest, AutoConfigureSSHResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.vnet.v1.VnetService.
@@ -111,15 +101,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         responseSerialize: value => Buffer.from(StopResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(StopRequest.toBinary(value))
     },
-    getServiceInfo: {
-        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetServiceInfo",
-        originalName: "GetServiceInfo",
+    listDNSZones: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/ListDNSZones",
+        originalName: "ListDNSZones",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => GetServiceInfoResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetServiceInfoRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetServiceInfoResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetServiceInfoRequest.toBinary(value))
+        responseDeserialize: bytes => ListDNSZonesResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ListDNSZonesRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ListDNSZonesResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ListDNSZonesRequest.toBinary(value))
     },
     getBackgroundItemStatus: {
         path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus",
@@ -130,25 +120,5 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         requestDeserialize: bytes => GetBackgroundItemStatusRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetBackgroundItemStatusResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetBackgroundItemStatusRequest.toBinary(value))
-    },
-    runDiagnostics: {
-        path: "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics",
-        originalName: "RunDiagnostics",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => RunDiagnosticsResponse.fromBinary(bytes),
-        requestDeserialize: bytes => RunDiagnosticsRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(RunDiagnosticsResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(RunDiagnosticsRequest.toBinary(value))
-    },
-    autoConfigureSSH: {
-        path: "/teleport.lib.teleterm.vnet.v1.VnetService/AutoConfigureSSH",
-        originalName: "AutoConfigureSSH",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => AutoConfigureSSHResponse.fromBinary(bytes),
-        requestDeserialize: bytes => AutoConfigureSSHRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(AutoConfigureSSHResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(AutoConfigureSSHRequest.toBinary(value))
     }
 };

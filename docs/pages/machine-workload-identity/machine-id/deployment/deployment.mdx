@@ -1,8 +1,8 @@
 ---
-title: Deploy tbot
-description: Explains how to deploy tbot on your platform and join it to your Teleport cluster.
+title: Deploy Machine ID
+description: Explains how to deploy Machine ID on your platform and join it to your Teleport cluster.
 tocDepth: 3
-labels:
+tags:
  - conceptual
  - mwi
 ---
@@ -55,32 +55,27 @@ and [Architecture](../../../reference/architecture/machine-id-architecture.mdx) 
 Read the following guides for how to deploy Machine ID on your cloud platform or
 on-prem infrastructure.
 
-| Platform                               | Installation method                             | Join method                                         |
-|----------------------------------------|-------------------------------------------------|-----------------------------------------------------|
-| [Linux](linux.mdx)                     | Package manager or TAR archive                  | Static join token                                   |
-| [Linux (TPM)](linux-tpm.mdx)           | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
-| [Linux (Bound Keypair)][bound-keypair] | Package manager or TAR archive                  | Bound Keypair                                       |
-| [GCP](gcp.mdx)                         | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
-| [AWS](aws.mdx)                         | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
-| [Azure](azure.mdx)                     | Package manager or TAR archive                  | Identity document signed by Azure                   |
-| [Kubernetes](kubernetes.mdx)           | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
-| [Kubernetes OIDC](kubernetes-oidc.mdx) | Kubernetes pod on a cloud provider with OIDC    | Identity document signed by your cloud provider     |
+| Platform                                  | Installation method                             | Join method                                         |
+|-------------------------------------------|-------------------------------------------------|-----------------------------------------------------|
+| [Linux](linux.mdx)           | Package manager or TAR archive                  | Static join token                                   |
+| [Linux (TPM)](linux-tpm.mdx) | Package manager or TAR archive                  | Attestation from TPM 2.0                            |
+| [GCP](gcp.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by GCP                     |
+| [AWS](aws.mdx)               | Package manager, TAR archive, or Kubernetes pod | Identity document signed by AWS                     |
+| [Azure](azure.mdx)           | Package manager or TAR archive                  | Identity document signed by Azure                   |
+| [Kubernetes](kubernetes.mdx) | Kubernetes pod                                  | Identity document signed by your Kubernetes cluster |
 
 ### CI/CD
 
 Read the following guides for how to deploy Machine ID on a continuous
 integration and continuous deployment platform
 
-| Platform                                                                                               | Installation method                                           | Join method                              |
-|--------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|------------------------------------------|
-| [Azure DevOps](azure-devops.mdx)                                                                       | TAR archive                                                   | Azure DevOps-signed identity document    |
-| [Bitbucket Pipelines](bitbucket.mdx)                                                                   | TAR archive                                                   | Bitbucket-signed identity document       |
-| [CircleCI](circleci.mdx)                                                                               | TAR archive                                                   | CircleCI-signed identity document        |
-| [GitLab](gitlab.mdx)                                                                                   | TAR archive                                                   | GitLab-signed identity document          |
-| [GitHub Actions](github-actions.mdx)                                                                   | Teleport job available through the GitHub Actions marketplace | GitHub-signed identity document.         |
-| [Jenkins](jenkins.mdx)                                                                                 | Package manager or TAR archive                                | Static join token                        |
-| [Spacelift](../../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift.mdx)             | Docker Image                                                  | Spacelift-signed identity document       |
+| Platform                                                                                            | Installation method                                           | Join method                        |
+|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------|------------------------------------|
+| [Bitbucket Pipelines](bitbucket.mdx)                                                   | TAR archive                                                   | Bitbucket-signed identity document |
+| [CircleCI](circleci.mdx)                                                               | TAR archive                                                   | CircleCI-signed identity document  |
+| [GitLab](gitlab.mdx)                                                                   | TAR archive                                                   | GitLab-signed identity document    |
+| [GitHub Actions](github-actions.mdx)                                                   | Teleport job available through the GitHub Actions marketplace | GitHub-signed identity document.   |
+| [Jenkins](jenkins.mdx)                                                                 | Package manager or TAR archive                                | Static join token                  |
+| [Spacelift](../../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift.mdx)             | Docker Image                                                  | Spacelift-signed identity document |
 | [Terraform Cloud](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx) | Teleport Terraform Provider via Teleport's Terraform Registry | Terraform Cloud-signed identity document |
 
-
-[bound-keypair]: ../../../reference/machine-id/bound-keypair/getting-started.mdx

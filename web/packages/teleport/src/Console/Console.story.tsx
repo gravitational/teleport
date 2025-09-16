@@ -16,56 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { storiesOf } from '@storybook/react';
 import { createMemoryHistory } from 'history';
-import { http, HttpResponse } from 'msw';
-import { useState } from 'react';
+import React from 'react';
 import { Route, Router } from 'react-router';
 
 import { Flex } from 'design';
-
-import cfg from 'teleport/config';
 
 import Console from './Console';
 import ConsoleContext from './consoleContext';
 import ConsoleContextProvider from './consoleContextProvider';
 
-export default {
-  title: 'Teleport/Console',
-};
-
-export const ConsoleStory = () => {
+storiesOf('Teleport/Console', module).add('Console', () => {
   const ctx = new ConsoleContext();
   return (
     <TestLayout ctx={ctx}>
       <Console />
     </TestLayout>
   );
-};
-ConsoleStory.parameters = {
-  msw: {
-    handlers: [
-      http.get(cfg.getUserContextUrl(), () => {
-        return HttpResponse.json({
-          cluster: {
-            name: 'aws',
-            lastConnected: new Date('2020-09-26T17:30:23.512876876Z'),
-            status: 'online',
-            publicURL: 'localhost',
-            authVersion: '4.4.0-dev',
-            proxyVersion: '4.4.0-dev',
-          },
-        });
-      }),
-    ],
-  },
-};
+});
 
 export function TestLayout(props: PropType) {
-  const [context] = useState((): ConsoleContext => {
+  const [context] = React.useState((): ConsoleContext => {
     return props.ctx || new ConsoleContext();
   });
 
-  const [history] = useState((): any => {
+  const [history] = React.useState((): any => {
     const history =
       props.history ||
       createMemoryHistory({

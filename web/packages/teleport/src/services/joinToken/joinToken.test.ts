@@ -22,24 +22,19 @@ import api from 'teleport/services/api';
 import JoinTokenService from './joinToken';
 import type { JoinTokenRequest } from './types';
 
-beforeEach(() => {
-  jest.resetAllMocks();
-});
-
 test('fetchJoinToken with an empty request properly sets defaults', () => {
   const svc = new JoinTokenService();
   jest.spyOn(api, 'post').mockResolvedValue(null);
 
   // Test with all empty fields.
-  svc.fetchJoinTokenV2({} as any);
+  svc.fetchJoinToken({} as any);
   expect(api.post).toHaveBeenCalledWith(
-    cfg.api.discoveryJoinToken.createV2,
+    cfg.getJoinTokenUrl(),
     {
       roles: undefined,
       join_method: 'token',
       allow: [],
       suggested_agent_matcher_labels: {},
-      suggested_labels: {},
     },
     null,
     undefined
@@ -56,15 +51,14 @@ test('fetchJoinToken request fields are set as requested', () => {
     method: 'iam',
     suggestedAgentMatcherLabels: [{ name: 'env', value: 'dev' }],
   };
-  svc.fetchJoinTokenV2(mock);
+  svc.fetchJoinToken(mock);
   expect(api.post).toHaveBeenCalledWith(
-    cfg.api.discoveryJoinToken.createV2,
+    cfg.getJoinTokenUrl(),
     {
       roles: ['Node'],
       join_method: 'iam',
       allow: [{ aws_account: '1234', aws_arn: 'xxxx' }],
       suggested_agent_matcher_labels: { env: ['dev'] },
-      suggested_labels: {},
     },
     null,
     undefined

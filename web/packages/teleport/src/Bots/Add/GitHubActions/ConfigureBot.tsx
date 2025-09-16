@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { H2, Text } from 'design';
-import { Alert } from 'design/Alert';
+import Alert from 'design/Alert';
 import Box from 'design/Box';
+import Text from 'design/Text';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -64,7 +64,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
 
     // check if a bot with that name already exist
     run(async () => {
-      const bot = await getBot({ botName: createBotRequest.botName });
+      const bot = await getBot(createBotRequest.botName);
       if (bot === null) {
         nextStep();
         return;
@@ -99,7 +99,9 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
         GitHub Actions runners as well as GitHub Enterprise Server.
       </Text>
 
-      <H2 mb="2">Step 1: Scope the Permissions for Your Bot</H2>
+      <Text bold fontSize={4} mb="2">
+        Step 1: Scope the Permissions for Your Bot
+      </Text>
       <Validation>
         {({ validator }) => (
           <>
@@ -133,7 +135,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               </Text>
             </FormItem>
 
-            <Box mb="4" width={760}>
+            <Box mb="4">
               {missingLabels && (
                 <Text mt="1" color="error.main">
                   At least one label is required
@@ -145,7 +147,8 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                   setCreateBotRequest({ ...createBotRequest, labels: labels })
                 }
                 disableBtns={isLoading}
-                required={true}
+                inputWidth={350}
+                areLabelsRequired={true}
                 labelKey={{
                   fieldName: 'Label for Resources the User Can Access',
                   placeholder: 'label key',

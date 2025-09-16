@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
-import { ButtonPrimary, ButtonSecondary, Flex, H2, Image, Text } from 'design';
+import { ButtonPrimary, ButtonSecondary, Flex, Image, Text } from 'design';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
@@ -26,18 +27,10 @@ import history from 'teleport/services/history';
 import type { AgentStepProps } from '../../types';
 import celebratePamPng from './celebrate-pam.png';
 
-//  Message fields will optionally override defaults and agent-based logic
-type Message = {
-  title?: string;
-  resourceText?: string;
-  redirect?: string;
-};
-
-export function Finished(props: AgentStepProps & Message) {
+export function Finished(props: AgentStepProps) {
   let title = 'Resource Successfully Added';
   let resourceText =
     'You can start accessing this resource right away or add another resource.';
-  let redirect = cfg.routes.root;
 
   if (props.agentMeta) {
     if (props.agentMeta.autoDiscovery) {
@@ -49,28 +42,18 @@ export function Finished(props: AgentStepProps & Message) {
     }
   }
 
-  if (props.title) {
-    title = props.title;
-  }
-  if (props.resourceText) {
-    resourceText = props.resourceText;
-  }
-  if (props.redirect) {
-    redirect = props.redirect;
-  }
-
   return (
     <Container>
       <Image width="120px" height="120px" src={celebratePamPng} />
-      <H2 mt={3} mb={2}>
+      <Text mt={3} mb={2} typography="h4" bold>
         {title}
-      </H2>
+      </Text>
       <Text mb={3}>{resourceText}</Text>
       <Flex>
         <ButtonPrimary
           width="270px"
           size="large"
-          onClick={() => history.push(redirect, true)}
+          onClick={() => history.push(cfg.routes.root, true)}
           mr={3}
         >
           Browse Existing Resources

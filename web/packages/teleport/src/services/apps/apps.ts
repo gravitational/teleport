@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import cfg, {
-  CreateAppSessionParams,
-  UrlAppParams,
-  UrlResourcesParams,
-} from 'teleport/config';
+import cfg, { UrlAppParams, UrlResourcesParams } from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 import api from 'teleport/services/api';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import makeApp from './makeApps';
 import { App } from './types';
@@ -43,14 +40,28 @@ const service = {
     });
   },
 
-  async createAppSession(params: CreateAppSessionParams) {
+  async createAppSession(params: UrlAppParams) {
+    const resolveApp = {
+      fqdn: params.fqdn,
+      cluster_name: params.clusterId,
+      public_addr: params.publicAddr,
+    };
+
+    // Prompt for MFA if per-session MFA is required for this app.
+    const webauthnResponse = await auth.getWebauthnResponse(
+      MfaChallengeScope.USER_SESSION,
+      false,
+      {
+        app: resolveApp,
+      }
+    );
+
     const createAppSession = {
-      ...params,
-      // TODO(Joerger): DELETE IN v19.0.0.
-      // We include a string version of the MFA response for backwards compatibility.
-      mfa_response: params.mfaResponse
+      ...resolveApp,
+      arn: params.arn,
+      mfa_response: webauthnResponse
         ? JSON.stringify({
-            webauthnAssertionResponse: params.mfaResponse.webauthn_response,
+            webauthnAssertionResponse: webauthnResponse,
           })
         : null,
     };

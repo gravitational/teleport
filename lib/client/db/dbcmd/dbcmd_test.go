@@ -94,8 +94,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			execer:       &fakeExec{},
 			cmd: []string{"psql",
 				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
-					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql.crt&" +
-					"sslkey=/tmp/keys/example.com/bob-db/db.example.com/mysql.key&sslmode=verify-full"},
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
 			wantErr: false,
 		},
 		{
@@ -116,8 +116,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			execer:       &fakeExec{},
 			cmd: []string{"psql",
 				"\"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
-					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql.crt&" +
-					"sslkey=/tmp/keys/example.com/bob-db/db.example.com/mysql.key&sslmode=verify-full\""},
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full\""},
 			wantErr: false,
 		},
 		{
@@ -131,8 +131,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 			cmd: []string{"cockroach", "sql", "--url",
 				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
-					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql.crt&" +
-					"sslkey=/tmp/keys/example.com/bob-db/db.example.com/mysql.key&sslmode=verify-full"},
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
 			wantErr: false,
 		},
 		{
@@ -161,8 +161,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 			cmd: []string{"cockroach", "sql", "--url",
 				"\"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
-					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql.crt&" +
-					"sslkey=/tmp/keys/example.com/bob-db/db.example.com/mysql.key&sslmode=verify-full\""},
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full\""},
 			wantErr: false,
 		},
 		{
@@ -172,8 +172,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			execer:       &fakeExec{},
 			cmd: []string{"psql",
 				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
-					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql.crt&" +
-					"sslkey=/tmp/keys/example.com/bob-db/db.example.com/mysql.key&sslmode=verify-full"},
+					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
+					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
 			wantErr: false,
 		},
 		{
@@ -192,9 +192,9 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"--port", "12345",
 				"--host", "localhost",
 				"--protocol", "TCP",
-				"--ssl-key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key",
+				"--ssl-key", "/tmp/keys/example.com/bob",
 				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
-				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
+				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--ssl-verify-server-cert"},
 			wantErr: false,
 		},
@@ -233,9 +233,9 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"--port", "12345",
 				"--host", "localhost",
 				"--protocol", "TCP",
-				"--ssl-key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key",
+				"--ssl-key", "/tmp/keys/example.com/bob",
 				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
-				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
+				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--ssl-verify-server-cert"},
 			wantErr: false,
 		},
@@ -320,9 +320,9 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"--database", "mydb",
 				"--port", "3036",
 				"--host", "proxy.example.com",
-				"--ssl-key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key",
+				"--ssl-key", "/tmp/keys/example.com/bob",
 				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
-				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
+				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--ssl-verify-server-cert"},
 			wantErr: false,
 		},
@@ -338,7 +338,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 			cmd: []string{"mongo",
 				"--ssl",
-				"--sslPEMKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
+				"--sslPEMKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
 			wantErr: false,
@@ -370,7 +370,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 			cmd: []string{"mongosh",
 				"--tls",
-				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
+				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--tlsUseSystemCA",
 				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
@@ -390,7 +390,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 			cmd: []string{"mongosh",
 				"--tls",
-				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
+				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--tlsCAFile", "/tmp/keys/example.com/cas/example.com.pem",
 				"mongodb://localhost:12345/mydb?directConnection=true&serverSelectionTimeoutMS=5000",
 			},
@@ -492,8 +492,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"-h", "localhost",
 				"-p", "12345",
 				"--tls",
-				"--key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key",
-				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt"},
+				"--key", "/tmp/keys/example.com/bob",
+				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
 			wantErr: false,
 		},
 		{
@@ -505,8 +505,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"-h", "localhost",
 				"-p", "12345",
 				"--tls",
-				"--key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key",
-				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
+				"--key", "/tmp/keys/example.com/bob",
+				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"-n", "2"},
 			wantErr: false,
 		},
@@ -529,8 +529,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"-h", "proxy.example.com",
 				"-p", "3080",
 				"--tls",
-				"--key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key",
-				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt",
+				"--key", "/tmp/keys/example.com/bob",
+				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--sni", "proxy.example.com"},
 			wantErr: false,
 		},
@@ -776,6 +776,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -847,7 +848,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			opts:         []ConnectCommandFunc{},
 			execer:       &fakeExec{},
 			databaseName: "warehouse1",
-			cmd:          map[string][]string{"run single request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt"}},
+			cmd:          map[string][]string{"run single request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
 			wantErr:      false,
 		},
 		{
@@ -861,7 +862,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			},
 			databaseName: "warehouse1",
 			cmd: map[string][]string{
-				"run single request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt"}},
+				"run single request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
 			wantErr: false,
 		},
 		{
@@ -888,7 +889,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			execer:       &fakeExec{},
 			databaseName: "warehouse1",
 			cmd: map[string][]string{
-				"run request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt"}},
+				"run request with curl": {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"}},
 			wantErr: false,
 		},
 		{
@@ -912,8 +913,8 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 			},
 			databaseName: "warehouse1",
 			cmd: map[string][]string{
-				"run request with curl":           {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob-db/db.example.com/mysql.key", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql.crt"},
-				"run request with opensearch-cli": {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/7e266ec0.yml", "curl", "get", "--path", "/"}},
+				"run request with curl":           {"curl", "https://localhost:12345/", "--key", "/tmp/keys/example.com/bob", "--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
+				"run request with opensearch-cli": {"opensearch-cli", "--profile", "teleport", "--config", "/tmp/mysql/opensearch-cli/fb135a4d.yml", "curl", "get", "--path", "/"}},
 
 			wantErr: false,
 		},
@@ -938,6 +939,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1023,6 +1025,7 @@ func TestConvertCommandError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 

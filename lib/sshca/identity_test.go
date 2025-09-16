@@ -66,10 +66,9 @@ func TestIdentityConversion(t *testing.T) {
 		Generation:    3,
 		BotName:       "bot",
 		BotInstanceID: "instance",
-		JoinToken:     "join-token",
 		AllowedResourceIDs: []types.ResourceID{{
 			ClusterName:     "cluster",
-			Kind:            "kube:ns:pods", // must use a kube resource kind with ns for parsing of sub-resource to work correctly.
+			Kind:            types.KindKubePod, // must use a kube resource kind for parsing of sub-resource to work correctly
 			Name:            "name",
 			SubResourceName: "sub/sub",
 		}},
@@ -78,8 +77,6 @@ func TestIdentityConversion(t *testing.T) {
 		DeviceID:               "device",
 		DeviceAssetTag:         "asset",
 		DeviceCredentialID:     "cred",
-		GitHubUserID:           "github",
-		GitHubUsername:         "ghuser",
 	}
 
 	ignores := []string{

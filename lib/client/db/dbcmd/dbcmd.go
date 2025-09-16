@@ -21,17 +21,16 @@ package dbcmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"net"
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -79,8 +78,8 @@ const (
 	openSearchSQLBin = "opensearchsql"
 	// awsBin is the aws CLI program name.
 	awsBin = "aws"
-	// sqlclBin is the SQLcl program name (Oracle client).
-	sqlclBin = "sql"
+	// oracleBin is the Oracle CLI program name.
+	oracleBin = "sql"
 	// spannerBin is a Google Spanner interactive CLI program name.
 	spannerBin = "spanner-cli"
 )
@@ -144,8 +143,8 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		host, port = tc.DatabaseProxyHostPort(db)
 	}
 
-	if options.logger == nil {
-		options.logger = slog.Default()
+	if options.log == nil {
+		options.log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
 	if options.exe == nil {
@@ -215,7 +214,6 @@ func (c *CLICommandBuilder) GetConnectCommand(ctx context.Context) (*exec.Cmd, e
 
 	case defaults.ProtocolClickHouseHTTP:
 		return c.getClickhouseHTTPCommand()
-
 	case defaults.ProtocolClickHouse:
 		return c.getClickhouseNativeCommand()
 
@@ -241,8 +239,6 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives(ctx context.Context) (
 		return c.getElasticsearchAlternativeCommands(), nil
 	case defaults.ProtocolOpenSearch:
 		return c.getOpenSearchAlternativeCommands(), nil
-	case defaults.ProtocolOracle:
-		return c.getOracleAlternativeCommands(), nil
 	}
 
 	cmd, err := c.GetConnectCommand(ctx)
@@ -260,11 +256,8 @@ func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
 func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
 	if _, err := c.options.exe.LookPath(cockroachBin); err != nil {
-		c.options.logger.DebugContext(context.Background(), "Couldn't find cockroach client in PATH, falling back to postgres client",
-			"cockroach_client", cockroachBin,
-			"postgres_client", postgresBin,
-			"error", err,
-		)
+		c.options.log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
+			cockroachBin, postgresBin, err)
 		return c.getPostgresCommand()
 	}
 	return exec.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
@@ -324,9 +317,8 @@ func (c *CLICommandBuilder) getMariaDBArgs() []string {
 	}
 
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
-	sslKeyPath := c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
-	args = append(args, []string{"--ssl-key", sslKeyPath}...)
+	args = append(args, []string{"--ssl-key", c.profile.KeyPath()}...)
 	args = append(args, []string{"--ssl-ca", c.profile.CACertPathForCluster(c.rootCluster)}...)
 	args = append(args, []string{"--ssl-cert", sslCertPath}...)
 
@@ -567,10 +559,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 	// force a different timeout for debugging purpose or extreme situations.
 	serverSelectionTimeoutMS := "5000"
 	if envValue := os.Getenv(envVarMongoServerSelectionTimeoutMS); envValue != "" {
-		c.options.logger.InfoContext(context.Background(), "Using server selection timeout value from environment variable",
-			"environment_variable", envVarMongoServerSelectionTimeoutMS,
-			"server_selection_timeout", envValue,
-		)
+		c.options.log.Infof("Using environment variable %s=%s.", envVarMongoServerSelectionTimeoutMS, envValue)
 		serverSelectionTimeoutMS = envValue
 	}
 	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
@@ -589,7 +578,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 
 	address := url.URL{
 		Scheme:   connstring.SchemeMongoDB,
-		Host:     net.JoinHostPort(c.host, strconv.Itoa(c.port)),
+		Host:     fmt.Sprintf("%s:%d", c.host, c.port),
 		RawQuery: query.Encode(),
 		Path:     fmt.Sprintf("/%s", c.db.Database),
 	}
@@ -612,7 +601,7 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 	if !c.options.noTLS {
 		args = append(args,
 			"--tls",
-			"--key", c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName),
+			"--key", c.profile.KeyPath(),
 			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName))
 
 		if c.tc.InsecureSkipVerify {
@@ -714,12 +703,10 @@ func (c *CLICommandBuilder) getOpenSearchCommand() (*exec.Cmd, error) {
 func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
 	cfg := opensearch.ConfigNoTLS(c.host, c.port)
 	if !c.options.noTLS {
-		cfg = opensearch.ConfigTLS(c.host, c.port, c.options.caPath,
-			c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
-			c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName))
+		cfg = opensearch.ConfigTLS(c.host, c.port, c.options.caPath, c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName), c.profile.KeyPath())
 	}
 
-	baseDir := filepath.Join(c.profile.Dir, c.profile.Cluster, c.db.ServiceName)
+	baseDir := path.Join(c.profile.Dir, c.profile.Cluster, c.db.ServiceName)
 	tempCfg, err := opensearch.WriteConfig(baseDir, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -802,64 +789,38 @@ func (c *CLICommandBuilder) getSpannerCommand() (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func (c *CLICommandBuilder) getOracleTNSDescriptorString() string {
-	return fmt.Sprintf("/@(DESCRIPTION=(SDU=8000)(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d)))(CONNECT_DATA=(SERVICE_NAME=%s)))", c.host, c.port, c.db.Database)
+type jdbcOracleThinConnection struct {
+	host     string
+	port     int
+	db       string
+	tnsAdmin string
 }
 
-func (c *CLICommandBuilder) getOracleDirectConnectionString() string {
-	return fmt.Sprintf("/@%s:%d/%s", c.host, c.port, c.db.Database)
+func (j *jdbcOracleThinConnection) ConnString() string {
+	return fmt.Sprintf(`jdbc:oracle:thin:@tcps://%s:%d/%s?TNS_ADMIN=%s`, j.host, j.port, j.db, j.tnsAdmin)
 }
 
-func (c *CLICommandBuilder) getOracleJDBCConnectionString() string {
+func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
 	tnsAdminPath := c.profile.OracleWalletDir(c.tc.SiteName, c.db.ServiceName)
 	if runtime.GOOS == constants.WindowsOS {
 		tnsAdminPath = strings.ReplaceAll(tnsAdminPath, `\`, `\\`)
 	}
+	cs := jdbcOracleThinConnection{
+		host:     c.host,
+		port:     c.port,
+		db:       c.db.Database,
+		tnsAdmin: tnsAdminPath,
+	}
 	// Quote the address for printing as the address contains "?".
-	connString := fmt.Sprintf(`jdbc:oracle:thin:@tcps://%s:%d/%s?TNS_ADMIN=%s`, c.host, c.port, c.db.Database, tnsAdminPath)
+	connString := cs.ConnString()
 	if c.options.printFormat {
 		connString = fmt.Sprintf(`'%s'`, connString)
 	}
-	return connString
-}
-
-func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
-	alternatives := c.getOracleAlternativeCommands()
-	if len(alternatives) == 0 {
-		return nil, trace.BadParameter("no alternative commands found")
+	args := []string{
+		"-L", // dont retry
+		connString,
 	}
-	return alternatives[0].Command, nil
-}
-
-func (c *CLICommandBuilder) getOracleAlternativeCommands() []CommandAlternative {
-	var commands []CommandAlternative
-
-	ctx := context.Background()
-
-	c.options.logger.DebugContext(ctx, "Building Oracle commands.")
-	c.options.logger.DebugContext(ctx, "Found servers with TCP support", "count", c.options.oracle.hasTCPServers)
-	c.options.logger.DebugContext(ctx, "All servers support TCP", "all_servers_support_tcp", c.options.oracle.canUseTCP)
-
-	c.options.logger.DebugContext(ctx, "Connection strings:")
-	c.options.logger.DebugContext(ctx, "JDBC", "connection_string", c.getOracleJDBCConnectionString())
-	if c.options.oracle.hasTCPServers {
-		c.options.logger.DebugContext(ctx, "TNS", "connection_string", c.getOracleTNSDescriptorString())
-		c.options.logger.DebugContext(ctx, "Direct", "connection_string", c.getOracleDirectConnectionString())
-	}
-
-	const oneShotLogin = "-L"
-
-	commandTCP := exec.Command(sqlclBin, oneShotLogin, c.getOracleDirectConnectionString())
-	commandTCPS := exec.Command(sqlclBin, oneShotLogin, c.getOracleJDBCConnectionString())
-
-	if c.options.oracle.canUseTCP {
-		commands = append(commands, CommandAlternative{Description: "SQLcl", Command: commandTCP})
-		commands = append(commands, CommandAlternative{Description: "SQLcl (JDBC)", Command: commandTCPS})
-	} else {
-		commands = append(commands, CommandAlternative{Description: "SQLcl", Command: commandTCPS})
-	}
-
-	return commands
+	return exec.Command(oracleBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {
@@ -876,7 +837,7 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlter
 	} else {
 		args := []string{
 			fmt.Sprintf("https://%v:%v/", c.host, c.port),
-			"--key", c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName),
+			"--key", c.profile.KeyPath(),
 			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 		}
 
@@ -921,7 +882,7 @@ func (c *CLICommandBuilder) getOpenSearchAlternativeCommands() []CommandAlternat
 	} else {
 		args := []string{
 			fmt.Sprintf("https://%v:%v/", c.host, c.port),
-			"--key", c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName),
+			"--key", c.profile.KeyPath(),
 			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 		}
 
@@ -953,11 +914,10 @@ type connectionCommandOpts struct {
 	noTLS                    bool
 	printFormat              bool
 	tolerateMissingCLIClient bool
-	logger                   *slog.Logger
+	log                      *logrus.Entry
 	exe                      Execer
 	password                 string
 	gcp                      types.GCPCloudSQL
-	oracle                   oracleOpts
 	getDatabase              GetDatabaseFunc
 }
 
@@ -1018,9 +978,9 @@ func WithPrintFormat() ConnectCommandFunc {
 
 // WithLogger is the connect command option that allows the caller to pass a logger that will be
 // used by CLICommandBuilder.
-func WithLogger(log *slog.Logger) ConnectCommandFunc {
+func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
-		opts.logger = log
+		opts.log = log
 	}
 }
 
@@ -1045,19 +1005,6 @@ func WithTolerateMissingCLIClient() ConnectCommandFunc {
 func WithExecer(exe Execer) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.exe = exe
-	}
-}
-
-type oracleOpts struct {
-	canUseTCP     bool
-	hasTCPServers bool
-}
-
-// WithOracleOpts configures Oracle-specific options.
-func WithOracleOpts(canUseTCP bool, hasTCPServers bool) ConnectCommandFunc {
-	return func(opts *connectionCommandOpts) {
-		opts.oracle.canUseTCP = canUseTCP
-		opts.oracle.hasTCPServers = hasTCPServers
 	}
 }
 

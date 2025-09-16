@@ -2,16 +2,13 @@
 title: Reference for the teleport_github_connector Terraform resource
 sidebar_label: github_connector
 description: This page describes the supported values of the teleport_github_connector resource of the Teleport Terraform provider.
-labels:
+tags:
  - reference
  - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
-
-This page describes the supported values of the teleport_github_connector resource of the Teleport Terraform provider.
-
 
 
 
@@ -78,7 +75,6 @@ Optional:
 - `redirect_url` (String) RedirectURL is the authorization callback URL.
 - `teams_to_logins` (Attributes List) TeamsToLogins maps Github team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead. (see [below for nested schema](#nested-schema-for-specteams_to_logins))
 - `teams_to_roles` (Attributes List) TeamsToRoles maps Github team memberships onto allowed roles. (see [below for nested schema](#nested-schema-for-specteams_to_roles))
-- `user_matchers` (List of String) UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should match for identifier-first login.
 
 ### Nested Schema for `spec.client_redirect_settings`
 
@@ -120,3 +116,4 @@ Optional:
 - `description` (String) Description is object description
 - `expires` (String) Expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) Labels is a set of labels
+

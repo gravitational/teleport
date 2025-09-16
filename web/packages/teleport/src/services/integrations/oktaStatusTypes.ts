@@ -17,12 +17,6 @@
  */
 
 /**
- * DefaultSystemOktaRequesterRoleName is the default role name assigned to
- * `OktaGroupEveryone` in the Okta Integration's SAML connector attribute-to-role mapping.
- */
-export const DefaultSystemOktaRequesterRoleName = 'okta-requester' as const;
-
-/**
  * OktaPluginSyncStatusCode indicates the possible states of an Okta
  * synchronization service.
  */
@@ -58,7 +52,6 @@ export type OktaSsoDetails = {
   enabled: boolean;
   appId: string;
   appName: string;
-  oktaGroupEveryoneMappedRoles?: string[];
 };
 
 export type OktaAppGroupSyncDetails = {

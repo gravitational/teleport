@@ -25,12 +25,13 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -55,7 +56,7 @@ func (a fakeAuth) GetCloudSQLPassword(ctx context.Context, database types.Databa
 	return "one-time-password", nil
 }
 
-func (a fakeAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) common.Auth {
+func (a fakeAuth) WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) common.Auth {
 	if a.Auth != nil {
 		return a.Auth.WithLogger(getUpdatedLogger)
 	}
@@ -142,6 +143,7 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			sessionCtx := &common.Session{
 				Database:     db,
@@ -172,7 +174,7 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 func makeAuthClient(t *testing.T) *authclient.Client {
 	t.Helper()
 
-	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "mysql-test",
 		Dir:         t.TempDir(),
 	})
@@ -183,7 +185,7 @@ func makeAuthClient(t *testing.T) *authclient.Client {
 	require.NoError(t, err)
 	t.Cleanup(func() { tlsServer.Close() })
 
-	authClient, err := tlsServer.NewClient(authtest.TestServerID(types.RoleDatabase, "mysql-test"))
+	authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, "mysql-test"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 

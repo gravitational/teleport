@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import React from 'react';
+
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
@@ -28,28 +29,38 @@ export default {
   title: 'Teleterm/DocumentGatewayKube',
 };
 
-const rootCluster = makeRootCluster();
-const offlineDocumentGateway: types.DocumentGatewayKube = {
+const offlineDocumentGatewayProps: types.DocumentGatewayKube = {
   kind: 'doc.gateway_kube',
   rootClusterId: '',
   leafClusterId: '',
-  targetUri: `${rootCluster.uri}/kubes/quux`,
+  targetUri: '/clusters/bar/kubes/quux',
   origin: 'resource_table',
   status: '',
   uri: '/docs/123',
   title: 'quux',
 };
 
+const rootClusterUri = '/clusters/bar';
+
 export function Offline() {
   const appContext = new MockAppContext();
   appContext.clustersService.createGateway = () =>
     Promise.reject(new Error('failed to create gateway'));
-  appContext.addRootClusterWithDoc(rootCluster, offlineDocumentGateway);
+
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = rootClusterUri;
+    draftState.workspaces[rootClusterUri] = {
+      localClusterUri: rootClusterUri,
+      documents: [offlineDocumentGatewayProps],
+      location: offlineDocumentGatewayProps.uri,
+      accessRequests: undefined,
+    };
+  });
 
   return (
     <MockAppContextProvider appContext={appContext}>
       <MockWorkspaceContextProvider>
-        <DocumentGatewayKube doc={offlineDocumentGateway} visible={true} />
+        <DocumentGatewayKube doc={offlineDocumentGatewayProps} visible={true} />
       </MockWorkspaceContextProvider>
     </MockAppContextProvider>
   );

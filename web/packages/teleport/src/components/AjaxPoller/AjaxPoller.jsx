@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component } from 'react';
+import React from 'react';
 
 const DEFAULT_INTERVAL = 3000; // every 3 sec
 
-export default class AjaxPoller extends Component {
+export default class AjaxPoller extends React.Component {
   _timerId = null;
   _request = null;
 

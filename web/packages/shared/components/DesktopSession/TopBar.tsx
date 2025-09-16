@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import { useTheme } from 'styled-components';
 
 import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
-import { HoverTooltip } from 'design/Tooltip';
-import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
-import type { ToastNotificationItem } from 'shared/components/ToastNotification';
+import type { NotificationItem } from 'shared/components/Notification';
+import { HoverTooltip } from 'shared/components/ToolTip';
 
 import ActionMenu from './ActionMenu';
-import { AlertDropdown } from './AlertDropdown';
+import { WarningDropdown } from './WarningDropdown';
 
 export default function TopBar(props: Props) {
   const {
@@ -39,8 +39,6 @@ export default function TopBar(props: Props) {
     onCtrlAltDel,
     alerts,
     onRemoveAlert,
-    isConnected,
-    latency,
   } = props;
   const theme = useTheme();
 
@@ -60,30 +58,32 @@ export default function TopBar(props: Props) {
     >
       <Text style={{ color: theme.colors.text.slightlyMuted }}>{userHost}</Text>
 
-      {isConnected && (
-        <Flex gap={3} alignItems="center">
-          {latency && <LatencyDiagnostic latency={latency} />}
-          <HoverTooltip
-            tipContent={directorySharingToolTip(
-              canShareDirectory,
-              isSharingDirectory
-            )}
-            placement="bottom"
-          >
-            <FolderShared style={primaryOnTrue(isSharingDirectory)} />
-          </HoverTooltip>
-          <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
-            <Clipboard style={primaryOnTrue(isSharingClipboard)} />
-          </HoverTooltip>
-          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
-          <ActionMenu
-            onDisconnect={onDisconnect}
-            showShareDirectory={canShareDirectory && !isSharingDirectory}
-            onShareDirectory={onShareDirectory}
-            onCtrlAltDel={onCtrlAltDel}
-          />
-        </Flex>
-      )}
+      <Flex gap={3} alignItems="center">
+        <HoverTooltip
+          tipContent={directorySharingToolTip(
+            canShareDirectory,
+            isSharingDirectory
+          )}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <FolderShared style={primaryOnTrue(isSharingDirectory)} />
+        </HoverTooltip>
+        <HoverTooltip
+          tipContent={clipboardSharingMessage}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Clipboard style={primaryOnTrue(isSharingClipboard)} />
+        </HoverTooltip>
+        <WarningDropdown warnings={alerts} onRemoveWarning={onRemoveAlert} />
+        <ActionMenu
+          onDisconnect={onDisconnect}
+          showShareDirectory={canShareDirectory && !isSharingDirectory}
+          onShareDirectory={onShareDirectory}
+          onCtrlAltDel={onCtrlAltDel}
+        />
+      </Flex>
     </TopNav>
   );
 }
@@ -110,11 +110,6 @@ type Props = {
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
-  alerts: ToastNotificationItem[];
-  isConnected: boolean;
+  alerts: NotificationItem[];
   onRemoveAlert(id: string): void;
-  latency: {
-    client: number;
-    server: number;
-  };
 };

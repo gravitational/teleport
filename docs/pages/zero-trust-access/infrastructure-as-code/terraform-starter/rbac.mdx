@@ -2,7 +2,7 @@
 title: "Part 2: Configure Teleport RBAC with Terraform"
 h1: "Terraform Starter: Configure RBAC"
 description: Explains how to manage Teleport roles and authentication connectors with Terraform so you can implement the principle of least privilege in your infrastructure.
-labels:
+tags:
  - get-started
  - zero-trust
 ---
@@ -38,7 +38,7 @@ resources that an attacker can compromise.
 This guide assumes that you have completed [Part 1: Enroll Infrastructure with
 Terraform](./enroll-resources.mdx).
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v16.2.0 or higher)"!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx version="16.2.0"!)
 
 - Resources enrolled with Teleport that include the `dev` and `prod` labels. We
   show you how to enroll these resources using Terraform in Part One.
@@ -293,8 +293,7 @@ If you plan to skip this step, make sure to remove the `module "saml"` or
    - [Google
      Workspace](../../sso/google-workspace.mdx#step-14-configure-google-workspace)
    - [OneLogin](../../sso/one-login.mdx#step-13-create-teleport-application-in-onelogin)
-   - [Azure
-     AD](../../sso/azuread.mdx#step-13-configure-microsoft-entra-id)
+   - [Entra ID](../../sso/entra-id.mdx#step-13-configure-entra-id)
    - [Okta](../../sso/okta.mdx#step-24-configure-okta)
 
 1. Configure the redirect URL (for OIDC) or assertion consumer service (for SAML):

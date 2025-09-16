@@ -35,7 +35,6 @@ import (
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestDockerAttestor(t *testing.T) {
@@ -79,7 +78,7 @@ func TestDockerAttestor(t *testing.T) {
 			Enabled: true,
 			Addr:    "unix://" + lis.Addr().String(),
 		},
-		logtest.NewLogger(),
+		utils.NewSlogLoggerForTests(),
 	)
 
 	attestor.rootPath = t.TempDir()

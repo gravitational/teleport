@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"testing"
@@ -42,7 +43,7 @@ func TestGetSPIFFEBundle(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	authServer := env.server.Auth()
-	cn, err := authServer.GetClusterName(ctx)
+	cn, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
@@ -77,7 +78,9 @@ func TestGetSPIFFEBundle(t *testing.T) {
 	for _, jwtKeyPair := range ca.GetTrustedJWTKeyPairs() {
 		wantKey, err := keys.ParsePublicKey(jwtKeyPair.PublicKey)
 		require.NoError(t, err)
-		wantKeyID, err := jwt.KeyID(wantKey)
+		rsaWantKey, ok := wantKey.(*rsa.PublicKey)
+		require.True(t, ok, "unsupported key type %T", wantKey)
+		wantKeyID := jwt.KeyID(rsaWantKey)
 		require.NoError(t, err)
 		gotPubKey, ok := gotBundle.JWTBundle().FindJWTAuthority(wantKeyID)
 		require.True(t, ok, "wanted public key not found in bundle")
@@ -131,10 +134,30 @@ func TestSPIFFEJWTPublicEndpoints(t *testing.T) {
 	resp, err = publicClt.Get(ctx, gotConfiguration.JWKSURI, nil)
 	require.NoError(t, err)
 
-	var gotKeys JWKSResponse
+	type jwksKey struct {
+		Use     string `json:"use"`
+		KeyID   string `json:"kid"`
+		KeyType string `json:"kty"`
+		Alg     string `json:"alg"`
+	}
+	type jwksKeys struct {
+		Keys []jwksKey `json:"keys"`
+	}
+	gotKeys := jwksKeys{}
 	err = json.Unmarshal(resp.Bytes(), &gotKeys)
 	require.NoError(t, err)
 
 	require.Len(t, gotKeys.Keys, 1)
 	require.NotEmpty(t, gotKeys.Keys[0].KeyID)
+	expectedKeys := jwksKeys{
+		Keys: []jwksKey{
+			{
+				Use:     "sig",
+				KeyType: "RSA",
+				Alg:     "RS256",
+				KeyID:   gotKeys.Keys[0].KeyID,
+			},
+		},
+	}
+	require.Equal(t, expectedKeys, gotKeys)
 }

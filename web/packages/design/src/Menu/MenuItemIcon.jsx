@@ -19,18 +19,20 @@
 import styled from 'styled-components';
 
 const MenuItemIcon = styled.span`
-  font-size: ${props => props.theme.fontSizes[4]}px;
-  margin-right: ${props => props.theme.space[2]}px;
   &:hover,
   &:focus {
     color: ${props => props.theme.colors.text.main};
   }
   svg {
-    height: ${props => (props.size && `${props.size}px`) || '18px'};
-    height: ${props => (props.size && `${props.size}px`) || '18px'};
+    height: ${props => `${props.size}px` || '18px'};
+    height: ${props => `${props.size}px` || '18px'};
   }
 `;
 
 MenuItemIcon.displayName = 'MenuItemIcon';
+MenuItemIcon.defaultProps = {
+  fontSize: 4,
+  mr: 2,
+};
 
 export default MenuItemIcon;

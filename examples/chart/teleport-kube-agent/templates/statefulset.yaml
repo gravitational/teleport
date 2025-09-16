@@ -2,7 +2,6 @@
 # Warning to maintainers, any changes to this file that are not specific to the StatefulSet need to also be duplicated
 # in the deployment.yaml file.
 #
-{{- $topologySpreadConstraints := and (semverCompare ">=1.18.0-0" .Capabilities.KubeVersion.Version) (not .Values.disableTopologySpreadConstraints) }}
 {{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -50,9 +49,6 @@ spec:
       {{- if .Values.podSecurityContext }}
       securityContext: {{- toYaml .Values.podSecurityContext | nindent 8}}
       {{- end }}
-      {{- if .Values.terminationGracePeriodSeconds }}
-      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      {{- end }}
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
@@ -85,25 +81,6 @@ spec:
         {{- end }}
         {{- end }}
       {{- end }}
-{{- if $topologySpreadConstraints }}
-  {{- if .Values.topologySpreadConstraints }}
-      topologySpreadConstraints: {{- toYaml .Values.topologySpreadConstraints | nindent 8 }}
-  {{- else }}
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: {{ .Release.Name }}
-        - maxSkew: 1
-          topologyKey: topology.kubernetes.io/zone
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: {{ .Release.Name }}
-  {{- end }}
-{{- end }}
       {{- if .Values.tolerations }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
@@ -189,10 +166,6 @@ spec:
           {{- if .Values.extraEnv }}
             {{- toYaml .Values.extraEnv | nindent 10 }}
           {{- end }}
-          {{- if .Values.teleportClusterName }}
-          - name: KUBERNETES_TOKEN_PATH
-            value: /var/run/secrets/tokens/join-sa-token
-          {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
@@ -235,11 +208,6 @@ spec:
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
-{{- if .Values.teleportClusterName }}
-        - mountPath: /var/run/secrets/tokens
-          name: join-sa-token
-          readOnly: true
-{{- end }}
 {{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
@@ -270,19 +238,6 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
-      {{- if .Values.teleportClusterName }}
-      {{- /* This volume is used to obtain a service account token that can be used
-       to join the Teleport cluster using the kubernetes join method.
-       To ensure backward compatibility, we use .Values.teleportClusterName as a feature flag.
-       The token must have the cluster name as audience, and its TTL must not exceed 30 minutes. */}}
-      - name: join-sa-token
-        projected:
-          sources:
-            - serviceAccountToken:
-                path: join-sa-token
-                expirationSeconds: 600
-                audience: {{ .Values.teleportClusterName }}
-      {{- end }}
 {{- if not .Values.storage.enabled }}
       - name: "data"
         emptyDir: {}

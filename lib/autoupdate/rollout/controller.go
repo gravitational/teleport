@@ -41,6 +41,7 @@ const (
 // We currently wake up every minute, in the future we might decide to also watch for events
 // (from autoupdate_config and autoupdate_version changefeed) to react faster.
 type Controller struct {
+	// TODO(hugoShaka) add prometheus metrics describing the reconciliation status
 	reconciler reconciler
 	clock      clockwork.Clock
 	log        *slog.Logger
@@ -72,11 +73,11 @@ func NewController(client Client, log *slog.Logger, clock clockwork.Clock, perio
 
 	log = log.With(teleport.ComponentLabel, teleport.ComponentRolloutController)
 
-	haltOnError, err := newHaltOnErrorStrategy(log, client)
+	haltOnError, err := newHaltOnErrorStrategy(log)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to initialize halt-on-error strategy")
 	}
-	timeBased, err := newTimeBasedStrategy(log, client)
+	timeBased, err := newTimeBasedStrategy(log)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to initialize time-based strategy")
 	}
@@ -109,7 +110,7 @@ func (c *Controller) Run(ctx context.Context) error {
 	config := interval.Config{
 		Duration:      c.period,
 		FirstDuration: c.period,
-		Jitter:        retryutils.SeventhJitter,
+		Jitter:        retryutils.NewSeventhJitter(),
 		Clock:         c.clock,
 	}
 	ticker := interval.New(config)
@@ -124,7 +125,7 @@ func (c *Controller) Run(ctx context.Context) error {
 		case <-ticker.Next():
 			c.log.DebugContext(ctx, "Reconciling autoupdate_agent_rollout")
 			if err := c.tryAndCatch(ctx); err != nil {
-				c.log.ErrorContext(ctx, "Failed to reconcile autoupdate_agent_controller", "error", err)
+				c.log.ErrorContext(ctx, "Failed to reconcile autoudpate_agent_controller", "error", err)
 			}
 		}
 	}

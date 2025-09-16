@@ -24,16 +24,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/coreos/go-oidc"
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/lib/oidc"
+	"github.com/gravitational/teleport/lib/jwt"
 )
 
-const audience = "teleport.cluster.local"
-
 type IDTokenValidatorConfig struct {
+	// Clock is used by the validator when checking expiry and issuer times of
+	// tokens. If omitted, a real clock will be used.
+	Clock clockwork.Clock
 	// GitHubIssuerHost is the host of the Issuer for tokens issued by
 	// GitHub's cloud hosted version. If no GHESHost override is provided to
 	// the call to Validate, then this will be used as the host.
@@ -50,6 +53,9 @@ type IDTokenValidator struct {
 func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
 	if cfg.GitHubIssuerHost == "" {
 		cfg.GitHubIssuerHost = DefaultIssuerHost
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
 	}
 
 	return &IDTokenValidator{
@@ -80,8 +86,35 @@ func (id *IDTokenValidator) issuerURL(
 func (id *IDTokenValidator) Validate(
 	ctx context.Context, GHESHost string, enterpriseSlug string, token string,
 ) (*IDTokenClaims, error) {
-	issuer := id.issuerURL(GHESHost, enterpriseSlug)
-	return oidc.ValidateToken[*IDTokenClaims](ctx, issuer, audience, token)
+	p, err := oidc.NewProvider(
+		ctx,
+		id.issuerURL(GHESHost, enterpriseSlug),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	verifier := p.Verifier(&oidc.Config{
+		ClientID: "teleport.cluster.local",
+		Now:      id.Clock.Now,
+	})
+
+	idToken, err := verifier.Verify(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// `go-oidc` does not implement not before check, so we need to manually
+	// perform this
+	if err := jwt.CheckNotBefore(id.Clock.Now(), time.Minute*2, idToken); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	claims := IDTokenClaims{}
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &claims, nil
 }
 
 // ValidateTokenWithJWKS validates a GitHub Actions JWT using a configured
@@ -110,7 +143,7 @@ func ValidateTokenWithJWKS(
 	leeway := time.Second * 10
 	err = stdClaims.ValidateWithLeeway(josejwt.Expected{
 		Audience: []string{
-			audience,
+			"teleport.cluster.local",
 		},
 		Time: now,
 	}, leeway)

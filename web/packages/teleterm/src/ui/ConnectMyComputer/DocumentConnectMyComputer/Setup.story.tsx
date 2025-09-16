@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 
 import {
   makeRootCluster,
@@ -27,6 +27,7 @@ import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesC
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import { IAppContext } from 'teleterm/ui/types';
 
 import { ConnectMyComputerContextProvider } from '../connectMyComputerContext';
 import { Setup } from './Setup';
@@ -152,11 +153,20 @@ function ShowState({
   clickStartSetup = true,
 }: {
   cluster: Cluster;
-  appContext: MockAppContext;
+  appContext: IAppContext;
   clickStartSetup?: boolean;
 }) {
   if (!appContext.clustersService.state.clusters.get(cluster.uri)) {
-    appContext.addRootCluster(cluster);
+    appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+    appContext.workspacesService.setState(draftState => {
+      draftState.rootClusterUri = cluster.uri;
+      draftState.workspaces[cluster.uri] = {
+        localClusterUri: cluster.uri,
+        documents: [],
+        location: undefined,
+        accessRequests: undefined,
+      };
+    });
   }
 
   useLayoutEffect(() => {

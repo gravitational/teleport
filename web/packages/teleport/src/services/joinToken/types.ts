@@ -47,10 +47,6 @@ export type JoinToken = {
   gcp?: {
     allow: GCPRules[];
   };
-  oracle?: {
-    allow: OracleRules[];
-  };
-  github?: GithubConfig;
 };
 
 // JoinRole defines built-in system roles and are roles associated with
@@ -86,8 +82,7 @@ export type JoinMethod =
   | 'circleci'
   | 'gitlab'
   | 'kubernetes'
-  | 'tpm'
-  | 'oracle';
+  | 'tpm';
 
 // JoinRule is a rule that a joining node must match in order to use the
 // associated token.
@@ -109,42 +104,6 @@ export type GCPRules = {
   service_accounts: string[];
 };
 
-export type OracleRules = {
-  tenancy: string;
-  parent_compartments: string[];
-  regions: string[];
-};
-
-type GithubConfig = {
-  /** enterprise_server_host allows joining from GitHub Actions workflows in a GitHub Enterprise Server instance. For normal situations, where you are using github.com, this option should be omitted. If you are using GHES, this value should be configured to the hostname of your GHES instance. */
-  enterprise_server_host: string | null;
-  /** static_jwks allows the JSON Web Key Set (JWKS) used to verify the token issued by GitHub Actions to be overridden. This can be used in scenarios where the Teleport Auth Service is unable to reach a GHES server. */
-  static_jwks: string | null;
-  /** enterprise_slug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the include_enterprise_slug option in GHE. */
-  enterprise_slug: string | null;
-  /** allow is an array of rule configurations for which GitHub Actions workflows should be allowed to join */
-  allow: GithubRules[];
-};
-
-export type GithubRules = {
-  /** repository is a fully qualified (e.g. including the owner) name of a GitHub repository. */
-  repository: string | null;
-  /** repository_owner is the name of an organization or user that a repository belongs to. */
-  repository_owner: string | null;
-  /** workflow is the exact name of a workflow as configured in the GitHub Action workflow YAML file. */
-  workflow: string | null;
-  /** environment is the environment associated with the GitHub Actions run. If no environment is configured for the GitHub Actions run, this will be empty. */
-  environment: string | null;
-  /** actor is the GitHub username that caused the GitHub Actions run, whether by committing or by directly despatching the workflow. */
-  actor: string | null;
-  /** ref is the git ref that triggered the action run. */
-  ref: string | null;
-  /** ref_type is the type of the git ref that triggered the action run. */
-  ref_type: string | null;
-  /** sub is a concatenated string of various attributes of the workflow run. GitHub explains the format of this string at: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#example-subject-claims */
-  sub: string | null;
-};
-
 export type JoinTokenRulesObject = AWSRules | GCPRules;
 
 export type CreateJoinTokenRequest = {
@@ -162,10 +121,6 @@ export type CreateJoinTokenRequest = {
   gcp?: {
     allow: GCPRules[];
   };
-  oracle?: {
-    allow: OracleRules[];
-  };
-  github?: GithubConfig;
 };
 
 export type JoinTokenRequest = {
@@ -183,18 +138,4 @@ export type JoinTokenRequest = {
   method?: JoinMethod;
   // content is the yaml content of the joinToken to be created
   content?: string;
-  /**
-   * User provided labels.
-   * SuggestedLabels is a set of labels that resources should set when using this token to enroll
-   * themselves in the cluster.
-   * Currently, only node-join scripts create a configuration according to the suggestion.
-   *
-   * Only supported with V2 endpoint.
-   */
-  suggestedLabels?: ResourceLabel[];
-};
-
-export type ListJoinTokensResponse = {
-  items: JoinToken[];
-  next_page_token?: string;
 };

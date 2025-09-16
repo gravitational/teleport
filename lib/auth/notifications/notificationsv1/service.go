@@ -1,20 +1,18 @@
-/*
- * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package notificationsv1
 
@@ -67,7 +65,7 @@ type Backend interface {
 	services.RoleGetter
 	client.ListResourcesClient
 	GetRoles(ctx context.Context) ([]types.Role, error)
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // Service implements the teleport.notifications.v1.NotificationsService RPC Service.
@@ -297,19 +295,10 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 		return false
 	}
 
-	// If the user is explicitly excluded by the notification, return false early.
-	if gn.Spec.ExcludeUsers != nil && slices.Contains(gn.Spec.ExcludeUsers, authCtx.User.GetName()) {
-		return false
-	}
-
 	switch matcher := gn.Spec.Matcher.(type) {
 	case *notificationsv1.GlobalNotificationSpec_All:
 		// Always return true if the matcher is "all."
 		return true
-
-	case *notificationsv1.GlobalNotificationSpec_ByUsers:
-		userList := matcher.ByUsers.GetUsers()
-		return slices.Contains(userList, authCtx.User.GetName())
 
 	case *notificationsv1.GlobalNotificationSpec_ByRoles:
 		matcherRoles := matcher.ByRoles.GetRoles()

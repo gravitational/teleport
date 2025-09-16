@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { render, screen, waitFor } from 'design/utils/testing';
 
 import api from 'teleport/services/api';
@@ -69,12 +71,9 @@ describe('session', () => {
   });
 
   test('valid session and invalid cookie', async () => {
-    const mockForbiddenError = new ApiError({
-      message: 'some error',
-      response: {
-        status: 403,
-      } as Response,
-    });
+    const mockForbiddenError = new ApiError('some error', {
+      status: 403,
+    } as Response);
 
     jest
       .spyOn(session, 'validateCookieAndSession')

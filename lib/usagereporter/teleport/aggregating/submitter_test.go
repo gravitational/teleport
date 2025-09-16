@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -68,6 +69,7 @@ func TestSubmitOnce(t *testing.T) {
 
 	scfg := SubmitterConfig{
 		Backend:   bk,
+		Log:       logrus.StandardLogger(),
 		Status:    local.NewStatusService(bk),
 		Submitter: submitOk,
 	}
@@ -170,10 +172,10 @@ func TestSubmitOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, alerts)
 
-	for i := range 20 {
+	for i := 0; i < 20; i++ {
 		require.NoError(t, svc.upsertUserActivityReport(ctx, newReport(time.Now().UTC().Add(time.Duration(i)*time.Second)), reportTTL))
 	}
-	for i := range 15 {
+	for i := 0; i < 15; i++ {
 		require.NoError(t, svc.upsertResourcePresenceReport(ctx, newResourcePresenceReport(time.Now().UTC().Add(time.Duration(i)*time.Second)), reportTTL))
 	}
 	clk.Advance(submitLockDuration)

@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
@@ -62,41 +63,23 @@ func (a *Server) checkSpaceliftJoinRequest(
 		return nil, trace.Wrap(err)
 	}
 
-	a.logger.InfoContext(ctx, "Spacelift run trying to join cluster",
-		"claims", claims,
-		"token", pt.GetName(),
-	)
+	log.WithFields(logrus.Fields{
+		"claims": claims,
+		"token":  pt.GetName(),
+	}).Info("Spacelift run trying to join cluster")
 
 	return claims, trace.Wrap(checkSpaceliftAllowRules(token, claims))
 }
 
 func checkSpaceliftAllowRules(token *types.ProvisionTokenV2, claims *spacelift.IDTokenClaims) error {
-	globCheck := func(want string, got string) (bool, error) {
-		if token.Spec.Spacelift.EnableGlobMatching {
-			return joinRuleGlobMatch(want, got)
-		}
-		if want == "" {
-			return true, nil
-		}
-		return want == got, nil
-	}
-
 	// If a single rule passes, accept the IDToken
-	for i, rule := range token.Spec.Spacelift.Allow {
+	for _, rule := range token.Spec.Spacelift.Allow {
 		// Please consider keeping these field validators in the same order they
 		// are defined within the ProvisionTokenSpecV2Spacelift proto spec.
-		spaceIDMatch, err := globCheck(rule.SpaceID, claims.SpaceID)
-		if err != nil {
-			return trace.Wrap(err, "evaluating rule (%d) space_id glob match", i)
-		}
-		if !spaceIDMatch {
+		if rule.SpaceID != "" && claims.SpaceID != rule.SpaceID {
 			continue
 		}
-		callerIDMatch, err := globCheck(rule.CallerID, claims.CallerID)
-		if err != nil {
-			return trace.Wrap(err, "evaluating rule (%d) caller_id glob match", i)
-		}
-		if !callerIDMatch {
+		if rule.CallerID != "" && claims.CallerID != rule.CallerID {
 			continue
 		}
 		if rule.CallerType != "" && claims.CallerType != rule.CallerType {

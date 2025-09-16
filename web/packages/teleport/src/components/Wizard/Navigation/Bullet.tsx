@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { JSX } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
@@ -50,7 +50,7 @@ export const BulletContainer = styled.span`
   height: 14px;
   width: 14px;
   border: 1px solid ${p => p.theme.colors.text.disabled};
-  font-size: ${p => p.theme.fontSizes[0]}px;
+  font-size: ${p => p.theme.fontSizes[1]}px;
   border-radius: 50%;
   margin-right: ${p => p.theme.space[2]}px;
   display: flex;
@@ -62,7 +62,7 @@ export const ActiveBullet = styled(BulletContainer)`
   border-color: ${props => props.theme.colors.brand};
   background: ${props => props.theme.colors.brand};
 
-  &:before {
+  :before {
     content: '';
     height: 8px;
     width: 8px;
@@ -76,7 +76,7 @@ export const CheckedBullet = styled(BulletContainer)`
   border-color: ${props => props.theme.colors.brand};
   background: ${props => props.theme.colors.brand};
 
-  &:before {
+  :before {
     content: '✓';
     color: ${props => props.theme.colors.levels.popout};
   }

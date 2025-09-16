@@ -43,7 +43,7 @@ func TestSearchEventsLimiter(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		for range 20 {
+		for i := 0; i < 20; i++ {
 			require.NoError(t, s.EmitAuditEvent(context.Background(), &apievents.AccessRequestCreate{}))
 		}
 	})
@@ -63,7 +63,7 @@ func TestSearchEventsLimiter(t *testing.T) {
 		someDate := clockwork.NewFakeClock().Now().UTC()
 
 		ctx := context.Background()
-		for i := range burst {
+		for i := 0; i < burst; i++ {
 			var err error
 			// rate limit is shared between both search endpoints.
 			if i%2 == 0 {

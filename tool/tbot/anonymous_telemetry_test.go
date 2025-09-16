@@ -28,14 +28,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/services/application"
-	"github.com/gravitational/teleport/lib/tbot/services/database"
-	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
-	"github.com/gravitational/teleport/lib/tbot/services/k8s"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockReportingServiceClient struct {
@@ -58,7 +52,7 @@ func mockEnvGetter(data map[string]string) envGetter {
 
 func TestSendTelemetry(t *testing.T) {
 	ctx := context.Background()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 
 	t.Run("sends telemetry when enabled", func(t *testing.T) {
 		mockClient := &mockReportingServiceClient{}
@@ -69,21 +63,21 @@ func TestSendTelemetry(t *testing.T) {
 		}
 		cfg := &config.BotConfig{
 			Oneshot: true,
-			Onboarding: onboarding.Config{
+			Onboarding: config.OnboardingConfig{
 				JoinMethod: types.JoinMethodGitHub,
 			},
 			Services: config.ServiceConfigs{
-				&identitysvc.OutputConfig{
-					Destination: &destination.Memory{},
+				&config.IdentityOutput{
+					Destination: &config.DestinationDirectory{},
 				},
-				&k8s.OutputV1Config{
-					Destination: &destination.Directory{},
+				&config.KubernetesOutput{
+					Destination: &config.DestinationDirectory{},
 				},
-				&application.OutputConfig{
-					Destination: &destination.Directory{},
+				&config.ApplicationOutput{
+					Destination: &config.DestinationDirectory{},
 				},
-				&database.OutputConfig{
-					Destination: &destination.Directory{},
+				&config.DatabaseOutput{
+					Destination: &config.DestinationDirectory{},
 				},
 			},
 		}

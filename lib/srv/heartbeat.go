@@ -21,17 +21,16 @@ package srv
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // HeartbeatI abstracts over the basic interface of Heartbeat and HeartbeatV2. This can be removed
@@ -39,6 +38,7 @@ import (
 type HeartbeatI interface {
 	Run() error
 	Close() error
+	ForceSend(timeout time.Duration) error
 }
 
 // KeepAliveState represents state of the heartbeat
@@ -156,17 +156,14 @@ func NewHeartbeat(cfg HeartbeatConfig) (*Heartbeat, error) {
 		cancelCtx:       ctx,
 		cancel:          cancel,
 		HeartbeatConfig: cfg,
-		logger:          slog.With(teleport.ComponentKey, teleport.Component(cfg.Component, "beat")),
-		checkTicker:     cfg.Clock.NewTicker(cfg.CheckPeriod),
-		announceC:       make(chan struct{}, 1),
-		sendC:           make(chan struct{}, 1),
+		Entry: log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.Component(cfg.Component, "beat"),
+		}),
+		checkTicker: cfg.Clock.NewTicker(cfg.CheckPeriod),
+		announceC:   make(chan struct{}, 1),
+		sendC:       make(chan struct{}, 1),
 	}
-	h.logger.DebugContext(ctx, "Starting heartbeat with announce period",
-		"mode", cfg.Mode,
-		"keep_alive_period", log.StringerAttr(cfg.KeepAlivePeriod),
-		"announce_period", log.StringerAttr(cfg.AnnouncePeriod),
-		"check_period", log.StringerAttr(cfg.CheckPeriod),
-	)
+	h.Debugf("Starting %v heartbeat with announce period: %v, keep-alive period %v, poll period: %v", cfg.Mode, cfg.KeepAlivePeriod, cfg.AnnouncePeriod, cfg.CheckPeriod)
 	return h, nil
 }
 
@@ -253,7 +250,7 @@ type Heartbeat struct {
 	HeartbeatConfig
 	cancelCtx context.Context
 	cancel    context.CancelFunc
-	logger    *slog.Logger
+	*log.Entry
 	state     KeepAliveState
 	current   types.Resource
 	keepAlive *types.KeepAlive
@@ -284,7 +281,7 @@ func (h *Heartbeat) Run() error {
 	for {
 		doneSomething, err := h.fetchAndAnnounce()
 		if err != nil {
-			h.logger.WarnContext(h.Context, "Heartbeat failed", "error", err)
+			h.Warningf("Heartbeat failed %v.", err)
 			h.OnHeartbeat(err)
 		} else if doneSomething {
 			h.OnHeartbeat(nil)
@@ -292,9 +289,9 @@ func (h *Heartbeat) Run() error {
 		select {
 		case <-h.checkTicker.Chan():
 		case <-h.sendC:
-			h.logger.DebugContext(h.Context, "Asked check out of cycle")
+			h.Debugf("Asked check out of cycle")
 		case <-h.cancelCtx.Done():
-			h.logger.DebugContext(h.Context, "Heartbeat exited")
+			h.Debugf("Heartbeat exited.")
 			return nil
 		}
 	}
@@ -330,7 +327,7 @@ func (h *Heartbeat) reset(state KeepAliveState) {
 	h.keepAlive = nil
 	if h.keepAliver != nil {
 		if err := h.keepAliver.Close(); err != nil {
-			h.logger.WarnContext(h.Context, "Failed to close keep aliver", "error", err)
+			h.Warningf("Failed to close keep aliver: %v", err)
 		}
 		h.keepAliver = nil
 	}
@@ -601,7 +598,7 @@ func (h *Heartbeat) announce() (doneSomething bool, _ error) {
 		case <-h.cancelCtx.Done():
 			return false, nil
 		case <-timeout.C:
-			h.logger.WarnContext(h.Context, "Blocked on keep alive send, going to reset.")
+			h.Warningf("Blocked on keep alive send, going to reset.")
 			h.reset(HeartbeatStateInit)
 			return false, trace.ConnectionProblem(nil, "timeout sending keep alive")
 		case h.keepAliver.KeepAlives() <- keepAlive:
@@ -610,7 +607,7 @@ func (h *Heartbeat) announce() (doneSomething bool, _ error) {
 			h.setState(HeartbeatStateKeepAliveWait)
 			return true, nil
 		case <-h.keepAliver.Done():
-			h.logger.WarnContext(h.Context, "Keep alive has failed", "error", h.keepAliver.Error())
+			h.Warningf("Keep alive has failed: %v.", h.keepAliver.Error())
 			err := h.keepAliver.Error()
 			h.reset(HeartbeatStateInit)
 			return false, trace.ConnectionProblem(err, "keep alive channel closed")
@@ -635,4 +632,21 @@ func (h *Heartbeat) fetchAndAnnounce() (doneSomething bool, _ error) {
 		return false, trace.Wrap(err)
 	}
 	return h.announce()
+}
+
+// ForceSend forces send cycle, used in tests, returns
+// nil in case of success, error otherwise
+func (h *Heartbeat) ForceSend(timeout time.Duration) error {
+	timeoutC := time.After(timeout)
+	select {
+	case h.sendC <- struct{}{}:
+	case <-timeoutC:
+		return trace.ConnectionProblem(nil, "timeout waiting for send")
+	}
+	select {
+	case <-h.announceC:
+		return nil
+	case <-timeoutC:
+		return trace.ConnectionProblem(nil, "timeout waiting for announce to be sent")
+	}
 }

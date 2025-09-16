@@ -17,7 +17,8 @@
  */
 
 import PropTypes from 'prop-types';
-import { Component, createRef } from 'react';
+import React from 'react';
+import ReactDOM from 'react-dom';
 
 import Popover from '../Popover';
 import getScrollbarSize from './../utils/scrollbarSize';
@@ -28,13 +29,21 @@ const POSITION = {
   horizontal: 'right',
 };
 
-class Menu extends Component {
-  menuListRef = createRef();
+class Menu extends React.Component {
+  getContentAnchorEl = () => {
+    if (this.menuListRef.selectedItemRef) {
+      return ReactDOM.findDOMNode(this.menuListRef.selectedItemRef);
+    }
 
-  getContentAnchorEl = () => this.menuListRef.current?.firstChild;
+    return ReactDOM.findDOMNode(this.menuListRef).firstChild;
+  };
+
+  handleMenuListRef = ref => {
+    this.menuListRef = ref;
+  };
 
   handleEntering = element => {
-    const menuList = this.menuListRef.current;
+    const menuList = ReactDOM.findDOMNode(this.menuListRef);
 
     // Let's ignore that piece of logic if users are already overriding the width
     // of the menu.
@@ -69,7 +78,7 @@ class Menu extends Component {
         <MenuList
           {...menuListProps}
           menuListCss={menuListCss}
-          ref={this.menuListRef}
+          ref={this.handleMenuListRef}
         >
           {children}
         </MenuList>

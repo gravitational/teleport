@@ -201,7 +201,5 @@ export function useSpecifiableFields() {
     onStartTimeChange,
     onDryRunChange,
     reset,
-    reasonMode: dryRunResponse?.reasonMode,
-    reasonPrompts: dryRunResponse?.reasonPrompts,
   };
 }

@@ -33,8 +33,7 @@ import (
 )
 
 const (
-	NotifyScheduleNameOne      = "Teleport Notifications One"
-	NotifyScheduleNameTwo      = "Teleport Notifications Two"
+	NotifyScheduleName         = "Teleport Notifications"
 	NotifyScheduleAnnotation   = types.TeleportNamespace + types.ReqAnnotationNotifySchedulesLabel
 	ApprovalScheduleName       = "Teleport Approval"
 	ApprovalScheduleAnnotation = types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
@@ -72,13 +71,13 @@ func (s *OpsgenieBaseSuite) SetupTest() {
 
 	// This service should be notified for every access request.
 	s.ogNotifyResponder = s.fakeOpsgenie.StoreResponder(opsgenie.Responder{
-		Name: NotifyScheduleNameOne,
+		Name: NotifyScheduleName,
 	})
 
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
 		NotifyScheduleAnnotation,
-		[]string{NotifyScheduleNameOne, NotifyScheduleNameTwo},
+		[]string{NotifyScheduleName},
 	)
 
 	// Responder 1 and 2 are on-call and should be automatically approved.
@@ -148,7 +147,6 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForSchedules() {
 	})
 
 	alert, err := s.fakeOpsgenie.CheckNewAlert(ctx)
-
 	require.NoError(t, err, "no new alerts stored")
 
 	assert.Equal(t, alert.ID, pluginData.AlertID)
@@ -160,6 +158,12 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForTeams() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
+
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		NotifyScheduleAnnotation,
+		[]string{},
+	)
 
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
@@ -182,6 +186,19 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForTeams() {
 	require.NoError(t, err, "no new alerts stored")
 
 	assert.Equal(t, alert.ID, pluginData.AlertID)
+
+	// Reset annotations
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		NotifyScheduleAnnotation,
+		[]string{NotifyScheduleName},
+	)
+
+	s.AnnotateRequesterRoleAccessRequests(
+		ctx,
+		NotifyTeamAnnotation,
+		[]string{},
+	)
 }
 
 // TestApproval tests that when a request is approved, its corresponding alert

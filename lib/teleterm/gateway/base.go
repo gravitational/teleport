@@ -20,13 +20,12 @@ package gateway
 
 import (
 	"context"
-	"crypto/tls"
-	"log/slog"
+	"fmt"
 	"net"
 	"strconv"
-	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -90,9 +89,6 @@ func newBase(cfg Config) (*base, error) {
 
 // Close terminates gateway connection. Fails if called on an already closed gateway.
 func (b *base) Close() error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	b.closeCancel()
 
 	var errs []error
@@ -111,8 +107,8 @@ func (b *base) Close() error {
 
 // Serve starts the underlying ALPN proxy. Blocks until closeContext is canceled.
 func (b *base) Serve() error {
-	b.cfg.Logger.InfoContext(b.closeContext, "Gateway is open")
-	defer b.cfg.Logger.InfoContext(b.closeContext, "Gateway has closed")
+	b.cfg.Log.Info("Gateway is open.")
+	defer b.cfg.Log.Info("Gateway has closed.")
 
 	if b.forwardProxy != nil {
 		return trace.Wrap(b.serveWithForwardProxy())
@@ -162,29 +158,17 @@ func (b *base) TargetUser() string {
 }
 
 func (b *base) TargetSubresourceName() string {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
 	return b.cfg.TargetSubresourceName
 }
 
 func (b *base) SetTargetSubresourceName(value string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.cfg.TargetSubresourceName = value
-
-	if b.cfg.ClearCertsOnTargetSubresourceNameChange {
-		b.Log().InfoContext(b.closeContext, "Clearing cert")
-		b.localProxy.SetCert(tls.Certificate{})
-	}
 }
 
-func (b *base) Log() *slog.Logger {
-	return b.cfg.Logger
+func (b *base) Log() *logrus.Entry {
+	return b.cfg.Log
 }
 
-// LocalAddress returns the local host in the net package terms (localhost or 127.0.0.1, depending
-// on the platform).
 func (b *base) LocalAddress() string {
 	return b.cfg.LocalAddress
 }
@@ -203,13 +187,15 @@ func (b *base) LocalPortInt() int {
 }
 
 func (b *base) cloneConfig() Config {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
 	return *b.cfg
 }
 
-// Gateway is a local proxy to a remote Teleport resource.
+// Gateway describes local proxy that creates a gateway to the remote Teleport resource.
+//
+// Gateway is not safe for concurrent use in itself. However, all access to gateways is gated by
+// daemon.Service which obtains a lock for any operation pertaining to gateways.
+//
+// In the future if Gateway becomes more complex it might be worthwhile to add an RWMutex to it.
 type base struct {
 	cfg          *Config
 	localProxy   *alpn.LocalProxy
@@ -220,7 +206,6 @@ type base struct {
 	// that the local proxy is now closed and to release any resources.
 	closeContext context.Context
 	closeCancel  context.CancelFunc
-	mu           sync.RWMutex
 }
 
 type TCPPortAllocator interface {
@@ -230,7 +215,7 @@ type TCPPortAllocator interface {
 type NetTCPPortAllocator struct{}
 
 func (n NetTCPPortAllocator) Listen(localAddress, port string) (net.Listener, error) {
-	listener, err := net.Listen("tcp", net.JoinHostPort(localAddress, port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", localAddress, port))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -43,9 +43,4 @@ const (
 	// maintenance window. There is no dependency between groups. Agents won't be instructed to update
 	// if the window is over.
 	AgentsStrategyTimeBased = "time-based"
-
-	// MaxCanaryCount is the maximum number of canaries allowed for a single group.
-	// This value is arbitrarily low to avoid XXL rollouts to grow over the max backend
-	// item size.
-	MaxCanaryCount = 5
 )

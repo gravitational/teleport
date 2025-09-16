@@ -1,7 +1,7 @@
 ---
 title: Manage Trusted Devices
 description: Learn how to manage Trusted Devices
-labels:
+tags:
  - conceptual
  - identity-governance
 ---
@@ -12,7 +12,7 @@ token, and removing a trusted device.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
@@ -71,9 +71,9 @@ $ tsh device asset-tag
 </details>
 
 
-Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
-with the serial number of the device you wish to enroll and <Var name="macos" /> with your operating
-system. Run the `tctl devices add` command:
+Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to
+be registered"/> with the serial number of the device you wish to enroll and run
+the `tctl devices add` command:
 
 ```code
 $ tctl devices add --os='<Var name="macos"/>' --asset-tag='<Var name="(=devicetrust.asset_tag=)"/>'
@@ -142,6 +142,12 @@ For auto-enrollment to work, the following conditions must be met:
 [manual](#register-a-trusted-device) or performed using an
 integration, like the [Jamf Pro integration](./jamf-integration.mdx).
 - Auto-enrollment must be enabled in the cluster setting.
+- User must have either preset `editor` or `device-enroll` (available v13.3.6+) role assigned to them.
+
+<Admonition type="tip">
+  Since Teleport v16.1.1 users don't need the device/enroll permission to
+  benefit from auto-enrollment.
+</Admonition>
 
 Enable auto-enrollment in your cluster settings. To do so, modify the dynamic
 config resource using the following command:

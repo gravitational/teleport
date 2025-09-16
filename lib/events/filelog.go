@@ -25,10 +25,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -36,6 +34,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -44,7 +43,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // FileLogConfig is a configuration for file log
@@ -105,7 +103,9 @@ func NewFileLog(cfg FileLogConfig) (*FileLog, error) {
 	}
 	f := &FileLog{
 		FileLogConfig: cfg,
-		logger:        slog.With(teleport.ComponentKey, teleport.ComponentAuditLog),
+		Entry: log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.ComponentAuditLog,
+		}),
 	}
 	return f, nil
 }
@@ -113,7 +113,7 @@ func NewFileLog(cfg FileLogConfig) (*FileLog, error) {
 // FileLog is a file local audit events log,
 // logs all events to the local file in json encoded form
 type FileLog struct {
-	logger *slog.Logger
+	*log.Entry
 	FileLogConfig
 	// rw protects the file from rotation during concurrent
 	// event emission.
@@ -147,7 +147,7 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 		l.rw.Unlock()
 		l.rw.RLock()
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to emit audit event", "error", err)
+			log.Error(err)
 		}
 	}
 
@@ -195,34 +195,11 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 //
 // This function may never return more than 1 MiB of event data.
 func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	l.logger.DebugContext(ctx, "SearchEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
-	values, next, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	// Convert the raw events to audit events.
-	evts, err := FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	l.Debugf("SearchEvents(%v, %v,  eventType=%v, limit=%v)", req.From, req.To, req.EventTypes, req.Limit)
+	return l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
 }
 
-func (l *FileLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	l.logger.DebugContext(ctx, "SearchUnstructuredEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
-	values, next, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	// Convert the raw events to unstructured.
-	evts, err := FromEventFieldsSliceToUnstructured(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
-}
-
-func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]EventFields, string, error) {
+func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -267,7 +244,7 @@ func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, or
 	}
 	sort.Sort(toSort)
 
-	events := make([]EventFields, 0, len(dynamicEvents))
+	events := make([]apievents.AuditEvent, 0, len(dynamicEvents))
 
 	// This is used as a flag to check if we have found the startAfter checkpoint or not.
 	foundStart := startAfter == ""
@@ -276,6 +253,12 @@ func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, or
 
 outer:
 	for _, dynamicEvent := range dynamicEvents {
+		// Convert the event from a dynamic representation to a typed representation.
+		event, err := FromEventFields(dynamicEvent)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
 		size, err := estimateEventSize(dynamicEvent)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -284,7 +267,7 @@ outer:
 		// Skip until we've found the start checkpoint and once more
 		// since it was the last key of the previous set.
 		if !foundStart {
-			checkpoint, err := getCheckpointFromEvent(dynamicEvent)
+			checkpoint, err := getCheckpointFromEvent(event)
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
@@ -298,11 +281,11 @@ outer:
 		// Skip until we've found the first event within the desired timeframe.
 		switch order {
 		case types.EventOrderAscending:
-			if dynamicEvent.GetTime(EventTime).Before(fromUTC) {
+			if event.GetTime().Before(fromUTC) {
 				continue outer
 			}
 		case types.EventOrderDescending:
-			if dynamicEvent.GetTime(EventTime).After(toUTC) {
+			if event.GetTime().After(toUTC) {
 				continue outer
 			}
 		}
@@ -312,11 +295,11 @@ outer:
 		// to the sort so we just break out here and consider the query as finished.
 		switch order {
 		case types.EventOrderAscending:
-			if dynamicEvent.GetTime(EventTime).After(toUTC) {
+			if event.GetTime().After(toUTC) {
 				break outer
 			}
 		case types.EventOrderDescending:
-			if dynamicEvent.GetTime(EventTime).Before(fromUTC) {
+			if event.GetTime().Before(fromUTC) {
 				break outer
 			}
 		}
@@ -329,7 +312,7 @@ outer:
 			return events, checkpoint, nil
 		}
 
-		events = append(events, dynamicEvent)
+		events = append(events, event)
 		totalSize += size
 
 		// Check if there is a limit and if so, check if we've hit it.
@@ -348,7 +331,7 @@ outer:
 	return events, "", nil
 }
 
-func getCheckpointFromEvent(event EventFields) (string, error) {
+func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 	if event.GetID() == "" {
 		data, err := utils.FastMarshal(event)
 		if err != nil {
@@ -363,11 +346,7 @@ func getCheckpointFromEvent(event EventFields) (string, error) {
 }
 
 func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	var whereExp types.WhereExpr
-	if req.Cond != nil {
-		whereExp = *req.Cond
-	}
-	l.logger.DebugContext(ctx, "SearchSessionEvents", "from", req.From, "to", req.To, "order", req.Order, "limit", req.Limit, "cond", logutils.StringerAttr(whereExp))
+	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", req.From, req.To, req.Order, req.Limit, req.Cond)
 	filter := searchEventsFilter{eventTypes: SessionRecordingEvents}
 	if req.Cond != nil {
 		condFn, err := utils.ToFieldsCondition(req.Cond)
@@ -377,15 +356,7 @@ func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEven
 		filter.condition = condFn
 	}
 	events, lastKey, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, filter)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	// Convert the raw events to audit events.
-	evts, err := FromEventFieldsSlice(events)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, lastKey, nil
+	return events, lastKey, trace.Wrap(err)
 }
 
 func (l *FileLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -441,7 +412,7 @@ func (l *FileLog) rotateLog() (err error) {
 	openLogFile := func() error {
 		l.file, err = os.OpenFile(logFilename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o640)
 		if err != nil {
-			l.logger.ErrorContext(context.Background(), "failed to open log file", "error", err, "file", logFilename)
+			log.Error(err)
 		}
 		l.fileTime = fileTime
 		return trace.Wrap(err)
@@ -510,7 +481,7 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time, order types.EventOrder
 			}
 			fd, err := ParseFileTime(fi.Name())
 			if err != nil {
-				l.logger.WarnContext(context.Background(), "Failed to parse audit log file format", "file", fi.Name(), "error", err)
+				l.Warningf("Failed to parse audit log file %q format: %v", fi.Name(), err)
 				continue
 			}
 			// File rounding in current logs is non-deterministic,
@@ -550,7 +521,7 @@ func ParseFileTime(filename string) (time.Time, error) {
 
 // findInFile scans a given log file and returns events that fit the criteria.
 func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFields, error) {
-	l.logger.DebugContext(context.Background(), "Called findInFile", "path", path, "filter", filter)
+	l.Debugf("Called findInFile(%s, %+v).", path, filter)
 
 	// open the log file:
 	lf, err := os.OpenFile(path, os.O_RDONLY, 0)
@@ -587,10 +558,16 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 		// in the query:
 		var ef EventFields
 		if err := utils.FastUnmarshal(scanner.Bytes(), &ef); err != nil {
-			l.logger.WarnContext(context.Background(), "invalid JSON in line found", "file", path, "line_number", lineNo)
+			l.Warnf("invalid JSON in %s line %d", path, lineNo)
 			continue
 		}
-		accepted := len(filter.eventTypes) == 0 || slices.Contains(filter.eventTypes, ef.GetString(EventType))
+		accepted := len(filter.eventTypes) == 0
+		for _, eventType := range filter.eventTypes {
+			if ef.GetString(EventType) == eventType {
+				accepted = true
+				break
+			}
+		}
 		if !accepted {
 			continue
 		}
@@ -607,9 +584,11 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 	if err := scanner.Err(); err != nil {
 		switch {
 		case errors.Is(err, bufio.ErrTooLong):
-			l.logger.WarnContext(context.Background(), "FileLog contains very large entries. Scan operation will return partial result.", "path", path, "line", lineNo)
+			fields := log.Fields{"path": path, "line": lineNo}
+			l.WithFields(fields).
+				Warnf("FileLog contains very large entries. Scan operation will return partial result.")
 		default:
-			l.logger.ErrorContext(context.Background(), "Failed to scan AuditLog.", "error", err)
+			l.WithError(err).Errorf("Failed to scan AuditLog.")
 
 		}
 	}
@@ -652,7 +631,7 @@ func (f ByTimeAndIndex) Swap(i, j int) {
 }
 
 // getTime converts json time to string
-func getTime(v any) time.Time {
+func getTime(v interface{}) time.Time {
 	sval, ok := v.(string)
 	if !ok {
 		return time.Time{}
@@ -664,7 +643,7 @@ func getTime(v any) time.Time {
 	return t
 }
 
-func getEventIndex(v any) float64 {
+func getEventIndex(v interface{}) float64 {
 	switch val := v.(type) {
 	case float64:
 		return val

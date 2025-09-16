@@ -2,13 +2,20 @@
 title: Server Access Getting Started Guide
 description: Getting started with Teleport server access.
 videoBanner: LnaRP0xKWRI
-labels:
+tags:
  - get-started
  - zero-trust
 ---
 
 You can protect a server with Teleport by running the Teleport SSH Service on
-the server and enrolling it in your Teleport cluster. 
+the server and enrolling it in your Teleport cluster. Once the server has joined
+your cluster, the Teleport RBAC system enforces secure access to the server, and
+administrators can identify security threats using the Teleport audit log.
+
+The Teleport SSH Service opens a reverse SSH tunnel to the Teleport Proxy
+Service, and SSH client traffic uses this tunnel to connect to a server. This
+setup is similar to the [bastion
+pattern](https://goteleport.com/blog/ssh-bastion-host/).
 
 This guides shows you how to:
 
@@ -16,31 +23,22 @@ This guides shows you how to:
 - SSH into a server using Teleport.
 - Inspect server resources in the cluster using Teleport commands.
 
-## How it works
-
-The Teleport SSH Service opens a reverse SSH tunnel to the Teleport Proxy
-Service, and SSH client traffic uses this tunnel to connect to a server. This
-setup is similar to the [bastion
-pattern](https://goteleport.com/blog/ssh-bastion-host/).
-
-Once a server has joined your cluster, the Teleport RBAC system enforces
-secure access to the server, and administrators can identify security threats
-using the Teleport audit log.
-
 You can use Teleport to enable secure access to a Kubernetes node. To do so,
 modify your node's machine image to install and run the Teleport SSH Service as
 per the instructions in this guide. Do not run the SSH Service as a Kubernetes
 pod, as there is no guarantee that the SSH Service pod is running on a server
 that a user intends to access.
 
-![Teleport Bastion](../../../img/server-access/getting-started-diagram.png)
+![Teleport Bastion](../../../img/server-access/getting-started-diagram.svg)
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- One host running a Linux environment (such as Ubuntu 20.04, CentOS 8.0, or
-  Debian 10). This will serve as a Teleport Node.
+- One host running a Linux environment (such as Amazon Linux, Ubuntu, CentOS Stream, or
+  Debian). This will serve as a Teleport Node.
 - (!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/permission-warning.mdx!)
@@ -183,7 +181,7 @@ $ tsh login --proxy=mytenant.teleport.sh:443 --user=myuser
 
 </Tabs>
 
-You'll be prompted to supply the password and authentication factor we set up
+You'll be prompted to supply the password and second factor we set up
 previously.
 
 `myuser` will now see something similar to:
@@ -383,5 +381,5 @@ further Getting Started exercises.
 - [Announcing Teleport SSH Server](https://goteleport.com/blog/announcing-teleport-ssh-server/)
 - [How to SSH properly](https://goteleport.com/blog/how-to-ssh-properly/)
 - Consider whether [OpenSSH or Teleport SSH](https://goteleport.com/blog/openssh-vs-teleport/) is right for you.
-- [Labels](../../zero-trust-access/rbac-get-started/labels.mdx)
+- [Labels](../../zero-trust-access/management/admin/labels.mdx)
 

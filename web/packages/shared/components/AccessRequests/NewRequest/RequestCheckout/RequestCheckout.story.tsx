@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, MemoryRouter } from 'react-router-dom';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
@@ -199,7 +199,6 @@ const baseProps: RequestCheckoutWithSliderProps = {
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
   requireReason: true,
-  reasonPrompts: [],
   selectedReviewers: [
     {
       value: 'george washington',
@@ -234,16 +233,6 @@ const baseProps: RequestCheckoutWithSliderProps = {
       kind: 'windows_desktop',
       name: 'desktop-name',
       id: 'app-name',
-    },
-    {
-      kind: 'saml_idp_service_provider',
-      name: 'app-saml',
-      id: 'app-name',
-    },
-    {
-      kind: 'aws_ic_account_assignment',
-      name: 'account1',
-      id: 'admin-on-account1',
     },
   ],
   clearAttempt: () => null,

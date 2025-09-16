@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"context"
@@ -27,8 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/gitlab"
 )
@@ -89,8 +87,8 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 			},
 		},
 	}
-	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
-		server.SetGitlabIDTokenValidator(idTokenValidator)
+	var withTokenValidator ServerOption = func(server *Server) error {
+		server.gitlabIDTokenValidator = idTokenValidator
 		return nil
 	}
 	ctx := context.Background()
@@ -101,7 +99,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
 		return &types.RegisterUsingTokenRequest{
@@ -142,7 +140,7 @@ func TestAuth_RegisterUsingToken_GitLab(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -605,7 +603,7 @@ func Test_joinRuleGlobMatch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := auth.JoinRuleGlobMatch(tt.rule, tt.claim)
+			got, err := joinRuleGlobMatch(tt.rule, tt.claim)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 		})

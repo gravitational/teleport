@@ -19,26 +19,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 
-import {
-  DisconnectedState,
-  DesktopSession as SharedDesktopSession,
-} from 'shared/components/DesktopSession';
+import { DesktopSession as SharedDesktopSession } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
-import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
+import { TdpClient } from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import cfg, { UrlDesktopParams } from 'teleport/config';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
-import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
+import useWebAuthn, { WebAuthnState } from 'teleport/lib/useWebAuthn';
 import { getHostName } from 'teleport/services/api';
 import auth from 'teleport/services/auth';
-import { useUser } from 'teleport/User/UserContext';
 
 export function DesktopSession() {
   const ctx = useTeleport();
-  const { preferences } = useUser();
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
   useEffect(() => {
     document.title = `${username} on ${desktopName} • ${clusterId}`;
@@ -47,26 +42,20 @@ export function DesktopSession() {
   const [client] = useState(
     () =>
       //TODO(gzdunek): It doesn't really matter here, but make TdpClient reactive to addr change.
-      new TdpClient(
-        abortSignal =>
-          adaptWebSocketToTdpTransport(
-            new AuthenticatedWebSocket(
-              cfg.api.desktopWsAddr
-                .replace(':fqdn', getHostName())
-                .replace(':clusterId', clusterId)
-                .replace(':desktopName', desktopName)
-                .replace(':username', username)
-            ),
-            abortSignal
+      new TdpClient(abortSignal =>
+        adaptWebSocketToTdpTransport(
+          new AuthenticatedWebSocket(
+            cfg.api.desktopWsAddr
+              .replace(':fqdn', getHostName())
+              .replace(':clusterId', clusterId)
+              .replace(':desktopName', desktopName)
+              .replace(':username', username)
           ),
-        selectDirectoryInBrowser
+          abortSignal
+        )
       )
   );
-  const mfa = useMfaEmitter(client, undefined, {
-    // When the user cancels the MFA prompt, shut down the connection.
-    // To get a new challenge, we need to recreate it.
-    onPromptCancel: useCallback(() => client.shutdown(), [client]),
-  });
+  const webauthn = useWebAuthn(client);
 
   const [aclAttempt, fetchAcl] = useAsync(
     useCallback(async () => {
@@ -108,32 +97,32 @@ export function DesktopSession() {
       client={client}
       username={username}
       desktop={desktopName}
-      customConnectionState={({ retry }) => {
-        // Errors, except for dialog cancellations, are handled within the MFA dialog.
-        if (mfa.attempt.status === 'error' && !shouldShowMfaPrompt(mfa)) {
-          return (
-            <DisconnectedState
-              message={{
-                title: 'This session requires multi factor authentication',
-                details: mfa.attempt.statusText,
-              }}
-              desktopName={desktopName}
-              onRetry={() => {
-                // Clear the MFA attempt to hide this alert state.
-                mfa.reset();
-                retry();
-              }}
-            />
-          );
-        }
-        if (shouldShowMfaPrompt(mfa)) {
-          return <AuthnDialog mfaState={mfa} />;
+      customConnectionState={() => {
+        if (webauthn.requested) {
+          return <MfaDialog webauthn={webauthn} />;
         }
       }}
       aclAttempt={aclAttempt}
       browserSupportsSharing={navigator.userAgent.includes('Chrome')}
       hasAnotherSession={hasAnotherSession}
-      keyboardLayout={preferences.keyboardLayout}
     />
   );
 }
+
+const MfaDialog = ({ webauthn }: { webauthn: WebAuthnState }) => {
+  return (
+    <AuthnDialog
+      onContinue={webauthn.authenticate}
+      onCancel={() => {
+        webauthn.setState(prevState => {
+          return {
+            ...prevState,
+            errorText:
+              'This session requires multi factor authentication to continue. Please hit "Retry" and follow the prompts given by your browser to complete authentication.',
+          };
+        });
+      }}
+      errorText={webauthn.errorText}
+    />
+  );
+};

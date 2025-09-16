@@ -37,12 +37,12 @@ type CrownJewelsService struct {
 const crownJewelsKey = "crown_jewels"
 
 // NewCrownJewelsService creates a new CrownJewelsService.
-func NewCrownJewelsService(b backend.Backend) (*CrownJewelsService, error) {
+func NewCrownJewelsService(backend backend.Backend) (*CrownJewelsService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceConfig[*crownjewelv1.CrownJewel]{
-			Backend:       b,
+		generic.ServiceWrapperConfig[*crownjewelv1.CrownJewel]{
+			Backend:       backend,
 			ResourceKind:  types.KindCrownJewel,
-			BackendPrefix: backend.NewKey(crownJewelsKey),
+			BackendPrefix: crownJewelsKey,
 			MarshalFunc:   services.MarshalCrownJewel,
 			UnmarshalFunc: services.UnmarshalCrownJewel,
 		})

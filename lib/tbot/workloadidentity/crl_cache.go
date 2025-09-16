@@ -28,10 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
 // CRLSet is a collection of CRLs.
@@ -69,65 +66,11 @@ func (b *CRLSet) Stale() <-chan struct{} {
 	return b.stale
 }
 
-// NewCRLCacheFacade creates a new TrustBundleCacheFacade.
-func NewCRLCacheFacade() *CRLCacheFacade {
-	return &CRLCacheFacade{ready: make(chan struct{})}
-}
-
-// CRLCacheFacade wraps a CRLCache to provide lazy initialization using its
-// BuildService method. It allows you to create a cache and pass it to service
-// builders before it has been initialized by running the bot.
-type CRLCacheFacade struct {
-	mu       sync.Mutex
-	ready    chan struct{}
-	crlCache *CRLCache
-}
-
-// BuildService implements bot.ServiceBuilder to build the CRLCache once when the
-// bot starts up.
-func (f *CRLCacheFacade) BuildService(deps bot.ServiceDependencies) (bot.Service, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.crlCache == nil {
-		var err error
-		f.crlCache, err = NewCRLCache(CRLCacheConfig{
-			RevocationsClient: deps.Client.WorkloadIdentityRevocationServiceClient(),
-			Logger: deps.Logger.With(
-				teleport.ComponentKey,
-				teleport.Component(teleport.ComponentTBot, "crl-cache"),
-			),
-			StatusReporter: deps.StatusRegistry.AddService("crl-cache"),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		close(f.ready)
-	}
-
-	return f.crlCache, nil
-}
-
-func (m *CRLCacheFacade) GetCRLSet(ctx context.Context) (*CRLSet, error) {
-	select {
-	case <-m.ready:
-		m.mu.Lock()
-		cache := m.crlCache
-		m.mu.Unlock()
-
-		return cache.GetCRLSet(ctx)
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
 // CRLCache streams CRLs from the revocations service and caches them. It
 // provides a mechanism to inform consumers when a new CRL is available.
 type CRLCache struct {
-	revocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
-	logger             *slog.Logger
-	botIdentityReadyCh <-chan struct{}
-	statusReporter     readyz.Reporter
+	revocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	logger            *slog.Logger
 
 	mu     sync.Mutex
 	crlSet *CRLSet
@@ -137,10 +80,8 @@ type CRLCache struct {
 
 // CRLCacheConfig is the configuration for a CRLCache.
 type CRLCacheConfig struct {
-	RevocationsClient  workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
-	Logger             *slog.Logger
-	BotIdentityReadyCh <-chan struct{}
-	StatusReporter     readyz.Reporter
+	RevocationsClient workloadidentityv1pb.WorkloadIdentityRevocationServiceClient
+	Logger            *slog.Logger
 }
 
 // NewCRLCache creates a new CRLCache.
@@ -151,15 +92,10 @@ func NewCRLCache(cfg CRLCacheConfig) (*CRLCache, error) {
 	case cfg.Logger == nil:
 		return nil, trace.BadParameter("missing Logger")
 	}
-	if cfg.StatusReporter == nil {
-		cfg.StatusReporter = readyz.NoopReporter()
-	}
 	return &CRLCache{
-		revocationsClient:  cfg.RevocationsClient,
-		logger:             cfg.Logger,
-		botIdentityReadyCh: cfg.BotIdentityReadyCh,
-		statusReporter:     cfg.StatusReporter,
-		initialized:        make(chan struct{}),
+		revocationsClient: cfg.RevocationsClient,
+		logger:            cfg.Logger,
+		initialized:       make(chan struct{}),
 	}, nil
 }
 
@@ -170,19 +106,6 @@ func (m *CRLCache) String() string {
 }
 
 func (m *CRLCache) Run(ctx context.Context) error {
-	if m.botIdentityReadyCh != nil {
-		select {
-		case <-m.botIdentityReadyCh:
-		default:
-			m.logger.InfoContext(ctx, "Waiting for internal bot identity to be renewed before running")
-			select {
-			case <-m.botIdentityReadyCh:
-			case <-ctx.Done():
-				return nil
-			}
-		}
-	}
-
 	for {
 		m.logger.InfoContext(
 			ctx,
@@ -208,7 +131,6 @@ func (m *CRLCache) Run(ctx context.Context) error {
 				"error", err,
 				"backoff", trustBundleInitFailureBackoff,
 			)
-			m.statusReporter.ReportReason(readyz.Unhealthy, err.Error())
 		}
 		select {
 		case <-ctx.Done():
@@ -230,7 +152,6 @@ func (m *CRLCache) watch(ctx context.Context) error {
 		return trace.Wrap(err, "opening CRL stream")
 	}
 
-	m.statusReporter.Report(readyz.Healthy)
 	for {
 		res, err := stream.Recv()
 		if err != nil {

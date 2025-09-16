@@ -16,13 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import {
-  getSelectedAwsPostgresDbMeta,
-  resourceSpecSelfHostedMysql,
+  ComponentWrapper,
+  getDbMeta,
+  getDbResourceSpec,
 } from 'teleport/Discover/Fixtures/databases';
-import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+} from 'teleport/Discover/SelectResource';
 import { agentService } from 'teleport/services/agents';
 import auth from 'teleport/services/auth/auth';
 import { userEventService } from 'teleport/services/userEvent';
@@ -46,17 +52,20 @@ afterEach(() => {
 });
 
 test('custom db name and user is respected when defined', async () => {
-  const dbMeta = getSelectedAwsPostgresDbMeta();
+  const dbMeta = getDbMeta();
   dbMeta.db.users = ['user1', '*'];
   dbMeta.db.names = ['name1', '*'];
 
   render(
-    <RequiredDiscoverProviders
-      agentMeta={dbMeta}
-      resourceSpec={resourceSpecSelfHostedMysql}
+    <ComponentWrapper
+      dbMeta={dbMeta}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.MySql,
+        DatabaseLocation.SelfHosted
+      )}
     >
       <TestConnection />
-    </RequiredDiscoverProviders>
+    </ComponentWrapper>
   );
 
   // Test with default user and names.

@@ -57,9 +57,7 @@ func TestLocks(t *testing.T) {
 	timeNow := time.Now().UTC()
 	fakeClock := clockwork.NewFakeClockAt(timeNow)
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	t.Run("create", func(t *testing.T) {
 		err := runLockCommand(t, clt, []string{"--user=bad@actor", "--message=Come see me"})

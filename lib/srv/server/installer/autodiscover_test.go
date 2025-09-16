@@ -24,7 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"testing"
 
@@ -71,20 +71,20 @@ func buildMockBins(t *testing.T) (map[string]*bintest.Mock, packagemanager.Binar
 }
 
 func setupDirsForTest(t *testing.T, testTempDir string, distroConfig map[string]string) {
-	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "etc"), fs.ModePerm))
-	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "usr/local/bin"), fs.ModePerm))
-	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "usr/share"), fs.ModePerm))
-	require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, "var/lock"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/etc"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/local/bin"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/usr/share"), fs.ModePerm))
+	require.NoError(t, os.MkdirAll(path.Join(testTempDir, "/var/lock"), fs.ModePerm))
 
 	for fileName, contents := range distroConfig {
 		isDir := strings.HasSuffix(fileName, "/")
 		if isDir {
 			require.Empty(t, contents, "expected no contents for directory %q", fileName)
-			require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, fileName), fs.ModePerm))
+			require.NoError(t, os.MkdirAll(path.Join(testTempDir, fileName), fs.ModePerm))
 		} else {
-			filePathWithoutParent := filepath.Base(fileName)
-			require.NoError(t, os.MkdirAll(filepath.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
-			require.NoError(t, os.WriteFile(filepath.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
+			filePathWithoutParent := path.Base(fileName)
+			require.NoError(t, os.MkdirAll(path.Join(testTempDir, filePathWithoutParent), fs.ModePerm))
+			require.NoError(t, os.WriteFile(path.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
 		}
 	}
 }
@@ -745,16 +745,16 @@ func TestAutoDiscoverNode(t *testing.T) {
 // SLES 12, 15
 var wellKnownOS = map[string]map[string]map[string]string{
 	"debian": {
-		"9":  {etcOSReleaseFile: debian9OSRelease, "/etc/apt/keyrings/": "", "/etc/apt/sources.list.d/": ""},
-		"10": {etcOSReleaseFile: debian10OSRelease, "/etc/apt/keyrings/": "", "/etc/apt/sources.list.d/": ""},
-		"11": {etcOSReleaseFile: debian11OSRelease, "/etc/apt/keyrings/": "", "/etc/apt/sources.list.d/": ""},
-		"12": {etcOSReleaseFile: debian12OSRelease, "/etc/apt/keyrings/": "", "/etc/apt/sources.list.d/": ""},
+		"9":  {etcOSReleaseFile: debian9OSRelease, "/usr/share/keyrings/": "", "/etc/apt/sources.list.d/": ""},
+		"10": {etcOSReleaseFile: debian10OSRelease, "/usr/share/keyrings/": "", "/etc/apt/sources.list.d/": ""},
+		"11": {etcOSReleaseFile: debian11OSRelease, "/usr/share/keyrings/": "", "/etc/apt/sources.list.d/": ""},
+		"12": {etcOSReleaseFile: debian12OSRelease, "/usr/share/keyrings/": "", "/etc/apt/sources.list.d/": ""},
 	},
 	"ubuntu": {
-		"18.04": {etcOSReleaseFile: ubuntu1804OSRelease, "/etc/apt/sources.list.d/": ""}, // No /etc/apt/keyrings/ by default
-		"20.04": {etcOSReleaseFile: ubuntu2004OSRelease, "/etc/apt/sources.list.d/": ""}, // No /etc/apt/keyrings/ by default
-		"22.04": {etcOSReleaseFile: ubuntu2204OSRelease, "/etc/apt/keyrings/": "", "/etc/apt/sources.list.d/": ""},
-		"24.04": {etcOSReleaseFile: ubuntu2404OSRelease, "/etc/apt/keyrings/": "", "/etc/apt/sources.list.d/": ""},
+		"18.04": {etcOSReleaseFile: ubuntu1804OSRelease, "/usr/share/keyrings/": "", "/etc/apt/sources.list.d/": ""},
+		"20.04": {etcOSReleaseFile: ubuntu2004OSRelease, "/usr/share/keyrings/": "", "/etc/apt/sources.list.d/": ""},
+		"22.04": {etcOSReleaseFile: ubuntu2204OSRelease, "/usr/share/keyrings/": "", "/etc/apt/sources.list.d/": ""},
+		"24.04": {etcOSReleaseFile: ubuntu2404OSRelease, "/usr/share/keyrings/": "", "/etc/apt/sources.list.d/": ""},
 	},
 	"amzn": {
 		"2":    {etcOSReleaseFile: amzn2OSRelease},

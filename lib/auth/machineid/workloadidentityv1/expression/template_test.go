@@ -59,14 +59,12 @@ func TestTemplate_Success(t *testing.T) {
 			output: "Larry LarryBot",
 		},
 		"map access": {
-			tmpl: `/region/{{workload.podman.pod.labels["com.mycloud/region"]}}/service`,
+			tmpl: `/region/{{workload.kubernetes.labels["com.mycloud/region"]}}/service`,
 			attrs: &workloadidentityv1.Attrs{
 				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
-						Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
-							Labels: map[string]string{
-								"com.mycloud/region": "eu",
-							},
+					Kubernetes: &workloadidentityv1.WorkloadAttrsKubernetes{
+						Labels: map[string]string{
+							"com.mycloud/region": "eu",
 						},
 					},
 				},
@@ -118,7 +116,7 @@ func TestTemplate_Success(t *testing.T) {
 			template, err := expression.NewTemplate(tc.tmpl)
 			require.NoError(t, err)
 
-			output, err := template.Render(&expression.Environment{Attrs: tc.attrs})
+			output, err := template.Render(tc.attrs)
 			require.NoError(t, err)
 			require.Equal(t, tc.output, output)
 		})
@@ -147,14 +145,12 @@ func TestTemplate_MultipleTraitValues(t *testing.T) {
 	tmpl, err := expression.NewTemplate(`{{user.traits.skills}}`)
 	require.NoError(t, err)
 
-	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
-			User: &workloadidentityv1.UserAttrs{
-				Traits: []*traitv1.Trait{
-					{
-						Key:    "skills",
-						Values: []string{"sword-fighting", "sonnet-writing"},
-					},
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		User: &workloadidentityv1.UserAttrs{
+			Traits: []*traitv1.Trait{
+				{
+					Key:    "skills",
+					Values: []string{"sword-fighting", "sonnet-writing"},
 				},
 			},
 		},
@@ -163,29 +159,23 @@ func TestTemplate_MultipleTraitValues(t *testing.T) {
 }
 
 func TestTemplate_MissingSubmessage(t *testing.T) {
-	tmpl, err := expression.NewTemplate(`{{workload.podman.container.name}}`)
+	tmpl, err := expression.NewTemplate(`{{workload.kubernetes.pod_name}}`)
 	require.NoError(t, err)
 
-	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
-			Workload: &workloadidentityv1.WorkloadAttrs{},
-		},
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		Workload: &workloadidentityv1.WorkloadAttrs{},
 	})
-	require.ErrorContains(t, err, "workload.podman is unset")
+	require.ErrorContains(t, err, "workload.kubernetes is unset")
 }
 
 func TestTemplate_MissingMapValue(t *testing.T) {
-	tmpl, err := expression.NewTemplate(`{{workload.podman.container.labels.foo}}`)
+	tmpl, err := expression.NewTemplate(`{{workload.kubernetes.labels.foo}}`)
 	require.NoError(t, err)
 
-	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
-			Workload: &workloadidentityv1.WorkloadAttrs{
-				Podman: &workloadidentityv1.WorkloadAttrsPodman{
-					Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
-						Labels: map[string]string{"bar": "baz"},
-					},
-				},
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		Workload: &workloadidentityv1.WorkloadAttrs{
+			Kubernetes: &workloadidentityv1.WorkloadAttrsKubernetes{
+				Labels: map[string]string{"bar": "baz"},
 			},
 		},
 	})
@@ -196,14 +186,12 @@ func TestTemplate_MissingTrait(t *testing.T) {
 	tmpl, err := expression.NewTemplate(`{{user.traits.foo}}`)
 	require.NoError(t, err)
 
-	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
-			User: &workloadidentityv1.UserAttrs{
-				Traits: []*traitv1.Trait{
-					{
-						Key:    "bar",
-						Values: []string{"baz"},
-					},
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		User: &workloadidentityv1.UserAttrs{
+			Traits: []*traitv1.Trait{
+				{
+					Key:    "bar",
+					Values: []string{"baz"},
 				},
 			},
 		},
@@ -212,19 +200,15 @@ func TestTemplate_MissingTrait(t *testing.T) {
 }
 
 func TestTemplate_UnsetValue(t *testing.T) {
-	tmpl, err := expression.NewTemplate(`{{workload.podman.container.name}}`)
+	tmpl, err := expression.NewTemplate(`{{workload.kubernetes.pod_name}}`)
 	require.NoError(t, err)
 
-	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
-			Workload: &workloadidentityv1.WorkloadAttrs{
-				Podman: &workloadidentityv1.WorkloadAttrsPodman{
-					Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
-						Name: "",
-					},
-				},
+	_, err = tmpl.Render(&workloadidentityv1.Attrs{
+		Workload: &workloadidentityv1.WorkloadAttrs{
+			Kubernetes: &workloadidentityv1.WorkloadAttrsKubernetes{
+				PodName: "",
 			},
 		},
 	})
-	require.ErrorContains(t, err, "workload.podman.container.name is unset")
+	require.ErrorContains(t, err, "workload.kubernetes.pod_name is unset")
 }

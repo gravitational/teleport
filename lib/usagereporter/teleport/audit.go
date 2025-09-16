@@ -31,9 +31,6 @@ const (
 	// TCPSessionType is the session_type in tp.session.start for TCP
 	// Application Access.
 	TCPSessionType = "app_tcp"
-	// MCPAppSessionType is the session_type in tp.session.start for MCP
-	// Access via App access.
-	MCPAppSessionType = "app_mcp"
 	// PortSessionType is the session_type in tp.session.start for SSH or Kube
 	// port forwarding.
 	//
@@ -46,8 +43,6 @@ const (
 	// PortKubeSessionType is the session_type in tp.session.start for Kube port
 	// forwarding.
 	PortKubeSessionType = "k8s_port"
-	// SAMLIdPSessionType is the session_type tp.session.start for a SAML IdP specific web session.
-	SAMLIdPSessionType = "saml_idp_session"
 )
 
 // prehogUserKindFromEventKind converts a Teleport UserKind to a prehog
@@ -88,7 +83,6 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			RequiredPrivateKeyPolicy: e.RequiredPrivateKeyPolicy,
 			UserOrigin:               prehogv1a.UserOrigin(e.UserOrigin),
 		}
-
 	case *apievents.AccessRequestCreate:
 		// The access request audit event emitter uses ClientUserMetadata function to
 		// deduce username. The ClientUserMetadata function may return teleport.UserSystem
@@ -144,27 +138,18 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DbType:     e.DatabaseType,
 				DbProtocol: e.DatabaseProtocol,
 				DbOrigin:   e.DatabaseOrigin,
-				UserAgent:  e.UserAgent,
 			},
 			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.AppSessionStart:
-		var app *prehogv1a.SessionStartAppMetadata
 		sessionType := string(types.AppSessionKind)
 		if types.IsAppTCP(e.AppURI) {
 			sessionType = TCPSessionType
-			// IsMultiPort for now is the only type of app metadata, so don't include it unless it's a TCP
-			// app.
-			app = &prehogv1a.SessionStartAppMetadata{
-				IsMultiPort: e.AppMetadata.AppTargetPort > 0,
-			}
 		}
-
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
 			UserKind:    prehogUserKindFromEventKind(e.UserKind),
-			App:         app,
 		}
 	case *apievents.WindowsDesktopSessionStart:
 		desktopType := "ad"
@@ -350,21 +335,6 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserName:    e.User,
 			Format:      e.Format,
 		}
-	case *apievents.GitCommand:
-		// Only count when a command is executed on remote Git server and ignore
-		// errors that happen before that.
-		if e.ExitCode == "" {
-			return nil
-		}
-		return &SessionStartEvent{
-			UserName:    e.User,
-			SessionType: string(types.GitSessionKind),
-			UserKind:    prehogUserKindFromEventKind(e.UserKind),
-			Git: &prehogv1a.SessionStartGitMetadata{
-				GitType:    e.ServerSubKind,
-				GitService: e.Service,
-			},
-		}
 	case *apievents.SAMLIdPAuthAttempt:
 		// Only count successful auth attempts.
 		if !e.Success {
@@ -372,13 +342,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 		return &SessionStartEvent{
 			UserName:    e.User,
-			SessionType: string(SAMLIdPSessionType),
-		}
-	case *apievents.MCPSessionStart:
-		return &SessionStartEvent{
-			UserName:    e.User,
-			SessionType: MCPAppSessionType,
-			UserKind:    prehogUserKindFromEventKind(e.UserKind),
+			SessionType: string(types.KindSAMLIdPSession),
 		}
 	}
 

@@ -36,22 +36,21 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type DatabasePack struct {
@@ -254,7 +253,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
 	lib.SetInsecureDevMode(true)
-	log := logtest.NewLogger()
+	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
@@ -273,7 +272,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      log,
+		Log:         log,
 	}
 	rootCfg.Listeners = opts.listenerSetup(t, &rootCfg.Fds)
 	p.Root.Cluster = helpers.NewInstance(t, rootCfg)
@@ -285,7 +284,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      log,
+		Log:         log,
 	}
 	leafCfg.Listeners = opts.listenerSetup(t, &leafCfg.Fds)
 	p.Leaf.Cluster = helpers.NewInstance(t, leafCfg)
@@ -359,7 +358,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 	var err error
 
-	p.Root.User, p.Root.role, err = authtest.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "root-user", nil, nil)
+	p.Root.User, p.Root.role, err = auth.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "root-user", nil, nil)
 	require.NoError(t, err)
 
 	p.Root.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -367,7 +366,7 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 	p.Root.role, err = p.Root.Cluster.Process.GetAuthServer().UpsertRole(context.Background(), p.Root.role)
 	require.NoError(t, err)
 
-	p.Leaf.User, p.Leaf.role, err = authtest.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "leaf-user", nil, nil)
+	p.Leaf.User, p.Leaf.role, err = auth.CreateUserAndRole(p.Root.Cluster.Process.GetAuthServer(), "leaf-user", nil, nil)
 	require.NoError(t, err)
 
 	p.Leaf.role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -378,10 +377,10 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 
 func (p *DatabasePack) WaitForLeaf(t *testing.T) {
 	helpers.WaitForProxyCount(p.Leaf.Cluster, p.Root.Cluster.Secrets.SiteName, 1)
-	cluster, err := p.Root.Cluster.Tunnel.Cluster(t.Context(), p.Leaf.Cluster.Secrets.SiteName)
+	site, err := p.Root.Cluster.Tunnel.GetSite(p.Leaf.Cluster.Secrets.SiteName)
 	require.NoError(t, err)
 
-	accessPoint, err := cluster.CachingAccessPoint()
+	accessPoint, err := site.CachingAccessPoint()
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -396,15 +395,15 @@ func (p *DatabasePack) WaitForLeaf(t *testing.T) {
 			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				// Use root logger as we need a configured logger instance and the root cluster have one.
-				p.Root.Cluster.Log.DebugContext(ctx, "Leaf cluster access point is unavailable", "error", err)
+				p.Root.Cluster.Log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
 			}
 			if !containsDB(servers, p.Leaf.MysqlService.Name) {
-				p.Root.Cluster.Log.DebugContext(ctx, "Leaf db service is unavailable", "error", err, "db_service", p.Leaf.MysqlService.Name)
+				p.Root.Cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.Leaf.MysqlService.Name)
 				continue
 			}
 			if !containsDB(servers, p.Leaf.PostgresService.Name) {
-				p.Root.Cluster.Log.DebugContext(ctx, "Leaf db service is unavailable", "error", err, "db_service", p.Leaf.PostgresService.Name)
+				p.Root.Cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.Leaf.PostgresService.Name)
 				continue
 			}
 			return

@@ -3,7 +3,7 @@ title: User Types
 description: Describes the different types of Teleport users and their properties.
 keywords: [user,idp,sso]
 tocDepth: 3
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
@@ -53,7 +53,7 @@ authentication method required by the upstream SSO provider. Teleport is not
 aware of the authentication method not the user credentials, it trusts the IdP
 response.
 
-If `teleport.auth_service.authentication.second_factors` is `["webauthn"]`, Teleport
+If `teleport.auth_service.authentication.second_factor` is `webauthn`, Teleport
 might ask for an additional MFA for administrative actions. This protects
 against IdP compromise.
 

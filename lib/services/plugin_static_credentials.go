@@ -39,14 +39,8 @@ type PluginStaticCredentials interface {
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 
-	// UpdatePluginStaticCredentials will update a plugin static credentials' resource.
-	UpdatePluginStaticCredentials(ctx context.Context, pluginStaticCredentials types.PluginStaticCredentials) (types.PluginStaticCredentials, error)
-
 	// DeletePluginStaticCredentials will delete a plugin static credentials resource.
 	DeletePluginStaticCredentials(ctx context.Context, name string) error
-
-	// GetAllPluginStaticCredentials will get all plugin static credentials.
-	GetAllPluginStaticCredentials(ctx context.Context) ([]types.PluginStaticCredentials, error)
 }
 
 // MarshalPluginStaticCredentials marshals PluginStaticCredentials resource to JSON.
@@ -80,7 +74,6 @@ func UnmarshalPluginStaticCredentials(data []byte, opts ...MarshalOption) (types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	var h types.MessageWithHeader
 	// every field but one is unknown to [types.MessageWithHeader] so this
 	// unmarshal must discard unknown fields

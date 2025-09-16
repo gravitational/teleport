@@ -16,17 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
-import {
-  Box,
-  ButtonIcon,
-  ButtonSecondary,
-  Flex,
-  H2,
-  Image,
-  Text,
-} from 'design';
+import { Box, ButtonIcon, ButtonSecondary, Flex, Image, Text } from 'design';
 import * as Alerts from 'design/Alert';
 import DialogConfirmation, {
   DialogContent,
@@ -34,12 +26,11 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import * as Icons from 'design/Icon';
-import { P, P3 } from 'design/Text/Text';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import type * as tsh from 'teleterm/services/tshd/types';
-import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn/hardware.svg';
+import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
 export type HeadlessPromptProps = {
   cluster: tsh.Cluster;
@@ -87,9 +78,9 @@ export function HeadlessPrompt({
       })}
     >
       <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
-        <H2 mb={4}>
+        <Text typography="h4">
           Headless command on <b>{cluster.name}</b>
-        </H2>
+        </Text>
         <ButtonIcon
           type="button"
           color="text.slightlyMuted"
@@ -102,22 +93,25 @@ export function HeadlessPrompt({
         </ButtonIcon>
       </DialogHeader>
       {updateHeadlessStateAttempt.status === 'error' && (
-        <Alerts.Danger mb={0} details={updateHeadlessStateAttempt.statusText}>
-          Could not update the headless command state
+        <Alerts.Danger mb={0}>
+          {updateHeadlessStateAttempt.statusText}
         </Alerts.Danger>
       )}
       <DialogContent>
-        <P>
+        <Text color="text.slightlyMuted">
           Someone initiated a headless command from <b>{clientIp}</b>.
-        </P>
-        <P>If it was not you, click Reject and contact your administrator.</P>
-        <P3 color="text.slightlyMuted">
+          <br />
+          If it was not you, click Reject and contact your administrator.
+        </Text>
+        <Text color="text.muted" mt={1} fontSize="12px">
           Request ID: {headlessAuthenticationId}
-        </P3>
+        </Text>
       </DialogContent>
       {waitForMfa && (
         <DialogContent mb={2}>
-          <P>Complete MFA verification to approve the Headless Login.</P>
+          <Text color="text.slightlyMuted">
+            Complete MFA verification to approve the Headless Login.
+          </Text>
 
           <Image mt={4} mb={4} width="200px" src={svgHardwareKey} mx="auto" />
           <Box textAlign="center" style={{ position: 'relative' }}>

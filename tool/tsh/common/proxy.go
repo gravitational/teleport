@@ -20,7 +20,6 @@ package common
 
 import (
 	"context"
-	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
@@ -33,7 +32,6 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -201,7 +199,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	defer func() {
 		if err := listener.Close(); err != nil {
-			logger.WarnContext(cf.Context, "Failed to close listener", "error", err)
+			log.WithError(err).Warnf("Failed to close listener.")
 		}
 	}()
 
@@ -230,13 +228,18 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		opts, err := makeDatabaseCommandOptions(cf.Context, tc, dbInfo,
+		opts := []dbcmd.ConnectCommandFunc{
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
+			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithTolerateMissingCLIClient(),
-		)
-		if err != nil {
+			dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
+		}
+		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
+			return trace.Wrap(err)
+		}
+		if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -269,7 +272,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"address":      listener.Addr().String(),
 			"ca":           profile.CACertPathForCluster(rootCluster),
 			"cert":         profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
-			"key":          profile.DatabaseKeyPathForCluster(cf.SiteName, dbInfo.ServiceName),
+			"key":          profile.KeyPath(),
 			"randomPort":   randomPort,
 			"databaseUser": dbInfo.Username,
 			"databaseName": dbInfo.Database,
@@ -286,9 +289,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func maybeAddDBUserPassword(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
 	if dbInfo.Protocol == defaults.ProtocolCassandra {
-		db, err := dbInfo.GetDatabase(ctx, tc)
+		db, err := dbInfo.GetDatabase(cf.Context, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -308,22 +311,6 @@ func maybeAddDBUserPassword(ctx context.Context, tc *libclient.TeleportClient, d
 
 func requiresGCPMetadata(protocol string) bool {
 	return protocol == defaults.ProtocolSpanner
-}
-
-func makeDatabaseCommandOptions(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, extraOpts ...dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
-	var err error
-	opts := append([]dbcmd.ConnectCommandFunc{
-		dbcmd.WithLogger(logger),
-		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
-	}, extraOpts...)
-
-	if opts, err = maybeAddDBUserPassword(ctx, tc, dbInfo, opts); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if opts, err = maybeAddGCPMetadata(ctx, tc, dbInfo, opts); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return maybeAddOracleOptions(ctx, tc, dbInfo, opts), nil
 }
 
 func maybeAddGCPMetadata(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
@@ -352,119 +339,36 @@ func maybeAddGCPMetadataTplArgs(ctx context.Context, tc *libclient.TeleportClien
 	}
 }
 
-func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) []dbcmd.ConnectCommandFunc {
-	// Skip for non-Oracle protocols.
-	if dbInfo.Protocol != defaults.ProtocolOracle {
-		return opts
-	}
-
-	// TODO(Tener): DELETE IN 20.0.0 - all agents should now contain improved Oracle engine.
-	// minimum version to support TCPS-less connection.
-	cutoffVersion := semver.Version{
-		Major:      17,
-		Minor:      2,
-		Patch:      0,
-		PreRelease: "",
-	}
-
-	devV17Version := semver.Version{
-		Major:      17,
-		Minor:      0,
-		Patch:      0,
-		PreRelease: "dev",
-	}
-
-	dbServers, err := getDatabaseServers(ctx, tc, dbInfo.ServiceName)
-	if err != nil {
-		// log, but treat this error as non-fatal.
-		logger.WarnContext(ctx, "Error getting database servers", "error", err)
-		return opts
-	}
-
-	var oldServers, newServers int
-
-	for _, server := range dbServers {
-		ver, err := semver.NewVersion(server.GetTeleportVersion())
-		if err != nil {
-			logger.DebugContext(ctx, "Failed to parse teleport version", "version", server.GetTeleportVersion(), "error", err)
-			continue
-		}
-
-		if ver.Equal(devV17Version) {
-			newServers++
-		} else {
-			if ver.LessThan(cutoffVersion) {
-				oldServers++
-			} else {
-				newServers++
-			}
-		}
-	}
-
-	logger.DebugContext(ctx, "Retrieved agents for database with Oracle support",
-		"database", dbInfo.ServiceName,
-		"total", len(dbServers),
-		"old_count", oldServers,
-		"new_count", newServers,
-	)
-
-	if oldServers > 0 {
-		logger.WarnContext(ctx, "Detected outdated database agent, for improved client support upgrade all database agents in your cluster to a newer version",
-			"lowest_supported_version", cutoffVersion,
-		)
-	}
-
-	opts = append(opts, dbcmd.WithOracleOpts(oldServers == 0, newServers > 0))
-	return opts
-}
-
 type templateCommandItem struct {
 	Description string
 	Command     string
 }
 
 func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative, dbInfo *databaseInfo) *template.Template {
-	templateArgs["command"] = formatCommand(commands[0].Command)
-
-	// protocol-specific templates
-	if dbInfo.Protocol == defaults.ProtocolOracle {
-		// the JDBC connection string should always be found,
-		// but the order of commands is important as only the first command will actually be shown.
-		jdbcConnectionString := ""
-		ixFound := -1
-		for ix, cmd := range commands {
-			for _, arg := range cmd.Command.Args {
-				if strings.Contains(arg, "jdbc:oracle:") {
-					jdbcConnectionString = arg
-					ixFound = ix
-				}
-			}
-		}
-		templateArgs["jdbcConnectionString"] = jdbcConnectionString
-		templateArgs["canUseTCP"] = ixFound > 0
-		return dbProxyOracleAuthTpl
-	}
-
-	if dbInfo.Protocol == defaults.ProtocolSpanner {
-		templateArgs["databaseName"] = "<database>"
-		if dbInfo.Database != "" {
-			templateArgs["databaseName"] = dbInfo.Database
-		}
-		return dbProxySpannerAuthTpl
-	}
-
 	// there is only one command, use plain template.
 	if len(commands) == 1 {
+		templateArgs["command"] = formatCommand(commands[0].Command)
+		switch dbInfo.Protocol {
+		case defaults.ProtocolOracle:
+			templateArgs["args"] = commands[0].Command.Args
+			return dbProxyOracleAuthTpl
+		case defaults.ProtocolSpanner:
+			templateArgs["databaseName"] = "<database>"
+			if dbInfo.Database != "" {
+				templateArgs["databaseName"] = dbInfo.Database
+			}
+			return dbProxySpannerAuthTpl
+		}
 		return dbProxyAuthTpl
 	}
 
 	// multiple command options, use a different template.
+
 	var commandsArg []templateCommandItem
 	for _, cmd := range commands {
 		commandsArg = append(commandsArg, templateCommandItem{cmd.Description, formatCommand(cmd.Command)})
 	}
 
-	delete(templateArgs, "command")
 	templateArgs["commands"] = commandsArg
 	return dbProxyAuthMultiTpl
 }
@@ -482,22 +386,17 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	portMapping, err := libclient.ParsePortMapping(cf.LocalProxyPortMapping)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	var (
 		appInfo *appInfo
 		app     types.Application
 	)
 	if err := libclient.RetryWithRelogin(cf.Context, tc, func() error {
 		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
@@ -515,31 +414,19 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if app.IsMCP() {
-		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
-	}
-
-	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
 	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
 
-	appName := cf.AppName
-	if portMapping.TargetPort != 0 {
-		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
-	}
-	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
-	// If target port is not equal to zero, the user must know about the port flag.
-	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
+	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, proxyApp.GetAddr())
+	if cf.LocalProxyPort == "" {
 		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 
 	defer func() {
 		if err := proxyApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close app proxy", "error", err)
+			log.WithError(err).Error("Failed to close app proxy.")
 		}
 	}()
 
@@ -566,7 +453,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 
 	defer func() {
 		if err := awsApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close AWS app", "error", err)
+			log.WithError(err).Error("Failed to close AWS app.")
 		}
 	}()
 
@@ -581,6 +468,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 type awsAppInfo interface {
 	GetAppName() string
 	GetEnvVars() (map[string]string, error)
+	GetEndpointURL() string
 	GetForwardProxyAddr() string
 }
 
@@ -590,14 +478,15 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]any{
-		"envVars":    envVars,
-		"format":     cf.Format,
-		"randomPort": cf.LocalProxyPort == "",
-		"appName":    awsApp.GetAppName(),
-		"region":     getEnvOrDefault(awsRegionEnvVar, "<region>"),
-		"keystore":   getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
-		"workgroup":  getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
+	templateData := map[string]interface{}{
+		"envVars":     envVars,
+		"endpointURL": awsApp.GetEndpointURL(),
+		"format":      cf.Format,
+		"randomPort":  cf.LocalProxyPort == "",
+		"appName":     awsApp.GetAppName(),
+		"region":      getEnvOrDefault(awsRegionEnvVar, "<region>"),
+		"keystore":    getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
+		"workgroup":   getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
 	}
 
 	if proxyAddr := awsApp.GetForwardProxyAddr(); proxyAddr != "" {
@@ -617,7 +506,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	case cf.Format == awsProxyFormatAthenaJDBC:
 		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyAthenaJDBCTemplate)
 	case cf.AWSEndpointURLMode:
-		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
+		templates = append(templates, awsEndpointURLProxyTemplate)
 	default:
 		templates = append(templates, awsHTTPSProxyTemplate)
 	}
@@ -634,8 +523,11 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 }
 
 func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
-	if cf.AWSEndpointURLMode {
-		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
+	switch cf.Format {
+	case awsProxyFormatAthenaODBC, awsProxyFormatAthenaJDBC:
+		if cf.AWSEndpointURLMode {
+			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
+		}
 	}
 	return nil
 }
@@ -654,7 +546,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 
 	defer func() {
 		if err := azApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close Azure app", "error", err)
+			log.WithError(err).Error("Failed to close Azure app.")
 		}
 	}()
 
@@ -685,7 +577,7 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 
 	defer func() {
 		if err := gcpApp.Close(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
+			log.WithError(err).Error("Failed to close GCP app.")
 		}
 	}()
 
@@ -703,12 +595,12 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 }
 
 func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
-	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, libclient.WithAppCerts{})
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := keyRing.AppTLSCert(appName)
+	appCert, err := key.AppTLSCert(appName)
 	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
 	} else if err != nil {
@@ -719,12 +611,12 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 }
 
 func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {
-	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, libclient.WithDBCerts{})
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithDBCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	dbCert, err := keyRing.DBTLSCert(dbName)
+	dbCert, err := key.DBTLSCert(dbName)
 	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the database first. 'tsh db login'")
 	} else if err != nil {
@@ -751,7 +643,7 @@ func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient
 	}
 }
 
-func generateDBLocalProxyCert(signer crypto.Signer, profile *libclient.ProfileStatus) error {
+func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStatus) error {
 	path := profile.DatabaseLocalCAPath()
 	if utils.FileExists(path) {
 		return nil
@@ -761,7 +653,7 @@ func generateDBLocalProxyCert(signer crypto.Signer, profile *libclient.ProfileSt
 			CommonName:   "localhost",
 			Organization: []string{"Teleport"},
 		},
-		Signer:      signer,
+		Signer:      key,
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         defaults.CATTL,
@@ -794,6 +686,10 @@ Your database user is "{{.databaseUser}}".{{if .databaseName}} The target databa
 
 `))
 
+var templateFunctions = map[string]any{
+	"contains": strings.Contains,
+}
+
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
@@ -817,22 +713,21 @@ Or use the following JDBC connection string to connect with other GUI/CLI client
 jdbc:cloudspanner://{{.address}}/projects/{{.gcpProject}}/instances/{{.gcpInstance}}/databases/{{.databaseName}};usePlainText=true
 `))
 
-var dbProxyOracleAuthTpl = template.Must(template.New("").Parse(
+// dbProxyOracleAuthTpl is the message that's printed for an authenticated db proxy.
+var dbProxyOracleAuthTpl = template.Must(template.New("").Funcs(templateFunctions).Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+` + dbProxyConnectAd + `
 Use the following command to connect to the Oracle database server using CLI:
   $ {{.command}}
 
-{{if .canUseTCP }}Other clients can use:
-  - a direct connection to {{.address}} without a username and password
-  - a custom JDBC connection string: {{.jdbcConnectionString}}
-
-{{else }}You can also connect using Oracle JDBC connection string:
-  {{.jdbcConnectionString}}
-
-Note: for improved client compatibility, upgrade your Teleport cluster. For details rerun this command with --debug.
-{{- end }}
+or using following Oracle JDBC connection string in order to connect with other GUI/CLI clients:
+{{- range $val := .args}}
+  {{- if contains $val "jdbc:oracle:"}}
+  {{$val}}
+  {{- end}}
+{{- end}}
 `))
 
 // dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.
@@ -885,7 +780,7 @@ func envVarFormatFlagDescription() string {
 
 func awsProxyFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"%s Or specify a service format, one of: %s.",
+		"%s Or specify a service format, one of: %s",
 		envVarFormatFlagDescription(),
 		strings.Join(awsProxyServiceFormats, ", "),
 	)
@@ -928,7 +823,11 @@ var cloudTemplateFuncs = template.FuncMap{
 // awsProxyHeaderTemplate contains common header used for AWS proxy.
 const awsProxyHeaderTemplate = `
 {{define "header"}}
+{{- if .envVars.HTTPS_PROXY -}}
 Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+{{- else -}}
+Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
+{{- end }}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
 {{end}}
@@ -965,6 +864,15 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
 `
 
+// awsEndpointURLProxyTemplate is the message that gets printed to a user when an
+// AWS endpoint URL proxy is started.
+var awsEndpointURLProxyTemplate = `{{- template "header" . -}}
+In addition to the endpoint URL, use the following credentials to connect to the proxy:
+  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
+  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
+  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
+`
+
 // awsProxyAthenaODBCTemplate is the message that gets printed to a user when an
 // AWS proxy is used for Athena ODBC driver.
 var awsProxyAthenaODBCTemplate = `{{- template "header" . -}}
@@ -999,7 +907,7 @@ jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SEC
 `
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"envVars":    envVars,
 		"format":     format,
 		"randomPort": randomPort,

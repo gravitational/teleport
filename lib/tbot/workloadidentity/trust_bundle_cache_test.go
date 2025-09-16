@@ -21,6 +21,7 @@ package workloadidentity
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/x509/pkix"
 	"testing"
 	"time"
@@ -40,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestBundleSet_Clone(t *testing.T) {
@@ -159,7 +160,7 @@ func makeSPIFFEBundle(t *testing.T, td string) *spiffebundle.Bundle {
 func TestTrustBundleCache_Run(t *testing.T) {
 	t.Parallel()
 
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -184,8 +185,9 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.NoError(t, err)
 	jwtCA, err := keys.ParsePublicKey(jwtCAPublic)
 	require.NoError(t, err)
-	jwtCAKID, err := jwt.KeyID(jwtCA)
-	require.NoError(t, err)
+	rsaJWTCA, ok := jwtCA.(*rsa.PublicKey)
+	require.True(t, ok, "unsupported key format %T", jwtCA)
+	jwtCAKID := jwt.KeyID(rsaJWTCA)
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.SPIFFECA,
 		ClusterName: "example.com",

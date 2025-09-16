@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import { Box } from 'design';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 import { NewFlow, StepSlider } from 'design/StepSlider';
 
-import { OnboardCard } from 'teleport/components/Onboard';
 import OSSRecoveryCodes from 'teleport/components/RecoveryCodes';
 import cfg from 'teleport/config';
 import { loginFlows } from 'teleport/Welcome/NewCredentials/constants';

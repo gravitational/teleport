@@ -47,7 +47,6 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -55,13 +54,13 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/socks"
 )
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
+	Namespace   string
 	Tracer      oteltrace.Tracer
 	Client      *tracessh.Client
 	TC          *TeleportClient
@@ -144,7 +143,7 @@ type ReissueParams struct {
 	//
 	// TODO(awly): refactor lib/web to use a Keystore implementation that
 	// mimics LocalKeystore and remove this.
-	ExistingCreds *KeyRing
+	ExistingCreds *Key
 
 	// MFACheck is optional parameter passed if MFA check was already done.
 	// It can be nil.
@@ -158,10 +157,6 @@ type ReissueParams struct {
 	// remains valid. It's bounded by the `max_session_ttl` or `mfa_verification_interval`
 	// if MFA is required.
 	TTL time.Duration
-
-	// ReusableMFAResponse is a reusable MFA response that can be used when MFA
-	// is required.
-	ReusableMFAResponse *proto.MFAAuthenticateResponse
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -183,8 +178,6 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
 	case p.RouteToWindowsDesktop.WindowsDesktop != "":
-		// Windows desktop means a request for a TLS certificate for access to a specific
-		// desktop, as specified by RouteToWindowsDesktop.
 		return proto.UserCertsRequest_WindowsDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
@@ -194,7 +187,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	}
 }
 
-func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequiredRequest, error) {
+func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequiredRequest {
 	req := new(proto.IsMFARequiredRequest)
 	switch {
 	case p.NodeName != "":
@@ -203,14 +196,12 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequir
 		req.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.KubernetesCluster}
 	case p.RouteToDatabase.ServiceName != "":
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
-	case p.RouteToApp.Name != "":
-		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
 	case p.RouteToWindowsDesktop.WindowsDesktop != "":
 		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
-	default:
-		return nil, trace.BadParameter("reissue params have no valid MFA target")
+	case p.RouteToApp.Name != "":
+		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
 	}
-	return req, nil
+	return req
 }
 
 // CertCachePolicy describes what should happen to the certificate cache when a
@@ -232,16 +223,16 @@ const (
 // makeDatabaseClientPEM returns appropriate client PEM file contents for the
 // specified database type. Some databases only need certificate in the PEM
 // file, others both certificate and key.
-func makeDatabaseClientPEM(proto string, cert []byte, pk *keys.PrivateKey) ([]byte, error) {
+func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
 	// MongoDB expects certificate and key pair in the same pem file.
 	if proto == defaults.ProtocolMongoDB {
-		keyPEM, err := pk.SoftwarePrivateKeyPEM()
+		rsaKeyPEM, err := pk.PrivateKey.RSAPrivateKeyPEM()
 		if err == nil {
-			return append(cert, keyPEM...), nil
+			return append(cert, rsaKeyPEM...), nil
 		} else if !trace.IsBadParameter(err) {
 			return nil, trace.Wrap(err)
 		}
-		log.WarnContext(context.Background(), "MongoDB integration is not supported when logging in with a hardware private key", "error", err)
+		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a non-rsa private key.")
 	}
 	return cert, nil
 }
@@ -280,6 +271,8 @@ func nodeName(node TargetNode) string {
 type NodeDetails struct {
 	// Addr is an address to dial
 	Addr string
+	// Namespace is the node namespace
+	Namespace string
 	// Cluster is the name of the target cluster
 	Cluster string
 
@@ -303,7 +296,10 @@ func (n NodeDetails) String() string {
 // ProxyFormat returns the address in the format
 // used by the proxy subsystem
 func (n *NodeDetails) ProxyFormat() string {
-	parts := []string{n.Addr, apidefaults.Namespace}
+	parts := []string{n.Addr}
+	if n.Namespace != "" {
+		parts = append(parts, n.Namespace)
+	}
 	if n.Cluster != "" {
 		parts = append(parts, n.Cluster)
 	}
@@ -352,11 +348,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 			// TODO(codingllama): Improve error message below for device trust.
 			//  An alternative we have here is querying the cluster to check if device
 			//  trust is required, a check similar to `IsMFARequired`.
-			log.InfoContext(ctx, "Access denied connecting to host",
-				"login", sshConfig.User,
-				"target_host", nodeName,
-				"error", err,
-			)
+			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeName, err)
 			return nil, trace.AccessDenied("access denied to %v connecting to %v", sshConfig.User, nodeName)
 		}
 		return nil, trace.Wrap(err)
@@ -369,6 +361,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 
 	nc := &NodeClient{
 		Client:          tracessh.NewClient(sshconn, chans, emptyCh),
+		Namespace:       apidefaults.Namespace,
 		TC:              tc,
 		Tracer:          tc.Tracer,
 		FIPSEnabled:     fipsEnabled,
@@ -668,7 +661,7 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 			switch r.Type {
 			case teleport.MFAPresenceRequest:
 				if c.OnMFA == nil {
-					log.WarnContext(ctx, "Received MFA presence request, but no callback was provided")
+					log.Warn("Received MFA presence request, but no callback was provided.")
 					continue
 				}
 
@@ -679,21 +672,21 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 				var e events.EventFields
 				err := json.Unmarshal(r.Payload, &e)
 				if err != nil {
-					log.WarnContext(ctx, "Unable to parse event", "event", string(r.Payload), "error", err)
+					log.Warnf("Unable to parse event: %v: %v.", string(r.Payload), err)
 					continue
 				}
 
 				// Send event to event channel.
 				err = c.TC.SendEvent(ctx, e)
 				if err != nil {
-					log.WarnContext(ctx, "Unable to send event", "event", string(r.Payload), "error", err)
+					log.Warnf("Unable to send event %v: %v.", string(r.Payload), err)
 					continue
 				}
 			default:
 				// This handles keep-alive messages and matches the behavior of OpenSSH.
 				err := r.Reply(false, nil)
 				if err != nil {
-					log.WarnContext(ctx, "Unable to reply to request", "request_type", r.Type, "error", err)
+					log.Warnf("Unable to reply to %v request.", r.Type)
 					continue
 				}
 			}
@@ -735,7 +728,7 @@ func newClientConn(
 	case <-ctx.Done():
 		errClose := conn.Close()
 		if errClose != nil {
-			log.ErrorContext(ctx, "Failed closing connection", "error", errClose)
+			log.Error(errClose)
 		}
 		// drain the channel
 		resp := <-respCh
@@ -771,22 +764,17 @@ type netDialer interface {
 }
 
 func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dialer netDialer) error {
-	logger := log.With(
-		"source_addr", logutils.StringerAttr(conn.RemoteAddr()),
-		"target_addr", remoteAddr,
-	)
-
 	defer conn.Close()
-	defer logger.DebugContext(ctx, "Finished proxy connection")
+	defer log.Debugf("Finished proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 
 	var remoteConn net.Conn
-	logger.DebugContext(ctx, "Attempting to proxy connection")
+	log.Debugf("Attempting to connect proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  100 * time.Millisecond,
 		Step:   100 * time.Millisecond,
 		Max:    time.Second,
-		Jitter: retryutils.HalfJitter,
+		Jitter: retryutils.NewHalfJitter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -800,7 +788,7 @@ func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dial
 			break
 		}
 
-		logger.DebugContext(ctx, "Proxy connection attempt", "attempt", attempt, "error", err)
+		log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
 		// Wait and attempt to connect again, if the context has closed, exit
 		// right away.
 		select {
@@ -850,19 +838,16 @@ func acceptWithContext(ctx context.Context, l net.Listener) (net.Conn, error) {
 func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, localAddr string, remoteAddr string) {
 	defer ln.Close()
 
-	log := log.With(
-		"local_addr", localAddr,
-		"remote_addr", remoteAddr,
-	)
+	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
 
-	log.InfoContext(ctx, "Starting port forwarding")
+	log.Infof("Starting port forwarding")
 
 	for ctx.Err() == nil {
 		// Accept connections from the client.
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.ErrorContext(ctx, "Port forwarding failed", "error", err)
+				log.WithError(err).Errorf("Port forwarding failed.")
 			}
 			continue
 		}
@@ -871,12 +856,12 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, loca
 		go func() {
 			// `err` must be a fresh variable, hence `:=` instead of `=`.
 			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
-				log.WarnContext(ctx, "Failed to proxy connection", "error", err)
+				log.WithError(err).Warnf("Failed to proxy connection.")
 			}
 		}()
 	}
 
-	log.InfoContext(ctx, "Shutting down port forwarding", "error", ctx.Err())
+	log.WithError(ctx.Err()).Infof("Shutting down port forwarding.")
 }
 
 // dynamicListenAndForward listens for connections, performs a SOCKS5
@@ -884,11 +869,9 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, loca
 func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listener, localAddr string) {
 	defer ln.Close()
 
-	log := log.With(
-		"local_addr", localAddr,
-	)
+	log := log.WithField("localAddr", localAddr)
 
-	log.InfoContext(ctx, "Starting dynamic port forwarding")
+	log.Infof("Starting dynamic port forwarding.")
 
 	for ctx.Err() == nil {
 		// Accept connection from the client. Here the client is typically
@@ -896,7 +879,7 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.ErrorContext(ctx, "Dynamic port forwarding (SOCKS5) failed", "error", err)
+				log.WithError(err).Errorf("Dynamic port forwarding (SOCKS5) failed.")
 			}
 			continue
 		}
@@ -905,55 +888,52 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 		// address to proxy.
 		remoteAddr, err := socks.Handshake(conn)
 		if err != nil {
-			log.ErrorContext(ctx, "SOCKS5 handshake failed", "error", err)
+			log.WithError(err).Errorf("SOCKS5 handshake failed.")
 			if err = conn.Close(); err != nil {
-				log.ErrorContext(ctx, "Error closing failed proxy connection", "error", err)
+				log.WithError(err).Errorf("Error closing failed proxy connection.")
 			}
 			continue
 		}
-		log.DebugContext(ctx, "SOCKS5 proxy forwarding requests", "remote_addr", remoteAddr)
+		log.Debugf("SOCKS5 proxy forwarding requests to %v.", remoteAddr)
 
 		// Proxy the connection to the remote address.
 		go func() {
 			// `err` must be a fresh variable, hence `:=` instead of `=`.
 			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
-				log.WarnContext(ctx, "Failed to proxy connection", "error", err)
+				log.WithError(err).Warnf("Failed to proxy connection.")
 				if err = conn.Close(); err != nil {
-					log.ErrorContext(ctx, "Error closing failed proxy connection", "error", err)
+					log.WithError(err).Errorf("Error closing failed proxy connection.")
 				}
 			}
 		}()
 	}
 
-	log.InfoContext(ctx, "Shutting down dynamic port forwarding", "error", ctx.Err())
+	log.WithError(ctx.Err()).Infof("Shutting down dynamic port forwarding.")
 }
 
 // remoteListenAndForward requests a listening socket and forwards all incoming
 // commands to the local address through the SSH tunnel.
 func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener, localAddr, remoteAddr string) {
 	defer ln.Close()
-	log := log.With(
-		"local_addr", localAddr,
-		"remote_addr", remoteAddr,
-	)
-	log.InfoContext(ctx, "Starting remote port forwarding")
+	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
+	log.Infof("Starting remote port forwarding")
 
 	for ctx.Err() == nil {
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.ErrorContext(ctx, "Remote port forwarding failed", "error", err)
+				log.WithError(err).Errorf("Remote port forwarding failed.")
 			}
 			continue
 		}
 
 		go func() {
 			if err := proxyConnection(ctx, conn, localAddr, &net.Dialer{}); err != nil {
-				log.WarnContext(ctx, "Failed to proxy connection", "error", err)
+				log.WithError(err).Warnf("Failed to proxy connection")
 			}
 		}()
 	}
-	log.InfoContext(ctx, "Shutting down remote port forwarding", "error", ctx.Err())
+	log.WithError(ctx.Err()).Infof("Shutting down remote port forwarding.")
 }
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.

@@ -559,9 +559,6 @@ type AuthenticationSettings struct {
 	// DefaultSessionTTL is the TTL requested for user certs if
 	// a TTL is not otherwise specified.
 	DefaultSessionTTL types.Duration `json:"default_session_ttl"`
-	// SignatureAlgorithmSuite is the configured signature algorithm suite for
-	// the cluster.
-	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `json:"signature_algorithm_suite,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.
@@ -590,8 +587,6 @@ type SAMLSettings struct {
 	Display string `json:"display"`
 	// SingleLogoutEnabled is whether SAML SLO (single logout) is enabled for this auth connector.
 	SingleLogoutEnabled bool `json:"singleLogoutEnabled,omitempty"`
-	// SSO is the URL of the identity provider's SSO service.
-	SSO string
 }
 
 // OIDCSettings contains the Name and Display string for OIDC.
@@ -600,8 +595,6 @@ type OIDCSettings struct {
 	Name string `json:"name"`
 	// Display is the display name for the connector.
 	Display string `json:"display"`
-	// Issuer URL is the endpoint of the provider
-	IssuerURL string
 }
 
 // GithubSettings contains the Name and Display string for Github connector.
@@ -610,8 +603,6 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
-	// EndpointURL is the endpoint URL.
-	EndpointURL string
 }
 
 // DeviceTrustSettings holds cluster-wide device trust settings that are liable

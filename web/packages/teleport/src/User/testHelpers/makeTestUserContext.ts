@@ -30,7 +30,6 @@ export const makeTestUserContext = (
         onboard: {
           preferredResources: [],
         },
-        keyboardLayout: 0,
       },
       clusterPreferences: {
         pinnedResources: [],
@@ -39,7 +38,6 @@ export const makeTestUserContext = (
       updatePreferences: () => Promise.resolve(),
       updateClusterPinnedResources: () => Promise.resolve(),
       getClusterPinnedResources: () => Promise.resolve(),
-      updateDiscoverResourcePreferences: () => Promise.resolve(),
     },
     overrides
   );

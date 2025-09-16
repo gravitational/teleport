@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"context"
@@ -33,8 +33,6 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 )
 
@@ -166,7 +164,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	isNil := func(err error) bool {
@@ -176,7 +174,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 	testCases := []struct {
 		desc        string
 		tokenSpec   types.ProvisionTokenSpecV2
-		ec2Client   auth.EC2Client
+		ec2Client   ec2Client
 		request     types.RegisterUsingTokenRequest
 		expectError func(error) bool
 		clock       clockwork.Clock
@@ -544,7 +542,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			if clock == nil {
 				clock = clockwork.NewRealClock()
 			}
-			a.SetClock(clock)
+			a.clock = clock
 
 			token, err := types.NewProvisionTokenFromSpec(
 				"test_token",
@@ -555,7 +553,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			err = a.UpsertToken(context.Background(), token)
 			require.NoError(t, err)
 
-			ctx := context.WithValue(context.Background(), auth.EC2ClientKey{}, tc.ec2Client)
+			ctx := context.WithValue(context.Background(), ec2ClientKey{}, tc.ec2Client)
 
 			// set common request values here to avoid setting them in every
 			// testcase
@@ -573,7 +571,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 
 // TestAWSCerts asserts that all certificates parse
 func TestAWSCerts(t *testing.T) {
-	for _, certBytes := range auth.AWSRSA2048CertBytes {
+	for _, certBytes := range awsRSA2048CertBytes {
 		certPEM, _ := pem.Decode(certBytes)
 		_, err := x509.ParseCertificate(certPEM.Bytes)
 		require.NoError(t, err)
@@ -587,7 +585,7 @@ func TestHostUniqueCheck(t *testing.T) {
 	require.NoError(t, err)
 	a := p.a
 
-	a.SetClock(clockwork.NewFakeClockAt(instance1.pendingTime))
+	a.clock = clockwork.NewFakeClockAt(instance1.pendingTime)
 
 	token, err := types.NewProvisionTokenFromSpec(
 		"test_token",
@@ -619,7 +617,7 @@ func TestHostUniqueCheck(t *testing.T) {
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -781,7 +779,7 @@ func TestHostUniqueCheck(t *testing.T) {
 		},
 	}
 
-	ctx = context.WithValue(ctx, auth.EC2ClientKey{}, ec2ClientRunning{})
+	ctx = context.WithValue(ctx, ec2ClientKey{}, ec2ClientRunning{})
 
 	for _, tc := range testCases {
 		t.Run(string(tc.role), func(t *testing.T) {
@@ -807,7 +805,7 @@ func TestHostUniqueCheck(t *testing.T) {
 				// request should fail
 				_, err = a.RegisterUsingToken(ctx, &request)
 				expectedErr := &trace.AccessDeniedError{}
-				require.ErrorAs(t, err, &expectedErr, err)
+				require.ErrorAs(t, err, &expectedErr)
 			}
 		})
 	}

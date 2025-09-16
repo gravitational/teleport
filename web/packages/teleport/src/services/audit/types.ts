@@ -165,8 +165,20 @@ export const eventCodes = {
   SCP_DISALLOWED: 'T3010E',
   SFTP_OPEN_FAILURE: 'TS001E',
   SFTP_OPEN: 'TS001I',
+  SFTP_CLOSE_FAILURE: 'TS002E',
+  SFTP_CLOSE: 'TS002I',
+  SFTP_READ_FAILURE: 'TS003E',
+  SFTP_READ: 'TS003I',
+  SFTP_WRITE_FAILURE: 'TS004E',
+  SFTP_WRITE: 'TS004I',
+  SFTP_LSTAT_FAILURE: 'TS005E',
+  SFTP_LSTAT: 'TS005I',
+  SFTP_FSTAT_FAILURE: 'TS006E',
+  SFTP_FSTAT: 'TS006I',
   SFTP_SETSTAT_FAILURE: 'TS007E',
   SFTP_SETSTAT: 'TS007I',
+  SFTP_FSETSTAT_FAILURE: 'TS008E',
+  SFTP_FSETSTAT: 'TS008I',
   SFTP_OPENDIR_FAILURE: 'TS009E',
   SFTP_OPENDIR: 'TS009I',
   SFTP_READDIR_FAILURE: 'TS010E',
@@ -177,14 +189,19 @@ export const eventCodes = {
   SFTP_MKDIR: 'TS012I',
   SFTP_RMDIR_FAILURE: 'TS013E',
   SFTP_RMDIR: 'TS013I',
+  SFTP_REALPATH_FAILURE: 'TS014E',
+  SFTP_REALPATH: 'TS014I',
+  SFTP_STAT_FAILURE: 'TS015E',
+  SFTP_STAT: 'TS015I',
   SFTP_RENAME_FAILURE: 'TS016E',
   SFTP_RENAME: 'TS016I',
+  SFTP_READLINK_FAILURE: 'TS017E',
+  SFTP_READLINK: 'TS017I',
   SFTP_SYMLINK_FAILURE: 'TS018E',
   SFTP_SYMLINK: 'TS018I',
   SFTP_LINK: 'TS019I',
   SFTP_LINK_FAILURE: 'TS019E',
   SFTP_DISALLOWED: 'TS020E',
-  SFTP_SUMMARY: 'TS021I',
   SESSION_COMMAND: 'T4000I',
   SESSION_DATA: 'T2006I',
   SESSION_DISK: 'T4001I',
@@ -239,11 +256,6 @@ export const eventCodes = {
   WORKLOAD_IDENTITY_CREATE: `WID001I`,
   WORKLOAD_IDENTITY_UPDATE: `WID002I`,
   WORKLOAD_IDENTITY_DELETE: `WID003I`,
-  WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE: `WID007I`,
-  WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE: `WID008I`,
-  SIGSTORE_POLICY_CREATE: `TSSP001I`,
-  SIGSTORE_POLICY_UPDATE: `TSSP002I`,
-  SIGSTORE_POLICY_DELETE: `TSSP003I`,
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
   SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
@@ -316,31 +328,12 @@ export const eventCodes = {
   PLUGIN_DELETE: 'PG003I',
   CONTACT_CREATE: 'TCTC001I',
   CONTACT_DELETE: 'TCTC002I',
-  GIT_COMMAND: 'TGIT001I',
-  GIT_COMMAND_FAILURE: 'TGIT001E',
-  STABLE_UNIX_USER_CREATE: 'TSUU001I',
-  AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
-  AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
   AUTOUPDATE_CONFIG_CREATE: 'AUC001I',
   AUTOUPDATE_CONFIG_UPDATE: 'AUC002I',
   AUTOUPDATE_CONFIG_DELETE: 'AUC003I',
   AUTOUPDATE_VERSION_CREATE: 'AUV001I',
   AUTOUPDATE_VERSION_UPDATE: 'AUV002I',
   AUTOUPDATE_VERSION_DELETE: 'AUV003I',
-  HEALTH_CHECK_CONFIG_CREATE: 'THCC001I',
-  HEALTH_CHECK_CONFIG_UPDATE: 'THCC002I',
-  HEALTH_CHECK_CONFIG_DELETE: 'THCC003I',
-  AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
-  AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
-  AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
-  MCP_SESSION_START: 'TMCP001I',
-  MCP_SESSION_END: 'TMCP002I',
-  MCP_SESSION_REQUEST: 'TMCP003I',
-  MCP_SESSION_REQUEST_FAILURE: 'TMCP003E',
-  MCP_SESSION_NOTIFICATION: 'TMCP004I',
-  BOUND_KEYPAIR_RECOVERY: 'TBK001I',
-  BOUND_KEYPAIR_ROTATION: 'TBK002I',
-  BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
 } as const;
 
 /**
@@ -485,9 +478,33 @@ export type RawEvents = {
   [eventCodes.SFTP_OPEN_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_OPEN_FAILURE
   >;
+  [eventCodes.SFTP_CLOSE]: RawEventSFTP<typeof eventCodes.SFTP_CLOSE>;
+  [eventCodes.SFTP_CLOSE_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_CLOSE_FAILURE
+  >;
+  [eventCodes.SFTP_READ]: RawEventSFTP<typeof eventCodes.SFTP_READ>;
+  [eventCodes.SFTP_READ_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_READ_FAILURE
+  >;
+  [eventCodes.SFTP_WRITE]: RawEventSFTP<typeof eventCodes.SFTP_WRITE>;
+  [eventCodes.SFTP_WRITE_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_WRITE_FAILURE
+  >;
+  [eventCodes.SFTP_LSTAT]: RawEventSFTP<typeof eventCodes.SFTP_LSTAT>;
+  [eventCodes.SFTP_LSTAT_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_LSTAT_FAILURE
+  >;
+  [eventCodes.SFTP_FSTAT]: RawEventSFTP<typeof eventCodes.SFTP_FSTAT>;
+  [eventCodes.SFTP_FSTAT_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_FSTAT_FAILURE
+  >;
   [eventCodes.SFTP_SETSTAT]: RawEventSFTP<typeof eventCodes.SFTP_SETSTAT>;
   [eventCodes.SFTP_SETSTAT_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_SETSTAT_FAILURE
+  >;
+  [eventCodes.SFTP_FSETSTAT]: RawEventSFTP<typeof eventCodes.SFTP_FSETSTAT>;
+  [eventCodes.SFTP_FSETSTAT_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_FSETSTAT_FAILURE
   >;
   [eventCodes.SFTP_OPENDIR]: RawEventSFTP<typeof eventCodes.SFTP_OPENDIR>;
   [eventCodes.SFTP_OPENDIR_FAILURE]: RawEventSFTP<
@@ -509,9 +526,21 @@ export type RawEvents = {
   [eventCodes.SFTP_RMDIR_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_RMDIR_FAILURE
   >;
+  [eventCodes.SFTP_REALPATH]: RawEventSFTP<typeof eventCodes.SFTP_REALPATH>;
+  [eventCodes.SFTP_REALPATH_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_REALPATH_FAILURE
+  >;
+  [eventCodes.SFTP_STAT]: RawEventSFTP<typeof eventCodes.SFTP_STAT>;
+  [eventCodes.SFTP_STAT_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_STAT_FAILURE
+  >;
   [eventCodes.SFTP_RENAME]: RawEventSFTP<typeof eventCodes.SFTP_RENAME>;
   [eventCodes.SFTP_RENAME_FAILURE]: RawEventSFTP<
     typeof eventCodes.SFTP_RENAME_FAILURE
+  >;
+  [eventCodes.SFTP_READLINK]: RawEventSFTP<typeof eventCodes.SFTP_READLINK>;
+  [eventCodes.SFTP_READLINK_FAILURE]: RawEventSFTP<
+    typeof eventCodes.SFTP_READLINK_FAILURE
   >;
   [eventCodes.SFTP_SYMLINK]: RawEventSFTP<typeof eventCodes.SFTP_SYMLINK>;
   [eventCodes.SFTP_SYMLINK_FAILURE]: RawEventSFTP<
@@ -1187,6 +1216,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: RawEvent<
@@ -1195,6 +1225,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: RawEvent<
@@ -1203,6 +1234,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: RawEvent<
@@ -1211,6 +1243,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: RawEvent<
@@ -1221,6 +1254,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: RawEvent<
@@ -1231,6 +1265,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: RawEvent<
@@ -1241,6 +1276,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: RawEvent<
@@ -1251,6 +1287,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DEVICE_CREATE]: RawDeviceEvent<typeof eventCodes.DEVICE_CREATE>;
@@ -1375,26 +1412,6 @@ export type RawEvents = {
   >;
   [eventCodes.WORKLOAD_IDENTITY_DELETE]: RawEvent<
     typeof eventCodes.WORKLOAD_IDENTITY_DELETE,
-    HasName
-  >;
-  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: RawEvent<
-    typeof eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE,
-    HasName
-  >;
-  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: RawEvent<
-    typeof eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE,
-    HasName
-  >;
-  [eventCodes.SIGSTORE_POLICY_CREATE]: RawEvent<
-    typeof eventCodes.SIGSTORE_POLICY_CREATE,
-    HasName
-  >;
-  [eventCodes.SIGSTORE_POLICY_UPDATE]: RawEvent<
-    typeof eventCodes.SIGSTORE_POLICY_UPDATE,
-    HasName
-  >;
-  [eventCodes.SIGSTORE_POLICY_DELETE]: RawEvent<
-    typeof eventCodes.SIGSTORE_POLICY_DELETE,
     HasName
   >;
   [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
@@ -1808,13 +1825,6 @@ export type RawEvents = {
     typeof eventCodes.PLUGIN_DELETE,
     Merge<HasName, { user: string }>
   >;
-  [eventCodes.SFTP_SUMMARY]: RawEvent<
-    typeof eventCodes.SFTP_SUMMARY,
-    {
-      user: string;
-      server_hostname: string;
-    }
-  >;
   [eventCodes.CONTACT_CREATE]: RawEvent<
     typeof eventCodes.CONTACT_CREATE,
     {
@@ -1828,42 +1838,6 @@ export type RawEvents = {
       email: string;
       contact_type: number;
     }
-  >;
-  [eventCodes.GIT_COMMAND]: RawEvent<
-    typeof eventCodes.GIT_COMMAND,
-    {
-      service: string;
-      path: string;
-      actions?: {
-        action: string;
-        reference: string;
-        new?: string;
-        old?: string;
-      }[];
-    }
-  >;
-  [eventCodes.GIT_COMMAND_FAILURE]: RawEvent<
-    typeof eventCodes.GIT_COMMAND_FAILURE,
-    {
-      service: string;
-      path: string;
-      exitError: string;
-    }
-  >;
-  [eventCodes.STABLE_UNIX_USER_CREATE]: RawEvent<
-    typeof eventCodes.STABLE_UNIX_USER_CREATE,
-    {
-      stable_unix_user: {
-        username: string;
-        uid: number;
-      };
-    }
-  >;
-  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS
-  >;
-  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: RawEventAwsIcResourceSync<
-    typeof eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE
   >;
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: RawEvent<
     typeof eventCodes.AUTOUPDATE_CONFIG_CREATE,
@@ -1899,114 +1873,6 @@ export type RawEvents = {
     typeof eventCodes.AUTOUPDATE_VERSION_DELETE,
     {
       user: string;
-    }
-  >;
-  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: RawEvent<
-    typeof eventCodes.HEALTH_CHECK_CONFIG_CREATE,
-    HasName
-  >;
-  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: RawEvent<
-    typeof eventCodes.HEALTH_CHECK_CONFIG_UPDATE,
-    HasName
-  >;
-  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: RawEvent<
-    typeof eventCodes.HEALTH_CHECK_CONFIG_DELETE,
-    HasName
-  >;
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: RawEvent<
-    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER,
-    {
-      user: string;
-      groups: string[];
-    }
-  >;
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: RawEvent<
-    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE,
-    {
-      user: string;
-      groups: string[];
-    }
-  >;
-  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: RawEvent<
-    typeof eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK,
-    {
-      user: string;
-      groups: string[];
-    }
-  >;
-  [eventCodes.MCP_SESSION_START]: RawEvent<
-    typeof eventCodes.MCP_SESSION_START,
-    {
-      sid: string;
-      app_name: string;
-    }
-  >;
-  [eventCodes.MCP_SESSION_END]: RawEvent<
-    typeof eventCodes.MCP_SESSION_END,
-    {
-      sid: string;
-      app_name: string;
-    }
-  >;
-  [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
-    typeof eventCodes.MCP_SESSION_REQUEST,
-    {
-      app_name: string;
-      message: {
-        method: string;
-        params?: {
-          name?: string;
-        };
-      };
-    }
-  >;
-  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: RawEvent<
-    typeof eventCodes.MCP_SESSION_REQUEST_FAILURE,
-    {
-      app_name: string;
-      message: {
-        method: string;
-        params?: {
-          name?: string;
-        };
-      };
-    }
-  >;
-  [eventCodes.MCP_SESSION_NOTIFICATION]: RawEvent<
-    typeof eventCodes.MCP_SESSION_NOTIFICATION,
-    {
-      app_name: string;
-      message: {
-        method: string;
-      };
-    }
-  >;
-  [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<
-    typeof eventCodes.BOUND_KEYPAIR_RECOVERY,
-    {
-      token_name: string;
-      bot_name: string;
-      success: boolean;
-      error: string;
-      recovery_count: number;
-    }
-  >;
-  [eventCodes.BOUND_KEYPAIR_ROTATION]: RawEvent<
-    typeof eventCodes.BOUND_KEYPAIR_ROTATION,
-    {
-      token_name: string;
-      bot_name: string;
-      success: boolean;
-      error: string;
-    }
-  >;
-  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: RawEvent<
-    typeof eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED,
-    {
-      token_name: string;
-      bot_name: string;
-      success: boolean;
-      error: string;
     }
   >;
 };
@@ -2207,23 +2073,6 @@ type RawSpannerRPCEvent<T extends EventCode> = RawEvent<
     db_service: string;
     db_name: string;
     args: { sql?: string };
-  }
->;
-
-/**
- * RawEventAwsIcResourceSync extends RawEvent with custom fields
- * present in the AWS Identity Center resource sync event.
- */
-type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
-  T,
-  {
-    total_accounts: number;
-    total_account_assignments: number;
-    total_user_groups: number;
-    total_permission_sets: number;
-    status: boolean;
-    /* message contains user message for both success and failed status */
-    message: string;
   }
 >;
 

@@ -21,13 +21,13 @@ package aggregating
 import (
 	"context"
 	"encoding/binary"
-	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
@@ -52,11 +52,12 @@ const (
 type ReporterConfig struct {
 	// Backend is the backend used to store reports. Required
 	Backend backend.Backend
-	// Logger is the used for emitting log messages.
-	Logger *slog.Logger
+	// Log is the logger used for logging. Required.
+	Log logrus.FieldLogger
 	// Clock is the clock used for timestamping reports and deciding when to
 	// persist them to the backend. Optional, defaults to the real clock.
 	Clock clockwork.Clock
+
 	// ClusterName is the ClusterName resource for the current cluster, used for
 	// anonymization and to report the cluster name itself. Required.
 	ClusterName types.ClusterName
@@ -74,6 +75,9 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing Backend")
 	}
+	if cfg.Log == nil {
+		return trace.BadParameter("missing Log")
+	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
@@ -85,10 +89,6 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Anonymizer == nil {
 		return trace.BadParameter("missing Anonymizer")
-	}
-
-	if cfg.Logger == nil {
-		cfg.Logger = slog.Default()
 	}
 	return nil
 }
@@ -106,7 +106,7 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 	r := &Reporter{
 		anonymizer: cfg.Anonymizer,
 		svc:        reportService{cfg.Backend},
-		logger:     cfg.Logger,
+		log:        cfg.Log,
 		clock:      cfg.Clock,
 
 		ingest:  make(chan usagereporter.Anonymizable),
@@ -128,7 +128,7 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 type Reporter struct {
 	anonymizer utils.Anonymizer
 	svc        reportService
-	logger     *slog.Logger
+	log        logrus.FieldLogger
 	clock      clockwork.Clock
 
 	// ingest collects events from calls to [AnonymizeAndSubmit] to the
@@ -270,7 +270,10 @@ func (r *Reporter) run(ctx context.Context) {
 			default:
 				// Otherwise, update and log a warning. Flipping between
 				// bot/human is a programming error.
-				r.logger.WarnContext(ctx, "Record user_kind has changed unexpectedly", "from", record.UserKind, "to", v1UserKind)
+				r.log.WithFields(logrus.Fields{
+					"from": record.UserKind,
+					"to":   v1UserKind,
+				}).Warn("Record user_kind has changed unexpectedly")
 				record.UserKind = v1UserKind
 			}
 		}
@@ -423,11 +426,8 @@ Ingest:
 				userRecord(te.UserName, te.UserKind).KubePortSessions++
 			case usagereporter.TCPSessionType:
 				userRecord(te.UserName, te.UserKind).AppTcpSessions++
-			case usagereporter.SAMLIdPSessionType:
+			case string(types.KindSAMLIdPSession):
 				userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).SamlIdpSessions++
-			case usagereporter.MCPAppSessionType:
-				// TODO(greedy52) switch to MCPSessions when it's available.
-				userRecord(te.UserName, te.UserKind).AppSessions++
 			}
 		case *usagereporter.KubeRequestEvent:
 			userRecord(te.UserName, te.UserKind).KubeRequests++
@@ -514,30 +514,28 @@ func (r *Reporter) persistBotInstanceActivity(
 		anonymizedClusterName, anonymizedHostID, startTime, records,
 	)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "Failed to prepare bot instance activity report, dropping data.",
-			"start_time", startTime,
-			"lost_records", len(records),
-			"error", err,
-		)
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time":   startTime,
+			"lost_records": len(records),
+		}).Error("Failed to prepare bot instance activity report, dropping data.")
 		return
 	}
 
 	for _, report := range reports {
 		if err := r.svc.upsertBotInstanceActivityReport(ctx, report, reportTTL); err != nil {
-			r.logger.ErrorContext(ctx, "Failed to persist bot instance activity report, dropping data.",
-				"start_time", startTime,
-				"lost_records", len(report.Records),
-				"error", err,
-			)
+			r.log.WithError(err).WithFields(logrus.Fields{
+				"start_time":   startTime,
+				"lost_records": len(report.Records),
+			}).Error("Failed to persist bot instance activity report, dropping data.")
 			continue
 		}
 
 		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
-		r.logger.DebugContext(ctx, "Persisted bot instance activity report.",
-			"report_uuid", reportUUID,
-			"start_time", startTime,
-			"records", len(report.Records),
-		)
+		r.log.WithFields(logrus.Fields{
+			"report_uuid": reportUUID,
+			"start_time":  startTime,
+			"records":     len(report.Records),
+		}).Debug("Persisted bot instance activity report.")
 	}
 }
 
@@ -568,30 +566,28 @@ func (r *Reporter) persistUserActivity(
 
 	reports, err := prepareUserActivityReports(anonymizedClusterName, anonymizedHostID, startTime, records)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "Failed to prepare user activity report, dropping data.",
-			"start_time", startTime,
-			"lost_records", len(records),
-			"error", err,
-		)
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time":   startTime,
+			"lost_records": len(records),
+		}).Error("Failed to prepare user activity report, dropping data.")
 		return
 	}
 
 	for _, report := range reports {
 		if err := r.svc.upsertUserActivityReport(ctx, report, reportTTL); err != nil {
-			r.logger.ErrorContext(ctx, "Failed to persist user activity report, dropping data.",
-				"start_time", startTime,
-				"lost_records", len(report.Records),
-				"error", err,
-			)
+			r.log.WithError(err).WithFields(logrus.Fields{
+				"start_time":   startTime,
+				"lost_records": len(report.Records),
+			}).Error("Failed to persist user activity report, dropping data.")
 			continue
 		}
 
 		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
-		r.logger.DebugContext(ctx, "Persisted user activity report.",
-			"report_uuid", reportUUID,
-			"start_time", startTime,
-			"records", len(report.Records),
-		)
+		r.log.WithFields(logrus.Fields{
+			"report_uuid": reportUUID,
+			"start_time":  startTime,
+			"records":     len(report.Records),
+		}).Debug("Persisted user activity report.")
 	}
 }
 
@@ -615,17 +611,24 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 
 	reports, err := prepareResourcePresenceReports(anonymizedClusterName, anonymizedHostID, startTime, records)
 	if err != nil {
-		r.logger.ErrorContext(ctx, "Failed to prepare resource presence report, dropping data.", "start_time", startTime, "error", err)
+		r.log.WithError(err).WithFields(logrus.Fields{
+			"start_time": startTime,
+		}).Error("Failed to prepare resource presence report, dropping data.")
 		return
 	}
 
 	for _, report := range reports {
 		if err := r.svc.upsertResourcePresenceReport(ctx, report, reportTTL); err != nil {
-			r.logger.ErrorContext(ctx, "Failed to persist resource presence report, dropping data.", "start_time", startTime, "error", err)
+			r.log.WithError(err).WithFields(logrus.Fields{
+				"start_time": startTime,
+			}).Error("Failed to persist resource presence report, dropping data.")
 			continue
 		}
 
 		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
-		r.logger.DebugContext(ctx, "Persisted resource presence report.", "report_uuid", reportUUID, "start_time", startTime)
+		r.log.WithFields(logrus.Fields{
+			"report_uuid": reportUUID,
+			"start_time":  startTime,
+		}).Debug("Persisted resource presence report.")
 	}
 }

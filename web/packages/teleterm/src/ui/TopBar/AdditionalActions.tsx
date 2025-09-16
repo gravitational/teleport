@@ -16,41 +16,57 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import styled from 'styled-components';
 
-import { Popover } from 'design';
+import { Flex, Popover, Text } from 'design';
 import * as icons from 'design/Icon';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
+import { KeyboardShortcutAction } from 'teleterm/services/config';
+import { Cluster } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useAppUpdaterContext } from 'teleterm/ui/AppUpdater';
-import { useWorkspaceServiceState } from 'teleterm/ui/services/workspacesService';
+import { ListItem } from 'teleterm/ui/components/ListItem';
+import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 import { useNewTabOpener } from 'teleterm/ui/TabHost';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
+import { IAppContext } from 'teleterm/ui/types';
 
-import { Menu, MenuItem, MenuListItem } from '../components/Menu';
+type MenuItem = {
+  title: string;
+  isVisible: boolean;
+  Icon: React.ElementType;
+  onNavigate: () => void;
+  prependSeparator?: boolean;
+  keyboardShortcutAction?: KeyboardShortcutAction;
+} & (MenuItemAlwaysEnabled | MenuItemConditionallyDisabled);
+
+type MenuItemAlwaysEnabled = { isDisabled?: false };
+type MenuItemConditionallyDisabled = { isDisabled: true; disabledText: string };
 
 function useMenuItems(): MenuItem[] {
   const ctx = useAppContext();
-  const appUpdaterContext = useAppUpdaterContext();
   const { workspacesService, mainProcessClient, notificationsService } = ctx;
-  useWorkspaceServiceState();
+  workspacesService.useState();
+  ctx.clustersService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
+  const activeRootCluster = getActiveRootCluster(ctx);
   const { openTerminalTab } = useNewTabOpener({
     documentsService,
     localClusterUri: workspacesService.getActiveWorkspace()?.localClusterUri,
   });
 
   const hasNoActiveWorkspace = !documentsService;
+  const areAccessRequestsSupported =
+    !!activeRootCluster?.features?.advancedAccessWorkflows;
+  const isRequestingResourcesFromResourcesViewEnabled =
+    activeRootCluster?.showResources === ShowResources.REQUESTABLE;
 
   const { platform } = mainProcessClient.getRuntimeSettings();
   const isDarwin = platform === 'darwin';
 
-  const supportsAppUpdates = useMemo(() => {
-    return mainProcessClient.supportsAppUpdates();
-  }, [mainProcessClient]);
-
-  const menuItems: (MenuItem & { isVisible: boolean })[] = [
+  const menuItems: MenuItem[] = [
     {
       title: 'Open new terminal',
       isVisible: true,
@@ -87,11 +103,35 @@ function useMenuItems(): MenuItem[] {
       },
     },
     {
-      title: 'Check for updates…',
-      isVisible: supportsAppUpdates,
-      Icon: icons.Application,
+      title: isRequestingResourcesFromResourcesViewEnabled
+        ? 'New role request'
+        : 'New access request',
+      isVisible: areAccessRequestsSupported,
+      prependSeparator: true,
+      Icon: icons.Add,
       onNavigate: () => {
-        appUpdaterContext.openDialog();
+        const doc = documentsService.createAccessRequestDocument({
+          clusterUri: activeRootCluster.uri,
+          state: 'creating',
+          title: isRequestingResourcesFromResourcesViewEnabled
+            ? 'New Role Request'
+            : 'New Access Request',
+        });
+        documentsService.add(doc);
+        documentsService.open(doc.uri);
+      },
+    },
+    {
+      title: 'Review access requests',
+      isVisible: areAccessRequestsSupported,
+      Icon: icons.ListAddCheck,
+      onNavigate: () => {
+        const doc = documentsService.createAccessRequestDocument({
+          clusterUri: activeRootCluster.uri,
+          state: 'browsing',
+        });
+        documentsService.add(doc);
+        documentsService.open(doc.uri);
       },
     },
   ];
@@ -99,13 +139,21 @@ function useMenuItems(): MenuItem[] {
   return menuItems.filter(i => i.isVisible);
 }
 
+function getActiveRootCluster(ctx: IAppContext): Cluster | undefined {
+  const clusterUri = ctx.workspacesService.getRootClusterUri();
+  if (!clusterUri) {
+    return;
+  }
+  return ctx.clustersService.findCluster(clusterUri);
+}
+
 export function AdditionalActions() {
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
-  const selectorRef = useRef<HTMLButtonElement>(null);
+  const selectorRef = useRef<HTMLButtonElement>();
 
   const items = useMenuItems().map(item => {
     return (
-      <MenuListItem
+      <MenuItem
         key={item.title}
         item={item}
         closeMenu={() => setIsPopoverOpened(false)}
@@ -136,3 +184,92 @@ export function AdditionalActions() {
     </>
   );
 }
+
+export const Menu = styled.menu`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  background: ${props => props.theme.colors.levels.elevated};
+`;
+
+const Separator = styled.div`
+  background: ${props => props.theme.colors.spotBackground[1]};
+  height: 1px;
+`;
+
+export function MenuItem({
+  item,
+  closeMenu,
+}: {
+  item: MenuItem;
+  closeMenu: () => void;
+}) {
+  const { getAccelerator } = useKeyboardShortcutFormatters();
+  const handleClick = () => {
+    item.onNavigate();
+    closeMenu();
+  };
+
+  return (
+    <>
+      {item.prependSeparator && <Separator />}
+      <StyledListItem
+        as="button"
+        type="button"
+        disabled={item.isDisabled}
+        title={item.isDisabled && item.disabledText}
+        onClick={handleClick}
+      >
+        <item.Icon
+          color={item.isDisabled ? 'text.disabled' : null}
+          size="medium"
+        />
+        <Flex
+          gap={2}
+          flex="1"
+          alignItems="baseline"
+          justifyContent="space-between"
+        >
+          <Text>{item.title}</Text>
+
+          {item.keyboardShortcutAction && (
+            <Text
+              fontSize={1}
+              css={`
+                border-radius: 4px;
+                width: fit-content;
+                // Using a background with an alpha color to make this interact better with the
+                // disabled state.
+                background-color: ${props =>
+                  props.theme.colors.spotBackground[0]};
+                padding: ${props => props.theme.space[1]}px
+                  ${props => props.theme.space[1]}px;
+              `}
+            >
+              {getAccelerator(item.keyboardShortcutAction)}
+            </Text>
+          )}
+        </Flex>
+      </StyledListItem>
+    </>
+  );
+}
+
+const StyledListItem = styled(ListItem)`
+  height: 38px;
+  gap: ${props => props.theme.space[3]}px;
+  padding: 0 ${props => props.theme.space[3]}px;
+  border-radius: 0;
+
+  &:disabled {
+    cursor: default;
+    color: ${props => props.theme.colors.text.disabled};
+
+    &:hover {
+      background-color: inherit;
+    }
+  }
+`;

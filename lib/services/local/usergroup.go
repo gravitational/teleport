@@ -38,12 +38,12 @@ type UserGroupService struct {
 }
 
 // NewUserGroupService creates a new UserGroupService.
-func NewUserGroupService(b backend.Backend) (*UserGroupService, error) {
+func NewUserGroupService(backend backend.Backend) (*UserGroupService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.UserGroup]{
-		Backend:       b,
+		Backend:       backend,
 		PageLimit:     GroupMaxPageSize,
 		ResourceKind:  types.KindUserGroup,
-		BackendPrefix: backend.NewKey(userGroupPrefix),
+		BackendPrefix: userGroupPrefix,
 		MarshalFunc:   services.MarshalUserGroup,
 		UnmarshalFunc: services.UnmarshalUserGroup,
 	})

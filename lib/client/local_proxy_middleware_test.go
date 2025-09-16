@@ -29,8 +29,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -70,11 +70,6 @@ func TestCertChecker(t *testing.T) {
 	certIssuer.issueErr = trace.BadParameter("failed to issue cert")
 	_, err = certChecker.GetOrIssueCert(ctx)
 	require.ErrorIs(t, err, certIssuer.issueErr, "expected error %v but got %v", certIssuer.issueErr, err)
-
-	// If the problem is solved, the error is clean up.
-	certIssuer.issueErr = nil
-	_, err = certChecker.GetOrIssueCert(ctx)
-	require.NoError(t, err)
 }
 
 func TestLocalCertGenerator(t *testing.T) {
@@ -125,7 +120,7 @@ func newMockCertIssuer(t *testing.T, clock clockwork.Clock) *mockCertIssuer {
 }
 
 func (c *mockCertIssuer) initCA(t *testing.T) {
-	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	priv, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
@@ -152,7 +147,7 @@ func (c *mockCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error)
 		return tls.Certificate{}, trace.Wrap(c.issueErr)
 	}
 
-	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	priv, err := native.GeneratePrivateKey()
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

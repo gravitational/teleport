@@ -18,11 +18,7 @@
 
 import { Property } from 'csstype';
 import styled from 'styled-components';
-import {
-  fontFamily,
-  ResponsiveValue,
-  type FontFamilyProps,
-} from 'styled-system';
+import { ResponsiveValue } from 'styled-system';
 
 import {
   color,
@@ -37,39 +33,36 @@ import {
   typography,
   TypographyProps,
 } from 'design/system';
-import { shouldForwardTypographyProp } from 'design/system/typography';
 import { fontWeights } from 'design/theme/typography';
 
 interface FontWeightProps {
   fontWeight?: ResponsiveValue<Property.FontWeight | keyof typeof fontWeights>;
 }
 
-export type TextProps<E extends React.ElementType = 'div'> =
-  React.ComponentPropsWithoutRef<E> &
-    TypographyProps &
-    FontSizeProps &
-    SpaceProps &
-    ColorProps &
-    TextAlignProps &
-    FontWeightProps &
-    FontFamilyProps;
+export interface TextProps
+  extends TypographyProps,
+    FontSizeProps,
+    SpaceProps,
+    ColorProps,
+    TextAlignProps,
+    FontWeightProps {}
 
-const Text = styled.div.withConfig({
-  shouldForwardProp: shouldForwardTypographyProp,
-})<TextProps>`
+const Text = styled.div<TextProps>`
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0;
   ${typography}
   ${fontSize}
   ${space}
   ${color}
   ${textAlign}
   ${fontWeight}
-  ${fontFamily}
 `;
 
 Text.displayName = 'Text';
+
+Text.defaultProps = {
+  m: 0,
+};
 
 export default Text;
 
@@ -79,13 +72,11 @@ export default Text;
  * Do not use where `h1` typography is used only to make the text bigger (i.e.
  * there's no following content that is logically tied to the heading).
  */
-export const H1 = (props: TextProps) => (
-  <Text as="h1" typography="h1" {...props} />
-);
+export const H1 = props => <Text as="h1" typography="newH1" {...props} />;
 
 /** Subtitle for heading level 1. Renders as a paragraph. */
-export const Subtitle1 = (props: TextProps) => (
-  <Text as="p" typography="subtitle1" {...props} />
+export const Subtitle1 = props => (
+  <Text as="p" typography="newSubtitle1" {...props} />
 );
 
 /**
@@ -94,13 +85,11 @@ export const Subtitle1 = (props: TextProps) => (
  * Do not use where `h2` typography is used only to make the text bigger (i.e.
  * there's no following content that is logically tied to the heading).
  */
-export const H2 = (props: TextProps) => (
-  <Text as="h2" typography="h2" {...props} />
-);
+export const H2 = props => <Text as="h2" typography="newH2" {...props} />;
 
 /** Subtitle for heading level 2. Renders as a paragraph. */
-export const Subtitle2 = (props: TextProps) => (
-  <Text as="p" typography="subtitle2" {...props} />
+export const Subtitle2 = props => (
+  <Text as="p" typography="newSubtitle2" {...props} />
 );
 
 /**
@@ -110,13 +99,11 @@ export const Subtitle2 = (props: TextProps) => (
  * Do not use where `h3` typography is used only to make the text stand out more
  * (i.e.  there's no following content that is logically tied to the heading).
  */
-export const H3 = (props: TextProps) => (
-  <Text as="h3" typography="h3" {...props} />
-);
+export const H3 = props => <Text as="h3" typography="newH3" {...props} />;
 
 /** Subtitle for heading level 3. Renders as a paragraph. */
-export const Subtitle3 = (props: TextProps) => (
-  <Text as="p" typography="subtitle3" {...props} />
+export const Subtitle3 = props => (
+  <Text as="p" typography="newSubtitle3" {...props} />
 );
 
 /**
@@ -125,9 +112,7 @@ export const Subtitle3 = (props: TextProps) => (
  * Do not use where `h4` typography is used only to make the text stand out more
  * (i.e.  there's no following content that is logically tied to the heading).
  */
-export const H4 = (props: TextProps) => (
-  <Text as="h4" typography="h4" {...props} />
-);
+export const H4 = props => <Text as="h4" typography="newH4" {...props} />;
 
 /**
  * A paragraph. Use for text consisting of actual sentences. Applies
@@ -147,22 +132,16 @@ export const P = styled(Text).attrs({ as: 'p' })`
  * A {@link P} that uses `body1` typography. Applies inter-paragraph spacing if
  * grouped with other paragraphs.
  */
-export const P1 = (props: TextProps) => (
-  <Text as={P} typography="body1" {...props} />
-);
+export const P1 = props => <Text as={P} typography="newBody1" {...props} />;
 
 /**
  * A {@link P} that uses `body2` typography. Applies inter-paragraph spacing if
  * grouped with other paragraphs.
  */
-export const P2 = (props: TextProps) => (
-  <Text as={P} typography="body2" {...props} />
-);
+export const P2 = props => <Text as={P} typography="newBody2" {...props} />;
 
 /**
  * A {@link P} that uses `body3` typography. Applies inter-paragraph spacing if
  * grouped with other paragraphs.
  */
-export const P3 = (props: TextProps) => (
-  <Text as={P} typography="body3" {...props} />
-);
+export const P3 = props => <Text as={P} typography="newBody3" {...props} />;

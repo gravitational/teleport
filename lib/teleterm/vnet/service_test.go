@@ -77,11 +77,6 @@ func TestDaemonUsageReporter(t *testing.T) {
 	err = usageReporter.ReportApp(clusterWithoutClusterID.AppendApp("bar"))
 	require.ErrorIs(t, err, trace.NotFound("cluster ID for \"/clusters/no-cluster-id\" not found"))
 	require.Equal(t, 1, eventConsumer.EventCount())
-
-	// Verify that reporting an SSH session works.
-	err = usageReporter.ReportSSHSession(validCluster.GetProfileName(), "foo")
-	require.NoError(t, err)
-	require.Equal(t, 2, eventConsumer.EventCount())
 }
 
 func TestDaemonUsageReporter_Stop(t *testing.T) {

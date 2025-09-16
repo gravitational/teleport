@@ -72,13 +72,6 @@ func TestAppsCRUD(t *testing.T) {
 	require.Empty(t, out)
 	require.Empty(t, next)
 
-	var iterOut []types.Application
-	for app, err := range service.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, iterOut)
-
 	// Create both apps.
 	err = service.CreateApp(ctx, app1)
 	require.NoError(t, err)
@@ -98,15 +91,6 @@ func TestAppsCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Empty(t, next)
-
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, gocmp.Diff([]types.Application{app1, app2}, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 
 	// Fetch a specific application.
 	app, err := service.GetApp(ctx, app2.GetName())
@@ -150,15 +134,6 @@ func TestAppsCRUD(t *testing.T) {
 	))
 	require.Empty(t, next)
 
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, gocmp.Diff([]types.Application{app2}, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
 	// Try to delete an application that doesn't exist.
 	err = service.DeleteApp(ctx, "doesnotexist")
 	require.IsType(t, trace.NotFound(""), err)
@@ -175,13 +150,6 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 	require.Empty(t, next)
-
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, iterOut)
 
 	// Test pagination
 	var expected []types.Application
@@ -219,37 +187,6 @@ func TestAppsCRUD(t *testing.T) {
 
 	listed := append(page1, page2...)
 	assert.Empty(t, gocmp.Diff(expected, listed,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", page2Start) {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	assert.Len(t, iterOut, len(page1))
-	assert.Empty(t, gocmp.Diff(page1, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	assert.Len(t, iterOut, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	iterOut = nil
-	for app, err := range service.Apps(ctx, page2Start, "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-
-	assert.Len(t, iterOut, len(expected)-1000)
-	assert.Empty(t, gocmp.Diff(expected, append(page1, iterOut...),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 }

@@ -27,7 +27,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
@@ -105,6 +104,7 @@ func TestStart(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -230,7 +230,15 @@ func createValidClientTLSConfig(t *testing.T, certsDir string) *tls.Config {
 	// but we're going to fake it with just a tls.Client, so we have to add the
 	// http2 next proto ourselves (enforced by grpc-go starting from v1.67, and
 	// required by the http2 spec when speaking http2 in TLS)
-	if !slices.Contains(tlsConfig.NextProtos, "h2") {
+	var found bool
+	for _, proto := range tlsConfig.NextProtos {
+		if proto == "h2" {
+			found = true
+			break
+		}
+	}
+
+	if !found {
 		tlsConfig.NextProtos = append(tlsConfig.NextProtos, "h2")
 	}
 

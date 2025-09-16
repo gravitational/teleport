@@ -24,12 +24,12 @@ import (
 
 	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestGKEFetcher(t *testing.T) {
@@ -136,7 +136,7 @@ func TestGKEFetcher(t *testing.T) {
 				FilterLabels:  tt.args.filterLabels,
 				Location:      tt.args.location,
 				ProjectID:     tt.args.projectID,
-				Logger:        logtest.NewLogger(),
+				Log:           logrus.New(),
 			}
 			fetcher, err := NewGKEFetcher(context.Background(), cfg)
 			require.NoError(t, err)

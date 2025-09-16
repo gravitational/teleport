@@ -4,7 +4,7 @@ title: "The Teleport Infrastructure Identity Platform"
 description: Read an overview of the Teleport Access Platform. Learn how to implement Zero Trust Security across all your infrastructure for enhanced protection and streamlined access control.
 tocDepth: 3
 template: "landing-page"
-labels:
+tags:
  - get-started
  - platform-wide
 ---
@@ -17,8 +17,8 @@ import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-d
 import autoDiscoverySvg from "@site/src/components/Icon/teleport-svg/auto-discovery.svg";
 import cloudProvidersSvg from "@site/src/components/Icon/teleport-svg/cloud-providers.svg";
 import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
-import DocsHeader, { DocsHeaderProps } from "@site/src/components/Pages/Homepage/DocsHeader";
 import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/Resources";
+import DocsHeader, { DocsHeaderProps } from "@site/src/components/Pages/Homepage/DocsHeader";
 
 <DocsHeader
   quickActions={[
@@ -37,18 +37,30 @@ import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/R
   ]}
 />
 
-Teleport is the easiest, most secure way to access and protect all your infrastructure.
+Teleport is the easiest and most secure way to access and protect all your
+infrastructure.
 
-The Teleport Infrastructure Identity Platform implements trusted computing at
-scale, with unified cryptographic identities for humans, machines and workloads,
-endpoints, infrastructure assets, and AI agents. 
+The Teleport Access Platform is a suite of software and managed services that
+delivers on-demand, least-privileged access to infrastructure on a foundation of
+cryptographic identity and Zero Trust, with built-in identity security and
+policy governance.
 
-## Get started
+## Use cases
 
-You can quickly see how Teleport works by following our [Get
-Started](./get-started.mdx) guide to enroll your first resource with Teleport.
+Organizations use the Teleport Access Platform to:
 
-(!docs/pages/includes/homepage/products.mdx!)
+- **Eliminate infrastructure and access silos:** Teleport provides a single
+  system for role-based access controls, audit, and access for all of your
+  infrastructure, from cloud provider APIs to Kubernetes clusters.
+- **Introduce Zero Trust with theft-resistant credentials:** Teleport
+  authenticates access to all of your infrastructure with short-lived
+  certificates, verified at every endpoint. You can roll out a Zero Trust
+  strategy for your organization by setting up Teleport alone.
+- **Address complex compliance needs:** Teleport allows you to satisfy
+  compliance frameworks like SOC 2, ISO 27001, and FedRAMP with no need for additional
+  tooling or process changes. 
+
+(!docs/pages/includes/homepage/products.mdx!) 
 
 <Resources
   resources={[
@@ -93,26 +105,21 @@ Started](./get-started.mdx) guide to enroll your first resource with Teleport.
       description: 'AWS, Azure, and Google Cloud consoles and CLI',
       iconComponent: cloudProvidersSvg,
       href: './enroll-resources/application-access/cloud-apis/'
-    },
-    {
-      title: 'MCP and AI Agents',
-      description: 'Secure agentic AI connections to databases & MCP servers',
-      iconComponent: mcpAndAiSvg,
-      href: './enroll-resources/mcp-access/'
     }
   ]}
 />
 
 ## Architecture
 
-The Teleport Infrastructure Identity Platform consists of a certificate authority and
+The Teleport Access Platform consists of a certificate authority and
 identity-aware access proxy that run either on the Teleport-managed cloud or, in
 special cases, a self-hosted private network. 
 
 Teleport Agents, which can run on Linux servers or Kubernetes, proxy access to
 infrastructure resources and cloud provider APIs. Users authenticate to
 infrastructure resources through Teleport Agents using short-lived certificates.
-Teleport Agents enforce role-based access controls by using certificates that embed user attributes.
+Certificates embed Teleport user attributes, allowing Teleport Agents to enforce
+role-based access controls.
 
 Learn more:
 

@@ -32,8 +32,10 @@ extern const int VNEMissingCodeSigningIdentifiersError;
 // In either case, the expectation is that the Obj-C side pushes the config to the Go side which
 // actually validates the config.
 @interface VNEConfig : NSObject <NSSecureCoding>
-@property(copy) NSString *serviceCredentialPath;
-@property(copy) NSString *clientApplicationServiceAddr;
+@property(copy) NSString *socketPath;
+@property(copy) NSString *ipv6Prefix;
+@property(copy) NSString *dnsAddr;
+@property(copy) NSString *homePath;
 @end
 
 @protocol VNEDaemonProtocol
@@ -46,12 +48,6 @@ extern const int VNEMissingCodeSigningIdentifiersError;
 - (void)startVnet:(VNEConfig *)vnetConfig completion:(void (^)(NSError *error))completion;
 @end
 
-// DaemonLabel returns the label for the VNet daemon from the bundle under the given path.
-// The caller is expected to free the returned pointer.
-//
-// An empty string most likely means that there's no bundle under the current path.
-const char *DaemonLabel(const char *bundlePath);
-
 // Returns the label for the daemon by getting the identifier of the bundle
 // this executable is shipped in and appending ".vnetd" to it.
 //
@@ -59,7 +55,7 @@ const char *DaemonLabel(const char *bundlePath);
 //
 // The filename and the value of the Label key in the plist file and the Mach
 // service of of the daemon must match the string returned from this function.
-NSString *VNEDaemonLabel(NSString *bundlePath);
+NSString *DaemonLabel(NSString *bundlePath);
 
 // VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
 // The caller is expected to free the returned pointer.

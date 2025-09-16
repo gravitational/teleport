@@ -35,13 +35,15 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	spanner "github.com/gravitational/teleport/lib/srv/db/spanner/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/spanner"
 )
 
 func TestAccessSpanner(t *testing.T) {
 	ctx := context.Background()
 	const dbServiceName = "my-spanner"
-	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, cloudSpannerAuthToken, func(db *types.DatabaseV3) {
+	// matches the token from the mock Auth.
+	const authToken = "cloud-spanner-auth-token"
+	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, authToken, func(db *types.DatabaseV3) {
 		db.SetStaticLabels(map[string]string{"foo": "bar"})
 	}))
 	go testCtx.startHandlingConnections()
@@ -209,7 +211,9 @@ func TestAccessSpanner(t *testing.T) {
 func TestAuditSpanner(t *testing.T) {
 	ctx := context.Background()
 	const dbServiceName = "my-spanner"
-	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, cloudSpannerAuthToken, func(db *types.DatabaseV3) {
+	// matches the token from the mock Auth.
+	const authToken = "cloud-spanner-auth-token"
+	testCtx := setupTestContext(ctx, t, withSpanner(dbServiceName, authToken, func(db *types.DatabaseV3) {
 		db.SetStaticLabels(map[string]string{"foo": "bar"})
 	}))
 	go testCtx.startHandlingConnections()
@@ -241,13 +245,18 @@ func TestAuditSpanner(t *testing.T) {
 			reconnectingCh <- clt.ClientConn.WaitForStateChange(ctx, connectivity.Ready)
 		}()
 
+		ev := requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+		dbStart1, ok := ev.(*events.DatabaseSessionStart)
+		require.True(t, ok)
+		require.Equal(t, "googlesql", dbStart1.DatabaseName)
+
 		row, err := pingSpanner(ctx, clt, 42)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "access to db denied")
 		require.Nil(t, row)
 
-		ev := requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
-		dbStart1, ok := ev.(*events.DatabaseSessionStart)
+		ev = requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+		dbStart2, ok := ev.(*events.DatabaseSessionStart)
 		require.True(t, ok)
 		require.Equal(t, "googlesql", dbStart1.DatabaseName)
 
@@ -258,7 +267,7 @@ func TestAuditSpanner(t *testing.T) {
 		require.Nil(t, row)
 
 		ev = requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
-		dbStart2, ok := ev.(*events.DatabaseSessionStart)
+		dbStart3, ok := ev.(*events.DatabaseSessionStart)
 		require.True(t, ok)
 		require.Equal(t, "googlesql", dbStart2.DatabaseName)
 
@@ -267,6 +276,7 @@ func TestAuditSpanner(t *testing.T) {
 		// another start event for the same session, i.e. the client should be
 		// forced to reconnect for subsequent RPC attempts
 		require.NotEqual(t, dbStart1.SessionID, dbStart2.SessionID)
+		require.NotEqual(t, dbStart1.SessionID, dbStart3.SessionID)
 
 		// make sure no other events get emitted, including RPC failures, since
 		// a session was never started successfully.
@@ -298,15 +308,20 @@ func TestAuditSpanner(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, "googlesql", startEvt.DatabaseName)
 
-		rpcEvt := requireSpannerRPCEvent(t, testCtx)
-		require.Equal(t, "BatchCreateSessions", rpcEvt.Procedure)
-		require.Equal(t, "googlesql", rpcEvt.DatabaseName)
-		require.Equal(t, startEvt.SessionID, rpcEvt.SessionID)
-
-		rpcEvt = requireSpannerRPCEvent(t, testCtx)
-		require.Equal(t, "ExecuteStreamingSql", rpcEvt.Procedure)
-		require.Equal(t, "googlesql", rpcEvt.DatabaseName)
-		require.Equal(t, startEvt.SessionID, rpcEvt.SessionID)
+		eventsByProcedure := map[string][]*events.SpannerRPC{}
+		for range 3 {
+			rpcEvt := requireSpannerRPCEvent(t, testCtx)
+			eventsByProcedure[rpcEvt.Procedure] = append(eventsByProcedure[rpcEvt.Procedure], rpcEvt)
+		}
+		require.Contains(t, eventsByProcedure, "BatchCreateSessions")
+		require.Contains(t, eventsByProcedure, "CreateSession")
+		require.Contains(t, eventsByProcedure, "ExecuteStreamingSql")
+		for name, rpcEvts := range eventsByProcedure {
+			require.Len(t, rpcEvts, 1)
+			rpcEvt := rpcEvts[0]
+			require.Equal(t, "googlesql", rpcEvt.DatabaseName, "RPC %v database name should match what was requested", name)
+			require.Equal(t, startEvt.SessionID, rpcEvt.SessionID, "RPC %v session ID should match the start event session ID", name)
+		}
 
 		// Client disconnects.
 		clt.Close()

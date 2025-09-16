@@ -20,9 +20,6 @@ package srv
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"fmt"
 	"io"
 	"net"
@@ -39,16 +36,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/sshagent"
-	"github.com/gravitational/teleport/lib/sshutils/networking"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
-	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 type stubUser struct {
@@ -176,6 +169,7 @@ func TestStartNewParker(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			osPack, assertExpected := tt.newOsPack(t)
@@ -189,6 +183,21 @@ func TestStartNewParker(t *testing.T) {
 			assertExpected()
 		})
 	}
+}
+
+func newSocketPair(t *testing.T) (localConn *net.UnixConn, remoteFD *os.File) {
+	localConn, remoteConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, remoteConn.Close())
+		require.NoError(t, localConn.Close())
+	})
+	remoteFD, err = remoteConn.File()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, remoteFD.Close())
+	})
+	return localConn, remoteFD
 }
 
 func newHTTPTestServer(t *testing.T, listener net.Listener) *httptest.Server {
@@ -206,70 +215,30 @@ func newHTTPTestServer(t *testing.T, listener net.Listener) *httptest.Server {
 	return tsrv
 }
 
-func TestNetworkingCommand(t *testing.T) {
+func TestLocalPortForwardCommand(t *testing.T) {
 	t.Parallel()
-	testNetworkingCommand(t, "")
-}
+	srv := newMockServer(t)
+	scx := newExecServerContext(t, srv)
+	scx.ExecType = teleport.ChanDirectTCPIP
 
-// TestRootRemotePortForwardCommand tests that networking commands work
-// for a user different than the one running a node (which we need to run
-// as root to create).
-func TestRootNetworkingCommand(t *testing.T) {
-	testutils.RequireRoot(t)
-
-	login := testutils.GenerateLocalUsername(t)
-	_, err := host.UserAdd(login, nil, host.UserOpts{})
+	// Start forwarding subprocess.
+	controlConn, controlFD := newSocketPair(t)
+	command, err := ConfigureCommand(scx, controlFD)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, err := host.UserDel(login)
-		require.NoError(t, err)
+		require.NoError(t, command.Process.Kill())
 	})
+	require.NoError(t, command.Start())
 
-	testNetworkingCommand(t, login)
-}
-
-func testNetworkingCommand(t *testing.T, login string) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	srv := newMockServer(t)
-
-	scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
-	scx.ExecType = teleport.NetworkingSubCommand
-	if login != "" {
-		scx.Identity.Login = login
-	}
-
-	// Start networking subprocess.
-	command, err := ConfigureCommand(scx)
-	require.NoError(t, err)
-	proc, err := networking.NewProcess(ctx, command)
-	require.NoError(t, err)
-	t.Cleanup(func() { proc.Close() })
-
-	t.Run("local port forward", func(t *testing.T) {
-		testLocalPortForward(ctx, t, proc)
-	})
-
-	t.Run("remote port forward", func(t *testing.T) {
-		testRemotePortForward(ctx, t, proc)
-	})
-
-	t.Run("agent forward", func(t *testing.T) {
-		testAgentForward(ctx, t, proc)
-	})
-
-	t.Run("x11 forward", func(t *testing.T) {
-		testX11Forward(ctx, t, proc, login)
-	})
-}
-
-func testLocalPortForward(ctx context.Context, t *testing.T, proc *networking.Process) {
-	// Create a client that will dial via the networking process.
+	// Create a client that will dial via the forwarder.
 	httpClient := http.Client{
 		Transport: &http.Transport{
 			Dial: func(network, addr string) (net.Conn, error) {
-				return proc.Dial(ctx, network, addr)
+				dialConn, dialFD := newSocketPair(t)
+				if _, _, err := uds.WriteWithFDs(controlConn, []byte(addr), []*os.File{dialFD}); err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return dialConn, nil
 			},
 		},
 	}
@@ -284,11 +253,35 @@ func testLocalPortForward(ctx context.Context, t *testing.T, proc *networking.Pr
 	require.Equal(t, "Hello, world", string(body))
 }
 
-func testRemotePortForward(ctx context.Context, t *testing.T, proc *networking.Process) {
-	// Request a listener from the networking process.
-	listener, err := proc.Listen(ctx, "tcp", "127.0.0.1:0")
+func testRemotePortForwardCommand(t *testing.T, login string) {
+	srv := newMockServer(t)
+	scx := newExecServerContext(t, srv)
+	scx.ExecType = teleport.TCPIPForwardRequest
+	if login != "" {
+		scx.Identity.Login = login
+	}
+
+	// Start forwarding subprocess.
+	controlConn, controlFD := newSocketPair(t)
+	command, err := ConfigureCommand(scx, controlFD)
 	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
+	require.NoError(t, command.Start())
+	t.Cleanup(func() {
+		require.NoError(t, command.Process.Kill())
+		_, err := command.Process.Wait()
+		require.NoError(t, err)
+	})
+
+	// Request a listener from the forwarder.
+	replyConn, replyFD := newSocketPair(t)
+	_, _, err = uds.WriteWithFDs(controlConn, []byte("127.0.0.1:0"), []*os.File{replyFD})
+	require.NoError(t, err)
+	var fbuf [1]*os.File
+	_, fn, err := uds.ReadWithFDs(replyConn, nil, fbuf[:])
+	require.NoError(t, err)
+	require.Equal(t, 1, fn)
+	listener, err := net.FileListener(fbuf[0])
+	require.NoError(t, err)
 
 	// Test the listener on an http server.
 	tsrv := newHTTPTestServer(t, listener)
@@ -300,121 +293,30 @@ func testRemotePortForward(ctx context.Context, t *testing.T, proc *networking.P
 	require.Equal(t, "Hello, world", string(body))
 }
 
-func testAgentForward(ctx context.Context, t *testing.T, proc *networking.Process) {
-	// Create an agent keyring with a test key.
-	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
-	require.True(t, ok)
-
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	testKey := agent.AddedKey{
-		PrivateKey: key,
-		Comment:    "test-key",
-	}
-
-	err = keyring.Add(testKey)
-	require.NoError(t, err)
-
-	agentServer := sshagent.NewServer(sshagent.NewStaticClientGetter(keyring))
-
-	// Forward the agent over the networking process.
-	listener, err := proc.ListenAgent(ctx)
-	require.NoError(t, err)
-	agentServer.SetListener(listener)
-
-	go agentServer.Serve()
-	t.Cleanup(func() {
-		agentServer.Close()
-	})
-
-	agentConn, err := net.Dial(listener.Addr().Network(), listener.Addr().String())
-	require.NoError(t, err)
-
-	agentClient := agent.NewClient(agentConn)
-	keys, err := agentClient.List()
-	require.NoError(t, err)
-	require.Len(t, keys, 1)
+func TestRemotePortForwardCommand(t *testing.T) {
+	t.Parallel()
+	testRemotePortForwardCommand(t, "")
 }
 
-func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process, login string) {
-	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
-		t.Skip("Skipping test as xauth is not enabled")
-	}
+// TestRootRemotePortForwardCommand tests that remote port forwarding works
+// for a user different than the one running a node (which we need to run
+// as root to create).
+func TestRootRemotePortForwardCommand(t *testing.T) {
+	utils.RequireRoot(t)
 
-	localUser, err := user.Current()
-	if login != "" {
-		localUser, err = user.Lookup(login)
-	}
+	login := utils.GenerateLocalUsername(t)
+	_, err := host.UserAdd(login, nil, host.UserOpts{})
 	require.NoError(t, err)
-
-	cred, err := host.GetHostUserCredential(localUser)
-	require.NoError(t, err)
-
-	// Create a temporary xauth file path belonging to the user.
-	tempDir, err := os.MkdirTemp("", "xauth-temp")
-	require.NoError(t, err)
-	err = os.Chown(tempDir, int(cred.Uid), int(cred.Gid))
-	require.NoError(t, err)
-	xauthTempFilePath := filepath.Join(tempDir, ".Xauthority")
-
-	fakeXauthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
-	require.NoError(t, err)
-
-	// Request a listener from the networking process.
-	listener, err := proc.ListenX11(ctx, networking.X11Request{
-		XauthFile: xauthTempFilePath,
-		ForwardRequestPayload: x11.ForwardRequestPayload{
-			AuthProtocol: fakeXauthEntry.Proto,
-			AuthCookie:   fakeXauthEntry.Cookie,
-		},
-		DisplayOffset: x11.DefaultDisplayOffset,
-		MaxDisplay:    x11.DefaultMaxDisplays,
+	t.Cleanup(func() {
+		_, err := host.UserDel(login)
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
 
-	// Make the listener an echo server, since testing with an
-	// actual X client and server is not feasible
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				return
-			}
-			_, _ = io.Copy(conn, conn)
-			conn.Close()
-		}
-	}()
-
-	display, err := x11.ParseDisplayFromUnixSocket(listener.Addr().String())
-	require.NoError(t, err)
-
-	// Try connecting to the x11 listener to ensure it's working.
-	conn, err := display.Dial()
-	require.NoError(t, err)
-	echoMsg := []byte("echo")
-	_, err = conn.Write(echoMsg)
-	require.NoError(t, err)
-	buf := make([]byte, 4)
-	_, err = conn.Read(buf)
-	require.NoError(t, err)
-	require.Equal(t, echoMsg, buf)
-
-	// Check that the xauth entry was stored for the listener's corresponding x11 display
-	// in the user's xauth file.
-	fakeXauthEntry.Display = display
-	xauthCmd := x11.NewXAuthCommand(ctx, xauthTempFilePath)
-	xauthCmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid:     true,
-		Credential: cred,
-	}
-	readXauthEntry, err := xauthCmd.ReadEntry(display)
-	require.NoError(t, err)
-	require.Equal(t, fakeXauthEntry, readXauthEntry)
+	testRemotePortForwardCommand(t, login)
 }
 
 func TestRootCheckHomeDir(t *testing.T) {
-	testutils.RequireRoot(t)
+	utils.RequireRoot(t)
 
 	tmp := t.TempDir()
 	require.NoError(t, os.Chmod(filepath.Dir(tmp), 0777))
@@ -426,11 +328,10 @@ func TestRootCheckHomeDir(t *testing.T) {
 	notFound := filepath.Join(tmp, "not_found")
 
 	require.NoError(t, os.Mkdir(home, 0700))
-	require.NoError(t, os.Mkdir(noAccess, 0700))
 	_, err := os.Create(file)
 	require.NoError(t, err)
 
-	login := testutils.GenerateLocalUsername(t)
+	login := utils.GenerateLocalUsername(t)
 	_, err = host.UserAdd(login, nil, host.UserOpts{Home: home})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -483,7 +384,7 @@ func changeHomeDir(t *testing.T, username, home string) {
 }
 
 func TestRootOpenFileAsUser(t *testing.T) {
-	testutils.RequireRoot(t)
+	utils.RequireRoot(t)
 	euid := os.Geteuid()
 	egid := os.Getegid()
 

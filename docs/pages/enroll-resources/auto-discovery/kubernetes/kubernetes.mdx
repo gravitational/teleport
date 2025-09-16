@@ -1,7 +1,7 @@
 ---
 title: Kubernetes Clusters Discovery
 description: Detailed guides for configuring Kubernetes Clusters Discovery.
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
@@ -64,7 +64,7 @@ and their default values.
 ```yaml
 # This section configures the Discovery Service
 discovery_service:
-    enabled: true
+    enabled: "yes"
     discovery_group: "prod"
     aws:
        # AWS resource types. Valid options are:
@@ -139,7 +139,7 @@ the `kubernetes_service.resources` section as shown in the following snippet:
 ```yaml
 ## This section configures the Kubernetes Service
 kubernetes_service:
-    enabled: true
+    enabled: "yes"
     # Matchers for dynamic Kubernetes cluster resources created with the "tctl create" command or by Kubernetes auto-discovery.
     resources:
     - labels:

@@ -89,9 +89,9 @@ export function useAsync<Args extends unknown[], AttemptData>(
 ) {
   const [state, setState] = useState<Attempt<AttemptData>>(makeEmptyAttempt);
   const isMounted = useIsMounted();
-  const asyncTask = useRef<Promise<AttemptData>>(undefined);
+  const asyncTask = useRef<Promise<AttemptData>>();
 
-  const run: (...args: Args) => RunFuncReturnValue<AttemptData> = useCallback(
+  const run = useCallback(
     (...args: Args) => {
       setState(prevState => ({
         status: 'processing',
@@ -105,10 +105,10 @@ export function useAsync<Args extends unknown[], AttemptData>(
       return promise.then(
         data => {
           if (!isMounted()) {
-            return [null, new CanceledError(promise)] as [AttemptData, Error];
+            return [null, new CanceledError()] as [AttemptData, Error];
           }
           if (asyncTask.current !== promise) {
-            return [null, new CanceledError(promise)] as [AttemptData, Error];
+            return [null, new CanceledError()] as [AttemptData, Error];
           }
 
           setState(prevState => ({
@@ -121,10 +121,10 @@ export function useAsync<Args extends unknown[], AttemptData>(
         },
         err => {
           if (!isMounted()) {
-            return [null, new CanceledError(promise)] as [AttemptData, Error];
+            return [null, new CanceledError()] as [AttemptData, Error];
           }
           if (asyncTask.current !== promise) {
-            return [null, new CanceledError(promise)] as [AttemptData, Error];
+            return [null, new CanceledError()] as [AttemptData, Error];
           }
 
           setState(() => ({
@@ -158,15 +158,8 @@ function useIsMounted() {
   return useCallback(() => isMounted.current, []);
 }
 
-export class CanceledError<AttemptData> extends Error {
-  constructor(
-    /**
-     * stalePromise is the promise which result was ignored because another useAsync run was
-     * started. This gives the callsite a chance to use a result from this stale run, even after
-     * another run was started.
-     */
-    public stalePromise?: Promise<AttemptData>
-  ) {
+export class CanceledError extends Error {
+  constructor() {
     super('Ignored response from stale useAsync request');
     this.name = 'CanceledError';
   }
@@ -262,25 +255,22 @@ export function makeErrorAttemptWithStatusText<T>(
 }
 
 /**
- * mapAttempt maps attempt data if the attempt is successful or in progress and contains data.
+ * mapAttempt maps attempt data but only if the attempt is successful.
  */
 export function mapAttempt<A, B>(
   attempt: Attempt<A>,
   mapFunction: (attemptData: A) => B
 ): Attempt<B> {
-  if (
-    attempt.status === 'success' ||
-    (attempt.status === 'processing' && attempt.data)
-  ) {
+  if (attempt.status !== 'success') {
     return {
       ...attempt,
-      data: mapFunction(attempt.data),
+      data: null,
     };
   }
 
   return {
     ...attempt,
-    data: null,
+    data: mapFunction(attempt.data),
   };
 }
 
@@ -321,5 +311,3 @@ export function useDelayedRepeatedAttempt<Data>(
 
   return currentAttempt;
 }
-
-export type RunFuncReturnValue<AttemptData> = Promise<[AttemptData, Error]>;

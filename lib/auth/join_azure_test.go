@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"context"
@@ -34,16 +34,31 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
+
+func withCerts(certs []*x509.Certificate) azureRegisterOption {
+	return func(cfg *azureRegisterConfig) {
+		cfg.certificateAuthorities = certs
+	}
+}
+
+func withVerifyFunc(verify azureVerifyTokenFunc) azureRegisterOption {
+	return func(cfg *azureRegisterConfig) {
+		cfg.verify = verify
+	}
+}
+
+func withVMClientGetter(getVMClient vmClientGetter) azureRegisterOption {
+	return func(cfg *azureRegisterConfig) {
+		cfg.getVMClient = getVMClient
+	}
+}
 
 type mockAzureVMClient struct {
 	azure.VirtualMachinesClient
@@ -67,7 +82,7 @@ func (m *mockAzureVMClient) GetByVMID(_ context.Context, vmID string) (*azure.Vi
 	return nil, trace.NotFound("no vm with id %q", vmID)
 }
 
-func makeVMClientGetter(clients map[string]*mockAzureVMClient) auth.AzureVMClientGetter {
+func makeVMClientGetter(clients map[string]*mockAzureVMClient) vmClientGetter {
 	return func(subscriptionID string, _ *azure.StaticCredential) (azure.VirtualMachinesClient, error) {
 		if client, ok := clients[subscriptionID]; ok {
 			return client, nil
@@ -107,8 +122,8 @@ func resourceID(resourceType, subscription, resourceGroup, name string) string {
 	)
 }
 
-func mockVerifyToken(err error) auth.AzureVerifyTokenFunc {
-	return func(_ context.Context, rawToken string) (*auth.AccessTokenClaims, error) {
+func mockVerifyToken(err error) azureVerifyTokenFunc {
+	return func(_ context.Context, rawToken string) (*accessTokenClaims, error) {
 		if err != nil {
 			return nil, err
 		}
@@ -116,7 +131,7 @@ func mockVerifyToken(err error) auth.AzureVerifyTokenFunc {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var claims auth.AccessTokenClaims
+		var claims accessTokenClaims
 		if err := tok.UnsafeClaimsWithoutVerification(&claims); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -132,15 +147,15 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	claims := auth.AccessTokenClaims{
-		TokenClaims: oidc.TokenClaims{
-			Issuer:     "https://sts.windows.net/test-tenant-id/",
-			Audience:   []string{auth.AzureAccessTokenAudience},
-			Subject:    "test",
-			IssuedAt:   oidc.FromTime(issueTime),
-			NotBefore:  oidc.FromTime(issueTime),
-			Expiration: oidc.FromTime(issueTime.Add(time.Minute)),
-			JWTID:      "id",
+	claims := accessTokenClaims{
+		Claims: jwt.Claims{
+			Issuer:    "https://sts.windows.net/test-tenant-id/",
+			Audience:  []string{azureAccessTokenAudience},
+			Subject:   "test",
+			IssuedAt:  jwt.NewNumericDate(issueTime),
+			NotBefore: jwt.NewNumericDate(issueTime),
+			Expiry:    jwt.NewNumericDate(issueTime.Add(time.Minute)),
+			ID:        "id",
 		},
 		ManangedIdentityResourceID: managedIdentityResourceID,
 		AzureResourceID:            azureResourceID,
@@ -174,7 +189,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	require.NoError(t, err)
 
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
@@ -203,7 +218,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 		challengeResponseOptions       []azureChallengeResponseOption
 		challengeResponseErr           error
 		certs                          []*x509.Certificate
-		verify                         auth.AzureVerifyTokenFunc
+		verify                         azureVerifyTokenFunc
 		assertError                    require.ErrorAssertionFunc
 	}{
 		{
@@ -476,7 +491,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 				mirID = vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName)
 			}
 
-			accessToken, err := makeToken(mirID, "", a.GetClock().Now())
+			accessToken, err := makeToken(mirID, "", a.clock.Now())
 			require.NoError(t, err)
 
 			vmClient := &mockAzureVMClient{
@@ -494,13 +509,13 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 				defaultSubscription: vmClient,
 			})
 
-			_, err = a.RegisterUsingAzureMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+			_, err = a.RegisterUsingAzureMethod(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 				cfg := &azureChallengeResponseConfig{Challenge: challenge}
 				for _, opt := range tc.challengeResponseOptions {
 					opt(cfg)
 				}
 
-				ad := auth.AttestedData{
+				ad := attestedData{
 					Nonce:          cfg.Challenge,
 					SubscriptionID: tc.tokenSubscription,
 					ID:             tc.tokenVMID,
@@ -512,7 +527,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 				require.NoError(t, s.AddSigner(tlsConfig.Certificate, pkey, pkcs7.SignerInfoConfig{}))
 				signature, err := s.Finish()
 				require.NoError(t, err)
-				signedAD := auth.SignedAttestedData{
+				signedAD := signedAttestedData{
 					Encoding:  "pkcs7",
 					Signature: base64.StdEncoding.EncodeToString(signature),
 				}
@@ -531,7 +546,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 					AccessToken:  accessToken,
 				}
 				return req, tc.challengeResponseErr
-			}, auth.WithAzureCerts(tc.certs), auth.WithAzureVerifyFunc(tc.verify), auth.WithAzureVMClientGetter(getVMClient))
+			}, withCerts(tc.certs), withVerifyFunc(tc.verify), withVMClientGetter(getVMClient))
 			tc.assertError(t, err)
 		})
 	}
@@ -559,7 +574,7 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	require.NoError(t, err)
 
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
@@ -582,7 +597,7 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 		challengeResponseOptions       []azureChallengeResponseOption
 		challengeResponseErr           error
 		certs                          []*x509.Certificate
-		verify                         auth.AzureVerifyTokenFunc
+		verify                         azureVerifyTokenFunc
 		assertError                    require.ErrorAssertionFunc
 	}{
 		{
@@ -803,7 +818,7 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 
 			mirID := tc.tokenManagedIdentityResourceID
 			azrID := tc.tokenAzureResourceID
-			accessToken, err := makeToken(mirID, azrID, a.GetClock().Now())
+			accessToken, err := makeToken(mirID, azrID, a.clock.Now())
 			require.NoError(t, err)
 
 			vmClient := &mockAzureVMClient{
@@ -813,13 +828,13 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 				defaultSubscription: vmClient,
 			})
 
-			_, err = a.RegisterUsingAzureMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+			_, err = a.RegisterUsingAzureMethod(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 				cfg := &azureChallengeResponseConfig{Challenge: challenge}
 				for _, opt := range tc.challengeResponseOptions {
 					opt(cfg)
 				}
 
-				ad := auth.AttestedData{
+				ad := attestedData{
 					Nonce:          cfg.Challenge,
 					SubscriptionID: tc.tokenSubscription,
 					ID:             tc.tokenVMID,
@@ -831,7 +846,7 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 				require.NoError(t, s.AddSigner(tlsConfig.Certificate, pkey, pkcs7.SignerInfoConfig{}))
 				signature, err := s.Finish()
 				require.NoError(t, err)
-				signedAD := auth.SignedAttestedData{
+				signedAD := signedAttestedData{
 					Encoding:  "pkcs7",
 					Signature: base64.StdEncoding.EncodeToString(signature),
 				}
@@ -850,7 +865,7 @@ func TestAuth_RegisterUsingAzureClaims(t *testing.T) {
 					AccessToken:  accessToken,
 				}
 				return req, tc.challengeResponseErr
-			}, auth.WithAzureCerts(tc.certs), auth.WithAzureVerifyFunc(tc.verify), auth.WithAzureVMClientGetter(getVMClient))
+			}, withCerts(tc.certs), withVerifyFunc(tc.verify), withVMClientGetter(getVMClient))
 			tc.assertError(t, err)
 		})
 	}

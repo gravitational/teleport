@@ -2,7 +2,7 @@
 title: Configure Access Requests
 description: Describes the options available for configuring just-in-time access to roles and resources in your Teleport cluster.
 tocDepth: 3
-labels:
+tags:
  - how-to
  - identity-governance
 ---
@@ -56,7 +56,7 @@ below:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: employee
 spec:
@@ -98,7 +98,7 @@ A role matcher can include the following values:
 
 To add the values of `claims_to_roles` to the lists of role matchers, the Auth
 Service evaluates template expressions with the user's traits. See the [Role
-Templates](../../zero-trust-access/rbac-get-started/role-templates.mdx) for more
+Templates](../../zero-trust-access/access-controls/guides/role-templates.mdx) for more
 information on how Teleport executes template expressions with user traits in
 the `claims_to_roles` field.
 
@@ -123,7 +123,7 @@ For example, the following role enables a user to search for resources that the
 ```yaml
 # requester.yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: k8s-requester
 spec:
@@ -218,7 +218,7 @@ You can specify the `max_duration` option with a role like the following:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: temp-dba
 spec:
@@ -274,7 +274,7 @@ your ticket ID":
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: employee
 spec:
@@ -297,47 +297,6 @@ user:
 1. If one of the user's roles includes the `reason` strategy, the user must
    provide a reason when authenticating.
 
-## Requiring request reasons
-
-The `spec.allow.request.reason.mode` field controls whether a reason is required when users submit
-Access Requests.
-
-Allowed values are:
-
-|Value|Meaning|
-|---|---|
-| `optional` | The default. The user does not need to provide a reason when making a request. |
-| `required` | The user must provide a non-empty reason when making a request. |
-
-Example:
-
-```yaml
-kind: role
-version: v7
-metadata:
-  name: node-requester
-spec:
-  allow:
-    request:
-      roles:
-        - 'node-access'
-      search_as_roles:
-        - 'root-node-access'
-      reason:
-        mode: 'required'
-```
-
-If a user with "node-requester" role assigned makes an Access Request for "node-access" role or any
-resource allowed by "root-node-access" they will be required to provide a reason. If a user's
-role set includes multiple roles governing Access Requests to the same roles and resources,
-"require" mode takes precedence.
-
-## Custom request reason prompts
-
-As of right now it's only possible specify a custom prompt for all or none of the Access Requests
-for a particular user. A custom request prompt can be specified by assigned the user a role with
-`spec.options.request_prompt` set to non-empty string.
-
 ## Review thresholds
 
 You can configure a user's roles to specify the criteria that an Access Request
@@ -351,7 +310,7 @@ roles:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: devops
 spec:
@@ -474,7 +433,7 @@ The following role adds the suggested reviewers `user1` and `user2`:
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: employee
 spec:
@@ -514,7 +473,7 @@ following role fields:
 
 The Auth Service evaluates the `claims_to_roles` field using template
 expressions with the user's traits. See the [Role
-Templates](../../zero-trust-access/rbac-get-started/role-templates.mdx) for more
+Templates](../../zero-trust-access/access-controls/guides/role-templates.mdx) for more
 information on how Teleport executes template expressions with user traits in
 the `claims_to_roles` field.
 
@@ -603,7 +562,7 @@ them, use the `allow.review_requests.preview_as_roles` and
 
 ```yaml
 kind: role
-version: v7
+version: v6
 metadata:
   name: reviewer
 spec:

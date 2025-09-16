@@ -1,7 +1,7 @@
 ---
 title: Backup and Restore
 description: How to back up and restore your Teleport cluster state.
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -59,7 +59,7 @@ full explanation in [Storage Backends](../../../reference/backends.mdx#etcd).)
 | Backend | Recommended backup strategy |
 | - | - |
 | Local Filesystem | Back up the data directory (`/var/lib/teleport/` by default) |
-| DynamoDB | [Amazon DynamoDB documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Backup-and-Restore.html) |
+| DynamoDB | [Amazon DynamoDB documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
 | etcd | [etcd documentation](https://etcd.io/docs/v2.3/admin_guide/#disaster-recovery) |
 | Firestore | [Firestore documentation](https://firebase.google.com/docs/database/backups) |
 | Azure Database for PostgreSQL | [Azure Database for PostgreSQL documentation](https://learn.microsoft.com/en-us/azure/backup/backup-azure-database-postgresql) |
@@ -71,8 +71,7 @@ full explanation in [Storage Backends](../../../reference/backends.mdx#etcd).)
 | - | - |
 | Local Filesystem | Back up the data directory (`/var/lib/teleport/` by default) |
 | S3 | [Amazon S3 documentation](https://docs.aws.amazon.com/aws-backup/latest/devguide/s3-backups.html) |
-| GCS | GCS has [built-in
-redundancy](https://cloud.google.com/storage/docs/availability-durability), but you may also use [cross-bucket replication](https://cloud.google.com/storage/docs/using-cross-bucket-replication) |
+| GCS | GCS has [built-in redundancy](https://cloud.google.com/storage/docs/availability-durability), but you may also use [cross-bucket replication](https://cloud.google.com/storage/docs/using-cross-bucket-replication) |
 | Azure Blob Storage | [Azure Blob backup documentation](https://learn.microsoft.com/en-us/azure/backup/blob-backup-overview)|
 
 ## Versioning dynamic resources with infrastructure as code

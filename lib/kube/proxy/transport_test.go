@@ -20,12 +20,10 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"testing"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
@@ -110,7 +108,7 @@ type fakeReverseTunnel struct {
 	t    *testing.T
 }
 
-func (f *fakeReverseTunnel) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+func (f *fakeReverseTunnel) GetSite(_ string) (reversetunnelclient.RemoteSite, error) {
 	return &fakeRemoteSiteTunnel{
 		want: f.want,
 		t:    f.t,
@@ -118,7 +116,7 @@ func (f *fakeReverseTunnel) Cluster(context.Context, string) (reversetunnelclien
 }
 
 type fakeRemoteSiteTunnel struct {
-	reversetunnelclient.Cluster
+	reversetunnelclient.RemoteSite
 	want reversetunnelclient.DialParams
 	t    *testing.T
 }
@@ -138,46 +136,4 @@ func newKubeServerWithProxyIDs(t *testing.T, hostname, hostID string, proxyIds [
 	require.NoError(t, err)
 	ks.Spec.ProxyIDs = proxyIds
 	return ks
-}
-
-func TestDirectTransportNotCached(t *testing.T) {
-	t.Parallel()
-
-	transportClients, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   transportCacheTTL,
-		Clock: clockwork.NewFakeClock(),
-	})
-	require.NoError(t, err)
-
-	forwarder := &Forwarder{
-		ctx:             context.Background(),
-		cachedTransport: transportClients,
-	}
-
-	kubeAPICreds := &dynamicKubeCreds{
-		staticCreds: &staticKubeCreds{
-			tlsConfig: &tls.Config{
-				ServerName: "localhost",
-			},
-		},
-	}
-
-	clusterSess := &clusterSession{
-		kubeAPICreds: kubeAPICreds,
-		authContext: authContext{
-			kubeClusterName: "b",
-			teleportCluster: teleportClusterClient{
-				name: "a",
-			},
-		},
-	}
-
-	_, tlsConfig, err := forwarder.transportForRequestWithImpersonation(clusterSess)
-	require.NoError(t, err)
-	require.Equal(t, "localhost", tlsConfig.ServerName)
-
-	kubeAPICreds.staticCreds.tlsConfig.ServerName = "example.com"
-	_, tlsConfig, err = forwarder.transportForRequestWithImpersonation(clusterSess)
-	require.NoError(t, err)
-	require.Equal(t, "example.com", tlsConfig.ServerName)
 }

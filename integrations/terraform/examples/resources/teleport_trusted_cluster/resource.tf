@@ -1,7 +1,6 @@
 # Teleport trusted cluster
 
 resource "teleport_trusted_cluster" "cluster" {
-  version = "v2"
   metadata = {
     name = "primary"
     labels = {

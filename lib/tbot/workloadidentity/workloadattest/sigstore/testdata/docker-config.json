@@ -1,8 +1,0 @@
-{
-  "auths": {
-    "ghcr.io": {
-      "username": "foo",
-      "password": "bar"
-    }
-  }
-}

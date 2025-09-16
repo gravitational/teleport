@@ -21,8 +21,6 @@ package client_test
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/ed25519"
 	"encoding/base32"
 	"encoding/pem"
 	"errors"
@@ -36,6 +34,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -53,16 +52,16 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
 	t.Parallel()
+
+	silenceLogger(t)
 
 	type webauthnFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
 
@@ -322,6 +321,8 @@ func TestTeleportClient_Login_local(t *testing.T) {
 }
 
 func TestTeleportClient_DeviceLogin(t *testing.T) {
+	silenceLogger(t)
+
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
 	username := sa.Username
@@ -330,12 +331,11 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	// Disable MFA. It makes testing easier.
 	ctx := context.Background()
 	authServer := sa.Auth.GetAuthServer()
-	authPref, err := authServer.GetAuthPreference(ctx)
-	require.NoError(t, err, "GetAuthPreference failed")
-	authPref.SetType(constants.Local)
-	authPref.SetSecondFactor(constants.SecondFactorOff)
-	authPref.SetAllowPasswordless(false)
-	authPref.SetAllowHeadless(false)
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOff,
+	})
+	require.NoError(t, err, "NewAuthPreference failed")
 	_, err = authServer.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err, "UpsertAuthPreference failed")
 
@@ -360,14 +360,10 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	prompt.SetStdin(prompt.NewFakeReader().AddString(password))
 
 	// Login the current user and fetch a valid pair of certificates.
-	keyRing, err := teleportClient.Login(ctx)
+	key, err := teleportClient.Login(ctx)
 	require.NoError(t, err, "Login failed")
 
-	// Sanity check we're generating EC keys.
-	assert.IsType(t, ed25519.PrivateKey{}, keyRing.SSHPrivateKey.Signer)
-	assert.IsType(t, &ecdsa.PrivateKey{}, keyRing.TLSPrivateKey.Signer)
-
-	proxyClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, keyRing)
+	proxyClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, key)
 	require.NoError(t, err, "Connecting to the root cluster failed")
 	t.Cleanup(func() {
 		require.NoError(t, rootAuthClient.Close())
@@ -376,11 +372,11 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 
 	// Prepare "device aware" certificates from key.
 	// In a real scenario these would be augmented certs.
-	block, _ := pem.Decode(keyRing.TLSCert)
+	block, _ := pem.Decode(key.TLSCert)
 	require.NotNil(t, block, "Decode failed")
 	validCerts := &devicepb.UserCertificates{
 		X509Der:          block.Bytes,
-		SshAuthorizedKey: keyRing.Cert,
+		SshAuthorizedKey: key.Cert,
 	}
 
 	t.Run("device login", func(t *testing.T) {
@@ -390,15 +386,15 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// validatingRunCeremony checks the parameters passed to dtAuthnRunCeremony
 		// and returns validCerts on success.
 		var runCeremonyCalls int
-		validatingRunCeremony := func(_ context.Context, params *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
+		validatingRunCeremony := func(_ context.Context, devicesClient devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
 			runCeremonyCalls++
 			switch {
-			case params.DevicesClient == nil:
-				return nil, errors.New("want non-nil DevicesClient")
-			case params.Certs == nil:
-				return nil, errors.New("want non-nil Certs")
-			case params.SSHSigner == nil:
-				return nil, errors.New("want non-nil SSHSigner")
+			case devicesClient == nil:
+				return nil, errors.New("want non-nil devicesClient")
+			case certs == nil:
+				return nil, errors.New("want non-nil certs")
+			case len(certs.SshAuthorizedKey) == 0:
+				return nil, errors.New("want non-empty certs.SshAuthorizedKey")
 			}
 			return validCerts, nil
 		}
@@ -414,20 +410,18 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")
 
 		// Test! Exercise DeviceLogin.
-		got, err := teleportClient.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
-			DevicesClient: rootAuthClient.DevicesClient(),
-			Certs: &devicepb.UserCertificates{
-				SshAuthorizedKey: keyRing.Cert,
-			},
-			SSHSigner: keyRing.SSHPrivateKey,
-		})
+		got, err := teleportClient.DeviceLogin(ctx,
+			rootAuthClient,
+			&devicepb.UserCertificates{
+				SshAuthorizedKey: key.Cert,
+			})
 		require.NoError(t, err, "DeviceLogin failed")
 		require.Equal(t, validCerts, got, "DeviceLogin mismatch")
 		assert.Equal(t, 1, runCeremonyCalls, `DeviceLogin didn't call dtAuthnRunCeremony()`)
 
 		// Test! Exercise AttemptDeviceLogin.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, keyRing, rootAuthClient),
+			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
 			"AttemptDeviceLogin failed")
 		assert.Equal(t, 2, runCeremonyCalls, `AttemptDeviceLogin didn't call dtAuthnRunCeremony()`)
 
@@ -438,7 +432,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	t.Run("attempt login respects ping", func(t *testing.T) {
 		runCeremonyCalled := false
 		teleportClient.SetDTAttemptLoginIgnorePing(false)
-		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
 			runCeremonyCalled = true
 			return nil, errors.New("dtAuthnRunCeremony called unexpectedly")
 		})
@@ -451,7 +445,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// Test!
 		// AttemptDeviceLogin should obey Ping and not attempt the ceremony.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, keyRing, rootAuthClient),
+			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
 			"AttemptDeviceLogin failed")
 		assert.False(t, runCeremonyCalled, "AttemptDeviceLogin called DeviceLogin/dtAuthnRunCeremony, despite the Ping response")
 	})
@@ -465,7 +459,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		var enrolled bool
 		var runCeremonyCalls, autoEnrollCalls int
 		teleportClient.SetDTAutoEnrollIgnorePing(true)
-		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ devicepb.DeviceTrustServiceClient, _ *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
 			runCeremonyCalls++
 			if !enrolled {
 				return nil, errors.New("device not enrolled")
@@ -489,13 +483,12 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		defer rootAuthClient.Close()
 
 		// Test!
-		got, err := teleportClient.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
-			DevicesClient: rootAuthClient.DevicesClient(),
-			Certs: &devicepb.UserCertificates{
-				SshAuthorizedKey: keyRing.Cert,
-			},
-			SSHSigner: keyRing.SSHPrivateKey,
-		})
+		got, err := teleportClient.DeviceLogin(
+			ctx,
+			rootAuthClient,
+			&devicepb.UserCertificates{
+				SshAuthorizedKey: key.Cert,
+			})
 		require.NoError(t, err, "DeviceLogin failed")
 		assert.Equal(t, got, validCerts, "DeviceLogin mismatch")
 		assert.Equal(t, 2, runCeremonyCalls, "RunCeremony called an unexpected number of times")
@@ -516,6 +509,12 @@ type standaloneBundle struct {
 // function and reusing in other places.
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+
+	// Silent logger and console.
+	logger := utils.NewLoggerForTests()
+	logger.SetLevel(log.PanicLevel)
+	logger.SetOutput(io.Discard)
+	console := io.Discard
 
 	staticToken := uuid.New().String()
 
@@ -548,7 +547,8 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.DataDir = makeDataDir()
 	cfg.Hostname = "localhost"
 	cfg.Clock = clock
-	cfg.Logger = logtest.NewLogger()
+	cfg.Console = console
+	cfg.Log = logger
 	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -556,7 +556,6 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 	})
 	require.NoError(t, err)
 	cfg.Auth.BootstrapResources = []types.Resource{role, user}
@@ -631,7 +630,8 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Hostname = "localhost"
 	cfg.SetToken(staticToken)
 	cfg.Clock = clock
-	cfg.Logger = logtest.NewLogger()
+	cfg.Console = console
+	cfg.Log = logger
 	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
@@ -669,6 +669,17 @@ func startAndWait(t *testing.T, cfg *servicecfg.Config, eventName string) *servi
 	require.NoError(t, err, "timed out waiting for teleport")
 
 	return instance
+}
+
+// silenceLogger silences logger during testing.
+func silenceLogger(t *testing.T) {
+	lvl := log.GetLevel()
+	t.Cleanup(func() {
+		log.SetOutput(os.Stderr)
+		log.SetLevel(lvl)
+	})
+	log.SetOutput(io.Discard)
+	log.SetLevel(log.PanicLevel)
 }
 
 func TestRetryWithRelogin(t *testing.T) {

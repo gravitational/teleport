@@ -70,15 +70,3 @@ export const useStoreSelector = <
 type ImmutableStoreKeys<T> = {
   [K in keyof T]: T[K] extends ImmutableStore<any> ? K : never;
 }[keyof T];
-
-/**
- * identitySelector returns the whole state of the given store.
- *
- * Useful during refactorings of legacy code which depends on the useStore which triggers a
- * re-render on any change to the store.
- *
- * Should be used sparingly. It's often a better idea to make the selector as narrow as possible.
- */
-export function identitySelector<Value>(state: Value): Value {
-  return state;
-}

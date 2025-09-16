@@ -47,9 +47,7 @@ func TestNotificationCommmandCRUD(t *testing.T) {
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 
-	clt, err := testenv.NewDefaultAuthClient(process)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
+	clt := testenv.MakeDefaultAuthClient(t, process)
 
 	auditorUsername := "auditor-user"
 	managerUsername := "manager-user"

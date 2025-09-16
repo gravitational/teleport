@@ -1,39 +1,36 @@
-/*
- * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package latency
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, "latency")
+var log = logrus.WithField(teleport.ComponentKey, "latency")
 
 // Statistics contain latency measurements for both
 // legs of a proxied connection.
@@ -128,7 +125,7 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.InitialPingInterval <= 0 {
-		c.InitialReportInterval = retryutils.FullJitter(500 * time.Millisecond)
+		c.InitialReportInterval = fullJitter(500 * time.Millisecond)
 	}
 
 	if c.ReportInterval <= 0 {
@@ -136,7 +133,7 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.InitialReportInterval <= 0 {
-		c.InitialReportInterval = retryutils.HalfJitter(1500 * time.Millisecond)
+		c.InitialReportInterval = halfJitter(1500 * time.Millisecond)
 	}
 
 	if c.Clock == nil {
@@ -145,6 +142,12 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 
 	return nil
 }
+
+var (
+	seventhJitter = retryutils.NewSeventhJitter()
+	fullJitter    = retryutils.NewFullJitter()
+	halfJitter    = retryutils.NewHalfJitter()
+)
 
 // NewMonitor creates an unstarted [Monitor] with the provided configuration. To
 // begin sampling connection latencies [Monitor.Run] must be called.
@@ -189,10 +192,10 @@ func (m *Monitor) Run(ctx context.Context) {
 	for {
 		select {
 		case <-m.reportTimer.Chan():
-			if err := m.reporter.Report(ctx, m.GetStats()); err != nil && !errors.Is(err, context.Canceled) {
-				logger.WarnContext(ctx, "failed to report latency stats", "error", err)
+			if err := m.reporter.Report(ctx, m.GetStats()); err != nil {
+				log.WithError(err).Warn("failed to report latency stats")
 			}
-			m.reportTimer.Reset(retryutils.SeventhJitter(m.reportInterval))
+			m.reportTimer.Reset(seventhJitter(m.reportInterval))
 		case <-ctx.Done():
 			return
 		}
@@ -206,12 +209,12 @@ func (m *Monitor) pingLoop(ctx context.Context, pinger Pinger, timer clockwork.T
 			return
 		case <-timer.Chan():
 			then := m.clock.Now()
-			if err := pinger.Ping(ctx); err != nil && !errors.Is(err, context.Canceled) {
-				logger.WarnContext(ctx, "unexpected failure sending ping", "error", err)
+			if err := pinger.Ping(ctx); err != nil {
+				log.WithError(err).Warn("unexpected failure sending ping")
 			} else {
 				latency.Store(m.clock.Now().Sub(then).Milliseconds())
 			}
-			timer.Reset(retryutils.SeventhJitter(m.pingInterval))
+			timer.Reset(seventhJitter(m.pingInterval))
 		}
 	}
 }

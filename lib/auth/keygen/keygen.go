@@ -22,16 +22,17 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -63,6 +64,11 @@ func New(_ context.Context, opts ...Option) *Keygen {
 	}
 
 	return k
+}
+
+// GenerateKeyPair returns fresh priv/pub keypair, takes about 300ms to execute.
+func (k *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
+	return native.GenerateKeyPair()
 }
 
 // GenerateHostCert generates a host certificate with the passed in parameters.
@@ -121,11 +127,9 @@ func (k *Keygen) GenerateHostCertWithoutValidation(req sshca.HostCertificateRequ
 		return nil, trace.Wrap(err)
 	}
 
-	slog.DebugContext(
-		context.TODO(),
-		"Generated SSH host certificate.",
-		"role", ident.SystemRole, "principals", ident.Principals,
-	)
+	log.Debugf("Generated SSH host certificate for role %v with principals: %v.",
+		ident.SystemRole, ident.Principals)
+
 	return ssh.MarshalAuthorizedKey(cert), nil
 }
 
@@ -156,13 +160,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(req sshca.UserCertificateRequ
 	if req.TTL != 0 {
 		b := k.clock.Now().UTC().Add(req.TTL)
 		ident.ValidBefore = uint64(b.Unix())
-		slog.DebugContext(
-			context.TODO(),
-			"Generated user key with expiry.",
-			"allowed_logins", ident.Principals,
-			"valid_before_unix_ts", ident.ValidBefore,
-			"valid_before", b,
-		)
+		log.Debugf("generated user key for %v with expiry on (%v) %v", ident.Principals, ident.ValidBefore, b)
 	}
 
 	// set ValidAfter to be 1 minute in the past

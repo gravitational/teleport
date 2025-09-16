@@ -16,13 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
-
-import { LoggedInUser } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-
+import { LoggedInUser } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-
-import { useStoreSelector } from './useStoreSelector';
 
 /**
  * useLoggedInUser returns the user logged into the root cluster of the active workspace. The return
@@ -34,19 +30,17 @@ import { useStoreSelector } from './useStoreSelector';
  * It might return undefined if there's no active workspace.
  */
 export function useLoggedInUser(): LoggedInUser | undefined {
-  const rootClusterUri = useStoreSelector(
-    'workspacesService',
-    useCallback(store => store.rootClusterUri, [])
-  );
-  const loggedInUser = useStoreSelector(
-    'clustersService',
-    useCallback(
-      state => state.clusters.get(rootClusterUri)?.loggedInUser,
-      [rootClusterUri]
-    )
-  );
+  const { clustersService, workspacesService } = useAppContext();
+  clustersService.useState();
+  workspacesService.useState();
 
-  return loggedInUser;
+  const clusterUri = workspacesService.getRootClusterUri();
+  if (!clusterUri) {
+    return;
+  }
+
+  const cluster = clustersService.findCluster(clusterUri);
+  return cluster?.loggedInUser;
 }
 
 /**
@@ -63,14 +57,10 @@ export function useLoggedInUser(): LoggedInUser | undefined {
  * default document.
  */
 export function useWorkspaceLoggedInUser(): LoggedInUser | undefined {
+  const { clustersService } = useAppContext();
+  clustersService.useState();
   const { rootClusterUri } = useWorkspaceContext();
-  const loggedInUser = useStoreSelector(
-    'clustersService',
-    useCallback(
-      state => state.clusters.get(rootClusterUri)?.loggedInUser,
-      [rootClusterUri]
-    )
-  );
 
-  return loggedInUser;
+  const cluster = clustersService.findCluster(rootClusterUri);
+  return cluster?.loggedInUser;
 }

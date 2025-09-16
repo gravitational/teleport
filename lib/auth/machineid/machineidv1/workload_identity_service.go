@@ -23,7 +23,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
-	"log/slog"
 	"math/big"
 	"net"
 	"net/url"
@@ -32,8 +31,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
+	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -60,7 +61,7 @@ const (
 type WorkloadIdentityServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      WorkloadIdentityCacher
-	Logger     *slog.Logger
+	Logger     logrus.FieldLogger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
@@ -72,7 +73,7 @@ type WorkloadIdentityServiceConfig struct {
 // function.
 type WorkloadIdentityCacher interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 	GetProxies() ([]types.Server, error)
 }
 
@@ -99,10 +100,11 @@ func NewWorkloadIdentityService(
 		return nil, trace.BadParameter("reporter is required")
 	case cfg.KeyStore == nil:
 		return nil, trace.BadParameter("keyStore is required")
-	case cfg.Logger == nil:
-		return nil, trace.BadParameter("logger is required")
 	}
 
+	if cfg.Logger == nil {
+		cfg.Logger = logrus.WithField(teleport.ComponentKey, "workload-identity.service")
+	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
@@ -126,7 +128,7 @@ type WorkloadIdentityService struct {
 	cache      WorkloadIdentityCacher
 	authorizer authz.Authorizer
 	keyStorer  KeyStorer
-	logger     *slog.Logger
+	logger     logrus.FieldLogger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
@@ -253,8 +255,8 @@ func (wis *WorkloadIdentityService) signX509SVID(
 			evt.SPIFFEID = spiffeID.String()
 		}
 		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
-			wis.logger.WarnContext(
-				ctx, "Failed to emit SPIFFE SVID issued event", "error", err,
+			wis.logger.WithError(emitErr).Warn(
+				"Failed to emit SPIFFE SVID issued event.",
 			)
 		}
 	}()
@@ -339,7 +341,7 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	}
 
 	// Fetch info that will be needed for all SPIFFE SVIDs requested
-	clusterName, err := wis.cache.GetClusterName(ctx)
+	clusterName, err := wis.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
@@ -369,11 +371,6 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 		}
 		res.Svids = append(res.Svids, svidRes)
 	}
-
-	wis.logger.WarnContext(
-		ctx,
-		"The 'SignX509SVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-	)
 
 	return res, nil
 }
@@ -410,10 +407,8 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 			evt.JTI = jti
 		}
 		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
-			wis.logger.WarnContext(
-				ctx,
+			wis.logger.WithError(emitErr).Warn(
 				"Failed to emit SPIFFE SVID issued event.",
-				"error", emitErr,
 			)
 		}
 	}()
@@ -494,7 +489,7 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 	}
 
 	// Fetch info that will be needed to create the SVIDs
-	clusterName, err := wis.cache.GetClusterName(ctx)
+	clusterName, err := wis.cache.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
@@ -533,11 +528,6 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 		}
 		res.Svids = append(res.Svids, svidRes)
 	}
-
-	wis.logger.WarnContext(
-		ctx,
-		"The 'SignJWTSVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
-	)
 
 	return res, nil
 }

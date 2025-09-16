@@ -322,29 +322,45 @@ const (
 	KubernetesClusterDeleteCode = "T3012I"
 
 	// The following codes correspond to SFTP file operations.
-	SFTPOpenCode           = "TS001I"
-	SFTPOpenFailureCode    = "TS001E"
-	SFTPSetstatCode        = "TS007I"
-	SFTPSetstatFailureCode = "TS007E"
-	SFTPOpendirCode        = "TS009I"
-	SFTPOpendirFailureCode = "TS009E"
-	SFTPReaddirCode        = "TS010I"
-	SFTPReaddirFailureCode = "TS010E"
-	SFTPRemoveCode         = "TS011I"
-	SFTPRemoveFailureCode  = "TS011E"
-	SFTPMkdirCode          = "TS012I"
-	SFTPMkdirFailureCode   = "TS012E"
-	SFTPRmdirCode          = "TS013I"
-	SFTPRmdirFailureCode   = "TS013E"
-	SFTPRenameCode         = "TS016I"
-	SFTPRenameFailureCode  = "TS016E"
-	SFTPSymlinkCode        = "TS018I"
-	SFTPSymlinkFailureCode = "TS018E"
-	SFTPLinkCode           = "TS019I"
-	SFTPLinkFailureCode    = "TS019E"
-	SFTPDisallowedCode     = "TS020E"
-	// SFTPSummaryCode is the SFTP summary code.
-	SFTPSummaryCode = "TS021I"
+	SFTPOpenCode            = "TS001I"
+	SFTPOpenFailureCode     = "TS001E"
+	SFTPCloseCode           = "TS002I"
+	SFTPCloseFailureCode    = "TS002E"
+	SFTPReadCode            = "TS003I"
+	SFTPReadFailureCode     = "TS003E"
+	SFTPWriteCode           = "TS004I"
+	SFTPWriteFailureCode    = "TS004E"
+	SFTPLstatCode           = "TS005I"
+	SFTPLstatFailureCode    = "TS005E"
+	SFTPFstatCode           = "TS006I"
+	SFTPFstatFailureCode    = "TS006E"
+	SFTPSetstatCode         = "TS007I"
+	SFTPSetstatFailureCode  = "TS007E"
+	SFTPFsetstatCode        = "TS008I"
+	SFTPFsetstatFailureCode = "TS008E"
+	SFTPOpendirCode         = "TS009I"
+	SFTPOpendirFailureCode  = "TS009E"
+	SFTPReaddirCode         = "TS010I"
+	SFTPReaddirFailureCode  = "TS010E"
+	SFTPRemoveCode          = "TS011I"
+	SFTPRemoveFailureCode   = "TS011E"
+	SFTPMkdirCode           = "TS012I"
+	SFTPMkdirFailureCode    = "TS012E"
+	SFTPRmdirCode           = "TS013I"
+	SFTPRmdirFailureCode    = "TS013E"
+	SFTPRealpathCode        = "TS014I"
+	SFTPRealpathFailureCode = "TS014E"
+	SFTPStatCode            = "TS015I"
+	SFTPStatFailureCode     = "TS015E"
+	SFTPRenameCode          = "TS016I"
+	SFTPRenameFailureCode   = "TS016E"
+	SFTPReadlinkCode        = "TS017I"
+	SFTPReadlinkFailureCode = "TS017E"
+	SFTPSymlinkCode         = "TS018I"
+	SFTPSymlinkFailureCode  = "TS018E"
+	SFTPLinkCode            = "TS019I"
+	SFTPLinkFailureCode     = "TS019E"
+	SFTPDisallowedCode      = "TS020E"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
@@ -363,8 +379,6 @@ const (
 	AccessRequestDeleteCode = "T5003I"
 	// AccessRequestResourceSearchCode is the access request resource search code.
 	AccessRequestResourceSearchCode = "T5004I"
-	// AccessRequestExpireCode is the access request expires code.
-	AccessRequestExpireCode = "T5005I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -676,18 +690,6 @@ const (
 	// AutoUpdateVersionDeleteCode is the auto update version delete event code.
 	AutoUpdateVersionDeleteCode = "AUV003I"
 
-	// AutoUpdateAgentRolloutTriggerCode is the auto update agent rollout trigger event code.
-	AutoUpdateAgentRolloutTriggerCode = "AUAR001I"
-	// AutoUpdateAgentRolloutForceDoneCode is the auto update agent rollout force-done event code.
-	AutoUpdateAgentRolloutForceDoneCode = "AUAR002I"
-	// AutoUpdateAgentRolloutRollbackCode is the auto update agent rollout rollback event code.
-	AutoUpdateAgentRolloutRollbackCode = "AUAR003I"
-
-	// ContactCreateCode is the auto update version create event code.
-	ContactCreateCode = "TCTC001I"
-	// ContactDeleteCode is the auto update version delete event code.
-	ContactDeleteCode = "TCTC002I"
-
 	// WorkloadIdentityCreateCode is the workload identity create event code.
 	WorkloadIdentityCreateCode = "WID001I"
 	// WorkloadIdentityUpdateCode is the workload identity update event code.
@@ -703,69 +705,12 @@ const (
 	// WorkloadIdentityX509RevocationDeleteCode is the
 	// WorkloadIdentityX509Revocation delete event code.
 	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
-	// WorkloadIdentityX509IssuerOverrideCreateCode is the code for the
-	// workload_identity_x509_issuer_override.create event.
-	WorkloadIdentityX509IssuerOverrideCreateCode = "WID007I"
-	// WorkloadIdentityX509IssuerOverrideDeleteCode is the code for the
-	// workload_identity_x509_issuer_override.delete event.
-	WorkloadIdentityX509IssuerOverrideDeleteCode = "WID008I"
 
-	// SigstorePolicyCreateCode is the Sigstore policy create event code.
-	SigstorePolicyCreateCode = "TSSP001I"
-	// SigstorePolicyUpdateCode is the Sigstore policy update event code.
-	SigstorePolicyUpdateCode = "TSSP002I"
-	// SigstorePolicyDeleteCode is the Sigstore policy delete event code.
-	SigstorePolicyDeleteCode = "TSSP003I"
-
-	// HealthCheckConfigCreateCode is the health check config create event code.
-	HealthCheckConfigCreateCode = "THCC001I"
-	// HealthCheckConfigUpdateCode is the health check config update event code.
-	HealthCheckConfigUpdateCode = "THCC002I"
-	// HealthCheckConfigDeleteCode is the health check config delete event code.
-	HealthCheckConfigDeleteCode = "THCC003I"
-
-	// GitCommandCode is the git command event code
-	GitCommandCode = "TGIT001I"
-	// GitCommandFailureCode is the git command feature event code.
-	GitCommandFailureCode = "TGIT001E"
-
-	// StableUNIXUserCreateCode is the stable UNIX user create event code.
-	StableUNIXUserCreateCode = "TSUU001I"
-
-	// AWSICResourceSyncSuccessCode is the AWS Identity Center resource
-	// sync attempt success code.
-	AWSICResourceSyncSuccessCode = "TAIC001I"
-	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
-	// sync attempt failure code.
-	AWSICResourceSyncFailureCode = "TAIC001E"
-
-	// MCPSessionStartCode is the event code for mcp.session.start.
-	MCPSessionStartCode = "TMCP001I"
-	// MCPSessionEndCode is the event code for mcp.session.end.
-	MCPSessionEndCode = "TMCP002I"
-	// MCPSessionRequestCode is the event code for mcp.session.request.
-	MCPSessionRequestCode = "TMCP003I"
-	// MCPSessionRequestFailureCode is the event code for mcp.session.request
-	// when the request is denied by Teleport.
-	MCPSessionRequestFailureCode = "TMCP003E"
-	// MCPSessionNotificationCode is the event code for
-	// mcp.session.notification.
-	MCPSessionNotificationCode = "TMCP004I"
-
-	// BoundKeypairRecoveryCode is the event code for
-	// join_token.bound_keypair.recovery.
-	BoundKeypairRecoveryCode = "TBK001I"
-	// BoundKeypairRotationCode is the event code for
-	// join_token.bound_keypair.rotation.
-	BoundKeypairRotationCode = "TBK002I"
-	// BoundKeypairJoinStateVerificationFailedCode is the event code for
-	// join_token.bound_keypair.join_state_verification_failed.
-	BoundKeypairJoinStateVerificationFailedCode = "TBK003W"
+	// ContactCreateCode is the auto update version create event code.
+	ContactCreateCode = "TCTC001I"
+	// ContactDeleteCode is the auto update version delete event code.
+	ContactDeleteCode = "TCTC002I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
-
-// After defining an event code, make sure to keep
-// `web/packages/teleport/src/services/audit/types.ts` in sync and add an
-// entry in the `eventsMap` in `lib/events/events_test.go`.

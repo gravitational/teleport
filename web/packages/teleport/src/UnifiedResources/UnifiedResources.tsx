@@ -16,41 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useState, type JSX } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 import {
   BulkAction,
   FilterKind,
   IncludedResourceMode,
   ResourceAvailabilityFilter,
   UnifiedResources as SharedUnifiedResources,
-  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
-import { buildPredicateExpression } from 'shared/components/UnifiedResources/shared/predicateExpression';
-import {
-  getResourceId,
-  openStatusInfoPanel,
-} from 'shared/components/UnifiedResources/shared/StatusInfo';
 
 import { useTeleport } from 'teleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
-import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { useUrlFiltering } from 'teleport/components/hooks';
+import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
-import cfg from 'teleport/config';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { useNoMinWidth } from 'teleport/Main';
 import {
@@ -63,7 +56,6 @@ import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ResourceActionButton } from './ResourceActionButton';
-import { StatusInfo } from './StatusInfo';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
@@ -110,10 +102,6 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
       kind: 'windows_desktop',
       disabled: !flags.desktops,
     },
-    {
-      kind: 'git_server',
-      disabled: !flags.gitServers,
-    },
   ];
 };
 
@@ -150,18 +138,15 @@ export function ClusterResources({
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
   const [loadClusterError, setLoadClusterError] = useState('');
 
-  const { params, setParams } = useUrlFiltering(
-    {
-      sort: {
-        fieldName: 'name',
-        dir: 'ASC',
-      },
-      pinnedOnly:
-        preferences?.unifiedResourcePreferences?.defaultTab ===
-        DefaultTab.PINNED,
+  const { params, setParams, replaceHistory, pathname } = useUrlFiltering({
+    sort: {
+      fieldName: 'name',
+      dir: 'ASC',
     },
-    availabilityFilter?.mode
-  );
+    includedResourceMode: availabilityFilter?.mode,
+    pinnedOnly:
+      preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
+  });
 
   const getCurrentClusterPinnedResources = useCallback(
     () => getClusterPinnedResources(clusterId),
@@ -188,7 +173,7 @@ export function ClusterResources({
           clusterId,
           {
             search: params.search,
-            query: buildPredicateExpression(params.statuses, params.query),
+            query: params.query,
             pinnedOnly: params.pinnedOnly,
             sort: params.sort,
             kinds: params.kinds,
@@ -214,11 +199,11 @@ export function ClusterResources({
         params.search,
         params.sort,
         params.includedResourceMode,
-        params.statuses,
         teleCtx.resourceService,
       ]
     ),
   });
+
   const { samlAppToDelete } = useSamlAppAction();
   const resources = useMemo(
     () =>
@@ -255,27 +240,10 @@ export function ClusterResources({
     clear();
   }
 
-  const { setInfoGuideConfig } = useInfoGuide();
-  function onShowStatusInfo(resource: UnifiedResourceDefinition) {
-    openStatusInfoPanel({
-      isEnterprise: cfg.edition === 'ent',
-      resource,
-      setInfoGuideConfig,
-      guide: (
-        <StatusInfo
-          resource={resource}
-          clusterId={clusterId}
-          key={getResourceId(resource)}
-        />
-      ),
-    });
-  }
-
   return (
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
-        onShowStatusInfo={onShowStatusInfo}
         bulkActions={bulkActions}
         params={params}
         fetchResources={fetch}
@@ -310,10 +278,28 @@ export function ClusterResources({
             ) || <ResourceActionButton resource={resource} />,
           },
         }))}
-        setParams={setParams}
+        setParams={newParams => {
+          setParams(newParams);
+          const isAdvancedSearch = !!newParams.query;
+          replaceHistory(
+            encodeUrlQueryParams({
+              pathname,
+              searchString: isAdvancedSearch
+                ? newParams.query
+                : newParams.search,
+              sort: newParams.sort,
+              kinds: newParams.kinds,
+              isAdvancedSearch,
+              pinnedOnly: newParams.pinnedOnly,
+            })
+          );
+        }}
         Header={
           <>
             <FeatureHeader
+              style={{
+                borderBottom: 'none',
+              }}
               mb={1}
               alignItems="center"
               justifyContent="space-between"
@@ -331,7 +317,12 @@ export function ClusterResources({
               </Flex>
             </FeatureHeader>
             <Flex alignItems="center" justifyContent="space-between" mb={3}>
-              <ServersideSearchPanel params={params} setParams={setParams} />
+              <ServersideSearchPanel
+                params={params}
+                pathname={pathname}
+                replaceHistory={replaceHistory}
+                setParams={setParams}
+              />
             </Flex>
           </>
         }

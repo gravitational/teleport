@@ -18,7 +18,6 @@ package types
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -61,20 +60,10 @@ const (
 	// SPIFFECA identifies the certificate authority that will be used by the
 	// SPIFFE Workload Identity provider functionality.
 	SPIFFECA CertAuthType = "spiffe"
-	// OktaCA identifies the certificate authority that will be used by the
-	// integration with Okta.
-	OktaCA CertAuthType = "okta"
-	// AWSRACA identifies the certificate authority that will be used by the
-	// AWS IAM Roles Anywhere integration functionality.
-	AWSRACA CertAuthType = "awsra"
-	// BoundKeypairCA identifies the CA used to sign bound keypair client state
-	// documents.
-	BoundKeypairCA CertAuthType = "bound_keypair"
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{
-	HostCA,
+var CertAuthTypes = []CertAuthType{HostCA,
 	UserCA,
 	DatabaseCA,
 	DatabaseClientCA,
@@ -83,21 +72,16 @@ var CertAuthTypes = []CertAuthType{
 	SAMLIDPCA,
 	OIDCIdPCA,
 	SPIFFECA,
-	OktaCA,
-	AWSRACA,
-	BoundKeypairCA,
 }
 
 // NewlyAdded should return true for CA types that were added in the current
 // major version, so that we can avoid erroring out when a potentially older
 // remote server doesn't know about them.
 func (c CertAuthType) NewlyAdded() bool {
-	return c.addedInMajorVer() >= api.VersionMajor
+	return c.addedInMajorVer() >= api.SemVersion.Major
 }
 
-// addedInMajorVer returns the major version in which given CA was added.
-// The returned version must be the X.0.0 release in which the CA first
-// existed.
+// addedInVer return the major version in which given CA was added.
 func (c CertAuthType) addedInMajorVer() int64 {
 	switch c {
 	case DatabaseCA:
@@ -108,10 +92,6 @@ func (c CertAuthType) addedInMajorVer() int64 {
 		return 15
 	case SPIFFECA:
 		return 15
-	case OktaCA:
-		return 17
-	case AWSRACA, BoundKeypairCA:
-		return 18
 	default:
 		// We don't care about other CAs added before v4.0.0
 		return 4
@@ -129,8 +109,10 @@ const authTypeNotSupported string = "authority type is not supported"
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
-	if slices.Contains(CertAuthTypes, c) {
-		return nil
+	for _, caType := range CertAuthTypes {
+		if c == caType {
+			return nil
+		}
 	}
 
 	return trace.BadParameter("%q %s", c, authTypeNotSupported)

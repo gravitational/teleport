@@ -25,4 +25,10 @@
 // This approach allows cache to be up to date without
 // time based expiration and avoid re-fetching all
 // resources reducing bandwidth.
+//
+// There are two types of cache backends used:
+//
+// * SQLite-based in-memory used for auth nodes
+// * SQLite-based on disk persistent cache for nodes and proxies
+// providing resilliency in the face of auth servers failures.
 package cache

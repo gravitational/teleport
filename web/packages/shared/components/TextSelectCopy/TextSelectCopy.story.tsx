@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
+
 import { TextSelectCopy as Component } from './TextSelectCopy';
 
 export default {
@@ -28,10 +30,4 @@ export const BashCommand = () => {
 
 export const NonBash = () => {
   return <Component text="some text to be copied" bash={false} />;
-};
-
-export const Obfuscated = () => {
-  return (
-    <Component text="Super-secret-donot-tell-anyone" bash={false} obfuscate />
-  );
 };

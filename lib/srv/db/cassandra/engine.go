@@ -30,13 +30,11 @@ import (
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -127,7 +125,7 @@ func (e *Engine) handleClientServerConn(ctx context.Context, clientConn *protoco
 	}()
 
 	var errs []error
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
@@ -291,7 +289,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*prot
 		return nil, trace.Wrap(err)
 	}
 	tlsDialer := tls.Dialer{Config: config}
-	serverConn, err := tlsDialer.DialContext(ctx, "tcp", getEndpoint(sessionCtx.Database))
+	serverConn, err := tlsDialer.DialContext(ctx, "tcp", sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -311,22 +309,10 @@ func (e *Engine) getAuth(sessionCtx *common.Session) (handshakeHandler, error) {
 	switch {
 	case sessionCtx.Database.IsAWSHosted():
 		return &authAWSSigV4Auth{
-			ses:       sessionCtx,
-			awsConfig: e.AWSConfigProvider,
+			cloudClients: e.CloudClients,
+			ses:          sessionCtx,
 		}, nil
 	default:
 		return &basicHandshake{ses: sessionCtx}, nil
 	}
-}
-
-func getEndpoint(db types.Database) string {
-	return db.GetURI()
-}
-
-// NewEndpointsResolver returns an endpoint resolver.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	uri := getEndpoint(db)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{uri}, nil
-	}), nil
 }

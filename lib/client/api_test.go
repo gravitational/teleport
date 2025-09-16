@@ -29,7 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -44,23 +43,16 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	modules.SetInsecureTestMode(true)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cryptosuitestest.PrecomputeRSAKeys(ctx)
-	exitCode := m.Run()
-	cancel()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 var parseProxyHostTestCases = []struct {
@@ -832,39 +824,19 @@ func TestVirtualPathNames(t *testing.T) {
 		{
 			name:   "database",
 			kind:   VirtualPathDatabase,
-			params: VirtualPathDatabaseCertParams("foo"),
+			params: VirtualPathDatabaseParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_DB_FOO",
 				"TSH_VIRTUAL_PATH_DB",
 			},
 		},
 		{
-			name:   "database key",
-			kind:   VirtualPathKey,
-			params: VirtualPathDatabaseKeyParams("foo"),
-			expected: []string{
-				"TSH_VIRTUAL_PATH_KEY_DB_FOO",
-				"TSH_VIRTUAL_PATH_KEY_DB",
-				"TSH_VIRTUAL_PATH_KEY",
-			},
-		},
-		{
 			name:   "app",
-			kind:   VirtualPathAppCert,
-			params: VirtualPathAppCertParams("foo"),
+			kind:   VirtualPathApp,
+			params: VirtualPathAppParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_APP_FOO",
 				"TSH_VIRTUAL_PATH_APP",
-			},
-		},
-		{
-			name:   "app key",
-			kind:   VirtualPathKey,
-			params: VirtualPathAppKeyParams("foo"),
-			expected: []string{
-				"TSH_VIRTUAL_PATH_KEY_APP_FOO",
-				"TSH_VIRTUAL_PATH_KEY_APP",
-				"TSH_VIRTUAL_PATH_KEY",
 			},
 		},
 		{
@@ -1025,6 +997,7 @@ func TestCommandLimit(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.expected, commandLimit(context.Background(), tt.getter, tt.mfaRequired))
@@ -1038,7 +1011,7 @@ func TestRootClusterName(t *testing.T) {
 
 	rootCluster := ca.trustedCerts.ClusterName
 	leafCluster := "leaf-cluster"
-	keyRing := ca.makeSignedKeyRing(t, KeyRingIndex{
+	key := ca.makeSignedKey(t, KeyIndex{
 		ProxyHost:   "proxy.example.com",
 		ClusterName: leafCluster,
 		Username:    "teleport-user",
@@ -1051,7 +1024,7 @@ func TestRootClusterName(t *testing.T) {
 		{
 			name: "static TLS",
 			modifyCfg: func(c *Config) {
-				tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
+				tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
 				require.NoError(t, err)
 				c.TLS = tlsConfig
 			},
@@ -1059,7 +1032,7 @@ func TestRootClusterName(t *testing.T) {
 			name: "key store",
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKeyRing(keyRing)
+				err := c.ClientStore.AddKey(key)
 				require.NoError(t, err)
 			},
 		},
@@ -1086,18 +1059,18 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 	rootCA := newTestAuthority(t)
 
 	rootCluster := rootCA.trustedCerts.ClusterName
-	keyRing := rootCA.makeSignedKeyRing(t, KeyRingIndex{
+	key := rootCA.makeSignedKey(t, KeyIndex{
 		ProxyHost:   "proxy.example.com",
 		ClusterName: rootCluster,
 		Username:    "teleport-user",
 	}, false)
 
-	tlsCertPoolNoCA, err := keyRing.clientCertPool()
+	tlsCertPoolNoCA, err := key.clientCertPool()
 	require.NoError(t, err)
-	tlsCertPoolRootCA, err := keyRing.clientCertPool(rootCluster)
+	tlsCertPoolRootCA, err := key.clientCertPool(rootCluster)
 	require.NoError(t, err)
 
-	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{rootCluster})
+	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{rootCluster})
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
@@ -1118,7 +1091,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKeyRing(keyRing)
+				err := c.ClientStore.AddKey(key)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolNoCA,
@@ -1127,7 +1100,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{rootCluster},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKeyRing(keyRing)
+				err := c.ClientStore.AddKey(key)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolRootCA,
@@ -1136,7 +1109,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{"leaf-1", "leaf-2"},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKeyRing(keyRing)
+				err := c.ClientStore.AddKey(key)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolNoCA,
@@ -1505,144 +1478,4 @@ func TestNonRetryableError(t *testing.T) {
 	assert.True(t, IsNonRetryableError(err))
 	assert.True(t, trace.IsAccessDenied(err))
 	assert.Equal(t, orgError, err.Unwrap())
-}
-
-func TestWarningAboutIncompatibleClientVersion(t *testing.T) {
-	tests := []struct {
-		name            string
-		clientVersion   string
-		serverVersion   string
-		expectedWarning string
-	}{
-		{
-			name:          "client on a higher major version than server triggers a warning",
-			clientVersion: "17.0.0",
-			serverVersion: "16.0.0",
-			expectedWarning: `
-WARNING
-Detected potentially incompatible client and server versions.
-Maximum client version supported by the server is 16.x.x but you are using 17.0.0.
-Please downgrade tsh to 16.x.x or use the --skip-version-check flag to bypass this check.
-Future versions of tsh will fail when incompatible versions are detected.
-
-`,
-		},
-		{
-			name:          "client on a too low major version compared to server triggers a warning",
-			clientVersion: "16.4.0",
-			serverVersion: "18.0.0",
-			expectedWarning: `
-WARNING
-Detected potentially incompatible client and server versions.
-Minimum client version supported by the server is 17.0.0 but you are using 16.4.0.
-Please upgrade tsh to 17.0.0 or newer or use the --skip-version-check flag to bypass this check.
-Future versions of tsh will fail when incompatible versions are detected.
-
-`,
-		},
-		{
-			name:            "client on a higher minor version than server does not trigger a warning",
-			clientVersion:   "17.1.0",
-			serverVersion:   "17.0.0",
-			expectedWarning: "",
-		},
-		{
-			name:            "client on a lower major version than server does not trigger a warning",
-			clientVersion:   "17.0.0",
-			serverVersion:   "18.0.0",
-			expectedWarning: "",
-		},
-		{
-			name:            "client and server on the same version do not trigger a warning",
-			clientVersion:   "18.0.0",
-			serverVersion:   "18.0.0",
-			expectedWarning: "",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			minClientVersion, err := semver.NewVersion(test.serverVersion)
-			require.NoError(t, err)
-			minClientVersion.Major = minClientVersion.Major - 1
-			// Mirror what happens with teleport.MinClientSemVer.
-			minClientVersion.PreRelease = "aa"
-			warning, err := getClientIncompatibilityWarning(Versions{
-				MinClient: minClientVersion.String(),
-				Client:    test.clientVersion,
-				Server:    test.serverVersion,
-			})
-			require.NoError(t, err)
-			require.Equal(t, test.expectedWarning, warning)
-		})
-	}
-}
-
-func TestParsePortMapping(t *testing.T) {
-	tests := []struct {
-		in      string
-		want    PortMapping
-		wantErr bool
-	}{
-		{
-			in:   "",
-			want: PortMapping{},
-		},
-		{
-			in:   "1337",
-			want: PortMapping{LocalPort: 1337},
-		},
-		{
-			in:   "1337:42",
-			want: PortMapping{LocalPort: 1337, TargetPort: 42},
-		},
-		{
-			in:   "0:0",
-			want: PortMapping{},
-		},
-		{
-			in:   "0:42",
-			want: PortMapping{TargetPort: 42},
-		},
-		{
-			in:      " ",
-			wantErr: true,
-		},
-		{
-			in:      "1337:",
-			wantErr: true,
-		},
-		{
-			in:      ":42",
-			wantErr: true,
-		},
-		{
-			in:      "13371337",
-			wantErr: true,
-		},
-		{
-			in:      "42:73317331",
-			wantErr: true,
-		},
-		{
-			in:      "1337:42:42",
-			wantErr: true,
-		},
-		{
-			in:      "1337:42:",
-			wantErr: true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.in, func(t *testing.T) {
-			out, err := ParsePortMapping(test.in)
-			if test.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, test.want, out)
-			}
-		})
-	}
 }

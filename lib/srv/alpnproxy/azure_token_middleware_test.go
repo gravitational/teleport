@@ -31,46 +31,48 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestAzureTokenMiddlewareHandleRequest(t *testing.T) {
 	t.Parallel()
-	for _, alg := range []cryptosuites.Algorithm{cryptosuites.RSA2048, cryptosuites.ECDSAP256} {
-		for _, endpoint := range []struct {
-			name              string
-			endpoint          string
-			resourceFieldName string
-			secret            func(string) azureRequestModifier
-		}{
-			{name: "msi", endpoint: types.TeleportAzureMSIEndpoint, resourceFieldName: MSIResourceFieldName, secret: msiSecretModifier},
-			{name: "identity", endpoint: types.TeleportAzureIdentityEndpoint, resourceFieldName: IdentityResourceFieldName, secret: identitySecretModifier},
-		} {
-			t.Run(alg.String()+"_"+endpoint.name, func(t *testing.T) {
-				testAzureTokenMiddlewareHandleRequest(t, alg, endpoint.endpoint, endpoint.secret, endpoint.resourceFieldName)
-			})
-		}
+	for _, endpoint := range []struct {
+		name              string
+		endpoint          string
+		resourceFieldName string
+		secret            func(string) azureRequestModifier
+	}{
+		{name: "msi", endpoint: types.TeleportAzureMSIEndpoint, resourceFieldName: MSIResourceFieldName, secret: msiSecretModifier},
+		{name: "identity", endpoint: types.TeleportAzureIdentityEndpoint, resourceFieldName: IdentityResourceFieldName, secret: identitySecretModifier},
+	} {
+		t.Run(endpoint.name, func(t *testing.T) {
+			testAzureTokenMiddlewareHandleRequest(t, endpoint.endpoint, endpoint.secret, endpoint.resourceFieldName)
+		})
 	}
 }
 
-func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorithm, endpoint string, endpointSecret func(string) azureRequestModifier, resourceFieldName string) {
+func testAzureTokenMiddlewareHandleRequest(t *testing.T, endpoint string, endpointSecret func(string) azureRequestModifier, resourceFieldName string) {
 	newPrivateKey := func() crypto.Signer {
-		privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
+		_, privateBytes, err := jwt.GenerateKeyPair()
+		require.NoError(t, err)
+		privateKey, err := keys.ParsePrivateKey(privateBytes)
 		require.NoError(t, err)
 		return privateKey
 	}
-	privateKey := newPrivateKey()
 	m := &AzureTokenMiddleware{
 		Identity: "azureTestIdentity",
 		TenantID: "cafecafe-cafe-4aaa-cafe-cafecafecafe",
 		ClientID: "decaffff-cafe-4aaa-cafe-cafecafecafe",
-		Log:      logtest.NewLogger(),
+		Log:      logrus.WithField(teleport.ComponentKey, "msi"),
 		Clock:    clockwork.NewFakeClockAt(time.Date(2022, 1, 1, 9, 0, 0, 0, time.UTC)),
+		Key:      newPrivateKey(),
 		Secret:   "my-secret",
 	}
 	require.NoError(t, m.CheckAndSetDefaults())
@@ -80,7 +82,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 		url            string
 		params         map[string]string
 		headers        map[string]string
-		privateKey     crypto.Signer
 		secretFunc     azureRequestModifier
 		expectedHandle bool
 		expectedCode   int
@@ -90,7 +91,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 		{
 			name:           "ignore non-msi requests",
 			url:            "https://graph.windows.net/foo/bar/baz",
-			privateKey:     privateKey,
 			expectedHandle: false,
 		},
 		{
@@ -98,7 +98,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 			url:            endpoint,
 			headers:        map[string]string{},
 			secretFunc:     endpointSecret("bad-secret"),
-			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"invalid secret\"\n    }\n}",
@@ -108,7 +107,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 			url:            endpoint,
 			headers:        map[string]string{},
 			secretFunc:     emptySecretMethod,
-			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"invalid secret\"\n    }\n}",
@@ -118,7 +116,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 			url:            endpoint,
 			headers:        map[string]string{},
 			secretFunc:     endpointSecret("my-secret"),
-			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"expected Metadata header with value 'true'\"\n    }\n}",
@@ -128,7 +125,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 			url:            endpoint,
 			headers:        map[string]string{"Metadata": "false"},
 			secretFunc:     endpointSecret("my-secret"),
-			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"expected Metadata header with value 'true'\"\n    }\n}",
@@ -138,7 +134,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 			url:            endpoint,
 			headers:        map[string]string{"Metadata": "true"},
 			secretFunc:     endpointSecret("my-secret"),
-			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"missing value for parameter 'resource'\"\n    }\n}",
@@ -151,7 +146,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 				resourceFieldName: "azureTestIdentity",
 			},
 			secretFunc:     endpointSecret("my-secret"),
-			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   "{\n    \"error\": {\n        \"message\": \"missing value for parameter 'resource'\"\n    }\n}",
@@ -164,7 +158,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 				"resource": "myresource",
 			},
 			secretFunc:     endpointSecret("my-secret"),
-			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   fmt.Sprintf("{\n    \"error\": {\n        \"message\": \"unexpected value for parameter '%s': \"\n    }\n}", resourceFieldName),
@@ -178,7 +171,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 				"resource":        "myresource",
 			},
 			secretFunc:     endpointSecret("my-secret"),
-			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   400,
 			expectedBody:   fmt.Sprintf("{\n    \"error\": {\n        \"message\": \"unexpected value for parameter '%s': azureTestWrongIdentity\"\n    }\n}", resourceFieldName),
@@ -192,7 +184,6 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 				"resource":        "myresource",
 			},
 			secretFunc:     endpointSecret("my-secret"),
-			privateKey:     privateKey,
 			expectedHandle: true,
 			expectedCode:   200,
 			verifyBody: func(t *testing.T, body []byte) {
@@ -223,13 +214,14 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 					key, err := jwt.New(&jwt.Config{
 						Clock:       m.Clock,
 						PrivateKey:  pk,
+						Algorithm:   defaults.ApplicationTokenAlgorithm,
 						ClusterName: types.TeleportAzureMSIEndpoint,
 					})
 					require.NoError(t, err)
 					return key.VerifyAzureToken(token)
 				}
 
-				claims, err := fromJWT(req.AccessToken, privateKey)
+				claims, err := fromJWT(req.AccessToken, m.Key)
 				require.NoError(t, err)
 				require.Equal(t, jwt.AzureTokenClaims{
 					TenantID: "cafecafe-cafe-4aaa-cafe-cafecafecafe",
@@ -249,26 +241,10 @@ func testAzureTokenMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algori
 				require.Equal(t, expected.NotBefore, req.NotBefore)
 			},
 		},
-		{
-			name:    "no private key set",
-			url:     endpoint,
-			headers: map[string]string{"Metadata": "true"},
-			params: map[string]string{
-				resourceFieldName: "azureTestIdentity",
-				"resource":        "myresource",
-			},
-			secretFunc:     endpointSecret("my-secret"),
-			privateKey:     nil,
-			expectedHandle: true,
-			expectedCode:   500,
-			expectedBody:   "{\n    \"error\": {\n        \"message\": \"missing private key set in AzureTokenMiddleware\"\n    }\n}",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m.SetPrivateKey(tt.privateKey)
-
 			params := url.Values{}
 			for name, value := range tt.params {
 				params.Set(name, value)

@@ -30,11 +30,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 
 	// Skip this test if the binary was not built with PAM support.
 	if !BuildHasPAM() || !SystemHasPAM() {
@@ -57,7 +57,7 @@ func TestMain(m *testing.M) {
 // The PAM module used, pam_teleport.so is called from the policy file
 // teleport-acct-echo. The policy file instructs pam_teleport.so to echo the
 // contents of TELEPORT_* to stdout where this test can read, parse, and
-// validate its output.
+// validate it's output.
 func TestEcho(t *testing.T) {
 	t.Parallel()
 	checkTestModule(t, "teleport-acct-echo")

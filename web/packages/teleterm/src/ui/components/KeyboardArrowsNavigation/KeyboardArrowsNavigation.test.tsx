@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  createRef,
+import React, {
   forwardRef,
   ReactNode,
   useCallback,
@@ -154,7 +153,7 @@ test('activeIndex can be changed manually', () => {
     }
   );
 
-  const ref = createRef<any>();
+  const ref = React.createRef<any>();
 
   const { container } = render(
     <KeyboardArrowsNavigation>

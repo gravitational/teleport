@@ -45,7 +45,7 @@ func (s *DatabaseObjectService) UpsertDatabaseObject(ctx context.Context, object
 }
 
 func (s *DatabaseObjectService) UpdateDatabaseObject(ctx context.Context, object *dbobjectv1.DatabaseObject) (*dbobjectv1.DatabaseObject, error) {
-	out, err := s.service.UnconditionalUpdateResource(ctx, object)
+	out, err := s.service.UpdateResource(ctx, object)
 	return out, trace.Wrap(err)
 }
 
@@ -72,12 +72,12 @@ const (
 	databaseObjectPrefix = "databaseObjectPrefix"
 )
 
-func NewDatabaseObjectService(b backend.Backend) (*DatabaseObjectService, error) {
+func NewDatabaseObjectService(backend backend.Backend) (*DatabaseObjectService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceConfig[*dbobjectv1.DatabaseObject]{
-			Backend:       b,
+		generic.ServiceWrapperConfig[*dbobjectv1.DatabaseObject]{
+			Backend:       backend,
 			ResourceKind:  types.KindDatabaseObject,
-			BackendPrefix: backend.NewKey(databaseObjectPrefix),
+			BackendPrefix: databaseObjectPrefix,
 			//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
 			MarshalFunc: services.FastMarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject],
 			//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.

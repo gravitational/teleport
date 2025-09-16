@@ -20,36 +20,25 @@ package web
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	authproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client"
-	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -92,7 +81,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "protocol",
 				URI:      "uri",
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -104,7 +93,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "",
 				URI:      "uri",
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -116,7 +105,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "protocol",
 				URI:      "",
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -133,7 +122,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:      "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -150,7 +139,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:     "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -167,7 +156,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:      "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -184,7 +173,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					Subnets:    []string{"subnet-123", "subnet-321"},
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -238,7 +227,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: strPtr(""),
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -248,7 +237,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: strPtr("ca_cert"),
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -415,66 +404,6 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	require.Equal(t, &types.Labels{"env": []string{"prod"}}, respResourceMatcher.Labels)
 }
 
-type listDatabaseServerResp struct {
-	Items []types.DatabaseServerV3 `json:"items"`
-}
-
-func TestHandleDatabaseServerGet(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	user := "user"
-	roleDatabaseServer, err := types.NewRole(services.RoleNameForUser(user), types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			Rules: []types.Rule{
-				types.NewRule(types.KindDatabaseServer,
-					[]string{types.VerbRead, types.VerbList}),
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, user, []types.Role{roleDatabaseServer})
-
-	var listDBServerResp listDatabaseServerResp
-
-	// No database server exists
-	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databaseservers"), nil)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
-	require.NoError(t, json.Unmarshal(resp.Bytes(), &listDBServerResp))
-
-	require.Empty(t, listDBServerResp.Items)
-
-	// Adding one database server
-	dbServiceName := uuid.NewString()
-	dbService001, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "postgres",
-	}, types.DatabaseServerSpecV3{HostID: dbServiceName, Hostname: "some-hostname",
-		Database: &types.DatabaseV3{Metadata: types.Metadata{Name: "postgres"},
-			Spec: types.DatabaseSpecV3{Protocol: "postgres", URI: "some-uri"}}})
-	require.NoError(t, err)
-
-	_, err = env.server.Auth().UpsertDatabaseServer(ctx, dbService001)
-	require.NoError(t, err)
-
-	// The API returns one database server.
-	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databaseservers"), nil)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
-	require.NoError(t, json.Unmarshal(resp.Bytes(), &listDBServerResp))
-
-	dbServers := listDBServerResp.Items
-	require.Len(t, dbServers, 1)
-	respDBServer := dbServers[0]
-
-	require.Equal(t, dbServiceName, respDBServer.GetHostID())
-	require.Equal(t, "some-hostname", respDBServer.GetHostname())
-}
-
 func TestHandleSQLServerConfigureScript(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
@@ -593,259 +522,6 @@ func TestHandleSQLServerConfigureScriptDatabaseURIEscaped(t *testing.T) {
 			require.Contains(t, escapedURIResult[1], url.QueryEscape(c))
 		})
 	}
-}
-
-func TestConnectDatabaseInteractiveSession(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	forwardedClientAddr := "1.2.3.4"
-	databaseProtocol := defaults.ProtocolPostgres
-
-	// Use a mock REPL and modify it adding the additional configuration when
-	// it is set.
-	repl := &mockDatabaseREPL{message: "hello from repl"}
-
-	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		disableDiskBasedRecording: true,
-		authPreferenceSpec: &types.AuthPreferenceSpecV2{
-			Type:           constants.Local,
-			ConnectorName:  constants.PasswordlessConnector,
-			SecondFactor:   constants.SecondFactorOn,
-			RequireMFAType: types.RequireMFAType_SESSION,
-			Webauthn: &types.Webauthn{
-				RPID: "localhost",
-			},
-		},
-		databaseREPLGetter: &mockDatabaseREPLRegistry{
-			repl: map[string]dbrepl.REPLNewFunc{
-				databaseProtocol: func(ctx context.Context, c *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
-					repl.setConfig(c)
-					return repl, nil
-				},
-			},
-		},
-		alpnHandler: func(ctx context.Context, conn net.Conn) error {
-			// mock repl will not send any actual data. just verify the
-			// forwarded address.
-			defer conn.Close()
-			if conn.RemoteAddr().String() != forwardedClientAddr {
-				return trace.CompareFailed("expecting address %v, got %v", forwardedClientAddr, conn.RemoteAddr())
-			}
-			return nil
-		},
-		trustXForwardedFor: true,
-	})
-	s.webHandler.handler.cfg.PublicProxyAddr = s.webHandler.handler.cfg.ProxyWebAddr.String()
-
-	accessRole, err := types.NewRole("access", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseNames:  []string{types.Wildcard},
-			DatabaseUsers:  []string{types.Wildcard},
-		},
-	})
-	require.NoError(t, err)
-	pack := s.authPackWithMFA(t, "user", accessRole)
-
-	databaseName := "db"
-	selfHosted, err := types.NewDatabaseV3(types.Metadata{
-		Name: databaseName,
-	}, types.DatabaseSpecV3{
-		Protocol: databaseProtocol,
-		URI:      "localhost:12345",
-	})
-	require.NoError(t, err)
-
-	_, err = s.server.Auth().UpsertDatabaseServer(ctx, mustCreateDatabaseServer(t, selfHosted))
-	require.NoError(t, err)
-	tests := []struct {
-		desc    string
-		replErr error
-	}{
-		{
-			desc: "success",
-		},
-		{
-			desc:    "errors are sent to the user",
-			replErr: trace.Errorf("database connection interrupted by unexpected llama crossing"),
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			repl.setError(test.replErr)
-			u := url.URL{
-				Host:   s.webServer.Listener.Addr().String(),
-				Scheme: client.WSS,
-				Path:   fmt.Sprintf("/v1/webapi/sites/%s/db/exec/ws", s.server.ClusterName()),
-			}
-
-			header := http.Header{}
-			header.Add(xForwardedForHeader, "1.2.3.4")
-			for _, cookie := range pack.cookies {
-				header.Add("Cookie", cookie.String())
-			}
-
-			dialer := websocket.Dialer{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			}
-
-			ws, resp, err := dialer.DialContext(ctx, u.String(), header)
-			require.NoError(t, err)
-			defer ws.Close()
-			require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
-			require.NoError(t, resp.Body.Close())
-			require.NoError(t, makeAuthReqOverWS(ws, pack.session.Token))
-
-			req := DatabaseSessionRequest{
-				Protocol:      databaseProtocol,
-				ServiceName:   databaseName,
-				DatabaseName:  "postgres",
-				DatabaseUser:  "postgres",
-				DatabaseRoles: []string{"reader"},
-			}
-			encodedReq, err := json.Marshal(req)
-			require.NoError(t, err)
-			reqWebSocketMessage, err := proto.Marshal(&terminal.Envelope{
-				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketDatabaseSessionRequest,
-				Payload: string(encodedReq),
-			})
-			require.NoError(t, err)
-			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, reqWebSocketMessage))
-
-			performMFACeremonyWS(t, ws, pack)
-
-			// After the MFA is performed we expect the WebSocket to receive the
-			// session data information.
-			sessionData := receiveWSMessage(t, ws)
-			require.Equal(t, defaults.WebsocketSessionMetadata, sessionData.Type)
-
-			// Assert data written by the REPL comes as raw data.
-			replResp := receiveWSMessage(t, ws)
-			if test.replErr != nil {
-				require.Equal(t, defaults.WebsocketError, replResp.Type)
-				require.Equal(t, test.replErr.Error(), replResp.Payload)
-			} else {
-				require.Equal(t, defaults.WebsocketRaw, replResp.Type)
-				require.Equal(t, repl.message, replResp.Payload)
-			}
-			require.NoError(t, ws.Close())
-			require.True(t, repl.getClosed(), "expected REPL instance to be closed after websocket.Conn is closed")
-		})
-	}
-}
-
-func receiveWSMessage(t *testing.T, ws *websocket.Conn) terminal.Envelope {
-	t.Helper()
-
-	typ, raw, err := ws.ReadMessage()
-	require.NoError(t, err)
-	require.Equal(t, websocket.BinaryMessage, typ)
-	var env terminal.Envelope
-	require.NoError(t, proto.Unmarshal(raw, &env))
-	return env
-}
-
-func performMFACeremonyWS(t *testing.T, ws *websocket.Conn, pack *authPack) {
-	t.Helper()
-
-	ty, raw, err := ws.ReadMessage()
-	require.NoError(t, err)
-	require.Equal(t, websocket.BinaryMessage, ty, "got unexpected websocket message type %d", ty)
-
-	var env terminal.Envelope
-	require.NoError(t, proto.Unmarshal(raw, &env))
-
-	var challenge client.MFAAuthenticateChallenge
-	require.NoError(t, json.Unmarshal([]byte(env.Payload), &challenge))
-
-	res, err := pack.device.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
-	})
-	require.NoError(t, err)
-
-	webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-	require.NoError(t, err)
-
-	envelopeBytes, err := proto.Marshal(&terminal.Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketMFAChallenge,
-		Payload: string(webauthnResBytes),
-	})
-	require.NoError(t, err)
-	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
-}
-
-type mockDatabaseREPLRegistry struct {
-	repl map[string]dbrepl.REPLNewFunc
-}
-
-// NewInstance implements repl.REPLGetter.
-func (m *mockDatabaseREPLRegistry) NewInstance(ctx context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
-	if replFunc, ok := m.repl[cfg.Route.Protocol]; ok {
-		return replFunc(ctx, cfg)
-	}
-
-	return nil, trace.NotImplemented("not supported")
-}
-
-// IsSupported implements repl.REPLGetter.
-func (m *mockDatabaseREPLRegistry) IsSupported(protocol string) bool {
-	_, supported := m.repl[protocol]
-	return supported
-}
-
-type mockDatabaseREPL struct {
-	mu      sync.Mutex
-	message string
-	err     error
-	cfg     *dbrepl.NewREPLConfig
-	closed  bool
-}
-
-func (m *mockDatabaseREPL) setError(err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.err = err
-}
-
-func (m *mockDatabaseREPL) Run(_ context.Context) error {
-	m.mu.Lock()
-	defer func() {
-		m.closeLocked()
-		m.mu.Unlock()
-	}()
-
-	if m.err != nil {
-		return trace.Wrap(m.err)
-	}
-
-	if _, err := m.cfg.Client.Write([]byte(m.message)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := m.cfg.ServerConn.Write([]byte("Hello")); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (m *mockDatabaseREPL) setConfig(c *dbrepl.NewREPLConfig) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.cfg = c
-}
-
-func (m *mockDatabaseREPL) getClosed() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.closed
-}
-
-func (m *mockDatabaseREPL) closeLocked() {
-	m.closed = true
 }
 
 func mustCreateDatabaseServer(t *testing.T, db *types.DatabaseV3) types.DatabaseServer {

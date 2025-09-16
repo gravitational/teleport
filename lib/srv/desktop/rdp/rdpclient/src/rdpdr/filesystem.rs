@@ -1782,7 +1782,7 @@ impl FileCacheObject {
 /// FileCacheObject is used as an iterator for the implementation of
 /// IRP_MJ_DIRECTORY_CONTROL, which requires that we iterate through
 /// all the files of a directory one by one. In this case, the directory
-/// is the FileCacheObject itself, with its own fso field representing
+/// is the FileCacheObject itself, with it's own fso field representing
 /// the directory, and its contents being represented by tdp::FileSystemObject's
 /// in its contents field.
 ///

@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGenerateServiceWithTaskDefinition(t *testing.T) {
@@ -161,10 +161,10 @@ func TestUpdateDeployServices(t *testing.T) {
 	clusterName := "my-cluster"
 	integrationName := "my-integration"
 	ownershipTags := defaultResourceCreationTags(clusterName, integrationName)
-	semVer := teleport.SemVer()
+	semVer := *teleport.SemVersion
 	semVer.PreRelease = ""
 	teleportVersion := semVer.String()
-	log := logtest.With("test", t.Name())
+	log := utils.NewSlogLoggerForTests().With("test", t.Name())
 
 	t.Run("only legacy service present", func(t *testing.T) {
 		m := &mockDeployServiceClient{

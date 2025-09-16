@@ -20,7 +20,7 @@ package track
 
 import (
 	"fmt"
-	"math/rand/v2"
+	pr "math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -36,7 +36,7 @@ type simpleTestProxies struct {
 func (s *simpleTestProxies) AddRandProxies(n int, min time.Duration, max time.Duration) {
 	s.Lock()
 	defer s.Unlock()
-	for range n {
+	for i := 0; i < n; i++ {
 		proxy := newTestProxy(prDuration(min, max))
 		s.proxies = append(s.proxies, proxy)
 	}
@@ -52,7 +52,7 @@ func (s *simpleTestProxies) RemoveRandProxies(n int) {
 	rms := make([]bool, len(s.proxies))
 	rmc := 0
 	for rmc < n {
-		i := rand.N(len(s.proxies))
+		i := pr.Int() % len(s.proxies)
 		if !rms[i] {
 			rms[i] = true
 			rmc++
@@ -74,7 +74,7 @@ func (s *simpleTestProxies) GetRandProxy() (p testProxy, ok bool) {
 		ok = false
 		return
 	}
-	i := rand.N(len(s.proxies))
+	i := pr.Int() % len(s.proxies)
 	return s.proxies[i], true
 }
 
@@ -119,19 +119,24 @@ type testProxy struct {
 
 func newTestProxy(life time.Duration) testProxy {
 	principals := make([]string, 0, 3)
-	for range 3 {
-		p := fmt.Sprintf("proxy-%d", rand.Int())
+	for i := 0; i < 3; i++ {
+		p := fmt.Sprintf("proxy-%d", pr.Int())
 		principals = append(principals, p)
 	}
 	return testProxy{principals, life}
 }
 
 func prDuration(min time.Duration, max time.Duration) time.Duration {
-	return min + rand.N(max-min)
+	mn, mx := int64(min), int64(max)
+	rslt := pr.Int63n(mx-mn) + mn
+	return time.Duration(rslt)
 }
 
 func jitter(t time.Duration) time.Duration {
-	return t + rand.N(t/5)
+	maxJitter := t / 5
+	baseJitter := time.Duration(pr.Uint64())
+	j := baseJitter % maxJitter
+	return t + j
 }
 
 func TestBasic(t *testing.T) {

@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"io"
-	"maps"
 	"net"
 	"os/user"
 	"slices"
@@ -32,6 +31,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -39,7 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -51,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestIsApprovedFileTransfer(t *testing.T) {
@@ -79,10 +79,10 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		},
 	})
 	auditorRoleSet := services.NewRoleSet(auditorRole)
-	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet, &decisionpb.SSHAccessPermit{})
+	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet)
 	// change the teleport user so we don't match the user in the test cases
 	auditScx.Identity.TeleportUser = "mod"
-	auditSess, _ := testOpenSession(t, reg, auditorRoleSet, &decisionpb.SSHAccessPermit{})
+	auditSess, _ := testOpenSession(t, reg, auditorRoleSet)
 	approvers := make(map[string]*party)
 	auditChan := newMockSSHChannel()
 	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, auditChan, auditScx)
@@ -158,13 +158,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			// create and add a session to the registry
-			sess, _ := testOpenSession(t, reg, accessRoleSet, &decisionpb.SSHAccessPermit{})
+			sess, _ := testOpenSession(t, reg, accessRoleSet)
 
 			// create a FileTransferRequest. can be nil
 			sess.fileTransferReq = tt.req
 
 			// new exec request context
-			scx := newTestServerContext(t, reg.Srv, accessRoleSet, &decisionpb.SSHAccessPermit{})
+			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
 			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
@@ -194,9 +194,11 @@ func TestSession_newRecorder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	logger := logtest.NewLogger()
+	logger := logrus.WithFields(logrus.Fields{
+		teleport.ComponentKey: teleport.ComponentAuth,
+	})
 
-	isNotSessionWriter := func(t require.TestingT, i any, i2 ...any) {
+	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
 		_, ok := i.(*events.SessionWriter)
 		require.False(t, ok)
@@ -212,10 +214,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream-when-proxy-recording",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -226,9 +228,6 @@ func TestSession_newRecorder(t *testing.T) {
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecording,
 				term:                   &terminal{},
-				Identity: IdentityContext{
-					AccessPermit: &decisionpb.SSHAccessPermit{},
-				},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -236,10 +235,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "discard-stream--when-proxy-sync-recording",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -250,9 +249,6 @@ func TestSession_newRecorder(t *testing.T) {
 			sctx: &ServerContext{
 				SessionRecordingConfig: proxyRecordingSync,
 				term:                   &terminal{},
-				Identity: IdentityContext{
-					AccessPermit: &decisionpb.SSHAccessPermit{},
-				},
 			},
 			errAssertion: require.NoError,
 			recAssertion: isNotSessionWriter,
@@ -260,10 +256,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "strict-err-new-audit-writer-fails",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -278,9 +274,20 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 				term: &terminal{},
 				Identity: IdentityContext{
-					AccessPermit: &decisionpb.SSHAccessPermit{
-						SessionRecordingMode: string(constants.SessionRecordingModeStrict),
-					},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV6{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV6{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeStrict,
+									},
+								},
+							},
+						},
+					}),
 				},
 			},
 			errAssertion: require.Error,
@@ -289,10 +296,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "best-effort-err-new-audit-writer-succeeds",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -308,14 +315,25 @@ func TestSession_newRecorder(t *testing.T) {
 					datadir:   t.TempDir(),
 				},
 				Identity: IdentityContext{
-					AccessPermit: &decisionpb.SSHAccessPermit{
-						SessionRecordingMode: string(constants.SessionRecordingModeBestEffort),
-					},
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV6{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV6{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeBestEffort,
+									},
+								},
+							},
+						},
+					}),
 				},
 				term: &terminal{},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i any, _ ...any) {
+			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -325,10 +343,10 @@ func TestSession_newRecorder(t *testing.T) {
 		{
 			desc: "audit-writer",
 			sess: &session{
-				id:     "test",
-				logger: logger,
+				id:  "test",
+				log: logger,
 				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -343,13 +361,10 @@ func TestSession_newRecorder(t *testing.T) {
 					MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 					datadir:             t.TempDir(),
 				},
-				Identity: IdentityContext{
-					AccessPermit: &decisionpb.SSHAccessPermit{},
-				},
 				term: &terminal{},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i any, i2 ...any) {
+			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -370,7 +385,9 @@ func TestSession_newRecorder(t *testing.T) {
 func TestSession_emitAuditEvent(t *testing.T) {
 	t.Parallel()
 
-	logger := logtest.NewLogger()
+	logger := logrus.WithFields(logrus.Fields{
+		teleport.ComponentKey: teleport.ComponentAuth,
+	})
 
 	t.Run("FallbackConcurrency", func(t *testing.T) {
 		srv := newMockServer(t)
@@ -382,15 +399,15 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		t.Cleanup(func() { reg.Close() })
 
 		sess := &session{
-			id:     "test",
-			logger: logger,
+			id:  "test",
+			log: logger,
 			recorder: &mockRecorder{
 				SessionPreparerRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
 				done:                    true,
 			},
 			emitter:  srv,
 			registry: reg,
-			scx:      newTestServerContext(t, srv, nil, nil),
+			scx:      newTestServerContext(t, srv, nil),
 		}
 
 		controlCh := make(chan struct{})
@@ -418,8 +435,6 @@ func TestSession_emitAuditEvent(t *testing.T) {
 func TestInteractiveSession(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 	t.Cleanup(func() { require.NoError(t, srv.auth.Close()) })
@@ -433,7 +448,7 @@ func TestInteractiveSession(t *testing.T) {
 
 	// Create a server context with an overridden recording mode
 	// so that sessions are recorded with the test emitter.
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+	scx := newTestServerContext(t, reg.Srv, nil)
 	rcfg := types.DefaultSessionRecordingConfig()
 	rcfg.SetMode(types.RecordAtNodeSync)
 	scx.SessionRecordingConfig = rcfg
@@ -450,11 +465,11 @@ func TestInteractiveSession(t *testing.T) {
 		// Consume stdout sent to the channel
 		io.ReadAll(sshChanOpen)
 	}()
-	require.NoError(t, reg.OpenSession(ctx, sshChanOpen, scx))
+	require.NoError(t, reg.OpenSession(context.Background(), sshChanOpen, scx))
 	require.NotNil(t, scx.session)
 
 	// Simulate changing window size to capture an additional event.
-	require.NoError(t, reg.NotifyWinChange(ctx, rsession.TerminalParams{W: 100, H: 100}, scx))
+	require.NoError(t, reg.NotifyWinChange(context.Background(), rsession.TerminalParams{W: 100, H: 100}, scx))
 
 	// Stopping the session should trigger the session
 	// to end and cleanup in the background
@@ -508,8 +523,6 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("without BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
 		t.Cleanup(func() { require.NoError(t, srv.auth.Close()) })
@@ -523,7 +536,7 @@ func TestNonInteractiveSession(t *testing.T) {
 
 		// Create a server context with an overridden recording mode
 		// so that sessions are recorded with the test emitter.
-		scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+		scx := newTestServerContext(t, reg.Srv, nil)
 		rcfg := types.DefaultSessionRecordingConfig()
 		rcfg.SetMode(types.RecordAtNodeSync)
 		scx.SessionRecordingConfig = rcfg
@@ -537,7 +550,7 @@ func TestNonInteractiveSession(t *testing.T) {
 			// Consume stdout sent to the channel
 			io.ReadAll(sshChanOpen)
 		}()
-		require.NoError(t, reg.OpenExecSession(ctx, sshChanOpen, scx))
+		require.NoError(t, reg.OpenExecSession(context.Background(), sshChanOpen, scx))
 		require.NotNil(t, scx.session)
 
 		// Wait for the command execution to complete and the session to be terminated.
@@ -570,8 +583,6 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("with BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
-
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
 		// Modify bpf to "enable" enhanced recording. This should
@@ -588,7 +599,7 @@ func TestNonInteractiveSession(t *testing.T) {
 
 		// Create a server context with an overridden recording mode
 		// so that sessions are recorded with the test emitter.
-		scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+		scx := newTestServerContext(t, reg.Srv, nil)
 		rcfg := types.DefaultSessionRecordingConfig()
 		rcfg.SetMode(types.RecordAtNodeSync)
 		scx.SessionRecordingConfig = rcfg
@@ -602,7 +613,7 @@ func TestNonInteractiveSession(t *testing.T) {
 			// Consume stdout sent to the channel
 			io.ReadAll(sshChanOpen)
 		}()
-		require.NoError(t, reg.OpenExecSession(ctx, sshChanOpen, scx))
+		require.NoError(t, reg.OpenExecSession(context.Background(), sshChanOpen, scx))
 		require.NotNil(t, scx.session)
 
 		// Wait for the command execution to complete and the session to be terminated.
@@ -676,7 +687,7 @@ func TestStopUnstarted(t *testing.T) {
 	require.NoError(t, err)
 
 	roles := services.NewRoleSet(role)
-	sess, _ := testOpenSession(t, reg, roles, &decisionpb.SSHAccessPermit{})
+	sess, _ := testOpenSession(t, reg, roles)
 
 	// Stopping the session should trigger the session
 	// to end and cleanup in the background
@@ -708,7 +719,7 @@ func TestParties(t *testing.T) {
 	t.Cleanup(func() { reg.Close() })
 
 	// Create a session with 3 parties
-	sess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
+	sess, _ := testOpenSession(t, reg, nil)
 	require.Len(t, sess.getParties(), 1)
 	testJoinSession(t, reg, sess)
 	require.Len(t, sess.getParties(), 2)
@@ -726,15 +737,7 @@ func TestParties(t *testing.T) {
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
-
-	// TODO(Joerger): Closing the host party's server context will result in the terminal
-	// shell being killed, and the session ending for all parties. Once this bug is
-	// fixed, we can re-enable this section of the test. For now just close the party.
-	// https://github.com/gravitational/teleport/issues/46308
-	//
-	// require.NoError(t, p.ctx.Close())
-
-	require.NoError(t, p.Close())
+	require.NoError(t, p.ctx.Close())
 
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
@@ -775,9 +778,9 @@ func TestParties(t *testing.T) {
 }
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+	scx := newTestServerContext(t, reg.Srv, nil)
 	sshChanOpen := newMockSSHChannel()
-	scx.setSession(t.Context(), sess, sshChanOpen)
+	scx.setSession(sess, sshChanOpen)
 
 	// Open a new session
 	go func() {
@@ -785,7 +788,7 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(t.Context(), sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 }
 
@@ -819,8 +822,17 @@ func TestSessionRecordingModes(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { reg.Close() })
 
-			sess, sessCh := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{
-				SessionRecordingMode: string(tt.sessionRecordingMode),
+			sess, sessCh := testOpenSession(t, reg, services.RoleSet{
+				&types.RoleV6{
+					Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							RecordSession: &types.RecordSession{
+								SSH: tt.sessionRecordingMode,
+							},
+						},
+					},
+				},
 			})
 
 			// Write stuff in the session
@@ -844,24 +856,32 @@ func TestSessionRecordingModes(t *testing.T) {
 			require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 
 			// Wait until server receives all non-print events.
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				// Events can appear in different orders. Use a set to track.
-				eventsNotReceived := map[string]struct{}{
-					events.SessionStartEvent: {},
-					events.SessionLeaveEvent: {},
-					events.SessionEndEvent:   {},
+			checkEventsReceived := func() bool {
+				expectedEventTypes := []string{
+					events.SessionStartEvent,
+					events.SessionLeaveEvent,
+					events.SessionEndEvent,
 				}
-				for _, e := range srv.Events() {
+
+				emittedEvents := srv.Events()
+				if len(emittedEvents) != len(expectedEventTypes) {
+					return false
+				}
+
+				// Events can appear in different orders. Use a set to track.
+				eventsNotReceived := utils.StringsSet(expectedEventTypes)
+				for _, e := range emittedEvents {
 					delete(eventsNotReceived, e.GetType())
 				}
-				assert.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
-			}, time.Second*5, time.Millisecond*500, "Some events not received")
+				return len(eventsNotReceived) == 0
+			}
+			require.Eventually(t, checkEventsReceived, time.Second*5, time.Millisecond*500, "Some events are not received.")
 		})
 	}
 }
 
-func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) (*session, ssh.Channel) {
-	scx := newTestServerContext(t, reg.Srv, sessionJoiningRoleSet, accessPermit)
+func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSet) (*session, ssh.Channel) {
+	scx := newTestServerContext(t, reg.Srv, roleSet)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -870,7 +890,7 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet s
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(t.Context(), sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)
@@ -927,7 +947,7 @@ func (s sessionEvaluator) IsModerated() bool {
 
 func TestTrackingSession(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 
 	me, err := user.Current()
 	require.NoError(t, err)
@@ -1040,7 +1060,7 @@ func TestTrackingSession(t *testing.T) {
 				createError: tt.createError,
 			}
 
-			scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
+			scx := newTestServerContext(t, srv, nil)
 			scx.SessionRecordingConfig = &types.SessionRecordingConfigV2{
 				Kind:    types.KindSessionRecordingConfig,
 				Version: types.V2,
@@ -1054,10 +1074,10 @@ func TestTrackingSession(t *testing.T) {
 			}
 
 			sess := &session{
-				id:     rsession.NewID(),
-				logger: logtest.With(teleport.ComponentKey, "test-session"),
+				id:  rsession.NewID(),
+				log: utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
-					logger: logtest.NewLogger(),
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv:                   srv,
 						SessionTrackerService: trackingService,
@@ -1177,15 +1197,13 @@ func TestSessionRecordingMode(t *testing.T) {
 				},
 			}
 
-			gotMode := sess.sessionRecordingLocation()
+			gotMode := sess.sessionRecordingMode()
 			require.Equal(t, tt.expectedMode, gotMode)
 		})
 	}
 }
 
 func TestCloseProxySession(t *testing.T) {
-	ctx := t.Context()
-
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
 
@@ -1196,7 +1214,7 @@ func TestCloseProxySession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+	scx := newTestServerContext(t, reg.Srv, nil)
 
 	// Open a new session
 	sshChanOpen := newMockSSHChannel()
@@ -1208,7 +1226,7 @@ func TestCloseProxySession(t *testing.T) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err = reg.OpenSession(ctx, sshChanOpen, scx)
+	err = reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
@@ -1231,8 +1249,6 @@ func TestCloseProxySession(t *testing.T) {
 // closing the session releases all the resources, and return properly to the
 // user.
 func TestCloseRemoteSession(t *testing.T) {
-	ctx := t.Context()
-
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentProxy
 
@@ -1243,7 +1259,7 @@ func TestCloseRemoteSession(t *testing.T) {
 	})
 	t.Cleanup(func() { reg.Close() })
 
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+	scx := newTestServerContext(t, reg.Srv, nil)
 	scx.SessionRecordingConfig.SetMode(types.RecordAtProxy)
 	scx.RemoteSession = mockSSHSession(t)
 
@@ -1257,7 +1273,7 @@ func TestCloseRemoteSession(t *testing.T) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(ctx, sshChanOpen, scx)
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
@@ -1279,7 +1295,7 @@ func TestCloseRemoteSession(t *testing.T) {
 func mockSSHSession(t *testing.T) *tracessh.Session {
 	t.Helper()
 
-	ctx := t.Context()
+	ctx := context.Background()
 
 	_, key, err := ed25519.GenerateKey(nil)
 	require.NoError(t, err)
@@ -1369,6 +1385,7 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 		require.Fail(t, "timeout while waiting for the SSH session")
 		return nil
 	}
+
 }
 
 func TestUpsertHostUser(t *testing.T) {
@@ -1377,35 +1394,34 @@ func TestUpsertHostUser(t *testing.T) {
 	cases := []struct {
 		name string
 
-		identityContext   IdentityContext
-		hostUsers         *fakeHostUsersBackend
-		createHostUser    bool
-		obtainFallbackUID ObtainFallbackUIDFunc
+		identityContext IdentityContext
+		hostUsers       *fakeHostUsersBackend
+		createHostUser  bool
 
 		expectCreated     bool
 		expectErrIs       error
 		expectErrContains string
-		expectUsers       map[string]fakeUser
+		expectUsers       map[string][]string
 	}{
 		{
 			name:           "should upsert existing user with permission",
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
 						Groups: []string{"foo", "bar"},
 					},
 				},
 			},
-			hostUsers: &fakeHostUsersBackend{users: map[string]fakeUser{
+			hostUsers: &fakeHostUsersBackend{users: map[string][]string{
 				username: {},
 			}},
 
 			expectCreated: true,
 
-			expectUsers: map[string]fakeUser{
-				username: {groups: []string{"foo", "bar"}},
+			expectUsers: map[string][]string{
+				username: {"foo", "bar"},
 			},
 		},
 		{
@@ -1413,8 +1429,8 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessChecker: &fakeAccessChecker{
+					hostInfo: services.HostUsersInfo{
 						Groups: []string{"foo", "bar"},
 					},
 				},
@@ -1422,45 +1438,36 @@ func TestUpsertHostUser(t *testing.T) {
 			hostUsers: &fakeHostUsersBackend{},
 
 			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {groups: []string{"foo", "bar"}},
+			expectUsers: map[string][]string{
+				username: {"foo", "bar"},
 			},
 		},
 		{
-			name:           "should not upsert existing user without permission",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: nil,
-				},
-			},
+			name:            "should not upsert existing user without permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
 			hostUsers: &fakeHostUsersBackend{
-				users: map[string]fakeUser{
+				users: map[string][]string{
 					username: {},
 				},
 			},
 
 			expectCreated: false,
-			expectErrIs:   errHostUserCreationNotAuthorized,
-			expectUsers: map[string]fakeUser{
+			expectErrIs:   trace.AccessDenied("test"),
+			expectUsers: map[string][]string{
 				username: {},
 			},
 		},
 		{
-			name:           "should not upsert new user without permission",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: nil,
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{},
+			name:            "should not upsert new user without permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostUsers:       &fakeHostUsersBackend{},
 
-			expectCreated: false,
-			expectUsers:   nil,
-			expectErrIs:   errHostUserCreationNotAuthorized,
+			expectCreated:     false,
+			expectUsers:       make(map[string][]string),
+			expectErrIs:       trace.AccessDenied("test"),
+			expectErrContains: "insufficient permissions for host user creation",
 		},
 		{
 			name:            "should do nothing if login is session join principal",
@@ -1469,110 +1476,21 @@ func TestUpsertHostUser(t *testing.T) {
 			hostUsers:       &fakeHostUsersBackend{},
 
 			expectCreated: false,
-			expectUsers:   nil,
-		},
-		{
-			name:           "should use fallback UIDs in keep mode",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
-						Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
-					},
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{},
-			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
-				return 1, true, nil
-			},
-
-			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {uid: "1", gid: "1"},
-			},
-		},
-		{
-			name:           "should only use fallback UIDs in keep mode",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
-						Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP,
-					},
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{},
-			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
-				return 0, false, trace.BadParameter("not reached")
-			},
-
-			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {},
-			},
-		},
-		{
-			name:           "should only use fallback UIDs for users that don't exist",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
-						Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
-					},
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{
-				users: map[string]fakeUser{
-					username: {},
-				},
-			},
-			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
-				return 0, false, trace.BadParameter("not reached")
-			},
-
-			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {},
-			},
-		},
-		{
-			name:           "should not override a configured GID",
-			createHostUser: true,
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
-						Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
-						Gid:  "set",
-					},
-				},
-			},
-			hostUsers: &fakeHostUsersBackend{},
-			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
-				return 1, true, nil
-			},
-
-			expectCreated: true,
-			expectUsers: map[string]fakeUser{
-				username: {uid: "1", gid: "set"},
-			},
+			expectUsers:   make(map[string][]string),
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
-				logger: logtest.NewLogger(),
+				logger: utils.NewSlogLoggerForTests(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{createHostUser: c.createHostUser},
 				},
 				users: c.hostUsers,
 			}
 
-			userCreated, _, err := registry.UpsertHostUser(c.identityContext, c.obtainFallbackUID)
+			userCreated, _, err := registry.UpsertHostUser(c.identityContext)
 
 			if c.expectErrIs != nil {
 				assert.ErrorIs(t, err, c.expectErrIs)
@@ -1588,12 +1506,10 @@ func TestUpsertHostUser(t *testing.T) {
 
 			assert.Equal(t, c.expectCreated, userCreated)
 
-			for name, user := range c.hostUsers.users {
-				expectedUser, ok := c.expectUsers[name]
+			for name, groups := range c.hostUsers.users {
+				expectedGroups, ok := c.expectUsers[name]
 				assert.True(t, ok, "user must be present in expected users")
-				assert.ElementsMatch(t, expectedUser.groups, user.groups)
-				assert.Equal(t, expectedUser.uid, user.uid)
-				assert.Equal(t, expectedUser.gid, user.gid)
+				assert.ElementsMatch(t, expectedGroups, groups)
 			}
 		})
 	}
@@ -1613,40 +1529,26 @@ func TestWriteSudoersFile(t *testing.T) {
 		expectErrContains string
 	}{
 		{
-			name: "should write sudoers with permission",
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostSudoers: []string{"foo", "bar"},
-				},
-			},
-			hostSudoers: &fakeSudoersBackend{},
+			name:            "should write sudoers with permission",
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{}},
+			hostSudoers:     &fakeSudoersBackend{},
 
 			expectSudoers: map[string][]string{
 				username: {"foo", "bar"},
 			},
 		},
 		{
-			name: "should do nothing if no sudoers defined",
-			identityContext: IdentityContext{
-				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostSudoers: nil,
-				},
-			},
-			hostSudoers: &fakeSudoersBackend{},
+			name:            "should not write sudoers without permission",
+			identityContext: IdentityContext{Login: username, AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostSudoers:     &fakeSudoersBackend{},
 
 			expectSudoers: map[string][]string{},
+			expectErrIs:   trace.AccessDenied("test"),
 		},
 		{
-			name: "should do nothing for session join principal",
-			identityContext: IdentityContext{
-				Login: teleport.SSHSessionJoinPrincipal,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostSudoers: []string{"foo", "bar"}, // should not be written
-				},
-			},
-			hostSudoers: &fakeSudoersBackend{},
+			name:            "should do nothing for session join principal",
+			identityContext: IdentityContext{Login: teleport.SSHSessionJoinPrincipal, AccessChecker: &fakeAccessChecker{}},
+			hostSudoers:     &fakeSudoersBackend{},
 
 			expectSudoers: map[string][]string{},
 		},
@@ -1655,7 +1557,7 @@ func TestWriteSudoersFile(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
-				logger: logtest.NewLogger(),
+				logger: utils.NewSlogLoggerForTests(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{hostSudoers: c.hostSudoers},
 				},
@@ -1710,34 +1612,43 @@ func (f *fakeServer) Context() context.Context {
 	return context.Background()
 }
 
-type fakeUser struct {
-	groups []string
-	uid    string
-	gid    string
+type fakeAccessChecker struct {
+	services.AccessChecker
+	err      error
+	hostInfo services.HostUsersInfo
+}
+
+func (f *fakeAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
+	return []string{"foo", "bar"}, f.err
+}
+
+func (f *fakeAccessChecker) HostUsers(srv types.Server) (*services.HostUsersInfo, error) {
+	return &f.hostInfo, f.err
 }
 
 type fakeHostUsersBackend struct {
 	HostUsers
 
-	users map[string]fakeUser
+	users map[string][]string
 }
 
-func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo *decisionpb.HostUsersInfo, opts ...UpsertHostUserOption) (io.Closer, error) {
+func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
 	if f.users == nil {
-		f.users = make(map[string]fakeUser)
+		f.users = make(map[string][]string)
 	}
 
-	f.users[name] = fakeUser{
-		groups: hostRoleInfo.Groups,
-		uid:    hostRoleInfo.Uid,
-		gid:    hostRoleInfo.Gid,
-	}
+	f.users[name] = hostRoleInfo.Groups
 	return nil, nil
 }
 
 func (f *fakeHostUsersBackend) UserExists(name string) error {
-	if _, exists := f.users[name]; !exists {
-		return trace.NotFound("%v", name)
+	if f.users == nil {
+		return trace.NotFound("%s", name)
+	}
+
+	_, exists := f.users[name]
+	if !exists {
+		return trace.NotFound("%s", name)
 	}
 
 	return nil

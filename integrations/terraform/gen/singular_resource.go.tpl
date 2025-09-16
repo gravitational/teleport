@@ -23,14 +23,8 @@ import (
 {{- if .WithNonce}}
 	 "math"
 {{- end}}
-{{- range $i, $a := .ExtraImports }}
-	{{$a}}
-{{- end }}
 
 	{{.ProtoPackage}} "{{.ProtoPackagePath}}"
-{{- if .DefaultName }}
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-{{- end}}
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -81,31 +75,15 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 
-{{- if .ForceSetKind }}
-	{{.VarName}}.Kind = {{.ForceSetKind}}
-{{- end}}
-
-{{- if .HasCheckAndSetDefaults }}
-
 	err := {{.VarName}}.CheckAndSetDefaults()
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error setting {{.Name}} defaults", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
-{{- end}}
 
 	{{if .DefaultVersion -}}
 	if {{.VarName}}.Version == "" {
 		{{.VarName}}.Version = "{{.DefaultVersion}}"
-	}
-	{{- end}}
-
-	{{- if .DefaultName }}
-	if {{.VarName}}.GetMetadata() == nil {
-		{{.VarName}}.Metadata = &headerv1.Metadata{}
-	}
-	if {{ .VarName }}.GetMetadata().GetName() == "" {
-		{{ .VarName }}.Metadata.Name = {{ .DefaultName }}
 	}
 	{{- end}}
 
@@ -127,7 +105,7 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	{{.VarName}} = {{.VarName}}.WithNonce(math.MaxUint64).(*{{.ProtoPackage}}.{{.TypeName}})
 	{{- end}}
 
-	{{if eq .UpsertMethodArity 2}}_, {{end}}err = r.p.Client.{{.CreateMethod}}(ctx, {{.VarName}})
+	err = r.p.Client.{{.CreateMethod}}(ctx, {{.VarName}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
@@ -140,35 +118,16 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	var {{.VarName}}I {{.ProtoPackage}}.{{ if ne .IfaceName ""}}{{.IfaceName}}{{else}}{{.Name}}{{end}}
 	{{- end}}
 
-	// Try getting the resource until it exists and is different than the previous ones.
-	// There are two types of singleton resources:
-	// - the ones who can deleted and return a trace.NotFoundErr
-	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		{{.VarName}}I, err = r.p.Client.{{.GetMethod}}(ctx)
-		if trace.IsNotFound(err) {
-			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
-				return
-			}
-			if tries >= r.p.RetryConfig.MaxTries {
-				diagMessage := fmt.Sprintf("Error reading {{.Name}} (tried %d times) - state outdated, please import resource", tries)
-				resp.Diagnostics.AddError(diagMessage, "{{.Kind}}")
-				return
-			}
-			continue
-		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 			return
 		}
-
-		previousMetadata := {{.VarName}}Before.GetMetadata()
-		currentMetadata := {{.VarName}}I.GetMetadata()
-		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || {{.HasStaticID}} {
+		if {{.VarName}}Before.GetMetadata().Revision != {{.VarName}}I.GetMetadata().Revision || {{.HasStaticID}} {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {
@@ -228,11 +187,7 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 		return
 	}
 
-	{{if .IsPlainStruct -}}
-	{{.VarName}} := {{.VarName}}I
-	{{ else }}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
-	{{end -}}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -267,14 +222,11 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 
-{{- if .HasCheckAndSetDefaults }}
-
 	err := {{.VarName}}.CheckAndSetDefaults()
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
-{{- end}}
 
 	{{.VarName}}Before, err := r.p.Client.Get{{.Name}}(ctx)
 	if err != nil {
@@ -290,17 +242,13 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	{{.VarName}} = {{.VarName}}.WithNonce(math.MaxUint64).(*{{.ProtoPackage}}.{{.TypeName}})
 	{{- end}}
 
-	{{if eq .UpsertMethodArity 2}}_, {{end}}err = r.p.Client.{{.UpdateMethod}}(ctx, {{.VarName}})
+	err = r.p.Client.{{.UpdateMethod}}(ctx, {{.VarName}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
 
-	{{- if .IsPlainStruct }}
-	var {{.VarName}}I *{{.ProtoPackage}}.{{.Name}}
-	{{- else }}
 	var {{.VarName}}I {{.ProtoPackage}}.{{ if ne .IfaceName ""}}{{.IfaceName}}{{else}}{{.Name}}{{end}}
-	{{- end}}
 
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
@@ -329,16 +277,12 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 
-	{{if .IsPlainStruct -}}
-	{{.VarName}} = {{.VarName}}I
-	{{- else}}
 	{{.VarName}} = {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	{{- end}}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -366,11 +310,7 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 
-	{{- if .IsPlainStruct }}
-	{{.VarName}} := {{.VarName}}I
-	{{- else}}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
-	{{- end}}
 
 	var state types.Object
 
@@ -386,13 +326,7 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 
-{{- if .IsPlainStruct}}
-	id := {{.VarName}}.Metadata.Name
-{{- else }}
-	id := {{.VarName}}.GetName()
-{{- end}}
-
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attrs["id"] = types.String{Value: {{.VarName}}.Metadata.Name}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

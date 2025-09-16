@@ -28,7 +28,7 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 import * as Icons from 'design/Icon';
-import Text, { P3 } from 'design/Text';
+import Text from 'design/Text';
 import { Theme } from 'design/theme/themes/types';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
@@ -90,6 +90,15 @@ export function Notification({
       });
   });
 
+  function onMarkAsClicked() {
+    if (notification.localNotification) {
+      ctx.storeNotifications.markNotificationAsClicked(notification.id);
+      markNotificationAsClicked(notification.id);
+      return;
+    }
+    markAsClicked();
+  }
+
   // Whether to show the text content dialog. This is only ever used for user-created notifications which only contain informational text
   // and don't redirect to any page.
   const [showTextContentDialog, setShowTextContentDialog] = useState(false);
@@ -98,7 +107,7 @@ export function Notification({
   if (view === 'Unread' && notification.clicked) {
     // If this is a text content notification, the dialog should still be renderable. This is to prevent the text content dialog immediately disappearing
     // when trying to open an unread text notification, since clicking on the notification instantly marks it as read.
-    if (content.kind === 'text') {
+    if (content.kind == 'text') {
       return (
         <TextNotificationDialog
           showTextContentDialog={showTextContentDialog}
@@ -130,23 +139,21 @@ export function Notification({
 
   const formattedDate = formatDate(notification.createdDate);
 
-  function onNotificationClick(e: React.MouseEvent<HTMLElement>) {
+  function onNotificationClick(
+    e: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+  ) {
     // Prevents this from being triggered when the user is just clicking away from
     // an open "mark as read/hide this notification" menu popover.
     if (e.currentTarget.contains(e.target as HTMLElement)) {
-      onClick();
+      if (content.kind === 'text') {
+        setShowTextContentDialog(true);
+        onMarkAsClicked();
+        return;
+      }
+      onMarkAsClicked();
+      closeNotificationsList();
+      history.push(content.redirectRoute);
     }
-  }
-
-  function onClick() {
-    if (content.kind === 'text') {
-      setShowTextContentDialog(true);
-      markAsClicked();
-      return;
-    }
-    markAsClicked();
-    closeNotificationsList();
-    history.push(content.redirectRoute);
   }
 
   const isClicked =
@@ -160,7 +167,9 @@ export function Notification({
         onClick={onNotificationClick}
         className="notification"
         tabIndex={0}
-        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
+        onKeyUp={e =>
+          (e.key === 'Enter' || e.key === ' ') && onNotificationClick(e)
+        }
       >
         <GraphicContainer>
           <MainIconContainer type={content.type}>
@@ -174,48 +183,50 @@ export function Notification({
           <ContentBody>
             <Text>{content.title}</Text>
             {content.kind === 'redirect' && content.QuickAction && (
-              <content.QuickAction markAsClicked={markAsClicked} />
+              <content.QuickAction markAsClicked={onMarkAsClicked} />
             )}
             {hideNotificationAttempt.status === 'error' && (
-              <Text typography="body4" color="error.main">
+              <Text typography="subtitle3" color="error.main">
                 Failed to hide notification:{' '}
                 {hideNotificationAttempt.statusText}
               </Text>
             )}
             {markAsClickedAttempt.status === 'error' && (
-              <P3 color="error.main">
+              <Text typography="subtitle3" color="error.main">
                 Failed to mark notification as read:{' '}
                 {markAsClickedAttempt.statusText}
-              </P3>
+              </Text>
             )}
           </ContentBody>
           <SideContent>
             {!content?.hideDate && (
-              <Text typography="body4">{formattedDate}</Text>
+              <Text typography="subtitle3">{formattedDate}</Text>
             )}
-            <MenuIcon
-              menuProps={{
-                anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
-                transformOrigin: { vertical: 'top', horizontal: 'right' },
-                backdropProps: { className: IGNORE_CLICK_CLASSNAME },
-              }}
-              buttonIconProps={{ style: { borderRadius: '4px' } }}
-            >
-              {!isClicked && (
+            {!notification.localNotification && (
+              <MenuIcon
+                menuProps={{
+                  anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
+                  transformOrigin: { vertical: 'top', horizontal: 'right' },
+                  backdropProps: { className: IGNORE_CLICK_CLASSNAME },
+                }}
+                buttonIconProps={{ style: { borderRadius: '4px' } }}
+              >
+                {!isClicked && (
+                  <MenuItem
+                    onClick={onMarkAsClicked}
+                    className={IGNORE_CLICK_CLASSNAME}
+                  >
+                    Mark as read
+                  </MenuItem>
+                )}
                 <MenuItem
-                  onClick={markAsClicked}
+                  onClick={hideNotification}
                   className={IGNORE_CLICK_CLASSNAME}
                 >
-                  Mark as read
+                  Hide this notification
                 </MenuItem>
-              )}
-              <MenuItem
-                onClick={hideNotification}
-                className={IGNORE_CLICK_CLASSNAME}
-              >
-                Hide this notification
-              </MenuItem>
-            </MenuIcon>
+              </MenuIcon>
+            )}
           </SideContent>
         </ContentContainer>
       </Container>
@@ -301,40 +312,20 @@ const Container = styled.div<{ clicked?: boolean }>`
   border-radius: ${props => props.theme.radii[3]}px;
   cursor: pointer;
 
-  ${props => getInteractiveStateStyles(props.theme, props.clicked)}
-`;
-
-function getInteractiveStateStyles(theme: Theme, clicked: boolean): string {
-  if (clicked) {
-    return `
-        background: transparent;
-        &:hover {
-          background: ${theme.colors.interactive.tonal.neutral[0]};
-        }
-        &:active {
-          outline: none;
-          background: ${theme.colors.interactive.tonal.neutral[1]};
-        }
-        &:focus {
-          outline: ${theme.borders[2]} ${theme.colors.text.slightlyMuted};
-        }
-        `;
+  background: ${props => props.theme.colors.interactive.tonal.primary[0]};
+  &:hover {
+    background: ${props => props.theme.colors.interactive.tonal.primary[1]};
   }
 
-  return `
-    background: ${theme.colors.interactive.tonal.primary[0]};
+  ${props =>
+    props.clicked &&
+    `
+    background: ${props.theme.colors.interactive.tonal.neutral[0]};
     &:hover {
-      background: ${theme.colors.interactive.tonal.primary[1]};
+      background: ${props.theme.colors.interactive.tonal.neutral[1]};
     }
-    &:active {
-      outline: none;
-      background: ${theme.colors.interactive.tonal.primary[2]};
-    }
-    &:focus {
-      outline: ${theme.borders[2]} ${theme.colors.interactive.solid.primary.default};
-    }
-    `;
-}
+    `}
+`;
 
 const ContentContainer = styled.div`
   display: flex;
@@ -381,12 +372,12 @@ function getIconColors(
   switch (type) {
     case 'success':
       return {
-        primary: theme.colors.interactive.solid.success.active,
+        primary: theme.colors.success.main,
         secondary: theme.colors.interactive.tonal.success[0],
       };
     case 'success-alt':
       return {
-        primary: theme.colors.interactive.solid.accent.active,
+        primary: theme.colors.accent.main,
         secondary: theme.colors.interactive.tonal.informational[0],
       };
     case 'informational':
@@ -396,7 +387,7 @@ function getIconColors(
       };
     case `warning`:
       return {
-        primary: theme.colors.interactive.solid.alert.active,
+        primary: theme.colors.warning.main,
         secondary: theme.colors.interactive.tonal.alert[0],
       };
     case 'failure':

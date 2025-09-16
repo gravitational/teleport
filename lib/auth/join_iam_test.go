@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth_test
+package auth
 
 import (
 	"bytes"
@@ -35,13 +35,11 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func responseFromAWSIdentity(id auth.AWSIdentity) string {
+func responseFromAWSIdentity(id awsIdentity) string {
 	return fmt.Sprintf(`{
 		"GetCallerIdentityResponse": {
 			"GetCallerIdentityResult": {
@@ -122,13 +120,13 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
-	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
+	isAccessDenied := func(t require.TestingT, err error, _ ...interface{}) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
 	}
-	isBadParameter := func(t require.TestingT, err error, _ ...any) {
+	isBadParameter := func(t require.TestingT, err error, _ ...interface{}) {
 		require.True(t, trace.IsBadParameter(err), "expected Bad Parameter error, actual error: %v", err)
 	}
 
@@ -138,7 +136,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		requestTokenName         string
 		tokenSpec                types.ProvisionTokenSpecV2
 		stsClient                utils.HTTPDoClient
-		iamRegisterOptions       []auth.IAMRegisterOption
+		iamRegisterOptions       []iamRegisterOption
 		challengeResponseOptions []challengeResponseOption
 		challengeResponseErr     error
 		assertError              require.ErrorAssertionFunc
@@ -159,7 +157,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -182,7 +180,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::role/admins-test",
 				}),
@@ -205,127 +203,12 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::role/admins-123",
 				}),
 			},
 			assertError: require.NoError,
-		},
-		{
-			desc:             "arn assumed role",
-			tokenName:        "test-token",
-			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "123456789012",
-						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
-					},
-				},
-				JoinMethod: types.JoinMethodIAM,
-			},
-			stsClient: &mockClient{
-				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
-					Account: "123456789012",
-					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
-				}),
-			},
-			assertError: require.NoError,
-		},
-		{
-			desc:             "wildcard arn assumed role",
-			tokenName:        "test-token",
-			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "123456789012",
-						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-*-test-role/my-session-name",
-					},
-				},
-				JoinMethod: types.JoinMethodIAM,
-			},
-			stsClient: &mockClient{
-				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
-					Account: "123456789012",
-					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
-				}),
-			},
-			assertError: require.NoError,
-		},
-		{
-			desc:             "wildcard 2 arn assumed role",
-			tokenName:        "test-token",
-			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "123456789012",
-						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-*-test-role/*",
-					},
-				},
-				JoinMethod: types.JoinMethodIAM,
-			},
-			stsClient: &mockClient{
-				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
-					Account: "123456789012",
-					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-001-test-role/my-session-name",
-				}),
-			},
-			assertError: require.NoError,
-		},
-		{
-			desc:             "wrong wildcard arn assumed role",
-			tokenName:        "test-token",
-			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "123456789012",
-						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-*-test-role",
-					},
-				},
-				JoinMethod: types.JoinMethodIAM,
-			},
-			stsClient: &mockClient{
-				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
-					Account: "123456789012",
-					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-002-test-role/my-session-name",
-				}),
-			},
-			assertError: isAccessDenied,
-		},
-		{
-			desc:             "wrong wildcard 2 arn assumed role",
-			tokenName:        "test-token",
-			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "123456789012",
-						AWSARN:     "arn:aws:sts::123456789012:assumed-role/my-*-test-role",
-					},
-				},
-				JoinMethod: types.JoinMethodIAM,
-			},
-			stsClient: &mockClient{
-				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
-					Account: "123456789012",
-					Arn:     "arn:aws:sts::123456789012:assumed-role/my-super-002-test-role/my-session-name2",
-				}),
-			},
-			assertError: isAccessDenied,
 		},
 		{
 			desc:             "wrong token",
@@ -343,7 +226,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -366,7 +249,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -390,7 +273,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::role/admins-1234",
 				}),
@@ -413,7 +296,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -439,7 +322,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "5678",
 					Arn:     "arn:aws::1111",
 				}),
@@ -482,7 +365,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -508,7 +391,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -534,7 +417,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
@@ -560,14 +443,14 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			iamRegisterOptions: []auth.IAMRegisterOption{
-				auth.WithFIPS(true),
-				auth.WithAuthVersion(&semver.Version{Major: 12}),
+			iamRegisterOptions: []iamRegisterOption{
+				withFips(true),
+				withAuthVersion(&semver.Version{Major: 12}),
 			},
 			challengeResponseOptions: []challengeResponseOption{
 				withHost("sts-fips.us-east-1.amazonaws.com"),
@@ -590,14 +473,14 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			},
 			stsClient: &mockClient{
 				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(auth.AWSIdentity{
+				respBody: responseFromAWSIdentity(awsIdentity{
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			iamRegisterOptions: []auth.IAMRegisterOption{
-				auth.WithFIPS(true),
-				auth.WithAuthVersion(&semver.Version{Major: 12}),
+			iamRegisterOptions: []iamRegisterOption{
+				withFips(true),
+				withAuthVersion(&semver.Version{Major: 12}),
 			},
 			challengeResponseOptions: []challengeResponseOption{
 				withHost("sts.us-east-1.amazonaws.com"),
@@ -609,7 +492,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Set mock client.
-			a.SetHTTPClientForAWSSTS(tc.stsClient)
+			a.httpClientForAWSSTS = tc.stsClient
 
 			// add token to auth server
 			token, err := types.NewProvisionTokenFromSpec(
@@ -622,7 +505,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			}()
 
-			_, err = a.RegisterUsingIAMMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+			_, err = a.RegisterUsingIAMMethod(context.Background(), func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 				templateInput := defaultIdentityRequestTemplateInput(challenge)
 				for _, opt := range tc.challengeResponseOptions {
 					opt(&templateInput)

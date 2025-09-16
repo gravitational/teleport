@@ -16,28 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta, StoryObj } from '@storybook/react-vite';
-import { MemoryRouter } from 'react-router';
+import { Meta, StoryObj } from '@storybook/react';
+import React from 'react';
 import styled from 'styled-components';
 
 import { ButtonBorder } from 'design';
 import { gap, GapProps } from 'design/system';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { apps } from 'teleport/Apps/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { databases } from 'teleport/Databases/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { desktops } from 'teleport/Desktops/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { kubes } from 'teleport/Kubes/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { nodes } from 'teleport/Nodes/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { SamlAppActionProvider } from 'teleport/SamlApplications/useSamlAppActions';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import makeApp from 'teleport/services/apps/makeApps';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
 
 import {
@@ -106,50 +98,51 @@ const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 export const Cards: Story = {
   render() {
     return (
-      <MemoryRouter>
-        <SamlAppActionProvider>
-          <Grid gap={2}>
-            {[
-              ...apps.map(resource =>
-                makeUnifiedResourceViewItemApp(resource, {
-                  ActionButton: <ResourceActionButton resource={resource} />,
-                })
-              ),
-              ...databases.map(resource =>
-                makeUnifiedResourceViewItemDatabase(resource, {
-                  ActionButton,
-                })
-              ),
-              ...kubes.map(resource =>
-                makeUnifiedResourceViewItemKube(resource, { ActionButton })
-              ),
-              ...nodes.map(resource =>
-                makeUnifiedResourceViewItemNode(resource, {
-                  ActionButton,
-                })
-              ),
-              ...additionalResources.map(resource =>
-                makeUnifiedResourceViewItemApp(resource, { ActionButton })
-              ),
-              ...desktops.map(resource =>
-                makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
-              ),
-            ].map((res, i) => (
-              <ResourceCard
-                key={i}
-                pinned={false}
-                pinResource={() => {}}
-                selectResource={() => {}}
-                selected={false}
-                pinningSupport={PinningSupport.Supported}
-                onShowStatusInfo={() => null}
-                showingStatusInfo={false}
-                viewItem={res}
-              />
-            ))}
-          </Grid>
-        </SamlAppActionProvider>
-      </MemoryRouter>
+      <SamlAppActionProvider>
+        <Grid gap={2}>
+          {[
+            ...apps.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, {
+                ActionButton: <ResourceActionButton resource={resource} />,
+              })
+            ),
+            ...databases.map(resource =>
+              makeUnifiedResourceViewItemDatabase(resource, {
+                ActionButton,
+              })
+            ),
+            ...kubes.map(resource =>
+              makeUnifiedResourceViewItemKube(resource, { ActionButton })
+            ),
+            ...nodes.map(resource =>
+              makeUnifiedResourceViewItemNode(resource, {
+                ActionButton,
+              })
+            ),
+            ...additionalResources.map(resource =>
+              makeUnifiedResourceViewItemApp(resource, { ActionButton })
+            ),
+            ...desktops.map(resource =>
+              makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
+            ),
+          ].map((res, i) => (
+            <ResourceCard
+              key={i}
+              pinned={false}
+              pinResource={() => {}}
+              selectResource={() => {}}
+              selected={false}
+              pinningSupport={PinningSupport.Supported}
+              name={res.name}
+              primaryIconName={res.primaryIconName}
+              SecondaryIcon={res.SecondaryIcon}
+              cardViewProps={res.cardViewProps}
+              labels={res.labels}
+              ActionButton={res.ActionButton}
+            />
+          ))}
+        </Grid>
+      </SamlAppActionProvider>
     );
   },
 };

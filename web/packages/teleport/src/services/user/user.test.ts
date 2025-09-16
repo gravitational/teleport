@@ -58,13 +58,6 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
-    accessGraphSettings: {
-      list: false,
-      read: false,
-      edit: false,
-      create: false,
-      remove: false,
-    },
     accessMonitoringRule: {
       list: false,
       read: false,
@@ -271,13 +264,6 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
-    discoverConfigs: {
-      list: false,
-      read: false,
-      edit: false,
-      create: false,
-      remove: false,
-    },
     bots: {
       list: false,
       read: false,
@@ -296,20 +282,6 @@ test('undefined values in context response gives proper default values', async (
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
     fileTransferAccess: true,
-    gitServers: {
-      list: false,
-      read: false,
-      edit: false,
-      create: false,
-      remove: false,
-    },
-    botInstances: {
-      list: false,
-      read: false,
-      edit: false,
-      create: false,
-      remove: false,
-    },
   };
 
   expect(response).toEqual({
@@ -329,11 +301,7 @@ test('undefined values in context response gives proper default values', async (
     // Test undefined access strategy is set to default optional.
     accessStrategy: { type: 'optional', prompt: '' },
     // Test undefined roles and reviewers are set to empty arrays.
-    accessCapabilities: {
-      requestableRoles: [],
-      suggestedReviewers: [],
-      requireReason: false,
-    },
+    accessCapabilities: { requestableRoles: [], suggestedReviewers: [] },
     allowedSearchAsRoles: [],
     passwordState: PasswordState.PASSWORD_STATE_UNSPECIFIED,
   });
@@ -427,10 +395,7 @@ test('excludeUserFields when updating user', async () => {
     allTraits: {},
   };
 
-  await user.updateUser({
-    user: userReq,
-    excludeUserField: ExcludeUserField.AllTraits,
-  });
+  await user.updateUser(userReq, ExcludeUserField.AllTraits);
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -439,10 +404,7 @@ test('excludeUserFields when updating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.updateUser({
-    user: userReq,
-    excludeUserField: ExcludeUserField.Traits,
-  });
+  await user.updateUser(userReq, ExcludeUserField.Traits);
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -461,10 +423,7 @@ test('excludeUserFields when creating user', async () => {
     allTraits: {},
   };
 
-  await user.createUser({
-    user: userReq,
-    excludeUserField: ExcludeUserField.AllTraits,
-  });
+  await user.createUser(userReq, ExcludeUserField.AllTraits);
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {
@@ -478,10 +437,7 @@ test('excludeUserFields when creating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.createUser({
-    user: userReq,
-    excludeUserField: ExcludeUserField.Traits,
-  });
+  await user.createUser(userReq, ExcludeUserField.Traits);
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {

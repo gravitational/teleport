@@ -216,32 +216,4 @@ service PluginService {
 
   // Cleanup will clean up the resources for the given plugin type.
   rpc Cleanup(CleanupRequest) returns (google.protobuf.Empty);
-
-  // CreatePluginOauthToken issues a short-lived OAuth access token for the specified plugin.
-  //
-  // This endpoint supports the OAuth 2.0 "client_credentials" grant type, where the plugin
-  // authenticates using its client ID and client secret
-  rpc CreatePluginOauthToken(CreatePluginOauthTokenRequest) returns (CreatePluginOauthTokenResponse);
-}
-
-// CreatePluginOauthTokenRequest is the request type for creating an OAuth token for a plugin.
-message CreatePluginOauthTokenRequest {
-  // plugin_name is the name of the plugin for which the OAuth token is requested.
-  string plugin_name = 1;
-  // client_id is the OAuth client identifier issued to the plugin.
-  string client_id = 2;
-  // client_secret is the secret associated with the client_id.
-  string client_secret = 3;
-  // grant_type is the OAuth 2.0 grant type being used. Currently, only "client_credentials" is supported.
-  string grant_type = 4;
-}
-
-// CreatePluginOauthTokenResponse is the response type for a successful OAuth token creation.
-message CreatePluginOauthTokenResponse {
-  // access_token is the generated token issued to the plugin.
-  string access_token = 1;
-  // token_type describes the type of the token issued
-  string token_type = 2;
-  // expires_in is the number of seconds until the token expires.
-  int64 expires_in = 3;
 }

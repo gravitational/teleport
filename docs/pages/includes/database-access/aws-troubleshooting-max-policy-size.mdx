@@ -30,7 +30,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   ```yaml
   discovery_service:
     discovery_group: "prod"
-    enabled: true
+    enabled: "yes"
     aws:
       - types: ["rds"]
         regions: ["us-west-1", "us-west-2"]
@@ -52,7 +52,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   Service if you wish to use different roles:
   ```yaml
   db_service:
-    enabled: true
+    enabled: "yes"
     resources:
       # Matches us-west-1 env=prod RDS databases from Discovery Service, and
       # overwrites assume_role_arn.
@@ -102,7 +102,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   configuration:
   ```yaml
   db_service:
-    enabled: true
+    enabled: "yes"
     aws:
       - types: ["rds"]
         regions: ["us-west-1", "us-west-2"]
@@ -134,7 +134,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   Service's configuration:
   ```yaml
   db_service:
-    enabled: true
+    enabled: "yes"
     databases:
     - name: "rds-postgres"
       protocol: "postgres"
@@ -173,7 +173,7 @@ You can reduce the policy size by separating them into multiple IAM roles. Use
   Service:
   ```yaml
   db_service:
-    enabled: true
+    enabled: "yes"
     resources:
       # Matches env=dev databases and overwrites assume_role_arn.
       - labels:

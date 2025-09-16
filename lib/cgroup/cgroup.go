@@ -29,7 +29,6 @@ import "C"
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/binary"
 	"os"
 	"path/filepath"
@@ -39,15 +38,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentCgroup)
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentCgroup,
+})
 
 // Config holds configuration for the cgroup service.
 type Config struct {
@@ -96,7 +97,7 @@ func New(config *Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	logger.DebugContext(context.TODO(), "Teleport session hierarchy mounted.", "hierarchy_root", s.teleportRoot)
+	log.Debugf("Teleport session hierarchy mounted at: %v.", s.teleportRoot)
 	return s, nil
 }
 
@@ -109,7 +110,7 @@ func (s *Service) Close(skipUnmount bool) error {
 	}
 
 	if skipUnmount {
-		logger.DebugContext(context.TODO(), "Cleaned up Teleport session hierarchy.", "hierarchy_root", s.teleportRoot)
+		log.Debugf("Cleaned up Teleport session hierarchy at: %v.", s.teleportRoot)
 		return nil
 	}
 
@@ -118,7 +119,7 @@ func (s *Service) Close(skipUnmount bool) error {
 		return trace.Wrap(err)
 	}
 
-	logger.DebugContext(context.TODO(), "Cleaned up and unmounted Teleport session hierarchy.", "hierarchy_root", s.teleportRoot)
+	log.Debugf("Cleaned up and unmounted Teleport session hierarchy at: %v.", s.teleportRoot)
 	return nil
 }
 
@@ -153,7 +154,7 @@ func (s *Service) Remove(sessionID string) error {
 		return trace.Wrap(err)
 	}
 
-	logger.DebugContext(context.TODO(), "Removed cgroup for session.", "session_id", sessionID)
+	log.Debugf("Removed cgroup for session: %v.", sessionID)
 	return nil
 }
 
@@ -319,7 +320,7 @@ func (s *Service) mount() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.DebugContext(context.TODO(), "Mounted cgroup filesystem.", "mount_path", s.MountPath)
+	log.Debugf("Mounted cgroup filesystem to %v.", s.MountPath)
 
 	// Create cgroup that will hold Teleport sessions.
 	err = os.MkdirAll(s.teleportRoot, fileMode)

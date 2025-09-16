@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon } from 'design';
@@ -75,7 +76,13 @@ export function Tabs(props: Props & { parties: stores.Parties }) {
     });
 
   return (
-    <StyledTabs as="nav" color="text.slightlyMuted" bold {...styledProps}>
+    <StyledTabs
+      as="nav"
+      typography="h5"
+      color="text.slightlyMuted"
+      bold
+      {...styledProps}
+    >
       {$items}
       {$items.length > 0 && (
         <ButtonIcon

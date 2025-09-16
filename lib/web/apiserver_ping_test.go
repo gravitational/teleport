@@ -25,7 +25,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/client"
@@ -71,7 +69,7 @@ func TestPing(t *testing.T) {
 			},
 			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
 				assert.Equal(t, cap.GetType(), resp.Auth.Type)
-				assert.Equal(t, constants.SecondFactorOn, resp.Auth.SecondFactor)
+				assert.Equal(t, cap.GetSecondFactor(), resp.Auth.SecondFactor)
 				assert.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
 				assert.NotNil(t, resp.Auth.Local, "Auth.Local expected")
 
@@ -82,48 +80,6 @@ func TestPing(t *testing.T) {
 				webCfg, _ := cap.GetWebauthn()
 				require.NotNil(t, resp.Auth.Webauthn)
 				assert.Equal(t, webCfg.RPID, resp.Auth.Webauthn.RPID)
-
-				assert.Equal(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, resp.Auth.SignatureAlgorithmSuite)
-			},
-		},
-		{
-			name: "OK local auth SecondFactors",
-			spec: &types.AuthPreferenceSpecV2{
-				Type: constants.Local,
-				SecondFactors: []types.SecondFactorType{
-					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
-				},
-				U2F: &types.U2F{
-					AppID: "https://example.com",
-				},
-				Webauthn: &types.Webauthn{
-					RPID: "example.com",
-				},
-			},
-			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
-				assert.Equal(t, cap.GetType(), resp.Auth.Type)
-				assert.Equal(t, constants.SecondFactorWebauthn, resp.Auth.SecondFactor)
-				assert.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
-				assert.NotNil(t, resp.Auth.Local, "Auth.Local expected")
-
-				u2f, _ := cap.GetU2F()
-				require.NotNil(t, resp.Auth.U2F)
-				assert.Equal(t, u2f.AppID, resp.Auth.U2F.AppID)
-
-				webCfg, _ := cap.GetWebauthn()
-				require.NotNil(t, resp.Auth.Webauthn)
-				assert.Equal(t, webCfg.RPID, resp.Auth.Webauthn.RPID)
-
-				assert.Equal(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, resp.Auth.SignatureAlgorithmSuite)
-			},
-		},
-		{
-			name: "OK signature algorithm suite",
-			spec: &types.AuthPreferenceSpecV2{
-				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			},
-			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
-				assert.Equal(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, resp.Auth.SignatureAlgorithmSuite)
 			},
 		},
 		{
@@ -286,22 +242,23 @@ func TestPing_minimalAPI(t *testing.T) {
 
 // TestPing_autoUpdateResources tests that find endpoint return correct data related to auto updates.
 func TestPing_autoUpdateResources(t *testing.T) {
-	env := newWebPack(t, 1)
+	env := newWebPack(t, 1, func(cfg *proxyConfig) {
+		cfg.minimalHandler = true
+	})
 	proxy := env.proxies[0]
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	testGroup := "test-group"
-	testUpdaterID := uuid.NewString()
+	req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "find"), nil)
+	require.NoError(t, err)
+	req.Host = proxy.handler.handler.cfg.ProxyPublicAddrs[0].Host()
 
-	// Note: we are not using webclient.Ping() here because we don't have a valid certificate for 127.0.0.1 and
-	// The webclient doesn't support being passed custom transport.
-	clt := proxy.newClient(t)
 	tests := []struct {
 		name     string
 		config   *autoupdatev1pb.AutoUpdateConfigSpec
 		version  *autoupdatev1pb.AutoUpdateVersionSpec
-		rollout  *autoupdatev1pb.AutoUpdateAgentRollout
+		rollout  *autoupdatev1pb.AutoUpdateAgentRolloutSpec
 		cleanup  bool
 		expected webclient.AutoUpdateSettings
 	}{
@@ -333,17 +290,12 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		},
 		{
 			name: "enable agent auto update, immediate schedule",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Metadata: &headerv1.Metadata{
-					Name: types.MetaNameAutoUpdateAgentRollout,
-				},
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-					Strategy:       autoupdate.AgentsStrategyHaltOnError,
-					Schedule:       autoupdate.AgentsScheduleImmediate,
-					StartVersion:   "1.2.3",
-					TargetVersion:  "1.2.4",
-				},
+			rollout: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+				AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
+				Strategy:       autoupdate.AgentsStrategyHaltOnError,
+				Schedule:       autoupdate.AgentsScheduleImmediate,
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.4",
 			},
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
@@ -356,17 +308,12 @@ func TestPing_autoUpdateResources(t *testing.T) {
 		},
 		{
 			name: "agent rollout present but AU mode is disabled",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Metadata: &headerv1.Metadata{
-					Name: types.MetaNameAutoUpdateAgentRollout,
-				},
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-					AutoupdateMode: autoupdate.AgentsUpdateModeDisabled,
-					Strategy:       autoupdate.AgentsStrategyHaltOnError,
-					Schedule:       autoupdate.AgentsScheduleImmediate,
-					StartVersion:   "1.2.3",
-					TargetVersion:  "1.2.4",
-				},
+			rollout: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+				AutoupdateMode: autoupdate.AgentsUpdateModeDisabled,
+				Strategy:       autoupdate.AgentsStrategyHaltOnError,
+				Schedule:       autoupdate.AgentsScheduleImmediate,
+				StartVersion:   "1.2.3",
+				TargetVersion:  "1.2.4",
 			},
 			expected: webclient.AutoUpdateSettings{
 				ToolsVersion:             api.Version,
@@ -378,7 +325,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			cleanup: true,
 		},
 		{
-			name:    "empty config and version",
+			name:    "no autoupdate tool config nor version",
 			config:  &autoupdatev1pb.AutoUpdateConfigSpec{},
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{},
 			expected: webclient.AutoUpdateSettings{
@@ -391,7 +338,7 @@ func TestPing_autoUpdateResources(t *testing.T) {
 			cleanup: true,
 		},
 		{
-			name: "set tools auto update version",
+			name: "set auto update version",
 			version: &autoupdatev1pb.AutoUpdateVersionSpec{
 				Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
 					TargetVersion: "1.2.3",
@@ -445,171 +392,6 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				AgentAutoUpdate:          false,
 				AgentVersion:             api.Version,
 			},
-			cleanup: true,
-		},
-		{
-			name: "group must be updated",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Metadata: &headerv1.Metadata{
-					Name: types.MetaNameAutoUpdateAgentRollout,
-				},
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-					Strategy:       autoupdate.AgentsStrategyHaltOnError,
-					Schedule:       autoupdate.AgentsScheduleRegular,
-					StartVersion:   "1.2.3",
-					TargetVersion:  "1.2.4",
-				},
-				Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
-					Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-						{
-							Name:       testGroup,
-							State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-							ConfigDays: []string{"*"},
-						},
-						{
-							Name:       "unstarted",
-							State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-							ConfigDays: []string{"*"},
-						},
-					},
-				},
-			},
-			expected: webclient.AutoUpdateSettings{
-				ToolsVersion:             api.Version,
-				ToolsAutoUpdate:          false,
-				AgentVersion:             "1.2.4",
-				AgentAutoUpdate:          true,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
-			},
-			cleanup: true,
-		},
-		{
-			name: "group must not be updated",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Metadata: &headerv1.Metadata{
-					Name: types.MetaNameAutoUpdateAgentRollout,
-				},
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-					Strategy:       autoupdate.AgentsStrategyHaltOnError,
-					Schedule:       autoupdate.AgentsScheduleRegular,
-					StartVersion:   "1.2.3",
-					TargetVersion:  "1.2.4",
-				},
-				Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
-					Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-						{
-							Name:       "done",
-							State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-							ConfigDays: []string{"*"},
-						},
-						{
-							Name:       testGroup,
-							State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-							ConfigDays: []string{"*"},
-						},
-					},
-				},
-			},
-			expected: webclient.AutoUpdateSettings{
-				ToolsVersion:             api.Version,
-				ToolsAutoUpdate:          false,
-				AgentVersion:             "1.2.3",
-				AgentAutoUpdate:          false,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
-			},
-			cleanup: true,
-		},
-		{
-			name: "canary must be updated",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Metadata: &headerv1.Metadata{
-					Name: types.MetaNameAutoUpdateAgentRollout,
-				},
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-					Strategy:       autoupdate.AgentsStrategyHaltOnError,
-					Schedule:       autoupdate.AgentsScheduleRegular,
-					StartVersion:   "1.2.3",
-					TargetVersion:  "1.2.4",
-				},
-				Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
-					Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-						{
-							Name:       testGroup,
-							State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
-							ConfigDays: []string{"*"},
-							Canaries: []*autoupdatev1pb.Canary{
-								{
-									UpdaterId: testUpdaterID,
-									HostId:    uuid.NewString(),
-									Hostname:  "test-host",
-									Success:   false,
-								},
-							},
-						},
-						{
-							Name:       "unstarted",
-							State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-							ConfigDays: []string{"*"},
-						},
-					},
-				},
-			},
-			expected: webclient.AutoUpdateSettings{
-				ToolsVersion:             api.Version,
-				ToolsAutoUpdate:          false,
-				AgentVersion:             "1.2.4",
-				AgentAutoUpdate:          true,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
-			},
-			cleanup: true,
-		},
-		{
-			name: "canary must not be updated",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Metadata: &headerv1.Metadata{
-					Name: types.MetaNameAutoUpdateAgentRollout,
-				},
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
-					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-					Strategy:       autoupdate.AgentsStrategyHaltOnError,
-					Schedule:       autoupdate.AgentsScheduleRegular,
-					StartVersion:   "1.2.3",
-					TargetVersion:  "1.2.4",
-				},
-				Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
-					Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-						{
-							Name:  testGroup,
-							State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
-							Canaries: []*autoupdatev1pb.Canary{
-								{
-									UpdaterId: uuid.NewString(),
-									HostId:    uuid.NewString(),
-									Hostname:  "test-host",
-									Success:   false,
-								},
-							},
-							ConfigDays: []string{"*"},
-						},
-						{
-							Name:       "unstarted",
-							State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-							ConfigDays: []string{"*"},
-						},
-					},
-				},
-			},
-			expected: webclient.AutoUpdateSettings{
-				ToolsVersion:             api.Version,
-				ToolsAutoUpdate:          false,
-				AgentVersion:             "1.2.3",
-				AgentAutoUpdate:          false,
-				AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
-			},
-			cleanup: true,
 		},
 	}
 	for _, tc := range tests {
@@ -627,7 +409,9 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				require.NoError(t, err)
 			}
 			if tc.rollout != nil {
-				_, err := env.server.Auth().UpsertAutoUpdateAgentRollout(ctx, tc.rollout)
+				rollout, err := autoupdate.NewAutoUpdateAgentRollout(tc.rollout)
+				require.NoError(t, err)
+				_, err = env.server.Auth().UpsertAutoUpdateAgentRollout(ctx, rollout)
 				require.NoError(t, err)
 			}
 
@@ -636,14 +420,12 @@ func TestPing_autoUpdateResources(t *testing.T) {
 				proxy.clock.Advance(2 * findEndpointCacheTTL)
 			}
 
-			resp, err := clt.Get(ctx, clt.Endpoint("webapi", "ping"), url.Values{
-				webclient.AgentUpdateIDParameter:    []string{testUpdaterID},
-				webclient.AgentUpdateGroupParameter: []string{testGroup},
-			})
+			resp, err := client.NewInsecureWebClient().Do(req)
 			require.NoError(t, err)
 
 			pr := &webclient.PingResponse{}
-			require.NoError(t, json.NewDecoder(resp.Reader()).Decode(pr))
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(pr))
+			require.NoError(t, resp.Body.Close())
 
 			assert.Equal(t, tc.expected, pr.AutoUpdate)
 

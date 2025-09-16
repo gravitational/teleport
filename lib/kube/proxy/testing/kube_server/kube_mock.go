@@ -26,35 +26,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	v1 "k8s.io/api/authorization/v1"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
-	portforwardconstants "k8s.io/apimachinery/pkg/util/portforward"
 	apiremotecommand "k8s.io/apimachinery/pkg/util/remotecommand"
-	versionUtil "k8s.io/apimachinery/pkg/util/version"
 	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/endpoints/responsewriter"
-	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -112,22 +104,6 @@ const (
 // Option is a functional option for KubeMockServer
 type Option func(*KubeMockServer)
 
-// WithCRD adds a CRD to the server with the given resources.
-func WithCRD(crd *CRD, resources ...*unstructured.Unstructured) Option {
-	return func(s *KubeMockServer) {
-		if s.crds == nil {
-			s.crds = map[GVP]*CRD{}
-		}
-		cpy := crd.Copy()
-		for _, r := range resources {
-			r2 := r.DeepCopy()
-			r2.SetGroupVersionKind(schema.GroupVersionKind{Group: cpy.group, Version: cpy.version, Kind: cpy.kind})
-			cpy.items = append(cpy.items, runtime.RawExtension{Object: r2})
-		}
-		s.crds[cpy.GVP] = cpy
-	}
-}
-
 // WithGetPodError sets the error to be returned by the GetPod call
 func WithGetPodError(status metav1.Status) Option {
 	return func(s *KubeMockServer) {
@@ -139,13 +115,6 @@ func WithGetPodError(status metav1.Status) Option {
 func WithExecError(status metav1.Status) Option {
 	return func(s *KubeMockServer) {
 		s.execPodError = &status
-	}
-}
-
-// WithPortForwardError sets the error to be returned by the PortForward call
-func WithPortForwardError(status metav1.Status) Option {
-	return func(s *KubeMockServer) {
-		s.portforwardError = &status
 	}
 }
 
@@ -161,8 +130,8 @@ type deletedResource struct {
 	kind      string
 }
 
-// KubeUpgradeRequests keeps track of the number of upgrade requests
-type KubeUpgradeRequests struct {
+// KubeExecRequests keeps track of the number of exec requests
+type KubeExecRequests struct {
 	// SPDY is the number of SPDY exec requests
 	SPDY atomic.Int32
 	// Websocket is the number of Websocket exec requests
@@ -170,25 +139,19 @@ type KubeUpgradeRequests struct {
 }
 
 type KubeMockServer struct {
-	log                  *slog.Logger
-	server               *httptest.Server
-	TLS                  *tls.Config
-	URL                  string
-	Address              string
-	CA                   []byte
-	deletedResources     map[deletedResource][]string
-	getPodError          *metav1.Status
-	execPodError         *metav1.Status
-	portforwardError     *metav1.Status
-	mu                   sync.Mutex
-	version              *apimachineryversion.Info
-	KubeExecRequests     KubeUpgradeRequests
-	KubePortforward      KubeUpgradeRequests
-	supportsTunneledSPDY bool
-
-	nsList *corev1.NamespaceList
-
-	crds map[GVP]*CRD
+	router           *httprouter.Router
+	log              *log.Entry
+	server           *httptest.Server
+	TLS              *tls.Config
+	URL              string
+	Address          string
+	CA               []byte
+	deletedResources map[deletedResource][]string
+	getPodError      *metav1.Status
+	execPodError     *metav1.Status
+	mu               sync.Mutex
+	version          *apimachineryversion.Info
+	KubeExecRequests
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -200,15 +163,15 @@ type KubeMockServer struct {
 // TODO(tigrato): add support for other endpoints
 func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 	s := &KubeMockServer{
-		log:              slog.Default(),
+		router:           httprouter.New(),
+		log:              log.NewEntry(log.New()),
 		deletedResources: make(map[deletedResource][]string),
 		version: &apimachineryversion.Info{
-			Major:      "1",
-			Minor:      "20",
-			GitVersion: "1.20.0",
+			Major: "1",
+			Minor: "20",
 		},
-		nsList: defaultNamespaceList.DeepCopy(),
 	}
+
 	for _, o := range opts {
 		o(s)
 	}
@@ -221,91 +184,45 @@ func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 	s.TLS = s.server.TLS
 	s.Address = strings.TrimPrefix(s.server.URL, "https://")
 	s.URL = s.server.URL
-
-	parsedVersion, err := versionUtil.ParseSemantic(s.version.GitVersion)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse version")
-	}
-	const minSupportVersion = "v1.31.0"
-	s.supportsTunneledSPDY = parsedVersion.AtLeast(versionUtil.MustParse(minSupportVersion))
-
 	return s, nil
 }
 
 func (s *KubeMockServer) setup() {
-	// NOTE: We use stdlib because the gravitational/httplib package doesn't support k8s patterns,
-	// it panics due to overlapping routes.
-	router := http.NewServeMux()
+	s.router.UseRawPath = true
+	s.router.POST("/api/:ver/namespaces/:namespace/pods/:name/exec", s.withWriter(s.exec))
+	s.router.GET("/api/:ver/namespaces/:namespace/pods/:name/exec", s.withWriter(s.exec))
+	s.router.GET("/api/:ver/namespaces/:namespace/pods/:name/portforward", s.withWriter(s.portforward))
+	s.router.POST("/api/:ver/namespaces/:namespace/pods/:name/portforward", s.withWriter(s.portforward))
 
-	router.Handle("POST /api/{ver}/namespaces/{namespace}/pods/{name}/exec", s.withWriter(s.exec))
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}/exec", s.withWriter(s.exec))
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(s.portforward))
-	router.Handle("POST /api/{ver}/namespaces/{namespace}/pods/{name}/portforward", s.withWriter(s.portforward))
+	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles", s.withWriter(s.listClusterRoles))
+	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.getClusterRole))
+	s.router.DELETE("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.deleteClusterRole))
 
-	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}/clusterroles", s.withWriter(s.listClusterRoles))
-	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}/clusterroles/{name}", s.withWriter(s.getClusterRole))
-	router.Handle("DELETE /apis/rbac.authorization.k8s.io/{ver}/clusterroles/{name}", s.withWriter(s.deleteClusterRole))
-	router.Handle("GET /apis/rbac.authorization.k8s.io/{ver}", s.withWriter(s.discoveryEndpoint))
+	s.router.GET("/api/:ver/namespaces/:namespace/pods", s.withWriter(s.listPods))
+	s.router.GET("/api/:ver/pods", s.withWriter(s.listPods))
+	s.router.GET("/api/:ver/namespaces/:namespace/pods/:name", s.withWriter(s.getPod))
+	s.router.DELETE("/api/:ver/namespaces/:namespace/pods/:name", s.withWriter(s.deletePod))
 
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods", s.withWriter(s.listPods))
-	router.Handle("GET /api/{ver}/pods", s.withWriter(s.listPods))
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/pods/{name}", s.withWriter(s.getPod))
-	router.Handle("DELETE /api/{ver}/namespaces/{namespace}/pods/{name}", s.withWriter(s.deletePod))
+	s.router.GET("/api/:ver/namespaces/:namespace/secrets", s.withWriter(s.listSecrets))
+	s.router.GET("/api/:ver/secrets", s.withWriter(s.listSecrets))
+	s.router.GET("/api/:ver/namespaces/:namespace/secrets/:name", s.withWriter(s.getSecret))
+	s.router.DELETE("/api/:ver/namespaces/:namespace/secrets/:name", s.withWriter(s.deleteSecret))
 
-	router.Handle("GET /api/{ver}/namespaces", s.withWriter(s.listNamespaces))
-	router.Handle("GET /api/{ver}/namespaces/{name}", s.withWriter(s.getNamespace))
-	router.Handle("DELETE /api/v1/namespaces/{name}", s.withWriter(s.deleteNamespace))
-	router.Handle("POST /api/{ver}/namespaces", s.withWriter(s.createNamespace))
+	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/secrets", s.withWriter(s.listSecrets))
-	router.Handle("GET /api/{ver}/secrets", s.withWriter(s.listSecrets))
-	router.Handle("GET /api/{ver}/namespaces/{namespace}/secrets/{name}", s.withWriter(s.getSecret))
-	router.Handle("DELETE /api/{ver}/namespaces/{namespace}/secrets/{name}", s.withWriter(s.deleteSecret))
+	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles", s.withWriter(s.listTeleportRoles))
+	s.router.GET("/apis/resources.teleport.dev/v6/teleportroles", s.withWriter(s.listTeleportRoles))
+	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.getTeleportRole))
+	s.router.DELETE("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.deleteTeleportRole))
 
-	router.Handle("POST /apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
-	router.Handle("GET /apis/authorization.k8s.io/{ver}", s.withWriter(s.discoveryEndpoint))
+	s.router.GET("/version", s.withWriter(s.versionEndpoint))
 
-	for k, crd := range s.crds {
-		router.Handle("GET /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural, s.withWriter(s.listCRDs(crd)))
-		router.Handle("GET /apis/"+k.group+"/"+k.version+"/"+k.plural, s.withWriter(s.listCRDs(crd)))
-		router.Handle("GET /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural+"/{name}", s.withWriter(s.getCRD(crd)))
-		router.Handle("DELETE /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural+"/{name}", s.withWriter(s.deleteCRD(crd)))
+	for _, endpoint := range []string{"/api", "/api/:ver", "/apis", "/apis/resources.teleport.dev/v6"} {
+		s.router.GET(endpoint, s.withWriter(s.discoveryEndpoint))
 	}
 
-	router.Handle("GET /version", s.withWriter(s.versionEndpoint))
-
-	for _, endpoint := range []string{"/api", "/api/{ver}", "/apis"} {
-		router.Handle("GET "+endpoint, s.withWriter(s.discoveryEndpoint))
-	}
-	for k, v := range s.crds {
-		router.Handle("GET /apis/"+k.group+"/"+k.version, s.withWriter(crdDiscovery(v)))
-	}
-
-	s.server = httptest.NewUnstartedServer(router)
+	s.server = httptest.NewUnstartedServer(s.router)
 	s.server.EnableHTTP2 = true
-}
-
-func (s *KubeMockServer) CRDScheme() *runtime.Scheme {
-	getUnstructuredCRD := func(group, version, kind string) *unstructured.Unstructured {
-		obj := &unstructured.Unstructured{}
-		obj.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   group,
-			Version: version,
-			Kind:    kind,
-		})
-		return obj
-	}
-
-	kubeScheme := runtime.NewScheme()
-	for k, crd := range s.crds {
-		single := getUnstructuredCRD(k.group, k.version, crd.kind)
-		list := getUnstructuredCRD(k.group, k.version, crd.listKind)
-
-		kubeScheme.AddKnownTypeWithName(single.GroupVersionKind(), single)
-		kubeScheme.AddKnownTypeWithName(list.GroupVersionKind(), list)
-	}
-
-	return kubeScheme
 }
 
 func (s *KubeMockServer) Close() error {
@@ -313,20 +230,8 @@ func (s *KubeMockServer) Close() error {
 	return nil
 }
 
-var routerRe = regexp.MustCompile(`\{([^}]+)\}`)
-
-// withWriter handles the glue to support stdlib handler.
-func (s *KubeMockServer) withWriter(handler httplib.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		matches := routerRe.FindAllStringSubmatch(r.Pattern, -1)
-
-		p := httprouter.Params{}
-		for _, elem := range matches {
-			p = append(p, httprouter.Param{Key: elem[1], Value: r.PathValue(elem[1])})
-		}
-
-		httplib.MakeHandlerWithErrorWriter(handler, s.formatResponseError)(w, r, p)
-	}
+func (s *KubeMockServer) withWriter(handler httplib.HandlerFunc) httprouter.Handle {
+	return httplib.MakeHandlerWithErrorWriter(handler, s.formatResponseError)
 }
 
 func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr error) {
@@ -345,7 +250,7 @@ func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr erro
 	status = status.DeepCopy()
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
-		s.log.WarnContext(context.Background(), "Failed encoding error into kube Status object", "error", err)
+		s.log.Warningf("Failed encoding error into kube Status object: %v", err)
 		trace.WriteError(rw, respErr)
 		return
 	}
@@ -355,7 +260,7 @@ func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr erro
 	// embedded.
 	rw.WriteHeader(int(status.Code))
 	if _, err := rw.Write(data); err != nil {
-		s.log.WarnContext(context.Background(), "Failed writing kube error response body", "error", err)
+		s.log.Warningf("Failed writing kube error response body: %v", err)
 	}
 }
 
@@ -368,7 +273,7 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 
 	q := req.URL.Query()
 	if s.execPodError != nil {
-		s.writeResponseError(w, nil, s.execPodError.DeepCopy())
+		s.writeResponseError(w, nil, s.execPodError)
 		return nil, nil
 	}
 	request := remoteCommandRequest{
@@ -404,13 +309,13 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 
 	if request.stdout {
 		if _, err := outStream.Write([]byte(request.containerName + "\n")); err != nil {
-			s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
+			s.log.WithError(err).Errorf("unable to send to stdout")
 		}
 	}
 
 	if request.stderr {
 		if _, err := errStream.Write([]byte(request.containerName + "\n")); err != nil {
-			s.log.ErrorContext(request.context, "unable to send to stderr", "error", err)
+			s.log.WithError(err).Errorf("unable to send to stderr")
 		}
 	}
 
@@ -422,7 +327,7 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 			if errors.Is(err, io.EOF) && n == 0 {
 				break
 			} else if err != nil && n == 0 {
-				s.log.ErrorContext(request.context, "unable to receive from stdin", "error", err)
+				s.log.WithError(err).Errorf("unable to receive from stdin")
 				break
 			}
 
@@ -440,13 +345,13 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 
 			if request.stdout {
 				if _, err := outStream.Write(buffer); err != nil {
-					s.log.ErrorContext(request.context, "unable to send to stdout", "error", err)
+					s.log.WithError(err).Errorf("unable to send to stdout")
 				}
 			}
 
 			if request.stderr {
 				if _, err := errStream.Write(buffer); err != nil {
-					s.log.ErrorContext(request.context, "unable to send to stderr", "error", err)
+					s.log.WithError(err).Errorf("unable to send to stdout")
 				}
 			}
 		}
@@ -454,10 +359,10 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 
 	if !request.tty {
 		if _, err := io.Copy(proxy.stdoutStream, outStream.(*bytes.Buffer)); err != nil {
-			s.log.ErrorContext(request.context, "unable to copy to stdout", "error", err)
+			s.log.WithError(err).Errorf("unable to send to stdout")
 		}
 		if _, err := io.Copy(proxy.stderrStream, errStream.(*bytes.Buffer)); err != nil {
-			s.log.ErrorContext(request.context, "unable to copy to stderr", "error", err)
+			s.log.WithError(err).Errorf("unable to send to stderr")
 		}
 	}
 
@@ -624,10 +529,10 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 	var handler protocolHandler
 	switch protocol {
 	case "":
-		slog.WarnContext(req.context, "Client did not request protocol negotiation.")
+		log.Warningf("Client did not request protocol negotiation.")
 		fallthrough
 	case StreamProtocolV4Name:
-		slog.InfoContext(req.context, "Negotiated protocol", "protocol", protocol)
+		log.Infof("Negotiated protocol %v.", protocol)
 		handler = &v4ProtocolHandler{}
 	default:
 		return nil, trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
@@ -729,7 +634,7 @@ func (t *termQueue) handleResizeEvents(stream io.Reader) {
 		size := remotecommand.TerminalSize{}
 		if err := decoder.Decode(&size); err != nil {
 			if !errors.Is(err, io.EOF) {
-				slog.WarnContext(t.done, "Failed to decode resize event", "error", err)
+				log.Warningf("Failed to decode resize event: %v", err)
 			}
 			t.cancel()
 			return
@@ -784,7 +689,7 @@ WaitForStreams:
 				remoteProxy.resizeStream = stream
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			default:
-				slog.WarnContext(stopCtx, "Ignoring unexpected stream type", "stream_type", streamType)
+				log.Warningf("Ignoring unexpected stream type: %q", streamType)
 			}
 		case <-replyChan:
 			receivedStreams++
@@ -847,55 +752,17 @@ func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *ht
 // portforward supports SPDY protocols only. Teleport always uses SPDY when
 // portforwarding to upstreams even if the original request is WebSocket.
 func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	if s.portforwardError != nil {
-		s.writeResponseError(w, nil, s.portforwardError)
-		return nil, nil
+	_, err := httpstream.Handshake(req, w, []string{portForwardProtocolV1Name})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	streamChan := make(chan httpstream.Stream)
 
-	var err error
-	var conn httpstream.Connection
-	if wsstream.IsWebSocketRequestWithTunnelingProtocol(req) {
-		if !s.supportsTunneledSPDY {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte("server does not support tunneled SPDY"))
-			return nil, nil
-		}
-		s.KubePortforward.Websocket.Add(1)
-		// Try to upgrade the websocket connection.
-		// Beyond this point, we don't need to write errors to the response.
-		upgrader := gwebsocket.Upgrader{
-			CheckOrigin:  func(r *http.Request) bool { return true },
-			Subprotocols: []string{portforwardconstants.WebsocketsSPDYTunnelingPortForwardV1},
-		}
-		wsConn, err := upgrader.Upgrade(w, req, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		tunneledConn := portforward.NewTunnelingConnection("server", wsConn)
-
-		conn, err = spdystream.NewServerConnectionWithPings(
-			tunneledConn,
-			httpStreamReceived(req.Context(), streamChan),
-			defaults.HighResPollingPeriod,
-		)
-		if err != nil {
-			return nil, trace.Wrap(err, "error upgrading connection")
-		}
-	} else {
-		s.KubePortforward.SPDY.Add(1)
-		_, err := httpstream.Handshake(req, w, []string{portForwardProtocolV1Name})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
-		conn = upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
-	}
-
+	upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
+	conn := upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
 	if conn == nil {
-		err = trace.ConnectionProblem(nil, "unable to upgrade connection")
+		err = trace.ConnectionProblem(nil, "unable to upgrade SPDY connection")
 		return nil, err
 	}
 	defer conn.Close()
@@ -923,15 +790,15 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 	for {
 		select {
 		case <-ctx.Done():
-			s.log.InfoContext(ctx, "Context canceled")
+			s.log.WithContext(ctx).Info(ctx, "Context canceled")
 			return nil, nil
 		case <-conn.CloseChan():
-			s.log.InfoContext(ctx, "Connection closed")
+			s.log.WithContext(ctx).Info(ctx, "Connection closed")
 			return nil, nil
 		case stream := <-streamChan:
 			port := stream.Headers().Get(portHeader)
 			if port == "" {
-				s.log.WarnContext(ctx, "Skipping a stream without a port header")
+				s.log.WithContext(ctx).Warn(ctx, "Skipping a stream without a port header")
 				continue
 			}
 
@@ -948,7 +815,7 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 			case StreamTypeData:
 				ps.data = stream
 			default:
-				s.log.WarnContext(ctx, "Unknown stream type", "type", stream.Headers().Get(StreamType))
+				s.log.WithContext(ctx).Warn(ctx, "Unknown stream type", "type", stream.Headers().Get(StreamType))
 			}
 
 			// Check whether the port is ready to process.
@@ -993,9 +860,9 @@ func (s *KubeMockServer) handlePortForward(ctx context.Context, wg *sync.WaitGro
 		// Write to target.
 		_, writeErr := fmt.Fprint(dataStream, PortForwardPayload, podName, string(buf[:n]))
 		if writeErr != nil {
-			s.log.ErrorContext(ctx, "Unable to write response", "error", writeErr)
+			s.log.WithContext(ctx).Error("Unable to write response", "error", writeErr)
 			if _, errWriteErr := errorStream.Write([]byte(writeErr.Error())); errWriteErr != nil {
-				s.log.ErrorContext(ctx, "Unable to write error", "error", errWriteErr)
+				s.log.WithContext(ctx).Error("Unable to write error", "error", errWriteErr)
 			}
 		}
 		return
@@ -1003,14 +870,14 @@ func (s *KubeMockServer) handlePortForward(ctx context.Context, wg *sync.WaitGro
 
 	// Check for read error.
 	if readErr != nil && !errors.Is(readErr, io.EOF) {
-		s.log.ErrorContext(ctx, "Read error", "port", port, "error", readErr)
+		s.log.WithContext(ctx).Error("Read error", "port", port, "error", readErr)
 		if _, writeErr := errorStream.Write([]byte(readErr.Error())); writeErr != nil {
-			s.log.ErrorContext(ctx, "Unable to write error", "error", writeErr)
+			s.log.WithContext(ctx).Error("Unable to write error", "error", writeErr)
 		}
 		return
 	}
 
-	s.log.InfoContext(ctx, "Port forward completed", "port", port)
+	s.log.WithContext(ctx).Info("Port forward completed", "port", port)
 }
 
 // httpStreamReceived is the httpstream.NewStreamHandler for port

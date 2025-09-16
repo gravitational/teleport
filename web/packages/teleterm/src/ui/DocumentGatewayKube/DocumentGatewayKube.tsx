@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -28,7 +28,7 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
-import { emptyFormSchema, OfflineGateway } from '../components/OfflineGateway';
+import { OfflineGateway } from '../components/OfflineGateway';
 
 /**
  * DocumentGatewayKube creates a terminal session that presets KUBECONFIG env
@@ -36,6 +36,15 @@ import { emptyFormSchema, OfflineGateway } from '../components/OfflineGateway';
  *
  * It first tries to create a kube gateway by calling the clusterService. Once
  * connected, it will render DocumentTerminal.
+ *
+ * TODO(greedy52) doc.gateway_kube replaces doc.terminal_tsh_kube when opening
+ * a new kube tab. However, the old doc.terminal_tsh_kube is kept to handle the
+ * case where doc.terminal_tsh_kube tabs are saved on disk by the old version
+ * of Teleport Connect and need to be reopen by the new version of Teleport
+ * Connect. The old doc.terminal_tsh_kube can be DELETED in the next major
+ * version (15.0.0) assuming migration should be done by then. Here is the
+ * discussion reference:
+ * https://github.com/gravitational/teleport/pull/28312#discussion_r1253214517
  */
 export const DocumentGatewayKube = (props: {
   visible: boolean;
@@ -45,9 +54,10 @@ export const DocumentGatewayKube = (props: {
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const { params } = routing.parseKubeUri(doc.targetUri);
-  const gateway = ctx.clustersService.findGatewayByConnectionParams({
-    targetUri: doc.targetUri,
-  });
+  const gateway = ctx.clustersService.findGatewayByConnectionParams(
+    doc.targetUri,
+    ''
+  );
   const connected = !!gateway;
 
   const [connectAttempt, createGateway] = useAsync(async () => {
@@ -86,8 +96,8 @@ export const DocumentGatewayKube = (props: {
           connectAttempt={connectAttempt}
           targetName={params.kubeId}
           gatewayKind="kube"
-          formSchema={emptyFormSchema}
           reconnect={createGateway}
+          gatewayPort={{ isSupported: false }}
         />
       </Document>
     );

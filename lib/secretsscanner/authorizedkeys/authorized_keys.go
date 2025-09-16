@@ -194,10 +194,10 @@ func (w *Watcher) start(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return nil
-	case <-w.clock.After(retryutils.FullJitter(maxInitialDelay)):
+	case <-w.clock.After(retryutils.NewFullJitter()(maxInitialDelay)):
 	}
 
-	jitterFunc := retryutils.HalfJitter
+	jitterFunc := retryutils.NewHalfJitter()
 	// maxReSendInterval is the maximum interval to re-send the authorized keys report
 	// to the cluster in case of no changes.
 	const maxReSendInterval = accessgraph.AuthorizedKeyDefaultKeyTTL - 20*time.Minute

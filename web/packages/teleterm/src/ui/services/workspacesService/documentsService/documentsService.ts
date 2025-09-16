@@ -16,14 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-
 import type { Shell } from 'teleterm/mainProcess/shell';
 import type { RuntimeSettings } from 'teleterm/mainProcess/types';
 import * as uri from 'teleterm/ui/uri';
 import {
   DocumentUri,
-  isWindowsDesktopUri,
   KubeUri,
   paths,
   RootClusterUri,
@@ -32,26 +29,24 @@ import {
 } from 'teleterm/ui/uri';
 import { unique } from 'teleterm/ui/utils/uid';
 
-import { getDocumentGatewayTitle } from './documentsUtils';
 import {
   CreateAccessRequestDocumentOpts,
   CreateGatewayDocumentOpts,
+  CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
   DocumentAuthorizeWebSession,
   DocumentCluster,
   DocumentClusterQueryParams,
   DocumentConnectMyComputer,
-  DocumentDesktopSession,
   DocumentGateway,
   DocumentGatewayCliClient,
   DocumentGatewayKube,
   DocumentOrigin,
   DocumentPtySession,
+  DocumentTshKube,
   DocumentTshNode,
-  DocumentVnetDiagReport,
-  DocumentVnetInfo,
-  VnetLauncherArgs,
+  DocumentTshNodeWithServerId,
   WebSessionRequest,
 } from './types';
 
@@ -79,23 +74,11 @@ export class DocumentsService {
     opts: CreateAccessRequestDocumentOpts
   ): DocumentAccessRequests {
     const uri = routing.getDocUri({ docId: unique() });
-    let title: string;
-    switch (opts.state) {
-      case 'creating':
-        title = 'New Role Request';
-        break;
-      case 'reviewing':
-        title = `Access Request: ${opts.requestId.slice(-5)}`;
-        break;
-      case 'browsing':
-      default:
-        title = 'Access Requests';
-    }
     return {
       uri,
       clusterUri: opts.clusterUri,
       requestId: opts.requestId,
-      title,
+      title: opts.title || 'Access Requests',
       kind: 'doc.access_requests',
       state: opts.state,
     };
@@ -109,10 +92,38 @@ export class DocumentsService {
     return createClusterDocument(opts);
   }
 
+  /**
+   * @deprecated Use createGatewayKubeDocument instead.
+   * DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+   */
+  createTshKubeDocument(
+    options: CreateTshKubeDocumentOptions
+  ): DocumentTshKube {
+    const { params } = routing.parseKubeUri(options.kubeUri);
+    const uri = routing.getDocUri({ docId: unique() });
+    return {
+      uri,
+      kind: 'doc.terminal_tsh_kube',
+      status: 'connecting',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      kubeId: params.kubeId,
+      kubeUri: options.kubeUri,
+      // We prepend the name with `rootClusterId/` to create a kube config
+      // inside this directory. When the user logs out of the cluster,
+      // the entire directory is deleted.
+      kubeConfigRelativePath:
+        options.kubeConfigRelativePath ||
+        `${params.rootClusterId}/${params.kubeId}-${unique(5)}`,
+      title: params.kubeId,
+      origin: options.origin,
+    };
+  }
+
   createTshNodeDocument(
     serverUri: ServerUri,
     params: { origin: DocumentOrigin }
-  ): DocumentTshNode {
+  ): DocumentTshNodeWithServerId {
     const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -144,8 +155,9 @@ export class DocumentsService {
       origin,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
+    const title = targetUser ? `${targetUser}@${targetName}` : targetName;
 
-    const doc: DocumentGateway = {
+    return {
       uri,
       kind: 'doc.gateway',
       targetUri,
@@ -153,13 +165,11 @@ export class DocumentsService {
       targetName,
       targetSubresourceName,
       gatewayUri,
-      title: undefined,
+      title,
       port,
       origin,
       status: '',
     };
-    doc.title = getDocumentGatewayTitle(doc);
-    return doc;
   }
 
   createGatewayCliDocument({
@@ -224,36 +234,6 @@ export class DocumentsService {
       title: 'Authorize Web Session',
       rootClusterUri: params.rootClusterUri,
       webSessionRequest: params.webSessionRequest,
-    };
-  }
-
-  createVnetDiagReportDocument(opts: {
-    rootClusterUri: RootClusterUri;
-    report: Report;
-  }): DocumentVnetDiagReport {
-    const uri = routing.getDocUri({ docId: unique() });
-
-    return {
-      uri,
-      kind: 'doc.vnet_diag_report',
-      title: 'VNet Diagnostic Report',
-      rootClusterUri: opts.rootClusterUri,
-      report: opts.report,
-    };
-  }
-
-  createVnetInfoDocument(opts: {
-    rootClusterUri: RootClusterUri;
-    launcherArgs?: VnetLauncherArgs;
-  }): DocumentVnetInfo {
-    const uri = routing.getDocUri({ docId: unique() });
-
-    return {
-      uri,
-      kind: 'doc.vnet_info',
-      title: 'VNet',
-      rootClusterUri: opts.rootClusterUri,
-      launcherArgs: opts.launcherArgs,
     };
   }
 
@@ -467,28 +447,6 @@ export class DocumentsService {
     return this.getState().documents.filter(i => i.uri !== uri);
   }
 
-  /**
-   * Finds an existing doc using findExisting and opens it. If there's no existing doc, uses
-   * createNew to add a new doc and then opens it.
-   *
-   * Returns the URI of the doc that was opened.
-   */
-  openExistingOrAddNew(
-    findExisting: (doc: Document) => boolean,
-    createNew: () => Document
-  ): DocumentUri {
-    const existingDoc = this.getDocuments().find(findExisting);
-    if (existingDoc) {
-      this.open(existingDoc.uri);
-      return existingDoc.uri;
-    }
-
-    const newDoc = createNew();
-    this.add(newDoc);
-    this.open(newDoc.uri);
-    return newDoc.uri;
-  }
-
   getTshNodeDocuments() {
     function isTshNode(d: DocumentTshNode): d is DocumentTshNode {
       return d.kind === 'doc.terminal_tsh_node';
@@ -558,30 +516,11 @@ export function createClusterDocument(opts: {
   };
 }
 
-export function createDesktopSessionDocument(opts: {
-  desktopUri: uri.DesktopUri;
-  login: string;
-  origin: DocumentOrigin;
-}): DocumentDesktopSession {
-  return {
-    kind: 'doc.desktop_session' as const,
-    uri: routing.getDocUri({ docId: unique() }),
-    title: isWindowsDesktopUri(opts.desktopUri)
-      ? `${opts.login} on ${routing.parseWindowsDesktopUri(opts.desktopUri).params.windowsDesktopId}`
-      : 'Unknown',
-    desktopUri: opts.desktopUri,
-    login: opts.login,
-    origin: opts.origin,
-    status: '',
-  };
-}
-
 export function getDefaultDocumentClusterQueryParams(): DocumentClusterQueryParams {
   return {
     resourceKinds: [],
     search: '',
     sort: { fieldName: 'name', dir: 'ASC' },
     advancedSearchEnabled: false,
-    statuses: [],
   };
 }

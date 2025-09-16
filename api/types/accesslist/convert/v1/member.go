@@ -18,11 +18,11 @@ package v1
 
 import (
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
-	"github.com/gravitational/teleport/api/utils"
 )
 
 type MemberOption func(*accesslist.AccessListMember)
@@ -37,17 +37,16 @@ func FromMemberProto(msg *accesslistv1.Member, opts ...MemberOption) (*accesslis
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.AccessListMemberSpec{
-		AccessList: msg.GetSpec().GetAccessList(),
-		Name:       msg.GetSpec().GetName(),
-		Joined:     utils.TimeFromProto(msg.GetSpec().GetJoined()),
-		Expires:    utils.TimeFromProto(msg.GetSpec().GetExpires()),
-		Reason:     msg.GetSpec().GetReason(),
-		AddedBy:    msg.GetSpec().GetAddedBy(),
+	member, err := accesslist.NewAccessListMember(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.AccessListMemberSpec{
+		AccessList: msg.Spec.AccessList,
+		Name:       msg.Spec.Name,
+		Joined:     msg.Spec.Joined.AsTime(),
+		Expires:    msg.Spec.Expires.AsTime(),
+		Reason:     msg.Spec.Reason,
+		AddedBy:    msg.Spec.AddedBy,
 		// Set it to empty as default.
 		// Must provide as options to set it with the provided value.
 		IneligibleStatus: "",
-		MembershipKind:   msg.Spec.MembershipKind.String(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,22 +79,16 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 		ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
 	}
 
-	var membershipKind accesslistv1.MembershipKind
-	if enumVal, ok := accesslistv1.MembershipKind_value[member.Spec.MembershipKind]; ok {
-		membershipKind = accesslistv1.MembershipKind(enumVal)
-	}
-
 	return &accesslistv1.Member{
 		Header: headerv1.ToResourceHeaderProto(member.ResourceHeader),
 		Spec: &accesslistv1.MemberSpec{
 			AccessList:       member.Spec.AccessList,
 			Name:             member.Spec.Name,
-			Joined:           utils.TimeIntoProto(member.Spec.Joined),
-			Expires:          utils.TimeIntoProto(member.Spec.Expires),
+			Joined:           timestamppb.New(member.Spec.Joined),
+			Expires:          timestamppb.New(member.Spec.Expires),
 			Reason:           member.Spec.Reason,
 			AddedBy:          member.Spec.AddedBy,
 			IneligibleStatus: ineligibleStatus,
-			MembershipKind:   membershipKind,
 		},
 	}
 }

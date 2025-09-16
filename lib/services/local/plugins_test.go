@@ -156,7 +156,7 @@ func TestListPlugins(t *testing.T) {
 	service := NewPluginsService(mem)
 
 	var insertedPlugins []types.Plugin
-	for i := range numPlugins {
+	for i := 0; i < numPlugins; i++ {
 		plugin := types.NewPluginV1(
 			types.Metadata{Name: fmt.Sprintf("p%02d", i+1)},
 			types.PluginSpecV1{

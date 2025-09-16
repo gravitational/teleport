@@ -1,7 +1,7 @@
 ---
 title: Introduction to Teleport Clients
 description: The basics of connecting to resources with Teleport
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -240,7 +240,7 @@ Or you can upload using drag and drop:
 </TabItem>
 </Tabs>
 
-### Database access
+### Database Access
 
 <Tabs>
 <TabItem label="tsh">
@@ -313,14 +313,9 @@ initiate a CLI connection inside Teleport Connect:
 </TabItem>
 <TabItem label="Web UI">
 
-The Teleport Web UI will show all databases a user has access to and only offers
-browser-based sessions for a select number of databases. For databases
-that can't be accessed from the browser, the Web UI will show the `tsh` commands
-that are needed to connect from a developer workstation.
-
-For more details on accessing databases directly from the browser, refer to
-[Starting a database session](./web-ui.mdx#starting-a-database-session) in 
-the Teleport Web UI.
+The Teleport Web UI cannot provide direct connections to databases, but it will
+list those that are accessible to your user under **Databases** and provide
+`tsh` commands to connect from your local terminal environment.
 
 </TabItem>
 </Tabs>
@@ -352,5 +347,6 @@ either directly or through proxy tunnels.
   Teleport. You use it to connect to servers, databases, and Kubernetes
   clusters. See [Using Teleport Connect](./teleport-connect.mdx).
 
-- [Access Teleport-protected databases with GUI clients](./gui-clients.mdx):
-  Details how to connect many popular database GUI clients through Teleport.
+{/*lint ignore messaging for page title*/}
+- [Database Access GUI Clients](./gui-clients.mdx) details
+how to connect many popular database GUI clients through Teleport.

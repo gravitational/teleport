@@ -36,35 +36,27 @@ type yamlParseRequest struct {
 }
 
 type yamlParseResponse struct {
-	Resource any `json:"resource"`
+	Resource interface{} `json:"resource"`
 }
 
 type yamlStringifyResponse struct {
 	YAML string `json:"yaml"`
 }
 
-func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	kind := params.ByName("kind")
 	if len(kind) == 0 {
 		return nil, trace.BadParameter("query param %q is required", "kind")
 	}
 
 	var req yamlParseRequest
-	if err := httplib.ReadResourceJSON(r, &req); err != nil {
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	switch kind {
 	case types.KindAccessMonitoringRule:
-		resource, err := yamlToAccessMonitoringRuleResource(req.YAML)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return yamlParseResponse{Resource: resource}, nil
-
-	case types.KindRole:
-		resource, err := yamlToRole(req.YAML)
+		resource, err := ConvertYAMLToAccessMonitoringRuleResource(req.YAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -84,33 +76,21 @@ func (h *Handler) yamlParse(w http.ResponseWriter, r *http.Request, params httpr
 	}
 }
 
-func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	kind := params.ByName("kind")
 	if len(kind) == 0 {
 		return nil, trace.BadParameter("query param %q is required", "kind")
 	}
 
-	var resource any
+	var resource interface{}
 
 	switch kind {
 	case types.KindAccessMonitoringRule:
 		var req struct {
 			Resource *accessmonitoringrulesv1.AccessMonitoringRule `json:"resource"`
 		}
-		if err := httplib.ReadResourceJSON(r, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resource = req.Resource
-
-	case types.KindRole:
-		var req struct {
-			Resource types.RoleV6 `json:"resource"`
-		}
 		if err := httplib.ReadJSON(r, &req); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if err := req.Resource.CheckAndSetDefaults(); err != nil {
-			return nil, err
 		}
 		resource = req.Resource
 
@@ -125,31 +105,15 @@ func (h *Handler) yamlStringify(w http.ResponseWriter, r *http.Request, params h
 	return yamlStringifyResponse{YAML: string(data)}, nil
 }
 
-func yamlToAccessMonitoringRuleResource(yaml string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
+func ConvertYAMLToAccessMonitoringRuleResource(yaml string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
 	extractedRes, err := extractResource(yaml)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if extractedRes.Kind != types.KindAccessMonitoringRule {
-		return nil, trace.BadParameter("resource kind %q is invalid, only acces_monitoring_rule is allowed", extractedRes.Kind)
+		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 	resource, err := services.UnmarshalAccessMonitoringRule(extractedRes.Raw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resource, nil
-}
-
-func yamlToRole(yaml string) (types.Role, error) {
-	extractedRes, err := extractResource(yaml)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if extractedRes.Kind != types.KindRole {
-		return nil, trace.BadParameter("resource kind %q is invalid, only role is allowed", extractedRes.Kind)
-	}
-	resource, err := services.UnmarshalRole(extractedRes.Raw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -52,9 +52,6 @@ func TestNewAccessGraphSettings(t *testing.T) {
 				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
 				},
-				Status: &clusterconfigpb.AccessGraphSettingsStatus{
-					InitialSyncComplete: false,
-				},
 			},
 		},
 		{
@@ -73,9 +70,6 @@ func TestNewAccessGraphSettings(t *testing.T) {
 				},
 				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-				},
-				Status: &clusterconfigpb.AccessGraphSettingsStatus{
-					InitialSyncComplete: false,
 				},
 			},
 		},

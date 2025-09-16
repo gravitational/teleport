@@ -20,11 +20,8 @@ package s3sessions
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
-	"log/slog"
-	"net/http"
 	"net/url"
 	"path"
 	"sort"
@@ -32,26 +29,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go/tracing/smithyoteltracing"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager/s3manageriface"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
-	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 // s3AllowedACL is the set of canned ACLs that S3 accepts
@@ -83,8 +77,10 @@ type Config struct {
 	Endpoint string
 	// ACL is the canned ACL to send to S3
 	ACL string
-	// CredentialsProvider if supplied is used in tests or with External Audit Storage.
-	CredentialsProvider aws.CredentialsProvider
+	// Session is an optional existing AWS client session
+	Session *awssession.Session
+	// Credentials if supplied are used in tests or with External Audit Storage.
+	Credentials *credentials.Credentials
 	// SSEKMSKey specifies the optional custom CMK used for KMS SSE.
 	SSEKMSKey string
 
@@ -186,11 +182,41 @@ func (s *Config) CheckAndSetDefaults() error {
 	if s.Bucket == "" {
 		return trace.BadParameter("missing parameter Bucket")
 	}
+	if s.Session == nil {
+		awsConfig := aws.Config{
+			UseFIPSEndpoint: events.FIPSProtoStateToAWSState(s.UseFIPSEndpoint),
+		}
+		if s.Region != "" {
+			awsConfig.Region = aws.String(s.Region)
+		}
+		if s.Endpoint != "" {
+			awsConfig.Endpoint = aws.String(s.Endpoint)
+			awsConfig.S3ForcePathStyle = aws.Bool(true)
+		}
+		if s.Insecure {
+			awsConfig.DisableSSL = aws.Bool(s.Insecure)
+		}
+		if s.Credentials != nil {
+			awsConfig.Credentials = s.Credentials
+		}
+		usePathStyle := !s.UseVirtualStyleAddressing
+		awsConfig.S3ForcePathStyle = &usePathStyle
+		hc, err := defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		awsConfig.HTTPClient = hc
 
-	if s.Endpoint != "" {
-		s.Endpoint = endpoint.CreateURI(s.Endpoint, s.Insecure)
+		sess, err := awssession.NewSessionWithOptions(awssession.Options{
+			SharedConfigState: awssession.SharedConfigEnable,
+			Config:            awsConfig,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.Session = sess
 	}
-
 	return nil
 }
 
@@ -199,107 +225,37 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	logger := slog.With(teleport.ComponentKey, teleport.SchemeS3)
 
-	opts := []func(*config.LoadOptions) error{
-		config.WithRegion(cfg.Region),
-	}
-
-	if cfg.Insecure {
-		opts = append(opts, config.WithHTTPClient(&http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
-		}))
-	} else {
-		hc, err := defaults.HTTPClient()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		opts = append(opts, config.WithHTTPClient(hc))
-	}
-
-	if cfg.CredentialsProvider != nil {
-		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
-	}
-
-	opts = append(opts,
-		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
-		config.WithAPIOptions(s3metrics.MetricsMiddleware()),
-	)
-
-	resolver, err := endpoint.NewLoggingResolver(
-		s3.NewDefaultEndpointResolverV2(),
-		logger.With(slog.Group("service",
-			"id", s3.ServiceID,
-			"api_version", s3.ServiceAPIVersion,
-		)),
-	)
+	client, err := s3metrics.NewAPIMetrics(s3.New(cfg.Session))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	s3Opts := []func(*s3.Options){
-		s3.WithEndpointResolverV2(resolver),
-		func(o *s3.Options) {
-			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		},
-	}
-
-	if cfg.Endpoint != "" {
-		if _, err := url.Parse(cfg.Endpoint); err != nil {
-			return nil, trace.BadParameter("configured S3 endpoint is invalid: %s", err.Error())
-		}
-
-		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
-
-		s3Opts = append(s3Opts, func(options *s3.Options) {
-			options.UsePathStyle = !cfg.UseVirtualStyleAddressing
-		})
-	}
-
-	if modules.GetModules().IsBoringBinary() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
-		s3Opts = append(s3Opts, func(options *s3.Options) {
-			options.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
-		})
-	}
-
-	awsConfig, err := config.LoadDefaultConfig(context.Background(), opts...)
+	uploader, err := s3metrics.NewUploadAPIMetrics(s3manager.NewUploader(cfg.Session))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create S3 client with custom options
-	client := s3.NewFromConfig(awsConfig, s3Opts...)
-
-	uploader := manager.NewUploader(client)
-	downloader := manager.NewDownloader(client)
+	downloader, err := s3metrics.NewDownloadAPIMetrics(s3manager.NewDownloader(cfg.Session))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	h := &Handler{
-		logger:     logger,
+		Entry: log.WithFields(log.Fields{
+			teleport.ComponentKey: teleport.Component(teleport.SchemeS3),
+		}),
 		Config:     cfg,
 		uploader:   uploader,
 		downloader: downloader,
 		client:     client,
 	}
-
 	start := time.Now()
-	h.logger.InfoContext(ctx, "Setting up S3 bucket",
-		"bucket", h.Bucket,
-		"path", h.Path,
-		"region", h.Region,
-	)
+	h.Infof("Setting up bucket %q, sessions path %q in region %q.", h.Bucket, h.Path, h.Region)
 	if err := h.ensureBucket(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	h.logger.InfoContext(ctx, "Setting up bucket S3 completed",
-		"bucket", h.Bucket,
-		"path", h.Path,
-		"region", h.Region,
-		"duration", time.Since(start),
-	)
+	h.WithFields(log.Fields{"duration": time.Since(start)}).Infof("Setup bucket %q completed.", h.Bucket)
 	return h, nil
 }
 
@@ -307,11 +263,11 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 type Handler struct {
 	// Config is handler configuration
 	Config
-	// logger emits log messages
-	logger     *slog.Logger
-	uploader   *manager.Uploader
-	downloader *manager.Downloader
-	client     s3Client
+	// Entry is a logging entry
+	*log.Entry
+	uploader   s3manageriface.UploaderAPI
+	downloader s3manageriface.DownloaderAPI
+	client     s3iface.S3API
 }
 
 // Close releases connection and resources associated with log if any
@@ -319,101 +275,57 @@ func (h *Handler) Close() error {
 	return nil
 }
 
-// Upload reads the content of a session recording from a reader and uploads it
-// to an S3 bucket. If successful, it returns URL of the uploaded object.
+// Upload uploads object to S3 bucket, reads the contents of the object from reader
+// and returns the target S3 bucket path in case of successful upload.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.recordingPath(sessionID), reader)
-}
+	var err error
+	path := h.path(sessionID)
 
-// UploadSummary reads the content of a session summary from a reader and
-// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
-// object.
-func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.summaryPath(sessionID), reader)
-}
-
-// UploadMetadata reads the content of a session's metadata from a reader and
-// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
-// object.
-func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.metadataPath(sessionID), reader)
-}
-
-// UploadThumbnail reads the content of a session's thumbnail from a reader and
-// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
-// object.
-func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
-}
-
-func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader) (string, error) {
-	uploadInput := &s3.PutObjectInput{
+	uploadInput := &s3manager.UploadInput{
 		Bucket: aws.String(h.Bucket),
 		Key:    aws.String(path),
 		Body:   reader,
 	}
 	if !h.Config.DisableServerSideEncryption {
-		uploadInput.ServerSideEncryption = awstypes.ServerSideEncryptionAwsKms
+		uploadInput.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
+
 		if h.Config.SSEKMSKey != "" {
 			uploadInput.SSEKMSKeyId = aws.String(h.Config.SSEKMSKey)
 		}
 	}
 	if h.Config.ACL != "" {
-		uploadInput.ACL = awstypes.ObjectCannedACL(h.Config.ACL)
+		uploadInput.ACL = aws.String(h.Config.ACL)
 	}
-	_, err := h.uploader.Upload(ctx, uploadInput)
+	_, err = h.uploader.UploadWithContext(ctx, uploadInput)
 	if err != nil {
 		return "", awsutils.ConvertS3Error(err)
 	}
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, path), nil
 }
 
-// Download downloads a session recording from an S3 bucket and writes the
-// result into a writer. Returns trace.NotFound error if the recording is not
-// found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.recordingPath(sessionID), writer)
-}
-
-// DownloadSummary downloads a session summary from an S3 bucket and writes the
-// results into a writer. Returns trace.NotFound error if the summary is not
-// found.
-func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.summaryPath(sessionID), writer)
-}
-
-// DownloadMetadata downloads a session's metadata from an S3 bucket and writes the
-// results into a writer. Returns trace.NotFound error if the metadata is not
-// found.
-func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.metadataPath(sessionID), writer)
-}
-
-// DownloadThumbnail downloads a session's thumbnail from an S3 bucket and writes the
-// results into a writer. Returns trace.NotFound error if the thumbnail is not
-// found.
-func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return h.downloadFile(ctx, h.thumbnailPath(sessionID), writer)
-}
-
-func (h *Handler) downloadFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
+// Download downloads recorded session from S3 bucket and writes the results
+// into writer return trace.NotFound error is object is not found.
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
-	versionID, err := h.getOldestVersion(ctx, h.Bucket, path)
+	versionID, err := h.getOldestVersion(ctx, h.Bucket, h.path(sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	h.logger.DebugContext(ctx, "Downloading file from S3", "bucket", h.Bucket, "path", path, "version_id", versionID)
+	h.Debugf("Downloading %v/%v [%v].", h.Bucket, h.path(sessionID), versionID)
 
-	_, err = h.downloader.Download(ctx, writer, &s3.GetObjectInput{
+	written, err := h.downloader.DownloadWithContext(ctx, writer, &s3.GetObjectInput{
 		Bucket:    aws.String(h.Bucket),
-		Key:       aws.String(path),
+		Key:       aws.String(h.path(sessionID)),
 		VersionId: aws.String(versionID),
 	})
 	if err != nil {
 		return awsutils.ConvertS3Error(err)
+	}
+	if written == 0 {
+		return trace.NotFound("recording for %v is not found", sessionID)
 	}
 	return nil
 }
@@ -431,24 +343,24 @@ type versionID struct {
 func (h *Handler) getOldestVersion(ctx context.Context, bucket string, prefix string) (string, error) {
 	var versions []versionID
 
-	paginator := s3.NewListObjectVersionsPaginator(h.client, &s3.ListObjectVersionsInput{
+	// Get all versions of this object.
+	err := h.client.ListObjectVersionsPagesWithContext(ctx, &s3.ListObjectVersionsInput{
 		Bucket: aws.String(bucket),
 		Prefix: aws.String(prefix),
-	})
-
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return "", awsutils.ConvertS3Error(err)
-		}
+	}, func(page *s3.ListObjectVersionsOutput, lastPage bool) bool {
 		for _, v := range page.Versions {
 			versions = append(versions, versionID{
-				ID:        aws.ToString(v.VersionId),
+				ID:        *v.VersionId,
 				Timestamp: *v.LastModified,
 			})
 		}
-	}
 
+		// Returning false stops iteration, stop iteration upon last page.
+		return !lastPage
+	})
+	if err != nil {
+		return "", awsutils.ConvertS3Error(err)
+	}
 	if len(versions) == 0 {
 		return "", trace.NotFound("%v/%v not found", bucket, prefix)
 	}
@@ -460,62 +372,36 @@ func (h *Handler) getOldestVersion(ctx context.Context, bucket string, prefix st
 	return versions[0].ID, nil
 }
 
-// deleteBucket deletes the bucket and all its contents and is used in tests
+// delete bucket deletes bucket and all it's contents and is used in tests
 func (h *Handler) deleteBucket(ctx context.Context) error {
 	// first, list and delete all the objects in the bucket
-	paginator := s3.NewListObjectVersionsPaginator(h.client, &s3.ListObjectVersionsInput{
+	out, err := h.client.ListObjectVersionsWithContext(ctx, &s3.ListObjectVersionsInput{
 		Bucket: aws.String(h.Bucket),
 	})
-
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
+	if err != nil {
+		return awsutils.ConvertS3Error(err)
+	}
+	for _, ver := range out.Versions {
+		_, err := h.client.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
+			Bucket:    aws.String(h.Bucket),
+			Key:       ver.Key,
+			VersionId: ver.VersionId,
+		})
 		if err != nil {
 			return awsutils.ConvertS3Error(err)
 		}
-		for _, ver := range page.Versions {
-			_, err := h.client.DeleteObject(ctx, &s3.DeleteObjectInput{
-				Bucket:    aws.String(h.Bucket),
-				Key:       ver.Key,
-				VersionId: ver.VersionId,
-			})
-			if err != nil {
-				return awsutils.ConvertS3Error(err)
-			}
-		}
 	}
-
-	_, err := h.client.DeleteBucket(ctx, &s3.DeleteBucketInput{
+	_, err = h.client.DeleteBucketWithContext(ctx, &s3.DeleteBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
 	return awsutils.ConvertS3Error(err)
 }
 
-func (h *Handler) recordingPath(sessionID session.ID) string {
+func (h *Handler) path(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), "/")
-}
-
-func (h *Handler) summaryPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".summary.json"
-	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), "/")
-}
-
-func (h *Handler) metadataPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".metadata"
-	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".metadata"), "/")
-}
-
-func (h *Handler) thumbnailPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".thumbnail"
-	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), "/")
 }
 
 func (h *Handler) fromPath(p string) session.ID {
@@ -524,66 +410,59 @@ func (h *Handler) fromPath(p string) session.ID {
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it
 func (h *Handler) ensureBucket(ctx context.Context) error {
-	// Use a short timeout for the HeadBucket call in case it takes too long, in
-	// #50747 this call would hang.
-	shortCtx, cancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
-	defer cancel()
-	_, err := h.client.HeadBucket(shortCtx, &s3.HeadBucketInput{
+	_, err := h.client.HeadBucketWithContext(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
 	err = awsutils.ConvertS3Error(err)
-	switch {
-	case err == nil:
-		// assumes that bucket is administered by other entity
-		return nil
-	case trace.IsBadParameter(err):
-		return trace.Wrap(err)
-	case !trace.IsNotFound(err):
-		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. This is expected if External Audit Storage is enabled or if Teleport has write-only access to the bucket, otherwise S3 session uploads may fail.", "bucket", h.Bucket, "error", err)
+	// assumes that bucket is administered by other entity
+	if err == nil {
 		return nil
 	}
-
+	if !trace.IsNotFound(err) {
+		h.Errorf("Failed to ensure that bucket %q exists (%v). S3 session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", h.Bucket, err)
+		return nil
+	}
 	input := &s3.CreateBucketInput{
-		Bucket:                    aws.String(h.Bucket),
-		ACL:                       awstypes.BucketCannedACLPrivate,
-		CreateBucketConfiguration: awsutils.CreateBucketConfiguration(h.Region),
+		Bucket: aws.String(h.Bucket),
+		ACL:    aws.String("private"),
 	}
-	_, err = h.client.CreateBucket(ctx, input)
-	if err := awsutils.ConvertS3Error(err); err != nil {
+	_, err = h.client.CreateBucketWithContext(ctx, input)
+	err = awsutils.ConvertS3Error(err)
+	if err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
-
 		// if this client has not created the bucket, don't reconfigure it
 		return nil
 	}
 
 	// Turn on versioning.
-	_, err = h.client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
+	ver := &s3.PutBucketVersioningInput{
 		Bucket: aws.String(h.Bucket),
-		VersioningConfiguration: &awstypes.VersioningConfiguration{
-			Status: awstypes.BucketVersioningStatusEnabled,
+		VersioningConfiguration: &s3.VersioningConfiguration{
+			Status: aws.String("Enabled"),
 		},
-	})
-	if err := awsutils.ConvertS3Error(err); err != nil {
+	}
+	_, err = h.client.PutBucketVersioningWithContext(ctx, ver)
+	err = awsutils.ConvertS3Error(err)
+	if err != nil {
 		return trace.Wrap(err, "failed to set versioning state for bucket %q", h.Bucket)
 	}
 
 	// Turn on server-side encryption for the bucket.
 	if !h.DisableServerSideEncryption {
-		_, err = h.client.PutBucketEncryption(ctx, &s3.PutBucketEncryptionInput{
+		_, err = h.client.PutBucketEncryptionWithContext(ctx, &s3.PutBucketEncryptionInput{
 			Bucket: aws.String(h.Bucket),
-			ServerSideEncryptionConfiguration: &awstypes.ServerSideEncryptionConfiguration{
-				Rules: []awstypes.ServerSideEncryptionRule{
-					{
-						ApplyServerSideEncryptionByDefault: &awstypes.ServerSideEncryptionByDefault{
-							SSEAlgorithm: awstypes.ServerSideEncryptionAwsKms,
-						},
+			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
+				Rules: []*s3.ServerSideEncryptionRule{{
+					ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+						SSEAlgorithm: aws.String(s3.ServerSideEncryptionAwsKms),
 					},
-				},
+				}},
 			},
 		})
-		if err := awsutils.ConvertS3Error(err); err != nil {
+		err = awsutils.ConvertS3Error(err)
+		if err != nil {
 			return trace.Wrap(err, "failed to set encryption state for bucket %q", h.Bucket)
 		}
 	}

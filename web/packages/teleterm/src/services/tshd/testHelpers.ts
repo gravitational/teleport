@@ -17,21 +17,15 @@
  */
 
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
-import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
-import {
-  AuthSettings,
-  ClientVersionStatus,
-} from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import {
   ACL,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 
 import { TshdRpcError } from './cloneableClient';
 import * as tsh from './types';
 
-export const rootClusterUri = '/clusters/teleport-local.com';
+export const rootClusterUri = '/clusters/teleport-local';
 export const leafClusterUri = `${rootClusterUri}/leaves/leaf`;
 
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
@@ -48,7 +42,6 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
 export const databaseUri = `${rootClusterUri}/dbs/foo`;
 export const kubeUri = `${rootClusterUri}/kubes/foo`;
 export const appUri = `${rootClusterUri}/apps/foo`;
-export const windowsDesktopUri = `${rootClusterUri}/windows_desktops/foo`;
 
 export const makeDatabase = (
   props: Partial<tsh.Database> = {}
@@ -71,30 +64,18 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   ...props,
 });
 
-export const makeApp = (props: Partial<App> = {}): App => ({
+export const makeApp = (props: Partial<tsh.App> = {}): tsh.App => ({
   name: 'foo',
   labels: [],
   endpointUri: 'tcp://localhost:3000',
   friendlyName: '',
   desc: '',
   awsConsole: false,
-  publicAddr: 'local-app.example.com',
-  fqdn: 'local-app.example.com',
+  publicAddr: 'local-app.example.com:3000',
+  fqdn: 'local-app.example.com:3000',
   samlApp: false,
   uri: appUri,
   awsRoles: [],
-  tcpPorts: [],
-  ...props,
-});
-
-export const makeWindowsDesktop = (
-  props: Partial<WindowsDesktop> = {}
-): WindowsDesktop => ({
-  uri: windowsDesktopUri,
-  name: 'windows-server-2019',
-  labels: [],
-  addr: '192.169.100.50',
-  logins: ['Administrator'],
   ...props,
 });
 
@@ -108,13 +89,12 @@ export const makeRootCluster = (
   name: 'teleport-local',
   connected: true,
   leaf: false,
-  proxyHost: 'teleport-local.com:3080',
+  proxyHost: 'teleport-local:3080',
   authClusterId: 'fefe3434-fefe-3434-fefe-3434fefe3434',
   loggedInUser: makeLoggedInUser(),
   proxyVersion: '11.1.0',
   showResources: ShowResources.REQUESTABLE,
   profileStatusError: '',
-  ssoHost: 'example.auth0.com',
   ...props,
 });
 
@@ -131,11 +111,10 @@ export const makeLeafCluster = (
   proxyVersion: '',
   profileStatusError: '',
   showResources: ShowResources.UNSPECIFIED,
-  ssoHost: 'example.auth0.com',
   ...props,
 });
 
-export const makeAcl = (props: Partial<ACL> = {}): ACL => ({
+export const makeAcl = (props: Partial<ACL> = {}) => ({
   recordedSessions: {
     list: true,
     read: true,
@@ -241,8 +220,6 @@ export const makeAcl = (props: Partial<ACL> = {}): ACL => ({
     use: true,
   },
   reviewRequests: true,
-  directorySharingEnabled: true,
-  clipboardSharingEnabled: true,
   ...props,
 });
 
@@ -265,7 +242,7 @@ export const makeLoggedInUser = (
 export const makeDatabaseGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
-  uri: '/gateways/db',
+  uri: '/gateways/foo',
   targetName: 'sales-production',
   targetUri: databaseUri,
   targetUser: 'alice',
@@ -285,7 +262,7 @@ export const makeDatabaseGateway = (
 export const makeKubeGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
-  uri: '/gateways/kube',
+  uri: '/gateways/foo',
   targetName: 'foo',
   targetUri: kubeUri,
   targetUser: '',
@@ -305,12 +282,12 @@ export const makeKubeGateway = (
 export const makeAppGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
-  uri: '/gateways/app',
+  uri: '/gateways/bar',
   targetName: 'sales-production',
   targetUri: appUri,
   localAddress: 'localhost',
   localPort: '1337',
-  targetSubresourceName: undefined,
+  targetSubresourceName: 'bar',
   gatewayCliCommand: {
     path: '',
     preview: 'curl http://localhost:1337',
@@ -327,59 +304,4 @@ export const makeRetryableError = (): TshdRpcError => ({
   isResolvableWithRelogin: true,
   code: 'UNKNOWN',
   message: 'ssh: handshake failed',
-});
-
-export const makeAccessRequest = (
-  props: Partial<tsh.AccessRequest> = {}
-): tsh.AccessRequest => ({
-  id: '01929070-6886-77eb-90aa-c7223dd73f67',
-  state: 'APPROVED',
-  resolveReason: '',
-  requestReason: '',
-  user: makeLoggedInUser().name,
-  roles: ['access', 'searcheable-resources'],
-  reviews: [],
-  suggestedReviewers: ['admin', 'reviewer'],
-  thresholdNames: ['default'],
-  resourceIds: [
-    {
-      kind: 'kube_cluster',
-      name: 'minikube',
-      clusterName: 'main',
-      subResourceName: '',
-    },
-  ],
-  resources: [
-    {
-      id: {
-        kind: 'kube_cluster',
-        name: 'minikube',
-        clusterName: 'main',
-        subResourceName: '',
-      },
-      details: { hostname: '', friendlyName: '' },
-    },
-  ],
-  promotedAccessListTitle: '',
-  created: { seconds: 1729000138n, nanos: 886521000 },
-  expires: { seconds: 1729026573n, nanos: 0 },
-  maxDuration: { seconds: 1729026573n, nanos: 0 },
-  requestTtl: { seconds: 1729026573n, nanos: 0 },
-  sessionTtl: { seconds: 1729026573n, nanos: 0 },
-  reasonMode: 'optional',
-  reasonPrompts: [],
-  ...props,
-});
-
-export const makeAuthSettings = (
-  props: Partial<AuthSettings> = {}
-): AuthSettings => ({
-  localAuthEnabled: true,
-  authProviders: [],
-  hasMessageOfTheDay: false,
-  authType: 'local',
-  allowPasswordless: false,
-  localConnectorName: '',
-  clientVersionStatus: ClientVersionStatus.OK,
-  ...props,
 });

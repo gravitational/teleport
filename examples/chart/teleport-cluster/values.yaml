@@ -121,7 +121,7 @@ authentication:
   connectorName: ""
 
   # Enable/disable local authentication by setting `authentication.local_auth` in `teleport.yaml`.
-  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/.
+  # Disabling local auth is required for FedRAMP / FIPS; see https://goteleport.com/docs/zero-trust-access/compliance-frameworks/fedramp/#configure-the-teleport-auth-service
   localAuth: true
 
   # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?
@@ -129,11 +129,9 @@ authentication:
   # See https://goteleport.com/docs/access-controls/guides/locking/#next-steps-locking-modes.
   lockingMode: ""
 
-  # DEPRECATED: Second factor requirements for users of the Teleport cluster.
+  # Second factor requirements for users of the Teleport cluster.
   # Controls the `auth_config.authentication.second_factor` field in `teleport.yaml`.
   # Possible values are 'off', 'on', 'otp', 'optional' and 'webauthn'.
-  # This field is kept for backward compatibility purposes, you should use
-  # `secondFactors` instead.
   #
   # WARNING:
   #   If you set `publicAddr` for users to access the cluster under a domain different
@@ -150,29 +148,7 @@ authentication:
   #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
   #
   #   Changing the RP ID will invalidate all already registered webauthn second factors.
-  # secondFactor: ""
-
-  # Second factor requirements for users of the Teleport cluster.
-  # Controls the `auth_config.authentication.second_factors` field in `teleport.yaml`.
-  # This is a list whose possible item values are item values are 'otp', 'sso' and 'webauthn'.
-  # This should be preferred over `secondFactor`.
-  #
-  # WARNING:
-  #   If you set `publicAddr` for users to access the cluster under a domain different
-  #   to clusterName you must manually set the webauthn Relying
-  #   Party Identifier (RP ID) - https://www.w3.org/TR/webauthn-2/#relying-party-identifier
-  #   If you don't, RP ID will default to `clusterName` and users will fail
-  #   to register second factors.
-  #
-  #   You can do this by setting the value
-  #   `auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
-  #
-  #   RP ID must be both a valid domain, and part of the full domain users are connecting to.
-  #   For example, if users are accessing the cluster with the domain
-  #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
-  #
-  #   Changing the RP ID will invalidate all already registered webauthn second factors.
-  secondFactors: ["otp", "webauthn"]
+  secondFactor: "on"
 
   # (Optional) When using webauthn this allows to restrict which vendor and key models can be used.
   # webauthn:
@@ -627,30 +603,6 @@ log:
 # nodeSelector to apply for pod assignment
 # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
 nodeSelector: {}
-
-# Turns off the topology spread constraints.
-# The feature is automatically turned off on Kubernetes versions below 1.18.
-disableTopologySpreadConstraints: false
-
-# Pod topology spread constraints:
-# https://kubernetes.io/fr/docs/concepts/workloads/pods/pod-topology-spread-constraints/
-# When unset, the chart defaults to a soft topology spread constraint
-# that tries to spread pods across hosts and zones.
-#
-# ```
-# topologySpreadConstraints
-#   - maxSkew: 1
-#     topologyKey: kubernetes.io/hostname
-#     whenUnsatisfiable: ScheduleAnyway
-#     labelSelector:
-#       matchLabels: # dynamically computed
-#   - maxSkew: 1
-#     topologyKey: topology.kubernetes.io/zone
-#     whenUnsatisfiable: ScheduleAnyway
-#     labelSelector:
-#       matchLabels: # dynamically computed
-# ```
-topologySpreadConstraints: []
 
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity

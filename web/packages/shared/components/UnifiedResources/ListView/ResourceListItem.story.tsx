@@ -16,21 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta, StoryObj } from '@storybook/react-vite';
+import { Meta, StoryObj } from '@storybook/react';
+import React from 'react';
 
 import { ButtonBorder, Flex } from 'design';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { apps } from 'teleport/Apps/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { databases } from 'teleport/Databases/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { desktops } from 'teleport/Desktops/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { kubes } from 'teleport/Kubes/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import { nodes } from 'teleport/Nodes/fixtures';
-// eslint-disable-next-line no-restricted-imports -- FIXME
 import makeApp from 'teleport/services/apps/makeApps';
 
 import {
@@ -123,10 +118,13 @@ export const ListItems: Story = {
             selectResource={() => {}}
             selected={false}
             pinningSupport={PinningSupport.Supported}
+            name={res.name}
+            primaryIconName={res.primaryIconName}
+            SecondaryIcon={res.SecondaryIcon}
+            listViewProps={res.listViewProps}
+            labels={res.labels}
+            ActionButton={res.ActionButton}
             expandAllLabels={false}
-            onShowStatusInfo={() => null}
-            showingStatusInfo={false}
-            viewItem={res}
           />
         ))}
       </Flex>

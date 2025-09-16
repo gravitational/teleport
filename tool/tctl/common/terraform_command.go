@@ -43,12 +43,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/bot/connection"
-	"github.com/gravitational/teleport/lib/tbot/bot/destination"
-	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -169,7 +166,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 		switch {
 		case trace.IsNotFound(err) && c.existingRole == "":
 			return trace.Wrap(err, `The Terraform role %q does not exist in your Teleport cluster.
-This default role is included in Teleport clusters whose version is higher than v16.1 or v17.
+This default role is included in Teleport clusters whose version is higher than v16.2 or v17.
 If you want to use "tctl terraform env" against an older Teleport cluster, you must create the Terraform role
 yourself and set the flag --role <your-terraform-role-name>.`, roleName)
 		case trace.IsNotFound(err) && c.existingRole != "":
@@ -253,8 +250,6 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 
 	// Create bot
 	bot := &machineidv1pb.Bot{
-		Kind:    types.KindBot,
-		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name:    botName,
 			Expires: timestamppb.New(time.Now().Add(c.botTTL)),
@@ -301,36 +296,28 @@ func (c *TerraformCommand) checkIfRoleExists(ctx context.Context, client roleCli
 // Note: the function also returns the SSH Host CA cert encoded in the known host format.
 // The identity.Identity uses a different format (authorized keys).
 func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr utils.NetAddr, token string, clt *authclient.Client) (*identity.Identity, [][]byte, error) {
-	credential := &clientcredentials.UnstableConfig{}
-	credentialLifetime := bot.CredentialLifetime{
-		TTL:             c.botTTL,
-		RenewalInterval: bot.DefaultCredentialLifetime.RenewalInterval,
-	}
-	cfg := bot.Config{
-		Connection: connection.Config{
-			Address:     addr.String(),
-			AddressKind: connection.AddressKindAuth,
-			// When setting AuthServerAddressMode to ProxyAllowed, tbot will try both joining as an auth and as a proxy.
-			// This allows us to not care about how the user connects to Teleport (auth vs proxy joining).
-			AuthServerAddressMode: connection.AllowProxyAsAuthServer,
-			// If --insecure is passed, the bot will trust the certificate on first use.
-			// This does not truly disable TLS validation, only trusts the certificate on first connection.
-			Insecure: clt.Config().InsecureSkipVerify,
-		},
-		Onboarding: onboarding.Config{
+	credential := &config.UnstableClientCredentialOutput{}
+	cfg := &config.BotConfig{
+		Version: "",
+		Onboarding: config.OnboardingConfig{
 			TokenValue: token,
 			JoinMethod: types.JoinMethodToken,
 		},
-		InternalStorage:    destination.NewMemory(),
-		CredentialLifetime: credentialLifetime,
-		Services: []bot.ServiceBuilder{
-			clientcredentials.ServiceBuilder(credential, credentialLifetime),
-		},
-		Logger: c.log,
+		Storage:        &config.StorageConfig{Destination: &config.DestinationMemory{}},
+		Services:       config.ServiceConfigs{credential},
+		CertificateTTL: c.botTTL,
+		Oneshot:        true,
+		// If --insecure is passed, the bot will trust the certificate on first use.
+		// This does not truly disable TLS validation, only trusts the certificate on first connection.
+		Insecure: clt.Config().InsecureSkipVerify,
 	}
 
+	// When invoked only with auth address, tbot will try both joining as an auth and as a proxy.
+	// This allows us to not care about how the user connects to Teleport (auth vs proxy joining).
+	cfg.AuthServer = addr.String()
+
 	// Insecure joining is not compatible with CA pinning
-	if !cfg.Connection.Insecure {
+	if !cfg.Insecure {
 		// We use the client to get the TLS CA and compute its fingerprint.
 		// In case of auth joining, this ensures that tbot connects to the same Teleport auth as we do
 		// (no man in the middle possible between when we build the auth client and when we run tbot).
@@ -351,11 +338,8 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 	}
 
 	// Run the bot
-	bot, err := bot.New(cfg)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "creating the bot")
-	}
-	err = bot.OneShot(ctx)
+	bot := tbot.New(cfg, c.log)
+	err = bot.Run(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "running the bot")
 	}
@@ -368,7 +352,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 
 	id := facade.Get()
 
-	clusterName, err := clt.GetClusterName(ctx)
+	clusterName, err := clt.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "retrieving cluster name")
 	}

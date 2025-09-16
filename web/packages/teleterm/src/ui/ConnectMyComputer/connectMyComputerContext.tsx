@@ -217,8 +217,6 @@ export const ConnectMyComputerContextProvider: FC<
             abortController.signal
           ),
           wait(20_000, abortController.signal).then(() => {
-            // TODO(ravicious): Logs should be captured after the process exits, not just before we
-            // kill it.
             const logs = mainProcessClient.getAgentLogs({ rootClusterUri });
             throw new NodeWaitJoinTimeout(logs);
           }),
@@ -436,7 +434,7 @@ export const ConnectMyComputerContextProvider: FC<
       (async () => {
         try {
           await downloadAndStartAgent();
-        } catch {
+        } catch (error) {
           // Turn off autostart if it fails, otherwise the user wouldn't be able to turn it off by
           // themselves.
           workspacesService.setConnectMyComputerAutoStart(

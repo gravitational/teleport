@@ -19,23 +19,18 @@
 import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
-import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
-import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { yamlService } from 'teleport/services/yaml';
 
-import { withDefaults } from './RoleEditor/StandardEditor/withDefaults';
-import { RoleDiffState, Roles } from './Roles';
+import { Roles } from './Roles';
 import { State } from './useRoles';
 
 describe('Roles list', () => {
   const defaultState: State = {
-    create: jest.fn(),
+    save: jest.fn(),
     fetch: jest.fn(),
     remove: jest.fn(),
-    update: jest.fn(),
     rolesAcl: {
       read: true,
       remove: true,
@@ -68,18 +63,14 @@ describe('Roles list', () => {
     const ctx = createTeleportContext();
     render(
       <MemoryRouter>
-        <ToastNotificationProvider>
-          <InfoGuidePanelProvider>
-            <ContextProvider ctx={ctx}>
-              <Roles {...defaultState} />
-            </ContextProvider>
-          </InfoGuidePanelProvider>
-        </ToastNotificationProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles {...defaultState} />
+        </ContextProvider>
       </MemoryRouter>
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('create_new_role_button')).toBeEnabled();
+      expect(screen.getByText(/create new role/i)).toBeEnabled();
     });
   });
 
@@ -95,18 +86,14 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ToastNotificationProvider>
-          <InfoGuidePanelProvider>
-            <ContextProvider ctx={ctx}>
-              <Roles {...testState} />
-            </ContextProvider>
-          </InfoGuidePanelProvider>
-        </ToastNotificationProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles {...testState} />
+        </ContextProvider>
       </MemoryRouter>
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('create_new_role_button')).toBeDisabled();
+      expect(screen.getByText(/create new role/i)).toBeDisabled();
     });
   });
 
@@ -115,13 +102,9 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ToastNotificationProvider>
-          <InfoGuidePanelProvider>
-            <ContextProvider ctx={ctx}>
-              <Roles {...defaultState} />
-            </ContextProvider>
-          </InfoGuidePanelProvider>
-        </ToastNotificationProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles {...defaultState} />
+        </ContextProvider>
       </MemoryRouter>
     );
 
@@ -148,13 +131,9 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ToastNotificationProvider>
-          <InfoGuidePanelProvider>
-            <ContextProvider ctx={ctx}>
-              <Roles {...testState} />
-            </ContextProvider>
-          </InfoGuidePanelProvider>
-        </ToastNotificationProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles {...testState} />
+        </ContextProvider>
       </MemoryRouter>
     );
 
@@ -187,13 +166,9 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ToastNotificationProvider>
-          <InfoGuidePanelProvider>
-            <ContextProvider ctx={ctx}>
-              <Roles {...testState} />
-            </ContextProvider>
-          </InfoGuidePanelProvider>
-        </ToastNotificationProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles {...testState} />
+        </ContextProvider>
       </MemoryRouter>
     );
 
@@ -226,13 +201,9 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ToastNotificationProvider>
-          <InfoGuidePanelProvider>
-            <ContextProvider ctx={ctx}>
-              <Roles {...testState} />
-            </ContextProvider>
-          </InfoGuidePanelProvider>
-        </ToastNotificationProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles {...testState} />
+        </ContextProvider>
       </MemoryRouter>
     );
 
@@ -259,13 +230,9 @@ describe('Roles list', () => {
 
     render(
       <MemoryRouter>
-        <ToastNotificationProvider>
-          <InfoGuidePanelProvider>
-            <ContextProvider ctx={ctx}>
-              <Roles {...testState} />
-            </ContextProvider>
-          </InfoGuidePanelProvider>
-        </ToastNotificationProvider>
+        <ContextProvider ctx={ctx}>
+          <Roles {...testState} />
+        </ContextProvider>
       </MemoryRouter>
     );
 
@@ -276,74 +243,3 @@ describe('Roles list', () => {
     expect(menuItems).toHaveLength(0);
   });
 });
-
-test('renders the role diff component', async () => {
-  const ctx = createTeleportContext();
-  const defaultState = (): State => ({
-    create: jest.fn(),
-    fetch: jest.fn().mockResolvedValue({
-      startKey: '',
-      items: [
-        {
-          content: '',
-          id: '1',
-          kind: 'role',
-          name: 'cool-role',
-          description: 'coolest-role',
-        },
-      ],
-    }),
-    remove: jest.fn(),
-    update: jest.fn(),
-    rolesAcl: {
-      read: true,
-      remove: true,
-      create: true,
-      edit: true,
-      list: true,
-    },
-  });
-  jest.spyOn(yamlService, 'parse').mockImplementation(async () => {
-    return withDefaults({});
-  });
-
-  const roleDiffElement = <div>i am rendered</div>;
-
-  render(
-    <MemoryRouter>
-      <ToastNotificationProvider>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Roles
-              {...defaultState()}
-              roleDiffProps={{
-                roleDiffElement,
-                roleDiffState: RoleDiffState.PolicyEnabled,
-                updateRoleDiff: () => null,
-                roleDiffAttempt: {
-                  status: 'error',
-                  statusText: 'there is an error here',
-                  data: null,
-                  error: null,
-                },
-              }}
-            />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
-      </ToastNotificationProvider>
-    </MemoryRouter>
-  );
-  await openEditor();
-  expect(screen.getByText('i am rendered')).toBeInTheDocument();
-  expect(await screen.findByText('there is an error here')).toBeInTheDocument();
-});
-
-async function openEditor() {
-  await waitFor(() => {
-    expect(screen.getByText('cool-role')).toBeInTheDocument();
-  });
-  const optionsButton = screen.getByRole('button', { name: /options/i });
-  fireEvent.click(optionsButton);
-  const menuItems = screen.queryAllByRole('menuitem');
-  fireEvent.click(menuItems[0]);
-}

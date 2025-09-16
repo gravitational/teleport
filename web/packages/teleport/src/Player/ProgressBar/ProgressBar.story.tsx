@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React from 'react';
 
 import ProgressBar from './ProgressBar';
 
@@ -25,7 +25,7 @@ export default {
 };
 
 export const Playing = () => {
-  const [state, setState] = useState(() => ({
+  const [state, setState] = React.useState(() => ({
     isPlaying: true,
     current: 100,
     min: 1,

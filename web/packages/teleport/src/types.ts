@@ -16,11 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ReactNode } from 'react';
+import React from 'react';
 
 import { UserPreferences } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
-import { NavigationCategory } from './Navigation/categories';
+import {
+  ManagementSection,
+  NavigationCategory,
+} from 'teleport/Navigation/categories';
 
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
@@ -31,7 +34,7 @@ export interface Context {
 
 export interface TeleportFeatureNavigationItem {
   title: NavTitle;
-  icon: (props) => ReactNode;
+  icon: (props) => JSX.Element;
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
@@ -40,8 +43,6 @@ export interface TeleportFeatureNavigationItem {
    * in the "selected" state in the navigation
    */
   isSelected?: (clusterId: string, pathname: string) => boolean;
-  /** searchableTags is a list of strings by which this feature should be searchable in the nav search. */
-  searchableTags?: string[];
 }
 
 export enum NavTitle {
@@ -58,48 +59,35 @@ export enum NavTitle {
   // Access Management
   Users = 'Users',
   Bots = 'Bots',
-  BotInstances = 'Bot Instances',
-  Roles = 'Roles',
+  Roles = 'User Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
-  AuthConnectorsShortened = 'Auth Conn.',
   Integrations = 'Integrations',
-  EnrollNewResource = 'Resource',
-  EnrollNewIntegration = 'Integration',
-  NewAccessList = 'Access List',
-  NewBot = 'Bot',
-  NewBotShortcut = 'Enroll New Bot',
+  EnrollNewResource = 'Enroll New Resource',
+  EnrollNewIntegration = 'Enroll New Integration',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
   SessionAndIdentityLocks = 'Session & Identity Locks',
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
-  WorkloadIdentity = 'Workload Identity',
 
   // Resources Requests
   NewRequest = 'New Request',
   ReviewRequests = 'Review Requests',
-
-  // Access Graph
-  AccessGraphDashboard = 'Dashboard',
-  AccessGraphBrowse = 'Browse',
-  AccessGraphAlerts = 'Alerts',
-  AccessGraphInvestigate = 'Investigate',
-  AccessGraphCrownJewels = 'Crown Jewels',
-  AccessGraphGraphExplorer = 'Graph Explorer',
-  AccessGraphSQLEditor = 'SQL Editor',
+  AccessGraph = 'Access Graph',
 
   // Activity
   SessionRecordings = 'Session Recordings',
   AuditLog = 'Audit Log',
 
   // Billing
-  BillingSummary = 'Billing Summary',
+  BillingSummary = 'Summary',
+  PaymentsAndInvoices = 'Payments and Invoices',
+  InvoiceSettings = 'Invoice Settings',
 
   // Clusters
   ManageClusters = 'Manage Clusters',
-  ManageClustersShortened = 'Clusters',
   TrustedClusters = 'Trusted Root Clusters',
 
   // Account
@@ -120,8 +108,7 @@ export interface TeleportFeatureRoute {
 export interface TeleportFeature {
   parent?: new () => TeleportFeature | null;
   category?: NavigationCategory;
-  /** standalone is whether this feature has no subsections */
-  standalone?: boolean;
+  section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
   // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.
   // The features that use this are supposed to be "full page" features where navigation
@@ -148,10 +135,6 @@ export interface TeleportFeature {
   // if highlightKey is specified, navigating to ?highlight=<highlightKey>
   // will highlight the feature in the navigation, to draw a users attention to it
   highlightKey?: string;
-  /** showInDashboard is whether this page should be shown in the navigation for dashboard tenants. Any feature without this flag will not be shown for dashboards. */
-  showInDashboard?: boolean;
-  /** isHyperLink is whether this subsection is merely a hyperlink/shortcut to another subsection. */
-  isHyperLink?: boolean;
 }
 
 export type StickyCluster = {
@@ -197,21 +180,17 @@ export interface FeatureFlags {
   enrollIntegrations: boolean;
   deviceTrust: boolean;
   locks: boolean;
-  addLocks: boolean;
-  removeLocks: boolean;
-  createTokens: boolean;
-  listTokens: boolean;
+  newLocks: boolean;
+  tokens: boolean;
   accessMonitoring: boolean;
+  // Whether or not the management section should be available.
+  managementSection: boolean;
   accessGraph: boolean;
-  accessGraphIntegrations: boolean;
   externalAuditStorage: boolean;
   listBots: boolean;
-  readBots: boolean;
-  listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
-  gitServers: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.
@@ -237,10 +216,4 @@ export type WebsocketStatus = {
   type: string;
   status: string;
   message?: string;
-};
-
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonArray = JsonPrimitive[];
-export type JsonObject = {
-  [key: string]: JsonPrimitive | JsonArray | JsonObject;
 };

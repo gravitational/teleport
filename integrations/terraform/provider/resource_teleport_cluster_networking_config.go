@@ -86,7 +86,7 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 		return
 	}
 
-	_, err = r.p.Client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	err = r.p.Client.SetClusterNetworkingConfig(ctx, clusterNetworkingConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error creating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 		return
@@ -94,35 +94,16 @@ func (r resourceTeleportClusterNetworkingConfig) Create(ctx context.Context, req
 
 	var clusterNetworkingConfigI apitypes.ClusterNetworkingConfig
 
-	// Try getting the resource until it exists and is different than the previous ones.
-	// There are two types of singleton resources:
-	// - the ones who can deleted and return a trace.NotFoundErr
-	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
 	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		clusterNetworkingConfigI, err = r.p.Client.GetClusterNetworkingConfig(ctx)
-		if trace.IsNotFound(err) {
-			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
-				return
-			}
-			if tries >= r.p.RetryConfig.MaxTries {
-				diagMessage := fmt.Sprintf("Error reading ClusterNetworkingConfig (tried %d times) - state outdated, please import resource", tries)
-				resp.Diagnostics.AddError(diagMessage, "cluster_networking_config")
-				return
-			}
-			continue
-		}
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 			return
 		}
-
-		previousMetadata := clusterNetworkingConfigBefore.GetMetadata()
-		currentMetadata := clusterNetworkingConfigI.GetMetadata()
-		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
+		if clusterNetworkingConfigBefore.GetMetadata().Revision != clusterNetworkingConfigI.GetMetadata().Revision || false {
 			break
 		}
 		if bErr := backoff.Do(ctx); bErr != nil {
@@ -178,7 +159,6 @@ func (r resourceTeleportClusterNetworkingConfig) Read(ctx context.Context, req t
 		return
 	}
 
-	
 	clusterNetworkingConfig := clusterNetworkingConfigI.(*apitypes.ClusterNetworkingConfigV2)
 	diags = tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &state)
 	resp.Diagnostics.Append(diags...)
@@ -226,11 +206,12 @@ func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req
 		return
 	}
 
-	_, err = r.p.Client.UpsertClusterNetworkingConfig(ctx, clusterNetworkingConfig)
+	err = r.p.Client.SetClusterNetworkingConfig(ctx, clusterNetworkingConfig)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 		return
 	}
+
 	var clusterNetworkingConfigI apitypes.ClusterNetworkingConfig
 
 	tries := 0
@@ -260,7 +241,6 @@ func (r resourceTeleportClusterNetworkingConfig) Update(ctx context.Context, req
 		return
 	}
 
-	
 	clusterNetworkingConfig = clusterNetworkingConfigI.(*apitypes.ClusterNetworkingConfigV2)
 	diags = tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -293,6 +273,7 @@ func (r resourceTeleportClusterNetworkingConfig) ImportState(ctx context.Context
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating ClusterNetworkingConfig", trace.Wrap(err), "cluster_networking_config"))
 		return
 	}
+
 	clusterNetworkingConfig := clusterNetworkingConfigI.(*apitypes.ClusterNetworkingConfigV2)
 
 	var state types.Object
@@ -308,9 +289,8 @@ func (r resourceTeleportClusterNetworkingConfig) ImportState(ctx context.Context
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	id := clusterNetworkingConfig.GetName()
 
-	state.Attrs["id"] = types.String{Value: id}
+	state.Attrs["id"] = types.String{Value: clusterNetworkingConfig.Metadata.Name}
 
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)

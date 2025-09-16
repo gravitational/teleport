@@ -29,7 +29,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestSystemdAttestor_Success(t *testing.T) {
@@ -37,7 +37,7 @@ func TestSystemdAttestor_Success(t *testing.T) {
 		SystemdAttestorConfig{
 			Enabled: true,
 		},
-		logtest.NewLogger(),
+		utils.NewSlogLoggerForTests(),
 	)
 
 	attestor.dbusDialer = func(context.Context) (dbusConn, error) {
@@ -59,7 +59,7 @@ func TestSystemdAttestor_NonService(t *testing.T) {
 		SystemdAttestorConfig{
 			Enabled: true,
 		},
-		logtest.NewLogger(),
+		utils.NewSlogLoggerForTests(),
 	)
 
 	attestor.dbusDialer = func(context.Context) (dbusConn, error) {

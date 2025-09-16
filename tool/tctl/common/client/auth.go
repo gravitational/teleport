@@ -26,14 +26,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
-	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -70,9 +68,9 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 		dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 			Resolver:              resolver,
 			ClientConfig:          clientConfig.SSH,
-			Log:                   cfg.Logger,
+			Log:                   clientConfig.Log,
 			InsecureSkipTLSVerify: clientConfig.Insecure,
-			GetClusterCAs:         apiclient.ClusterCAsFromCertPool(clientConfig.TLS.RootCAs),
+			ClusterCAs:            clientConfig.TLS.RootCAs,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -94,24 +92,15 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 		// Get the proxy address and set the MFA prompt constructor.
 		resp, err := client.Ping(ctx)
 		if err != nil {
-			return nil, nil, trace.NewAggregate(err, client.Close())
+			return nil, nil, trace.Wrap(err)
 		}
+
 		proxyAddr := resp.ProxyPublicAddr
 		client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
 			promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
 			return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
 				PromptConfig: *promptCfg,
 			})
-		})
-		client.SetSSOMFACeremonyConstructor(func(ctx context.Context) (mfa.SSOMFACeremony, error) {
-			rdConfig := sso.RedirectorConfig{
-				ProxyAddr: proxyAddr,
-			}
-			rd, err := sso.NewRedirector(rdConfig)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return sso.NewCLIMFACeremony(rd), nil
 		})
 
 		return client, func(ctx context.Context) {

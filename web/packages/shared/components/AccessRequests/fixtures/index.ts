@@ -44,8 +44,6 @@ export const dryRunResponse: AccessRequest = {
   thresholdNames: ['default'],
   resources: [],
   assumeStartTime: null,
-  reasonMode: 'optional',
-  reasonPrompts: [],
 };
 
 export const requestSearchPending: AccessRequest = {
@@ -133,29 +131,7 @@ export const requestSearchPending: AccessRequest = {
         friendlyName: 'Some Friendly Name',
       },
     },
-    {
-      id: {
-        kind: 'saml_idp_service_provider',
-        name: 'raw-saml-id',
-        clusterName: 'cluster-name',
-      },
-      details: {
-        friendlyName: 'app-saml',
-      },
-    },
-    {
-      id: {
-        kind: 'aws_ic_account_assignment',
-        name: 'admin-on-account1',
-        clusterName: 'cluster-name',
-      },
-      details: {
-        friendlyName: 'account1',
-      },
-    },
   ],
-  reasonMode: 'optional',
-  reasonPrompts: [],
 };
 
 export const requestRolePending: AccessRequest = {
@@ -193,8 +169,6 @@ export const requestRolePending: AccessRequest = {
   resources: [],
   assumeStartTime: new Date('12-5-2020'),
   assumeStartTimeDuration: '24 hours from now',
-  reasonMode: 'optional',
-  reasonPrompts: [],
 };
 
 export const requestRoleDenied: AccessRequest = {
@@ -235,8 +209,6 @@ export const requestRoleDenied: AccessRequest = {
   ],
   thresholdNames: ['Default'],
   resources: [],
-  reasonMode: 'optional',
-  reasonPrompts: [],
 };
 
 export const requestRoleApproved: AccessRequest = {
@@ -289,8 +261,6 @@ export const requestRoleApproved: AccessRequest = {
   ],
   thresholdNames: ['Default'],
   resources: [],
-  reasonMode: 'optional',
-  reasonPrompts: [],
 };
 
 export const requestRoleApprovedWithStartTime: AccessRequest = {
@@ -329,8 +299,6 @@ export const requestRoleApprovedWithStartTime: AccessRequest = {
   resources: [],
   assumeStartTime: new Date('12-6-9999'),
   assumeStartTimeDuration: '24 hours from now',
-  reasonMode: 'optional',
-  reasonPrompts: [],
 };
 
 export const requestRolePromoted: AccessRequest = {
@@ -369,8 +337,6 @@ export const requestRolePromoted: AccessRequest = {
   thresholdNames: ['Default'],
   resources: [],
   promotedAccessListTitle: 'Design Team',
-  reasonMode: 'optional',
-  reasonPrompts: [],
 };
 
 export const requestRoleEmpty: AccessRequest = {

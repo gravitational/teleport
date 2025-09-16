@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log/slog"
 	"strings"
 	"text/template"
 	"time"
@@ -34,8 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
-	"github.com/gravitational/teleport/lib/tbot/bot"
-	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
 )
 
 var supportedCredentialSources = CredentialSources{
@@ -128,7 +126,7 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 		}
 
 		now := time.Now()
-		if expiry, ok := creds.Expiry(); ok && !expiry.IsZero() && expiry.Before(now) {
+		if expiry, ok := client.Expiry(creds); ok && !expiry.IsZero() && expiry.Before(now) {
 			diags.AddWarning(
 				fmt.Sprintf("Teleport credentials %s are expired", source.Name()),
 				fmt.Sprintf(`The credentials %s are expired. Expiration is %q while current time is %q). You might need to refresh them. The provider will not attempt to use those credentials.`,
@@ -488,8 +486,6 @@ func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config pr
 	audienceTag := stringFromConfigOrEnv(config.AudienceTag, constants.EnvVarTerraformCloudJoinAudienceTag, "")
 	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
 	caPath := stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
-	gitlabIDTokenEnvVar := stringFromConfigOrEnv(config.GitlabIDTokenEnvVar, constants.EnvVarGitlabIDTokenEnvVar, "")
-	insecure := boolFromConfigOrEnv(config.Insecure, constants.EnvVarTerraformInsecure)
 
 	if joinMethod == "" {
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
@@ -517,25 +513,18 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 	}
 	botConfig := &embeddedtbot.BotConfig{
 		AuthServer: addr,
-		Onboarding: onboarding.Config{
+		Onboarding: tbotconfig.OnboardingConfig{
 			TokenValue: joinToken,
 			CAPath:     caPath,
 			JoinMethod: apitypes.JoinMethod(joinMethod),
-			Terraform: onboarding.TerraformOnboardingConfig{
+			Terraform: tbotconfig.TerraformOnboardingConfig{
 				AudienceTag: audienceTag,
 			},
-			Gitlab: onboarding.GitlabOnboardingConfig{
-				TokenEnvVarName: gitlabIDTokenEnvVar,
-			},
 		},
-		CredentialLifetime: bot.CredentialLifetime{
-			TTL:             time.Hour,
-			RenewalInterval: 20 * time.Minute,
-		},
-		Insecure: insecure,
+		CertificateTTL:  time.Hour,
+		RenewalInterval: 20 * time.Minute,
 	}
-	// slog default logger has been configured during the provider init.
-	bot, err := embeddedtbot.New(botConfig, slog.Default())
+	bot, err := embeddedtbot.New(botConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create bot configuration, this is a provider bug, please open a GitHub issue.")
 	}

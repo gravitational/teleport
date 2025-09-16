@@ -18,7 +18,7 @@
 
 import React, { useState } from 'react';
 
-import { Box, ButtonBorder, Flex, H3, Menu, MenuItem, Text } from 'design';
+import { Box, ButtonBorder, Flex, Menu, MenuItem, Text } from 'design';
 import { ChevronDown, Warning } from 'design/Icon';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
@@ -192,7 +192,7 @@ function JoinMenuItem({
         `}
       >
         <Box height="fit-content" width="264px">
-          <H3>{title}</H3>
+          <Text typography="h6">{title}</Text>
           <Text color="text.slightlyMuted">{description}</Text>
         </Box>
       </MenuItem>
@@ -216,13 +216,13 @@ function JoinMenuItem({
       `}
     >
       <Box height="fit-content" width="264px">
-        <H3>{title}</H3>
+        <Text typography="h6">{title}</Text>
         <Text>{description}</Text>
         {!showCTA && (
           <Box color="text.main" px={1} mt={1}>
             <Flex>
               <Warning color="error.main" mr={2} size="small" />
-              <Text typography="body4" color="text.slightlyMuted">
+              <Text fontSize="10px" color="text.slightlyMuted">
                 {modeWarningText[participantMode]}
               </Text>
             </Flex>

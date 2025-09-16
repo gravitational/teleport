@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 import { Box, Flex } from 'design';
 import * as Icon from 'design/Icon';
@@ -31,12 +31,14 @@ import { ActionButtonSecondary, Header } from './Header';
 import { AuthMethodState, StatePill } from './StatePill';
 
 export interface PasswordBoxProps {
+  changeDisabled: boolean;
   devices: MfaDevice[];
   passwordState: PasswordState;
   onPasswordChange: () => void;
 }
 
 export function PasswordBox({
+  changeDisabled,
   devices,
   passwordState,
   onPasswordChange,
@@ -53,7 +55,7 @@ export function PasswordBox({
       <SingleRowBox>
         <Header
           title={
-            <Flex gap={2} alignItems="center">
+            <Flex gap={2}>
               Password
               <StatePill
                 data-testid="password-state-pill"
@@ -63,7 +65,10 @@ export function PasswordBox({
           }
           icon={<Icon.Password />}
           actions={
-            <ActionButtonSecondary onClick={() => setDialogOpen(true)}>
+            <ActionButtonSecondary
+              disabled={changeDisabled}
+              onClick={() => setDialogOpen(true)}
+            >
               Change Password
             </ActionButtonSecondary>
           }
@@ -71,10 +76,9 @@ export function PasswordBox({
       </SingleRowBox>
       {dialogOpen && (
         <ChangePasswordWizard
-          hasPasswordless={
-            cfg.isPasswordlessEnabled() &&
-            devices.some(dev => dev.usage === 'passwordless')
-          }
+          auth2faType={cfg.getAuth2faType()}
+          passwordlessEnabled={cfg.isPasswordlessEnabled()}
+          devices={devices}
           onClose={() => setDialogOpen(false)}
           onSuccess={onSuccess}
         />

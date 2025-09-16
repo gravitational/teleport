@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -117,12 +118,12 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
 				Component:            teleport.ComponentWindowsDesktop,
-				HostUUID:             conn.HostID(),
+				HostUUID:             conn.ServerIdentity.ID.HostUUID,
 				Resolver:             conn.TunnelProxyResolver(),
 				Client:               conn.Client,
 				AccessPoint:          accessPoint,
-				AuthMethods:          conn.ClientAuthMethods(),
-				Cluster:              conn.ClusterName(),
+				HostSigner:           conn.ServerIdentity.KeySigner,
+				Cluster:              conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 				Server:               shtl,
 				FIPS:                 process.Config.FIPS,
 				ConnectedProxyGetter: proxyGetter,
@@ -144,7 +145,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentWindowsDesktop,
-			Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+			Log:       process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 			Clock:     cfg.Clock,
 			Client:    conn.Client,
 		},
@@ -153,13 +154,13 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return trace.Wrap(err)
 	}
 
-	clusterName := conn.ClusterName()
+	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			// Ignore the global device_trust.mode toggle, but allow role-based
 			// settings to be applied.
@@ -170,7 +171,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return trace.Wrap(err)
 	}
 
-	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -194,8 +195,10 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return tlsCopy, nil
 	}
 
-	connLimiter := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter.MaxConnections)
-
+	connLimiter, err := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	var publicAddr string
 	switch {
 	case useTunnel:
@@ -228,15 +231,15 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 			StaticHosts: cfg.WindowsDesktop.StaticHosts,
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		ShowDesktopWallpaper: cfg.WindowsDesktop.ShowDesktopWallpaper,
-		LDAPConfig:           cfg.WindowsDesktop.LDAP,
-		KDCAddr:              cfg.WindowsDesktop.KDCAddr,
-		PKIDomain:            cfg.WindowsDesktop.PKIDomain,
-		Discovery:            cfg.WindowsDesktop.Discovery,
-		DiscoveryInterval:    cfg.WindowsDesktop.DiscoveryInterval,
-		Hostname:             cfg.Hostname,
-		ConnectedProxyGetter: proxyGetter,
-		ResourceMatchers:     cfg.WindowsDesktop.ResourceMatchers,
+		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
+		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		KDCAddr:                      cfg.WindowsDesktop.KDCAddr,
+		PKIDomain:                    cfg.WindowsDesktop.PKIDomain,
+		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
+		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
+		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
+		Hostname:                     cfg.Hostname,
+		ConnectedProxyGetter:         proxyGetter,
 
 		// For now, NLA is opt-in via an environment variable.
 		// We'll make it the default behavior in a future release.
@@ -274,7 +277,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 
 		go func() {
 			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-				process.logger.ErrorContext(process.ExitContext(), "mux encountered error serving", "mux_id", mux.ID, "error", err)
+				mux.Entry.WithError(err).Error("mux encountered err serving")
 			}
 		}()
 
@@ -289,7 +292,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	})
 
 	// Cleanup, when process is exiting.
-	process.OnExit("windows_desktop.shutdown", func(payload any) {
+	process.OnExit("windows_desktop.shutdown", func(payload interface{}) {
 		// Fast shutdown.
 		warnOnErr(process.ExitContext(), srv.Close(), logger)
 		agentPool.Stop()

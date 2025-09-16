@@ -1,7 +1,7 @@
 ---
 title: Dynamic App Registration
 description: Register/unregister apps without restarting Teleport.
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
@@ -21,11 +21,44 @@ applications](../../auto-discovery/kubernetes-applications/kubernetes-applicatio
 
 ## Required permissions
 
-(!docs/pages/includes/application-access/dynamic-app-permissions.mdx!)
+In order to interact with dynamically registered applications, a user must have
+a Teleport role with permissions to manage `app` resources. 
+
+In the following example, a role allows a user to perform all possible
+operations against `app` resources:
+
+```yaml
+allow:
+  rules:
+    - resources:
+        - app
+      verbs: [list, create, read, update, delete]
+```
 
 ## Enabling dynamic registration
 
-(!docs/pages/includes/application-access/dynamic-app-config.mdx!)
+To enable dynamic registration, include a `resources` section in your Application
+Service configuration with a list of resource label selectors you'd like this
+service to monitor for registering:
+
+```yaml
+app_service:
+  enabled: "yes"
+  resources:
+  - labels:
+      "*": "*"
+```
+
+You can use a wildcard selector to register all dynamic app resources in the cluster
+on the Application Service or provide a specific set of labels for a subset:
+
+```yaml
+resources:
+- labels:
+    "env": "prod"
+- labels:
+    "env": "test"
+```
 
 ## Creating an app resource
 

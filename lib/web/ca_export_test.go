@@ -121,8 +121,8 @@ func TestAuthExport(t *testing.T) {
 			name:           "all",
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ecdsa-sha2-nistp256 ")
-				require.Contains(t, string(b), "cert-authority ecdsa-sha2-nistp256")
+				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ssh-rsa ")
+				require.Contains(t, string(b), "cert-authority ssh-rsa")
 			},
 		},
 		{
@@ -132,7 +132,7 @@ func TestAuthExport(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ecdsa-sha2-nistp256 ")
+				require.Contains(t, string(b), "@cert-authority localhost,*.localhost ssh-rsa ")
 			},
 		},
 		{
@@ -142,7 +142,7 @@ func TestAuthExport(t *testing.T) {
 			},
 			expectedStatus: http.StatusOK,
 			assertBody: func(t *testing.T, b []byte) {
-				require.Contains(t, string(b), "cert-authority ecdsa-sha2-nistp256")
+				require.Contains(t, string(b), "cert-authority ssh-rsa")
 			},
 		},
 		{

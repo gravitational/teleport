@@ -99,14 +99,6 @@ export const plugins: Plugin[] = [
   },
   {
     resourceType: 'plugin',
-    name: 'intune',
-    details: '',
-    kind: 'intune',
-    statusCode: IntegrationStatusCode.Running,
-    spec: {},
-  },
-  {
-    resourceType: 'plugin',
     name: 'servicenow',
     details: '',
     kind: 'servicenow',
@@ -192,14 +184,7 @@ export const integrations: Integration[] = [
     name: 'azure',
     kind: IntegrationKind.AzureOidc,
     statusCode: IntegrationStatusCode.Running,
-  },
-  {
-    resourceType: 'integration',
-    name: 'github',
-    kind: IntegrationKind.GitHub,
-    statusCode: IntegrationStatusCode.Running,
-    details: 'some-detail',
-    spec: { organization: 'lsdf' },
+    spec: { roleArn: '' },
   },
 ];
 

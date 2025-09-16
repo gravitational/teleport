@@ -1,7 +1,7 @@
 ---
 title: Database Discovery
 description: Detailed guides for configuring database discovery.
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
@@ -45,8 +45,6 @@ information such as:
   - Imported database tags
   - Database location/region
   - Cloud account information, e.g. AWS Account ID / Azure Subscription ID
-  - The type of database discovered corresponding to the matcher type, e.g.
-    "rds", "redshift", etc.
 - *Endpoint Info*: Connection endpoint the database can be reached at
 
 <Admonition type="tip">
@@ -90,7 +88,7 @@ discovery_service:
       # 'rdsproxy' - Amazon RDS Proxy databases.
       # 'redshift' - Amazon Redshift databases.
       # 'redshift-serverless' - Amazon Redshift Serverless databases.
-      # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
+      # 'elasticache' - Amazon ElastiCache Redis databases.
       # 'memorydb' - Amazon MemoryDB Redis databases.
       # 'opensearch' - Amazon OpenSearch Redis databases.
       # 'docdb' - Amazon DocumentDB databases.

@@ -54,7 +54,10 @@ func (m mockListEC2ICEClient) DescribeInstanceConnectEndpoints(ctx context.Conte
 	}
 
 	sliceStart := m.pageSize * (requestedPage - 1)
-	sliceEnd := min(m.pageSize*requestedPage, totalEndpoints)
+	sliceEnd := m.pageSize * requestedPage
+	if sliceEnd > totalEndpoints {
+		sliceEnd = totalEndpoints
+	}
 
 	ret := &ec2.DescribeInstanceConnectEndpointsOutput{
 		InstanceConnectEndpoints: m.ec2ICEs[sliceStart:sliceEnd],
@@ -80,7 +83,7 @@ func TestListEC2ICE(t *testing.T) {
 		totalEC2ICEs := 203
 
 		allEndpoints := make([]ec2Types.Ec2InstanceConnectEndpoint, 0, totalEC2ICEs)
-		for i := range totalEC2ICEs {
+		for i := 0; i < totalEC2ICEs; i++ {
 			allEndpoints = append(allEndpoints, ec2Types.Ec2InstanceConnectEndpoint{
 				SubnetId:                  aws.String(fmt.Sprintf("subnet-%d", i)),
 				InstanceConnectEndpointId: aws.String("ice-name"),

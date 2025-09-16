@@ -16,172 +16,198 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { delay, http, HttpResponse } from 'msw';
-import { PropsWithChildren } from 'react';
-
-import { Info } from 'design/Alert';
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import React from 'react';
 
 import cfg from 'teleport/config';
 import {
-  getSelectedAwsPostgresDbMeta,
-  resourceSpecAwsRdsMySql,
-  resourceSpecAwsRdsPostgres,
+  ComponentWrapper,
+  getDbMeta,
+  getDbResourceSpec,
 } from 'teleport/Discover/Fixtures/databases';
-import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
-import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
-import { DbMeta } from 'teleport/Discover/useDiscover';
+import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+} from 'teleport/Discover/SelectResource';
+import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { AutoDeploy } from './AutoDeploy';
 
 export default {
   title: 'Teleport/Discover/Database/Deploy/Auto',
+  loaders: [mswLoader],
 };
+
+initialize();
 
 export const Init = () => {
   return (
-    <DiscoverProviderDatabase>
+    <ComponentWrapper>
       <AutoDeploy />
-    </DiscoverProviderDatabase>
+    </ComponentWrapper>
   );
 };
+
 Init.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) =>
+          res(ctx.json({ securityGroups: securityGroupsResponse }))
       ),
-      http.post(cfg.api.awsDeployTeleportServicePath, () =>
-        HttpResponse.json({ serviceDashboardUrl: 'some-dashboard-url' })
+      rest.post(
+        cfg.getAwsDeployTeleportServiceUrl('test-integration'),
+        (req, res, ctx) =>
+          res(ctx.json({ serviceDashboardUrl: 'some-dashboard-url' }))
       ),
-      http.post(cfg.api.awsSubnetListPath, () =>
-        HttpResponse.json({ subnets: subnetsResponse })
+      rest.post(cfg.api.awsSubnetListPath, (req, res, ctx) =>
+        res(ctx.json({ subnets: subnetsResponse }))
       ),
     ],
   },
 };
 
 export const InitWithAutoDiscover = () => {
-  const dbMeta = getSelectedAwsPostgresDbMeta();
+  const dbMeta = getDbMeta();
   dbMeta.selectedAwsRdsDb = undefined; // there is no selection for discovery
   return (
-    <RequiredDiscoverProviders
+    <TeleportProvider
+      resourceKind={ResourceKind.Database}
       agentMeta={{
         ...dbMeta,
         autoDiscovery: {
           config: { name: '', discoveryGroup: '', aws: [] },
         },
       }}
-      resourceSpec={resourceSpecAwsRdsMySql}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
     >
-      <Info>
-        Devs: difference is that there should be no offer to manually install
-        service
-      </Info>
-
       <AutoDeploy />
-    </RequiredDiscoverProviders>
+    </TeleportProvider>
   );
 };
 InitWithAutoDiscover.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) =>
+          res(ctx.json({ securityGroups: securityGroupsResponse }))
       ),
-      http.post(cfg.getAwsRdsDbsDeployServicesUrl('test-integration'), () =>
-        HttpResponse.json({
-          clusterDashboardUrl: 'some-cluster-dashboard-url',
-        })
+      rest.post(
+        cfg.getAwsRdsDbsDeployServicesUrl('test-integration'),
+        (req, res, ctx) =>
+          res(ctx.json({ clusterDashboardUrl: 'some-cluster-dashboard-url' }))
       ),
-      http.post(cfg.api.awsSubnetListPath, () =>
-        HttpResponse.json({ subnets: subnetsResponse })
+      rest.post(cfg.api.awsSubnetListPath, (req, res, ctx) =>
+        res(ctx.json({ subnets: subnetsResponse }))
       ),
     ],
   },
 };
 
-export const InitWithLabelsWithDeployFailure = () => {
+export const InitWithLabels = () => {
   return (
-    <RequiredDiscoverProviders
-      resourceSpec={resourceSpecAwsRdsPostgres}
+    <TeleportProvider
+      resourceKind={ResourceKind.Database}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
       agentMeta={{
-        ...getSelectedAwsPostgresDbMeta(),
+        ...getDbMeta(),
         agentMatcherLabels: [
           { name: 'env', value: 'staging' },
           { name: 'os', value: 'windows' },
         ],
       }}
     >
-      <Info>Devs: Click &quot;deploy...&quot; to see next state</Info>
       <AutoDeploy />
-    </RequiredDiscoverProviders>
+    </TeleportProvider>
   );
 };
-InitWithLabelsWithDeployFailure.parameters = {
+
+InitWithLabels.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () =>
-        HttpResponse.json({ securityGroups: securityGroupsResponse })
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) =>
+          res(ctx.json({ securityGroups: securityGroupsResponse }))
       ),
-      http.post(cfg.api.awsDeployTeleportServicePath, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, something went wrong.' },
-          },
-          { status: 500 }
-        )
+      rest.post(
+        cfg.getAwsDeployTeleportServiceUrl('test-integration'),
+        (req, res, ctx) =>
+          res(
+            ctx.status(403),
+            ctx.json({
+              message: 'Whoops, something went wrong.',
+            })
+          )
       ),
-      http.post(cfg.api.awsSubnetListPath, () =>
-        HttpResponse.json({ subnets: subnetsResponse })
+      rest.post(cfg.api.awsSubnetListPath, (req, res, ctx) =>
+        res(ctx.json({ subnets: subnetsResponse }))
       ),
     ],
   },
 };
 
-export const InitSgSubnetLoadingFailed = () => {
+export const InitSecurityGroupsLoadingFailed = () => {
   return (
-    <DiscoverProviderDatabase>
+    <ComponentWrapper>
       <AutoDeploy />
-    </DiscoverProviderDatabase>
+    </ComponentWrapper>
   );
 };
 
-InitSgSubnetLoadingFailed.parameters = {
+InitSecurityGroupsLoadingFailed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () =>
-        HttpResponse.json(
-          {
-            message: 'some error when trying to list security groups',
-          },
-          { status: 403 }
-        )
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) =>
+          res(
+            ctx.status(403),
+            ctx.json({
+              message: 'some error when trying to list security groups',
+            })
+          )
       ),
-      http.post(cfg.api.awsSubnetListPath, () =>
-        HttpResponse.json(
-          {
-            error: { message: 'Whoops, error getting subnets' },
-          },
-          { status: 403 }
+      rest.post(cfg.api.awsSubnetListPath, (req, res, ctx) =>
+        res(
+          ctx.status(403),
+          ctx.json({
+            message: 'Whoops, error getting subnets',
+          })
         )
       ),
     ],
   },
 };
 
-export const InitSgSubnetLoading = () => {
+export const InitSecurityGroupsLoading = () => {
   return (
-    <DiscoverProviderDatabase>
+    <ComponentWrapper>
       <AutoDeploy />
-    </DiscoverProviderDatabase>
+    </ComponentWrapper>
   );
 };
 
-InitSgSubnetLoading.parameters = {
+InitSecurityGroupsLoading.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsSecurityGroupsListPath, () => delay('infinite')),
-      http.post(cfg.api.awsSubnetListPath, () => delay('infinite')),
+      rest.post(
+        cfg.getListSecurityGroupsUrl('test-integration'),
+        (req, res, ctx) => res(ctx.delay('infinite'))
+      ),
+      rest.post(cfg.api.awsSubnetListPath, (req, res, ctx) =>
+        res(ctx.delay('infinite'))
+      ),
     ],
   },
 };
@@ -415,14 +441,3 @@ const securityGroupsResponse = [
     ],
   },
 ];
-
-const DiscoverProviderDatabase: React.FC<
-  PropsWithChildren<{ resourceSpec?: SelectResourceSpec; dbMeta?: DbMeta }>
-> = ({ children, resourceSpec, dbMeta }) => (
-  <RequiredDiscoverProviders
-    agentMeta={dbMeta || getSelectedAwsPostgresDbMeta()}
-    resourceSpec={resourceSpec || resourceSpecAwsRdsPostgres}
-  >
-    {children}
-  </RequiredDiscoverProviders>
-);

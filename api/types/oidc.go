@@ -19,10 +19,7 @@ package types
 import (
 	"net/netip"
 	"net/url"
-	"os"
 	"slices"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -111,28 +108,6 @@ type OIDCConnector interface {
 	GetMaxAge() (time.Duration, bool)
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
-	// GetMFASettings returns the connector's MFA settings.
-	GetMFASettings() *OIDCConnectorMFASettings
-	// IsMFAEnabled returns whether the connector has MFA enabled.
-	IsMFAEnabled() bool
-	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
-	WithMFASettings() error
-	// IsPKCEEnabled returns true if the connector should add code_challenge information to auth requests.
-	IsPKCEEnabled() bool
-	// SetPKCEMode will set the pkce mode
-	SetPKCEMode(mode constants.OIDCPKCEMode)
-	// GetPKCEMode will return the PKCEMode of the connector.
-	GetPKCEMode() constants.OIDCPKCEMode
-	// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
-	// match for identifier-first login.
-	GetUserMatchers() []string
-	// GetRequestObjectMode will return the RequestObjectMode of the connector.
-	GetRequestObjectMode() constants.OIDCRequestObjectMode
-	// SetRequestObjectMode sets the RequestObjectMode of the connector.
-	SetRequestObjectMode(mode constants.OIDCRequestObjectMode)
-	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
-	// for identifier-first login.
-	SetUserMatchers([]string)
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -227,9 +202,6 @@ func (o *OIDCConnectorV3) WithoutSecrets() Resource {
 
 	o2.SetClientSecret("")
 	o2.SetGoogleServiceAccount("")
-	if o2.Spec.MFASettings != nil {
-		o2.Spec.MFASettings.ClientSecret = ""
-	}
 
 	return &o2
 }
@@ -422,14 +394,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 
 	if o.Spec.ClientID == "" {
-		return trace.BadParameter("OIDC connector is missing required client_id")
-	}
-
-	if o.Spec.ClientSecret == "" {
-		return trace.BadParameter("OIDC connector is missing required client_secret")
-	}
-	if strings.HasPrefix(o.Spec.ClientSecret, "file://") {
-		return trace.BadParameter("the client_secret must be a literal value, file:// URLs are not supported")
+		return trace.BadParameter("ClientID: missing client id")
 	}
 
 	if len(o.GetClaimsToRoles()) == 0 {
@@ -483,17 +448,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("max_age cannot be negative")
 		}
 		if maxAge.Round(time.Second) != maxAge {
-			return trace.BadParameter("max_age %q is invalid, cannot have sub-second units", maxAge.String())
-		}
-	}
-
-	if o.Spec.MFASettings != nil {
-		maxAge := o.Spec.MFASettings.MaxAge.Duration()
-		if maxAge < 0 {
-			return trace.BadParameter("max_age cannot be negative")
-		}
-		if maxAge.Round(time.Second) != maxAge {
-			return trace.BadParameter("max_age %q invalid, cannot have sub-second units", maxAge.String())
+			return trace.BadParameter("max_age must be a multiple of seconds")
 		}
 	}
 
@@ -541,102 +496,32 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 	return o.Spec.ClientRedirectSettings
 }
 
-// GetMFASettings returns the connector's MFA settings.
-func (o *OIDCConnectorV3) GetMFASettings() *OIDCConnectorMFASettings {
-	return o.Spec.MFASettings
-}
-
-// IsMFAEnabled returns whether the connector has MFA enabled.
-func (o *OIDCConnectorV3) IsMFAEnabled() bool {
-	mfa := o.GetMFASettings()
-	return mfa != nil && mfa.Enabled
-}
-
-// IsPKCEEnabled returns true if the connector should add code_challenge information to auth requests.
-func (o *OIDCConnectorV3) IsPKCEEnabled() bool {
-	return o.Spec.PKCEMode == string(constants.OIDCPKCEModeEnabled)
-}
-
-// SetPKCEMode will set the pkce mode
-func (o *OIDCConnectorV3) SetPKCEMode(mode constants.OIDCPKCEMode) {
-	o.Spec.PKCEMode = string(mode)
-}
-
-// GetPKCEMode will return the PKCEMode of the connector.
-func (o *OIDCConnectorV3) GetPKCEMode() constants.OIDCPKCEMode {
-	return constants.OIDCPKCEMode(o.Spec.PKCEMode)
-}
-
-// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
-func (o *OIDCConnectorV3) WithMFASettings() error {
-	if !o.IsMFAEnabled() {
-		return trace.BadParameter("this connector does not have MFA enabled")
+// Check returns nil if all parameters are great, err otherwise
+func (i *OIDCAuthRequest) Check() error {
+	if i.ConnectorID == "" {
+		return trace.BadParameter("ConnectorID: missing value")
 	}
-
-	o.Spec.ClientID = o.Spec.MFASettings.ClientId
-	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
-	o.Spec.ACR = o.Spec.MFASettings.AcrValues
-	o.Spec.Prompt = o.Spec.MFASettings.Prompt
-	// In rare cases, some providers will complain about the presence of the 'max_age'
-	// parameter in auth requests. Provide users with a workaround to omit it.
-	omitMaxAge, _ := strconv.ParseBool(os.Getenv("TELEPORT_OIDC_OMIT_MFA_MAX_AGE"))
-	if omitMaxAge {
-		o.Spec.MaxAge = nil
-	} else {
-		o.Spec.MaxAge = &MaxAge{
-			Value: o.Spec.MFASettings.MaxAge,
+	if i.StateToken == "" {
+		return trace.BadParameter("StateToken: missing value")
+	}
+	if len(i.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
+		if err != nil {
+			return trace.BadParameter("PublicKey: bad key: %v", err)
+		}
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
+			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
 	}
-	return nil
-}
 
-// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
-// match for identifier-first login.
-func (r *OIDCConnectorV3) GetUserMatchers() []string {
-	if r.Spec.UserMatchers == nil {
-		return nil
-	}
-	return r.Spec.UserMatchers
-}
-
-// GetRequestObjectMode returns the configured OIDC request object mode.
-func (r *OIDCConnectorV3) GetRequestObjectMode() constants.OIDCRequestObjectMode {
-	return constants.OIDCRequestObjectMode(r.Spec.RequestObjectMode)
-}
-
-// SetRequestObjectMode sets the OIDC request object mode.
-func (r *OIDCConnectorV3) SetRequestObjectMode(mode constants.OIDCRequestObjectMode) {
-	r.Spec.RequestObjectMode = string(mode)
-}
-
-// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
-// for identifier-first login.
-func (r *OIDCConnectorV3) SetUserMatchers(userMatchers []string) {
-	r.Spec.UserMatchers = userMatchers
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (r *OIDCAuthRequest) Check() error {
-	switch {
-	case r.ConnectorID == "":
-		return trace.BadParameter("ConnectorID: missing value")
-	case r.StateToken == "":
-		return trace.BadParameter("StateToken: missing value")
 	// we could collapse these two checks into one, but the error message would become ambiguous.
-	case r.SSOTestFlow && r.ConnectorSpec == nil:
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	case !r.SSOTestFlow && r.ConnectorSpec != nil:
+	}
+
+	if !i.SSOTestFlow && i.ConnectorSpec != nil {
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
-	if len(r.SshPublicKey) > 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(r.SshPublicKey)
-		if err != nil {
-			return trace.BadParameter("bad SSH public key: %v", err)
-		}
-	}
-	if (len(r.SshPublicKey) != 0 || len(r.TlsPublicKey) != 0) &&
-		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
-		return trace.BadParameter("wrong CertTTL")
-	}
+
 	return nil
 }

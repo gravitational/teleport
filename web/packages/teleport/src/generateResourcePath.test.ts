@@ -16,107 +16,69 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  UrlIntegrationParams,
-  UrlKubeResourcesParams,
-  UrlResourcesParams,
-} from './config';
+import cfg, { UrlKubeResourcesParams, UrlResourcesParams } from './config';
 import generateResourcePath from './generateResourcePath';
 
-const fullParamPath =
-  '/v1/webapi/sites/:clusterId/:name/foo' +
-  '?kind=:kind?' +
-  '&kinds=:kinds?' +
-  '&kubeCluster=:kubeCluster?' +
-  '&kubeNamespace=:kubeNamespace?' +
-  '&limit=:limit?' +
-  '&pinnedOnly=:pinnedOnly?' +
-  '&query=:query?' +
-  '&resourceType=:resourceType?' +
-  '&search=:search?' +
-  '&searchAsRoles=:searchAsRoles?' +
-  '&sort=:sort?' +
-  '&startKey=:startKey?' +
-  '&includedResourceMode=:includedResourceMode?' +
-  '&regions=:regions?';
-
-test('undefined params are set to empty', () => {
+test('undefined params are set to empty string', () => {
   expect(
-    generateResourcePath(fullParamPath, {
-      clusterId: 'some-cluster-id',
-    })
+    generateResourcePath(cfg.api.unifiedResourcesPath, { clusterId: 'cluster' })
   ).toStrictEqual(
-    '/v1/webapi/sites/some-cluster-id//foo?kind=&kinds=&kubeCluster=&kubeNamespace=&limit=&pinnedOnly=&query=&resourceType=&search=&searchAsRoles=&sort=&startKey=&includedResourceMode=&regions='
+    '/v1/webapi/sites/cluster/resources?searchAsRoles=&limit=&startKey=&kinds=&query=&search=&sort=&pinnedOnly=&includedResourceMode='
   );
 });
-
-type allParams = UrlResourcesParams &
-  UrlKubeResourcesParams &
-  UrlIntegrationParams;
 
 test('defined params are set', () => {
-  const urlParams: allParams = {
-    includedResourceMode: 'all',
-    kind: 'some-kind',
-    kinds: ['app', 'db'],
-    kubeCluster: 'some-kube-cluster',
-    kubeNamespace: 'some-kube-namespace',
+  const unifiedParams: UrlResourcesParams = {
+    query: 'query',
+    search: 'search',
+    sort: { fieldName: 'field', dir: 'DESC' },
     limit: 100,
-    name: 'some-name',
-    pinnedOnly: true,
-    query: 'some-query',
-    resourceType: 'some-resource-type',
-    search: 'some-search',
+    startKey: 'startkey',
     searchAsRoles: 'yes',
-    sort: { fieldName: 'sort-field', dir: 'DESC' },
-    startKey: 'some-start-key',
-    regions: ['us-west-2', 'af-south-1'],
+    pinnedOnly: true,
+    includedResourceMode: 'all',
+    kinds: ['app'],
   };
   expect(
-    generateResourcePath(fullParamPath, {
-      clusterId: 'some-cluster-id',
-      ...urlParams,
+    generateResourcePath(cfg.api.unifiedResourcesPath, {
+      clusterId: 'cluster',
+      ...unifiedParams,
     })
   ).toStrictEqual(
-    '/v1/webapi/sites/some-cluster-id/some-name/foo?kind=some-kind&kinds=app&kinds=db&kubeCluster=some-kube-cluster&kubeNamespace=some-kube-namespace&limit=100&pinnedOnly=true&query=some-query&resourceType=some-resource-type&search=some-search&searchAsRoles=yes&sort=sort-field:desc&startKey=some-start-key&includedResourceMode=all&regions=us-west-2&regions=af-south-1'
+    '/v1/webapi/sites/cluster/resources?searchAsRoles=yes&limit=100&startKey=startkey&kinds=app&query=query&search=search&sort=field:desc&pinnedOnly=true&includedResourceMode=all'
   );
 });
 
-test('defined params but set to empty values are set to empty', () => {
-  const urlParams: allParams = {
-    includedResourceMode: null,
-    kind: '',
-    kinds: [],
-    kubeCluster: '',
-    kubeNamespace: '',
-    limit: 0,
-    name: '',
-    pinnedOnly: null,
+test('defined params but set to empty values are set to empty string', () => {
+  const unifiedParams: UrlResourcesParams = {
     query: '',
-    resourceType: '',
-    search: '',
-    searchAsRoles: '',
-    sort: null,
-    startKey: '',
-    regions: [],
+    search: null,
+    limit: 0,
+    pinnedOnly: false,
+    kinds: [],
   };
   expect(
-    generateResourcePath(fullParamPath, {
-      clusterId: 'some-cluster-id',
-      ...urlParams,
+    generateResourcePath(cfg.api.unifiedResourcesPath, {
+      clusterId: 'cluster',
+      ...unifiedParams,
     })
   ).toStrictEqual(
-    '/v1/webapi/sites/some-cluster-id//foo?kind=&kinds=&kubeCluster=&kubeNamespace=&limit=&pinnedOnly=&query=&resourceType=&search=&searchAsRoles=&sort=&startKey=&includedResourceMode=&regions='
+    '/v1/webapi/sites/cluster/resources?searchAsRoles=&limit=&startKey=&kinds=&query=&search=&sort=&pinnedOnly=&includedResourceMode='
   );
 });
 
-test('unknown key values are not set even if declared in path', () => {
-  let unknownParamPath = '/v1/webapi/sites/view?foo=:foo?&bar=:bar?&baz=:baz?';
+test('defined kube related params are set', () => {
+  const params: UrlKubeResourcesParams = {
+    kind: 'namespace',
+    kubeCluster: 'kubecluster',
+    kubeNamespace: 'kubenamespace',
+  };
   expect(
-    generateResourcePath(unknownParamPath, {
-      foo: 'some-foo',
-      bar: 'some-bar',
-      baz: 'some-baz',
+    generateResourcePath(cfg.api.kubernetesResourcesPath, {
+      clusterId: 'cluster',
+      ...params,
     })
-  ).toStrictEqual(unknownParamPath);
+  ).toStrictEqual(
+    '/v1/webapi/sites/cluster/kubernetes/resources?searchAsRoles=&limit=&startKey=&query=&search=&sort=&kubeCluster=kubecluster&kubeNamespace=kubenamespace&kind=namespace'
+  );
 });

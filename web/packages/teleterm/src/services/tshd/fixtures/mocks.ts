@@ -16,22 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { ClientVersionStatus } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
-
 import {
-  makeApp,
   makeAppGateway,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
-import { getDefaultUnifiedResourcePreferences } from 'teleterm/ui/services/workspacesService';
 
 import { MockedUnaryCall } from '../cloneableClient';
-import { AutoUpdateClient, TshdClient, VnetClient } from '../createClient';
+import { TshdClient, VnetClient } from '../createClient';
 
 export class MockTshClient implements TshdClient {
   listRootClusters = () => new MockedUnaryCall({ clusters: [] });
   listLeafClusters = () => new MockedUnaryCall({ clusters: [] });
+  getKubes = () =>
+    new MockedUnaryCall({
+      agents: [],
+      totalCount: 0,
+      startKey: '',
+    });
+  getDatabases = () =>
+    new MockedUnaryCall({
+      agents: [],
+      totalCount: 0,
+      startKey: '',
+    });
   listDatabaseUsers = () =>
     new MockedUnaryCall({
       users: [],
@@ -42,6 +49,18 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({
       roles: [],
       applicableRoles: [],
+    });
+  getServers = () =>
+    new MockedUnaryCall({
+      agents: [],
+      totalCount: 0,
+      startKey: '',
+    });
+  getApps = () =>
+    new MockedUnaryCall({
+      agents: [],
+      totalCount: 0,
+      startKey: '',
     });
   assumeRole = () => new MockedUnaryCall({});
   deleteAccessRequest = () => new MockedUnaryCall({});
@@ -64,12 +83,13 @@ export class MockTshClient implements TshdClient {
   getAuthSettings = () =>
     new MockedUnaryCall({
       localAuthEnabled: true,
+      secondFactor: 'webauthn',
+      preferredMfa: 'webauthn',
       authProviders: [],
       hasMessageOfTheDay: false,
       authType: 'local',
       allowPasswordless: false,
       localConnectorName: '',
-      clientVersionStatus: ClientVersionStatus.OK,
     });
   removeCluster = () => new MockedUnaryCall({});
   login = () => new MockedUnaryCall({});
@@ -89,15 +109,7 @@ export class MockTshClient implements TshdClient {
     new MockedUnaryCall({ resources: [], nextKey: '' });
   listKubernetesResources = () =>
     new MockedUnaryCall({ resources: [], nextKey: '' });
-  listDatabaseServers = () =>
-    new MockedUnaryCall({ resources: [], nextKey: '' });
-  getUserPreferences = () =>
-    new MockedUnaryCall({
-      userPreferences: {
-        unifiedResourcePreferences: getDefaultUnifiedResourcePreferences(),
-        clusterPreferences: { pinnedResources: { resourceIds: [] } },
-      },
-    });
+  getUserPreferences = () => new MockedUnaryCall({});
   updateUserPreferences = () => new MockedUnaryCall({});
   getSuggestedAccessLists = () => new MockedUnaryCall({ accessLists: [] });
   promoteAccessRequest = () => new MockedUnaryCall({});
@@ -110,39 +122,11 @@ export class MockTshClient implements TshdClient {
       },
     });
   startHeadlessWatcher = () => new MockedUnaryCall({});
-  getApp = () => new MockedUnaryCall({ app: makeApp() });
-  connectToDesktop = undefined;
-  setSharedDirectoryForDesktopSession = () => new MockedUnaryCall({});
 }
 
 export class MockVnetClient implements VnetClient {
   start = () => new MockedUnaryCall({});
   stop = () => new MockedUnaryCall({});
-  getServiceInfo = () =>
-    new MockedUnaryCall({
-      appDnsZones: [],
-      clusters: [],
-      sshConfigured: false,
-      vnetSshConfigPath:
-        '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
-    });
+  listDNSZones = () => new MockedUnaryCall({ dnsZones: [] });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
-  runDiagnostics() {
-    return new MockedUnaryCall({
-      report: {
-        checks: [],
-        createdAt: Timestamp.fromDate(new Date(2025, 0, 1, 12, 0)),
-      },
-    });
-  }
-  autoConfigureSSH = () => new MockedUnaryCall({});
-}
-
-export class MockAutoUpdateClient implements AutoUpdateClient {
-  getClusterVersions = () =>
-    new MockedUnaryCall({
-      reachableClusters: [],
-      unreachableClusters: [],
-    });
-  getDownloadBaseUrl = () => new MockedUnaryCall({ baseUrl: '' });
 }

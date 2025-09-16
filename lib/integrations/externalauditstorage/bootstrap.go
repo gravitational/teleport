@@ -203,8 +203,8 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 					Expiration: &s3types.LifecycleExpiration{
 						Days: aws.Int32(1),
 					},
-					Filter: &s3types.LifecycleRuleFilter{
-						Prefix: aws.String("/query_results"),
+					Filter: &s3types.LifecycleRuleFilterMemberPrefix{
+						Value: "/query_results",
 					},
 				},
 				{
@@ -219,9 +219,7 @@ func createTransientBucket(ctx context.Context, clt BootstrapS3Client, bucketNam
 					Expiration: &s3types.LifecycleExpiration{
 						ExpiredObjectDeleteMarker: aws.Bool(true),
 					},
-					Filter: &s3types.LifecycleRuleFilter{
-						Prefix: aws.String(""),
-					},
+					Filter: &s3types.LifecycleRuleFilterMemberPrefix{},
 				},
 			},
 		},

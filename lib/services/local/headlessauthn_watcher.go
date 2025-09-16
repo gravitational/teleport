@@ -21,18 +21,19 @@ package local
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // maxSubscribers is the maximum number of concurrent subscribers that a headless authentication watcher
@@ -51,8 +52,8 @@ var ErrHeadlessAuthenticationWatcherClosed = errors.New("headless authentication
 type HeadlessAuthenticationWatcherConfig struct {
 	// Backend is the storage backend used to create watchers.
 	Backend backend.Backend
-	// Logger is a logger.
-	Logger *slog.Logger
+	// Log is a logger.
+	Log logrus.FieldLogger
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// MaxRetryPeriod is the maximum retry period on failed watchers.
@@ -64,8 +65,9 @@ func (cfg *HeadlessAuthenticationWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing parameter Backend")
 	}
-	if cfg.Logger == nil {
-		cfg.Logger = slog.With("resource_kind", types.KindHeadlessAuthentication)
+	if cfg.Log == nil {
+		cfg.Log = logrus.StandardLogger()
+		cfg.Log.WithField("resource-kind", types.KindHeadlessAuthentication)
 	}
 	if cfg.MaxRetryPeriod == 0 {
 		// On watcher failure, we eagerly retry in order to avoid login delays.
@@ -96,24 +98,19 @@ func NewHeadlessAuthenticationWatcher(ctx context.Context, cfg HeadlessAuthentic
 	}
 
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  retryutils.FullJitter(cfg.MaxRetryPeriod / 10),
+		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
-		Jitter: retryutils.HalfJitter,
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	identityService, err := NewIdentityService(cfg.Backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	h := &HeadlessAuthenticationWatcher{
 		HeadlessAuthenticationWatcherConfig: cfg,
-		identityService:                     identityService,
+		identityService:                     NewIdentityService(cfg.Backend),
 		retry:                               retry,
 		closed:                              make(chan struct{}),
 		running:                             make(chan struct{}),
@@ -158,15 +155,12 @@ func (h *HeadlessAuthenticationWatcher) runWatchLoop(ctx context.Context) {
 		startedWaiting := h.Clock.Now()
 		select {
 		case t := <-h.retry.After():
-			h.Logger.WarnContext(ctx, "Restarting watch on error",
-				"backoff", t.Sub(startedWaiting),
-				"error", err,
-			)
+			h.Log.Warningf("Restarting watch on error after waiting %v. Error: %v.", t.Sub(startedWaiting), err)
 			h.retry.Inc()
 		case <-ctx.Done():
 			return
 		case <-h.closed:
-			h.Logger.DebugContext(ctx, "Watcher closed, terminating watch loop")
+			h.Log.Debug("Watcher closed. Returning from watch loop.")
 			return
 		}
 	}
@@ -193,7 +187,7 @@ func (h *HeadlessAuthenticationWatcher) watch(ctx context.Context) error {
 			case types.OpPut:
 				headlessAuthn, err := unmarshalHeadlessAuthenticationFromItem(&event.Item)
 				if err != nil {
-					h.Logger.DebugContext(ctx, "failed to unmarshal headless authentication from put event", "error", err)
+					h.Log.WithError(err).Debug("failed to unmarshal headless authentication from put event")
 				} else {
 					h.notify(headlessAuthn)
 				}
