@@ -25,27 +25,27 @@ import (
 	"github.com/stretchr/testify/require"
 
 	headerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopespb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	sr "github.com/gravitational/teleport/lib/scopes/roles"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // TestListScopedRoleAssignmentsScenarios tests particular more tricky ListScopedRoleAssignments scenarios, such
 // as attempts to use an out-of-band cursor to read values outside of the target scope.
-func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
+func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 	t.Parallel()
 
-	assignments := []*accessv1.ScopedRoleAssignment{
+	assignments := []*scopedaccessv1.ScopedRoleAssignment{
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-01",
 			},
 			Scope: "/",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-01",
 						Scope: "/aa",
@@ -59,14 +59,14 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-02",
 			},
 			Scope: "/aa",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-03",
 						Scope: "/aa",
@@ -80,14 +80,14 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-01",
 			},
 			Scope: "/",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "bob",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-01",
 						Scope: "/aa",
@@ -101,14 +101,14 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-02",
 			},
 			Scope: "/aa",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "bob",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-03",
 						Scope: "/aa",
@@ -122,14 +122,14 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-03",
 			},
 			Scope: "/aa/bb",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-05",
 						Scope: "/aa/bb",
@@ -143,14 +143,14 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-03",
 			},
 			Scope: "/aa/bb",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-05",
 						Scope: "/aa/bb",
@@ -164,14 +164,14 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "carol-01",
 			},
 			Scope: "/bb",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "carol",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-07",
 						Scope: "/bb",
@@ -188,11 +188,23 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 
 	cache := NewAssignmentCache()
 	for _, assignment := range assignments {
+		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name: assignment.GetMetadata().GetName(),
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
 		cache.Put(assignment)
+
+		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name: assignment.GetMetadata().GetName(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, rsp.GetAssignment())
 	}
 
 	// verify expected behavior for standard cursors in resources subject to scope mode
-	rsp, err := cache.ListScopedRoleAssignments(t.Context(), &accessv1.ListScopedRoleAssignmentsRequest{
+	rsp, err := cache.ListScopedRoleAssignments(t.Context(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
@@ -204,7 +216,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 	require.Equal(t, []string{"bob-02", "alice-03", "bob-03"}, collectAssignmentNames(rsp.Assignments))
 
 	// try to inject a malicious root out-of-band cursor in resources subject to scope mode (no effect)
-	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &accessv1.ListScopedRoleAssignmentsRequest{
+	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
@@ -216,7 +228,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 	require.Equal(t, []string{"alice-02", "bob-02", "alice-03", "bob-03"}, collectAssignmentNames(rsp.Assignments))
 
 	// try to inject a malicious orthogonal out-of-band cursor in resources subject to scope mode (no effect)
-	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &accessv1.ListScopedRoleAssignmentsRequest{
+	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
@@ -228,7 +240,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 	require.Equal(t, []string{"alice-02", "bob-02", "alice-03", "bob-03"}, collectAssignmentNames(rsp.Assignments))
 
 	// verify expected behavior for standard cursors in policies applicable to scope mode
-	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &accessv1.ListScopedRoleAssignmentsRequest{
+	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
@@ -241,7 +253,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 
 	// try to inject a malicious child out-of-band cursor in policies applicable to scope mode (effect is
 	// to ignore all items in valid query path).
-	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &accessv1.ListScopedRoleAssignmentsRequest{
+	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
@@ -254,7 +266,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 
 	// try to inject a malicious orthogonal out-of-band cursor in policies applicable to scope mode (effect is to
 	// ignore root, but process leaf normally).
-	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &accessv1.ListScopedRoleAssignmentsRequest{
+	rsp, err = cache.ListScopedRoleAssignments(t.Context(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
@@ -266,7 +278,7 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 	require.Equal(t, []string{"alice-02", "bob-02"}, collectAssignmentNames(rsp.Assignments))
 
 	// verify rejection of unknown cursor version
-	_, err = cache.ListScopedRoleAssignments(t.Context(), &accessv1.ListScopedRoleAssignmentsRequest{
+	_, err = cache.ListScopedRoleAssignments(t.Context(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 		ResourceScope: &scopespb.Filter{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
@@ -281,16 +293,16 @@ func TestListScopedRoleASsignmentsScenarios(t *testing.T) {
 func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 	t.Parallel()
 
-	assignments := []*accessv1.ScopedRoleAssignment{
+	assignments := []*scopedaccessv1.ScopedRoleAssignment{
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-01",
 			},
 			Scope: "/",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-01",
 						Scope: "/aa",
@@ -304,14 +316,14 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "alice-02",
 			},
 			Scope: "/aa",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-03",
 						Scope: "/aa",
@@ -325,14 +337,14 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-01",
 			},
 			Scope: "/",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "bob",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-01",
 						Scope: "/aa",
@@ -346,14 +358,14 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "bob-02",
 			},
 			Scope: "/aa",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "bob",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-03",
 						Scope: "/aa",
@@ -367,14 +379,14 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			Version: types.V1,
 		},
 		{
-			Kind: sr.KindScopedRoleAssignment,
+			Kind: scopedaccess.KindScopedRoleAssignment,
 			Metadata: &headerpb.Metadata{
 				Name: "carol-01",
 			},
 			Scope: "/bb",
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "carol",
-				Assignments: []*accessv1.Assignment{
+				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-05",
 						Scope: "/bb",
@@ -391,12 +403,12 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 
 	tts := []struct {
 		name   string
-		req    *accessv1.ListScopedRoleAssignmentsRequest
+		req    *scopedaccessv1.ListScopedRoleAssignmentsRequest
 		expect [][]string
 	}{
 		{
 			name: "all single page explicit excess",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				PageSize: int32(len(assignments) + 1),
 			},
 			expect: [][]string{
@@ -411,7 +423,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "all single page implicit excess",
-			req:  &accessv1.ListScopedRoleAssignmentsRequest{},
+			req:  &scopedaccessv1.ListScopedRoleAssignmentsRequest{},
 			expect: [][]string{
 				{
 					"alice-01",
@@ -424,7 +436,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "all single page exact",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				PageSize: int32(len(assignments)),
 			},
 			expect: [][]string{
@@ -439,7 +451,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "all multi page",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				PageSize: 2,
 			},
 			expect: [][]string{
@@ -458,7 +470,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "user single page",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				User: "alice",
 			},
 			expect: [][]string{
@@ -470,7 +482,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "user multi page",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				PageSize: 1,
 				User:     "alice",
 			},
@@ -481,14 +493,14 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "user nonexistent",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				User: "dave",
 			},
 			expect: nil,
 		},
 		{
 			name: "role single page",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				Role: "role-01",
 			},
 			expect: [][]string{
@@ -500,7 +512,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "role multi page",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				PageSize: 1,
 				Role:     "role-01",
 			},
@@ -511,14 +523,14 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "role nonexistent",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				Role: "role-99",
 			},
 			expect: nil,
 		},
 		{
 			name: "resource scope root",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				ResourceScope: &scopespb.Filter{
 					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/",
@@ -536,7 +548,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "resource scope non-root",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				ResourceScope: &scopespb.Filter{
 					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/aa",
@@ -551,7 +563,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "policy scope root",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				ResourceScope: &scopespb.Filter{
 					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 					Scope: "/",
@@ -566,7 +578,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		},
 		{
 			name: "policy scope non-root",
-			req: &accessv1.ListScopedRoleAssignmentsRequest{
+			req: &scopedaccessv1.ListScopedRoleAssignmentsRequest{
 				ResourceScope: &scopespb.Filter{
 					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 					Scope: "/aa",
@@ -585,7 +597,19 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 
 	cache := NewAssignmentCache()
 	for _, assignment := range assignments {
+		_, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name: assignment.GetMetadata().GetName(),
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
 		cache.Put(assignment)
+
+		rsp, err := cache.GetScopedRoleAssignment(t.Context(), &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name: assignment.GetMetadata().GetName(),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, rsp.GetAssignment())
 	}
 
 	for _, tt := range tts {
@@ -613,7 +637,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 	}
 }
 
-func collectAssignmentNames(assignments []*accessv1.ScopedRoleAssignment) []string {
+func collectAssignmentNames(assignments []*scopedaccessv1.ScopedRoleAssignment) []string {
 	var names []string
 	for _, assignment := range assignments {
 		names = append(names, assignment.Metadata.Name)

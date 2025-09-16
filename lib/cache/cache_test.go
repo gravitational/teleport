@@ -56,7 +56,7 @@ import (
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
-	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -84,7 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	scopedrole "github.com/gravitational/teleport/lib/scopes/roles"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
@@ -1928,8 +1928,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindRecordingEncryption:               types.Resource153ToLegacy(newRecordingEncryption()),
 		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
-		scopedrole.KindScopedRole:                   types.Resource153ToLegacy(&accessv1.ScopedRole{}),
-		scopedrole.KindScopedRoleAssignment:         types.Resource153ToLegacy(&accessv1.ScopedRoleAssignment{}),
+		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
+		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 	}
 
 	for name, cfg := range cases {
@@ -1993,10 +1993,10 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*accessv1.ScopedRole]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

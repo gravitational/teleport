@@ -28,7 +28,7 @@ service, a Discovery Service, and integration with your AWS account.
 ## How it works
 
 Access Graph discovers AWS access patterns, synchronizes various AWS resources,
-including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases.
+including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, RDS databases, and KMS keys.
 These resources are then visualized using the graph representation detailed in the
 [Identity Security usage page](../how-to-use.mdx).
 
@@ -48,6 +48,7 @@ At intervals of 15 minutes, it retrieves the following resources from your AWS a
 - EKS Clusters
 - RDS Databases
 - S3 Buckets
+- KMS Keys
 
 Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to the
 Access Graph, ensuring that it remains updated with the latest information from your AWS environment.
@@ -222,7 +223,13 @@ The IAM policy includes the following directives:
         "iam:ListSAMLProviders",
         "iam:GetSAMLProvider",
         "iam:ListOpenIDConnectProviders",
-        "iam:GetOpenIDConnectProvider"
+        "iam:GetOpenIDConnectProvider",
+
+        "kms:ListKeys",
+        "kms:DescribeKey",
+        "kms:ListResourceTags",
+        "kms:ListAliases",
+        "kms:GetKeyPolicy"
       ],
       "Resource": "*"
     }

@@ -1765,7 +1765,7 @@ func TestNewTerminalHandler(t *testing.T) {
 			},
 		},
 		{
-			expectedErr: "term: bad dimensions(-1x0)",
+			expectedErr: "term: bad dimensions(-1x25)",
 			cfg: TerminalHandlerConfig{
 				SessionData: session.Session{
 					ID:       session.NewID(),
@@ -1775,6 +1775,20 @@ func TestNewTerminalHandler(t *testing.T) {
 				Term: session.TerminalParams{
 					W: -1,
 					H: 0,
+				},
+			},
+		},
+		{
+			expectedErr: "term: bad dimensions(80x-1)",
+			cfg: TerminalHandlerConfig{
+				SessionData: session.Session{
+					ID:       session.NewID(),
+					Login:    "root",
+					ServerID: uuid.New().String(),
+				},
+				Term: session.TerminalParams{
+					W: 0,
+					H: -1,
 				},
 			},
 		},
@@ -10700,53 +10714,6 @@ func TestGithubConnector(t *testing.T) {
 
 	assert.Empty(t, authConnectorsResp.Connectors)
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
-}
-
-func TestCalculateSSHLogins(t *testing.T) {
-	cases := []struct {
-		name              string
-		allowedLogins     []string
-		grantedPrincipals []string
-		expectedLogins    []string
-	}{
-		{
-			name:              "no matching logins",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"fish"},
-		},
-		{
-			name:              "identical logins",
-			allowedLogins:     []string{"llama", "shark", "goose"},
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"goose", "shark", "llama"},
-		},
-		{
-			name:              "subset of logins",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"llama"},
-		},
-		{
-			name:              "no allowed logins",
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-		},
-		{
-			name:          "no granted logins",
-			allowedLogins: []string{"shark", "goose", "llama"},
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			identity := &tlsca.Identity{Principals: test.grantedPrincipals}
-
-			logins, err := calculateSSHLogins(identity, test.allowedLogins)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
-				return strings.Compare(a, b) < 0
-			})))
-		})
-	}
 }
 
 func TestCalculateAppLogins(t *testing.T) {

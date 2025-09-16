@@ -353,6 +353,8 @@ export class FeatureAddBotsShortcut implements TeleportFeature {
 
 export class FeatureAddBots implements TeleportFeature {
   category = NavigationCategory.AddNew;
+  // botsNew redirects to Integrations page
+  isHyperLink = true;
 
   route = {
     title: 'Bot',
