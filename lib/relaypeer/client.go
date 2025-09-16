@@ -88,6 +88,10 @@ func (c ClientConfig) dialRelay(ctx context.Context, dialTarget string, tunnelTy
 		return nil, trace.Wrap(err)
 	}
 
+	if relayServer.GetSpec().GetRelayGroup() != c.GroupName {
+		return nil, trace.BadParameter("peer relay server belongs to different relay group")
+	}
+
 	peerAddr := relayServer.GetSpec().GetPeerAddr()
 	if peerAddr == "" {
 		return nil, trace.BadParameter("no peer addr in peer relay server")
