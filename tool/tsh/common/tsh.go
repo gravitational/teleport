@@ -5219,8 +5219,8 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 		default:
 			fmt.Printf("  Relay address:      (none)\n")
 		}
-	} else {
-		fmt.Printf("  Relay address:      %v\n", cmp.Or(p.RelayAddr, p.DefaultRelayAddr))
+	} else if relayAddr := cmp.Or(p.RelayAddr, p.DefaultRelayAddr); relayAddr != "" {
+		fmt.Printf("  Relay address:      %v\n", relayAddr)
 	}
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
 	if len(p.ActiveRequests) != 0 {
