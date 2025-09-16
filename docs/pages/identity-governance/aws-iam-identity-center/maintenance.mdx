@@ -16,6 +16,15 @@ Teleport provisions AWS users and groups into AWS IAM Identity Center via
 IAM Identity Center using a bearer token. By their nature bearer tokens need to be 
 rotated occasionally to maintain security.
 
+## Generating the token
+
+You can generate the new SCIM bearer token by following the AWS IAM Identity Center
+[Rotate an access token](https://docs.aws.amazon.com/singlesignon/latest/userguide/rotate-token.html)
+user guide.
+
+Be sure to capture the token value displayed at the end of the AWS token creation
+flow, as AWS will not display it again.
+
 ## Rotating the token
 
 <Admonition>
