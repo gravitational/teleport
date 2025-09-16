@@ -40,8 +40,8 @@ type Target struct {
 	Path string
 }
 
-// GetAddr gets the target address, or the empty string if not set.
-func (t Target) GetAddr() string {
+// AddrString gets the target address, or the empty string if not set.
+func (t Target) AddrString() string {
 	if t.Addr != nil {
 		return t.Addr.String()
 	}
@@ -69,13 +69,13 @@ func ParseTarget(input string, port int) (Target, error) {
 			}, nil
 		}
 		// user@host, this is missing a path.
-		return Target{}, trace.BadParameter("%q is missing a path, use form [user@]host:[path]", input)
+		return Target{}, trace.BadParameter("%q is missing a path, use form [[user@]host:]path", input)
 	}
 	hostStartIdx := strings.LastIndex(input[:firstColonIdx], "@")
 	// if a login exists and the path begins right after the login ends,
 	// no host is specified
 	if hostStartIdx != -1 && hostStartIdx+1 == firstColonIdx {
-		return Target{}, trace.BadParameter("%q is missing a host, use form [user@]host:[path]", input)
+		return Target{}, trace.BadParameter("%q is missing a host, use form [[user@]host:]path", input)
 	}
 
 	var login string
@@ -149,7 +149,7 @@ func parseIPv6Host(input string, start int) (*utils.NetAddr, int, error) {
 	}
 	// if there's nothing after ']' then the path is missing
 	if len(hostStr) <= rbraceIdx+2 {
-		return nil, 0, trace.BadParameter("%q is missing a path, use form [user@]host:[path]", input)
+		return nil, 0, trace.BadParameter("%q is missing a path, use form [[user@]host:]path", input)
 	}
 
 	maybeAddr := hostStr[:rbraceIdx+1]
@@ -173,8 +173,8 @@ type Sources struct {
 	Paths []string
 }
 
-// GetAddr gets the target address, or the empty string if not set.
-func (s Sources) GetAddr() string {
+// AddrString gets the target address, or the empty string if not set.
+func (s Sources) AddrString() string {
 	if s.Addr != nil {
 		return s.Addr.String()
 	}
@@ -201,7 +201,7 @@ func ParseSources(rawSources []string, port int) (Sources, error) {
 		if err != nil {
 			return Sources{}, trace.Wrap(err)
 		}
-		if source.Login != sources.Login || source.GetAddr() != sources.GetAddr() {
+		if source.Login != sources.Login || source.AddrString() != sources.AddrString() {
 			return Sources{}, trace.BadParameter("sources must all have the same user and host")
 		}
 		sources.Paths = append(sources.Paths, source.Path)

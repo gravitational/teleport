@@ -232,7 +232,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	dialHost := func(_ context.Context, _, _ string) (*ssh.Client, error) {
 		return nodeClient.Client.Client, nil
 	}
-	var sftpReq sftp.FileTransferRequest
+	var sftpReq *sftp.FileTransferRequest
 	if r.Method == http.MethodPost {
 		sftpReq, err = sftp.CreateHTTPUploadRequest(sftp.HTTPTransferRequest{
 			Src:         webTarget,

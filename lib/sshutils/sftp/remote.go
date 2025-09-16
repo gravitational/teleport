@@ -20,7 +20,6 @@ package sftp
 
 import (
 	"context"
-	"errors"
 	"io"
 	"os"
 	portablepath "path"
@@ -76,7 +75,7 @@ func OpenRemoteFilesystem(ctx context.Context, sshClient *ssh.Client) (fs *Remot
 		if strings.Contains(err.Error(), "ssh: subsystem request failed") {
 			var sb strings.Builder
 			if n, _ := io.Copy(&sb, pe); n > 0 {
-				return nil, trace.Wrap(errors.New(sb.String()))
+				return nil, trace.Errorf("%s", sb.String())
 			}
 		}
 		return nil, trace.Wrap(err)

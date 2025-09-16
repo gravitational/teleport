@@ -39,7 +39,7 @@ import (
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
 
 func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, request *api.FileTransferRequest, sendProgress FileTransferProgressSender) error {
-	sftpReq := sftp.FileTransferRequest{
+	sftpReq := &sftp.FileTransferRequest{
 		Sources: sftp.Sources{
 			Paths: []string{request.GetSource()},
 		},

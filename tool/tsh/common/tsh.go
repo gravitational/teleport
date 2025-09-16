@@ -94,7 +94,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -4555,7 +4554,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
-	c := &client.Config{}
 	// split login & host
 	hostLogin := cf.NodeLogin
 	hostUser := cf.UserHost
@@ -4575,28 +4573,24 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			}
 		}
 	} else if cf.CopySpec != nil {
-		if err := parseCopySpec(cf, c); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if c.SFTPSrcHost != "" {
-			hostUser = c.SFTPSrcHost
-			if c.SFTPSrcLogin != "" {
-				hostLogin = c.SFTPSrcLogin
-			} else {
-				c.SFTPSrcLogin = hostLogin
+		for _, location := range cf.CopySpec {
+			// Extract username and host from "username@host:file/path"
+			userHost, _, found := strings.Cut(location, ":")
+			if !found {
+				continue
 			}
-		} else {
-			hostUser = c.SFTPDestHost
-			if c.SFTPDestLogin != "" {
-				hostLogin = c.SFTPDestLogin
+
+			login, hostname, found := strings.Cut(userHost, "@")
+			if found {
+				hostLogin = login
+				hostUser = hostname
 			} else {
-				c.SFTPDestLogin = hostLogin
+				hostUser = userHost
 			}
+			break
+
 		}
 	}
-
-	c.Host = hostUser
-	c.HostPort = int(cf.NodePort)
 
 	// explicitly passed --labels overrides user@labels positional arg form.
 	if cf.Labels != "" {
@@ -4622,6 +4616,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// 1: start with the defaults
+	c := &client.Config{}
 	c.DialOpts = append(c.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTSH))
 	c.Tracer = cf.tracer
 
@@ -4631,6 +4626,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		// clear proxy jump so it can be overwritten below
 		cf.ProxyJump = ""
 	}
+
+	c.Host = hostUser
+	c.HostPort = int(cf.NodePort)
 
 	// Host may be either %h or %h:%p depending on the command. Proxy
 	// templates match on %h:%p, so we get the full host name here.
@@ -4922,25 +4920,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	return c, nil
-}
-
-func parseCopySpec(cf *CLIConf, config *client.Config) error {
-	if len(cf.CopySpec) < 2 {
-		return trace.BadParameter("tsh scp requires at least two targets")
-	}
-	sources, err := sftp.ParseSources(cf.CopySpec[:len(cf.CopySpec)-1], int(cf.NodePort))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	config.SFTPSrcHost = sources.GetAddr()
-	config.SFTPSrcLogin = sources.Login
-	dest, err := sftp.ParseTarget(cf.CopySpec[len(cf.CopySpec)-1], int(cf.NodePort))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	config.SFTPDestHost = dest.GetAddr()
-	config.SFTPDestLogin = dest.Login
-	return nil
 }
 
 // setEnvVariables configures extra env variables to send in client config based on the requested options.
