@@ -91,15 +91,11 @@ export function mapToAction(
         type: 'parametrized-action',
         searchResult: result,
         parameter: {
-          getSuggestions: async () => {
-            const sshLogins = ctx.clustersService.findClusterByResource(
-              result.resource.uri
-            )?.loggedInUser?.sshLogins;
-            return sshLogins?.map(login => ({
+          getSuggestions: async () =>
+            result.resource.logins.map(login => ({
               value: login,
               displayText: login,
-            }));
-          },
+            })),
           placeholder: 'Provide login',
         },
         perform: login => {
