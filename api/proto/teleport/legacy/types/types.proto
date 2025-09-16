@@ -7425,6 +7425,32 @@ message PluginEntraIDSyncSettings {
   // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
   // For existing plugins, it is filled in using the entity descriptor url when utilized.
   string entra_app_id = 5;
+
+  // GroupFilters configures which groups should be included or exlcuded.
+  repeated PluginSyncFilter group_filters = 6;
+}
+
+// PluginSyncFilter can specify inclusion or exclusion of a resource.
+message PluginSyncFilter {
+  option (gogoproto.equal) = true;
+
+  // Include describes that the resource should be explicitly included.
+  oneof include {
+    // Id includes resource matched with an ID.
+    string id = 1 [(gogoproto.jsontag) = "id,omitempty"];
+
+    // NameRegex includes resource matched with a regexp.
+    string name_regex = 2 [(gogoproto.jsontag) = "name_regex,omitempty"];
+  }
+
+  // Exclude specifies which AWS resources should be explicitly excluded.
+  oneof exclude {
+    // ExcludeId excludes resource matched with an ID.
+    string exclude_id = 3 [(gogoproto.jsontag) = "id,omitempty"];
+
+    // ExcludeNameRegex excludes resource matched with a regexp.
+    string exclude_name_regex = 4 [(gogoproto.jsontag) = "name_regex,omitempty"];
+  }
 }
 
 // EntraIDCredentialsSource defines the credentials source for Entra ID.

@@ -3,7 +3,7 @@ authors: Marco Dinis (marco.dinis@goteleport.com)
 state: draft
 ---
 
-# RFD 223 - Multiple Agents in EC2 Auto Discovery
+# RFD 224 - Multiple Agents in EC2 Auto Discovery
 
 ## Required Approvers
 

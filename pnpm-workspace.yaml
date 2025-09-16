@@ -41,3 +41,5 @@ patchedDependencies:
   '@types/wicg-file-system-access@2023.10.6': web/patches/@types__wicg-file-system-access@2023.10.6.patch
   # Needed for roundRect support which was merged to jest-canvas-mock but not released.
   jest-canvas-mock@2.5.2: web/patches/jest-canvas-mock@2.5.2.patch
+# Do not install packages released less than 2 days (2880 minutes) ago
+minimumReleaseAge: 2880
