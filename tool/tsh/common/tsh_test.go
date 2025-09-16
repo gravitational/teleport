@@ -5736,7 +5736,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 		"direct connection": {
 			database:            "postgres://direct_user@test:5432/direct_database",
 			expectedErrContains: "hostname resolving error",
-			expectedHost:        "test:0",
+			expectedHost:        "test",
 			expectedUser:        "direct_user",
 			expectedDatabase:    "direct_database",
 		},
