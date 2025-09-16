@@ -4,11 +4,6 @@ import { Flex, Text } from 'design';
 import { Clock, Edit } from 'design/Icon';
 import { H2 } from 'design/Text';
 
-import {
-  makeLabel,
-  ScheduleUpgrades,
-} from 'e-teleport/Clusters/ManageCluster/ScheduleUpgrades/ScheduleUpgrades';
-import { useUpgradeWindowStart } from 'e-teleport/Clusters/ManageCluster/useUpgradeWindowStart';
 import useTeleportE from 'e-teleport/useTeleportE';
 import { ExternalAuditStorageCta } from 'teleport/components/ExternalAuditStorageCta';
 import cfg from 'teleport/config';
@@ -16,10 +11,12 @@ import { Support } from 'teleport/Support';
 import {
   DataItem,
   IconBox,
-  MobileSeparator,
-  StyledMultiRowBox,
-  StyledRow,
+  SupportSectionCard,
 } from 'teleport/Support/Support';
+
+import { Contacts } from './Contacts';
+import { makeLabel, ScheduleUpgrades } from './ScheduleUpgrades';
+import { useUpgradeWindowStart } from './useUpgradeWindowStart';
 
 export default function Container() {
   return (
@@ -43,56 +40,32 @@ export const SupportE = () => {
   return (
     <>
       {cfg.isCloud && (
-        <>
-          <MobileSeparator />
-          <StyledMultiRowBox
-            mb={3}
-            css={`
-              @media screen and (max-width: ${props =>
-                  props.theme.breakpoints.mobile}) {
-                margin-top: 0px;
-              }
-            `}
-          >
-            <StyledRow>
-              <Flex alignItems="center" justifyContent="start">
-                <IconBox>
-                  <Clock />
-                </IconBox>
-                <H2>Scheduled Upgrades</H2>
+        <SupportSectionCard>
+          <Flex alignItems="center" justifyContent="start" mb={3}>
+            <IconBox>
+              <Clock size={16} />
+            </IconBox>
+            <H2>Scheduled Upgrades</H2>
+          </Flex>
+          <DataItem
+            title="Window Start Time"
+            data={
+              <Flex alignItems="center">
+                {makeLabel(selectedUpgradeWindowStart)}
+                <EditLink onClick={showScheduleUpgrade} ml="2" size="medium" />
               </Flex>
-            </StyledRow>
-            <StyledRow css="padding-left: 40px !important;">
-              <DataItem
-                title="Window Start Time"
-                data={
-                  <Flex alignItems="center">
-                    {makeLabel(selectedUpgradeWindowStart)}
-                    <EditLink
-                      onClick={showScheduleUpgrade}
-                      ml="2"
-                      size="medium"
-                    />
-                  </Flex>
-                }
-              />
-              <Text
-                typography="body2"
-                css={`
-                  @media screen and (max-width: ${props =>
-                      props.theme.breakpoints.mobile}) {
-                    margin-left: ${props => props.theme.space[2]}px;
-                  }
-                `}
-              >
-                Window Start Time is the hour in which an upgrade may begin.
-                Changing this value changes it for everyone in your
-                organization.
-              </Text>
-            </StyledRow>
-          </StyledMultiRowBox>
-        </>
+            }
+          />
+          <Text typography="body2" ml={{ _: 2, small: 0 }}>
+            Window Start Time is the hour in which an upgrade may begin.
+            Changing this value changes it for everyone in your organization.
+          </Text>
+        </SupportSectionCard>
       )}
+      {(cfg.isCloud || cfg.isDashboard) && (
+        <Contacts clusterId={ctx.storeUser.state.cluster.clusterId} />
+      )}
+      <ExternalAuditStorageCta />
       {scheduleUpgradesVisible && (
         <ScheduleUpgrades
           onSave={onUpdate}
@@ -102,7 +75,6 @@ export const SupportE = () => {
           attempt={updateWindowAttempt}
         />
       )}
-      <ExternalAuditStorageCta />
     </>
   );
 };

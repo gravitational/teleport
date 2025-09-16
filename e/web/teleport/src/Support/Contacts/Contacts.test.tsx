@@ -50,7 +50,7 @@ beforeEach(() => {
 test('fetches and displays contacts', async () => {
   jest.spyOn(contactsService, 'fetchContacts').mockResolvedValueOnce(contacts);
 
-  renderElement(<Contacts />);
+  renderElement(<Contacts clusterId="cluster-id" />);
 
   expect(await screen.findByText('Business Contacts')).toBeInTheDocument();
   expect(await screen.findByText('Security Contacts')).toBeInTheDocument();
@@ -63,7 +63,7 @@ test('fetches and displays contacts', async () => {
 });
 
 test('does not display contacts when access.list is false', async () => {
-  renderElement(<Contacts />, { list: false });
+  renderElement(<Contacts clusterId="cluster-id" />, { list: false });
 
   await waitFor(() => {
     expect(screen.queryByText('Business Contacts')).not.toBeInTheDocument();
@@ -73,7 +73,7 @@ test('does not display contacts when access.list is false', async () => {
 
 test('does not display action buttons when access.create and access.remove are false', async () => {
   jest.spyOn(contactsService, 'fetchContacts').mockResolvedValueOnce(contacts);
-  renderElement(<Contacts />, {
+  renderElement(<Contacts clusterId="cluster-id" />, {
     create: false,
     remove: false,
     list: true,
@@ -83,8 +83,8 @@ test('does not display action buttons when access.create and access.remove are f
   expect(await screen.findByText('alice@goteleport.com')).toBeInTheDocument();
   expect(await screen.findByText('bob@goteleport.com')).toBeInTheDocument();
 
-  // "Add New" button should not be present
-  expect(screen.queryByText('Add New')).not.toBeInTheDocument();
+  // "Invite New" button should not be present
+  expect(screen.queryByText('Invite New')).not.toBeInTheDocument();
 });
 
 test('allows adding a new contact', async () => {
@@ -98,19 +98,19 @@ test('allows adding a new contact', async () => {
     verification: ContactVerification.Pending,
   });
 
-  renderElement(<Contacts />);
+  renderElement(<Contacts clusterId="cluster-id" />);
 
   expect(await screen.findByText('Business Contacts')).toBeInTheDocument();
 
   // create business contact
-  const addButtons = await screen.findAllByText('Add New');
+  const addButtons = await screen.findAllByText('Invite New');
   await waitFor(() => {
-    expect(addButtons[0]).toBeEnabled();
+    expect(addButtons[1]).toBeEnabled();
   });
-  fireEvent.click(addButtons[0]);
+  fireEvent.click(addButtons[1]);
 
   let emailInputs = screen.getAllByPlaceholderText('mail@example.com');
-  // the first email input is the business one
+  // the second email input is the business one (Security contacts appear first)
   fireEvent.change(emailInputs[0], {
     target: { value: 'newcontact-business@example.com' },
   });
@@ -130,10 +130,10 @@ test('allows adding a new contact', async () => {
   );
 
   // create security contact
-  fireEvent.click(addButtons[1]); // add new
+  fireEvent.click(addButtons[0]);
 
   emailInputs = screen.getAllByPlaceholderText('mail@example.com');
-  fireEvent.change(emailInputs[1], {
+  fireEvent.change(emailInputs[0], {
     target: { value: 'newcontact-security@example.com' },
   });
   inviteButtons = screen.getAllByText('Invite');
@@ -156,28 +156,32 @@ test('allows deleting a contact', async () => {
   jest.spyOn(contactsService, 'fetchContacts').mockResolvedValue(contacts);
   jest.spyOn(contactsService, 'deleteContact').mockResolvedValueOnce();
 
-  renderElement(<Contacts />);
+  renderElement(<Contacts clusterId="cluster-id" />);
 
   expect(
     await screen.findByDisplayValue('alice@goteleport.com')
   ).toBeInTheDocument();
 
-  const deleteButtons = screen.getAllByText('Delete');
-  // the first delete button is alice's
+  const deleteButtons = screen.getAllByTestId('delete-contact-btn');
+  // alice is a business contact, so the delete button is in the business section (second)
 
-  fireEvent.click(deleteButtons[0]);
+  fireEvent.click(deleteButtons[1]);
 
   // wait for delete dialog
   expect(
-    screen.getByText('Are you sure you want to delete this business contact?')
+    await screen.findByText(
+      'Are you sure you want to delete this business contact?'
+    )
   ).toBeInTheDocument();
 
   // click the confirmation button
   fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
-  expect(
-    screen.queryByDisplayValue('alice@example.com')
-  ).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(
+      screen.queryByDisplayValue('alice@goteleport.com')
+    ).not.toBeInTheDocument();
+  });
 
   expect(contactsService.deleteContact).toHaveBeenCalledWith(
     'cluster-id',
@@ -201,20 +205,24 @@ test('handles create contact failure', async () => {
     .spyOn(contactsService, 'createContact')
     .mockRejectedValueOnce(new Error('Failed to create contact'));
 
-  renderElement(<Contacts />);
+  renderElement(<Contacts clusterId="cluster-id" />);
 
   expect(await screen.findByText('Business Contacts')).toBeInTheDocument();
 
-  const addButtons = screen.getAllByText('Add New');
+  const addButtons = await screen.findAllByText('Invite New');
+  await waitFor(() => {
+    expect(addButtons[0]).toBeEnabled();
+  });
   fireEvent.click(addButtons[0]);
 
-  const emailInputs = screen.getAllByPlaceholderText('mail@example.com');
-  fireEvent.change(emailInputs[emailInputs.length - 1], {
+  // Wait for the new draft contact input to appear
+  const emailInput = await screen.findByPlaceholderText('mail@example.com');
+  fireEvent.change(emailInput, {
     target: { value: 'valid@mail.com' },
   });
 
-  const inviteButtons = screen.getAllByText('Invite');
-  fireEvent.click(inviteButtons[inviteButtons.length - 1]);
+  const inviteButton = screen.getByText('Invite');
+  fireEvent.click(inviteButton);
 
   // assert that the error returned by the API shows up on screen
   expect(
@@ -230,14 +238,14 @@ test('handles delete contact failure', async () => {
     .spyOn(contactsService, 'deleteContact')
     .mockRejectedValueOnce(new Error('Failed to delete contact'));
 
-  renderElement(<Contacts />);
+  renderElement(<Contacts clusterId="cluster-id" />);
 
   expect(
     await screen.findByDisplayValue('alice@goteleport.com')
   ).toBeInTheDocument();
 
-  const deleteButtons = screen.getAllByText('Delete');
-  fireEvent.click(deleteButtons[0]);
+  const deleteButtons = screen.getAllByTestId('delete-contact-btn');
+  fireEvent.click(deleteButtons[1]);
 
   // wait for delete dialog
   expect(
@@ -262,7 +270,7 @@ test('shows error state when fetching contacts fails', async () => {
     .spyOn(contactsService, 'fetchContacts')
     .mockRejectedValueOnce(new Error('Failed to fetch contacts'));
 
-  renderElement(<Contacts />);
+  renderElement(<Contacts clusterId="cluster-id" />);
 
   expect(await screen.findAllByText('Failed to fetch contacts')).toHaveLength(
     2

@@ -135,7 +135,7 @@ test('disables Add New button when max contacts reached', async () => {
     <ContactEmails {...defaultProps} maxContacts={contacts.length} />
   );
 
-  const addButton = screen.getByRole('button', { name: /Add New/i });
+  const addButton = screen.getByRole('button', { name: /Invite New/i });
   expect(addButton).toBeDisabled();
 });
 
@@ -151,9 +151,9 @@ test('disables input fields and buttons when processing', () => {
   const emailInput = screen.getByDisplayValue(contacts[0].email);
   expect(emailInput).toBeDisabled();
 
-  const deleteButtons = screen.getAllByText(/Delete/);
+  const deleteButtons = screen.getAllByTestId('delete-contact-btn');
   deleteButtons.forEach(button => {
-    expect(button.parentNode).toBeDisabled();
+    expect(button).toBeDisabled();
   });
 });
 
@@ -187,8 +187,8 @@ test('disables Delete button when only one verified contact exists', () => {
 
   renderElement(<ContactEmails {...defaultProps} contacts={contacts} />);
 
-  const deleteButton = screen.getByText(/Delete/);
-  expect(deleteButton.parentNode).toBeDisabled();
+  const deleteButton = screen.getByTestId('delete-contact-btn');
+  expect(deleteButton).toBeDisabled();
 });
 
 test('enables Delete button when multiple verified contacts exist', () => {
@@ -217,7 +217,7 @@ test('enables Delete button when multiple verified contacts exist', () => {
 
   renderElement(<ContactEmails {...defaultProps} contacts={contacts} />);
 
-  const deleteButtons = screen.getAllByText(/Delete/);
+  const deleteButtons = screen.getAllByTestId('delete-contact-btn');
   deleteButtons.forEach(button => {
     expect(button).toBeEnabled();
   });
@@ -241,7 +241,7 @@ test('displays invitation sent message when recently invited', () => {
 
   expect(
     screen.getByText(
-      /Invitation sent successfully and is pending verification. Invitation is valid for two weeks/
+      /Invitation sent successfully and is pending verification. Invitation is valid for 14 days/
     )
   ).toBeInTheDocument();
 });
@@ -262,7 +262,7 @@ test('validates email before inviting a new contact', async () => {
 
   renderElement(<ContactEmails {...defaultProps} contacts={contacts} />);
 
-  const inviteButton = screen.getByText(/Invite/);
+  const inviteButton = screen.getByText('Invite');
   fireEvent.click(inviteButton);
 
   expect(mockOnInvite).not.toHaveBeenCalled();
@@ -285,8 +285,8 @@ test('calls onInvite when inviting a new contact', async () => {
 
   renderElement(<ContactEmails {...defaultProps} contacts={contacts} />);
 
-  const inviteButton = screen.getByText(/Invite/);
-  fireEvent.click(inviteButton.parentNode);
+  const inviteButton = screen.getByText('Invite');
+  fireEvent.click(inviteButton);
 
   expect(mockOnInvite).toHaveBeenCalledWith('1');
 });
@@ -307,8 +307,8 @@ test('calls onDelete when deleting a contact', () => {
 
   renderElement(<ContactEmails {...defaultProps} contacts={contacts} />);
 
-  const deleteButton = screen.getByText(/Delete/i);
-  fireEvent.click(deleteButton.parentNode);
+  const deleteButton = screen.getByTestId('delete-contact-btn');
+  fireEvent.click(deleteButton);
 
   expect(mockOnDelete).toHaveBeenCalledWith('1');
 });
@@ -317,7 +317,7 @@ test('does not render Add New button when writePermissions is false', () => {
   renderElement(<ContactEmails {...defaultProps} writePermissions={false} />);
 
   expect(
-    screen.queryByRole('button', { name: /Add New/i })
+    screen.queryByRole('button', { name: /Invite New/i })
   ).not.toBeInTheDocument();
 });
 
@@ -343,6 +343,6 @@ test('does not render Invite and Delete buttons when writePermissions is false',
     />
   );
 
-  expect(screen.queryByText(/Invite/i)).not.toBeInTheDocument();
-  expect(screen.queryByText(/Delete/i)).not.toBeInTheDocument();
+  expect(screen.queryByText('Invite')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('delete-contact-btn')).not.toBeInTheDocument();
 });

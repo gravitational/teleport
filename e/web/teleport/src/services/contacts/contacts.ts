@@ -26,9 +26,13 @@ export const contactsService = {
     verifyToken: string,
     contactType: ContactType
   ): Promise<void> {
-    return api.delete(cfg.getContactsUrl(clusterId), {
-      verify_token: verifyToken,
-      contact_type: contactType,
+    return api.deleteWithOptions(cfg.getContactsUrl(clusterId), {
+      data: {
+        verify_token: verifyToken,
+        contact_type: contactType,
+      },
+      // We have to explicitly set the `Content-Type` here otherwise it will default to text/plain.
+      headers: { 'Content-Type': 'application/json' },
     });
   },
 };

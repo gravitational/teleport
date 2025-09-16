@@ -1,4 +1,4 @@
-import React, { type JSX } from 'react';
+import React from 'react';
 
 import { Danger } from 'design/Alert';
 import Box from 'design/Box';
@@ -7,7 +7,7 @@ import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
 import Label from 'design/Label';
 import { ShimmerBox } from 'design/ShimmerBox';
-import Text, { P3 } from 'design/Text';
+import { P3 } from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
 import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
@@ -74,7 +74,7 @@ export function ContactEmails({
     createAttempt.status === 'processing';
 
   return (
-    <Flex gap="2" justifyContent="start" flexDirection="column" width="100%">
+    <Flex justifyContent="start" flexDirection="column" width="100%">
       {deleteAttempt.status === 'error' && (
         <Danger mb="1" details={deleteAttempt.statusText}>
           Could not delete contact
@@ -86,7 +86,6 @@ export function ContactEmails({
         </Danger>
       )}
 
-      <Box>Email Address</Box>
       {listAttempt.status === 'processing' && (
         <LoadingSkeleton
           count={3}
@@ -115,13 +114,14 @@ export function ContactEmails({
       {writePermissions && (
         <HoverTooltip tipContent={maxReached ? MAX_LIMIT_TOOLTIP : ''}>
           <Button
-            width="fit-content"
             px="3"
             disabled={isProcessing || contacts.length >= maxContacts}
             onClick={onNewContact}
+            fill="border"
+            width={{ _: '100%', small: 'fit-content' }}
           >
             <Icons.Plus size="small" mr="1" />
-            Add New
+            Invite New
           </Button>
         </HoverTooltip>
       )}
@@ -167,39 +167,62 @@ function EmailInput({
     <Validation>
       {({ validator }) => (
         <form onSubmit={e => onSubmit(e, validator)}>
-          <Flex gap="3" width="100%" alignItems="start">
-            <InputFieldWithVerificationState
-              contact={contact}
-              onChange={onChange}
-              disabled={disabled}
-              recentlyInvited={recentlyInvited}
-              existingEmails={existingEmails}
-            />
-            {writePermissions && (
-              <Box mb="3">
-                {!contact.draft && (
-                  <HoverTooltip
-                    tipContent={deleteDisabled ? DISABLED_DELETED_TOOLTIP : ''}
-                  >
-                    <EmailButton
-                      disabled={disabled || deleteDisabled}
-                      text="Delete"
-                      icon={<Icons.Trash size="small" />}
-                      intent="danger"
-                    />
-                  </HoverTooltip>
-                )}
+          <Flex
+            gap={{ _: 2, small: 3 }}
+            width="100%"
+            alignItems="start"
+            flexDirection={{ _: 'column', small: 'row' }}
+          >
+            <Flex width="100%" gap={1}>
+              <InputFieldWithVerificationState
+                contact={contact}
+                onChange={onChange}
+                disabled={disabled}
+                recentlyInvited={recentlyInvited}
+                existingEmails={existingEmails}
+              />
+              {writePermissions && (
+                <Box
+                  mb={{ _: 2, small: 3 }}
+                  alignSelf={{ _: 'flex-start', small: 'auto' }}
+                >
+                  {!contact.draft && (
+                    <HoverTooltip
+                      tipContent={
+                        deleteDisabled ? DISABLED_DELETED_TOOLTIP : ''
+                      }
+                    >
+                      <Button
+                        data-testid="delete-contact-btn"
+                        height="40px"
+                        fill="border"
+                        disabled={disabled || deleteDisabled}
+                        type="submit"
+                        intent="danger"
+                        width={{ _: 'fit-content', small: '40px' }}
+                        px={{ _: 2, small: 3 }}
+                      >
+                        <Icons.Trash size="small" />
+                      </Button>
+                    </HoverTooltip>
+                  )}
 
-                {contact.draft && (
-                  <EmailButton
-                    disabled={disabled}
-                    text="Invite"
-                    icon={<Icons.PaperPlane size="small" />}
-                    intent="primary"
-                  />
-                )}
-              </Box>
-            )}
+                  {contact.draft && (
+                    <Button
+                      height="40px"
+                      fill="border"
+                      disabled={disabled}
+                      type="submit"
+                      width="80px"
+                      px={{ _: 2, small: 3 }}
+                    >
+                      <Icons.PaperPlane size="small" mr={1} />
+                      Invite
+                    </Button>
+                  )}
+                </Box>
+              )}
+            </Flex>
           </Flex>
         </form>
       )}
@@ -244,12 +267,12 @@ function InputFieldWithVerificationState({
       {recentlyInvited && (
         <P3>
           Invitation sent successfully and is pending verification. Invitation
-          is valid for two weeks.
+          is valid for 14 days.
         </P3>
       )}
       {/* To properly display the status badge,
           we'll position a box on top of the input, then render
-          the same text (the contact email) with `vilisibily: hidden`
+          the same text (the contact email) with `visibility: hidden`
           so the status badge is positioned at the right of the input text.
       */}
       <Box
@@ -313,51 +336,6 @@ function VerificationStateBadge({
     default:
       verification satisfies never;
   }
-}
-
-function EmailButton({
-  disabled,
-  text,
-  icon,
-  intent,
-}: {
-  disabled: boolean;
-  text: string;
-  icon: JSX.Element;
-  intent: 'danger' | 'primary';
-}) {
-  return (
-    <Button
-      height="40px"
-      intent={intent}
-      fill="border"
-      disabled={disabled}
-      type="submit"
-      css={`
-        padding-left: ${p => p.theme.space[2]}px;
-        padding-right: ${p => p.theme.space[2]}px;
-        @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-          width: 120px;
-          padding-left: ${p => p.theme.space[3]}px;
-          padding-right: ${p => p.theme.space[3]}px;
-        }
-      `}
-    >
-      {icon}
-      <Text
-        ml="1"
-        css={`
-          display: none;
-          @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-            display: inline;
-          }
-        `}
-        as="span"
-      >
-        {text}
-      </Text>
-    </Button>
-  );
 }
 
 /**

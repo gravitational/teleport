@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, type JSX } from 'react';
-import { useParams } from 'react-router';
 
 import { Alert } from 'design/Alert';
 import { ButtonSecondary, ButtonWarning } from 'design/Button';
@@ -11,8 +10,8 @@ import Dialog, {
 } from 'design/Dialog';
 import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
-import { MultiRowBox, Row } from 'design/MultiRowBox';
 import { H2 } from 'design/Text';
+import { P } from 'design/Text/Text';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import {
@@ -21,17 +20,14 @@ import {
   ContactVerification,
 } from 'e-teleport/services/contacts/types';
 import useTeleportE from 'e-teleport/useTeleportE';
-import { IconBox } from 'teleport/Clusters/ManageCluster/ManageCluster';
+import { IconBox, SupportSectionCard } from 'teleport/Support/Support';
 
 import { ContactEmails, FormContact } from './ContactEmails';
 
 const MAX_CONTACTS = 3;
 
-export function Contacts() {
+export function Contacts({ clusterId }: { clusterId: string }) {
   const ctx = useTeleportE();
-  const { clusterId } = useParams<{
-    clusterId: string;
-  }>();
 
   const access = ctx.storeUser.getContactsAccess();
 
@@ -190,30 +186,6 @@ export function Contacts() {
   return (
     <>
       <ContactBox
-        title="Business Contacts"
-        text={`
-            Used for account and billing notices. Your Teleport account can have up to
-            ${MAX_CONTACTS} business contacts.
-          `}
-        icon={<Icons.Checks />}
-        listAttempt={listAttempt}
-        contacts={businessContacts}
-        onChange={(verifyToken, val) =>
-          handleChange(verifyToken, val, ContactType.Business)
-        }
-        onNewContact={() => handleNewContact(ContactType.Business)}
-        onDelete={verifyToken =>
-          setDeletingTokenId({ verifyToken, type: ContactType.Business })
-        }
-        onInvite={verifyToken =>
-          handleInvite(verifyToken, ContactType.Business)
-        }
-        hasWritePermissions={access.create || access.remove}
-        createAttempt={businessCreateAttempt}
-        deleteAttempt={businessDeleteAttempt}
-      />
-
-      <ContactBox
         title="Security Contacts"
         icon={<Icons.Lock />}
         listAttempt={listAttempt}
@@ -247,6 +219,29 @@ export function Contacts() {
           }
         />
       )}
+      <ContactBox
+        title="Business Contacts"
+        text={`
+            Used for account and billing notices. Your Teleport account can have up to
+            ${MAX_CONTACTS} business contacts.
+          `}
+        icon={<Icons.Checks />}
+        listAttempt={listAttempt}
+        contacts={businessContacts}
+        onChange={(verifyToken, val) =>
+          handleChange(verifyToken, val, ContactType.Business)
+        }
+        onNewContact={() => handleNewContact(ContactType.Business)}
+        onDelete={verifyToken =>
+          setDeletingTokenId({ verifyToken, type: ContactType.Business })
+        }
+        onInvite={verifyToken =>
+          handleInvite(verifyToken, ContactType.Business)
+        }
+        hasWritePermissions={access.create || access.remove}
+        createAttempt={businessCreateAttempt}
+        deleteAttempt={businessDeleteAttempt}
+      />
     </>
   );
 }
@@ -281,44 +276,32 @@ function ContactBox({
   createAttempt,
 }: ContactBoxProps) {
   return (
-    <MultiRowBox mb="3">
-      <Row>
-        <Flex
-          gap="3"
-          css={`
-            flex-direction: column;
-            @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-              flex-direction: row;
-            }
-          `}
-        >
-          <Flex justifyContent="start" flexDirection="column" gap="3">
-            <IconBox width="fit-content">{icon}</IconBox>
-            <H2>{title}</H2>
-            {text}
-            {listAttempt.status === 'error' && (
-              <Alert my="2" details={listAttempt.statusText}>
-                Could not list contacts
-              </Alert>
-            )}
-          </Flex>
-          {listAttempt.status !== 'error' && (
-            <ContactEmails
-              contacts={contacts}
-              maxContacts={MAX_CONTACTS}
-              onChange={onChange}
-              onNewContact={onNewContact}
-              onDelete={onDelete}
-              onInvite={onInvite}
-              writePermissions={hasWritePermissions}
-              listAttempt={listAttempt}
-              createAttempt={createAttempt}
-              deleteAttempt={deleteAttempt}
-            />
-          )}
-        </Flex>
-      </Row>
-    </MultiRowBox>
+    <SupportSectionCard>
+      <Flex alignItems="center" justifyContent="start" mb={3}>
+        <IconBox>{icon}</IconBox>
+        <H2>{title}</H2>
+      </Flex>
+      <P mb={3}>{text}</P>
+      {listAttempt.status === 'error' && (
+        <Alert my="2" details={listAttempt.statusText}>
+          Could not list contacts
+        </Alert>
+      )}
+      {listAttempt.status !== 'error' && (
+        <ContactEmails
+          contacts={contacts}
+          maxContacts={MAX_CONTACTS}
+          onChange={onChange}
+          onNewContact={onNewContact}
+          onDelete={onDelete}
+          onInvite={onInvite}
+          writePermissions={hasWritePermissions}
+          listAttempt={listAttempt}
+          createAttempt={createAttempt}
+          deleteAttempt={deleteAttempt}
+        />
+      )}
+    </SupportSectionCard>
   );
 }
 
