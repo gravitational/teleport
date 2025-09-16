@@ -97,6 +97,8 @@ type BatchExportConfig struct {
 
 // ExporterConfig configured an exporter.
 type ExporterConfig struct {
+	// Context is the parent context for all operations.
+	Context context.Context
 	// Client is the audit event client used to fetch and export events.
 	Client Client
 	// StartDate is the date from which to start exporting events.
@@ -131,6 +133,9 @@ type ExporterConfig struct {
 
 // CheckAndSetDefaults validates configuration and sets default values for optional parameters.
 func (cfg *ExporterConfig) CheckAndSetDefaults() error {
+	if cfg.Context == nil {
+		return trace.BadParameter("missing required parameter Context in ExporterConfig")
+	}
 	if cfg.Client == nil {
 		return trace.BadParameter("missing required parameter Client in ExporterConfig")
 	}
@@ -178,7 +183,7 @@ func NewExporter(cfg ExporterConfig) (*Exporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(cfg.Context)
 
 	e := &Exporter{
 		cfg:      cfg,
@@ -446,6 +451,7 @@ func (e *Exporter) resumeExportLocked(ctx context.Context, date time.Time, state
 
 	// set up exporter
 	exporter, err := NewDateExporter(DateExporterConfig{
+		Context:       ctx,
 		Client:        e.cfg.Client,
 		Date:          date,
 		Export:        e.cfg.Export,

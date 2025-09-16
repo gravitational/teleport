@@ -414,6 +414,7 @@ func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Cl
 	}
 
 	exporter, err := export.NewExporter(export.ExporterConfig{
+		Context:       ctx,
 		Client:        client,
 		StartDate:     date,
 		PreviousState: state,

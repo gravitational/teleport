@@ -286,8 +286,9 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 	var exporter *export.DateExporter
 	var err error
 	exporter, err = export.NewDateExporter(export.DateExporterConfig{
-		Client: s.Log,
-		Date:   baseTime,
+		Context: t.Context(),
+		Client:  s.Log,
+		Date:    baseTime,
 		Export: func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
 			exportedEvents.Add(1)
 			return nil

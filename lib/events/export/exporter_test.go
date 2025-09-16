@@ -141,6 +141,7 @@ func testExportAll(t *testing.T, tc exportTestCase) {
 	idleCh := make(chan struct{})
 
 	exporter, err := NewExporter(ExporterConfig{
+		Context:      t.Context(),
 		Client:       tc.clt,
 		StartDate:    tc.startDate,
 		Export:       exportFn,

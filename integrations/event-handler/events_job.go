@@ -156,6 +156,7 @@ func (j *EventsJob) runPolling(ctx context.Context) error {
 	concurrency := max(j.app.Config.Concurrency/4, 3)
 
 	exporter, err := export.NewExporter(export.ExporterConfig{
+		Context:   ctx,
 		Client:    j.app.client,
 		StartDate: *startTime,
 		Export:    j.handleEventV2,

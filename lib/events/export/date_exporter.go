@@ -46,6 +46,8 @@ type Client interface {
 
 // DateExporterConfig configures the date exporter.
 type DateExporterConfig struct {
+	// Context is the parent context for all operations.
+	Context context.Context
 	// Client is the audit event client used to fetch and export events.
 	Client Client
 	// Date is the target date to export events from.
@@ -73,6 +75,9 @@ type DateExporterConfig struct {
 
 // CheckAndSetDefaults validates configuration and sets default values for optional parameters.
 func (cfg *DateExporterConfig) CheckAndSetDefaults() error {
+	if cfg.Context == nil {
+		return trace.BadParameter("missing required parameter Context in DateExporterConfig")
+	}
 	if cfg.Client == nil {
 		return trace.BadParameter("missing required parameter Client in DateExporterConfig")
 	}
@@ -199,7 +204,7 @@ func NewDateExporter(cfg DateExporterConfig) (*DateExporter, error) {
 		chunks[chunk] = entry
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(cfg.Context)
 
 	exporter := &DateExporter{
 		cfg:             cfg,
@@ -340,16 +345,26 @@ func (e *DateExporter) run(ctx context.Context) {
 // semaphore tokens and then releasing them. note that this operation does not accept a context,
 // which is necessary in order to ensure that Done actually waits for all background processing
 // to halt.
-func (e *DateExporter) waitForInflightChunks() {
+func (e *DateExporter) waitForInflightChunks(ctx context.Context) error {
 	// acquire all semaphore tokens to block until all inflight chunks have been processed
 	for range e.cfg.Concurrency {
-		e.sem <- struct{}{}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case e.sem <- struct{}{}:
+		}
+
 	}
 
 	// release all semaphore tokens
 	for range e.cfg.Concurrency {
-		<-e.sem
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-e.sem:
+		}
 	}
+	return nil
 }
 
 // fetchAndProcessChunks fetches and processes all chunks for the current date. if the function returns
@@ -360,7 +375,7 @@ func (e *DateExporter) fetchAndProcessChunks(ctx context.Context) (int, error) {
 	// wait for inflight chunks before returning. in theory it would be fine (and possibly more performant)
 	// to return immediately, but doing so makes it difficult to reason about when the exporter has fully exited
 	// and/or how many complete export cycles have been performed.
-	defer e.waitForInflightChunks()
+	defer e.waitForInflightChunks(ctx)
 
 	chunks := e.cfg.Client.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
 		Date: timestamppb.New(e.cfg.Date),
@@ -446,6 +461,11 @@ Outer:
 			Cursor: entry.getCursor(),
 		})
 
+		context.AfterFunc(ctx, func() {
+			// ensure stream is closed if we exit due to context cancellation
+			events.Done()
+		})
+
 		var err error
 		if e.cfg.Export != nil {
 			err = e.exportEvents(ctx, events, entry)
@@ -514,7 +534,12 @@ func (e *DateExporter) batchExportEvents(ctx context.Context, stream stream.Stre
 	exportEventCh := make(chan *auditlogpb.ExportEventUnstructured, 1)
 	go func() {
 		for stream.Next() {
-			exportEventCh <- stream.Item()
+			select {
+			case <-ctx.Done():
+				close(exportEventCh)
+				return
+			case exportEventCh <- stream.Item():
+			}
 		}
 		close(exportEventCh)
 	}()
@@ -530,6 +555,8 @@ loop:
 	for {
 		var unprocessedEvent *auditlogpb.ExportEventUnstructured
 		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
 		case exportEvent, ok := <-exportEventCh:
 			if !ok {
 				// all events have been processed

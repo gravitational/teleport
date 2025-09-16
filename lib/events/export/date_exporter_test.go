@@ -111,6 +111,7 @@ func testDateExporterBasics(t *testing.T, randomFlake bool, batch bool) {
 		}
 	}
 	cfg := DateExporterConfig{
+		Context:      t.Context(),
 		Client:       clt,
 		Date:         now,
 		OnIdle:       onIdleFn,
@@ -281,6 +282,7 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 	}
 
 	exporter, err := NewDateExporter(DateExporterConfig{
+		Context:      t.Context(),
 		Client:       clt,
 		Date:         now,
 		Export:       exportFn,
@@ -333,6 +335,7 @@ func testDateExporterResume(t *testing.T, randomFlake bool) {
 
 	// recreate exporter with state from previous run
 	exporter, err = NewDateExporter(DateExporterConfig{
+		Context:       t.Context(),
 		Client:        clt,
 		Date:          now,
 		Export:        exportFn,
