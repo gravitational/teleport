@@ -92,6 +92,9 @@ type InstallScriptOptions struct {
 	// the artifacts from the CDN.
 	// The agent install in insecure mode will not be able to automatically update.
 	Insecure bool
+	// Group is the group for agent installation used by 'teleport-update enable' command.
+	// Ignored by legacy script.
+	Group string
 }
 
 // Check validates that the minimal options are set.
@@ -138,6 +141,9 @@ func (o *InstallScriptOptions) oneOffParams() (params oneoff.OneOffScriptParams)
 	}
 
 	successMessage := "Teleport successfully installed."
+	if o.Group != "" {
+		args = append(args, "--group", shsprintf.EscapeDefaultContext(o.Group))
+	}
 	if o.Insecure {
 		args = append(args, "--insecure")
 		successMessage += " --insecure was used during installation, automatic updates will not work unless the Proxy Service presents a certificate trusted by the system."
