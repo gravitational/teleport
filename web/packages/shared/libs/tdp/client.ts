@@ -896,6 +896,10 @@ export class TdpClient extends EventEmitter<EventMap> {
 export type BitmapFrame = {
   top: number;
   left: number;
+  dirty_x: number;
+  dirty_y: number;
+  dirty_width: number;
+  dirty_height: number;
   image_data: ImageData;
 };
 

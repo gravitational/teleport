@@ -234,7 +234,7 @@ function makeBitmapFrameRenderer(
       for (let i = 0; i < bitmapBuffer.length; i++) {
         if (bitmapBuffer[i].image_data.data.length != 0) {
           const bmpFrame = bitmapBuffer[i];
-          ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
+          ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top, bmpFrame.dirty_x, bmpFrame.dirty_y, bmpFrame.dirty_width, bmpFrame.dirty_height);
         }
       }
       bitmapBuffer = [];
