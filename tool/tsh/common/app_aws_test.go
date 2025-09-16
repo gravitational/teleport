@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
@@ -453,5 +454,20 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
 		require.NoError(t, err)
 		require.Len(t, rts, 1)
+	}, time.Second*10, time.Second)
+
+	tsrv, err := rootServer.GetReverseTunnelServer()
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := tsrv.Cluster(ctx, leafServer.Config.Auth.ClusterName.GetClusterName())
+		require.NoError(t, err)
+		require.NotNil(t, rts)
+
+		require.Equal(t, 1, rts.GetTunnelsCount())
+
+		client, err := rts.CachingAccessPoint()
+		require.NoError(t, err)
+		appS, err := client.GetApplicationServers(ctx, defaults.Namespace)
+		require.Len(t, appS, 2)
 	}, time.Second*10, time.Second)
 }
