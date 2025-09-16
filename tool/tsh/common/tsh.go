@@ -20,6 +20,7 @@ package common
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -5207,13 +5208,19 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	}
 
 	fmt.Printf("%vProfile URL:        %v\n", prefix, proxyURL)
-	switch {
-	case p.RelayAddr == "" && p.DefaultRelayAddr != "":
-		fmt.Printf("  Relay address:      %v (default)\n", p.DefaultRelayAddr)
-	case p.RelayAddr != "" && p.DefaultRelayAddr != "":
-		fmt.Printf("  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
-	case p.RelayAddr != "" && p.DefaultRelayAddr == "":
-		fmt.Printf("  Relay address:      %v\n", p.RelayAddr)
+	if debug {
+		switch {
+		case p.RelayAddr == "" && p.DefaultRelayAddr != "":
+			fmt.Printf("  Relay address:      %v (default)\n", p.DefaultRelayAddr)
+		case p.RelayAddr != "" && p.DefaultRelayAddr != "":
+			fmt.Printf("  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
+		case p.RelayAddr != "" && p.DefaultRelayAddr == "":
+			fmt.Printf("  Relay address:      %v (no default)\n", p.RelayAddr)
+		default:
+			fmt.Printf("  Relay address:      (none)\n")
+		}
+	} else {
+		fmt.Printf("  Relay address:      %v\n", cmp.Or(p.RelayAddr, p.DefaultRelayAddr))
 	}
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
 	if len(p.ActiveRequests) != 0 {
