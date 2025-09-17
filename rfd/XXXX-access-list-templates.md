@@ -150,13 +150,13 @@ In order to determine if roles created by Teleport for a templated access list i
 message AccessListStatus {
   // ... other existing fields
 
-  TemplatedRoleMetadata templated_role_metadata = 6;
+  TemplatedResources templated_resources = 6;
 }
 
 // TemplatedMetadata holds read-only metadata related
 // to a templated access list and is only used/modified by
 // Teleport.
-message TemplatedRoleMetadata {
+message TemplatedResources {
   // starting_role_version is set by Teleport upon
   // a roles first creation.
   // Preservation is needed to revert role version
@@ -164,17 +164,20 @@ message TemplatedRoleMetadata {
   // role resource (and its version) with `tctl`
   // potentionally changing a roles behavior.
   string starting_role_version = 1;
+  // roles made by Teleport.
+  repeated TemplatedResource roles = 2;
+}
 
-  // Following revision_XXX fields stores the last revision
-  // made by Teleport on a role. Used to determine
-  // if a role resource updates were made with `tctl` which
-  // will modify the role resources revision, but not the access
-  // lists revision_XXX fields.
-  // Not all fields will be defined.
-  string revision_requester_role = 2;
-  string revision_reviewer_role = 3;
-  string revision_access_role = 4;
-  string revision_access_aws_ic_role = 5;
+// TemplatedResource describes a resource made for a
+// templated access list.
+message TemplatedResource {
+  // name of the resource.
+  string name = 1;
+  // revision the last revision made by Teleport on a resource.
+  // Used to determine if a resource update were made with `tctl`
+  // which will modify the role resources revision, but not this
+  // field.
+  string revision = 2;
 }
 ```
 
