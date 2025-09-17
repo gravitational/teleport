@@ -123,7 +123,7 @@ func distrolessImageName(buildType string) string {
 const (
 	HelmRepoURLEnvVar    = "TELEPORT_HELM_REPO_URL"
 	HelmProductionDomain = "charts.releases.teleport.dev"
-	HelmStagingDomain    = "charts.releases.staging.teleport.dev"
+	HelmStagingDomain    = "charts.releases.development.teleport.dev"
 )
 
 // HelmRepoURL returns the URL of the Teleport Helm repository.

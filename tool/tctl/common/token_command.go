@@ -184,13 +184,13 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 	c.tokenList.Flag("labels", labelHelp).StringVar(&c.labels)
 
 	// "tctl tokens configure-kube-oidc ..."
-	c.tokenKubeOIDC = tokens.Command("configure-kube", "Makes Teleport trust the OIDC provider of a Kube cluster, allowing kube workload to join.")
+	c.tokenKubeOIDC = tokens.Command("configure-kube", "Creates a token allowing workload from the Kubernetes cluster to join the Teleport cluster.")
 	c.tokenKubeOIDC.Flag("join-with", "Kubernetes joining type, possible values are 'oidc', 'jwks', and 'auto'. See https://goteleport.com/docs/reference/join-methods/#kubernetes-kubernetes for more details.").Short('j').Default("auto").StringVar(&c.kubeJoinType)
 	c.tokenKubeOIDC.Flag("out", "Path of the output file.").Short('o').Default("./values.yaml").StringVar(&c.outputPath)
 	c.tokenKubeOIDC.Flag("context", "Kubernetes context to use. When not set, defaults to the active context.").StringVar(&c.kubeContext)
 	c.tokenKubeOIDC.Flag("cluster-name", "Name of the Kubernetes cluster. When not set, defaults to the context name.").StringVar(&c.kubeName)
 	c.tokenKubeOIDC.Flag("token-name", "Optional name of the created join token. When not set, default to '<CLUSTER_NAME>(-<BOT_NAME>)'").StringVar(&c.tokenName)
-	c.tokenKubeOIDC.Flag("bot", "Name of the bot that will use this token. When set, creates a bot token. Overrides --type").StringVar(&c.botName)
+	c.tokenKubeOIDC.Flag("bot", "Name of the the bot that this token will grant access to. When set, creates a bot token. Overrides --type").StringVar(&c.botName)
 	c.tokenKubeOIDC.Flag("type", "Type(s) of token to add, e.g. --type=kube,app,db,discovery,proxy,etc").Default("kube,app,discovery").StringVar(&c.tokenType)
 	c.tokenKubeOIDC.Flag("service-account", "Name of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release name.").Short('s').Required().StringVar(&c.serviceAccountName)
 	c.tokenKubeOIDC.Flag("namespace", "Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is release namespace.").Short('n').Default("teleport").StringVar(&c.namespace)
@@ -627,7 +627,7 @@ func runKubectlCommand(kubectlPath string, args []string) (stdout, stderr bytes.
 		Env:       os.Environ(),
 		Stdout:    &stdout,
 		Stderr:    &stderr,
-		WaitDelay: 30 * time.Second,
+		WaitDelay: 10 * time.Second,
 	}
 	if err := cmd.Run(); err != nil {
 		return stdout, stderr, trace.Wrap(err, "running `%s %s`", kubectlPath, args)
@@ -653,7 +653,7 @@ func detectOIDC(ctx context.Context, kubectlPath, kubeContext string) (*oidc.Dis
 		return nil, trace.BadParameter("failed to discover OIDC issuer, empty Issuer field")
 	}
 
-	oidcDiscoverCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	oidcDiscoverCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	// hit OIDC provider
