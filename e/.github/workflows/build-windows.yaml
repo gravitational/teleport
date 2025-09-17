@@ -111,7 +111,7 @@ jobs:
                 $Value = $_.Value
                 # Translate variables that start with a fully-qualified path
                 # This results in a false negative in some cases, but works in 99.9% of the ones we may ever see
-                if($Name.Length -ge 3 -and $Value -imatch '[a-z]:\\' -and $(Test-Path $Value.Substring(0, 3))) {
+                if($Name.Length -ge 3 -and $Value -imatch '^[a-z]:\\' -and $(Test-Path $Value.Substring(0, 3))) {
                     return "$Name/p"
                 }
 
