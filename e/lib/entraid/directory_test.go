@@ -43,7 +43,7 @@ func newFakeGraphClient() *fakeGraphClient {
 	}
 }
 
-func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID string, f func(msgraph.GroupMember) bool) error {
+func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID string, f func(msgraph.GroupMember) bool, opts ...msgraph.IterateOpt) error {
 	for _, m := range c.groupMembers[groupID] {
 		if !f(m) {
 			return nil
@@ -52,7 +52,7 @@ func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID strin
 	return nil
 }
 
-func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(*msgraph.Group) bool) error {
+func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(*msgraph.Group) bool, opts ...msgraph.IterateOpt) error {
 	for _, g := range c.groups {
 		if !f(g) {
 			return nil
@@ -61,7 +61,7 @@ func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(*msgraph.Gro
 	return nil
 }
 
-func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(*msgraph.User) bool) error {
+func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(*msgraph.User) bool, opts ...msgraph.IterateOpt) error {
 	for _, u := range c.users {
 		if !f(u) {
 			return nil
@@ -70,7 +70,7 @@ func (c *fakeGraphClient) IterateUsers(ctx context.Context, f func(*msgraph.User
 	return nil
 }
 
-func (c *fakeGraphClient) IterateApplications(ctx context.Context, f func(*msgraph.Application) bool) error {
+func (c *fakeGraphClient) IterateApplications(ctx context.Context, f func(*msgraph.Application) bool, opts ...msgraph.IterateOpt) error {
 	panic("not implemented")
 }
 
