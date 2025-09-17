@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/web/app"
 )
 
 // SessionContext is a context associated with a user's
@@ -1136,6 +1137,15 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 		return nil, trace.Wrap(err)
 	}
 	return s.newSessionContextFromSession(ctx, session)
+}
+
+func (s *sessionCache) NewSessionContextFromSession(ctx context.Context, session types.WebSession) (app.Session, error) {
+	scx, err := s.newSessionContextFromSession(ctx, session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return scx, nil
 }
 
 func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {

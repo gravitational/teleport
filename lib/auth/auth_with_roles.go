@@ -3961,6 +3961,20 @@ func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Va
 	return resp, nil
 }
 
+// TODO
+func (a *ServerWithRoles) CreateJWTWebSession(ctx context.Context, p authclient.NewWebSessionFromJWTRequest) (types.WebSession, error) {
+	resp, err := a.authServer.CreateJWTWebSession(ctx, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	return resp, nil
+}
+
 func (a *ServerWithRoles) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
 	if err := a.authConnectorAction(types.KindOIDC, types.VerbDelete); err != nil {
 		return trace.Wrap(err)

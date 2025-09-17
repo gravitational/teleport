@@ -523,6 +523,25 @@ func (c *HTTPClient) CreateWebSession(ctx context.Context, user string) (types.W
 	return services.UnmarshalWebSession(out.Bytes())
 }
 
+// TODO
+type NewWebSessionFromJWTRequest struct {
+	// TODO
+	JWTToken string `json:"jwt"`
+	// TODO
+	AppName string `json:"app"`
+	// TODO
+	ClusterName string `json:"cluster_name"`
+}
+
+// TODO
+func (c *HTTPClient) CreateWebSessionFromJWT(ctx context.Context, req NewWebSessionFromJWTRequest) (types.WebSession, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("jwt", "session", "create"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalWebSession(out.Bytes())
+}
+
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
 func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
