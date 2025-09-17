@@ -20,7 +20,6 @@
 package sftp
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -90,8 +89,6 @@ type FileTransferRequest struct {
 	// PreserveAttrs preserves access and modification times
 	// from the original file.
 	PreserveAttrs bool
-	// Quiet indicates whether progress should be displayed.
-	Quiet bool
 	// ProgressWriter is used to write the progress output.
 	ProgressWriter io.Writer
 	// ProgressStream is a callback to return a read/writer for printing the progress
@@ -134,9 +131,9 @@ func (req *FileTransferRequest) checkAndSetDefaults() error {
 		"recursive", req.Recursive,
 		"preserve_attrs", req.PreserveAttrs,
 	)
-	if !req.Quiet && req.ProgressStream == nil {
+	if req.ProgressWriter != nil && req.ProgressStream == nil {
 		req.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
-			return NewProgressBar(fileInfo.Size(), fileInfo.Name(), cmp.Or(req.ProgressWriter, io.Writer(os.Stdout)))
+			return NewProgressBar(fileInfo.Size(), fileInfo.Name(), req.ProgressWriter)
 		}
 	}
 	return nil

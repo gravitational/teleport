@@ -2602,7 +2602,7 @@ func PlayFile(ctx context.Context, filename, sid string, speed float64, skipIdle
 	return playSession(ctx, sid, speed, streamer, skipIdleTime)
 }
 
-// SFTPRequests controls aspects of a file transfer.
+// SFTPRequest controls aspects of a file transfer.
 type SFTPRequest struct {
 	// Sources are the source paths to transfer from, with optional user and host.
 	Sources []string
@@ -2613,14 +2613,12 @@ type SFTPRequest struct {
 	// PreserveAttrs preserves access and modification times
 	// from the original file.
 	PreserveAttrs bool
-	// Quiet indicates whether progress should be displayed.
-	Quiet bool
 	// ProgressWriter is used to write the progress output.
 	ProgressWriter io.Writer
 }
 
 // SFTP securely copies files between Nodes or SSH servers using SFTP.
-func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error) {
+func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SFTP",
@@ -2651,9 +2649,7 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error)
 			return trace.Wrap(err)
 		}
 	}
-	if sources.Login == "" {
-		sources.Login = tc.HostLogin
-	}
+	sources.Login = cmp.Or(sources.Login, tc.HostLogin)
 	dest, err := sftp.ParseTarget(req.Destination, tc.HostPort)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2670,9 +2666,7 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error)
 		}
 	}
 	tc.Host = origHost
-	if dest.Login == "" {
-		dest.Login = tc.HostLogin
-	}
+	dest.Login = cmp.Or(dest.Login, tc.HostLogin)
 
 	sftpReq := &sftp.FileTransferRequest{
 		Sources:     sources,
@@ -2689,7 +2683,6 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) (err error)
 		},
 		Recursive:      req.Recursive,
 		PreserveAttrs:  req.PreserveAttrs,
-		Quiet:          req.Quiet,
 		ProgressWriter: req.ProgressWriter,
 	}
 	return trace.Wrap(tc.TransferFiles(ctx, sftpReq))
