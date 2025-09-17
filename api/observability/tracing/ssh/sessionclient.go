@@ -22,15 +22,15 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// chanSize sets the amount of buffering SSH connections. This is
-// primarily for testing: setting chanSize=0 uncovers deadlocks more
-// quickly.
+// SessionClient is an alternative [ssh.Client] used to create new sessions
+// beyond the limitations of [ssh.Client.NewSession]. Specifically, this custom
+// client enables the caller to:
+//   - Handle incoming session level requests (e.g. "current-session-id@goteleport.com")
+//     which are wholly ignored by the default client.
+//   - Provide custom extra data to the "session" channel request - TODO(Joerger): follow up PR adding this
 //
-// This constant originated from golang/x/crypto/ssh.
-const chanSize = 16
-
-// SessionClient is an extended [*ssh.Client] with additional methods
-// for handling session requests.
+// If the upstream golang.org/x/crypto/ssh is updated to provide this functionality directly,
+// custom client can be fully removed. This custom client is unrelated to tracing functionality.
 type SessionClient struct {
 	mu              sync.Mutex
 	requestHandlers map[string]chan *ssh.Request
@@ -94,7 +94,11 @@ func (c *SessionClient) HandleRequests(requestType string) <-chan *ssh.Request {
 		return nil
 	}
 
-	ch = make(chan *ssh.Request, chanSize)
+	// This is the same buffer size used in golang/x/crypto/ssh for the channel requests
+	// channel serviced by registered handlers from [ssh.Client.HandleChannelOpen].
+	const bufferSize = 16
+
+	ch = make(chan *ssh.Request, bufferSize)
 	c.requestHandlers[requestType] = ch
 	return ch
 }
