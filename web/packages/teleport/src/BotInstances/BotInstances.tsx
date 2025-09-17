@@ -77,6 +77,7 @@ export function BotInstances() {
           sortField,
           sortDir,
         },
+        signal
       ),
     placeholderData: keepPreviousData,
     staleTime: 30_000, // Cached pages are valid for 30 seconds
