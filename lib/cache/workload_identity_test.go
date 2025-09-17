@@ -52,23 +52,13 @@ func TestWorkloadIdentity(t *testing.T) {
 		newResource: func(s string) (*workloadidentityv1pb.WorkloadIdentity, error) {
 			return newWorkloadIdentity(s), nil
 		},
-
 		create: func(ctx context.Context, item *workloadidentityv1pb.WorkloadIdentity) error {
 			_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			items, _, err := p.workloadIdentity.ListWorkloadIdentities(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
-		},
-
-		cacheList: func(ctx context.Context, _ int) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			items, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheGet: p.cache.GetWorkloadIdentity,
-	}, withSkipPaginationTest())
+		list:      p.workloadIdentity.ListWorkloadIdentities,
+		deleteAll: p.workloadIdentity.DeleteAllWorkloadIdentities,
+		cacheList: p.cache.ListWorkloadIdentities,
+		cacheGet:  p.cache.GetWorkloadIdentity,
+	})
 }

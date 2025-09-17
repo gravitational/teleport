@@ -42,17 +42,11 @@ func TestLocks(t *testing.T) {
 				},
 			)
 		},
-		create: p.accessS.UpsertLock,
-		list: func(ctx context.Context) ([]types.Lock, error) {
-			results, err := p.accessS.GetLocks(ctx, false)
-			return results, err
-		},
-		cacheGet: p.cache.GetLock,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.Lock, error) {
-			results, err := p.cache.GetLocks(ctx, false)
-			return results, err
-		},
+		create:    p.accessS.UpsertLock,
+		list:      getAllAdapter(func(ctx context.Context) ([]types.Lock, error) { return p.accessS.GetLocks(ctx, false) }),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.Lock, error) { return p.cache.GetLocks(ctx, false) }),
+		cacheGet:  p.cache.GetLock,
 		update:    p.accessS.UpsertLock,
 		deleteAll: p.accessS.DeleteAllLocks,
-	})
+	}, withSkipPaginationTest())
 }
