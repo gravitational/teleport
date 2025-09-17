@@ -126,6 +126,7 @@ func TestEntraIDGroupFilters(t *testing.T) {
 				plugins:    pluginsClient,
 			}
 
+			var output bytes.Buffer
 			var tenantID, clientID bytes.Buffer
 			_, err := io.WriteString(&tenantID, "55fe2b7f-85c7-43c6-a8ba-897ce8570503\n")
 			require.NoError(t, err)
@@ -133,7 +134,6 @@ func TestEntraIDGroupFilters(t *testing.T) {
 			require.NoError(t, err)
 			inputs := io.MultiReader(&tenantID, &clientID)
 
-			var output bytes.Buffer
 			cmd := PluginsCommand{
 				install: pluginInstallArgs{
 					name: "entra-id-default",
