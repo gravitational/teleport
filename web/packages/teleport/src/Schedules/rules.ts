@@ -83,7 +83,7 @@ const validateShift = (shift: Shift) => {
   ) {
     return 'start time must be before end time';
   }
-  return null;
+  return undefined;
 };
 
 /**
