@@ -1061,6 +1061,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 			require.NoError(t, srv.Close())
 		})
 		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, srv, configs[i].Apps.Apps)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv, configs[i].Apps.Apps)
 	}
 
 	return servers
