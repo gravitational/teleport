@@ -95,13 +95,19 @@ MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA 
 ```proto
 // api/proto/teleport/transport/v2/transport_service.proto
 
+// TransportServiceV2 provides methods to proxy connections to various Teleport instances.
+//
+// All connections operate on top of a bidirectional stream which transports raw payloads from higher level protocols
+// (i.e. SSH). This service supports in-band multi-factor authentication (MFA) enforcement. MFA challenges and
+// responses are handled directly within the stream as part of the session establishment process. All RPCs support both
+// MFA-required and MFA-optional flows, and the client determines if MFA is needed by inspecting the first response from
+// the server. After any required MFA and the client's initial request, either side may freely send data in any order
+// until the stream is terminated.
 service TransportServiceV2 {
-  // ProxySSH establishes an SSH connection to the target host over a bidirectional stream.
-  // Upon stream establishment, the server will send an MFAAuthenticateChallenge as the first message if MFA is required.
-  // If MFA is not required, the server will not send a challenge and the client can send the dial_target directly.
-  // This RPC supports both MFA-required and MFA-optional flows, and the client determines if MFA is needed by
-  // inspecting the first response from the server.
-  // All SSH and agent frames are sent as raw bytes and are not interpreted by the proxy.
+  // ProxySSH establishes an SSH connection to the target host over a bidirectional stream. Upon stream establishment,
+  // the server will send an MFAAuthenticateChallenge as the first message if MFA is required. If MFA is not required,
+  // the server will not send a challenge and the client can send the dial_target directly. All SSH and agent frames are
+  // sent as raw bytes and are not interpreted by the proxy.
   rpc ProxySSH(stream ProxySSHRequest) returns (stream ProxySSHResponse);
 }
 
