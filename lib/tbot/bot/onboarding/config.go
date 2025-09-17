@@ -41,6 +41,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 	string(types.JoinMethodTPM),
 	string(types.JoinMethodTerraformCloud),
+	string(types.JoinMethodOracle),
 	string(types.JoinMethodBoundKeypair),
 }
 
