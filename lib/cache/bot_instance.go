@@ -64,7 +64,7 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
 				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-					return upstream.ListBotInstances(ctx, "", limit, start, "", nil)
+					return upstream.ListBotInstances(ctx, limit, start, nil)
 				},
 			))
 			return out, trace.Wrap(err)
@@ -92,7 +92,8 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 }
 
 // ListBotInstances returns a page of BotInstance resources.
-func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error) {
+// request *services.ListBotInstancesRequestOptions
+func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBotInstances")
 	defer span.End()
 
@@ -125,10 +126,10 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 		isDesc:          isDesc,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-			return c.Config.BotInstanceService.ListBotInstances(ctx, botName, limit, start, search, sort)
+			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, options)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
-			return services.MatchBotInstance(b, botName, search)
+			return services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm())
 		},
 		nextToken: func(b *machineidv1.BotInstance) string {
 			return keyFn(b)

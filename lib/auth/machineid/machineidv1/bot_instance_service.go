@@ -54,7 +54,7 @@ type BotInstancesCache interface {
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*pb.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
-	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*pb.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*pb.BotInstance, string, error)
 }
 
 // BotInstanceServiceConfig holds configuration options for the BotInstance gRPC
@@ -148,6 +148,24 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 
 // ListBotInstances returns a list of bot instances matching the criteria in the request
 func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListBotInstancesRequest) (*pb.ListBotInstancesResponse, error) {
+	var sortField string
+	var sortDesc bool
+	if req.GetSort() != nil {
+		sortField = req.GetSort().Field
+		sortDesc = req.GetSort().IsDesc
+	}
+	return b.ListBotInstancesV2(ctx, &pb.ListBotInstancesV2Request{
+		PageSize:         req.GetPageSize(),
+		PageToken:        req.GetPageToken(),
+		SortField:        sortField,
+		SortDesc:         sortDesc,
+		FilterBotName:    req.GetFilterBotName(),
+		FilterSearchTerm: req.GetFilterSearchTerm(),
+	})
+}
+
+// ListBotInstancesV2 returns a list of bot instances matching the criteria in the request
+func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.ListBotInstancesV2Request) (*pb.ListBotInstancesResponse, error) {
 	authCtx, err := b.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -157,7 +175,12 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		return nil, trace.Wrap(err)
 	}
 
-	res, nextToken, err := b.cache.ListBotInstances(ctx, req.FilterBotName, int(req.PageSize), req.PageToken, req.FilterSearchTerm, req.Sort)
+	res, nextToken, err := b.cache.ListBotInstances(ctx, int(req.PageSize), req.PageToken, &services.ListBotInstancesRequestOptions{
+		SortField:        req.SortField,
+		SortDesc:         req.SortDesc,
+		FilterBotName:    req.FilterBotName,
+		FilterSearchTerm: req.FilterSearchTerm,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -94,26 +94,29 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, botName, instan
 // If an non-empty search term is provided, only instances with a value containing the term in supported fields are fetched.
 // Supported search fields include; bot name, instance id, hostname (latest), tbot version (latest), join method (latest).
 // Sorting by bot name in ascending order is supported - an error is returned for any other sort type.
-func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error) {
-	if sort != nil && (sort.Field != "bot_name" || sort.IsDesc != false) {
-		return nil, "", trace.BadParameter("unsupported sort, only bot_name:asc is supported, but got %q (desc = %t)", sort.Field, sort.IsDesc)
+func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int, lastKey string, options *services.ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error) {
+	if options.GetSortField() != "" && options.GetSortField() != "bot_name" {
+		return nil, "", trace.CompareFailed("unsupported sort, only bot_name field is supported, but got %q", options.GetSortField())
+	}
+	if options.GetSortDesc() {
+		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
 	}
 
 	var service *generic.ServiceWrapper[*machineidv1.BotInstance]
-	if botName == "" {
+	if options.GetFilterBotName() == "" {
 		// If botName is empty, return instances for all bots by not using a service prefix
 		service = b.service
 	} else {
-		service = b.service.WithPrefix(botName)
+		service = b.service.WithPrefix(options.GetFilterBotName())
 	}
 
-	if search == "" {
+	if options.GetFilterSearchTerm() == "" {
 		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
 		return r, nextToken, trace.Wrap(err)
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-		return services.MatchBotInstance(item, botName, search)
+		return services.MatchBotInstance(item, options.GetFilterBotName(), options.GetFilterSearchTerm())
 	})
 
 	return r, nextToken, trace.Wrap(err)

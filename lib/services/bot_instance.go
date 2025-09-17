@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/api/types"
 )
 
 // BotInstance is an interface for the BotInstance service.
@@ -36,7 +35,7 @@ type BotInstance interface {
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances
-	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error)
 
 	// DeleteBotInstance
 	DeleteBotInstance(ctx context.Context, botName, instanceID string) error
@@ -121,4 +120,47 @@ func PickBotInstanceRecentHeartbeat(botInstance *machineidv1.BotInstance) *machi
 		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
 	}
 	return heartbeat
+}
+
+type ListBotInstancesRequestOptions struct {
+	// The sort field to use for the results. If empty, the default sort field
+	// is used.
+	SortField string
+	// The sort order to use for the results. If empty, the default sort order
+	// is used.
+	SortDesc bool
+	// The name of the Bot to list BotInstances for. If empty, all BotInstances
+	// will be listed.
+	FilterBotName string
+	// A search term used to filter the results. If non-empty, it's used to
+	// match against supported fields.
+	FilterSearchTerm string
+}
+
+func (o *ListBotInstancesRequestOptions) GetSortField() string {
+	if o == nil {
+		return ""
+	}
+	return o.SortField
+}
+
+func (o *ListBotInstancesRequestOptions) GetSortDesc() bool {
+	if o == nil {
+		return false
+	}
+	return o.SortDesc
+}
+
+func (o *ListBotInstancesRequestOptions) GetFilterBotName() string {
+	if o == nil {
+		return ""
+	}
+	return o.FilterBotName
+}
+
+func (o *ListBotInstancesRequestOptions) GetFilterSearchTerm() string {
+	if o == nil {
+		return ""
+	}
+	return o.FilterSearchTerm
 }
