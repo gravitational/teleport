@@ -53,11 +53,8 @@ pnpm install && make build/tsh
 
 The app depends on Rust WASM code. To compile it, the following tools have to be installed:
 * `Rust` and `Cargo`. The required version is specified by `RUST_VERSION` in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11).
-* [`wasm-pack`](https://github.com/rustwasm/wasm-pack). The required version is specified by `WASM_PACK_VERSION` in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12).
-* [`binaryen`](https://github.com/WebAssembly/binaryen) which contains `wasm-opt`. This is required on on linux aarch64 (64-bit ARM).
-  You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
 
-To automatically install `wasm-pack`, run the following command:
+To automatically install `wasm-bindgen-cli` and `wasm-opt`, run the following command:
 ```shell
 make ensure-wasm-deps
 ```

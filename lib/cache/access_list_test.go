@@ -57,13 +57,9 @@ func TestAccessList(t *testing.T) {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAccessLists))
-		},
-		cacheGet: p.cache.GetAccessList,
-		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.AccessList, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListAccessLists, pageSize))
-		},
+		list:      p.accessLists.ListAccessLists,
+		cacheGet:  p.cache.GetAccessList,
+		cacheList: p.cache.ListAccessLists,
 		update: func(ctx context.Context, item *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
 			return trace.Wrap(err)
@@ -95,17 +91,13 @@ func TestAccessListMembers(t *testing.T) {
 			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListMembers))
-		},
+		list: p.accessLists.ListAllAccessListMembers,
 		cacheGet: func(ctx context.Context, name string) (*accesslist.AccessListMember, error) {
 			return p.cache.GetAccessListMember(ctx, al.GetName(), name)
 		},
-		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.AccessListMember, error) {
-			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
-				return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
-			}
-			return stream.Collect(clientutils.Resources(ctx, fn))
+		cacheList: func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
+			return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
+
 		},
 		update: func(ctx context.Context, item *accesslist.AccessListMember) error {
 			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
@@ -184,14 +176,9 @@ func TestAccessListReviews(t *testing.T) {
 			reviews[oldName].SetName(review.GetName())
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*accesslist.Review, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListReviews))
-		},
-		cacheList: func(ctx context.Context, pageSize int) ([]*accesslist.Review, error) {
-			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
-				return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
-			}
-			return stream.Collect(clientutils.Resources(ctx, fn))
+		list: p.accessLists.ListAllAccessListReviews,
+		cacheList: func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
+			return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
 	}, withSkipPaginationTest()) // access list reviews resources have customer pagination test.
@@ -283,7 +270,8 @@ func TestListAccessListsV2(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
+	baseTime := time.Date(1984, 4, 4, 0, 0, 0, 0, time.UTC)
+	clock := clockwork.NewFakeClockAt(baseTime)
 
 	names := []string{"apple-list", "banana-access", "cherry-management", "apple-admin", "zebra-test"}
 
@@ -293,6 +281,7 @@ func TestListAccessListsV2(t *testing.T) {
 		// add arbitrary date so we can make sure its not just sorted by name
 		if name == "banana-access" {
 			auditDate = clock.Now().Add(100 * (time.Hour) * 24)
+			al.Spec.Title = "bananatitle"
 		}
 		al.Spec.Audit.NextAuditDate = auditDate
 
@@ -322,6 +311,16 @@ func TestListAccessListsV2(t *testing.T) {
 			name:          "sort by audit date",
 			sortBy:        &types.SortBy{Field: "auditNextDate", IsDesc: false},
 			expectedNames: []string{"apple-list", "cherry-management", "apple-admin", "zebra-test", "banana-access"},
+		},
+		{
+			name:          "sort by title",
+			sortBy:        &types.SortBy{Field: "title", IsDesc: false},
+			expectedNames: []string{"banana-access", "apple-admin", "apple-list", "cherry-management", "zebra-test"},
+		},
+		{
+			name:          "sort by title reverse",
+			sortBy:        &types.SortBy{Field: "title", IsDesc: true},
+			expectedNames: []string{"zebra-test", "cherry-management", "apple-list", "apple-admin", "banana-access"},
 		},
 		{
 			name:          "sort by audit date reverse",

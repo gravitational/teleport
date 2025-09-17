@@ -4,6 +4,7 @@ description: An overview of Teleport's session recording and its configuration
 tags:
  - conceptual
  - zero-trust
+ - audit
 ---
 
 This page provides an overview of how Teleport records sessions and the various
@@ -110,10 +111,11 @@ Any encryption keys are provisioned using the same key storage backend
 configured for CAs.
 
 <Admonition type="note">
-In distributed HA environments where there are multiple Teleport Auth Services,
-it is important that all services have access to the same key storage backend
-and keys. Otherwise availability of session replay may be degraded. This holds
-true even when using [Manual Encryption Key Management](#manual-encryption-key-management).
+In distributed HA environments where there are multiple Teleport Auth Service
+instances, it is important that all services have access to the same key storage
+backend and keys. Otherwise availability of session replay may be degraded. This
+holds true even when using [Manual Encryption Key
+Management](#manual-encryption-key-management).
 </Admonition>
 
 ### Record at the SSH node
@@ -315,9 +317,9 @@ configuration from a corresponding `inference_model` resource to generate
 session recording. The inference model specifies, among other options, which
 inference provider and provider-specific model is used to generate a summary.
 
-No more than 150 concurrent summary jobs will be executed per Auth Service. If
-more sessions arrive, the auth server will wait until the previous ones are
-summarized.
+No more than 150 concurrent summary jobs will be executed per Auth Service
+instance. If more sessions arrive, the Auth Service instance will wait until the
+previous ones are summarized.
 
 Session recording summaries are stored along with session recordings and can be
 viewed using the Teleport web app.
