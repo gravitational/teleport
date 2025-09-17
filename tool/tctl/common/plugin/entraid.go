@@ -383,9 +383,6 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 		},
 	}
 
-	// j, _ := json.MarshalIndent(req, "", " ")
-	// fmt.Println(string(j))
-
 	_, err = args.plugins.CreatePlugin(ctx, req)
 	if err != nil {
 		if !trace.IsAlreadyExists(err) || !inputs.entraID.force {
