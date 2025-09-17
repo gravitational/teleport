@@ -57,22 +57,19 @@ func TestWorkloadIdentity(t *testing.T) {
 		newResource: func(s string) (*workloadidentityv1pb.WorkloadIdentity, error) {
 			return newWorkloadIdentity(s), nil
 		},
-
 		create: func(ctx context.Context, item *workloadidentityv1pb.WorkloadIdentity) error {
 			_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			items, _, err := p.workloadIdentity.ListWorkloadIdentities(ctx, 0, "", nil)
-			return items, trace.Wrap(err)
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
+			return p.workloadIdentity.ListWorkloadIdentities(ctx, pageSize, pageToken, nil)
 		},
 		deleteAll: func(ctx context.Context) error {
 			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
 		},
 
-		cacheList: func(ctx context.Context, _ int) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			items, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", nil)
-			return items, trace.Wrap(err)
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
+			return p.cache.ListWorkloadIdentities(ctx, 0, "", nil)
 		},
 		cacheGet: p.cache.GetWorkloadIdentity,
 	}, withSkipPaginationTest())

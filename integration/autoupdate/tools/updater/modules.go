@@ -23,16 +23,18 @@ import (
 	"crypto"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -44,9 +46,19 @@ const (
 	TestBuild = "UPDATER_TEST_BUILD"
 )
 
-var (
-	version = teleport.Version
-)
+func init() {
+	path, err := os.Executable()
+	if err != nil {
+		return
+	}
+	// For the integration test we use a pattern where the version is encoded
+	// in the directory name to simplify usage and avoid recompiling each
+	// individual binary.
+	parts := strings.Split(path, string(filepath.Separator))
+	if len(parts) > 2 {
+		tools.Version = parts[len(parts)-2]
+	}
+}
 
 type TestModules struct{}
 
@@ -87,7 +99,7 @@ func (p *TestModules) LicenseExpiry() time.Time {
 
 // PrintVersion prints the Teleport version.
 func (p *TestModules) PrintVersion() {
-	fmt.Printf("Teleport v%v git\n", version)
+	fmt.Printf("Teleport v%v git\n", tools.Version)
 }
 
 // Features returns supported features

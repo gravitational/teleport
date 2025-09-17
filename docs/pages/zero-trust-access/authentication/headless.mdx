@@ -1,41 +1,41 @@
 ---
-title: Headless WebAuthn
-description: Headless WebAuthn
+title: Headless Authentication
+description: Headless Authentication
 tags:
  - how-to
  - zero-trust
+ - privileged-access
 ---
 
-Headless WebAuthn provides a secure way to authenticate with WebAuthn from a
-machine without access to a WebAuthn device. This enables the use of WebAuthn
-features which are usually not usable in WebAuthn-incompatible environments.
+Headless Authentication provides a secure way to authenticate with Teleport on
+a machine that does not have the ability to authenticate directly with the
+required mechanisms.
+
 For example:
 
-- Logging into Teleport with WebAuthn from a remote dev box
-- Connecting to a Teleport SSH Service from a remote dev box with per-session MFA
-- Performing `tsh scp` from one Teleport SSH Service to another with per-session MFA
-- Logging into Teleport on a machine without a WebAuthn-compatible browser
+- Authenticating with [WebAuthn](./webauthn.mdx#set-up-cluster-wide-webauthn) or [SSO MFA](../sso/sso.mdx#allowing-sso-as-an-mfa-method-in-your-cluster) from a remote dev box
+- Authenticating with WebAuthn on a machine without a WebAuthn-compatible browser
+- Authenticating with SSO MFA from a browser that is not supported by your SSO provider
 
-<Admonition type="note" title="Headless WebAuthn Support">
-  Headless WebAuthn only supports the following `tsh` commands:
+<Admonition type="note" title="Headless Authentication Support">
+  Headless Authentication only supports the following `tsh` commands:
 
   - `tsh ls`
   - `tsh ssh`
   - `tsh scp`
 
-  In the future, Headless WebAuthn will be extended to other `tsh` commands.
+  In the future, Headless Authentication will be extended to other `tsh` commands.
 </Admonition>
 
 ## How it works
 
-In the Headless WebAuthn flow, a user on a remote machine requests headless
+In the Headless Authentication flow, a user on a remote machine requests headless
 authentication when running `tsh` commands. `tsh` sends a request to an API path
 on the Teleport Proxy Service, `/webapi/login/headless`, and the Teleport Proxy
 Service sends a request to the Teleport Auth Service to store a headless
 authentication request on its backend. `tsh` then obtains the ID of the request
 and prints a URL containing the ID in the user's terminal. The user accesses the
-URL on their browser and completes a WebAuthn flow with the Teleport Auth
-Service.
+URL on their browser and completes an MFA flow with the Teleport Auth Service.
 
 Once the Teleport Auth Service authenticates the user, `tsh` generates a new
 private key in memory, and shares its public key only to obtain user
@@ -44,23 +44,21 @@ to reduce the impact of exfiltration.
 
 ## Prerequisites
 
-- A Teleport cluster with WebAuthn configured.
-  See the [Harden your Cluster Against IdP Compromises](./webauthn.mdx) guide.
-- WebAuthn hardware device, such as YubiKey.
-- Machines for Headless WebAuthn activities have [Linux](../../installation/installation.mdx), [macOS](../../installation/installation.mdx) or [Windows](../../installation/installation.mdx) `tsh` binary installed.
-- Machines used to approve Headless WebAuthn requests have a Web browser with [WebAuthn support](
+- A Teleport cluster with [WebAuthn](./webauthn.mdx#set-up-cluster-wide-webauthn) or [SSO MFA](../sso/sso.mdx#allowing-sso-as-an-mfa-method-in-your-cluster) configured.
+- Machines for Headless Authentication activities have [Linux](../../installation/installation.mdx), [macOS](../../installation/installation.mdx) or [Windows](../../installation/installation.mdx) `tsh` binary installed.
+- Machines used to approve Headless Authentication requests have a Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) or `tsh` binary installed.
-- Optional: Teleport Connect for [seamless Headless WebAuthn approval](#optional-teleport-connect).
+- Optional: Teleport Connect for [seamless Headless Authentication approval](#optional-teleport-connect).
 
 ## Step 1/3. Configuration
 
-A Teleport cluster capable of WebAuthn is automatically capable of
-Headless WebAuthn without any additional configuration.
+A Teleport cluster capable of WebAuthn or SSO MFA is automatically capable of
+Headless Authentication without any additional configuration.
 
 <details>
-<summary>Optional: make Headless WebAuthn the default auth connector</summary>
+<summary>Optional: make Headless Authentication the default auth connector</summary>
 
-To make Headless WebAuthn the default authentication method for your Teleport
+To make Headless Authentication the default authentication method for your Teleport
 Cluster, add `connector_name: headless` to your cluster configuration.
 
 Create a `cap.yaml` file or get the existing configuration using
@@ -88,10 +86,10 @@ $ tctl create -f cap.yaml
 </details>
 
 <details>
-<summary>Alternative: disable Headless WebAuthn</summary>
+<summary>Alternative: disable Headless Authentication</summary>
 
-Headless WebAuthn is enabled automatically when WebAuthn is configured. If you
-want to forbid Headless WebAuthn in your cluster, add `headless: false` to your
+Headless Authentication is enabled automatically when WebAuthn or SSO MFA is configured.
+If you want to forbid Headless Authentication in your cluster, add `headless: false` to your
 configuration.
 
 Create a `cap.yaml` file or get the existing configuration using
@@ -107,7 +105,7 @@ spec:
   second_factors: ["webauthn"]
   webauthn:
     rp_id: example.com
-  headless: false # disable Headless WebAuthn
+  headless: false # disable Headless Authentication
 ```
 
 Update the configuration:
@@ -119,7 +117,7 @@ $ tctl create -f cap.yaml
 
 </details>
 
-## Step 2/3. Initiate Headless WebAuthn
+## Step 2/3. Initiate Headless Authentication
 
 Run a headless `tsh` command with the `--headless` flag. This will initiate
 headless authentication, printing a URL and `tsh` command.
@@ -135,16 +133,16 @@ $ tsh ls --headless --proxy=proxy.example.com --user=alice
 # tsh headless approve --user=alice --proxy=proxy.example.com 86172f78-af7c-5935-a7c1-ed06b94f17dc
 ```
 
-## Step 3/3. Approve Headless WebAuthn
+## Step 3/3. Approve Headless Authentication
 
 To approve the headless authentication, click or copy+paste the URL printed by
 `tsh` in your local web browser. You will be prompted to approve the log in with
-WebAuthn verification. Once approved, your initial `tsh --headless <command>`
+MFA verification. Once approved, your initial `tsh --headless <command>`
 should continue as if you had logged in locally.
 
 Unlike a standard login session, headless sessions are only available for the
 lifetime of a single `tsh` request. This means that for each `tsh --headless`
-command, you will need to go through the Headless WebAuthn flow:
+command, you will need to go through the Headless Authentication flow:
 
 ### Example: Listing SSH servers
 ```code
@@ -177,34 +175,34 @@ alice@server01 $
 ```
 
 <Admonition type="note">
-  The Teleport user, `--user` parameter, is the Teleport user requesting Headless WebAuthn activity.
+  The Teleport user, `--user` parameter, is the Teleport user requesting Headless Authentication activity.
   If no `--user` parameter or environment variables set the OS user in the machine terminal is used.
 
   The login username, `--login` parameter or login@hostname, for `tsh ssh` commands is the user
   to open a SSH session as. If no login username for the SSH session is set the OS terminal username is used.
   A Teleport user must have access to that login user for that server or they will receive
   an access denied message. The user could receive an access denied message after being approved
-  for their Headless WebAuthn activity since the same access rights are granted or denied as if running from
+  for their Headless Authentication activity since the same access rights are granted or denied as if running from
   your local terminal.
 </Admonition>
 
 ## Optional: Teleport Connect
 
-Teleport Connect can also be used to approve Headless WebAuthn logins.  Teleport
-Connect will automatically detect the Headless WebAuthn login attempt and allow
+Teleport Connect can also be used to approve Headless Authentication logins.  Teleport
+Connect will automatically detect the Headless Authentication login attempt and allow
 you to approve or cancel the request.
 
 ![Headless Confirmation](../../../img/headless/confirmation.png)
 
 You will be prompted to tap your MFA key to complete the approval process.
 
-![Headless WebAuthn Approval](../../../img/headless/approval.png)
+![Headless Authentication Approval](../../../img/headless/approval.png)
 
 ## Troubleshooting
 
 ### "WARN: Failed to lock system memory for headless login: ..."
 
-When using Headless WebAuthn, `tsh` does not write private key and certificate data
+When using Headless Authentication, `tsh` does not write private key and certificate data
 to disk(`~/.tsh`). Instead, `tsh` holds these secrets in memory for the duration of
 the request. Additionally, it will try to lock the process memory to further protect
 the secrets from being stolen by other users on a shared machine.
@@ -223,7 +221,7 @@ the line `<os_username> hard memlock unlimited` to your `/etc/security/limits.co
 
 The `mlockall` syscall is only supported on Linux operating systems. This means
 that on other operating systems, the memory lock attempt will always fail and
-output the warning. We recommend only using Headless WebAuthn on Linux machines
+output the warning. We recommend only using Headless Authentication on Linux machines
 for the best level of security on shared machines.
 
 #### Disable mlock

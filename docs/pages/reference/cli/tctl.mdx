@@ -1,5 +1,6 @@
 ---
-title: tctl CLI reference
+title: tctl CLI Reference
+sidebar_label: tctl
 description: Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
 tags:
  - reference
@@ -697,7 +698,7 @@ These flags are available for all commands: `--debug, --config`. Run
 Create or update a Teleport resource from a YAML file.
 
 The supported resource types are: user, node, cluster, role, connector, and device.
-See the [Resources Reference](../resources.mdx) for complete docs on how to build these yaml files.
+See the [Resources Reference](../infrastructure-as-code/resources.mdx) for complete docs on how to build these yaml files.
 
 ```code
 $ tctl create [<flags>] <filename>
@@ -2200,6 +2201,41 @@ $ tctl plugins install okta \
     --no-scim \
     --no-accesslist-sync \
     --no-appgroup-sync
+```
+
+## tctl plugins rotate awsic
+
+Rotate the bearer token used by Teleport to authenticate with the AWS IAM Identity
+Center SCIM service when provisioning AWS users and groups.
+
+By default, `tctl` will validate that the token can be used to authenticate with
+the SCIM service configured in the integration. Use the `--no-validate-token`
+flag to disable token validation.
+
+```code
+$ tctl plugins rotate awsic [<flags>] <token>
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--plugin-name` | | string | Optionally override the name of the AWS IAM Identity Center integration to target | 
+| `--[no-]validate-token` | `--validate-token` | none | Enables or disables validating the supplied token against the configured SCIM server |
+
+### Examples
+
+Rotate the SCIM bearer token without displaying the token in your command history
+
+```code
+$ tctl plugins rotate awsic $(cat ./aws-iam-ic-bearer-token)
+```
+
+Rotate the the SCIM bearer token for a custom integration enrollment that does not
+have the default name set by the guided enrollment flow.
+
+```code
+$ tctl plugins rotate awsic --plugin-name "my-custom-ic-integration" ${TOKEN_VALUE}
 ```
 
 ## tctl version

@@ -66,11 +66,11 @@ func Test_handleStdioToSSE(t *testing.T) {
 	// ID.
 	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
 	var startEvent *apievents.MCPSessionStart
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var ok bool
 		event := emitter.LastEvent()
 		startEvent, ok = event.(*apievents.MCPSessionStart)
-		assert.True(collect, ok)
+		require.True(t, ok)
 	}, time.Second*5, time.Millisecond*100, "expect session start")
 	require.NotEmpty(t, startEvent.McpSessionId)
 

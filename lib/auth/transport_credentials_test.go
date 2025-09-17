@@ -354,7 +354,7 @@ func TestTransportCredentialsDisconnection(t *testing.T) {
 	// Assert that the connections are eventually closed.
 	connectionClosedAssertion := func(t *testing.T, conn *fakeConn) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			assert.True(t, conn.closed.Load())
+			require.True(t, conn.closed.Load())
 		}, 5*time.Second, 100*time.Millisecond)
 	}
 

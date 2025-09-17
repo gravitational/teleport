@@ -122,3 +122,5 @@ export async function fetchRecordingThumbnail(
 
   return response as SessionRecordingThumbnail;
 }
+
+export const RECORDING_TYPES_WITH_THUMBNAILS: RecordingType[] = ['ssh', 'k8s'];

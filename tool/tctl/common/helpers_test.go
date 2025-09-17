@@ -67,7 +67,7 @@ type cliCommand interface {
 	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error)
 }
 
-func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
+func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, args []string) error {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -138,7 +138,7 @@ func runIdPSAMLCommand(t *testing.T, client *authclient.Client, args []string) e
 	return runCommand(t, client, command, args)
 }
 
-func runNotificationsCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runNotificationsCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &NotificationCommand{
 		stdout: &stdoutBuff,

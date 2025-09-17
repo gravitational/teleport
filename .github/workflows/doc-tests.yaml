@@ -158,7 +158,7 @@ jobs:
       - name: Check docs style
         working-directory: 'docs/content/current'
         run: |
-          echo "Running Vale style checks. For information about ignoring Vale rules, see: https://vale.sh/docs/formats/mdx#comments"
+          echo "Running Vale style checks. For information about ignoring Vale rules using comments, see: https://vale.sh/docs/formats/mdx#comments"
           "${GITHUB_WORKSPACE}/vale" --config docs/.vale.ini docs/pages
 
       - name: Test the docs build

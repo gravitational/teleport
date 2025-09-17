@@ -28,6 +28,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -253,4 +254,12 @@ func checkFreeSpace(path string, requested uint64) error {
 	}
 
 	return nil
+}
+
+// filterEnvs excludes environment variables by the list of the keys.
+func filterEnvs(envs []string, excludeKeys []string) []string {
+	return slices.DeleteFunc(envs, func(e string) bool {
+		parts := strings.SplitN(e, "=", 2)
+		return slices.Contains(excludeKeys, parts[0])
+	})
 }

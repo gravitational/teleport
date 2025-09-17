@@ -59,7 +59,15 @@ export const ExternalAuditStorageCta = () => {
   }
 
   return (
-    <CtaContainer mb={3}>
+    <CtaContainer
+      css={`
+        grid-column: span 2;
+        @media screen and (max-width: ${props =>
+            props.theme.breakpoints.mobile}) {
+          grid-column: auto;
+        }
+      `}
+    >
       <Flex
         justifyContent="space-between"
         css={`

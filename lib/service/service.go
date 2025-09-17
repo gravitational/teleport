@@ -79,7 +79,6 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -705,6 +704,8 @@ type TeleportProcess struct {
 
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
+
+	tsrv reversetunnelclient.Server
 }
 
 // processIndex is an internal process index
@@ -714,6 +715,17 @@ var processID int32
 
 func nextProcessID() int32 {
 	return atomic.AddInt32(&processID, 1)
+}
+
+// GetReverseTunnelServer returns the process's reverse tunnel server
+// or an error if it is not configured.
+// Reverse tunnel server is used by proxies to accept incoming
+// reverse tunnels from nodes/clusters.
+func (process *TeleportProcess) GetReverseTunnelServer() (reversetunnelclient.Server, error) {
+	if process.tsrv != nil {
+		return process.tsrv, nil
+	}
+	return nil, trace.BadParameter("reverse tunnel server not configured")
 }
 
 // GetAuthServer returns the process' auth server
@@ -742,14 +754,14 @@ func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
 	}
 }
 
-func (process *TeleportProcess) findStaticIdentity(id state.IdentityID) (*state.Identity, error) {
+func (process *TeleportProcess) findStaticIdentity(role types.SystemRole) (*state.Identity, error) {
 	for i := range process.Config.Identities {
 		identity := process.Config.Identities[i]
-		if identity.ID.Equals(id) {
+		if identity.ID.Role == role {
 			return identity, nil
 		}
 	}
-	return nil, trace.NotFound("identity %v not found", &id)
+	return nil, trace.NotFound("identity %v not found", role)
 }
 
 // getConnectors returns a copy of the identities registered for auth server
@@ -916,18 +928,18 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 		return nil, trace.Wrap(err)
 	}
 
-	id := state.IdentityID{
-		Role:     role,
-		HostUUID: process.Config.HostUUID,
-		NodeName: process.Config.Hostname,
-	}
 	if role == types.RoleAdmin {
 		// for admin identity use local auth server
 		// because admin identity is requested by auth server
 		// itself
-		principals, dnsNames, err := process.getAdditionalPrincipals(role)
+		principals, dnsNames, err := process.getAdditionalPrincipals(role, process.localAuth.ServerID)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		id := state.IdentityID{
+			Role:     role,
+			HostUUID: process.localAuth.ServerID,
+			NodeName: process.Config.Hostname,
 		}
 		i, err = auth.GenerateIdentity(process.localAuth, id, principals, dnsNames)
 		if err != nil {
@@ -936,12 +948,12 @@ func (process *TeleportProcess) getIdentity(role types.SystemRole) (i *state.Ide
 		return i, nil
 	}
 
-	// try to locate static identity provided in the file
-	i, err = process.findStaticIdentity(id)
+	// try to locate static identity provided in the config by tests
+	i, err = process.findStaticIdentity(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.logger.InfoContext(process.ExitContext(), "Found static identity in the config file, writing to disk.", "identity", logutils.StringerAttr(&id))
+	process.logger.InfoContext(process.ExitContext(), "Found static identity, writing to disk.", "role", role)
 	if err = process.storage.WriteIdentity(state.IdentityCurrent, *i); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1123,23 +1135,6 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
-	// readOrGenerateHostID will try to read the `host_uuid` from the Kubernetes Secret. If the
-	// key is empty or if not running in a Kubernetes Cluster, it will read the
-	// `host_uuid` from local data directory.
-	// If no host id is available, it will generate a new host id and persist it to available storages.
-	// If we fail with an already exists failure, retry.
-	hostID, err := store.ReadOrGenerateHostID(supervisor.ExitContext(), cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if _, err := uuid.Parse(hostID); err != nil && !aws.IsEC2NodeID(hostID) {
-		cfg.Logger.WarnContext(supervisor.ExitContext(), "Host UUID is not a true UUID (not eligible for UUID-based proxying)", "host_uuid", hostID)
-	}
-
-	// TODO(nklaassen): remove Process.Config.HostUUID
-	cfg.HostUUID = hostID
 
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -2149,6 +2144,9 @@ func (process *TeleportProcess) initAuthService() error {
 	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	clusterConfig := cfg.ClusterConfiguration
 	if clusterConfig == nil {
@@ -2158,9 +2156,17 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 
+	hostUUID, err := process.storage.ReadOrGenerateHostID(process.ExitContext(), cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := uuid.Parse(hostUUID); err != nil {
+		cfg.Logger.WarnContext(process.ExitContext(), "Host UUID is not a true UUID (not eligible for UUID-based proxying)", "host_uuid", hostUUID)
+	}
+
 	// create keystore
 	keystoreOpts := &keystore.Options{
-		HostUUID:             cfg.HostUUID,
+		HostUUID:             hostUUID,
 		ClusterName:          cn,
 		AuthPreferenceGetter: clusterConfig,
 		FIPS:                 cfg.FIPS,
@@ -2281,7 +2287,7 @@ func (process *TeleportProcess) initAuthService() error {
 		auditServiceConfig := events.AuditLogConfig{
 			Context:       process.ExitContext(),
 			DataDir:       filepath.Join(cfg.DataDir, teleport.LogsDir),
-			ServerID:      cfg.HostUUID,
+			ServerID:      hostUUID,
 			UploadHandler: uploadHandler,
 			ExternalLog:   externalLog,
 			Decrypter:     encryptedIO,
@@ -2351,7 +2357,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ClusterName:                 cn,
 			AuthServiceName:             cfg.Hostname,
 			DataDir:                     cfg.DataDir,
-			HostUUID:                    cfg.HostUUID,
+			HostUUID:                    hostUUID,
 			NodeName:                    cfg.Hostname,
 			Authorities:                 cfg.Auth.Authorities,
 			ApplyOnStartupResources:     cfg.Auth.ApplyOnStartupResources,
@@ -2501,7 +2507,7 @@ func (process *TeleportProcess) initAuthService() error {
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
 			Semaphores:     authServer.Services,
-			ServerID:       cfg.HostUUID,
+			ServerID:       hostUUID,
 		})
 		if err != nil {
 			return trace.Wrap(err, "starting upload completer")
@@ -2782,7 +2788,7 @@ func (process *TeleportProcess) initAuthService() error {
 			StatusReporter:    authServer.Services,
 			Backend:           process.backend,
 			AppServerUpserter: authServer.Services,
-			HostUUID:          process.Config.HostUUID,
+			HostUUID:          hostUUID,
 		}))
 	})
 
@@ -4104,7 +4110,7 @@ func (process *TeleportProcess) initTracingService() error {
 
 // getAdditionalPrincipals returns a list of additional principals to add
 // to role's service certificates.
-func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) ([]string, []string, error) {
+func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, hostUUID string) ([]string, []string, error) {
 	var principals []string
 	var dnsNames []string
 	if process.Config.Hostname != "" {
@@ -4159,7 +4165,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 		// DELETE IN 5.0: We are manually adding HostUUID here in order
 		// to allow UUID based routing to function with older Auth Servers
 		// which don't automatically add UUID to the principal list.
-		principals = append(principals, process.Config.HostUUID)
+		principals = append(principals, hostUUID)
 		addrs = process.Config.SSH.PublicAddrs
 		// If advertise IP is set, add it to the list of principals. Otherwise
 		// add in the default (0.0.0.0) which will be replaced by the Auth Server
@@ -4182,7 +4188,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 		)
 		addrs = append(addrs, process.Config.Kube.PublicAddrs...)
 	case types.RoleApp, types.RoleOkta:
-		principals = append(principals, process.Config.HostUUID)
+		principals = append(principals, hostUUID)
 	case types.RoleWindowsDesktop:
 		addrs = append(addrs,
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
@@ -5026,6 +5032,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		process.tsrv = tsrv
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting reverse tunnel server", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr, "cache_policy", process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
@@ -5238,7 +5245,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 			DatabaseREPLRegistry:      cfg.DatabaseREPLRegistry,
 		}
-		webHandler, err := web.NewHandler(webConfig)
+		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {
 			return trace.Wrap(err)
 		}

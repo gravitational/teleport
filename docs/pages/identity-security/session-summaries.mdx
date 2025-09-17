@@ -4,7 +4,7 @@ description: Describes how to use Teleport Identity security to summarize sessio
 labels:
   - conceptual
   - identity-security
-  - AI
+  - ai
 ---
 
 Teleport Identity Security allows you to generate and view session recording
@@ -12,11 +12,9 @@ summaries for shell and database sessions. This allows you to see at a glance
 what your users do and estimate legitimacy of their actions before digging
 deeper and reviewing the entire recording.
 
-<Admonition type="warning">
-This feature is powered by AI, and as such, its accuracy may vary.
-
-Teleport doesn't currently support any spend controls; controlling the LLM
-token budget is your responsibility.
+<Admonition type="note">
+Session Recording Summaries are available only to Teleport Enterprise customers with Teleport Identity Security. 
+[Learn more about the features included in Teleport Identity Security](../feature-matrix.mdx#teleport-identity-security).
 </Admonition>
 
 ## How it works
@@ -43,6 +41,13 @@ There are three fundamental concepts to that underpin session summarization:
   Teleport configuration resources that provide model settings.
 - **Inference policies** indicate *what* gets summarized and which inference
   model is used in given case.
+
+<Admonition type="warning">
+This feature is powered by AI, and as such, its accuracy may vary.
+
+Teleport doesn't currently support any spend controls; controlling the LLM
+token budget is your responsibility.
+</Admonition>
 
 ## Prerequisites
 
@@ -180,11 +185,11 @@ To create the required configuration resources:
    ```
 
 For full description of the inference configuration resources, see appropriate
-sections of [Teleport Resources Reference](../reference/resources.mdx):
+sections of [Teleport Resources Reference](../reference/infrastructure-as-code/resources.mdx):
 
-- [`inference_model`](../reference/resources.mdx#inference-model)
-- [`inference_secret`](../reference/resources.mdx#inference-secret)
-- [`inference_policy`](../reference/resources.mdx#inference-policy)
+- [`inference_model`](../reference/infrastructure-as-code/resources.mdx#inference-model)
+- [`inference_secret`](../reference/infrastructure-as-code/resources.mdx#inference-secret)
+- [`inference_policy`](../reference/infrastructure-as-code/resources.mdx#inference-policy)
 
 ## Step 3/4: Configure access to session summaries
 
@@ -371,7 +376,7 @@ Here's what you need to do:
 
 1. Set up [LiteLLM Proxy Server (LLM
    Gateway)](https://docs.litellm.ai/docs/#litellm-proxy-server-llm-gateway) on a
-   host accessible from the Teleport Auth server.
+   host accessible from the Teleport Auth Service.
 2. Add a model of your choice to the LiteLLM configuration. In this example,
    let's call it `my-custom-model`.
 3. Configure a Teleport inference model. Use `spec.openai.base_url` property to
@@ -412,5 +417,5 @@ Teleport exposes a couple of useful Prometheus metrics that can be used to
 monitor the session summarizer. Metrics are labeled by inference model name,
 and in case of OpenAI errors — additionally with the OpenAI API error code. See
 the [Teleport Metrics
-reference](../reference/monitoring/metrics.mdx#session-recording-summarizer)
+reference](../reference/deployment/monitoring/metrics.mdx#session-recording-summarizer)
 for details.

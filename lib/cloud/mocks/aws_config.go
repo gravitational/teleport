@@ -30,6 +30,7 @@ import (
 
 type AWSConfigProvider struct {
 	Err                   error
+	AWSConfig             *aws.Config
 	STSClient             *STSClient
 	OIDCIntegrationClient awsconfig.OIDCIntegrationClient
 }
@@ -37,6 +38,10 @@ type AWSConfigProvider struct {
 func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns ...awsconfig.OptionsFn) (aws.Config, error) {
 	if f.Err != nil {
 		return aws.Config{}, f.Err
+	}
+
+	if f.AWSConfig != nil {
+		return *f.AWSConfig, nil
 	}
 
 	stsClt := f.STSClient

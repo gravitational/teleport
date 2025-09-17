@@ -353,6 +353,8 @@ export class FeatureAddBotsShortcut implements TeleportFeature {
 
 export class FeatureAddBots implements TeleportFeature {
   category = NavigationCategory.AddNew;
+  // botsNew redirects to Integrations page
+  isHyperLink = true;
 
   route = {
     title: 'Bot',
@@ -645,7 +647,7 @@ export class FeatureClusters implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return cfg.isDashboard || flags.trustedClusters;
+    return flags.trustedClusters && !cfg.isCloud && !cfg.isDashboard;
   }
 
   showInDashboard = true;

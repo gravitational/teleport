@@ -17,25 +17,16 @@
 package cache
 
 import (
-	"cmp"
 	"context"
-	"slices"
-	"strconv"
 	"testing"
-	"time"
 
-	gocmp "github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestDatabaseServices tests that CRUD operations on DatabaseServices are
@@ -57,19 +48,27 @@ func TestDatabaseServices(t *testing.T) {
 			})
 		},
 		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
-		list: func(ctx context.Context) ([]types.DatabaseService, error) {
-			resources, err := listAllResource(t, p.presenceS, types.KindDatabaseService, apidefaults.DefaultChunkSize)
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
+			resources, next, err := listResource(ctx, p.presenceS, types.KindDatabaseService, pageSize, pageToken)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			return types.ResourcesWithLabels(resources).AsDatabaseServices()
+			dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServices()
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return dbs, next, nil
 		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseService, error) {
-			resources, err := listAllResource(t, p.cache, types.KindDatabaseService, pageSize)
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
+			resources, next, err := listResource(ctx, p.cache, types.KindDatabaseService, pageSize, pageToken)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			return types.ResourcesWithLabels(resources).AsDatabaseServices()
+			dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServices()
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return dbs, next, nil
 		},
 		update:    withKeepalive(p.databaseServices.UpsertDatabaseService),
 		deleteAll: p.databaseServices.DeleteAllDatabaseServices,
@@ -93,112 +92,15 @@ func TestDatabases(t *testing.T) {
 				URI:      "localhost:5432",
 			})
 		},
-		create: p.databases.CreateDatabase,
-		list: func(ctx context.Context) ([]types.Database, error) {
-			return stream.Collect(p.databases.RangeDatabases(ctx, "", ""))
-		},
-		cacheGet: p.cache.GetDatabase,
-		cacheList: func(ctx context.Context, _ int) ([]types.Database, error) {
-			return stream.Collect(p.cache.RangeDatabases(ctx, "", ""))
-		},
-		update:    p.databases.UpdateDatabase,
-		deleteAll: p.databases.DeleteAllDatabases,
+		create:     p.databases.CreateDatabase,
+		list:       p.databases.ListDatabases,
+		Range:      p.databases.RangeDatabases,
+		cacheGet:   p.cache.GetDatabase,
+		cacheList:  p.cache.ListDatabases,
+		cacheRange: p.cache.RangeDatabases,
+		update:     p.databases.UpdateDatabase,
+		deleteAll:  p.databases.DeleteAllDatabases,
 	})
-}
-
-func TestDatabasesPagination(t *testing.T) {
-	// TODO(okraport): extract this into generic helper for other paginated resources.
-	t.Parallel()
-
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
-	t.Cleanup(p.Close)
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-p.eventsC: // Drain events to prevent deadlocking.
-			}
-		}
-	}()
-
-	expected := make([]types.Database, 0, 50)
-	for i := range 50 {
-		db, err := types.NewDatabaseV3(types.Metadata{
-			Name: "db" + strconv.Itoa(i+1),
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-		})
-
-		require.NoError(t, err)
-		require.NoError(t, p.databases.CreateDatabase(t.Context(), db))
-		expected = append(expected, db)
-	}
-	slices.SortFunc(expected, func(a, b types.Database) int {
-		return cmp.Compare(a.GetName(), b.GetName())
-	})
-
-	// Wait for all the Databases to be replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.Equal(t, len(expected), p.cache.collections.dbs.store.len())
-	}, 15*time.Second, 100*time.Millisecond)
-
-	out, err := p.cache.GetDatabases(t.Context())
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	page1, page2Start, err := p.cache.ListDatabases(t.Context(), 10, "")
-	require.NoError(t, err)
-	assert.Len(t, page1, 10)
-	assert.NotEmpty(t, page2Start)
-
-	page2, next, err := p.cache.ListDatabases(t.Context(), 1000, page2Start)
-	require.NoError(t, err)
-	assert.Len(t, page2, len(expected)-10)
-	assert.Empty(t, next)
-
-	listed := append(page1, page2...)
-	assert.Empty(t, gocmp.Diff(expected, listed,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	out, err = stream.Collect(p.cache.RangeDatabases(t.Context(), "", page2Start))
-	require.NoError(t, err)
-	assert.Len(t, out, len(page1))
-	assert.Empty(t, gocmp.Diff(page1, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	out, err = stream.Collect(p.cache.RangeDatabases(t.Context(), "", ""))
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	out, err = stream.Collect(p.cache.RangeDatabases(t.Context(), page2Start, ""))
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected)-10)
-	assert.Empty(t, gocmp.Diff(expected, append(page1, out...),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	// invalidate the cache, cover upstream fallback
-	p.cache.ok = false
-	out, err = stream.Collect(p.cache.RangeDatabases(t.Context(), "", ""))
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 }
 
 // TestDatabaseServers tests that CRUD operations on database servers are
@@ -221,17 +123,17 @@ func TestDatabaseServers(t *testing.T) {
 				})
 			},
 			create: withKeepalive(p.presenceS.UpsertDatabaseServer),
-			list: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			list: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
 				return p.presenceS.GetDatabaseServers(ctx, apidefaults.Namespace)
-			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseServer, error) {
+			}),
+			cacheList: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
 				return p.cache.GetDatabaseServers(ctx, apidefaults.Namespace)
-			},
+			}),
 			update: withKeepalive(p.presenceS.UpsertDatabaseServer),
 			deleteAll: func(ctx context.Context) error {
 				return p.presenceS.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
 			},
-		})
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListResources", func(t *testing.T) {
@@ -246,19 +148,27 @@ func TestDatabaseServers(t *testing.T) {
 				})
 			},
 			create: withKeepalive(p.presenceS.UpsertDatabaseServer),
-			list: func(ctx context.Context) ([]types.DatabaseServer, error) {
-				resources, err := listAllResource(t, p.presenceS, types.KindDatabaseServer, apidefaults.DefaultChunkSize)
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseServer, string, error) {
+				resources, next, err := listResource(ctx, p.presenceS, types.KindDatabaseServer, pageSize, pageToken)
 				if err != nil {
-					return nil, trace.Wrap(err)
+					return nil, "", trace.Wrap(err)
 				}
-				return types.ResourcesWithLabels(resources).AsDatabaseServers()
+				dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return dbs, next, nil
 			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.DatabaseServer, error) {
-				resources, err := listAllResource(t, p.cache, types.KindDatabaseServer, pageSize)
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseServer, string, error) {
+				resources, next, err := listResource(ctx, p.cache, types.KindDatabaseServer, pageSize, pageToken)
 				if err != nil {
-					return nil, trace.Wrap(err)
+					return nil, "", trace.Wrap(err)
 				}
-				return types.ResourcesWithLabels(resources).AsDatabaseServers()
+				dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return dbs, next, nil
 			},
 			update: withKeepalive(p.presenceS.UpsertDatabaseServer),
 			deleteAll: func(ctx context.Context) error {
@@ -282,14 +192,8 @@ func TestDatabaseObjects(t *testing.T) {
 			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
-			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context, _ int) ([]*dbobjectv1.DatabaseObject, error) {
-			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list:      p.databaseObjects.ListDatabaseObjects,
+		cacheList: p.databaseObjects.ListDatabaseObjects,
 		deleteAll: func(ctx context.Context) error {
 			token := ""
 			var objects []*dbobjectv1.DatabaseObject
