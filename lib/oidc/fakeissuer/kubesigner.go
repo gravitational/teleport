@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package fakejoin
+package fakeissuer
 
 import (
 	"encoding/json"
@@ -30,7 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	tokenclaims "github.com/gravitational/teleport/lib/kube/token/claims"
 )
 
 // KubernetesSigner is a JWT signer that mimicks the Kubernetes one. The signer mock Kubernetes and
@@ -83,11 +83,16 @@ func (s *KubernetesSigner) GetMarshaledJWKS() (string, error) {
 	return string(jwksData), err
 }
 
+func (s *KubernetesSigner) signWithClaims(claims interface{}) (string, error) {
+	token, err := jwt.Signed(s.signer).Claims(claims).CompactSerialize()
+	return token, trace.Wrap(err)
+}
+
 // SignServiceAccountJWT returns a signed JWT valid 30 minutes (1 min in the past, 29 in the future).
 // This token has the Teleport cluster name in its audience as required by the Kubernetes JWKS join method.
 func (s *KubernetesSigner) SignServiceAccountJWT(pod, namespace, serviceAccount, clusterName string) (string, error) {
 	now := s.clock.Now()
-	claims := kubetoken.ServiceAccountClaims{
+	claims := tokenclaims.ServiceAccountClaims{
 		Claims: jwt.Claims{
 			Subject:  fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccount),
 			Audience: jwt.Audience{clusterName},
@@ -97,18 +102,17 @@ func (s *KubernetesSigner) SignServiceAccountJWT(pod, namespace, serviceAccount,
 			// The Kubernetes JWKS join method rejects tokens valid more than 30 minutes.
 			Expiry: jwt.NewNumericDate(now.Add(29 * time.Minute)),
 		},
-		Kubernetes: &kubetoken.KubernetesSubClaim{
+		Kubernetes: &tokenclaims.KubernetesSubClaim{
 			Namespace: namespace,
-			ServiceAccount: &kubetoken.ServiceAccountSubClaim{
+			ServiceAccount: &tokenclaims.ServiceAccountSubClaim{
 				Name: serviceAccount,
 				UID:  uuid.New().String(),
 			},
-			Pod: &kubetoken.PodSubClaim{
+			Pod: &tokenclaims.PodSubClaim{
 				Name: pod,
 				UID:  uuid.New().String(),
 			},
 		},
 	}
-	token, err := jwt.Signed(s.signer).Claims(claims).CompactSerialize()
-	return token, trace.Wrap(err)
+	return s.signWithClaims(claims)
 }
