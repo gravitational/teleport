@@ -12,14 +12,23 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
-const ProxyServiceType = "httpproxy-tunnel"
+const ProxyServiceType = "application-proxy"
 
 type ProxyServiceConfig struct {
-	Name               string                 `yaml:"name,omitempty"`
-	Listen             string                 `yaml:"listen"`
-	Roles              []string               `yaml:"roles,omitempty"`
+	// Name of the service for logs and the /readyz endpoint.
+	// Optional.
+	Name string `yaml:"name,omitempty"`
+	// Listen is the address on which application proxy should listen. Example:
+	// - "tcp://127.0.0.1:3306"
+	// - "tcp://0.0.0.0:3306
+	Listen string `yaml:"listen"`
+	// CredentialLifetime contains configuration for how long credentials will
+	// last and the frequency at which they'll be renewed. For the application
+	// proxy, this is primarily an internal detail.
 	CredentialLifetime bot.CredentialLifetime `yaml:"credential_lifetime,omitempty"`
-	Listener           net.Listener           `yaml:"-"`
+	// Listener overrides "listen" and directly provides an opened listener to
+	// use. Primarily used for testing.
+	Listener net.Listener `yaml:"-"`
 }
 
 func (c *ProxyServiceConfig) GetName() string {
