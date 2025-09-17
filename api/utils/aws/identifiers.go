@@ -167,8 +167,10 @@ func CheckRoleARN(arn string) error {
 		return trace.BadParameter("%q is missing AWS IAM role name", arn)
 	}
 
-	if err := IsValidAccountID(sections[sectionAccount]); err != nil {
-		return trace.BadParameter("%q invalid account ID: %v", arn, err)
+	if sections[sectionAccount] != "*" {
+		if err := IsValidAccountID(sections[sectionAccount]); err != nil {
+			return trace.BadParameter("%q invalid account ID: %v", arn, err)
+		}
 	}
 
 	return nil
