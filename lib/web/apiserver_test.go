@@ -1368,6 +1368,32 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), appServer)
 	require.NoError(t, err)
 
+	// add a SAMLIdPServiceProvider
+	const entityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="sp1" validUntil="2025-12-09T09:13:31.006Z">
+   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+   </md:SPSSODescriptor>
+</md:EntityDescriptor>
+`
+	samlapp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: entityDescriptor,
+			EntityID:         "sp1",
+		},
+	)
+	require.NoError(t, err)
+	err = env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), samlapp)
+	require.NoError(t, err)
+
 	// Add nodes
 	for i := range 20 {
 		name := fmt.Sprintf("server-%d", i)
@@ -1434,7 +1460,8 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Equal(t, types.KindApp, res.Items[0].Kind)
 	require.Equal(t, types.KindApp, res.Items[1].Kind)
-	require.Equal(t, types.KindDatabase, res.Items[2].Kind)
+	require.Equal(t, types.KindApp, res.Items[2].Kind)
+	require.Equal(t, types.KindDatabase, res.Items[3].Kind)
 
 	// test sort type desc
 	query = url.Values{"sort": []string{"kind:desc"}}
@@ -1495,7 +1522,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 11)
+	require.Len(t, res.Items, 12)
 	require.Empty(t, res.StartKey)
 
 	// Only list valid AWS Roles for AWS Apps
@@ -1515,6 +1542,24 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	}
 	require.Equal(t, expectedRoles, listResp.Items[0].AWSRoles)
 	t.Log(string(re.Bytes()), listResp)
+
+	// query only apps, SAMLIdPServiceProvider 'app' should be included
+	type appResponse struct {
+		Items      []webui.App `json:"items"`
+		TotalCount int         `json:"totalCount"`
+	}
+	query = url.Values{"sort": []string{"name"}, "kinds": []string{types.KindApp}, "query": []string{``}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	appRes := appResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &appRes))
+	require.Len(t, appRes.Items, 3)
+	for _, app := range appRes.Items {
+		require.Equal(t, types.KindApp, app.Kind)
+	}
+	require.False(t, appRes.Items[0].SAMLApp)
+	require.False(t, appRes.Items[1].SAMLApp)
+	require.True(t, appRes.Items[2].SAMLApp)
 }
 
 type clusterAlertsGetResponse struct {
