@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev.gzdunek.29"
+.version: &version "19.0.0-dev.gzdunek.30"
 
 name: tbot
 apiVersion: v2
