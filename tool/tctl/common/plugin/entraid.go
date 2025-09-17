@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
@@ -92,6 +93,11 @@ type entraArgs struct {
 	accessGraph          bool
 	force                bool
 	manualEntraIDSetup   bool
+
+	groupFilterIncludeID   []string
+	groupFilterIncludeName []string
+	groupFilterExcludeID   []string
+	groupFilterExcludeName []string
 }
 
 func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
@@ -131,6 +137,15 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Short('m').
 		Default("false").
 		BoolVar(&p.install.entraID.manualEntraIDSetup)
+
+	cmd.Flag("group-id", "Include Group ID").
+		StringsVar(&p.install.entraID.groupFilterIncludeID)
+	cmd.Flag("group-name", "Include Group Name Regexp").
+		StringsVar(&p.install.entraID.groupFilterIncludeName)
+	cmd.Flag("exclude-group-id", "Exclude Group ID").
+		StringsVar(&p.install.entraID.groupFilterExcludeID)
+	cmd.Flag("exclude-group-name", "Exclude Group Name").
+		StringsVar(&p.install.entraID.groupFilterExcludeName)
 }
 
 type entraSettings struct {
@@ -330,6 +345,12 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 	if inputs.entraID.useSystemCredentials {
 		credentialsSource = types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS
 	}
+
+	groupFilters, err := filter.New(buildFilters(inputs.entraID))
+	if err != nil {
+		return trace.Wrap(err, "failed to read filters")
+	}
+
 	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
@@ -347,6 +368,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 							CredentialsSource: credentialsSource,
 							TenantId:          settings.tenantID,
 							EntraAppId:        settings.clientID,
+							GroupFilters:      groupFilters,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},
@@ -453,4 +475,35 @@ func readData(r io.Reader, w io.Writer, message string, validate func(string) bo
 		}
 		return input, nil
 	}
+}
+
+func buildFilters(args entraArgs) []*types.PluginSyncFilter {
+	filtersCap := len(args.groupFilterIncludeID) + len(args.groupFilterExcludeID) + len(args.groupFilterIncludeName) + len(args.groupFilterExcludeName)
+	filters := make([]*types.PluginSyncFilter, 0, filtersCap)
+
+	for _, n := range args.groupFilterIncludeID {
+		filters = append(filters, &types.PluginSyncFilter{
+			Include: &types.PluginSyncFilter_Id{Id: n},
+		})
+	}
+
+	for _, n := range args.groupFilterIncludeName {
+		filters = append(filters, &types.PluginSyncFilter{
+			Include: &types.PluginSyncFilter_NameRegex{NameRegex: n},
+		})
+	}
+
+	for _, n := range args.groupFilterExcludeID {
+		filters = append(filters, &types.PluginSyncFilter{
+			Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: n},
+		})
+	}
+
+	for _, n := range args.groupFilterExcludeName {
+		filters = append(filters, &types.PluginSyncFilter{
+			Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: n},
+		})
+	}
+
+	return filters
 }
