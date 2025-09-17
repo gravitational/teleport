@@ -3224,6 +3224,12 @@ func withOriginLabel(origin string) newMemberOption {
 	}
 }
 
+func withExpire(t time.Time) newMemberOption {
+	return func(am *accesslist.AccessListMember) {
+		am.Spec.Expires = t
+	}
+}
+
 func newAccessListMember(t *testing.T, accessListName, memberName string, memberKind string, clock clockwork.Clock, opts ...newMemberOption) *accesslist.AccessListMember {
 	t.Helper()
 

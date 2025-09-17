@@ -19,14 +19,16 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 	a3 := newAccessList(t, "3", c.clock)
 	a4 := newAccessList(t, "4", c.clock)
 
-	a1m1 := newAccessListMember(t, a1.GetName(), member1, accesslist.MembershipKindUser, c.clock)
-	a1m2 := newAccessListMember(t, a1.GetName(), member2, accesslist.MembershipKindUser, c.clock)
-	a1m3 := newAccessListMember(t, a1.GetName(), member3, accesslist.MembershipKindUser, c.clock)
-	a2m1 := newAccessListMember(t, a2.GetName(), member1, accesslist.MembershipKindUser, c.clock)
-	a3m1 := newAccessListMember(t, a3.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+	expireMemberAfter := 5 * time.Second
+	memberExpires := c.clock.Now().Add(expireMemberAfter)
+	a1m1 := newAccessListMember(t, a1.GetName(), member1, accesslist.MembershipKindUser, c.clock, withExpire(memberExpires))
+	a1m2 := newAccessListMember(t, a1.GetName(), member2, accesslist.MembershipKindUser, c.clock, withExpire(memberExpires))
+	a1m3 := newAccessListMember(t, a1.GetName(), member3, accesslist.MembershipKindUser, c.clock, withExpire(memberExpires))
+	a2m1 := newAccessListMember(t, a2.GetName(), member1, accesslist.MembershipKindUser, c.clock, withExpire(memberExpires))
+	a3m1 := newAccessListMember(t, a3.GetName(), member1, accesslist.MembershipKindUser, c.clock, withExpire(memberExpires))
 	// origin label OriginAWSIdentityCenter for member with existing account should not bypass checkUserIsStillEligible.
-	a3m2 := newAccessListMember(t, a3.GetName(), member2, accesslist.MembershipKindUser, c.clock, withOriginLabel(common.OriginAWSIdentityCenter))
-	externalMemberWithIdentityCenterOrigin := newAccessListMember(t, a3.GetName(), externalMember1, accesslist.MembershipKindUser, c.clock, withOriginLabel(common.OriginAWSIdentityCenter))
+	a3m2 := newAccessListMember(t, a3.GetName(), member2, accesslist.MembershipKindUser, c.clock, withOriginLabel(common.OriginAWSIdentityCenter), withExpire(memberExpires))
+	externalMemberWithIdentityCenterOrigin := newAccessListMember(t, a3.GetName(), externalMember1, accesslist.MembershipKindUser, c.clock, withOriginLabel(common.OriginAWSIdentityCenter), withExpire(memberExpires))
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
 		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a1m3, a2m1, a3m1, a3m2, externalMemberWithIdentityCenterOrigin})
@@ -130,7 +132,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Expire all access list members.
-	c.clock.Advance(48 * time.Hour)
+	c.clock.Advance(expireMemberAfter + time.Second)
 	// Wait for the reconciler to update the status.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
@@ -143,5 +145,5 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 				require.Equal(t, "INELIGIBLE_STATUS_EXPIRED", member.Spec.IneligibleStatus)
 			}
 		}
-	}, 5*time.Second, 100*time.Millisecond)
+	}, 10*time.Second, 100*time.Millisecond)
 }

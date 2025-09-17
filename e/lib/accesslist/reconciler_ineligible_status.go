@@ -180,6 +180,12 @@ func (r *IneligibleStatusReconciler) Close() error {
 }
 
 func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now time.Time) (nextExpirationTime time.Duration, err error) {
+	select {
+	case <-ctx.Done():
+		return 0, trace.Wrap(ctx.Err())
+	default:
+	}
+
 	r.logger.DebugContext(ctx, "Reconciling memberships")
 	defer func() {
 		log := r.logger.With("next_expiration_time", nextExpirationTime)
