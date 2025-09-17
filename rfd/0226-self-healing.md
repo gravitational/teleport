@@ -174,7 +174,7 @@ discovery requests for the agent to receive.
 [^2]: https://grpc.io/docs/guides/custom-load-balancing/
 [^3]: https://pkg.go.dev/google.golang.org/grpc/balancer#section-directories
 [^4]: https://pkg.go.dev/google.golang.org/grpc/balancer#Balancer
-[^5]: https://github.com/grpc/grpc-go/blob/v1.75.1/balancer/pickfirst/pickfirst.go
+[^5]: https://github.com/grpc/grpc-go/blob/v1.75.1/balancer/pickfirst/pickfirstleaf/pickfirstleaf.go
 [^6]: https://grpc.github.io/grpc/core/md_doc_connectivity-semantics-and-api.html
 [^7]: https://github.com/gravitational/teleport/blob/4e19f750520d0ccf2c49ed109dc3c94383ec4765/lib/reversetunnel/agent.go#L640
 [^8]: https://github.com/gravitational/teleport/blob/4e19f750520d0ccf2c49ed109dc3c94383ec4765/lib/reversetunnel/local_cluster.go#L809
