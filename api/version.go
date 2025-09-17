@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.2.2-dev.erikt.1"
+const Version = "18.2.2-dev.erikt.2"
 
 const VersionMajor = 18
 const VersionMinor = 2
 const VersionPatch = 2
-const VersionPreRelease = "dev.erikt.1"
+const VersionPreRelease = "dev.erikt.2"
 const VersionMetadata = ""
