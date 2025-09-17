@@ -331,7 +331,7 @@ func TestWorkloadIdentityCaseSensitiveName(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, results, 2)
 
-		require.Equal(t, results[0].Metadata.Name, "test-workload-identity-1")
-		require.Equal(t, results[1].Metadata.Name, "TEST-WORKLOAD-IDENTITY-1")
+		require.Equal(t, "test-workload-identity-1", results[0].Metadata.Name)
+		require.Equal(t, "TEST-WORKLOAD-IDENTITY-1", results[1].Metadata.Name)
 	}, 10*time.Second, 100*time.Millisecond)
 }
