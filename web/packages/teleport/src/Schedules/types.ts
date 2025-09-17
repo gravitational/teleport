@@ -18,18 +18,24 @@
 
 import { Option } from 'shared/components/Select';
 
-import { TimeOptions, TimezoneOptions } from './const';
+import { TimeOptions, TimezoneOptions, WeekdayOptions } from './const';
 
 export type Schedule = {
   name: string;
   timezone: Option;
-  shifts: Partial<Record<Weekday, Shift>>;
+  shifts: Record<Weekday, Shift | null>;
 };
 
 export const NewSchedule = (): Schedule => ({
   name: 'default',
   timezone: TimezoneOptions[0],
-  shifts: {},
+  shifts: WeekdayOptions.reduce(
+    (shifts, weekday) => {
+      shifts[weekday.value] = null;
+      return shifts;
+    },
+    {} as Record<Weekday, Shift | null>
+  ),
 });
 
 export type Shift = {

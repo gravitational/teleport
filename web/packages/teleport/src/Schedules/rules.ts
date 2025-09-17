@@ -29,14 +29,16 @@ import { Schedule, Shift } from './types';
  * @returns a validator function that ensure the schedule is valid.
  */
 export const validSchedule: Rule<Schedule> = (schedule: Schedule) => () => {
-  if (Object.entries(schedule.shifts).length == 0) {
+  const enabledShifts = Object.values(schedule.shifts).filter(shift => !!shift);
+
+  if (enabledShifts.length === 0) {
     return {
       valid: false,
       message: `At least one shift is required.`,
     };
   }
 
-  for (const [_, shift] of Object.entries(schedule.shifts)) {
+  for (const shift of enabledShifts) {
     const error = validateShift(shift);
     if (error) {
       return {

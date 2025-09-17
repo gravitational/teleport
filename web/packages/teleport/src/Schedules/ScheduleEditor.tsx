@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Dispatch, SetStateAction } from 'react';
 import { StylesConfig } from 'react-select';
 import styled, { useTheme } from 'styled-components';
 
@@ -34,41 +33,33 @@ export const ScheduleEditor = ({
   setSchedule,
 }: {
   schedule: Schedule;
-  setSchedule: Dispatch<SetStateAction<Schedule>>;
+  setSchedule: (option: Schedule) => void;
 }) => {
   const theme = useTheme();
   const { valid, message } = useRule(validSchedule(schedule));
 
   const setTimezone = (option: Option) => {
-    setSchedule(prev => ({
-      ...prev,
-      timezone: option,
-    }));
+    setSchedule({ ...schedule, timezone: option });
   };
 
   const toggleWeekday = (weekday: Weekday) => {
-    setSchedule(prev => {
-      const { [weekday]: exists, ...shifts } = prev.shifts;
-      return {
-        ...prev,
-        shifts: exists
-          ? shifts
-          : {
-              ...prev.shifts,
-              [weekday]: NewShift(),
-            },
-      };
+    setSchedule({
+      ...schedule,
+      shifts: {
+        ...schedule.shifts,
+        [weekday]: schedule.shifts[weekday] ? null : NewShift(),
+      },
     });
   };
 
   const setShift = (weekday: string, shift: Shift) => {
-    setSchedule(prev => ({
-      ...prev,
+    setSchedule({
+      ...schedule,
       shifts: {
-        ...prev.shifts,
+        ...schedule.shifts,
         [weekday]: shift,
       },
-    }));
+    });
   };
 
   return (
@@ -77,7 +68,7 @@ export const ScheduleEditor = ({
         <LabelContent>Time Zone</LabelContent>
         <Select
           value={schedule.timezone}
-          onChange={option => setTimezone(option)}
+          onChange={setTimezone}
           options={TimezoneOptions}
         />
       </Box>
@@ -101,21 +92,19 @@ export const ScheduleEditor = ({
             {!!schedule.shifts &&
               WeekdayOptions.filter(
                 weekday => !!schedule.shifts[weekday.value]
-              ).map(weekday => {
-                return (
-                  <tr key={weekday.value}>
-                    <td>
-                      <Text>{weekday.value}</Text>
-                    </td>
-                    <td colSpan={3}>
-                      <ShiftSelect
-                        shift={schedule.shifts[weekday.value]}
-                        setShift={shift => setShift(weekday.value, shift)}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
+              ).map(weekday => (
+                <tr key={weekday.value}>
+                  <td>
+                    <Text>{weekday.value}</Text>
+                  </td>
+                  <td colSpan={3}>
+                    <ShiftSelect
+                      shift={schedule.shifts[weekday.value]}
+                      setShift={shift => setShift(weekday.value, shift)}
+                    />
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </WeekdayScheduleTable>
         {!valid && (

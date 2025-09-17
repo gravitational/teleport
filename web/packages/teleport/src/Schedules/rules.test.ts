@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TimezoneOptions } from './const';
+import { TimezoneOptions, WeekdayOptions } from './const';
 import { validSchedule, validShift } from './rules';
-import { Schedule, Shift } from './types';
+import { Schedule, Shift, Weekday } from './types';
 
 describe('validShift', () => {
   const testCases: {
@@ -78,6 +78,7 @@ describe('validSchedule', () => {
         name: 'test',
         timezone: TimezoneOptions[0],
         shifts: {
+          ...newShifts(),
           Monday: {
             startTime: { value: '00:00', label: '00:00' },
             endTime: { value: '23:59', label: '23:59' },
@@ -96,7 +97,7 @@ describe('validSchedule', () => {
       schedule: {
         name: 'test',
         timezone: TimezoneOptions[0],
-        shifts: {},
+        shifts: newShifts(),
       },
       valid: false,
       contains: 'At least one shift is required.',
@@ -111,3 +112,13 @@ describe('validSchedule', () => {
     }
   });
 });
+
+function newShifts(): Record<Weekday, Shift | null> {
+  return WeekdayOptions.reduce(
+    (shifts, weekday) => {
+      shifts[weekday.value] = null;
+      return shifts;
+    },
+    {} as Record<Weekday, Shift | null>
+  );
+}
