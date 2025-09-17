@@ -144,7 +144,7 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		StringsVar(&p.install.entraID.groupFilterIncludeName)
 	cmd.Flag("exclude-group-id", "Exclude Group ID").
 		StringsVar(&p.install.entraID.groupFilterExcludeID)
-	cmd.Flag("exclude-group-name", "Exclude Group Name").
+	cmd.Flag("exclude-group-name", "Exclude Group Name Regexp").
 		StringsVar(&p.install.entraID.groupFilterExcludeName)
 }
 
