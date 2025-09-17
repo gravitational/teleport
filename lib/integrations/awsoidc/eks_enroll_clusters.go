@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net/url"
 	"slices"
 	"strings"
