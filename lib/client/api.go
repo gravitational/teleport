@@ -244,6 +244,18 @@ type Config struct {
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
 
+	// RelayAddr is the user-specified address of the relay in use.
+	RelayAddr string
+
+	// ProfileRelayAddr is the relay address specified at login time, or "none"
+	// if use of a relay is explicitly disabled.
+	ProfileRelayAddr string
+
+	// ProfileDefaultRelayAddr is the cluster-specified address of the relay, to
+	// be used if no explicit override is specified by the user. Set at login
+	// time.
+	ProfileDefaultRelayAddr string
+
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
 
@@ -915,6 +927,8 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.PostgresProxyAddr = profile.PostgresProxyAddr
 	c.MySQLProxyAddr = profile.MySQLProxyAddr
 	c.MongoProxyAddr = profile.MongoProxyAddr
+	c.ProfileRelayAddr = profile.RelayAddr
+	c.ProfileDefaultRelayAddr = profile.DefaultRelayAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
 	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
 	c.AuthConnector = profile.AuthConnector
@@ -943,6 +957,16 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 		"web_proxy_addr", c.WebProxyAddr,
 		"upgrade_required", c.TLSRoutingConnUpgradeRequired,
 	)
+
+	switch profile.RelayAddr {
+	case "":
+		c.RelayAddr = profile.DefaultRelayAddr
+	case "none":
+		c.RelayAddr = ""
+	default:
+		c.RelayAddr = profile.RelayAddr
+	}
+
 	return nil
 }
 
@@ -969,6 +993,8 @@ func (c *Config) Profile() *profile.Profile {
 		PostgresProxyAddr:             c.PostgresProxyAddr,
 		MySQLProxyAddr:                c.MySQLProxyAddr,
 		MongoProxyAddr:                c.MongoProxyAddr,
+		RelayAddr:                     c.ProfileRelayAddr,
+		DefaultRelayAddr:              c.ProfileDefaultRelayAddr,
 		SiteName:                      c.SiteName,
 		TLSRoutingEnabled:             c.TLSRoutingEnabled,
 		TLSRoutingConnUpgradeRequired: c.TLSRoutingConnUpgradeRequired,
@@ -3161,6 +3187,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
 		ProxyAddress:      cfg.proxyAddress,
+		RelayAddress:      tc.RelayAddr,
 		TLSRoutingEnabled: tc.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
 			if cluster == "" {
@@ -3980,6 +4007,10 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		keyRing.KeyRingIndex.ClusterName = rootClusterName
 		tc.SiteName = rootClusterName
 	}
+
+	// update the default relay addr from the latest response, which will later
+	// be persisted in the profile
+	tc.ProfileDefaultRelayAddr = response.ClientOptions.DefaultRelayAddr
 
 	tlsCert, err := tlsca.ParseCertificatePEM(response.TLSCert)
 	if err != nil {
