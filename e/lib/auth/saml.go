@@ -853,6 +853,12 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		resp.HostSigners = append(resp.HostSigners, authority)
 	}
 
+	if o, err := sas.auth.ClientOptionsForLogin(userState); err == nil {
+		resp.ClientOptions = o
+	} else {
+		logger.WarnContext(ctx, "Failed to calculate client options for SAML login", "username", user.GetName(), "error", err)
+	}
+
 	diagCtx.Info.Success = true
 	return resp, loginIP, nil
 }
@@ -934,12 +940,13 @@ func validateSAMLResponseWeb(authClient *auth.ServerWithRoles, w http.ResponseWr
 		return nil, trace.Wrap(err)
 	}
 	raw := authclient.SAMLAuthRawResponse{
-		Username: response.Username,
-		Identity: response.Identity,
-		Cert:     response.Cert,
-		Req:      response.Req,
-		TLSCert:  response.TLSCert,
-		MFAToken: response.MFAToken,
+		Username:      response.Username,
+		Identity:      response.Identity,
+		Cert:          response.Cert,
+		Req:           response.Req,
+		TLSCert:       response.TLSCert,
+		MFAToken:      response.MFAToken,
+		ClientOptions: response.ClientOptions,
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))

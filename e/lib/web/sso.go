@@ -222,6 +222,7 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
 		MFAToken:          response.MFAToken,
+		ClientOptions:     response.ClientOptions,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error constructing ssh response", "error", err)
@@ -428,6 +429,7 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
 		MFAToken:          response.MFAToken,
+		ClientOptions:     response.ClientOptions,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error constructing ssh response", "error,", err)

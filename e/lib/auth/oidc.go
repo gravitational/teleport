@@ -573,12 +573,13 @@ func validateOIDCAuthCallbackWeb(authClient *auth.ServerWithRoles, w http.Respon
 		return nil, trace.Wrap(err)
 	}
 	raw := authclient.OIDCAuthRawResponse{
-		Username: response.Username,
-		Identity: response.Identity,
-		Cert:     response.Cert,
-		TLSCert:  response.TLSCert,
-		Req:      response.Req,
-		MFAToken: response.MFAToken,
+		Username:      response.Username,
+		Identity:      response.Identity,
+		Cert:          response.Cert,
+		TLSCert:       response.TLSCert,
+		Req:           response.Req,
+		MFAToken:      response.MFAToken,
+		ClientOptions: response.ClientOptions,
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(response.Session, services.WithVersion(version))
@@ -869,6 +870,12 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to obtain cluster's host CA.")
 		}
 		resp.HostSigners = append(resp.HostSigners, authority)
+	}
+
+	if o, err := oas.auth.ClientOptionsForLogin(userState); err == nil {
+		resp.ClientOptions = o
+	} else {
+		logger.WarnContext(ctx, "Failed to calculate client options for OIDC login", "username", user.GetName(), "error", err)
 	}
 
 	return resp, req.ClientLoginIP, nil
