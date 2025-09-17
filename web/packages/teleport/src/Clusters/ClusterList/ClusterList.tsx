@@ -24,7 +24,6 @@ import Table, { Cell } from 'design/DataTable';
 import { Primary, Secondary } from 'design/Label';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { DropdownDivider } from 'teleport/components/Dropdown';
 import cfg from 'teleport/config';
 import { Cluster } from 'teleport/services/clusters';
 
@@ -84,12 +83,6 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
       renderMenuItem('Session Recordings', cfg.getRecordingsRoute(clusterId))
     );
   }
-
-  $items.push(<DropdownDivider key="divider" />);
-
-  $items.push(
-    renderMenuItem('Manage Cluster', cfg.getManageClusterRoute(clusterId))
-  );
 
   return (
     <Cell align="right">{$items && <MenuButton children={$items} />}</Cell>

@@ -4,12 +4,18 @@ description: How to configure Teleport access with Microsoft Entra ID (formerly 
 tags:
  - how-to
  - zero-trust
+ - privileged-access
+ - azure
 ---
+
+{/* vale 3rd-party-products.former-names = NO */}
 
 This guide will cover how to configure Microsoft Entra ID (formerly Azure AD) as
 a SAML identity provider to issue credentials to specific groups of users with 
 a SAML Authentication Connector. When used in combination with role-based access 
 control (RBAC), it allows Teleport administrators to define policies like:
+
+{/* vale 3rd-party-products.former-names = YES */}
 
 - Only members of the "DBA" Microsoft Entra ID group can connect to PostgreSQL
   databases.
@@ -423,7 +429,7 @@ Change the Name ID format to use email instead:
 
 ## Further reading
 
-- [Teleport Configuration Resources Reference](../../reference/resources.mdx)
+- [Teleport Configuration Resources Reference](../../reference/infrastructure-as-code/resources.mdx)
 - In the Teleport role we illustrated in this guide, `external` traits
   are replaced with values from the single sign-on provider that the
   user used to authenticate to Teleport. For full details on how traits

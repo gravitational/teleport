@@ -71,6 +71,9 @@ func populateRegistrationSecret(v2 *types.ProvisionTokenV2) error {
 	if v2.Spec.BoundKeypair == nil {
 		v2.Spec.BoundKeypair = &types.ProvisionTokenSpecV2BoundKeypair{}
 	}
+	if v2.Spec.BoundKeypair.Onboarding == nil {
+		v2.Spec.BoundKeypair.Onboarding = &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{}
+	}
 
 	if v2.Status == nil {
 		v2.Status = &types.ProvisionTokenStatusV2{}

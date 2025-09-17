@@ -17,6 +17,14 @@
  */
 
 import styled from 'styled-components';
+import {
+  fontFamily,
+  fontSize,
+  position,
+  type FontFamilyProps,
+  type FontSizeProps,
+  type PositionProps,
+} from 'styled-system';
 
 import {
   alignSelf,
@@ -74,7 +82,10 @@ export interface BoxProps
     BordersProps,
     BoxShadowProps,
     OverflowProps,
-    BackgroundProps {}
+    BackgroundProps,
+    FontFamilyProps,
+    FontSizeProps,
+    PositionProps {}
 
 const Box = styled.div<BoxProps>`
   box-sizing: border-box;
@@ -95,6 +106,9 @@ const Box = styled.div<BoxProps>`
   ${boxShadow}
   ${overflow}
   ${background}
+  ${fontFamily}
+  ${fontSize}
+  ${position}
 `;
 
 Box.displayName = 'Box';

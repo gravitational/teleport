@@ -22,10 +22,13 @@ import styled from 'styled-components';
 import { Box, Flex, rotate360 } from 'design';
 import { Spinner } from 'design/Icon';
 
+import AuthnDialog from 'teleport/components/AuthnDialog';
 import HeadlessRequestDialog from 'teleport/components/HeadlessRequestDialog/HeadlessRequestDialog';
 import { useParams } from 'teleport/components/Router';
 import { CardAccept, CardDenied } from 'teleport/HeadlessRequest/Cards';
+import { shouldShowMfaPrompt, useMfa } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 export function HeadlessRequest() {
   const { requestId } = useParams<{ requestId: string }>();
@@ -35,6 +38,13 @@ export function HeadlessRequest() {
     status: 'pending',
     errorText: '',
     publicKey: null as PublicKeyCredentialRequestOptions,
+  });
+
+  const mfa = useMfa({
+    req: {
+      scope: MfaChallengeScope.HEADLESS_LOGIN,
+    },
+    isMfaRequired: true,
   });
 
   useEffect(() => {
@@ -100,38 +110,47 @@ export function HeadlessRequest() {
   }
 
   return (
-    <HeadlessRequestDialog
-      ipAddress={state.ipAddress}
-      onAccept={() => {
-        setState({ ...state, status: 'in-progress' });
+    <>
+      {
+        /* Show only one dialog at a time because too many dialogs can be confusing */
+        shouldShowMfaPrompt(mfa) ? (
+          <AuthnDialog mfaState={mfa} />
+        ) : (
+          <HeadlessRequestDialog
+            ipAddress={state.ipAddress}
+            onAccept={() => {
+              setState({ ...state, status: 'in-progress' });
 
-        auth
-          .headlessSsoAccept(requestId)
-          .then(setSuccess)
-          .catch(e => {
-            setState({
-              ...state,
-              status: 'error',
-              errorText: e.toString(),
-            });
-          });
-      }}
-      onReject={() => {
-        setState({ ...state, status: 'in-progress' });
+              auth
+                .headlessSsoAccept(mfa, requestId)
+                .then(setSuccess)
+                .catch(e => {
+                  setState({
+                    ...state,
+                    status: 'error',
+                    errorText: e.toString(),
+                  });
+                });
+            }}
+            onReject={() => {
+              setState({ ...state, status: 'in-progress' });
 
-        auth
-          .headlessSSOReject(requestId)
-          .then(setRejected)
-          .catch(e => {
-            setState({
-              ...state,
-              status: 'error',
-              errorText: e.toString(),
-            });
-          });
-      }}
-      errorText={state.errorText}
-    />
+              auth
+                .headlessSSOReject(requestId)
+                .then(setRejected)
+                .catch(e => {
+                  setState({
+                    ...state,
+                    status: 'error',
+                    errorText: e.toString(),
+                  });
+                });
+            }}
+            errorText={state.errorText}
+          />
+        )
+      }
+    </>
   );
 }
 

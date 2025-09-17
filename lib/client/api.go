@@ -99,6 +99,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -5603,4 +5604,24 @@ func (tc *TeleportClient) DialDatabase(ctx context.Context, route proto.RouteToD
 	}
 
 	return tc.DialALPN(ctx, cert, alpnProtocol)
+}
+
+// CalculateSSHLogins returns the subset of the allowedLogins that exist in
+// the principals of the identity. This is required because SSH authorization
+// only allows using a login that exists in the certificates valid principals.
+// When connecting to servers in a leaf cluster, the root certificate is used,
+// so we need to ensure that we only present the allowed logins that would
+// result in a successful connection, if any exists.
+func CalculateSSHLogins(identityPrincipals []string, allowedLogins []string) ([]string, error) {
+	allowed := set.New(allowedLogins...)
+
+	var logins []string
+	for _, local := range identityPrincipals {
+		if allowed.Contains(local) {
+			logins = append(logins, local)
+		}
+	}
+
+	slices.Sort(logins)
+	return logins, nil
 }

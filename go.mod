@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.24.7
+go 1.25.1
 
 require (
 	cloud.google.com/go/alloydb v1.18.0
@@ -12,7 +12,7 @@ require (
 	cloud.google.com/go/iam v1.5.2
 	cloud.google.com/go/kms v1.22.0
 	cloud.google.com/go/resourcemanager v1.10.6
-	cloud.google.com/go/spanner v1.83.0
+	cloud.google.com/go/spanner v1.85.0
 	cloud.google.com/go/storage v1.56.1
 	code.dny.dev/ssrf v0.2.0
 	connectrpc.com/connect v1.18.1

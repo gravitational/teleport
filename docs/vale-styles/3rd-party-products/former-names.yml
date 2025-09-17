@@ -5,7 +5,7 @@ scope:
   - list
   - paragraph
 message: Use '%s' instead of '%s', which is an outdated product name.
-level: warning
+level: error
 swap:
   Azure AD: Microsoft Entra ID
   Azure Active Directory: Microsoft Entra ID
