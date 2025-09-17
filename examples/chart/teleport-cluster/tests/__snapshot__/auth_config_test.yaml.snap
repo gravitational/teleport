@@ -2040,8 +2040,8 @@ sets clusterDomain on Configmap:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-cluster
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-cluster-19.0.0-dev
+        app.kubernetes.io/version: 19.0.0-dev.gzdunek.28
+        helm.sh/chart: teleport-cluster-19.0.0-dev.gzdunek.28
         teleport.dev/majorVersion: "19"
       name: RELEASE-NAME-auth
       namespace: NAMESPACE
