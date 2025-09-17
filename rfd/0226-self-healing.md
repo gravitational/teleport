@@ -102,6 +102,21 @@ shutdown and another new connection will be created.
 If the old connection recovers before a new connection is able to reach the `READY`
 state, we will stop creating new connections and begin using the old connection again.
 
+To use this new behavior we will configure gRPC clients with the following dial
+option where `teleport_pick_healthy` is the name of the custom load balancer
+policy we will implement and register with the gRPC library.
+
+```golang
+grpc.WithDefaultServiceConfig(`{
+    "loadBalancingConfig": [{"teleport_pick_healthy": {}}],
+    "healthCheckConfig": {
+        "serviceName": ""
+    }
+}`)
+```
+
+This can be passed to Teleport's `api.Client` via the `api.Config.DialOpts` field.
+
 ### Proxy Reconnects
 
 The agent connections we are concerned with for Proxy reconnects are the
