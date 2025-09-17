@@ -27,8 +27,10 @@ import (
 	"strconv"
 
 	"github.com/gravitational/trace"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type iterateConfig struct {
@@ -119,7 +121,7 @@ func iterateSimple[T any](c *Client, ctx context.Context, endpoint string, f fun
 	var err error
 	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
 		var page []T
-		if err = json.Unmarshal(msg, &page); err != nil {
+		if err = utils.FastUnmarshal(msg, &page); err != nil {
 			return false
 		}
 		for _, item := range page {
@@ -139,7 +141,7 @@ func iteratePage[T any](c *Client, ctx context.Context, endpoint string, f func(
 	var err error
 	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
 		var page []T
-		if err = json.Unmarshal(msg, &page); err != nil {
+		if err = utils.FastUnmarshal(msg, &page); err != nil {
 			return false
 		}
 		if !f(page) {
@@ -173,7 +175,7 @@ func (c *Client) iterate(ctx context.Context, endpoint string, f func(json.RawMe
 		}
 
 		var page oDataPage
-		if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		if err := jsoniter.ConfigFastest.NewDecoder(resp.Body).Decode(&page); err != nil {
 			resp.Body.Close()
 			return trace.Wrap(err)
 		}
@@ -227,7 +229,7 @@ func (c *Client) IterateGroupMembers(ctx context.Context, groupID string, f func
 	var err error
 	itErr := c.iterate(ctx, path.Join("groups", groupID, "members"), func(msg json.RawMessage) bool {
 		var page []json.RawMessage
-		if err = json.Unmarshal(msg, &page); err != nil {
+		if err = utils.FastUnmarshal(msg, &page); err != nil {
 			return false
 		}
 		for _, entry := range page {
@@ -300,7 +302,7 @@ func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, gro
 	var err error
 	itErr := c.iterate(ctx, endpoint, func(msg json.RawMessage) bool {
 		var page []Group
-		if err = json.Unmarshal(msg, &page); err != nil {
+		if err = utils.FastUnmarshal(msg, &page); err != nil {
 			return false
 		}
 		for _, item := range page {
