@@ -138,13 +138,13 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Default("false").
 		BoolVar(&p.install.entraID.manualEntraIDSetup)
 
-	cmd.Flag("group-id", "Include Group ID").
+	cmd.Flag("group-id", "Include group ID").
 		StringsVar(&p.install.entraID.groupFilterIncludeID)
-	cmd.Flag("group-name", "Include Group Name Regexp").
+	cmd.Flag("group-name", "Include group name regex").
 		StringsVar(&p.install.entraID.groupFilterIncludeName)
-	cmd.Flag("exclude-group-id", "Exclude Group ID").
+	cmd.Flag("exclude-group-id", "Exclude group ID").
 		StringsVar(&p.install.entraID.groupFilterExcludeID)
-	cmd.Flag("exclude-group-name", "Exclude Group Name Regexp").
+	cmd.Flag("exclude-group-name", "Exclude group name regex").
 		StringsVar(&p.install.entraID.groupFilterExcludeName)
 }
 
