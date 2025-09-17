@@ -86,7 +86,9 @@ do not meet our use case[^3].
 
 The solution here is to implement our own load balancing policy. The go-grpc library
 conveniently allows you to register custom policies[^2] by implementing the
-balancer interface[^4].
+balancer interface[^4]. This policy will enable gRPC health checking by default
+and use the streaming API to ensure health checks can scale to a large number of
+clients.
 
 To avoid introducing too much new behavior we will base our implementation off of
 the existing `pick_first` policy[^5]. The difference is when the existing connection enters the `TRANSIENT_FAILURE` state[^6] an additional connection will be created.
