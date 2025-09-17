@@ -165,14 +165,15 @@ pool:
 
 steps:
 - script: |
-    wget https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  displayName: 'Download and extract Teleport'
-- env:
+    curl "https://example.teleport.sh:443/scripts/install.sh" | sudo bash
+    tbot start -c tbot.yaml
+  displayName: 'Install Teleport and start tbot'
+  env:
     SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     TELEPORT_ANONYMOUS_TELEMETRY: 1
-  script: ./teleport/tbot start -c tbot.yaml
 ```
+
+Replace `example.teleport.sh:443` with the address of your Teleport Proxy Service.
 
 Note the inclusion of the `SYSTEM_ACCESSTOKEN` environment variable. This
 variable must be populated in any step where `tbot` is run.
