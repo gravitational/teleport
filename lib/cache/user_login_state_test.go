@@ -41,15 +41,13 @@ func TestUserLoginStates(t *testing.T) {
 			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
 			return trace.Wrap(err)
 		},
-		list:     p.userLoginStates.GetUserLoginStates,
-		cacheGet: p.cache.GetUserLoginState,
-		cacheList: func(ctx context.Context, pageSize int) ([]*userloginstate.UserLoginState, error) {
-			return p.cache.GetUserLoginStates(ctx)
-		},
+		list:      getAllAdapter(p.userLoginStates.GetUserLoginStates),
+		cacheGet:  p.cache.GetUserLoginState,
+		cacheList: getAllAdapter(p.cache.GetUserLoginStates),
 		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
 			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
 			return trace.Wrap(err)
 		},
 		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
-	})
+	}, withSkipPaginationTest())
 }
