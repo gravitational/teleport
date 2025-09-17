@@ -87,6 +87,34 @@ func ValidateAutoUpdateConfig(c *autoupdate.AutoUpdateConfig) error {
 	return nil
 }
 
+// TransformStrategyToPb transform human-readable strategy name to protobuf enum value.
+func TransformStrategyToPb(strategy string) autoupdate.AutoUpdateToolsStrategy {
+	switch strategy {
+	case ToolStrategyNoDowngrade:
+		return autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE
+	case ToolStrategyIgnoreMinorUpdate:
+		return autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE
+	case ToolStrategyIgnorePatchUpdate:
+		return autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE
+	default:
+		return autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED
+	}
+}
+
+// TransformPbToStrategy transform protobuf enum value to human-readable strategy name.
+func TransformPbToStrategy(strategy autoupdate.AutoUpdateToolsStrategy) string {
+	switch strategy {
+	case autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE:
+		return ToolStrategyNoDowngrade
+	case autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE:
+		return ToolStrategyIgnoreMinorUpdate
+	case autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE:
+		return ToolStrategyIgnorePatchUpdate
+	default:
+		return ""
+	}
+}
+
 func checkAgentSchedules(c *autoupdate.AutoUpdateConfig) error {
 	// Validate groups
 	groups := c.Spec.Agents.GetSchedules().GetRegular()

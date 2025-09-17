@@ -57,6 +57,7 @@ type AutoUpdateCommand struct {
 	toolsEnableCmd       *kingpin.CmdClause
 	toolsDisableCmd      *kingpin.CmdClause
 	toolsStatusCmd       *kingpin.CmdClause
+	toolsStrategyCmd     *kingpin.CmdClause
 	agentsStatusCmd      *kingpin.CmdClause
 	agentsReportCmd      *kingpin.CmdClause
 	agentsStartUpdateCmd *kingpin.CmdClause
@@ -64,6 +65,7 @@ type AutoUpdateCommand struct {
 	agentsRollbackCmd    *kingpin.CmdClause
 
 	toolsTargetVersion string
+	toolsStrategies    []string
 	proxy              string
 	format             string
 	groups             []string
@@ -96,6 +98,11 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 	c.toolsTargetCmd = clientToolsCmd.Command("target", "Sets the client tools target version. This command is not supported on Teleport Cloud.")
 	c.toolsTargetCmd.Arg("version", "Client tools target version. Clients will be told to update to this version.").StringVar(&c.toolsTargetVersion)
 	c.toolsTargetCmd.Flag("clear", "Removes the target version, Teleport will default to its current proxy version.").BoolVar(&c.clear)
+
+	c.toolsStrategyCmd = clientToolsCmd.Command("strategies", "Sets the client tools strategies when update must be applied depends on client version.")
+	c.toolsStrategyCmd.Arg("strategies", "List of the strategies that must be overridden for cluster").EnumsVar(&c.toolsStrategies,
+		autoupdate.ToolStrategyNoDowngrade, autoupdate.ToolStrategyIgnoreMinorUpdate, autoupdate.ToolStrategyIgnorePatchUpdate)
+	c.toolsStrategyCmd.Flag("clear", "Removes the target version, Teleport will default to its current proxy version.").BoolVar(&c.clear)
 
 	agentsCmd := autoUpdateCmd.Command("agents", "Manage agents auto update configuration.")
 	c.agentsStatusCmd = agentsCmd.Command("status", "Prints agents auto update status.")
@@ -132,6 +139,8 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, clientFunc c
 	case c.proxy != "" && cmd == c.toolsStatusCmd.FullCommand():
 		err = c.ToolsStatusByProxy(ctx)
 		return true, trace.Wrap(err)
+	case cmd == c.toolsStrategyCmd.FullCommand():
+		commandFunc = c.SetStrategies
 	case cmd == c.agentsStatusCmd.FullCommand():
 		commandFunc = c.agentsStatusCommand
 	case cmd == c.agentsReportCmd.FullCommand():
@@ -168,6 +177,29 @@ func (c *AutoUpdateCommand) TargetVersion(ctx context.Context, client autoupdate
 		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
 		for range maxRetries {
 			err = c.setToolsTargetVersion(ctx, client)
+			if err == nil {
+				break
+			}
+			if !trace.IsNotFound(err) && !trace.IsAlreadyExists(err) {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return trace.Wrap(err)
+}
+
+// SetStrategies sets strategies for the client tools cluster configuration.
+func (c *AutoUpdateCommand) SetStrategies(ctx context.Context, client autoupdateClient) error {
+	var err error
+	switch {
+	case c.clear:
+		err = c.clearToolsTargetVersion(ctx, client)
+	case len(c.toolsStrategies) > 0:
+		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
+		// The same approach applies to updates if the resource has been deleted during the process.
+		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
+		for range maxRetries {
+			err = c.setToolsStrategies(ctx, client)
 			if err == nil {
 				break
 			}
@@ -616,6 +648,36 @@ func (c *AutoUpdateCommand) setToolsMode(ctx context.Context, client autoupdateC
 	}
 	fmt.Fprintln(c.stdout, "client tools auto update mode has been changed")
 
+	return nil
+}
+
+func (c *AutoUpdateCommand) setToolsStrategies(ctx context.Context, client autoupdateClient) error {
+	setStrategies := client.UpdateAutoUpdateConfig
+	config, err := client.GetAutoUpdateConfig(ctx)
+	if trace.IsNotFound(err) {
+		if config, err = autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{}); err != nil {
+			return trace.Wrap(err)
+		}
+		setStrategies = client.CreateAutoUpdateConfig
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+	if config.Spec.Tools == nil {
+		config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{}
+	}
+
+	var strategies []autoupdatev1pb.AutoUpdateToolsStrategy
+	for _, strategy := range c.toolsStrategies {
+		strategies = append(strategies, autoupdate.TransformStrategyToPb(strategy))
+	}
+
+	if !slices.Equal(config.Spec.Tools.Strategies, strategies) {
+		config.Spec.Tools.Strategies = strategies
+		if _, err := setStrategies(ctx, config); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(c.stdout, "client tools auto update strategies config has been set")
+	}
 	return nil
 }
 

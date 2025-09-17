@@ -454,6 +454,9 @@ type AutoUpdateSettings struct {
 	ToolsVersion string `json:"tools_version"`
 	// ToolsAutoUpdate indicates if the requesting tools client should be updated.
 	ToolsAutoUpdate bool `json:"tools_auto_update"`
+	// ToolsAutoUpdateStrategies defines the list of strategies that mus be followed
+	// by client tools (such as restriction to downgrade).
+	ToolsAutoUpdateStrategies []string `json:"tools_auto_update_strategies"`
 	// AgentVersion defines the version of teleport that agents enrolled into autoupdates should run.
 	AgentVersion string `json:"agent_version"`
 	// AgentAutoUpdate indicates if the requesting agent should attempt to update now.
