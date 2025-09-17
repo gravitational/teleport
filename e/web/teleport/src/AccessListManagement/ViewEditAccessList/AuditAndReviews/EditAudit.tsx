@@ -90,7 +90,7 @@ export function EditAudit({ onClose, accessList, updateAccessList }: Props) {
           </DialogHeader>
           <DialogContent>
             {attempt.status === 'failed' && (
-              <Alert kind="danger" children={attempt.statusText} />
+              <Alert kind="danger">{attempt.statusText}</Alert>
             )}
             <Box>
               <ReviewRecurrence

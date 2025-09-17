@@ -9,10 +9,7 @@ import {
 } from 'e-teleport/AccessListManagement/Shared/Audit';
 import { AccessListMember } from 'e-teleport/services/accessmanagement';
 
-import {
-  AccessListWithNestedOwnersMembersTitles,
-  RoleAndTraitLabels,
-} from '../Shared';
+import { RoleAndTraitLabels } from '../Shared';
 import { MembershipRequires } from './ReviewMembershipRequires';
 import { EditButton, EditedRecurrence, List, ReviewStep } from './Shared';
 import { getMembersDeleted } from './utils';
@@ -32,7 +29,7 @@ export function Summary({
   isOwner: boolean;
   setReviewStep(r: ReviewStep): void;
   editedMembershipRequires: MembershipRequires;
-  editedMembers: AccessListWithNestedOwnersMembersTitles['members'];
+  editedMembers: AccessListMember[];
   disabled: boolean;
   editedRecurrence: EditedRecurrence;
   setEditedRecurrence(e: EditedRecurrence): void;

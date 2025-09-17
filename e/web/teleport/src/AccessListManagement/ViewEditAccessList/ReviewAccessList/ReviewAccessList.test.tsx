@@ -4,16 +4,14 @@ import {
 } from 'e-teleport/AccessListManagement/Shared/Audit';
 import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
 import {
+  AccessListMember,
   AccessListMemberKind,
   AccessListType,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
 
-import {
-  AccessListModified,
-  AccessListWithNestedOwnersMembersTitles,
-} from '../Shared';
+import { AccessListModified } from '../Shared';
 import { getEditedAccessListFields } from './ReviewAccessList';
 
 test('getEditedAccessListFields: no edits', () => {
@@ -174,7 +172,7 @@ const deleteMembers = [
     addedBy: 'fiona',
     membershipKind: AccessListMemberKind.User,
   },
-] satisfies AccessListWithNestedOwnersMembersTitles['members'];
+] satisfies AccessListMember[];
 
 const keepMembers = [
   {
@@ -193,7 +191,7 @@ const keepMembers = [
     ineligibleReason: 'should not show up',
     membershipKind: AccessListMemberKind.User,
   },
-] satisfies AccessListWithNestedOwnersMembersTitles['members'];
+] satisfies AccessListMember[];
 
 const mockAccessList: AccessListModified = {
   id: 'b59c9b50-b534-52ca-870e-9f7069b205dc',

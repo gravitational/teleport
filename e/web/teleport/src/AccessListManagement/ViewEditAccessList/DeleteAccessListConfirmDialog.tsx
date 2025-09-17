@@ -15,6 +15,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg from 'e-teleport/config';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
 
+import { useAccessListManagementContext } from '../AccessListManagementContext';
+
 export function DeleteAccessListConfirmDialog({
   accessListName,
   accessListId,
@@ -27,6 +29,7 @@ export function DeleteAccessListConfirmDialog({
   onClose(): void;
 }) {
   const history = useHistory();
+  const { updateAccessListCache } = useAccessListManagementContext();
 
   const { attempt, setAttempt } = useAttempt();
   const isDisabled = attempt.status === 'processing';
@@ -38,13 +41,12 @@ export function DeleteAccessListConfirmDialog({
     setAttempt({ status: 'processing' });
     accessManagementService
       .deleteAccessList(accessListId)
-      .then(() =>
+      .then(() => {
         // Because of backend caching, we send the deleted ID
         // as router state to be used to update the listing.
-        history.push(cfg.getAccessListManagementRoute(), {
-          deletedAccessListId: accessListId,
-        })
-      )
+        updateAccessListCache({ mutationType: 'deleted', accessListId });
+        history.replace(cfg.getAccessListManagementRoute());
+      })
       .catch((e: Error) =>
         setAttempt({ status: 'failed', statusText: e.message })
       );

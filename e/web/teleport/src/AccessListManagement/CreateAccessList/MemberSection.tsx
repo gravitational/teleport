@@ -1,42 +1,41 @@
 import { Box, Flex, H2, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 import { Option } from 'shared/components/Select';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import { HybridUserOption } from '../Shared/Shared';
+import { HybridUserOption, MemberSelection } from '../Shared/Shared';
 import {
   convertTraitLabelsToAllUserTraits,
   TraitLabel,
   TraitsCreator,
 } from '../Traits';
-import {
-  EligibilityOrGrantRolesFieldSelectAndCreate,
-  EligibleUsersFieldSelectAndCreate,
-} from './Shared';
+import { EnrollNewMembersFields } from '../ViewEditAccessList/Members/EnrollNewMembers';
+import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
 type Props = {
+  attempt: Attempt;
   fetchRoleOptions: (input: string) => Promise<Option[]>;
   isDisabled: boolean;
   setMembers(m: Members): void;
   members: Members;
-  noAccess: boolean;
 };
 
 export type Members = {
   selectedRolesRequired: Option[];
   eligibleMembers: HybridUserOption[];
-  selectedMembers: HybridUserOption[];
+  selectedMembers: Option<MemberSelection>[];
   traitLabels: TraitLabel[];
   traitLookup: AllUserTraits;
 };
 
 export const MembersSection = ({
+  attempt,
   fetchRoleOptions,
   isDisabled,
   setMembers,
   members,
-  noAccess,
 }: Props) => {
   return (
     <>
@@ -84,15 +83,13 @@ export const MembersSection = ({
           }
         />
       </Box>
-      <EligibleUsersFieldSelectAndCreate
-        selected={members.selectedMembers || []}
-        isDisabled={isDisabled}
-        onChange={vals =>
-          setMembers({ ...members, selectedMembers: vals || [] })
+      <EnrollNewMembersFields
+        optional
+        selectedMembers={members.selectedMembers}
+        setSelectedMembers={vals =>
+          setMembers({ ...members, selectedMembers: vals ?? [] })
         }
-        options={members.eligibleMembers}
-        label="Add Members (Optional)"
-        noEligibleUsersFromNoAccess={noAccess}
+        attempt={attempt}
       />
     </>
   );

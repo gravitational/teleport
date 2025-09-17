@@ -1,10 +1,7 @@
 import { Alert, Box, H2, Text } from 'design';
 import { pluralize } from 'shared/utils/text';
 
-import type {
-  AccessListModified,
-  AccessListWithNestedOwnersMembersTitles,
-} from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+import type { AccessListModified } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import {
   AccessListGrant,
   AccessListMember,
@@ -23,7 +20,7 @@ export type Grant = Omit<TraitConvenience, 'traitList'> &
 
 type Props = {
   accessList: AccessListModified;
-  editedMembers: AccessListWithNestedOwnersMembersTitles['members'];
+  editedMembers: AccessListMember[];
   onDeleteMember(member: AccessListMember): void;
   originalMembers: AccessListMember[];
   isReadOnlyOktaList?: boolean;

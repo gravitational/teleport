@@ -1,5 +1,7 @@
 import { generatePath } from 'react-router';
 
+import { SortType } from 'design/DataTable/types';
+
 import { AccessMonitoringRuleFilter } from 'e-teleport/services/accessmonitoringrule/types';
 import { AccessRequestFilter, ResourceId } from 'e-teleport/services/workflow';
 import ossCfg, { UrlResourcesParams } from 'teleport/config';
@@ -65,6 +67,8 @@ const cfg = {
   api: {
     // TODO(kimlisa): move accessListXXX to the "accessList" object.
     accessListManagementPath: '/v1/enterprise/accesslist/:accessListId?',
+    accessListManagementPathV2:
+      '/v2/enterprise/accesslists?limit=:limit?&startKey=:startKey?&search=:search?&sort=:sort?&owners=:owners?',
     accessListAddMembersPath: '/v1/enterprise/accesslist/:accessListId/members',
     accessListReviewPath: '/v1/enterprise/accesslist/:accessListId/reviews',
     accessListSuggestionsPath:
@@ -238,6 +242,22 @@ const cfg = {
 
   getAccessManagementListUrl(accessListId?: string) {
     return generatePath(cfg.api.accessListManagementPath, { accessListId });
+  },
+
+  getAccessManagementListUrlV2(params: {
+    sort?: SortType;
+    search?: string;
+    limit?: number;
+    startKey?: string;
+    owners?: string[];
+  }) {
+    return generateResourcePath(cfg.api.accessListManagementPathV2, {
+      sort: params.sort,
+      startKey: params.startKey || undefined,
+      limit: params.limit,
+      search: params.search || undefined,
+      owners: params.owners || [],
+    });
   },
 
   getAccessListMembersUrl(accessListId: string) {

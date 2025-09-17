@@ -1,3 +1,8 @@
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { subWeeks } from 'date-fns';
 import {
   createContext,
@@ -10,17 +15,18 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
+import { useHistory, useLocation } from 'react-router';
 
+import { parseSortType } from 'design/DataTable/sort';
 import type { SortDir } from 'design/DataTable/types';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { useAsync } from 'shared/hooks/useAsync';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
 import { useFetchUserAndRoles } from 'e-teleport/AccessListManagement/useFetchUsersAndRoles';
 import {
-  AccessListOwner,
   accessManagementService,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
@@ -44,45 +50,67 @@ export type AccessListFilters = {
 
 // AccessListSort is used to sort the access lists based on a property name and direction.
 export type AccessListSort = {
-  fieldName: keyof AccessListWithModifiedGrants;
+  fieldName: 'title' | 'auditNextDate' | string;
   dir: SortDir;
 };
 
-type State = {
-  accessLists: AccessListWithModifiedGrants[];
-  allOwners: AccessListOwner[];
-  allGrantedRoles: string[];
+type AccessListSearchParams = {
+  search?: string;
+  owners?: string[];
+  roles?: string[];
+  sort?: AccessListSort;
 };
 
+const listAccessListsQueryKey = 'listAccessListsV2';
+
+type AccessListMutation =
+  | { mutationType: 'created'; accessList: AccessList }
+  | { mutationType: 'edited'; accessList: AccessList }
+  | { mutationType: 'reviewed'; accessList: AccessList }
+  | { mutationType: 'deleted'; accessListId: string };
+
 interface AccessListManagementContext {
-  attempt: ReturnType<typeof useAttempt>;
   usersAndRolesAttempt: ReturnType<typeof useAttempt>['attempt'];
   isOktaPluginReadOnly: boolean;
-  processAccessLists: (preProcess?: PreProcessFn) => void;
+  search: string;
+  processAccessLists: (
+    fetchedLists: AccessList[],
+    preProcess?: PreProcessFn
+  ) => void;
   fetchRoleOptions: ReturnType<typeof useFetchUserAndRoles>['fetchRoleOptions'];
   fetchUsersAndRoles: ReturnType<
     typeof useFetchUserAndRoles
   >['fetchUsersAndRoles'];
-  refetchAccessLists: (setAttempt: boolean) => void;
-
-  accessLists: State['accessLists'];
-  allOwners: State['allOwners'];
-  allGrantedRoles: State['allGrantedRoles'];
-  userOptions: ReturnType<typeof useFetchUserAndRoles>['userOptions'];
-  filters: AccessListFilters;
+  // backendCacheUnhealthy is true if the backend cache is unable to sort by title, or is disabled.
+  // This is set if we receive at 412 status code error when fetching access lists.
+  backendCacheUnhealthy: boolean;
+  accessLists: AccessListWithModifiedGrants[];
+  // if we are fetching a page.
+  isFetching: boolean;
+  // was there an error fetching accessLists
+  isError: boolean;
+  // the error fetching accessLists if exists
+  error: Error | null;
+  // refetch the current query
+  refetch: () => void;
+  updateSearchParams: (searchParams: AccessListSearchParams) => void;
   sort: AccessListSort;
   view: ViewMode;
-  setFilters: Dispatch<SetStateAction<AccessListFilters>>;
-  setSort: Dispatch<SetStateAction<AccessListSort>>;
   setView: Dispatch<SetStateAction<ViewMode>>;
+  filters: AccessListFilters;
+  filtersExist?: boolean;
+  isFetchingNextPage?: boolean;
+  fetchNextPage?: () => void;
+  hasNextPage?: boolean;
+  updateAccessListCache: (mutation: AccessListMutation) => void;
+  previousSearchParams?: string;
 }
 
-const STUB_ATTEMPT = {
-  attempt: { status: '' },
-  setAttempt: () => {},
-  run: () => Promise.resolve(true),
-  handleError: () => {},
-} satisfies ReturnType<typeof useAttempt>;
+const STUB_ATTEMPT: Attempt = {
+  status: '',
+  statusCode: null,
+  statusText: '',
+};
 
 const DEFAULT_SORT = {
   fieldName: 'title',
@@ -90,45 +118,43 @@ const DEFAULT_SORT = {
 } satisfies AccessListSort;
 
 const AccessListManagementContext = createContext<AccessListManagementContext>({
-  attempt: STUB_ATTEMPT,
-  usersAndRolesAttempt: STUB_ATTEMPT.attempt,
+  usersAndRolesAttempt: STUB_ATTEMPT,
+  refetch: () => {},
   isOktaPluginReadOnly: false,
   accessLists: [],
-  userOptions: [],
-  allOwners: [],
-  allGrantedRoles: [],
+  backendCacheUnhealthy: false,
+  isFetching: false,
+  isFetchingNextPage: false,
+  hasNextPage: false,
+  search: '',
   filters: {},
   sort: DEFAULT_SORT,
   view: ViewMode.CARD,
+  error: null,
+  isError: false,
   setView: () => {},
-  setFilters: () => {},
-  setSort: () => {},
   processAccessLists: () => {},
   fetchRoleOptions: () => Promise.resolve([]),
+  updateSearchParams: () => {},
+  previousSearchParams: '',
   fetchUsersAndRoles: () => Promise.resolve(),
-  refetchAccessLists: () => {},
+  filtersExist: false,
+  updateAccessListCache: () => {},
 });
 
 export const AccessListManagementContextProvider = (
   props: PropsWithChildren<unknown>
 ) => {
+  const history = useHistory();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const [backendCacheUnhealthy, setBackendCacheUnhealthy] = useState(false);
+  const [previousSearchParams, setPreviousSearchParams] = useState('');
   const accessListPreferences =
     JSON.parse(
       localStorage.getItem(KeysEnum.ACCESS_LIST_PREFERENCES) || '{}'
     ) || {};
 
-  const [state, setState] = useState<State>({
-    accessLists: [],
-    allOwners: [],
-    allGrantedRoles: [],
-  });
-
-  const [filters, setFilters] = useState<AccessListFilters>(
-    accessListPreferences?.filters || {}
-  );
-  const [sort, setSort] = useState<AccessListSort>(
-    accessListPreferences?.sort || DEFAULT_SORT
-  );
   const [view, _setView] = useState<ViewMode>(
     accessListPreferences?.view || ViewMode.CARD
   );
@@ -146,31 +172,107 @@ export const AccessListManagementContextProvider = (
     }
   };
 
-  const initialFetch = useRef<Promise<void>>(null);
   const pendingPreProcessRef = useRef<PreProcessFn[]>([]);
 
-  const attempt = useAttempt('processing');
   const usersAndRolesAttempt = useAttempt('processing');
 
-  const refetchAccessLists = (setAttempt: boolean) => {
-    initialFetch.current = fetchAccessListsWithAttempt({
-      attempt,
-      pendingPreProcessRef,
-      setAttempt,
-      setState,
-    });
-  };
+  const queryParams = new URLSearchParams(location.search);
+  const search = queryParams.get('search');
+
+  const sortParam = queryParams.get('sort') || 'title:asc';
+  const sort = parseSortType(sortParam);
+
+  const owners = queryParams.getAll('owners');
+  const filtersExist = owners.length > 0 || !!search;
+
+  const pageSize = 48;
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+    isFetching,
+    isFetchingNextPage,
+    error,
+    isError,
+  } = useInfiniteQuery({
+    queryKey: [listAccessListsQueryKey, sort, search, owners],
+    queryFn: async ({ pageParam, signal }) => {
+      const currentParams = new URLSearchParams(location.search);
+      const currentSearch = currentParams.get('search');
+      const currentSortParam = currentParams.get('sort') || 'title:asc';
+      const currentSort = backendCacheUnhealthy
+        ? parseSortType('name:asc')
+        : parseSortType(currentSortParam);
+      const currentOwners = currentParams.getAll('owners');
+      return accessManagementService.fetchAccessListsV2(
+        {
+          limit: pageSize,
+          startKey: pageParam,
+          sort: currentSort,
+          search: currentSearch,
+          owners: currentOwners,
+        },
+        signal
+      );
+    },
+    initialPageParam: '',
+    getNextPageParam: data => data?.startKey || undefined,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000, // Cached pages are valid for 30 seconds
+  });
 
   useEffect(() => {
-    if (initialFetch.current) {
-      return;
+    // cache is unhealthy or disabled, we want to inform the user
+    // of the degradation of the service. If they sent an arbitrary sort
+    // param like "blahblah" tho, we can still just show the normal error.
+    if (
+      error instanceof ApiError &&
+      error.response.status === 412 &&
+      (sort.fieldName === 'title' || sort.fieldName === 'auditNextDate')
+    ) {
+      setBackendCacheUnhealthy(true);
+      refetch();
     }
+  }, [error, refetch, sort]);
 
-    refetchAccessLists(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const updateSearchParams = useCallback(
+    ({ search, owners, sort }: AccessListSearchParams) => {
+      const params = new URLSearchParams(location.search);
 
-  const { userOptions, fetchRoleOptions, fetchUsersAndRoles } =
+      if (search !== undefined) {
+        if (search && search.trim() !== '') {
+          params.set('search', search);
+        } else {
+          params.delete('search');
+        }
+      }
+
+      if (owners !== undefined) {
+        params.delete('owners');
+        if (owners.length > 0) {
+          owners.forEach(owner => params.append('owners', owner));
+        }
+      }
+
+      if (sort !== undefined) {
+        if (sort && sort.fieldName && sort.dir) {
+          params.set('sort', `${sort.fieldName}:${sort.dir}`);
+        } else {
+          params.delete('sort');
+        }
+      }
+
+      setPreviousSearchParams(params.toString());
+      history.replace({
+        pathname: location.pathname,
+        search: params.toString(),
+      });
+    },
+    [history, location.search, location.pathname]
+  );
+
+  const { fetchRoleOptions, fetchUsersAndRoles } =
     useFetchUserAndRoles(usersAndRolesAttempt);
 
   const [oktaPluginAttempt, fetchOktaPlugin] = useAsync<
@@ -195,55 +297,107 @@ export const AccessListManagementContextProvider = (
     }
 
     void fetchOktaPlugin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const processAccessLists = (
+    fetchedLists: AccessList[],
     preProcess?: (lists: AccessList[]) => AccessList[]
   ) => {
-    if (attempt.attempt.status === 'processing') {
+    if (isFetching) {
       if (typeof preProcess === 'function') {
         pendingPreProcessRef.current.push(preProcess);
       }
-      return;
+      return {
+        accessLists: processFetchedLists({ listsToUse: fetchedLists })(
+          preProcess
+        ),
+      };
     }
 
-    setState(prev => {
-      const accessLists = processFetchedLists({
-        listsToUse: prev.accessLists,
-      })(preProcess);
-      const { allOwners, allGrantedRoles } =
-        getOwnersRolesFromLists(accessLists);
-      return {
-        accessLists,
-        allOwners,
-        allGrantedRoles,
-      };
-    });
+    return {
+      accessLists: processFetchedLists({ listsToUse: fetchedLists })(
+        preProcess
+      ),
+    };
   };
+
+  const { accessLists } = processAccessLists(
+    data?.pages.flatMap(page => page.agents) || []
+  );
+
+  const updateAccessListCache = useCallback(
+    (mutation: AccessListMutation) => {
+      const queryKey = [listAccessListsQueryKey];
+
+      queryClient.setQueriesData({ queryKey }, (oldData: any) => {
+        if (!oldData) return oldData;
+
+        let newPages = [...oldData.pages];
+        switch (mutation.mutationType) {
+          case 'created':
+            if (newPages.length > 0) {
+              newPages[0] = {
+                ...newPages[0],
+                agents: [mutation.accessList, ...newPages[0].agents],
+              };
+            }
+            break;
+          case 'reviewed': // same as edited, but leaving for logic elsewhere if needed
+          case 'edited':
+            newPages = newPages.map((page: any) => ({
+              ...page,
+              agents: page.agents.map((list: AccessList) =>
+                list.id === mutation.accessList.id ? mutation.accessList : list
+              ),
+            }));
+            break;
+          case 'deleted':
+            newPages = newPages.map((page: any) => ({
+              ...page,
+              agents: page.agents.filter(
+                (list: AccessList) => list.id !== mutation.accessListId
+              ),
+            }));
+            break;
+        }
+        return { ...oldData, pages: newPages };
+      });
+    },
+    [queryClient]
+  );
 
   return (
     <AccessListManagementContext.Provider
       value={{
-        attempt,
+        isFetching,
+        backendCacheUnhealthy,
+        isError,
+        refetch: () => refetch(),
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
+        error,
+        accessLists,
         usersAndRolesAttempt: usersAndRolesAttempt.attempt,
         // Okta Integration is read-only if bidirectionalSync is 'false' or omitted.
         isOktaPluginReadOnly:
           oktaPluginAttempt?.data &&
           !oktaPluginAttempt.data.spec?.enableBidirectionalSync,
-        userOptions,
-        accessLists: state.accessLists,
-        allOwners: state.allOwners,
-        allGrantedRoles: state.allGrantedRoles,
-        filters,
-        sort,
+        updateSearchParams,
+        search,
+        filters: {
+          owners,
+        },
         view,
-        setFilters,
-        setSort,
         setView,
+        filtersExist,
         processAccessLists,
         fetchRoleOptions,
+        sort,
         fetchUsersAndRoles,
-        refetchAccessLists,
+        updateAccessListCache,
+        previousSearchParams,
       }}
     >
       {props.children}
@@ -254,59 +408,6 @@ export const AccessListManagementContextProvider = (
 export const useAccessListManagementContext = () =>
   useContext(AccessListManagementContext);
 
-const fetchAccessListsWithAttempt = async ({
-  attempt,
-  pendingPreProcessRef,
-  setState,
-  setAttempt = true,
-}: {
-  attempt: ReturnType<typeof useAttempt>;
-  pendingPreProcessRef: { current: PreProcessFn[] };
-  setState: Dispatch<SetStateAction<State>>;
-  setAttempt?: boolean;
-}): Promise<void> => {
-  if (setAttempt) {
-    attempt.setAttempt({ status: 'processing' });
-  }
-
-  try {
-    let listsToUse = await accessManagementService.fetchAccessLists();
-
-    // If there are any pending pre-process functions, apply them to the lists in order.
-    if (pendingPreProcessRef.current?.length) {
-      pendingPreProcessRef.current.forEach(fn => (listsToUse = fn(listsToUse)));
-      pendingPreProcessRef.current = [];
-    }
-
-    const processedLists = processFetchedLists({ listsToUse })();
-    const { allOwners, allGrantedRoles } =
-      getOwnersRolesFromLists(processedLists);
-
-    setState({
-      accessLists: processedLists,
-      allOwners,
-      allGrantedRoles,
-    });
-    attempt.setAttempt({ status: 'success' });
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      attempt.setAttempt({ status: 'success' });
-      return;
-    }
-    if (e instanceof ApiError) {
-      if (e.response.status === 403) {
-        attempt.setAttempt({
-          status: 'failed',
-          statusText: e.message,
-          statusCode: 403,
-        });
-        return;
-      }
-    }
-    attempt.setAttempt({ status: 'failed', statusText: e.message });
-  }
-};
-
 const processFetchedLists =
   ({ listsToUse }: { listsToUse: AccessList[] }) =>
   (preProcess?: (lists: AccessList[]) => AccessList[]) => {
@@ -316,26 +417,6 @@ const processFetchedLists =
 
     return processTraits(listsToUse);
   };
-
-const getOwnersRolesFromLists = (lists: AccessList[]) => {
-  const allOwners: AccessListOwner[] = [];
-  const allGrantedRoles: string[] = [];
-
-  for (let i = 0; i < lists.length; i++) {
-    for (const owner of lists[i].owners) {
-      if (!allOwners.some(o => o.name === owner.name)) {
-        allOwners.push(owner);
-      }
-    }
-    for (const role of lists[i].grants.roles) {
-      if (!allGrantedRoles.includes(role)) {
-        allGrantedRoles.push(role);
-      }
-    }
-  }
-
-  return { allOwners, allGrantedRoles };
-};
 
 const processTraits = (
   fetchedLists: (AccessList | AccessListWithModifiedGrants)[]

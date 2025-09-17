@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Alert, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
@@ -12,16 +12,10 @@ import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
-import type {
-  MemberSelection,
-  UserOption,
-} from 'e-teleport/AccessListManagement/Shared/Shared';
+import type { MemberSelection } from 'e-teleport/AccessListManagement/Shared/Shared';
 import {
-  convertAccessListsToUserOptions,
+  AccessListModified,
   EnrollingNestedListsAlert,
-  filterExistingUsersAndConvertToOption as filterOutExistingUsersAndConvertToOptionType,
-  getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
 } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import {
@@ -30,29 +24,22 @@ import {
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
 
-import type { AccessListModified } from '../Shared';
+import { EnrollNewMembersFields } from '../Members/EnrollNewMembers';
 
 type Props = {
   onClose(): void;
-  userOptions: UserOption[];
   updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
-  accessLists: AccessList[];
 };
 
 export function EnrollNewOwners({
   onClose,
-  userOptions,
   updateAccessList,
   accessList,
-  accessLists,
 }: Props) {
-  const { id, owners: existingOwners, ownershipRequires } = accessList;
+  const { owners: existingOwners } = accessList;
   const { attempt, setAttempt } = useAttempt('');
 
-  const [eligibleUsers, setEligibleUsers] = useState<Option<MemberSelection>[]>(
-    []
-  );
   const [selectedOwners, setSelectedOwners] = useState<
     Option<MemberSelection>[]
   >([]);
@@ -61,35 +48,6 @@ export function EnrollNewOwners({
   // duplicatedOwners are duplicate owners extracted from
   // selectedOwners.
   const [duplicatedOwners, setDuplicatedOwners] = useState<string[]>([]);
-
-  useEffect(() => {
-    let filteredOwners: Option<MemberSelection>[] = [];
-
-    // If no required traits or roles are defined,
-    // Then all users are allowed to be added, except
-    // for users who were already added.
-    if (
-      ownershipRequires.roles.length > 0 ||
-      ownershipRequires.traitLabels.length > 0
-    ) {
-      filteredOwners = getEligibleUsersForAddingNewUsers(
-        ownershipRequires,
-        userOptions,
-        existingOwners
-      );
-    } else {
-      filteredOwners = filterOutExistingUsersAndConvertToOptionType(
-        userOptions,
-        existingOwners
-      );
-    }
-
-    filteredOwners = filteredOwners.concat(
-      convertAccessListsToUserOptions(id, accessLists, existingOwners)
-    );
-
-    setEligibleUsers(filteredOwners);
-  }, []);
 
   const selectedOwnersContainAccessLists = useMemo(
     () =>
@@ -164,25 +122,19 @@ export function EnrollNewOwners({
           </DialogHeader>
           <DialogContent>
             {attempt.status === 'failed' && (
-              <Alert kind="danger" children={attempt.statusText} />
+              <Alert kind="danger">{attempt.statusText}</Alert>
             )}
             {duplicatedOwners.length > 0 && (
-              <Alert
-                kind="danger"
-                children={`The following usernames are already \
-                enrolled, remove them from the list to continue: \
+              <Alert kind="danger">
+                {`The following usernames are already
+                enrolled, remove them from the list to continue:
                 ${duplicatedOwners.join(', ')}`}
-              />
+              </Alert>
             )}
-            <EligibleUsersFieldSelectAndCreate
-              autoFocus={true}
-              selected={selectedOwners || []}
-              isDisabled={attempt.status === 'processing'}
-              onChange={vals => setSelectedOwners(vals || [])}
-              options={eligibleUsers}
-              label="Add List Owners"
-              requiredErrMsg="List Owners are required"
-              noEligibleUsersFromNoAccess={userOptions.length === 0}
+            <EnrollNewMembersFields
+              selectedMembers={selectedOwners}
+              setSelectedMembers={setSelectedOwners}
+              attempt={attempt}
             />
             {selectedOwnersContainAccessLists && (
               <EnrollingNestedListsAlert

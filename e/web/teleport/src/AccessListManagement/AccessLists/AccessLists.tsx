@@ -1,78 +1,56 @@
 import { format } from 'date-fns';
 import {
-  ReactNode,
+  PropsWithChildren,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
-import {
-  Alert,
-  Box,
-  Button,
-  ButtonBorder,
-  Flex,
-  Indicator,
-  Text,
-} from 'design';
+import { Alert, Box, Button, ButtonBorder, Flex, Text } from 'design';
+import { Danger, Info } from 'design/Alert';
+import { CheckboxInput } from 'design/Checkbox';
 import Table, { Cell } from 'design/DataTable';
 import type { TableColumn } from 'design/DataTable/types';
 import { DATE_FORMAT } from 'design/datetime/constants';
-import {
-  ArrowRight,
-  Magnifier,
-  Refresh,
-  ShieldCheck,
-  User,
-  UserList,
-} from 'design/Icon';
+import { ArrowRight, Magnifier, Refresh } from 'design/Icon';
+import { ShimmerBox } from 'design/ShimmerBox';
 import { HoverTooltip } from 'design/Tooltip';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
 import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
-import { useToastNotifications } from 'shared/components/ToastNotification';
+import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
+import { useInfiniteScroll } from 'shared/hooks/useInfiniteScroll';
 
 import {
   accessListRequiresReview,
-  AccessListSort,
   useAccessListManagementContext,
 } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import {
   AccessCard,
   renderRolesAndTraits,
 } from 'e-teleport/AccessListManagement/AccessLists/AccessCard';
-import { EmptyState } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/EmptyState';
 import { FeatureLimitBlurb } from 'e-teleport/AccessListManagement/Shared/FeatureLimitReached';
-import {
-  filterAccessLists,
-  sortAccessLists,
-  updateAccessListsCache,
-} from 'e-teleport/AccessListManagement/Shared/Shared';
 import cfg from 'e-teleport/config';
 import {
   AccessList,
   AccessListGrant,
-  AccessListMemberKind,
   AccessListOrigin,
 } from 'e-teleport/services/accessmanagement';
 import useTeleport from 'e-teleport/useTeleportE';
-import {
-  decodeUrlQueryParam,
-  encodeUrlQueryParams,
-} from 'teleport/components/hooks/useUrlFiltering';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import { ApiError } from 'teleport/services/api/parseError';
+
+import { EmptyState } from './EmptyState/EmptyState';
 
 export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
   grants: AccessListGrant & { traitList: string[] };
@@ -83,113 +61,91 @@ export type AccessListWithModifiedGrants = Omit<AccessList, 'grants'> & {
 
 export function AccessLists() {
   const ctx = useTeleport();
-  const { attempt, accessLists, processAccessLists } =
-    useAccessListManagementContext();
+  const {
+    isFetching,
+    accessLists,
+    updateSearchParams,
+    error,
+    search,
+    filtersExist,
+  } = useAccessListManagementContext();
 
-  const history = useHistory();
-  const location = useLocation<{
-    createdList?: AccessList;
-    reviewedAccessList?: AccessList;
-    deletedAccessListId?: string;
-  }>();
-  const searchParams = new URLSearchParams(location.search);
-  const [searchValue, setSearchValue] = useState(
-    decodeUrlQueryParam(searchParams.get('search') || '')
-  );
+  const updateSearchValue = (newValue: string) => {
+    updateSearchParams({ search: newValue });
+  };
 
-  const toastNotification = useToastNotifications();
+  const perms = ctx.storeUser.getAccessListAccess();
+  const canUpsertAsAdmin =
+    perms.create && perms.edit && perms.list && perms.read;
+  const canList = perms.list && perms.read;
+  const canCreate = perms.list && perms.read && perms.create;
 
-  const perm = ctx.storeUser.getAccessListAccess();
-  const canUpsertAsAdmin = perm.create && perm.edit && perm.list && perm.read;
-  const canList = perm.list && perm.read;
+  const is403Error = error instanceof ApiError && error.response.status === 403;
+  const isOtherError = error && !is403Error;
+  const noPermToCreate = !canUpsertAsAdmin && !isFetching;
+  const showEmptyState =
+    !filtersExist && !isFetching && accessLists.length == 0 && !isOtherError;
 
-  useEffect(() => {
-    if (
-      !(
-        location.state?.createdList ||
-        location.state?.reviewedAccessList ||
-        location.state?.deletedAccessListId
-      )
-    ) {
-      return;
-    }
-
-    if (location.state?.reviewedAccessList) {
-      const reviewedAccessList = location.state.reviewedAccessList;
-      toastNotification.add({
-        severity: 'info',
-        content: {
-          title: `Submitted review for "${reviewedAccessList.title}"`,
-          description: `Next review date is ${reviewedAccessList.audit.nextDate}`,
-          icon: ShieldCheck,
-        },
-      });
-    }
-
-    processAccessLists(lists =>
-      updateAccessListsCache(lists, location.state, history)
+  if (showEmptyState) {
+    return (
+      <FeatureBox
+        css={{ position: 'relative', maxWidth: 1800, margin: 'auto' }}
+      >
+        {!canList && is403Error && (
+          <Alert kind="info" marginTop={4}>
+            You do not have permission to view Access Lists. You are missing
+            role permissions: <code>access_list.read,access_list.list</code>
+          </Alert>
+        )}
+        <EmptyState />
+        {canCreate &&
+          !is403Error &&
+          cfg.oss.entitlements.AccessLists.limit !== 0 && (
+            <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
+          )}
+      </FeatureBox>
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state]);
-
-  // Show 'create' button if 1. Attempt is succeeded and there are access lists, or 2. Attempt is not processing
-  const showCreateBtn =
-    attempt.attempt.status === 'success'
-      ? !!accessLists.length
-      : attempt.attempt.status !== 'processing';
-  // Show header if: 1. Attempt is not succeeded yet, or 2. Attempt is succeeded and there are access lists
-  const showFeatureHeader =
-    attempt.attempt.status === 'success' ? !!accessLists.length : true;
-  const noPermToCreate = !canUpsertAsAdmin && attempt.attempt.status === '';
+  }
 
   return (
-    <FeatureBox css={{ position: 'relative' }}>
-      {showFeatureHeader && (
-        <FeatureHeader alignItems="center" justifyContent="space-between">
-          <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
-          {showCreateBtn && (
-            <HoverTooltip
-              position="bottom"
-              tipContent={
-                noPermToCreate ? (
-                  <MissingPermissionsTooltip
-                    missingPermissions={['access_list.create']}
-                  />
-                ) : null
-              }
-            >
-              <Button
-                intent="primary"
-                fill="border"
-                title={
-                  noPermToCreate
-                    ? `Only Teleport administrators can create new Access Lists`
-                    : ''
-                }
-                disabled={
-                  noPermToCreate || attempt.attempt.status === 'processing'
-                }
-                width="240px"
-                as={Link}
-                to={cfg.routes.accessListNew}
-              >
-                Create New Access List
-              </Button>
-            </HoverTooltip>
-          )}
-        </FeatureHeader>
-      )}
+    <FeatureBox css={{ position: 'relative', maxWidth: 1800, margin: 'auto' }}>
+      <FeatureHeader alignItems="center" justifyContent="space-between">
+        <FeatureHeaderTitle>Access Lists</FeatureHeaderTitle>
+        <HoverTooltip
+          position="bottom"
+          tipContent={
+            noPermToCreate ? (
+              <MissingPermissionsTooltip
+                missingPermissions={['access_list.create']}
+              />
+            ) : null
+          }
+        >
+          <Button
+            intent="primary"
+            fill="border"
+            title={
+              noPermToCreate
+                ? `Only Teleport administrators can create new Access Lists`
+                : ''
+            }
+            disabled={noPermToCreate || isFetching}
+            width="240px"
+            as={Link}
+            to={cfg.routes.accessListNew}
+          >
+            Create New Access List
+          </Button>
+        </HoverTooltip>
+      </FeatureHeader>
       <Box>
-        {!canList && attempt.attempt.statusCode === 403 && (
+        {!canList && is403Error && (
           <Alert kind="info">
             You do not have permission to view Access Lists. You are missing
             role permissions: <code>access_list.read,access_list.list</code>
           </Alert>
         )}
-        <MainContent
-          searchValue={searchValue}
-          setSearchValue={setSearchValue}
-        />
+        <MainContent searchValue={search} setSearchValue={updateSearchValue} />
       </Box>
     </FeatureBox>
   );
@@ -205,21 +161,66 @@ function MainContent({
   const ctx = useTeleport();
   const history = useHistory();
   const {
-    attempt: { attempt },
     accessLists,
-    allGrantedRoles,
-    allOwners,
-    refetchAccessLists,
     view: viewMode,
     setView: setViewMode,
-    filters: filterValue,
-    setFilters: setFilterValue,
+    filters,
+    updateSearchParams,
+    error,
+    isFetching,
+    isError,
+    refetch,
+    fetchNextPage,
+    previousSearchParams,
+    hasNextPage,
+    isFetchingNextPage,
+    backendCacheUnhealthy,
     sort: currentSort,
-    setSort: setCurrentSort,
     isOktaPluginReadOnly,
   } = useAccessListManagementContext();
 
-  const currentUsername = ctx.storeUser.getUsername();
+  useEffect(() => {
+    if (previousSearchParams) {
+      history.replace({
+        pathname: location.pathname,
+        search: previousSearchParams,
+      });
+    }
+  }, [history, previousSearchParams]);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const allowedParams = ['search', 'sort', 'owners'];
+    const paramsToRemove: string[] = [];
+
+    urlParams.forEach((_, key) => {
+      if (!allowedParams.includes(key)) {
+        paramsToRemove.push(key);
+      }
+    });
+
+    if (paramsToRemove.length > 0) {
+      paramsToRemove.forEach(param => urlParams.delete(param));
+      history.replace({
+        pathname: location.pathname,
+        search: urlParams.toString(),
+      });
+    }
+    // we only want to cleanse this once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const { setTrigger } = useInfiniteScroll({
+    // to match the Promise<void> requirement of `fetch`, we need to call it like this
+    fetch: async () => {
+      if (hasNextPage && !isFetchingNextPage && !error) {
+        fetchNextPage();
+      }
+    },
+  });
+
+  const currentUserName = ctx.storeUser.getUsername();
+
   const perms = ctx.storeUser.getAccessListAccess();
   const canCreate = perms.list && perms.read && perms.create;
 
@@ -233,168 +234,84 @@ function MainContent({
     [accessLists]
   );
 
-  const ownerFilterOptions = useMemo(
-    () =>
-      allOwners
-        .slice()
-        .sort((a, b) => {
-          if (a.membershipKind === b.membershipKind) {
-            return a.name.localeCompare(b.name);
-          }
-          return a.membershipKind === AccessListMemberKind.List ? 1 : -1;
-        })
-        .reduce<{ value: string; label: ReactNode }[]>((acc, owner, idx) => {
-          // Always include the current user as the first option.
-          if (idx === 0) {
-            acc.push({
-              value: currentUsername,
-              label: renderFilterOwner(`Me (${currentUsername})`),
-            });
-          }
-          // Skip if the owner == the current user.
-          if (owner.name === currentUsername) {
-            return acc;
-          }
-          acc.push({
-            value: owner.name,
-            label: renderFilterOwner(
-              owner.membershipKind === AccessListMemberKind.List
-                ? accessLists.find(l => l.id === owner.name)?.title ||
-                    owner.name
-                : owner.name,
-              owner.membershipKind
-            ),
-          });
-          return acc;
-        }, []),
-    [allOwners, accessLists, currentUsername]
-  );
-
-  const filteredAccessLists = useMemo(
-    () =>
-      filterAccessLists({
-        accessLists,
-        searchValue,
-        filterValue,
-      }).map(a => ({ ...a, auditNextDate: a.audit.nextDate })),
-    [accessLists, searchValue, filterValue]
-  );
-
-  const sortedAccessLists = useMemo(
-    () => sortAccessLists(filteredAccessLists, currentSort),
-    [filteredAccessLists, currentSort]
-  );
-
-  const emptyState = (
-    <>
-      <EmptyState />
-      {canCreate &&
-        attempt.statusCode !== 403 &&
-        cfg.oss.entitlements.AccessLists.limit !== 0 && (
-          <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
-        )}
-    </>
-  );
-
-  if (attempt.status === 'processing' || attempt.status === '') {
-    return (
-      <Box textAlign="center" m={10}>
-        <Indicator />
-      </Box>
-    );
-  }
-  if (attempt.status === 'failed' && attempt.statusCode !== 403) {
-    return <Alert children={attempt.statusText} />;
-  }
-  if (accessLists.length === 0) {
-    return emptyState;
-  }
+  const is403Error = error instanceof ApiError && error.response.status === 403;
 
   return (
     <>
+      {/* Only show this info at the top, and not sticky like the rest of the errors. */}
+      {backendCacheUnhealthy && (
+        <Info>
+          Advanced sorting and filtering disabled due to an unhealthy or
+          disabled cache.
+        </Info>
+      )}
+      {!isFetching && isError && !is403Error && (
+        <ErrorsContainer>
+          <DangerWithBackground
+            primaryAction={{
+              content: 'Retry',
+              onClick: refetch,
+            }}
+          >
+            {error.message}
+          </DangerWithBackground>
+        </ErrorsContainer>
+      )}
+
       <Box width="600px" mb={3}>
-        <DebouncedSearchInput
-          onSearch={value => {
-            history.replace(
-              encodeUrlQueryParams({
-                pathname: location.pathname,
-                searchString: value,
-              })
-            );
-            setSearchValue(value);
-          }}
-          placeholder="Search by title, owner, or description"
+        <SearchInput
+          onSearch={setSearchValue}
+          placeholder="Search by title, owner, role or description"
           initialValue={searchValue}
         />
       </Box>
       <Flex justifyContent="space-between" alignItems="center" mb={3}>
         <Flex justifyContent="flex-start" alignItems="center" gap={2}>
-          {showListTypes && (
-            <MultiselectMenu
-              options={
-                [
-                  { value: 'teleport', label: 'Teleport' },
-                  { value: 'okta', label: 'Okta' },
-                  {
-                    value: 'aws-identity-center',
-                    label: 'AWS IAM Identity Center',
-                  },
-                ] as const
-              }
-              onChange={sources => setFilterValue({ source: sources })}
-              selected={filterValue.source || []}
-              label="List Type"
-              tooltip="Filter by type"
+          <Flex alignItems="center">
+            <CheckboxInput
+              checked={filters.owners.includes(currentUserName)}
+              onChange={val => {
+                if (val.target.checked) {
+                  updateSearchParams({ owners: [currentUserName] });
+                  return;
+                }
+                updateSearchParams({ owners: [] });
+              }}
             />
-          )}
-          <MultiselectMenu
-            options={ownerFilterOptions}
-            onChange={owners => setFilterValue({ owners })}
-            selected={filterValue.owners || []}
-            label="Owner"
-            tooltip="Filter by owner"
-          />
-          <MultiselectMenu
-            options={allGrantedRoles.map(role => ({
-              value: role,
-              label: role.length > 23 ? `${role.slice(0, 20)}...` : role,
-            }))}
-            onChange={roles => setFilterValue({ roles })}
-            selected={filterValue.roles || []}
-            label="Role"
-            tooltip="Filter by granted roles"
-          />
+            <Text pl={2}>
+              Only show access lists owned by me ({currentUserName})
+            </Text>
+          </Flex>
         </Flex>
         <Flex justifyContent="flex-end" alignItems="center" gap={2}>
-          <RefreshButton onRefresh={() => refetchAccessLists(false)} />
+          <RefreshButton onRefresh={refetch} />
           <ViewModeSwitch
             currentViewMode={viewMode}
             setCurrentViewMode={setViewMode}
           />
-          <SortMenu
-            current={currentSort}
-            onChange={setCurrentSort}
-            fields={[
-              { value: 'title', label: 'Name' },
-              { value: 'membersCount', label: 'Member Users' },
-              { value: 'memberListCount', label: 'Member Access Lists' },
-              { value: 'auditNextDate', label: 'Next Review' },
-            ]}
-          />
+          {!backendCacheUnhealthy && (
+            <SortMenu
+              current={currentSort}
+              onChange={newSort => updateSearchParams({ sort: newSort })}
+              fields={[
+                { value: 'title', label: 'Title' },
+                { value: 'auditNextDate', label: 'Next Review' },
+              ]}
+            />
+          )}
         </Flex>
       </Flex>
       <AccessListContainer viewMode={viewMode} role="list">
         {viewMode === ViewMode.LIST ? (
           <AccessListTable
-            accessLists={sortedAccessLists}
+            isLoading={isFetching}
+            accessLists={accessLists}
             history={history}
             showListTypes={showListTypes}
-            currentSort={currentSort}
-            setCurrentSort={setCurrentSort}
             isOktaReadOnly={isOktaPluginReadOnly}
           />
-        ) : sortedAccessLists.length > 0 ? (
-          sortedAccessLists.map(a => (
+        ) : accessLists.length > 0 ? (
+          accessLists.map(a => (
             <AccessCard
               key={a.id}
               accessList={a}
@@ -404,10 +321,21 @@ function MainContent({
               }
             />
           ))
-        ) : (
+        ) : !isFetching ? (
           'No Access Lists Found'
+        ) : (
+          ''
         )}
       </AccessListContainer>
+      {isFetching && viewMode === ViewMode.LIST && (
+        <LoadingSkeleton count={8} Element={<LoadingList />} />
+      )}
+      {isFetching && viewMode === ViewMode.CARD && (
+        <CardsContainer>
+          <LoadingSkeleton count={48} Element={<LoadingCard />} />
+        </CardsContainer>
+      )}
+      <div ref={setTrigger} />
       {canCreate && cfg.oss.entitlements.AccessLists.limit !== 0 && (
         <FeatureLimitBlurb limit={cfg.oss.entitlements.AccessLists.limit} />
       )}
@@ -419,15 +347,13 @@ const AccessListTable = ({
   accessLists,
   history,
   showListTypes,
-  currentSort,
-  setCurrentSort,
+  isLoading,
   isOktaReadOnly = false,
 }: {
   accessLists: AccessListWithModifiedGrants[];
   history: ReturnType<typeof useHistory>;
+  isLoading: boolean;
   showListTypes?: boolean;
-  currentSort: AccessListSort;
-  setCurrentSort: (sort: AccessListSort) => void;
   isOktaReadOnly?: boolean;
 }) => {
   const columns = useMemo(() => {
@@ -545,13 +471,15 @@ const AccessListTable = ({
     );
 
     return cols;
-  }, [showListTypes, history]);
+  }, [showListTypes, history, isOktaReadOnly]);
 
   return (
     <Table
       data={accessLists}
       emptyText="No Access Lists Found"
-      pagination={{ pageSize: 20, pagerPosition: 'bottom' }}
+      infiniteScrollProps={{
+        fetchStatus: isLoading ? 'loading' : '',
+      }}
       isSearchable={false}
       row={{
         onClick: (acl: AccessListWithModifiedGrants) =>
@@ -562,13 +490,6 @@ const AccessListTable = ({
         }),
       }}
       columns={columns}
-      customSort={{
-        fieldName: currentSort.fieldName,
-        dir: currentSort.dir,
-        onSort: sortType => {
-          setCurrentSort(sortType as AccessListSort);
-        },
-      }}
     />
   );
 };
@@ -631,22 +552,6 @@ const TableAuditNextDateCell = ({
         <ArrowRight size={16} />
       </ReviewBadge>
     </Cell>
-  );
-};
-
-const renderFilterOwner = (
-  owner: string,
-  type: AccessListMemberKind = AccessListMemberKind.User
-) => {
-  return (
-    <Flex gap={2} alignItems="center">
-      {type === AccessListMemberKind.List ? (
-        <UserList size={14} css={{ marginBottom: '-1px' }} />
-      ) : (
-        <User size={14} css={{ marginBottom: '-1px' }} />
-      )}
-      <Text>{owner}</Text>
-    </Flex>
   );
 };
 
@@ -719,7 +624,7 @@ const StyledInput = styled.input`
   flex: 1;
 `;
 
-const DebouncedSearchInput = ({
+const SearchInput = ({
   onSearch,
   placeholder = '',
   initialValue = '',
@@ -728,27 +633,11 @@ const DebouncedSearchInput = ({
   placeholder?: string;
   initialValue?: string;
 }) => {
-  const [searchTerm, setSearchTerm] = useState(initialValue);
-  const [debouncedTerm, setDebouncedTerm] = useState('');
-  const isFirstRender = useRef(true);
+  const [searchTerm, setSearchTerm] = useState(initialValue || '');
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedTerm(searchTerm);
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    if (isFirstRender.current && debouncedTerm === '') {
-      isFirstRender.current = false;
-      return;
-    }
-
-    onSearch(debouncedTerm);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedTerm]);
+    setSearchTerm(initialValue || '');
+  }, [initialValue]);
 
   return (
     <InputWrapper
@@ -782,3 +671,127 @@ const RefreshButton = ({ onRefresh }: { onRefresh: () => void }) => (
     </ButtonBorder>
   </HoverTooltip>
 );
+
+function ErrorsContainer(props: PropsWithChildren<unknown>) {
+  return <ErrorBox>{props.children}</ErrorBox>;
+}
+
+const ErrorBox = styled(Flex)`
+  position: sticky;
+  flex-direction: column;
+  top: ${props => props.theme.space[3]}px;
+  gap: ${props => props.theme.space[1]}px;
+  padding-top: ${props => props.theme.space[1]}px;
+  padding-bottom: ${props => props.theme.space[3]}px;
+  z-index: 1;
+`;
+
+const DangerWithBackground = styled(Danger)`
+  background: ${props => props.theme.colors.levels.sunken};
+`;
+
+export function LoadingCard() {
+  const [randomizedSize] = useState(() => ({
+    name: randomNum(70, 30),
+    members: new Array(randomNum(4, 0)),
+  }));
+
+  return (
+    <LoadingCardBox alignItems="start" height="79px" p={3}>
+      <Flex flex={1} flexDirection="column">
+        <Box flex={1} mb={2}>
+          {/* Name */}
+          <ShimmerBox
+            height="20px"
+            css={`
+              flex-basis: ${randomizedSize.name}%;
+            `}
+          />
+        </Box>
+        {/* members */}
+        <Flex gap={2}>
+          {randomizedSize.members.fill(null).map((_, i) => (
+            <ShimmerBox key={i} height="12px" width="60px" />
+          ))}
+        </Flex>
+      </Flex>
+    </LoadingCardBox>
+  );
+}
+export function LoadingList() {
+  const [randomizedSize] = useState(() => ({
+    name: randomNum(40, 20),
+    roles: randomNum(80, 50),
+    members: randomNum(2, 1),
+    memberLists: randomNum(2, 1),
+  }));
+
+  return (
+    <LoadingListRow alignItems="center" height="46px" px={3}>
+      {/* name */}
+      <Flex flex="0 0 240px" gap={1} flexDirection="column" pr={3}>
+        <ShimmerBox
+          height="14px"
+          css={`
+            width: ${randomizedSize.name}%;
+          `}
+        />
+      </Flex>
+
+      {/* member users column */}
+      <Flex flex="0 0 170px" justifyContent="flex-start" pr={3}>
+        <ShimmerBox height="12px" width={`${randomizedSize.members * 8}px`} />
+      </Flex>
+
+      {/* member access lists */}
+      <Flex flex="0 0 140px" justifyContent="flex-start" pr={3}>
+        <ShimmerBox
+          height="12px"
+          width={`${randomizedSize.memberLists * 8}px`}
+        />
+      </Flex>
+
+      {/* roles */}
+      <Flex flex="1" justifyContent="flex-start" pr={3}>
+        <ShimmerBox
+          height="12px"
+          css={`
+            width: ${randomizedSize.roles}%;
+          `}
+        />
+      </Flex>
+
+      {/* next review*/}
+      <Flex flex="0 0 120px" justifyContent="flex-end">
+        <ShimmerBox height="12px" width="80px" />
+      </Flex>
+    </LoadingListRow>
+  );
+}
+function randomNum(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+const LoadingCardBox = styled(Flex)`
+  border-radius: ${props => props.theme.radii[2]}px;
+  border: 2px solid ${props => props.theme.colors.spotBackground[0]};
+`;
+
+const LoadingListRow = styled(Flex)`
+  border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
+  cursor: pointer;
+
+  &:hover {
+    background-color: ${props => props.theme.colors.spotBackground[0]};
+  }
+`;
+
+const CardsContainer = styled(Flex)`
+  margin-top: ${p => p.theme.space[3]}px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: ${p => p.theme.space[3]}px;
+`;

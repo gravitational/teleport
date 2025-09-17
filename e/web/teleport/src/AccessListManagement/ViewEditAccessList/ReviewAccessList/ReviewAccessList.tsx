@@ -11,11 +11,13 @@ import {
   H1,
   H2,
 } from 'design';
-import { Cross } from 'design/Icon';
+import { Cross, ShieldCheck } from 'design/Icon';
 import { Option } from 'shared/components/Select';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import {
   getReviewDayOfMonthOption,
   getReviewFrequencyOption,
@@ -75,6 +77,8 @@ export function ReviewAccessList({
   const history = useHistory();
   const [reviewStep, setReviewStep] = useState<ReviewStep>(views[0].step);
   const { attempt, run } = useAttempt('');
+  const toastNotification = useToastNotifications();
+  const { updateAccessListCache } = useAccessListManagementContext();
 
   const [reviewNotes, setReviewNotes] = useState('');
   const [editedRecurrence, setEditedRecurrence] = useState<EditedRecurrence>(
@@ -138,9 +142,19 @@ export function ReviewAccessList({
             reviewedAccessList.audit.recurrence = review.auditRecurrence;
           }
 
-          history.replace(cfg.getAccessListManagementRoute(), {
-            reviewedAccessList,
+          toastNotification.add({
+            severity: 'info',
+            content: {
+              title: `Submitted review for "${reviewedAccessList.title}"`,
+              description: `Next review date is ${reviewedAccessList.audit.nextDate}`,
+              icon: ShieldCheck,
+            },
           });
+          updateAccessListCache({
+            mutationType: 'reviewed',
+            accessList: reviewedAccessList,
+          });
+          history.replace(cfg.getAccessListManagementRoute());
         })
     );
   }

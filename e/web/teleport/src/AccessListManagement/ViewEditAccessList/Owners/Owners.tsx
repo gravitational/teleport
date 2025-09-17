@@ -6,12 +6,11 @@ import { Add } from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import type { Option } from 'shared/components/Select';
 
-import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 import { AccessList } from 'e-teleport/services/accessmanagement';
 import { AccessListMemberKind } from 'e-teleport/services/accessmanagement/types';
 
-import { EditKind, NestedListLink, type UserOption } from '../../Shared/Shared';
+import { EditKind, NestedListLink } from '../../Shared/Shared';
 import { Action, getActionForbiddenInfo, isActionForbidden } from '../access';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
 import {
@@ -25,23 +24,15 @@ import { EditEligibilityOrGrantRoles } from '../Specs/EditEligibilityOrGrants';
 import { EnrollNewOwners } from './EnrollNewOwners';
 
 interface OwnersProps {
-  userOptions: UserOption[];
   updateAccessList(accessList: AccessList): void;
   accessList: AccessListModified;
-  accessLists: AccessListWithModifiedGrants[];
   isReadOnlyOktaList?: boolean;
   fetchRoleOptions: (input: string) => Promise<Option[]>;
   perms: Perms;
 }
 
 export function Owners(props: OwnersProps) {
-  const {
-    accessList,
-    userOptions,
-    updateAccessList,
-    accessLists,
-    fetchRoleOptions,
-  } = props;
+  const { accessList, updateAccessList, fetchRoleOptions } = props;
   const { owners, ownershipRequires, ownerGrants } = accessList;
   const [showEnrollNewMembers, setShowEnrollNewMembers] = useState(false);
   const [deleteOwner, setDeleteOwner] =
@@ -120,10 +111,7 @@ export function Owners(props: OwnersProps) {
             render: ({ name, ineligibleReason, title, ...rest }) => {
               if (rest.membershipKind === AccessListMemberKind.List) {
                 return (
-                  <CustomCell
-                    disabled={false}
-                    title={rest.accessListExists ? title : ''}
-                  >
+                  <CustomCell disabled={false} title={title || ''}>
                     <Flex
                       flexDirection="row"
                       alignItems="center"
@@ -131,22 +119,21 @@ export function Owners(props: OwnersProps) {
                       gap={1}
                     >
                       <NestedListLink
-                        title={
-                          rest.accessListExists ? `View list '${title}'` : ''
-                        }
+                        title={title ? `View list '${title}'` : ''}
                         onClick={() => onClickNestedList(name)}
-                        disabled={!rest.accessListExists}
+                        disabled={!title}
                       >
-                        {title}
+                        {title || name}
                       </NestedListLink>
-                      {!rest.accessListExists && (
+                      {!title && (
                         <IconTooltip
                           kind="warning"
-                          children={`Insufficient permissions to view list '${title}'`}
                           css={`
                             margin-left: 5px;
                           `}
-                        />
+                        >
+                          {`Insufficient permissions to view list '${title}'`}
+                        </IconTooltip>
                       )}
                     </Flex>
                   </CustomCell>
@@ -212,10 +199,8 @@ export function Owners(props: OwnersProps) {
       {showEnrollNewMembers && (
         <EnrollNewOwners
           onClose={() => setShowEnrollNewMembers(false)}
-          userOptions={userOptions}
           updateAccessList={updateAccessList}
           accessList={accessList}
-          accessLists={accessLists}
         />
       )}
       {deleteOwner && (

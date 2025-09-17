@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -62,12 +63,14 @@ func (p *Plugin) listAccessLists(_ http.ResponseWriter, r *http.Request, _ httpr
 		return nil, trace.Wrap(err)
 	}
 	searchFilter := values.Get("search")
-	ownersFilter := r.URL.Query()["owners"]
-	rolesFilter := r.URL.Query()["roles"]
 
-	// default to name:asc
+	owners := slices.DeleteFunc(values["owners"], func(owner string) bool {
+		return owner == ""
+	})
+
+	// default to title:asc
 	sortBy := types.SortBy{
-		Field:  "name",
+		Field:  "title",
 		IsDesc: false,
 	}
 	sortParam := values.Get("sort")
@@ -81,8 +84,7 @@ func (p *Plugin) listAccessLists(_ http.ResponseWriter, r *http.Request, _ httpr
 		PageSize:  limit,
 		Filter: &accesslistv1.AccessListsFilter{
 			Search: searchFilter,
-			Owners: ownersFilter,
-			Roles:  rolesFilter,
+			Owners: owners,
 		},
 	}
 	accessListClient := clt.AccessListClient()
@@ -185,6 +187,14 @@ func (p *Plugin) getAccessList(_ http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.Wrap(err)
 	}
 
+	for i, owner := range accessList.Spec.Owners {
+		if owner.MembershipKind == accesslist.MembershipKindList {
+			if al, err := accessListClient.GetAccessList(r.Context(), owner.Name); err == nil {
+				accessList.Spec.Owners[i].Title = al.Spec.Title
+			}
+		}
+	}
+
 	resp := ui.AccessListResponse{
 		AccessList: &ui.AccessList{
 			AccessList:             accessList,
@@ -199,10 +209,22 @@ func (p *Plugin) getAccessList(_ http.ResponseWriter, r *http.Request, params ht
 	return resp, nil
 }
 
+func fillMemberListTitles(ctx context.Context, accessListClient services.AccessLists, members []*accesslist.AccessListMember) {
+	for i, member := range members {
+		switch member.Spec.MembershipKind {
+		case accesslist.MembershipKindList:
+			// we could get a not found error or an rbac error. if we dont get an error, get the title, otherwise ignore
+			if fetchedAccessList, err := accessListClient.GetAccessList(ctx, member.GetName()); err == nil {
+				members[i].Spec.Title = fetchedAccessList.Spec.Title
+			}
+		}
+	}
+}
+
 // listAllMembers is a helper function to list all members of an access list.
 func listAllMembers(ctx context.Context, accessListClient services.AccessLists, accessListId string) ([]*accesslist.AccessListMember, error) {
 	var pageToken string
-	allMembers := make([]*accesslist.AccessListMember, 0)
+	var allMembers []*accesslist.AccessListMember
 
 	for {
 		var members []*accesslist.AccessListMember
@@ -213,7 +235,8 @@ func listAllMembers(ctx context.Context, accessListClient services.AccessLists, 
 			return nil, trace.Wrap(err)
 		}
 
-		allMembers = append(allMembers, members...)
+		fillMemberListTitles(ctx, accessListClient, members)
+		allMembers = members
 
 		if pageToken == "" {
 			break
@@ -279,7 +302,21 @@ func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params
 
 	memberSpecs := make([]accesslist.AccessListMemberSpec, 0, len(updatedMembers))
 	for _, member := range updatedMembers {
+		if member.Spec.MembershipKind == accesslist.MembershipKindList {
+			if al, err := getAccessListNoMFACtx(r.Context(), accessListClient, member.GetName()); err == nil {
+				member.Spec.Title = al.Spec.Title
+			}
+		}
 		memberSpecs = append(memberSpecs, member.Spec)
+	}
+
+	for i := range createdAccessList.Spec.Owners {
+		owner := &createdAccessList.Spec.Owners[i]
+		if owner.MembershipKind == accesslist.MembershipKindList {
+			if al, err := getAccessListNoMFACtx(r.Context(), accessListClient, owner.Name); err == nil {
+				owner.Title = al.Spec.Title
+			}
+		}
 	}
 
 	return ui.AccessListResponse{

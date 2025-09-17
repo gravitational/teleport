@@ -23,8 +23,6 @@ import type { Option } from 'shared/components/Select';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
-import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
-import type { UserOption } from 'e-teleport/AccessListManagement/Shared/Shared';
 import cfg from 'e-teleport/config';
 import {
   AccessListMemberKind,
@@ -48,7 +46,6 @@ import { ReviewBanner } from './ReviewBanner';
 import {
   ButtonPencil,
   getPerms,
-  getTitlesForNestedListOwnersMembers,
   modifyAccessList,
   type AccessListModified,
   type Perms,
@@ -64,14 +61,11 @@ enum Tab {
 export function ViewEditAccessList() {
   const ctx = useTeleport();
   const {
-    attempt: fetchAccessListsAttempt,
-    accessLists,
-    userOptions,
     fetchRoleOptions,
     fetchUsersAndRoles,
     usersAndRolesAttempt,
+    updateAccessListCache,
     isOktaPluginReadOnly,
-    processAccessLists,
   } = useAccessListManagementContext();
   const location = useLocation();
   const history = useHistory();
@@ -110,55 +104,20 @@ export function ViewEditAccessList() {
       [0, 0]
     );
 
-    const modifiedAccessList = modifyAccessList(
-      {
-        ...newAccessList,
-        // These fields are only calculated on the backend, so their existing state
-        // should override the nil values on `newAccessList`.
-        inheritedMemberGrants: accessList?.inheritedMemberGrants,
-        membersCount,
-        memberListCount,
-      },
-      accessLists
-    );
+    const modifiedAccessList = modifyAccessList({
+      ...newAccessList,
+      // These fields are only calculated on the backend, so their existing state
+      // should override the nil values on `newAccessList`.
+      inheritedMemberGrants: accessList?.inheritedMemberGrants,
+      membersCount,
+      memberListCount,
+    });
     setAccessList(modifiedAccessList);
-
-    // We also want to update the 'allAccessLists' state with the new access list.
-    processAccessLists(prev =>
-      prev.map(list =>
-        list.id === modifiedAccessList.id ? modifiedAccessList : list
-      )
-    );
+    updateAccessListCache({
+      mutationType: 'edited',
+      accessList: modifiedAccessList,
+    });
   }
-
-  // When fetched accessLists changes, the nested list titles
-  // also need to be updated.
-  useEffect(() => {
-    if (
-      fetchAccessListsAttempt.attempt.status !== 'success' ||
-      !accessList ||
-      !accessLists?.length
-    ) {
-      return;
-    }
-
-    const updatedList = {
-      ...accessList,
-      ...getTitlesForNestedListOwnersMembers(
-        {
-          members: accessList.members,
-          owners: accessList.owners,
-        },
-        accessLists
-      ),
-    };
-    setAccessList(updatedList);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    fetchAccessListsAttempt.attempt.status,
-    !!accessList,
-    accessLists?.length,
-  ]);
 
   // If this api call succeeded, user is either an owner or
   // has `access_list` list/read rules defined.
@@ -168,10 +127,7 @@ export function ViewEditAccessList() {
     accessManagementService
       .fetchAccessList(accessListId)
       .then(fetchedAccessList => {
-        const modifiedAccessList = modifyAccessList(
-          fetchedAccessList,
-          accessLists
-        );
+        const modifiedAccessList = modifyAccessList(fetchedAccessList);
         setAccessList(modifiedAccessList);
         setFetchViewingAccessListAttempt({ status: 'success' });
       })
@@ -207,11 +163,7 @@ export function ViewEditAccessList() {
     accessList,
   });
 
-  showReview: if (
-    location.hash === '#review' &&
-    fetchAccessListsAttempt.attempt.status === 'success' &&
-    !!accessList
-  ) {
+  showReview: if (location.hash === '#review' && !!accessList) {
     const canReview = perms.isOwner || perms.adminWhoCanEdit;
     const requiresReview =
       accessList.requiresReview || accessList.audit.nextDate < new Date();
@@ -314,8 +266,6 @@ export function ViewEditAccessList() {
         <MainContent
           perms={perms}
           accessList={accessList}
-          userOptions={userOptions}
-          accessLists={accessLists}
           fetchRoleOptions={fetchRoleOptions}
           isReadOnlyOktaList={isReadOnlyOktaList}
           updateAccessList={updateAccessList}
@@ -395,17 +345,13 @@ const FeatureTitle = ({
 
 const MainContent = ({
   perms,
-  userOptions,
   accessList,
-  accessLists,
   fetchRoleOptions,
   isReadOnlyOktaList,
   updateAccessList,
 }: {
   perms: Perms;
-  userOptions: UserOption[];
   accessList: AccessListModified;
-  accessLists: AccessListWithModifiedGrants[];
   fetchRoleOptions: (input: string) => Promise<Option[]>;
   isReadOnlyOktaList: boolean;
   updateAccessList: (
@@ -457,10 +403,8 @@ const MainContent = ({
 
       {activeTab === Tab.ListOwners && (
         <Owners
-          userOptions={userOptions}
           accessList={accessList}
           updateAccessList={updateAccessList}
-          accessLists={accessLists}
           isReadOnlyOktaList={isReadOnlyOktaList}
           perms={perms}
           fetchRoleOptions={fetchRoleOptions}
@@ -469,10 +413,8 @@ const MainContent = ({
 
       {activeTab === Tab.ListMembers && (
         <Members
-          userOptions={userOptions}
           accessList={accessList}
           updateAccessList={updateAccessList}
-          accessLists={accessLists}
           isReadOnlyOktaList={isReadOnlyOktaList}
           perms={perms}
           fetchRoleOptions={fetchRoleOptions}

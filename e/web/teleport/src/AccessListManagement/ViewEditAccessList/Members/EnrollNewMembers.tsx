@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
@@ -10,15 +10,12 @@ import Dialog, {
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Option } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { EligibleUsersFieldSelectAndCreate } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
+import { EligibleUsersFieldSelect } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import { CalendarDateSelect } from 'e-teleport/AccessListManagement/Shared/Audit';
 import {
-  convertAccessListsToUserOptions,
   EnrollingNestedListsAlert,
-  filterExistingUsersAndConvertToOption,
-  getEligibleUsersForAddingNewUsers,
   getNewAndExistingUsersForAddingNewUsers,
   type AccessListModified,
 } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
@@ -30,31 +27,156 @@ import {
 } from 'e-teleport/services/accessmanagement';
 import useTeleport from 'teleport/useTeleport';
 
-import type { MemberSelection, UserOption } from '../../Shared/Shared';
+import type { HybridUserOption, MemberSelection } from '../../Shared/Shared';
 
 type Props = {
   onClose(): void;
-  userOptions: UserOption[];
   updateAccessList(accessList: AccessList, members?: AccessListMember[]): void;
   accessList: AccessListModified;
-  accessLists: AccessList[];
 };
+
+export function EnrollNewMembersFields({
+  selectedMembers,
+  setSelectedMembers,
+  attempt,
+  optional = false,
+}: {
+  attempt: Attempt;
+  selectedMembers: Option<MemberSelection>[];
+  setSelectedMembers: (vals: Option<MemberSelection>[]) => void;
+  optional?: boolean;
+}) {
+  const ctx = useTeleport();
+
+  const fetchUsersOptions = useCallback(
+    async (input: string) => {
+      const usersResult = await ctx.userService.fetchUsersV2({
+        search: input,
+        limit: 50,
+      });
+
+      const options: HybridUserOption[] = usersResult.items.map(user => ({
+        label: user.name,
+        value: {
+          membershipKind: AccessListMemberKind.User,
+          name: user.name,
+        },
+      }));
+
+      return options;
+    },
+    [ctx.userService]
+  );
+
+  const fetchAccessListsOptions = useCallback(async (input: string) => {
+    const accessListsResult = await accessManagementService.fetchAccessListsV2({
+      // sort by name here. If they want to find a specific list to add, they will most
+      // likely type, but this allows this form to work without extra steps to check
+      // if the cache is healthy or not
+      sort: { dir: 'ASC', fieldName: 'name' },
+      search: input,
+      limit: 50,
+    });
+
+    const options: HybridUserOption[] = accessListsResult.agents.map(list => ({
+      label: list.title,
+      value: { membershipKind: AccessListMemberKind.List, name: list.id },
+    }));
+
+    return options;
+  }, []);
+
+  function updateSelectedMembers(
+    vals: Option<MemberSelection>[],
+    membershipKind: AccessListMemberKind
+  ) {
+    // if we "create" a user that doesnt exist, the value comes back as a string rather than the formatted
+    // value we need. we can update it here.
+    const formattedVals = vals.map(val =>
+      typeof val.value === 'string' &&
+      membershipKind === AccessListMemberKind.User
+        ? { label: val.label, value: { membershipKind, name: val.value } }
+        : val
+    );
+    const otherType =
+      membershipKind === AccessListMemberKind.User
+        ? AccessListMemberKind.List
+        : AccessListMemberKind.User;
+
+    // keep existing selections of the opposite type
+    const existingOtherTypeSelections = selectedMembers.filter(
+      member => member.value.membershipKind === otherType
+    );
+
+    // combine new selections with existing selections of the opposite type
+    setSelectedMembers([...existingOtherTypeSelections, ...formattedVals]);
+  }
+  const requiredErrMsg = useMemo(() => {
+    if (optional) {
+      return '';
+    }
+    const usersExit = selectedMembers.some(
+      m => m.value.membershipKind === AccessListMemberKind.User
+    );
+    const listsExist = selectedMembers.some(
+      m => m.value.membershipKind === AccessListMemberKind.List
+    );
+
+    if (!usersExit && !listsExist) {
+      return 'Please select at least one user or access list.';
+    }
+
+    return '';
+  }, [selectedMembers, optional]);
+
+  return (
+    <>
+      <EligibleUsersFieldSelect
+        selected={
+          selectedMembers.filter(
+            member => member.value.membershipKind === AccessListMemberKind.User
+          ) || []
+        }
+        isDisabled={attempt.status === 'processing'}
+        onChange={vals =>
+          updateSelectedMembers(vals || [], AccessListMemberKind.User)
+        }
+        loadOptions={fetchUsersOptions}
+        placeholder="Search for a user…"
+        label="Add Users"
+        requiredErrMsg={requiredErrMsg}
+      />
+      <EligibleUsersFieldSelect
+        disableCreate
+        selected={
+          selectedMembers.filter(
+            member => member.value.membershipKind === AccessListMemberKind.List
+          ) || []
+        }
+        isDisabled={attempt.status === 'processing'}
+        onChange={vals =>
+          updateSelectedMembers(vals || [], AccessListMemberKind.List)
+        }
+        loadOptions={fetchAccessListsOptions}
+        placeholder="Search for an access list…"
+        noOptionsMsg="No access lists found."
+        label="Add Access Lists"
+        requiredErrMsg={requiredErrMsg}
+      />
+    </>
+  );
+}
 
 export function EnrollNewMembers({
   onClose,
   accessList,
-  userOptions,
   updateAccessList,
-  accessLists,
 }: Props) {
-  const { id, membershipRequires, members: existingMembers } = accessList;
+  const { members: existingMembers } = accessList;
   const ctx = useTeleport();
 
   const { attempt, setAttempt } = useAttempt('');
 
-  const [eligibleUsers, setEligibleUsers] = useState<Option<MemberSelection>[]>(
-    []
-  );
   const [selectedMembers, setSelectedMembers] = useState<
     Option<MemberSelection>[]
   >([]);
@@ -64,34 +186,6 @@ export function EnrollNewMembers({
   // duplicatedMembers are duplicate members extracted from
   // selectedMembers.
   const [duplicatedMembers, setDuplicatedMembers] = useState<string[]>([]);
-
-  useEffect(() => {
-    let filteredMembers: Option<MemberSelection>[] = [];
-
-    // If no required traits or roles are defined,
-    // Then all users are allowed to be added, except
-    // for users who were already added.
-    if (
-      membershipRequires.roles.length > 0 ||
-      membershipRequires.traitLabels.length > 0
-    ) {
-      filteredMembers = getEligibleUsersForAddingNewUsers(
-        membershipRequires,
-        userOptions,
-        existingMembers
-      );
-    } else {
-      filteredMembers = filterExistingUsersAndConvertToOption(
-        userOptions,
-        existingMembers
-      );
-    }
-
-    filteredMembers = filteredMembers.concat(
-      convertAccessListsToUserOptions(id, accessLists, existingMembers)
-    );
-    setEligibleUsers(filteredMembers);
-  }, []);
 
   const selectedMembersContainAccessLists = useMemo(
     () =>
@@ -179,25 +273,17 @@ export function EnrollNewMembers({
           </DialogHeader>
           <DialogContent>
             {attempt.status === 'failed' && (
-              <Alert kind="danger" children={attempt.statusText} />
+              <Alert kind="danger">{attempt.statusText}</Alert>
             )}
             {duplicatedMembers.length > 0 && (
-              <Alert
-                kind="danger"
-                children={`The following usernames are already \
-                enrolled. Remove them from the list to continue: \
-                ${duplicatedMembers.join(', ')}`}
-              />
+              <Alert kind="danger">
+                {`The following usernames are already enrolled. Remove them from the list to continue: ${duplicatedMembers.join(', ')}`}
+              </Alert>
             )}
-            <EligibleUsersFieldSelectAndCreate
-              autoFocus={true}
-              selected={selectedMembers || []}
-              isDisabled={attempt.status === 'processing'}
-              onChange={vals => setSelectedMembers(vals || [])}
-              options={eligibleUsers}
-              label="Add Members or Access Lists"
-              requiredErrMsg="Members are required"
-              noEligibleUsersFromNoAccess={userOptions.length === 0}
+            <EnrollNewMembersFields
+              attempt={attempt}
+              selectedMembers={selectedMembers}
+              setSelectedMembers={setSelectedMembers}
             />
             {selectedMembersContainAccessLists && (
               <EnrollingNestedListsAlert

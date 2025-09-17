@@ -98,6 +98,8 @@ export type AccessListRequires = {
 export type AccessListMember = {
   // name is the username of the member of the access list.
   name: string;
+  // friendly name of an access list member.
+  title?: string;
   // joined is when the user joined the access list.
   joined: Date;
   // expires is when the user's membership to the access list expires.
@@ -116,6 +118,8 @@ export type AccessListMember = {
 export type AccessListOwner = {
   // name is the username of the owner of the access list.
   name: string;
+  // friendly name of an access list member.
+  title?: string;
   // description is the plaintext description of the owner
   // and why they are an owner.
   description?: string;

@@ -1,42 +1,41 @@
 import { Box, Flex, H2, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 import { Option } from 'shared/components/Select';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { AllUserTraits } from 'teleport/services/user';
 
-import { HybridUserOption, UserOption } from '../Shared/Shared';
+import { MemberSelection, UserOption } from '../Shared/Shared';
 import {
   convertTraitLabelsToAllUserTraits,
   TraitLabel,
   TraitsCreator,
 } from '../Traits';
-import {
-  EligibilityOrGrantRolesFieldSelectAndCreate,
-  EligibleUsersFieldSelectAndCreate,
-} from './Shared';
+import { EnrollNewMembersFields } from '../ViewEditAccessList/Members/EnrollNewMembers';
+import { EligibilityOrGrantRolesFieldSelectAndCreate } from './Shared';
 
 type Props = {
+  attempt: Attempt;
   fetchRoleOptions: (input: string) => Promise<Option[]>;
   isDisabled: boolean;
   setOwners(m: Owners): void;
   owners: Owners;
-  noAccess: boolean;
 };
 
 export type Owners = {
   selectedRolesRequired: Option[];
   eligibleOwners: UserOption[];
-  selectedOwners: HybridUserOption[];
+  selectedOwners: Option<MemberSelection>[];
   traitLabels: TraitLabel[];
   traitLookup: AllUserTraits;
 };
 
 export const OwnersSection = ({
   fetchRoleOptions,
+  attempt,
   isDisabled,
   owners,
   setOwners,
-  noAccess,
 }: Props) => {
   return (
     <>
@@ -84,14 +83,12 @@ export const OwnersSection = ({
           }
         />
       </Box>
-      <EligibleUsersFieldSelectAndCreate
-        selected={owners.selectedOwners || []}
-        isDisabled={isDisabled}
-        onChange={vals => setOwners({ ...owners, selectedOwners: vals || [] })}
-        options={owners.eligibleOwners}
-        label={'Add List Owners'}
-        requiredErrMsg="List Owners are required"
-        noEligibleUsersFromNoAccess={noAccess}
+      <EnrollNewMembersFields
+        selectedMembers={owners.selectedOwners}
+        setSelectedMembers={vals =>
+          setOwners({ ...owners, selectedOwners: vals ?? [] })
+        }
+        attempt={attempt}
       />
     </>
   );

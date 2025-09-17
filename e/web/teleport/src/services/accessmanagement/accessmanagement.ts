@@ -1,10 +1,15 @@
+import { SortType } from 'design/DataTable/types';
 import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
 
 import cfg from 'e-teleport/config';
+import { ResourcesResponse } from 'teleport/services/agents';
 import api from 'teleport/services/api';
 import auth from 'teleport/services/auth/auth';
 import { makeTraits } from 'teleport/services/user/makeUser';
-import { withGenericUnsupportedError } from 'teleport/services/version/unsupported';
+import {
+  isPathNotFoundError,
+  withGenericUnsupportedError,
+} from 'teleport/services/version/unsupported';
 
 import {
   AccessList,
@@ -32,6 +37,37 @@ export const accessManagementService = {
     return api
       .get(cfg.getAccessManagementListUrl(), abortSignal)
       .then(resp => makeAccessLists(resp.accessLists));
+  },
+  fetchAccessListsV2(
+    params: {
+      search?: string;
+      limit?: number;
+      sort?: SortType;
+      startKey?: string;
+      owners?: string[];
+    },
+    abortSignal?: AbortSignal
+  ): Promise<ResourcesResponse<AccessList>> {
+    return api
+      .get(cfg.getAccessManagementListUrlV2(params), abortSignal)
+      .then(resp => {
+        return {
+          agents: makeAccessLists(resp.accessLists),
+          startKey: resp.startKey,
+        };
+      })
+      .catch(err => {
+        // TODO (avatus): DELETE in v21
+        if (isPathNotFoundError(err)) {
+          const resp = this.fetchAccessLists(abortSignal);
+          return {
+            agents: makeAccessLists(resp),
+            startKey: '',
+          };
+        } else {
+          throw err;
+        }
+      });
   },
   fetchReviews(
     accessListId: string,
@@ -153,6 +189,7 @@ export const accessManagementService = {
       members: req.members
         ? req.members.map(m => ({
             name: m.name,
+            title: m.title,
             joined: m.joined,
             expires: m.expires,
             reason: m.reason,
@@ -162,6 +199,7 @@ export const accessManagementService = {
         : original.members.map(m => ({
             name: m.name,
             joined: m.joined,
+            title: m.title,
             expires: m.expires,
             reason: m.reason,
             added_by: m.addedBy,
@@ -325,6 +363,7 @@ function makeMembers(json: any): AccessListMember[] {
   return json.map(m => {
     return {
       name: m.name,
+      title: m.title,
       reason: m.reason,
       addedBy: m.added_by,
       joined: new Date(m.joined),
@@ -341,6 +380,7 @@ function makeOwners(json: any): AccessListOwner[] {
   }
   return json.map(o => {
     return {
+      title: o.title,
       name: o.name,
       description: o.description,
       ineligibleReason: getIneligibleReason(o.ineligible_status),

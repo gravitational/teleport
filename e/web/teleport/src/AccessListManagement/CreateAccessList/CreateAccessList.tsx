@@ -53,7 +53,6 @@ import { convertTraitLabelsToAllUserTraits } from '../Traits';
 import { Grant, GrantSection } from './GrantSection';
 import { Members, MembersSection } from './MemberSection';
 import { Owners, OwnersSection } from './OwnerSection';
-import { convertAccessListsToUserOptions } from './Shared';
 import { Spec, SpecSection } from './SpecSection';
 
 export const CreateAccessListWithProvider = () => (
@@ -65,13 +64,8 @@ export const CreateAccessListWithProvider = () => (
 export function CreateAccessList() {
   const [featureLimitReached, setFeatureLimitReached] = useState(false);
 
-  const {
-    attempt: { attempt },
-    accessLists,
-    userOptions,
-    usersAndRolesAttempt,
-    fetchUsersAndRoles,
-  } = useAccessListManagementContext();
+  const { usersAndRolesAttempt, fetchUsersAndRoles } =
+    useAccessListManagementContext();
 
   const { attempt: createAttempt, setAttempt: setCreateAttempt } =
     useAttempt('');
@@ -106,90 +100,20 @@ export function CreateAccessList() {
     ) {
       return;
     }
+    const limit = cfg.oss.entitlements.AccessLists.limit;
 
-    if (
-      attempt.status !== 'processing' &&
-      accessLists.length >= cfg.oss.entitlements.AccessLists.limit
-    ) {
-      setFeatureLimitReached(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempt.status]);
-
-  // Update owners.
-  useEffect(() => {
-    let eligibleOwners: UserOption[] = userOptions;
-    let selectedOwners: HybridUserOption[] = [];
-    const rolesRequiredToBeEligible = owners.selectedRolesRequired;
-
-    // Only filter for eligible owners if required roles or traits
-    // are defined. Otherwise, all users are eligible.
-    if (
-      owners.selectedRolesRequired.length > 0 ||
-      owners.traitLabels.length > 0
-    ) {
-      eligibleOwners = getEligibleUsers(
-        rolesRequiredToBeEligible,
-        owners.traitLookup,
-        userOptions
-      );
-      if (eligibleOwners.length > 0 && owners.selectedOwners.length > 0) {
-        selectedOwners = getEligibleUsersAmongSelectedUsers({
-          eligibleUsers: eligibleOwners,
-          selectedUsers: owners.selectedOwners,
+    function checkLimit() {
+      accessManagementService
+        .fetchAccessListsV2({ limit: limit + 5 })
+        .then(resp => {
+          if (resp.agents.length >= limit) {
+            setFeatureLimitReached(true);
+          }
         });
-      }
     }
 
-    eligibleOwners = eligibleOwners.concat(
-      convertAccessListsToUserOptions(accessLists, owners.eligibleOwners)
-    );
-
-    setOwners({ ...owners, eligibleOwners, selectedOwners });
-  }, [
-    userOptions,
-    owners.selectedRolesRequired,
-    owners.traitLabels,
-    accessLists,
-  ]);
-
-  // Update members.
-  useEffect(() => {
-    let eligibleMembers: UserOption[] = userOptions;
-    let selectedMembers: HybridUserOption[] = [];
-    const rolesRequiredToBeEligible = members.selectedRolesRequired;
-
-    // Only filter for eligible members if required roles or traits
-    // are defined. Otherwise, all users are eligible.
-    if (
-      members.selectedRolesRequired.length > 0 ||
-      members.traitLabels.length > 0
-    ) {
-      eligibleMembers = getEligibleUsers(
-        rolesRequiredToBeEligible,
-        members.traitLookup,
-        userOptions
-      );
-
-      if (eligibleMembers.length > 0 && members.selectedMembers.length > 0) {
-        selectedMembers = getEligibleUsersAmongSelectedUsers({
-          eligibleUsers: eligibleMembers,
-          selectedUsers: members.selectedMembers,
-        });
-      }
-    }
-
-    eligibleMembers = eligibleMembers.concat(
-      convertAccessListsToUserOptions(accessLists, members.eligibleMembers)
-    );
-
-    setMembers({ ...members, eligibleMembers, selectedMembers });
-  }, [
-    userOptions,
-    members.selectedRolesRequired,
-    members.traitLabels,
-    accessLists,
-  ]);
+    checkLimit();
+  }, []);
 
   return (
     <FeatureBox>
@@ -209,7 +133,7 @@ export function CreateAccessList() {
       </FeatureHeader>
 
       <MainContent
-        attempt={attempt}
+        attempt={usersAndRolesAttempt}
         createAttempt={createAttempt}
         setCreateAttempt={setCreateAttempt}
         featureLimitReached={featureLimitReached}
@@ -244,7 +168,8 @@ const MainContent = ({
   setMembers: React.Dispatch<React.SetStateAction<Members>>;
 }) => {
   const ctx = useTeleport();
-  const { fetchRoleOptions, userOptions } = useAccessListManagementContext();
+  const { fetchRoleOptions, updateAccessListCache } =
+    useAccessListManagementContext();
   const history = useHistory();
   const perms = ctx.storeUser.getAccessListAccess();
   const canCreate = perms.create && perms.list && perms.read;
@@ -285,7 +210,7 @@ const MainContent = ({
         </Box>
       );
     case 'failed':
-      return <Alert children={attempt.statusText} />;
+      return <Alert>{attempt.statusText}</Alert>;
     case 'success':
       break;
     default:
@@ -379,7 +304,12 @@ const MainContent = ({
           createdList.membersCount = membersCount;
           createdList.memberListCount = memberListCount;
         }
-        history.push(cfg.getAccessListManagementRoute(), { createdList });
+
+        updateAccessListCache({
+          mutationType: 'created',
+          accessList: createdList,
+        });
+        history.replace(cfg.getAccessListManagementRoute());
       })
       .catch((e: Error) =>
         setCreateAttempt({ status: 'failed', statusText: e.message })
@@ -429,20 +359,20 @@ const MainContent = ({
             </Box>
             <Box mb={8}>
               <OwnersSection
+                attempt={createAttempt}
                 owners={owners}
                 setOwners={setOwners}
                 fetchRoleOptions={fetchRoleOptions}
                 isDisabled={createAttempt.status === 'processing'}
-                noAccess={userOptions.length === 0}
               />
             </Box>
             <Box>
               <MembersSection
+                attempt={createAttempt}
                 members={members}
                 setMembers={setMembers}
                 fetchRoleOptions={fetchRoleOptions}
                 isDisabled={createAttempt.status === 'processing'}
-                noAccess={userOptions.length === 0}
               />
             </Box>
             <Box mt={5} mb={8}>

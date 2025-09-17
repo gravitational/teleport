@@ -1,5 +1,4 @@
 import React, { PropsWithChildren, useState } from 'react';
-import type { useHistory } from 'react-router-dom';
 import {
   components,
   type GroupBase,
@@ -9,23 +8,13 @@ import {
 import styled from 'styled-components';
 
 import { Label, Popover, Text } from 'design';
-import type { SortDir } from 'design/DataTable/types';
 import { User as UserIcon, UserList } from 'design/Icon';
 import Link from 'design/Link';
 import type { Theme } from 'design/theme/themes/types';
 import type { Option } from 'shared/components/Select';
 import type useAttempt from 'shared/hooks/useAttemptNext';
 
-import {
-  AccessListFilters,
-  AccessListSort,
-} from 'e-teleport/AccessListManagement/AccessListManagementContext';
-import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
-import {
-  AccessListMemberKind,
-  AccessListOrigin,
-  type AccessList,
-} from 'e-teleport/services/accessmanagement';
+import { AccessListMemberKind } from 'e-teleport/services/accessmanagement';
 import ResourceService, { type Role } from 'teleport/services/resources';
 import type { AllUserTraits, User } from 'teleport/services/user';
 import { yamlService } from 'teleport/services/yaml';
@@ -50,191 +39,6 @@ export type EditKind = 'Member' | 'Owner' | 'Grants' | 'OwnerGrants';
 export type MemberSelection = {
   name: string;
   membershipKind: AccessListMemberKind;
-};
-
-type accessListLocationState = {
-  createdList?: AccessList;
-  reviewedAccessList?: AccessList;
-  deletedAccessListId?: string;
-};
-
-/**
- * If location state is set, user came to this view from
- * either creating, deleting, or reviewing an access list.
- * Because of caching, the list from backend won't be updated
- * right way, so we manually update/remove the list here.
- */
-export const updateAccessListsCache = <
-  T extends (AccessList | AccessListWithModifiedGrants)[],
->(
-  currentLists: T,
-  locationState: accessListLocationState | null | undefined,
-  history: ReturnType<typeof useHistory>
-): T => {
-  if (!locationState) {
-    return currentLists;
-  }
-
-  if (locationState.createdList) {
-    const foundList = currentLists.find(
-      l => l.id === locationState.createdList.id
-    );
-    if (!foundList) {
-      currentLists.push(locationState.createdList);
-    }
-  }
-  if (locationState.deletedAccessListId) {
-    currentLists = currentLists.filter(
-      l => l.id !== locationState.deletedAccessListId
-    ) as T;
-  }
-  if (locationState.reviewedAccessList) {
-    const foundIndex = currentLists.findIndex(
-      l => l.id === locationState.reviewedAccessList.id
-    );
-    if (
-      foundIndex > -1 &&
-      currentLists[foundIndex].audit.nextDate !=
-        locationState.reviewedAccessList.audit.nextDate
-    ) {
-      currentLists[foundIndex] = locationState.reviewedAccessList;
-    }
-  }
-
-  // Clear state afterward but preserve query
-  history.replace({
-    state: {},
-    pathname: location.pathname,
-    search: location.search,
-  });
-
-  return currentLists;
-};
-
-// Sorts Access Lists by the given field and direction.
-export const sortAccessLists = (
-  accessLists: AccessListWithModifiedGrants[],
-  sort: AccessListSort
-) => {
-  // JS sorts lists in-place; slicing seems to be required for React to re-render predictably.
-  return accessLists.slice().sort(sortAccessList(sort.fieldName, sort.dir));
-};
-
-// Returns a sort function for Access Lists based on the given field and direction.
-const sortAccessList =
-  (field: AccessListSort['fieldName'], dir: SortDir) =>
-  (a: AccessListWithModifiedGrants, b: AccessListWithModifiedGrants) => {
-    const aVal = a[field],
-      bVal = b[field];
-
-    // If fields are nullish, return either 1 or -1 based on direction so nullish values are always at the end.
-    if (aVal === undefined || aVal === null) {
-      return dir === 'ASC' ? 1 : -1;
-    }
-    if (bVal === undefined || bVal === null) {
-      return dir === 'ASC' ? -1 : 1;
-    }
-
-    // If fields match, use title as a tiebreaker.
-    return aVal === bVal && field !== 'title'
-      ? compareValues(a.title, b.title, dir)
-      : compareValues(aVal, bVal, dir);
-  };
-
-// Compares two values of any type, in ASC or DESC order, returning -1, 0, or 1.
-function compareValues<T>(a: T, b: T, dir: SortDir) {
-  if (typeof a === 'string' && typeof b === 'string') {
-    return a.localeCompare(b) * (dir === 'ASC' ? 1 : -1);
-  }
-  return a === b ? 0 : dir === 'ASC' ? (a > b ? 1 : -1) : a < b ? 1 : -1;
-}
-
-// Filters Access Lists based on search and filter values.
-export const filterAccessLists = <T extends AccessListWithModifiedGrants>({
-  accessLists,
-  searchValue = '',
-  filterValue,
-}: {
-  accessLists: T[];
-  searchValue?: string;
-  filterValue: AccessListFilters;
-}): T[] => {
-  // Skip if no filters are set or list is empty
-  const trimmedSearch = searchValue?.trim() || '';
-  const hasSourceFilter = filterValue.source?.length > 0;
-  const hasOwnerFilter = filterValue.owners?.length > 0;
-  const hasRoleFilter = filterValue.roles?.length > 0;
-
-  if (
-    !accessLists.length ||
-    (!trimmedSearch && !hasSourceFilter && !hasOwnerFilter && !hasRoleFilter)
-  ) {
-    return accessLists;
-  }
-
-  return accessLists.filter(acl => {
-    // Search filtering
-    if (trimmedSearch) {
-      const searchTerms = trimmedSearch.toLowerCase().split(' ');
-
-      // Check if any searchable field matches all search terms
-      const matchesSearch =
-        // Title match
-        searchTerms.every(term => acl.title.toLowerCase().includes(term)) ||
-        // Owner names match
-        searchTerms.every(term =>
-          acl.owners.some(owner => owner.name.toLowerCase().includes(term))
-        ) ||
-        // Description match
-        searchTerms.every(term =>
-          acl.description.toLowerCase().includes(term)
-        ) ||
-        // Roles match
-        searchTerms.every(term =>
-          acl.grants.roles.some(role => role.toLowerCase().includes(term))
-        ) ||
-        // Type-specific matches
-        (trimmedSearch.includes('okta') &&
-          acl.origin === AccessListOrigin.Okta) ||
-        (trimmedSearch.includes('aws') &&
-          acl.origin === AccessListOrigin.AwsIdentityCenter);
-
-      if (!matchesSearch) return false;
-    }
-
-    // Source filtering
-    if (hasSourceFilter) {
-      const matchesSource =
-        (filterValue.source.includes('okta') &&
-          acl.origin === AccessListOrigin.Okta) ||
-        (filterValue.source.includes('aws-identity-center') &&
-          acl.origin === AccessListOrigin.AwsIdentityCenter) ||
-        (filterValue.source.includes('teleport') &&
-          acl.origin === AccessListOrigin.Unspecified);
-
-      if (!matchesSource) return false;
-    }
-
-    // Owner filtering
-    if (
-      hasOwnerFilter &&
-      !filterValue.owners.some(name =>
-        acl.owners.some(owner => owner.name === name)
-      )
-    ) {
-      return false;
-    }
-
-    // Role filtering
-    if (
-      hasRoleFilter &&
-      !filterValue.roles.some(role => acl.grants.roles.includes(role))
-    ) {
-      return false;
-    }
-
-    return true;
-  });
 };
 
 const ReactSelectAccessListOptionBadge = styled.span`

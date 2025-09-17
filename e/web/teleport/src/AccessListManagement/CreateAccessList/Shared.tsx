@@ -1,11 +1,11 @@
+import { useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 
-import {
-  FieldSelectCreatable,
-  FieldSelectCreatableAsync,
-} from 'shared/components/FieldSelect/FieldSelectCreatable';
+import { FieldSelectAsync } from 'shared/components/FieldSelect';
+import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
+import { debounce } from 'shared/utils/highbar';
 
 import {
   AccessListMemberKind,
@@ -17,6 +17,7 @@ import {
   ReactSelectAccessListOption,
   type EditKind,
   type HybridUserOption,
+  type MemberSelection,
 } from '../Shared/Shared';
 
 export function convertAccessListsToUserOptions(
@@ -97,48 +98,82 @@ const FieldSelectCreatableWrapper = styled.div`
   }
 `;
 
-export function EligibleUsersFieldSelectAndCreate<T extends HybridUserOption>({
+export function EligibleUsersFieldSelect({
   selected,
   isDisabled,
   onChange,
-  options,
+  loadOptions,
   label,
+  placeholder = 'Start typing a username or an Access List name and press enter',
+  disableCreate = false,
   requiredErrMsg = '',
   autoFocus = false,
-  noEligibleUsersFromNoAccess = false,
+  noOptionsMsg = 'No users found',
 }: {
-  selected: T[];
+  selected: Option<MemberSelection>[];
   isDisabled: boolean;
-  onChange(opts: T[]): void;
-  options: T[];
+  onChange(opts: Option<MemberSelection>[]): void;
+  loadOptions(input: string): Promise<HybridUserOption[]>;
   label: string;
   requiredErrMsg?: string;
+  disableCreate?: boolean;
+  placeholder?: string;
   autoFocus?: boolean;
-  noEligibleUsersFromNoAccess?: boolean;
+  noOptionsMsg?: string;
 }) {
-  let noOptionsMsg = 'No eligible users found';
+  const debouncedFn = useMemo(
+    () =>
+      debounce(
+        async (
+          searchInput: string,
+          resolve: (result: HybridUserOption[]) => void,
+          reject: (error: unknown) => void
+        ) => {
+          try {
+            const result = await loadOptions(searchInput);
+            resolve(result);
+          } catch (e) {
+            reject(e);
+          }
+        },
+        300
+      ),
+    [loadOptions]
+  );
 
-  // If a user had no access to list users,
-  // then we can't calculate eligible users.
-  if (noEligibleUsersFromNoAccess) {
-    noOptionsMsg =
-      'Start typing a username or an Access List name and press enter';
-  }
+  const wrappedLoadOptions = useCallback(
+    async (input: string): Promise<HybridUserOption[]> => {
+      if (!input) {
+        return loadOptions('');
+      }
+      return new Promise((resolve, reject) => {
+        debouncedFn(input, resolve, reject);
+      });
+    },
+    [debouncedFn, loadOptions]
+  );
+
+  const Component = disableCreate
+    ? FieldSelectAsync
+    : FieldSelectCreatableAsync;
+
   return (
     <FieldSelectCreatableWrapper>
-      <FieldSelectCreatable
+      <Component
         label={label}
         value={selected}
         rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
         menuPosition="fixed"
         autoFocus={autoFocus}
         classNamePrefix="react-select"
-        placeholder="Start typing a username or an Access List name and press enter"
+        placeholder={placeholder}
         isMulti={true}
-        isClearable={true}
+        isSearchable={true}
+        isClearable={false}
         isDisabled={isDisabled}
         onChange={onChange}
-        options={options}
+        loadOptions={wrappedLoadOptions}
+        defaultOptions={true}
         noOptionsMessage={() => noOptionsMsg}
         components={{
           Option: ReactSelectAccessListOption,

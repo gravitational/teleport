@@ -216,6 +216,7 @@ test('fetch an access list', async () => {
         addedBy: 'llama',
         ineligibleReason: 'User does not exist',
         membershipKind: AccessListMemberKind.User,
+        title: undefined,
       },
     ],
     ownershipRequires: {
@@ -228,6 +229,7 @@ test('fetch an access list', async () => {
         description: 'some description',
         ineligibleReason: 'User does not exist',
         membershipKind: AccessListMemberKind.User,
+        title: undefined,
       },
     ],
   });
@@ -279,6 +281,7 @@ describe('update an access list', () => {
         description: 'some description',
         ineligibleReason: 'some owner ineligible reason',
         membershipKind: AccessListMemberKind.User,
+        title: '',
       },
     ],
     inheritedMemberGrants: { roles: [], traits: {} },

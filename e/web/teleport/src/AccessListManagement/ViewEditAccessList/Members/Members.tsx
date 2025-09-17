@@ -12,7 +12,6 @@ import { Add, ArrowRight } from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import type { Option } from 'shared/components/Select';
 
-import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Traits';
@@ -22,7 +21,7 @@ import {
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
 
-import { EditKind, NestedListLink, type UserOption } from '../../Shared/Shared';
+import { EditKind, NestedListLink } from '../../Shared/Shared';
 import { Action, getActionForbiddenInfo, isActionForbidden } from '../access';
 import { DeleteUserConfirmDialog } from '../DeleteUserConfirmDialog';
 import {
@@ -36,10 +35,8 @@ import { EditEligibilityOrGrantRoles } from '../Specs/EditEligibilityOrGrants';
 import { EnrollNewMembers } from './EnrollNewMembers';
 
 interface MembersProps {
-  userOptions: UserOption[];
   updateAccessList(accessList: AccessList, members?: AccessListMember[]): void;
   accessList: AccessListModified;
-  accessLists: AccessListWithModifiedGrants[];
   isReadOnlyOktaList?: boolean;
   perms: Perms;
   fetchRoleOptions: (input: string) => Promise<Option[]>;
@@ -48,9 +45,7 @@ interface MembersProps {
 export function Members(props: MembersProps) {
   const {
     accessList,
-    userOptions,
     updateAccessList,
-    accessLists,
     isReadOnlyOktaList,
     perms,
     fetchRoleOptions,
@@ -161,9 +156,7 @@ export function Members(props: MembersProps) {
         <EnrollNewMembers
           onClose={() => setShowEnrollNewMembers(false)}
           accessList={accessList}
-          userOptions={userOptions}
           updateAccessList={updateAccessList}
-          accessLists={accessLists}
         />
       )}
       {deleteMember && (
@@ -222,24 +215,6 @@ export const AccessListMemberTable = ({
       data={members}
       columns={[
         {
-          key: 'membershipKind',
-          isSortable: true,
-          headerText: 'Type',
-          onSort: (a, b) => {
-            if (a?.membershipKind === b?.membershipKind) {
-              return 0;
-            }
-            return a?.membershipKind === AccessListMemberKind.List ? -1 : 1;
-          },
-          render: ({ membershipKind, ineligibleReason }) => (
-            <CustomCell disabled={!hideIneligibleReason && !!ineligibleReason}>
-              {membershipKind === AccessListMemberKind.List
-                ? 'Access List'
-                : 'User'}
-            </CustomCell>
-          ),
-        },
-        {
           key: 'name',
           headerText: 'Name',
           isSortable: true,
@@ -249,9 +224,7 @@ export const AccessListMemberTable = ({
                 <CustomCell
                   disabled={false}
                   title={
-                    hideIneligibleReason || rest.accessListExists
-                      ? `View list '${title}'`
-                      : ''
+                    hideIneligibleReason || title ? `View list '${title}'` : ''
                   }
                 >
                   <Flex
@@ -262,16 +235,16 @@ export const AccessListMemberTable = ({
                   >
                     <NestedListLink
                       title={
-                        hideIneligibleReason || rest.accessListExists
+                        hideIneligibleReason || title
                           ? `View list '${title}'`
                           : ''
                       }
                       onClick={() => onClickNestedList(name)}
-                      disabled={!hideIneligibleReason && !rest.accessListExists}
+                      disabled={!hideIneligibleReason && !title}
                     >
-                      {title}
+                      {title || name}
                     </NestedListLink>
-                    {!hideIneligibleReason && !rest.accessListExists && (
+                    {!hideIneligibleReason && !title && (
                       <IconTooltip kind="warning">
                         Insufficient permissions to view Access List
                       </IconTooltip>
@@ -289,6 +262,24 @@ export const AccessListMemberTable = ({
               </CustomCell>
             );
           },
+        },
+        {
+          key: 'membershipKind',
+          isSortable: true,
+          headerText: 'Type',
+          onSort: (a, b) => {
+            if (a?.membershipKind === b?.membershipKind) {
+              return 0;
+            }
+            return a?.membershipKind === AccessListMemberKind.List ? -1 : 1;
+          },
+          render: ({ membershipKind, ineligibleReason }) => (
+            <CustomCell disabled={!hideIneligibleReason && !!ineligibleReason}>
+              {membershipKind === AccessListMemberKind.List
+                ? 'Access List'
+                : 'User'}
+            </CustomCell>
+          ),
         },
         {
           key: 'addedBy',
@@ -376,7 +367,7 @@ export const AccessListMemberTable = ({
       isSearchable
       pagination={{
         pageSize: 10,
-        pagerPosition: isReviewing ? 'both' : 'top',
+        pagerPosition: 'both',
         CustomTable: isReviewing ? CustomTable : undefined,
       }}
       initialSort={{ key: 'name', dir: 'ASC' }}

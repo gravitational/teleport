@@ -37,8 +37,8 @@ beforeEach(() => {
     .mockResolvedValue(accessList);
 
   jest
-    .spyOn(accessManagementService, 'fetchAccessLists')
-    .mockResolvedValue([accessList]);
+    .spyOn(accessManagementService, 'fetchAccessListsV2')
+    .mockResolvedValue({ agents: [accessList] });
   jest
     .spyOn(accessManagementService, 'fetchReviews')
     .mockResolvedValue({ reviews, startKey: '' });
@@ -46,6 +46,9 @@ beforeEach(() => {
     .spyOn(ResourceService.prototype, 'fetchRoles')
     .mockResolvedValue({ items: [], startKey: '' });
   jest.spyOn(userService, 'fetchUsers').mockResolvedValue([]);
+  jest
+    .spyOn(userService, 'fetchUsersV2')
+    .mockResolvedValue({ items: [], startKey: '' });
   jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue(oktaPlugin);
 });
 

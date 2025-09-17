@@ -619,15 +619,28 @@ func TestListAccessLists(t *testing.T) {
 			name: "filter by search",
 			queryParams: url.Values{
 				"search": []string{"apple"},
+				"sort":   []string{"name:asc"},
 				"limit":  []string{"2"},
 			},
 			expectedLen:              2,
 			expectedListNamesInOrder: []string{"apple", "appletwo"},
 		},
 		{
+			name: "filter by search",
+			queryParams: url.Values{
+				"search": []string{"apple"},
+				"sort":   []string{"name:asc"},
+				"limit":  []string{"1"},
+			},
+			expectedLen:              1,
+			expectedListNamesInOrder: []string{"apple"},
+			expectedNext:             "appletwo",
+		},
+		{
 			name: "next page exists",
 			queryParams: url.Values{
 				"limit": []string{"2"},
+				"sort":  []string{"name:asc"},
 			},
 			expectedLen:              2,
 			expectedListNamesInOrder: []string{"apple", "appletwo"},
@@ -637,6 +650,7 @@ func TestListAccessLists(t *testing.T) {
 			name: "using nextKey in params",
 			queryParams: url.Values{
 				"limit":    []string{"2"},
+				"sort":     []string{"name:asc"},
 				"startKey": []string{"banana"},
 			},
 			expectedLen:              2,
@@ -647,6 +661,7 @@ func TestListAccessLists(t *testing.T) {
 			name: "filter by single owner",
 			queryParams: url.Values{
 				"owners": []string{"alice"},
+				"sort":   []string{"name:asc"},
 			},
 			expectedLen:              2,
 			expectedListNamesInOrder: []string{"apple", "cherry"},
@@ -655,6 +670,7 @@ func TestListAccessLists(t *testing.T) {
 			name: "filter by multiple owners",
 			queryParams: url.Values{
 				"owners": []string{"alice", "bob"},
+				"sort":   []string{"name:asc"},
 			},
 			expectedLen:              4,
 			expectedListNamesInOrder: []string{"apple", "banana", "cherry", "orange"},
@@ -663,54 +679,17 @@ func TestListAccessLists(t *testing.T) {
 			name: "filter by nonexistent owner",
 			queryParams: url.Values{
 				"owners": []string{"nonexistent"},
+				"sort":   []string{"name:asc"},
 			},
 			expectedLen:              0,
 			expectedListNamesInOrder: []string{},
 		},
 		{
-			name: "filter by single role",
-			queryParams: url.Values{
-				"roles": []string{"viewer"},
-			},
-			expectedLen:              2,
-			expectedListNamesInOrder: []string{"apple", "appletwo"},
-		},
-		{
-			name: "filter by multiple roles",
-			queryParams: url.Values{
-				"roles": []string{"admin", "editor"},
-			},
-			expectedLen:              3,
-			expectedListNamesInOrder: []string{"banana", "cherry", "orange"},
-		},
-		{
-			name: "filter by nonexistent role",
-			queryParams: url.Values{
-				"roles": []string{"nonexistent"},
-			},
-		},
-		{
-			name: "filter by owner and role both match",
-			queryParams: url.Values{
-				"owners": []string{"bob"},
-				"roles":  []string{"admin"},
-			},
-			expectedLen:              1,
-			expectedListNamesInOrder: []string{"orange"},
-		},
-		{
-			name: "filter by owner and role - no matches",
-			queryParams: url.Values{
-				"owners": []string{"alice"},
-				"roles":  []string{"editor"},
-			},
-		},
-		{
-			name: "filter by search, owner, and role combined",
+			name: "filter by search and owner",
 			queryParams: url.Values{
 				"search": []string{"apple"},
 				"owners": []string{"alice"},
-				"roles":  []string{"viewer"},
+				"sort":   []string{"name:asc"},
 			},
 			expectedLen:              1,
 			expectedListNamesInOrder: []string{"apple"},
@@ -720,6 +699,43 @@ func TestListAccessLists(t *testing.T) {
 			queryParams: url.Values{
 				"search": []string{"nonexistent"},
 				"owners": []string{"alice"},
+				"sort":   []string{"name:asc"},
+			},
+		},
+		{
+			name: "filter by single owner",
+			queryParams: url.Values{
+				"owners": []string{"alice"},
+				"sort":   []string{"name:asc"},
+			},
+			expectedLen:              2,
+			expectedListNamesInOrder: []string{"apple", "cherry"},
+			expectedNext:             "",
+		},
+		{
+			name: "filter by multiple owners",
+			queryParams: url.Values{
+				"owners": []string{"alice", "bob"},
+				"sort":   []string{"name:asc"},
+			},
+			expectedLen:              4,
+			expectedListNamesInOrder: []string{"apple", "banana", "cherry", "orange"},
+		},
+		{
+			name: "filter by nonexistent owner",
+			queryParams: url.Values{
+				"owners": []string{"nonexistent"},
+				"sort":   []string{"name:asc"},
+			},
+			expectedLen:              0,
+			expectedListNamesInOrder: []string{},
+		},
+		{
+			name: "filter by search with owner filter - search doesn't match",
+			queryParams: url.Values{
+				"search": []string{"nonexistent"},
+				"owners": []string{"alice"},
+				"sort":   []string{"name:asc"},
 			},
 		},
 	}

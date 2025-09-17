@@ -9,7 +9,6 @@ import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
 import { Option } from 'shared/components/Select';
 
-import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import {
   convertToTraitConvenience,
   TraitConvenience,
@@ -39,38 +38,7 @@ export type AccessListRequiresWithTraitConvenience = AccessListRequires &
 export type AccessListGrantWithTraitConvenience = AccessListGrant &
   TraitConvenience;
 
-type Title = {
-  // title` represents the display name of an AccessListMember or Owner,
-  // as opposed to `name`, which in the case of a nested Access List, is its UUID.
-  title: string;
-};
-type Membership =
-  | {
-      membershipKind: Exclude<AccessListMemberKind, AccessListMemberKind.List>;
-    }
-  | {
-      membershipKind: AccessListMemberKind.List;
-      // `accessListExists` is present for nested Access List members and owners,
-      // and is true if the list is found within all loaded AccessLists.
-      accessListExists: boolean;
-    };
-export type AccessListWithNestedOwnersMembersTitles = Omit<
-  AccessList,
-  'owners' | 'members'
-> & {
-  // owners in AccessListWithNestedOwnersMembersTitles are AccessList Owners with additional properties:
-  // - `title` is the display name of the Owner, as opposed to `name`, which for a nested Access List is its UUID.
-  // - `accessListExists` is present for nested Access Lists, and is true if the list is found within all loaded AccessLists.
-  // For example, if the list does not exist, or the active user lacks permission to load it, `accessListExists` will be false.
-  owners: (AccessListOwner & Title & Membership)[];
-  // `members` in AccessListWithNestedOwnersMembersTitles are AccessListMembers with additional properties:
-  // - `title` is the display name of the Member, as opposed to `name`, which for a nested Access List is its UUID.
-  // - `accessListExists` is present for nested Access Lists, and is true if the list is found within all loaded AccessLists.
-  // For example, if the list does not exist, or the active user lacks permission to load it, `accessListExists` will be false.
-  members: (AccessListMember & Title & Membership)[] | undefined;
-};
-
-export type AccessListModified = AccessListWithNestedOwnersMembersTitles & {
+export type AccessListModified = AccessList & {
   membershipRequires: AccessListRequiresWithTraitConvenience;
   ownershipRequires: AccessListRequiresWithTraitConvenience;
   grants: AccessListGrantWithTraitConvenience;
@@ -112,10 +80,7 @@ export const getPerms = ({
   };
 };
 
-export const modifyAccessList = (
-  acl: AccessList,
-  acls: (AccessList | AccessListWithModifiedGrants)[]
-): AccessListModified => {
+export const modifyAccessList = (acl: AccessList): AccessListModified => {
   const modifiedAccessList: AccessListModified = {
     ...acl,
     grants: {
@@ -138,36 +103,11 @@ export const modifyAccessList = (
       todayDate: new Date(),
       reviewDate: acl.audit.nextDate,
     }),
-    ...getTitlesForNestedListOwnersMembers(
-      { members: acl.members, owners: acl.owners },
-      acls
-    ),
+    members: [...acl.members],
   };
 
   return modifiedAccessList;
 };
-
-export const getTitlesForNestedListOwnersMembers = (
-  acl: Pick<AccessList, 'members' | 'owners'>,
-  acls: Pick<AccessList | AccessListWithModifiedGrants, 'id' | 'title'>[]
-): Pick<AccessListWithNestedOwnersMembersTitles, 'members' | 'owners'> => ({
-  members: acl.members?.map(m => {
-    const { membershipKind } = m;
-    if (membershipKind !== AccessListMemberKind.List) {
-      return { ...m, title: m.name, membershipKind };
-    }
-    const acl = acls.find(l => l.id === m.name);
-    return { ...m, title: acl?.title || m.name, accessListExists: !!acl };
-  }),
-  owners: acl.owners.map(o => {
-    const { membershipKind } = o;
-    if (membershipKind !== AccessListMemberKind.List) {
-      return { ...o, title: o.name, membershipKind };
-    }
-    const acl = acls.find(l => l.id === o.name);
-    return { ...o, title: acl?.title || o.name, accessListExists: !!acl };
-  }),
-});
 
 export const CustomCell: React.FC<
   PropsWithChildren<{ disabled: boolean; title?: string | undefined }>

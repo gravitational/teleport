@@ -33,10 +33,13 @@ describe('upsell links', () => {
     cfg.isEnterprise = true;
 
     jest
-      .spyOn(accessManagementService, 'fetchAccessLists')
-      .mockResolvedValue([mockAccessLists[0]]);
+      .spyOn(accessManagementService, 'fetchAccessListsV2')
+      .mockResolvedValue({ agents: [mockAccessLists[0]] });
 
     jest.spyOn(userService, 'fetchUsers').mockResolvedValue([]);
+    jest
+      .spyOn(userService, 'fetchUsersV2')
+      .mockResolvedValue({ startKey: '', items: [] });
     jest.spyOn(ResourceService.prototype, 'fetchRoles').mockResolvedValue({
       items: [],
       startKey: '',
