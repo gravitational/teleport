@@ -18,7 +18,7 @@ sets Pod annotations when specified:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -104,7 +104,7 @@ sets Pod labels when specified:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -214,7 +214,7 @@ sets StatefulSet labels when specified:
               value: RELEASE-NAME
             - name: TELEPORT_KUBE_CLUSTER_DOMAIN
               value: cluster.local
-            image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+            image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -332,7 +332,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -418,7 +418,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -524,7 +524,7 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
               value: RELEASE-NAME
             - name: TELEPORT_KUBE_CLUSTER_DOMAIN
               value: cluster.local
-            image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+            image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -620,7 +620,7 @@ should add volumeMount for data volume when using StatefulSet:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -706,7 +706,7 @@ should expose diag port:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -792,7 +792,7 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -892,7 +892,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -990,7 +990,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1076,7 +1076,7 @@ should have one replica when replicaCount is not set:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1162,7 +1162,7 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1250,7 +1250,7 @@ should mount extraVolumes and extraVolumeMounts:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1341,7 +1341,7 @@ should mount jamfCredentialsSecret if it already exists and when role is jamf:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1435,7 +1435,7 @@ should mount jamfCredentialsSecret.name when role is jamf:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1531,7 +1531,7 @@ should mount tls.existingCASecretName and set environment when set in values:
         value: cluster.local
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1629,7 +1629,7 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         value: /etc/teleport-tls-ca/ca.pem
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1723,7 +1723,7 @@ should not add emptyDir for data when using StatefulSet:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1809,7 +1809,7 @@ should provision initContainer correctly when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1953,7 +1953,7 @@ should set affinity when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2039,7 +2039,7 @@ should set default serviceAccountName when not set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2138,7 +2138,7 @@ should set environment when extraEnv set in values:
         value: cluster.local
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2310,7 +2310,7 @@ should set imagePullPolicy when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
@@ -2396,7 +2396,7 @@ should set nodeSelector if set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2496,7 +2496,7 @@ should set preferred affinity when more than one replica is used:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2582,7 +2582,7 @@ should set probeTimeoutSeconds when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2678,7 +2678,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2764,7 +2764,7 @@ should set resources when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2857,7 +2857,7 @@ should set serviceAccountName when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2943,7 +2943,7 @@ should set storage.requests when set in values and action is an Upgrade:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -3029,7 +3029,7 @@ should set storage.storageClassName when set in values and action is an Upgrade:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -3115,7 +3115,7 @@ should set tolerations when set in values:
         value: RELEASE-NAME
       - name: TELEPORT_KUBE_CLUSTER_DOMAIN
         value: cluster.local
-      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.1
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev.erikt.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
