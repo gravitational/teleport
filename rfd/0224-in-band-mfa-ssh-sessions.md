@@ -7,9 +7,7 @@ state: draft
 
 ## Required Approvers
 
-- Engineering: @rosstimothy
-
-TODO: Add more approvers
+- Engineering: @rosstimothy && @espadolini && @fspmarshall
 
 ## What
 
@@ -77,26 +75,25 @@ enforcement, improves monitoring, and reduces the attack surface by preventing d
 
 ### Proto Specification
 
-A new service called `TransportServiceV2` will be introduced. `TransportServiceV2` will include a new RPC called
-`ProxySSHWithMFA`. `TransportServiceV2` will replace the existing `TransportService`. The `ProxySSH` RPC will be
-deprecated in favor of `TransportServiceV2`'s `ProxySSHWithMFA` RPC, which provides in-band MFA enforcement during SSH
-session establishment. The new RPC supports both MFA-required and MFA-optional flows, allowing clients to dynamically
-handle MFA challenges as needed.
+A new service called `TransportServiceV2` will be introduced. `TransportServiceV2` will replace the existing
+`TransportService`. The `ProxySSH` RPC of `TransportService` will be deprecated in favor of `TransportServiceV2`'s
+`ProxySSH` RPC, which provides in-band MFA enforcement during SSH session establishment. The new RPC supports both
+MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA challenges as needed.
 
 ```proto
 // api/proto/teleport/transport/v2/transport_service.proto
 
 service TransportServiceV2 {
-  // ProxySSHWithMFA establishes an SSH connection to the target host over a bidirectional stream.
+  // ProxySSH establishes an SSH connection to the target host over a bidirectional stream.
   // Upon stream establishment, the server will send an MFAAuthenticateChallenge as the first message if MFA is required.
   // If MFA is not required, the server will not send a challenge and the client can send the dial_target directly.
   // This RPC supports both MFA-required and MFA-optional flows, and the client determines if MFA is needed by
   // inspecting the first response from the server.
   // All SSH and agent frames are sent as raw bytes and are not interpreted by the proxy.
-  rpc ProxySSHWithMFA(stream ProxySSHWithMFARequest) returns (stream ProxySSHWithMFAResponse);
+  rpc ProxySSH(stream ProxySSHRequest) returns (stream ProxySSHResponse);
 }
 
-message ProxySSHWithMFARequest {
+message ProxySSHRequest {
   // Only one of these fields should be set per message.
   // - If MFA is required, client sends MFAAuthenticateResponse after receiving challenge.
   // - If MFA is not required, client sends dial_target directly.
@@ -112,7 +109,7 @@ message ProxySSHWithMFARequest {
   }
 }
 
-message ProxySSHWithMFAResponse {
+message ProxySSHResponse {
   // Only one of these fields will be set per message.
   // The first message from the server will be:
   // - MFAAuthenticateChallenge if MFA is required (client must respond with MFAAuthenticateResponse)
@@ -127,15 +124,16 @@ message ProxySSHWithMFAResponse {
 }
 ```
 
-#### ProxySSHWithMFA RPC
+#### ProxySSH RPC
 
-The `ProxySSHWithMFA` RPC establishes a bidirectional stream for SSH session establishment with integrated MFA. When the
-stream initializes, the server first checks if MFA is required for the session based on policy.
+The `ProxySSH` RPC establishes a bidirectional stream for SSH session establishment with integrated MFA. When the stream
+initializes, the server first checks if MFA is required for the session based on policy.
 
 For sessions where MFA is required, the server begins by sending an MFA challenge as the initial message. The client
 must then respond with valid authentication factors before proceeding further. The session can only continue after
 successful MFA verification. If the MFA verification fails, the stream is immediately terminated. Similarly, any
-connectivity issues with the authentication service result in the session being denied. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
+connectivity issues with the authentication service result in the session being denied. See
+[Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
 
 In cases where MFA is optional, or after successful MFA verification, the server sends `ClusterDetails` to the client.
 At this point, the client can proceed with their `DialTarget` request, and the server establishes an SSH connection with
@@ -155,7 +153,7 @@ sequenceDiagram
    participant Auth
    participant Node
 
-   Client->>Proxy: Open ProxySSHWithMFA stream
+   Client->>Proxy: Open ProxySSH stream
 
    Proxy->>Proxy: Check MFA Requirement
 
