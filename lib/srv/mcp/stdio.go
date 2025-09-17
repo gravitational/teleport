@@ -135,7 +135,7 @@ func (s *Server) handleStdio(ctx context.Context, sessionCtx *SessionCtx, makeSe
 	// TODO(greedy52) capture client info then emit start event with client
 	// information.
 	session.emitStartEvent(s.cfg.ParentContext)
-	defer session.emitEndEvent(s.cfg.ParentContext)
+	defer session.emitEndEvent(s.cfg.ParentContext, nil)
 
 	go clientRequestReader.Run(ctx)
 	go serverResponseReader.Run(ctx)

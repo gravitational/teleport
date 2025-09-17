@@ -176,7 +176,7 @@ func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string)
 }
 
 func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
-	s.emitNotificationEvent(ctx, notification)
+	s.emitNotificationEvent(ctx, notification, nil)
 }
 
 func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
