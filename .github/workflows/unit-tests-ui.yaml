@@ -48,7 +48,7 @@ jobs:
 
       - name: Install JS dependencies
         run: |
-          pnpm install --frozen-lockfile
+          ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" pnpm install --frozen-lockfile
 
       - name: Build WASM
         run: pnpm build-wasm

@@ -566,7 +566,7 @@ function Build-Connect {
         $env:CONNECT_WINTUN_DLL_PATH = "$TeleportSourceDirectory\wintun\wintun.dll"
         $env:CONNECT_MSGFILE_DLL_PATH = "$TeleportSourceDirectory\msgfile\msgfile.dll"
         $env:CONNECT_TSH_BIN_PATH = "$SignedTshBinaryPath"
-        pnpm install --frozen-lockfile
+        ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" pnpm install --frozen-lockfile
         pnpm build-term
         pnpm package-term "-c.extraMetadata.version=$TeleportVersion"
         $BinaryName = "Teleport Connect Setup-$TeleportVersion.exe"

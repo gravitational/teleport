@@ -310,13 +310,13 @@ buildbox-node:
 .PHONY:teleterm
 teleterm: buildbox-node
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NODE) \
-		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && pnpm install --frozen-lockfile && pnpm build-term && pnpm package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
+		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" pnpm install --frozen-lockfile && pnpm build-term && pnpm package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
 .PHONY:ui
 ui: buildbox
 	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
-		bash -c "cd ../teleport && pnpm install --frozen-lockfile && pnpm build-ui"
+		bash -c "cd ../teleport && ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" pnpm install --frozen-lockfile && pnpm build-ui"
 
 # Builds webassets inside the buildbox-node container via the
 # Makefile (instead of calling pnpm directly as the ui target above does)

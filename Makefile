@@ -771,7 +771,7 @@ release-windows: release-windows-unsigned
 # details.
 .PHONY: release-connect
 release-connect: | $(RELEASE_DIR)
-	pnpm install --frozen-lockfile
+	ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" pnpm install --frozen-lockfile
 	pnpm build-term
 	pnpm package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
@@ -1792,7 +1792,7 @@ backport:
 .PHONY: ensure-js-deps
 ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
-	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
+	else $(MAKE) ensure-js-package-manager && ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" pnpm install --frozen-lockfile; fi
 
 .PHONY: ensure-wasm-deps
 ifeq ($(WEBASSETS_SKIP_BUILD),1)

@@ -8,4 +8,4 @@ runs:
   entrypoint: sh
   args:
     - -c
-    - pnpm install --frozen-lockfile && pnpm build-teleport
+    - ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" pnpm install --frozen-lockfile && pnpm build-teleport
