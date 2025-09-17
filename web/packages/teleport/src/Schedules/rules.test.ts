@@ -25,7 +25,7 @@ describe('validShift', () => {
     name: string;
     shift: Shift;
     valid: boolean;
-    contains: string;
+    message?: string;
   }[] = [
     {
       name: 'valid shift',
@@ -34,7 +34,6 @@ describe('validShift', () => {
         endTime: { value: '23:59', label: '23:59' },
       },
       valid: true,
-      contains: '',
     },
     {
       name: 'invalid time value',
@@ -43,7 +42,7 @@ describe('validShift', () => {
         endTime: { value: '24:00', label: '24:00' },
       },
       valid: false,
-      contains: 'invalid time',
+      message: 'invalid time',
     },
     {
       name: 'same start and end time',
@@ -52,16 +51,13 @@ describe('validShift', () => {
         endTime: { value: '00:00', label: '00:00' },
       },
       valid: false,
-      contains: 'start time must be before end time',
+      message: 'start time must be before end time',
     },
   ];
   test.each(testCases)('$name', tc => {
     const result = validShift(tc.shift)();
     expect(result.valid).toEqual(tc.valid);
-    if (tc.contains) {
-      expect(result.message).not.toBeNull();
-      expect(result.message).toContain(tc.contains);
-    }
+    expect(result.message).toEqual(tc.message);
   });
 });
 
@@ -70,7 +66,7 @@ describe('validSchedule', () => {
     name: string;
     schedule: Schedule;
     valid: boolean;
-    contains: string;
+    message?: string;
   }[] = [
     {
       name: 'valid schedule',
@@ -90,7 +86,6 @@ describe('validSchedule', () => {
         },
       },
       valid: true,
-      contains: '',
     },
     {
       name: 'missing shifts',
@@ -100,16 +95,13 @@ describe('validSchedule', () => {
         shifts: newShifts(),
       },
       valid: false,
-      contains: 'At least one shift is required.',
+      message: 'At least one shift is required.',
     },
   ];
   test.each(testCases)('$name', tc => {
     const result = validSchedule(tc.schedule)();
     expect(result.valid).toEqual(tc.valid);
-    if (tc.contains) {
-      expect(result.message).not.toBeNull();
-      expect(result.message).toContain(tc.contains);
-    }
+    expect(result.message).toEqual(tc.message);
   });
 });
 

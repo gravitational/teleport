@@ -79,7 +79,7 @@ export const ScheduleEditor = ({
             size="large"
             width={40}
             inputAlignment={true}
-            intent={schedule.shifts?.[weekday.value] ? 'primary' : 'neutral'}
+            intent={schedule.shifts[weekday.value] ? 'primary' : 'neutral'}
             onClick={() => toggleWeekday(weekday.value)}
           >
             {weekday.label}
@@ -89,22 +89,21 @@ export const ScheduleEditor = ({
       <Box>
         <WeekdayScheduleTable>
           <tbody>
-            {!!schedule.shifts &&
-              WeekdayOptions.filter(
-                weekday => !!schedule.shifts[weekday.value]
-              ).map(weekday => (
-                <tr key={weekday.value}>
-                  <td>
-                    <Text>{weekday.value}</Text>
-                  </td>
-                  <td colSpan={3}>
-                    <ShiftSelect
-                      shift={schedule.shifts[weekday.value]}
-                      setShift={shift => setShift(weekday.value, shift)}
-                    />
-                  </td>
-                </tr>
-              ))}
+            {WeekdayOptions.filter(
+              weekday => !!schedule.shifts[weekday.value]
+            ).map(weekday => (
+              <tr key={weekday.value}>
+                <td>
+                  <Text>{weekday.value}</Text>
+                </td>
+                <td colSpan={3}>
+                  <ShiftSelect
+                    shift={schedule.shifts[weekday.value]}
+                    setShift={shift => setShift(weekday.value, shift)}
+                  />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </WeekdayScheduleTable>
         {!valid && (
