@@ -2,6 +2,16 @@ module github.com/gravitational/teleport
 
 go 1.25.1
 
+ignore (
+	./build
+	./docs
+	./web
+	./webassets
+	node_modules
+	rfd
+	target
+)
+
 require (
 	cloud.google.com/go/alloydb v1.18.0
 	cloud.google.com/go/cloudsqlconn v1.18.1
