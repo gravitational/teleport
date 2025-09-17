@@ -418,6 +418,9 @@ func (tc *testCtx) processMessages() error {
 
 	startupMessage, err := tc.pgClient.ReceiveStartupMessage()
 	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
