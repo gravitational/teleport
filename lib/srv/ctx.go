@@ -671,9 +671,9 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 	return c.Parent().GetEnv(key)
 }
 
+// GetSessionParams gets session params for the current session.
 func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
-	// If the client is up to date (>=v19), it will have provided session params upfront
-	// in the session channel request.
+	// Teleport ssh clients should provide session params upfront in the session channel request.
 	if sessionParams := c.Parent().GetSessionParams(); sessionParams != nil {
 		return *sessionParams
 	}
@@ -681,8 +681,9 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// TODO(Joerger): DELETE IN v20.0.0 - The client is old (<v19) and will provide session
-	// params from env variables sometime between the session channel request and shell request.
+	// If this is an old client, it will provide session params from
+	// env variables sometime between the session channel request and shell request.
+	// TODO(Joerger): DELETE IN v20.0.0 - just return empty params for an old Teleport client / openSSH client session.
 	sessionParams := tracessh.SessionParams{
 		Reason:                         c.env[teleport.EnvSSHSessionReason],
 		DisplayParticipantRequirements: utils.AsBool(c.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
