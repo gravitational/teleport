@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"time"
 
 	"go.opentelemetry.io/otel"
 
@@ -103,12 +102,12 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	}
 
 	// Initialize the fnCache
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	fnCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		// TODO: More appropriate cache time?
-		TTL: 1 * time.Minute,
+		TTL: effectiveLifetime.RenewalInterval,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "initializing cache")
 	}
 	s.cache = fnCache
 
