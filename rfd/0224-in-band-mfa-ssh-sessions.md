@@ -61,7 +61,7 @@ The Proxy service will leverage the [Access Control Decision API (RFD
 evaluates both per-role and global policy, to make consistent policy decisions for all SSH sessions. If any role or the
 global policy requires session MFA, the Proxy will enforce MFA for the session, following the logic in [RFD
 14](0014-session-2FA.md). Upon successful authentication and authorization, the Proxy will establish a connection to the
-target Teleport Agent using a session-bound SSH certificate and proxy the SSH traffic between the client and the node.
+target Teleport Agent proxy the SSH traffic between the client and the node.
 
 ### UX
 
@@ -70,8 +70,20 @@ architecture.
 
 ### Security
 
-This proposal introduces no new security risks. Centralizing SSH traffic through the Teleport Proxy strengthens policy
-enforcement, improves monitoring, and reduces the attack surface by preventing direct Node access.
+While this proposal aims to strengthen security by centralizing SSH traffic and MFA enforcement at the Proxy, it does
+introduce new potential risks, in addition to the risks raised in [Access Control Decision API (RFD
+0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), of which it
+builds upon. By moving the MFA ceremony to the Proxy, the attack surface shifts: the Proxy now becomes responsible for
+securely initiating and verifying MFA challenges on behalf of clients. This requires exposing a new RPC on the Auth
+service, which, if not properly secured, could be targeted for abuse (e.g., unauthorized invocation, replay attacks,
+etc).
+
+To mitigate these risks, the implementation must enforce strict authentication and authorization for the new RPC (only
+the Proxy can invoke it), ensure robust rate limiting, and tightly bind MFA challenges and responses to the session
+context. Additionally, careful auditing and monitoring of Proxy-initiated MFA flows will be necessary to detect and
+respond to any anomalous activity. These changes should be reviewed in the context of the [Access Control Decision API
+(RFD 0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), as the
+overall security posture will depend on the correct and secure integration of these components.
 
 ### Proto Specification
 
