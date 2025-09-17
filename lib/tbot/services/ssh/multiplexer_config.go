@@ -53,6 +53,9 @@ type MultiplexerConfig struct {
 	// will be automatically appended.
 	// Optional: If not provided, it will default to the `tbot` binary.
 	ProxyCommand []string `yaml:"proxy_command,omitempty"`
+	// RelayAddress specifies the address of a relay transport server to use for
+	// all the SSH connections going through this mux.
+	RelayAddress string `yaml:"relay_server,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
