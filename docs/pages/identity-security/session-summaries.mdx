@@ -13,7 +13,12 @@ what your users do and estimate legitimacy of their actions before digging
 deeper and reviewing the entire recording.
 
 <Admonition type="note">
-Session Recording Summaries are available only to Teleport Enterprise customers with Teleport Identity Security. 
+Session Recording Summaries are available only to Teleport Enterprise (Self-Hosted)
+customers with Teleport Identity Security. 
+
+Session Recording Summaries will be coming soon to Teleport Enterprise (Cloud) customers 
+with Teleport Identity Security. If you would like an [early preview; please get in touch](https://goteleport.com/contact-sales/).
+
 [Learn more about the features included in Teleport Identity Security](../feature-matrix.mdx#teleport-identity-security).
 </Admonition>
 
@@ -43,7 +48,8 @@ There are three fundamental concepts to that underpin session summarization:
   model is used in given case.
 
 <Admonition type="warning">
-This feature is powered by AI, and as such, its accuracy may vary.
+This feature is powered by AI levearing a Large Language Model, and as such, 
+its accuracy may vary.
 
 Teleport doesn't currently support any spend controls; controlling the LLM
 token budget is your responsibility.
@@ -51,8 +57,8 @@ token budget is your responsibility.
 
 ## Prerequisites
 
-- A running Teleport Enterprise cluster v18.2.0 or later with Identity Security
-  enabled.
+- A running Teleport Enterprise (Self-Hosted) cluster v18.2.0 or later with Identity 
+  Security enabled.
 - Access to OpenAI or OpenAI-compatible inference API, either public or
   self-hosted.
 
