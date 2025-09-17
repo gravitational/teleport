@@ -18,16 +18,16 @@ consistently enforce policy decisions and MFA requirements for all SSH sessions.
 
 ## Why
 
-In the current implementation, authentication and authorization decisions are handled by the Teleport Agent, which has
-the following issues:
+In the current implementation, authentication and authorization decisions must be handled by the Teleport client, which
+has the following issues:
 
 1. Per-session MFA enforcement flow is performed separately from session creation, which can introduce security gaps.
    For example, in [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc),
    the MFA policy can be bypassed since an attacker had the ability to forge a certificate attesting that they had
    completed MFA and there was no proper binding between the certificate and the session.
-1. Higher latency from multiple round trips between the Teleport Agent, Proxy service, and Auth service for
-   authentication and policy decisions.
-1. Decentralized access control logic in client code makes policy management and auditing more complex, requiring
+1. Higher latency from multiple round trips between Teleport clients, Proxy service, and Auth service for authentication
+   and policy decisions.
+1. Decentralized access control logic in Teleport clients makes policy management and auditing more complex, requiring
    Teleport Agent updates for changes.
 
 By centralizing these responsibilities at the Proxy, the new design directly addresses the above issues:
@@ -36,12 +36,15 @@ By centralizing these responsibilities at the Proxy, the new design directly add
    directly bound to each session and mitigating the risk of bypasses like those seen in
    [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc).
 1. Latency is reduced by consolidating authentication and authorization flows at the Proxy, eliminating unnecessary
-   communication between Teleport Agents and the Auth service.
+   communication between Teleport clients and the Auth service.
 1. Centralized access control simplifies and strengthens policy enforcement, removing the need to update the Teleport
-   Agent for policy changes.
+   client for policy changes.
 
 This centralized approach significantly enhances security, reduces latency, and simplifies management while maintaining
-strict access controls.
+strict access controls. Additionally, it reduces the complexity for clients that need to support per-session MFA.
+Currently, clients are responsible for determining MFA requirements and establishing a separate connection to the Auth
+service to complete the MFA ceremony. With this change, clients such as `tsh` only need to connect to the Proxy and
+respond to an MFA challenge if required, streamlining the session establishment process.
 
 ## Details
 
