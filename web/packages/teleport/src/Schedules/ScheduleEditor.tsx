@@ -180,25 +180,6 @@ const WeekdayScheduleTable = styled.table`
     padding: 0;
     padding-bottom: ${props => props.theme.space[2]}px;
   }
-
-  /*
-   * Overrides SelectCreatable styles.
-   * Removes border around individual select elements.
-   */
-  .react-select__control {
-    border: none;
-    &:hover {
-      border: none;
-    }
-  }
-
-  /*
-   * Overrides SelectCreatable styles.
-   * Removes unnecessary padding.
-   */
-  .react-select__value-container {
-    padding: 0px;
-  }
 `;
 
 const StyledFlex = styled(Flex)<{
@@ -222,9 +203,14 @@ const StyledFlex = styled(Flex)<{
 `;
 
 const selectCreatableStyles: StylesConfig = {
+  control: base => ({
+    ...base,
+    border: 'none !important',
+  }),
   valueContainer: base => ({
     ...base,
     justifyContent: 'center',
+    padding: '0px !important',
   }),
   input: base => ({
     ...base,
