@@ -20,6 +20,7 @@ package common
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -193,6 +194,10 @@ type CLIConf struct {
 	ExplicitUsername bool
 	// Proxy keeps the hostname:port of the Teleport proxy to use
 	Proxy string
+	// Relay is the address of the relay to use, "none" to explicitly disable
+	// the use of a relay, or "default" to use the cluster-provided address even
+	// if a different address was specified at login time.
+	Relay string
 	// TTL defines how long a session must be active (in minutes)
 	MinsToLive int32
 	// SSH Port on a remote SSH host
@@ -760,6 +765,7 @@ const (
 	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
 	browserEnvVar             = "TELEPORT_LOGIN_BROWSER"
 	proxyEnvVar               = "TELEPORT_PROXY"
+	relayEnvVar               = "TELEPORT_RELAY"
 	headlessEnvVar            = "TELEPORT_HEADLESS"
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
@@ -856,6 +862,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	app.Flag("login", "Remote host login.").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	app.Flag("proxy", "Teleport proxy address.").Envar(proxyEnvVar).StringVar(&cf.Proxy)
+	app.Flag("relay", "Teleport relay address, \"none\" to explicitly disable the use of a relay, or \"default\" to use the cluster-provided address even if a different address was specified at login time.").Envar(relayEnvVar).StringVar(&cf.Relay)
 	app.Flag("nocache", "Do not cache cluster discovery locally.").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", "Teleport user, defaults to current local user.").Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file.").Hidden().StringVar(&memProfile)
@@ -2395,6 +2402,16 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	// at login time we store the CLI override for the relay address in the profile
+	switch cf.Relay {
+	case "", "default":
+		tc.ProfileRelayAddr = ""
+	case "none":
+		tc.ProfileRelayAddr = "none"
+	default:
+		tc.ProfileRelayAddr = cf.Relay
 	}
 
 	// Regular login without -i flag.
@@ -4860,6 +4877,17 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	c.SSHLogDir = cf.SSHLogDir
 	c.DisableSSHResumption = cf.DisableSSHResumption
+
+	switch cf.Relay {
+	case "":
+	case "none":
+		c.RelayAddr = ""
+	case "default":
+		c.RelayAddr = c.ProfileDefaultRelayAddr
+	default:
+		c.RelayAddr = cf.Relay
+	}
+
 	return c, nil
 }
 
@@ -5180,6 +5208,20 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	}
 
 	fmt.Printf("%vProfile URL:        %v\n", prefix, proxyURL)
+	if debug {
+		switch {
+		case p.RelayAddr == "" && p.DefaultRelayAddr != "":
+			fmt.Printf("  Relay address:      %v (default)\n", p.DefaultRelayAddr)
+		case p.RelayAddr != "" && p.DefaultRelayAddr != "":
+			fmt.Printf("  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
+		case p.RelayAddr != "" && p.DefaultRelayAddr == "":
+			fmt.Printf("  Relay address:      %v (no default)\n", p.RelayAddr)
+		default:
+			fmt.Printf("  Relay address:      (none)\n")
+		}
+	} else if relayAddr := cmp.Or(p.RelayAddr, p.DefaultRelayAddr); relayAddr != "" {
+		fmt.Printf("  Relay address:      %v\n", relayAddr)
+	}
 	fmt.Printf("  Logged in as:       %v\n", p.Username)
 	if len(p.ActiveRequests) != 0 {
 		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
@@ -5374,6 +5416,8 @@ func onStatus(cf *CLIConf) error {
 
 type profileInfo struct {
 	ProxyURL           string                 `json:"profile_url"`
+	RelayAddr          string                 `json:"relay_addr,omitempty"`
+	DefaultRelayAddr   string                 `json:"default_relay_addr,omitempty"`
 	Username           string                 `json:"username"`
 	ActiveRequests     []string               `json:"active_requests,omitempty"`
 	Cluster            string                 `json:"cluster"`
@@ -5424,6 +5468,8 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	selectedKubeCluster, _ := kubeconfig.SelectedKubeCluster("", p.Cluster)
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
+		RelayAddr:          p.RelayAddr,
+		DefaultRelayAddr:   p.DefaultRelayAddr,
 		Username:           p.Username,
 		ActiveRequests:     p.ActiveRequests,
 		Cluster:            p.Cluster,

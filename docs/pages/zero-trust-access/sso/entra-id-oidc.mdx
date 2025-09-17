@@ -8,10 +8,14 @@ labels:
  - azure
 ---
 
+{/* vale 3rd-party-products.former-names = NO */}
+
 This guide shows how to configure Microsoft Entra ID (formerly Azure AD) as an 
 OIDC identity provider for Teleport. With this configuration, users can access 
 Teleport by authenticating with Entra ID, and be granted with permissions to 
 access or manage resource in Teleport based on their group membership in Entra ID.
+
+{/* vale 3rd-party-products.former-names = YES */}
 
 A SAML-based Entra ID IdP configuration version is available in this [guide](entra-id.mdx).
 
@@ -159,10 +163,14 @@ Entra ID are preserved as user's traits in the user resource.
 
 ### (Optional) Groups overage claim
 
+{/* vale 3rd-party-products.former-names = NO */}
+
 If user's group membership exceeds the 200 group limit, Microsoft Entra ID issues a
 groups overage claim instead of the expected `groups` claim. The groups overage 
 claim contains an Azure AD Graph API link, which indicates that the user's group 
 membership is to be queried from the Microsoft Graph API. 
+
+{/* vale 3rd-party-products.former-names = YES */}
 
 If your user's group membership do not exceed the group limit, you can skip this
 step. Otherwise, you will need to grant Teleport with a Microsoft Graph API 
@@ -196,7 +204,23 @@ Microsoft Graph API.
 Before creating the Auth Connector resource, its useful to first generate the 
 configuration spec and test the configuration.
 
-The Auth Connector spec can be configured by using the `tctl sso configure` command. 
+The Auth Connector spec can be configured by using the `tctl sso configure`
+command. We will show you how to run the command with the following flags:
+
+- `--name`: Teleport resource name for the Microsoft Entra ID Auth Connector. 
+- `--display`: Display name for the Microsoft Entra ID Auth Connector
+- `--issuer-url`: Microsoft Entra ID OIDC issuer URL. You need your Microsoft Entra 
+  ID tenant ID to configure this URL. Assign it to <Var name="Entra ID tenant ID" />.
+- `--id`: The application (client) ID of the enterprise application you created in 
+  Step 2. This value can be copied from the "Overview" section of the enterprise 
+  application in the Azure Portal. Assign it to <Var name="Enterprise application client ID" />.
+- `--secret`: The client secret we created in Step 4.
+- `--claims-to-roles`: A mapping of OIDC claims/values to be associated with
+  Teleport roles. Note that the Entra ID `groups` claim includes group's object
+  ID. As such, you will need to map groups by using groups object ID. Assign
+  <Var name="Object ID of ad-app-admin group" /> to the object ID ot
+  `ad-app-admin` and <Var name="Object ID of ad-app-support group" /> to the
+  object ID of `ad-app-support`:
 
 ```code
 $ tctl sso configure oidc --name "entra-id" \
@@ -210,18 +234,6 @@ $ tctl sso configure oidc --name "entra-id" \
   --scope email \
   --scope profile > entraid-oidc-connector.yaml
 ```
-
-- `--name`: Teleport resource name for the Microsoft Entra ID Auth Connector. 
-- `--display`: Display name for the Microsoft Entra ID Auth Connector
-- `--issuer-url`: Microsoft Entra ID OIDC issuer URL. You need your Microsoft Entra 
-  ID tenant ID to configure this URL.
-- `--id`: The application (client) ID of the enterprise application you created in 
-  Step 2. This value can be copied from the "Overview" section of the enterprise 
-  application in the Azure Portal. 
-- `--secret`: The client secret we created in Step 4.
-- `--claims-to-roles`: A mapping of OIDC claims/values to be associated with
-  Teleport roles. Note that the Entra ID `groups` claim includes group's object ID.
-  As such, you will need to map groups by using groups object ID.
 
 <details>
 <summary>Example YAML Auth Connector resource file created by the `tctl sso configure` command</summary>
@@ -245,7 +257,7 @@ spec:
   client_secret: example-secret-value
   display: Entra ID
   issuer_url: https://login.microsoftonline.com/0297d2f3-62c3-4598-aaa1-2104929ba73c/v2.0
-  redirect_url: https://example.teleport.sh:443/v1/webapi/oidc/callback
+  redirect_url: https://<Var name="example.teleport.sh" />:443/v1/webapi/oidc/callback
   scope:
   - openid
   - email
