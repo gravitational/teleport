@@ -277,7 +277,9 @@ func deriveTeleportEqual_17(this, that *types.InstallerParams) bool {
 			this.SSHDConfig == that.SSHDConfig &&
 			this.PublicProxyAddr == that.PublicProxyAddr &&
 			deriveTeleportEqual_21(this.Azure, that.Azure) &&
-			this.EnrollMode == that.EnrollMode
+			this.EnrollMode == that.EnrollMode &&
+			this.Suffix == that.Suffix &&
+			this.UpdateGroup == that.UpdateGroup
 }
 
 // deriveTeleportEqual_18 returns whether this and that are equal.
