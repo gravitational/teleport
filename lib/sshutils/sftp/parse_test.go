@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -254,7 +255,7 @@ var parseTestCases = []struct {
 	},
 }
 
-func TestParseDestination(t *testing.T) {
+func TestParseTarget(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range parseTestCases {
@@ -270,7 +271,7 @@ func TestParseDestination(t *testing.T) {
 	}
 }
 
-func FuzzParseDestination(f *testing.F) {
+func FuzzParseTarget(f *testing.F) {
 	for _, tt := range parseTestCases {
 		f.Add(tt.in)
 	}
@@ -278,4 +279,54 @@ func FuzzParseDestination(f *testing.F) {
 	f.Fuzz(func(t *testing.T, input string) {
 		_, _ = ParseTarget(input, 8080)
 	})
+}
+
+func TestParseSources(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name            string
+		inputSources    []string
+		assert          assert.ErrorAssertionFunc
+		expectedSources Sources
+	}{
+		{
+			name:         "ok one source",
+			inputSources: []string{"alice@foo:/path/to/thing"},
+			assert:       assert.NoError,
+			expectedSources: Sources{
+				Login: "alice",
+				Addr:  utils.MustParseAddr("foo:8080"),
+				Paths: []string{"/path/to/thing"},
+			},
+		},
+		{
+			name:         "ok multiple sources",
+			inputSources: []string{"alice@foo:/path/one", "alice@foo:/path/two"},
+			assert:       assert.NoError,
+			expectedSources: Sources{
+				Login: "alice",
+				Addr:  utils.MustParseAddr("foo:8080"),
+				Paths: []string{"/path/one", "/path/two"},
+			},
+		},
+		{
+			name:   "no sources",
+			assert: assert.Error,
+		},
+		{
+			name:         "sources from different hosts",
+			inputSources: []string{"alice@foo:/path", "/local/path"},
+			assert:       assert.Error,
+		},
+		{
+			name:         "sources with different logins",
+			inputSources: []string{"alice@foo:/path/one", "bob@foo:/path/two"},
+			assert:       assert.Error,
+		},
+	}
+	for _, tc := range tests {
+		sources, err := ParseSources(tc.inputSources, 8080)
+		tc.assert(t, err)
+		assert.Equal(t, tc.expectedSources, sources)
+	}
 }
