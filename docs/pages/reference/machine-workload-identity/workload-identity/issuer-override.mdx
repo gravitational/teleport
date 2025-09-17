@@ -4,6 +4,7 @@ description: Provides information about the `workload_identity_x509_issuer_overr
 tags:
  - conceptual
  - mwi
+ - infrastructure-identity
 ---
 
 The X.509 issuer override functionality provides a way to replace the self-signed X.509 certificate used by Teleport as the issuer SPIFFE X509-SVID credentials with an issuing certificate of your choosing, together with an optional certificate chain. After configuring a default `workload_identity_x509_issuer_override` resource, all X509-SVID credentials issued to `tbot` or `tsh` will be issued by one of the issuers specified in the resource, and will include the appropriate certificate chain.
