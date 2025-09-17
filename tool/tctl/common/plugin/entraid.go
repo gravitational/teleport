@@ -158,8 +158,8 @@ var errCancel = trace.BadParameter("operation canceled")
 
 func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSetup bool) (entraSettings, error) {
 	if manualEntraIDSetup {
-		fmt.Fprint(os.Stdout, manualConfigurationTemplate)
-		settings, err := readAzureInputs(p.install.entraID.accessGraph)
+		fmt.Fprint(p.stdout, manualConfigurationTemplate)
+		settings, err := readAzureInputs(p.install.entraID.accessGraph, p.stdin, p.stdout)
 		return settings, trace.Wrap(err)
 	}
 
@@ -188,9 +188,9 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSe
 	}
 	fileLoc := f.Name()
 
-	fmt.Fprintf(os.Stdout, step1Template, fileLoc, filepath.Base(fileLoc))
+	fmt.Fprintf(p.stdout, step1Template, fileLoc, filepath.Base(fileLoc))
 
-	op, err := readData(os.Stdin, os.Stdout,
+	op, err := readData(p.stdin, p.stdout,
 		`Once the script completes, type 'continue' to proceed, 'exit' to quit`,
 		func(input string) bool {
 			return input == "continue" || input == "exit"
@@ -202,25 +202,25 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSe
 		return entraSettings{}, errCancel
 	}
 
-	fmt.Fprint(os.Stdout, step2Template)
+	fmt.Fprint(p.stdout, step2Template)
 
-	settings, err := readAzureInputs(p.install.entraID.accessGraph)
+	settings, err := readAzureInputs(p.install.entraID.accessGraph, p.stdin, p.stdout)
 	return settings, trace.Wrap(err)
 }
 
-func readAzureInputs(acessGraph bool) (entraSettings, error) {
+func readAzureInputs(acessGraph bool, r io.Reader, w io.Writer) (entraSettings, error) {
 	validUUID := func(input string) bool {
 		_, err := uuid.Parse(input)
 		return err == nil
 	}
 	var settings entraSettings
 	var err error
-	settings.tenantID, err = readData(os.Stdin, os.Stdout, "Enter the Tenant ID", validUUID, "Invalid Tenant ID")
+	settings.tenantID, err = readData(r, w, "Enter the Tenant ID", validUUID, "Invalid Tenant ID")
 	if err != nil {
 		return settings, trace.Wrap(err, "failed to read Tenant ID")
 	}
 
-	settings.clientID, err = readData(os.Stdin, os.Stdout, "Enter the Client ID", validUUID, "Invalid Client ID")
+	settings.clientID, err = readData(r, w, "Enter the Client ID", validUUID, "Invalid Client ID")
 	if err != nil {
 		return settings, trace.Wrap(err, "failed to read Client ID")
 	}
@@ -230,7 +230,7 @@ func readAzureInputs(acessGraph bool) (entraSettings, error) {
 			settings.accessGraphCache, err = readTAGCache(input)
 			return err == nil
 		}
-		_, err = readData(os.Stdin, os.Stdout, "Enter the Access Graph Cache file location", dataValidator, "File does not exist or is invalid")
+		_, err = readData(r, w, "Enter the Access Graph Cache file location", dataValidator, "File does not exist or is invalid")
 		if err != nil {
 			return settings, trace.Wrap(err, "failed to read Access Graph Cache file")
 		}
@@ -256,6 +256,12 @@ func readAzureInputs(acessGraph bool) (entraSettings, error) {
 // in Teleport and a Teleport plugin to synchronize access lists from EntraID to Teleport.
 func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) error {
 	inputs := p.install
+	if p.stdin == nil {
+		p.stdin = os.Stdin
+	}
+	if p.stdout == nil {
+		p.stdout = os.Stdout
+	}
 
 	proxyPublicAddr, err := getProxyPublicAddr(ctx, args.authClient)
 	if err != nil {
@@ -376,6 +382,9 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 			},
 		},
 	}
+
+	// j, _ := json.MarshalIndent(req, "", " ")
+	// fmt.Println(string(j))
 
 	_, err = args.plugins.CreatePlugin(ctx, req)
 	if err != nil {
