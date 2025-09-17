@@ -4412,18 +4412,17 @@ func onSCP(cf *CLIConf) error {
 		}
 	}
 
+	sftpReq := client.SFTPRequest{
+		Sources:       cf.CopySpec[:len(cf.CopySpec)-1],
+		Destination:   cf.CopySpec[len(cf.CopySpec)-1],
+		Recursive:     cf.RecursiveCopy,
+		PreserveAttrs: cf.PreserveAttrs,
+	}
+	if !cf.Quiet {
+		sftpReq.ProgressWriter = cf.Stdout()
+	}
 	err = executor(cf.Context, tc, func() error {
-		return trace.Wrap(tc.SFTP(
-			cf.Context,
-			client.SFTPRequest{
-				Sources:        cf.CopySpec[:len(cf.CopySpec)-1],
-				Destination:    cf.CopySpec[len(cf.CopySpec)-1],
-				Recursive:      cf.RecursiveCopy,
-				PreserveAttrs:  cf.PreserveAttrs,
-				Quiet:          cf.Quiet,
-				ProgressWriter: cf.Stdout(),
-			},
-		))
+		return trace.Wrap(tc.SFTP(cf.Context, sftpReq))
 	})
 
 	// don't print context canceled errors to the user
