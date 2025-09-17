@@ -28,6 +28,7 @@ lint:
     - api/proto/teleport/legacy/client/proto/certs.proto
     - api/proto/teleport/legacy/client/proto/event.proto
     - api/proto/teleport/legacy/client/proto/proxyservice.proto
+    - api/proto/teleport/legacy/client/proto/requestable_roles.proto
     - api/proto/teleport/legacy/types/events/athena.proto
     - api/proto/teleport/legacy/types/events/events.proto
     - api/proto/teleport/legacy/types/types.proto
