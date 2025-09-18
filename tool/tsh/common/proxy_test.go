@@ -332,12 +332,10 @@ func TestWithRsync(t *testing.T) {
 
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					pref, err := asrv.GetAuthPreference(ctx)
-					if !assert.NoError(t, err) {
-						return
-					}
+					require.NoError(t, err)
 					w, err := pref.GetWebauthn()
-					assert.NoError(t, err)
-					assert.NotNil(t, w)
+					require.NoError(t, err)
+					require.NotNil(t, w)
 				}, 5*time.Second, 100*time.Millisecond)
 
 				token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{

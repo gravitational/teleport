@@ -45,6 +45,7 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
+import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
 import { KindAuthConnectors } from './services/resources';
 
@@ -174,7 +175,6 @@ const cfg = {
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
-    manageCluster: '/web/clusters/:clusterId/manage',
 
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
@@ -684,6 +684,29 @@ const cfg = {
   },
 
   /**
+   * getIntegrationsEnrollRoute returns a path to the page which lists all integrations.
+   */
+  getIntegrationsEnrollRoute({
+    tags = [],
+    searchFilter = '',
+  }: {
+    tags?: IntegrationTag[];
+    searchFilter?: string;
+  } = {}) {
+    const searchParams = new URLSearchParams();
+    tags.forEach(tag => {
+      searchParams.append('tags', tag);
+    });
+    if (searchFilter) {
+      searchParams.set('search', searchFilter);
+    }
+    const queryString = searchParams.toString();
+    const path = generatePath(cfg.routes.integrationEnroll);
+
+    return queryString ? `${path}?${queryString}` : path;
+  },
+
+  /**
    * Generates a route for an Integration's enrolment page
    *
    * @param {string} [type] - The integration type (e.g. "okta", "aws-oidc")
@@ -732,10 +755,6 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
-  },
-
-  getManageClusterRoute(clusterId: string) {
-    return generatePath(cfg.routes.manageCluster, { clusterId });
   },
 
   getUnifiedResourcesRoute(clusterId: string) {

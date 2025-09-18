@@ -28,6 +28,7 @@ import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { useFullscreen } from 'teleport/components/hooks/useFullscreen';
 import cfg from 'teleport/config';
+import { type RecordingType } from 'teleport/services/recordings';
 import { useSuspenseGetRecordingMetadata } from 'teleport/services/recordings/hooks';
 import { KeysEnum } from 'teleport/services/storageService';
 import { formatSessionRecordingDuration } from 'teleport/SessionRecordings/list/RecordingItem';
@@ -38,7 +39,7 @@ import {
   type RecordingTimelineHandle,
 } from 'teleport/SessionRecordings/view/Timeline/RecordingTimeline';
 
-export type SummarySlot = (sessionId: string) => ReactNode;
+export type SummarySlot = (sessionId: string, type: RecordingType) => ReactNode;
 
 interface RecordingWithMetadataProps {
   clusterId: string;
@@ -111,8 +112,8 @@ export function RecordingWithMetadata({
   }, [fullscreen]);
 
   const summary = useMemo(
-    () => summarySlot?.(sessionId),
-    [summarySlot, sessionId]
+    () => summarySlot?.(sessionId, data.metadata.type),
+    [summarySlot, sessionId, data.metadata.type]
   );
 
   const startTime = new Date(data.metadata.startTime * 1000);

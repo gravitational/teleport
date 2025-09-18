@@ -5151,6 +5151,7 @@ message KubernetesClusterV3List {
 message KubernetesServerV3 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
+
   // Kind is the Kubernetes server resource kind. Always "kube_server".
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
   // SubKind is an optional resource subkind.
@@ -5167,6 +5168,8 @@ message KubernetesServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the Kubernetes server status.
+  KubernetesServerStatusV3 status = 6;
 }
 
 // KubernetesServerSpecV3 is the Kubernetes server spec.
@@ -5186,6 +5189,13 @@ message KubernetesServerSpecV3 {
   KubernetesClusterV3 Cluster = 5 [(gogoproto.jsontag) = "cluster"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+}
+
+// KubernetesServerStatusV3 is the Kubernetes cluster status.
+message KubernetesServerStatusV3 {
+  // TargetHealth is the health status of between the Teleport agent
+  // and Kubernetes cluster.
+  TargetHealth target_health = 1;
 }
 
 // WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
@@ -7415,6 +7425,32 @@ message PluginEntraIDSyncSettings {
   // This field is populated on a best-effort basis for legacy plugins but mandatory for plugins created after its introduction.
   // For existing plugins, it is filled in using the entity descriptor url when utilized.
   string entra_app_id = 5;
+
+  // GroupFilters configures which groups should be included or exlcuded.
+  repeated PluginSyncFilter group_filters = 6;
+}
+
+// PluginSyncFilter can specify inclusion or exclusion of a resource.
+message PluginSyncFilter {
+  option (gogoproto.equal) = true;
+
+  // Include describes that the resource should be explicitly included.
+  oneof include {
+    // Id includes resource matched with an ID.
+    string id = 1 [(gogoproto.jsontag) = "id,omitempty"];
+
+    // NameRegex includes resource matched with a regexp.
+    string name_regex = 2 [(gogoproto.jsontag) = "name_regex,omitempty"];
+  }
+
+  // Exclude specifies which AWS resources should be explicitly excluded.
+  oneof exclude {
+    // ExcludeId excludes resource matched with an ID.
+    string exclude_id = 3 [(gogoproto.jsontag) = "id,omitempty"];
+
+    // ExcludeNameRegex excludes resource matched with a regexp.
+    string exclude_name_regex = 4 [(gogoproto.jsontag) = "name_regex,omitempty"];
+  }
 }
 
 // EntraIDCredentialsSource defines the credentials source for Entra ID.
@@ -8943,6 +8979,18 @@ message InstallerParams {
   // 1: uses script mode
   // 2: uses eice mode
   InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+  // Suffix indicates the installation suffix for the teleport installation.
+  // Set this value if you want multiple installations of Teleport.
+  // See --install-suffix flag in teleport-update program.
+  // Note: only supported for Amazon EC2.
+  // Suffix name can only contain alphanumeric characters and hyphens.
+  string Suffix = 9 [(gogoproto.jsontag) = "suffix,omitempty"];
+  // UpdateGroup indicates the update group for the teleport installation.
+  // This value is used to group installations in order to update them in batches.
+  // See --group flag in teleport-update program.
+  // Note: only supported for Amazon EC2.
+  // Group name can only contain alphanumeric characters and hyphens.
+  string UpdateGroup = 10 [(gogoproto.jsontag) = "update_group,omitempty"];
 }
 
 // InstallParamEnrollMode is the mode used to enroll the node into the cluster.

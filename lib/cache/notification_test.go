@@ -41,14 +41,8 @@ func TestUserNotifications(t *testing.T) {
 			_, err := p.notifications.CreateUserNotification(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*notificationsv1.Notification, error) {
-			items, _, err := p.notifications.ListUserNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context, _ int) ([]*notificationsv1.Notification, error) {
-			items, _, err := p.cache.ListUserNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list:      p.notifications.ListUserNotifications,
+		cacheList: p.cache.ListUserNotifications,
 		deleteAll: p.notifications.DeleteAllUserNotifications,
 	}, withSkipPaginationTest())
 }
@@ -69,14 +63,8 @@ func TestGlobalNotifications(t *testing.T) {
 			_, err := p.notifications.CreateGlobalNotification(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
-			items, _, err := p.notifications.ListGlobalNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context, _ int) ([]*notificationsv1.GlobalNotification, error) {
-			items, _, err := p.cache.ListGlobalNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list:      p.notifications.ListGlobalNotifications,
+		cacheList: p.cache.ListGlobalNotifications,
 		deleteAll: p.notifications.DeleteAllGlobalNotifications,
 	}, withSkipPaginationTest())
 }

@@ -45,6 +45,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -205,6 +206,8 @@ type webSuiteConfig struct {
 
 	disableDiskBasedRecording bool
 
+	onSessionRecordEvent func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error
+
 	uiConfig webclient.UIConfig
 
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
@@ -268,6 +271,17 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	if cfg.disableDiskBasedRecording {
 		authCfg.Auth.AuditLog = events.NewDiscardAuditLog()
+		if cfg.onSessionRecordEvent != nil {
+			streamer, err := events.NewCallbackStreamer(
+				events.CallbackStreamerConfig{
+					// Inner emits events to the underlying store
+					Inner:         events.NewDiscardStreamer(),
+					OnRecordEvent: cfg.onSessionRecordEvent,
+				},
+			)
+			require.NoError(t, err)
+			authCfg.Auth.Streamer = streamer
+		}
 	}
 
 	s.server, err = authtest.NewTestServer(authCfg)
@@ -280,6 +294,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		recConfig.SetMode(types.RecordAtNodeSync)
 		_, err := s.server.AuthServer.AuthServer.UpsertSessionRecordingConfig(context.Background(), recConfig)
 		require.NoError(t, err)
+
 	}
 
 	// Register the auth server, since test auth server doesn't start its own
@@ -497,8 +512,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Expired sessions are purged immediately
 	var sessionLingeringThreshold time.Duration
-	fs, err := NewDebugFileSystem(false)
-	require.NoError(t, err)
 
 	features := *modules.GetModules().Features().ToProto() // safe to dereference because ToProto creates a struct and return a pointer to it
 	if cfg.ClusterFeatures != nil {
@@ -524,7 +537,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Context:                         s.ctx,
 		HostUUID:                        proxyID,
 		Emitter:                         s.proxyClient,
-		StaticFS:                        fs,
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings: &ProxySettings{
 			ServiceConfig: servicecfg.MakeDefaultConfig(),
@@ -1891,7 +1903,53 @@ func TestUIConfig(t *testing.T) {
 
 func TestResizeTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+	const fooUser = "foo"
+
+	eventsChan := make(chan apievents.AuditEvent, 10)
+	isInitialResizeComplete := make(chan struct{})
+	go func() {
+		var once sync.Once
+		for {
+			select {
+			case <-t.Context().Done():
+				return
+			case evt, ok := <-eventsChan:
+				if !ok {
+					return
+				}
+				// we are only interested in resize events
+				if evt.GetType() != events.ResizeEvent {
+					continue
+				}
+				resize, ok := evt.(*apievents.Resize)
+				assert.True(t, ok)
+
+				// we are only interested in resize events from foo user with 100x100 terminal size
+				// which is the initial size the client connects with.
+				if resize.GetUser() != fooUser || resize.TerminalSize != "100:100" {
+					continue
+				}
+
+				// signal that the initial resize events have been processed
+				// by the server
+				once.Do(func() {
+					close(isInitialResizeComplete)
+				})
+
+			}
+		}
+	}()
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		disableDiskBasedRecording: true,
+		onSessionRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
+			select {
+			case eventsChan <- pe.GetAuditEvent():
+			case <-ctx.Done():
+			}
+			return nil
+		},
+	})
 	sid := session.NewID()
 
 	ctx, cancel := context.WithCancel(s.ctx)
@@ -1902,7 +1960,7 @@ func TestResizeTerminal(t *testing.T) {
 	ws2Messages := make(chan *terminal.Envelope)
 	// Create a new user "foo", open a terminal to a new session
 	term, err := connectToHost(ctx, connectConfig{
-		pack:  s.authPack(t, "foo"),
+		pack:  s.authPack(t, fooUser),
 		host:  s.node.ID(),
 		proxy: s.webServer.Listener.Addr().String(),
 		handlers: map[string]terminal.WSHandlerFunc{
@@ -1913,6 +1971,22 @@ func TestResizeTerminal(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, term.Close()) })
+
+	// The client connects to the server with an initial terminal size of 100x100.
+	// We must ensure the server processes this initial resize event before proceeding
+	// with bar joining the session and sending a new resize event.
+	// This is done by waiting for the resize event to be recorded
+	// by the onSessionRecordEvent callback above.
+	// If this does not happen within 10 seconds, the test fails.
+	// This ensures that the bar user joining never receives any possible
+	// pending resize events from foo creating the session.
+	select {
+	case <-isInitialResizeComplete:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "", "timeout waiting for initial resize events")
+	case <-t.Context().Done():
+		require.FailNow(t, "", "test context done: %v", t.Context().Err())
+	}
 
 	sess := term.GetSession()
 	// Wait for session to have started
@@ -2128,7 +2202,7 @@ func TestTerminal(t *testing.T) {
 
 			// Validate that the node terminates the session
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				assert.Zero(t, s.node.ActiveConnections())
+				require.Zero(t, s.node.ActiveConnections())
 			}, 30*time.Second, 250*time.Millisecond)
 		})
 	}
@@ -3376,7 +3450,7 @@ func TestSearchClusterEvents(t *testing.T) {
 			},
 			Result:        []apievents.AuditEvent{sessionStart},
 			TestStartKey:  true,
-			StartKeyValue: sessionStart.GetID(),
+			StartKeyValue: fmt.Sprintf("%s/%d", sessionStart.GetID(), sessionStart.GetTime().UnixNano()),
 		},
 		{
 			Comment: "Query session start and session end events with limit and given start key",
@@ -4729,15 +4803,13 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	// request and verify enabled features are eventually enabled.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err := clt.Get(ctx, endpoint, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		require.NoError(t, err)
+		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
-		assert.Empty(t, diff)
+		require.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
@@ -4766,15 +4838,14 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	// request and verify again
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err := clt.Get(ctx, endpoint, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		require.NoError(t, err)
+
+		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
-		assert.Empty(t, diff)
+		require.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
 }
 
@@ -4853,19 +4924,17 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		// Make a request.
 		endpoint := clt.Endpoint("web", "config.js")
 		re, err := clt.Get(ctx, endpoint, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		require.NoError(t, err)
+		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 
 		// Response is type application/javascript, we need to strip off the variable name
 		// and the semicolon at the end, then we are left with json like object.
 		var cfg webclient.WebConfig
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
-		assert.Empty(t, diff)
+		require.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
 }
 
@@ -8528,9 +8597,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 
-	fs, err := NewDebugFileSystem(false)
-	require.NoError(t, err)
-
 	authID := state.IdentityID{
 		Role:     types.RoleProxy,
 		HostUUID: proxyID,
@@ -8550,7 +8616,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		Context:          ctx,
 		HostUUID:         proxyID,
 		Emitter:          client,
-		StaticFS:         fs,
 		ProxySettings: &ProxySettings{
 			ServiceConfig: servicecfg.MakeDefaultConfig(),
 			ProxySSHAddr:  "127.0.0.1",
@@ -10322,8 +10387,8 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		s.clock.Advance(3 * time.Minute)
-		assert.NoError(t, waitForOutputWithDuration(moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		assert.NoError(t, waitForOutputWithDuration(peerTerm, "Process exited with status 255", 3*time.Second))
+		require.NoError(t, waitForOutputWithDuration(moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
+		require.NoError(t, waitForOutputWithDuration(peerTerm, "Process exited with status 255", 3*time.Second))
 	}, 15*time.Second, 500*time.Millisecond)
 }
 
@@ -10728,53 +10793,6 @@ func TestGithubConnector(t *testing.T) {
 
 	assert.Empty(t, authConnectorsResp.Connectors)
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
-}
-
-func TestCalculateSSHLogins(t *testing.T) {
-	cases := []struct {
-		name              string
-		allowedLogins     []string
-		grantedPrincipals []string
-		expectedLogins    []string
-	}{
-		{
-			name:              "no matching logins",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"fish"},
-		},
-		{
-			name:              "identical logins",
-			allowedLogins:     []string{"llama", "shark", "goose"},
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"goose", "shark", "llama"},
-		},
-		{
-			name:              "subset of logins",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"llama"},
-		},
-		{
-			name:              "no allowed logins",
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-		},
-		{
-			name:          "no granted logins",
-			allowedLogins: []string{"shark", "goose", "llama"},
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			identity := &tlsca.Identity{Principals: test.grantedPrincipals}
-
-			logins, err := calculateSSHLogins(identity, test.allowedLogins)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
-				return strings.Compare(a, b) < 0
-			})))
-		})
-	}
 }
 
 func TestCalculateAppLogins(t *testing.T) {
