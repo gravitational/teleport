@@ -630,6 +630,7 @@ func newUserMonitorService(t *testing.T) *UserMonitor {
 	svc, err := NewUserMonitor(UserMonitorConfig{
 		AuthServer: as.AuthServer,
 		Events:     as.AuthServer,
+		Backend:    as.Backend,
 	})
 	require.NoError(t, err)
 

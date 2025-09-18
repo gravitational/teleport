@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -43,6 +44,8 @@ type UserMonitorConfig struct {
 	// Events is the event monitor. This will allow us to monitor for access list membership
 	// and user definition changes.
 	Events types.Events
+	// Backend is the backend used for locking to ensure only one user monitor
+	Backend backend.Backend
 }
 
 func (u *UserMonitorConfig) CheckAndSetDefaults() error {
@@ -60,6 +63,10 @@ func (u *UserMonitorConfig) CheckAndSetDefaults() error {
 
 	if u.Events == nil {
 		return trace.BadParameter("events is missing")
+	}
+
+	if u.Backend == nil {
+		return trace.BadParameter("backend is missing")
 	}
 
 	return nil
@@ -86,6 +93,7 @@ type UserMonitor struct {
 	// as to what the lock was actually doing.
 	lockToTargetMu sync.Mutex
 	lockToTarget   map[string]types.LockTarget
+	backend        backend.Backend
 }
 
 func NewUserMonitor(cfg UserMonitorConfig) (*UserMonitor, error) {
@@ -99,6 +107,7 @@ func NewUserMonitor(cfg UserMonitorConfig) (*UserMonitor, error) {
 		authServer:   cfg.AuthServer,
 		events:       cfg.Events,
 		lockToTarget: map[string]types.LockTarget{},
+		backend:      cfg.Backend,
 	}
 
 	return u, nil
@@ -106,8 +115,49 @@ func NewUserMonitor(cfg UserMonitorConfig) (*UserMonitor, error) {
 
 // Start will start the user monitor.
 func (u *UserMonitor) Start(ctx context.Context) {
-	go u.reconciler(ctx)
-	go u.runWatcher(ctx)
+	go u.run(ctx)
+}
+func (u *UserMonitor) run(ctx context.Context) {
+	runWhileLockedConfig := backend.RunWhileLockedConfig{
+		LockConfiguration: backend.LockConfiguration{
+			Backend:            u.backend,
+			LockNameComponents: []string{"auth", "user-monitor"},
+			TTL:                time.Minute * 3,
+			RetryInterval:      time.Minute,
+		},
+		RefreshLockInterval: time.Minute,
+	}
+
+	waitWithJitter := retryutils.SeventhJitter(time.Minute)
+	for {
+		err := backend.RunWhileLocked(ctx, runWhileLockedConfig, func(ctx context.Context) error {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				u.runWatcher(ctx)
+			}()
+			u.reconciler(ctx)
+			wg.Wait()
+			return nil
+		})
+		if err != nil {
+			if ctx.Err() != nil {
+				// Just return, context is canceled.
+				return
+			}
+			u.logger.DebugContext(ctx,
+				"User Monitor syncer encountered an error, it will restart after backoff",
+				"error", err,
+				"restart_after", waitWithJitter,
+			)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(waitWithJitter):
+		}
+	}
 }
 
 // reconciler will periodically reconcile user states.
