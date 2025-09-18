@@ -24,7 +24,12 @@ import { LabelContent } from 'design/LabelInput/LabelInput';
 import Select, { Option, SelectCreatable } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 
-import { timeOptions, timezoneOptions, weekdayOptions } from './const';
+import {
+  timeOptions,
+  timeOptionsAll,
+  timezoneOptions,
+  weekdayOptions,
+} from './const';
 import { validSchedule, validShift } from './rules';
 import { newShift, Schedule, Shift, Weekday } from './types';
 
@@ -88,28 +93,26 @@ export const ScheduleEditor = ({
       <Box>
         <WeekdayScheduleTable>
           <tbody>
-            {weekdayOptions.filter(
-              weekday => !!schedule.shifts[weekday.value]
-            ).map(weekday => (
-              <tr key={weekday.value}>
-                <td>
-                  <Text>{weekday.value}</Text>
-                </td>
-                <td colSpan={3}>
-                  <ShiftSelect
-                    shift={schedule.shifts[weekday.value]}
-                    setShift={shift => setShift(weekday.value, shift)}
-                  />
-                </td>
-              </tr>
-            ))}
+            {weekdayOptions
+              .filter(weekday => !!schedule.shifts[weekday.value])
+              .map(weekday => (
+                <tr key={weekday.value}>
+                  <td>
+                    <Text>{weekday.value}</Text>
+                  </td>
+                  <td colSpan={3}>
+                    <ShiftSelect
+                      shift={schedule.shifts[weekday.value]}
+                      setShift={shift => setShift(weekday.value, shift)}
+                    />
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </WeekdayScheduleTable>
         {!valid && (
           <Flex>
-            <Text color="interactive.solid.danger.default">
-              {message}
-            </Text>
+            <Text color="interactive.solid.danger.default">{message}</Text>
           </Flex>
         )}
       </Box>
@@ -131,7 +134,13 @@ const ShiftSelect = ({
       <Box flex="1" textAlign="center">
         <SelectCreatable
           value={shift.startTime}
-          onChange={option => setShift({ ...shift, startTime: option })}
+          onChange={time => {
+            const result = timeOptionsAll.find(
+              validTime => time.label.toUpperCase() === validTime.label
+            );
+            if (!result) return;
+            setShift({ ...shift, startTime: result });
+          }}
           options={timeOptions}
           components={{ DropdownIndicator: () => null }}
           stylesConfig={selectCreatableStyles}
@@ -141,7 +150,13 @@ const ShiftSelect = ({
       <Box flex="1" textAlign="center">
         <SelectCreatable
           value={shift.endTime}
-          onChange={option => setShift({ ...shift, endTime: option })}
+          onChange={time => {
+            const result = timeOptionsAll.find(
+              validTime => time.label.toUpperCase() === validTime.label
+            );
+            if (!result) return;
+            setShift({ ...shift, endTime: result });
+          }}
           options={timeOptions}
           components={{ DropdownIndicator: () => null }}
           stylesConfig={selectCreatableStyles}

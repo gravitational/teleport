@@ -18,6 +18,7 @@
 
 import { Rule } from 'shared/components/Validation/rules';
 
+import { timeOptionsAll } from './const';
 import { Schedule, Shift } from './types';
 
 /**
@@ -43,7 +44,7 @@ export const validSchedule: Rule<Schedule> = (schedule: Schedule) => () => {
     if (error) {
       return {
         valid: false,
-        message: `Shift must be between 00:00 and 23:59.`,
+        message: `Shift must be between 12:00AM and 11:59PM.`,
       };
     }
   }
@@ -69,34 +70,22 @@ export const validShift: Rule<Shift> = (shift: Shift) => () => {
 };
 
 const validateShift = (shift: Shift) => {
-  if (!shift.startTime || !shift.endTime) {
+  const start = shift.startTime?.value;
+  const end = shift.endTime?.value;
+
+  if (!start || !end) {
     return 'start and end interval required';
   }
-  if (
-    !isValidTime(shift.startTime.value) ||
-    !isValidTime(shift.endTime.value)
-  ) {
+
+  const startIndex = timeOptionsAll.findIndex(t => t.value === start);
+  const endIndex = timeOptionsAll.findIndex(t => t.value === end);
+
+  if (startIndex === -1 || endIndex === -1) {
     return 'invalid time';
   }
-  if (
-    timeToMinutes(shift.startTime.value) >= timeToMinutes(shift.endTime.value)
-  ) {
+
+  if (startIndex >= endIndex) {
     return 'start time must be before end time';
   }
   return undefined;
-};
-
-/**
- * timeToMinutes converts the time to minutes.
- */
-const timeToMinutes = (time: string) => {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
-};
-
-/**
- * isValidTime validates the time is formatted as HH:mm, 00:00 - 23:59.
- */
-const isValidTime = (time: string) => {
-  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(time);
 };

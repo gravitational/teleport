@@ -56,11 +56,43 @@ export const weekdayOptions: WeekdayOption[] = [
 ];
 
 /**
- * timeOptions lists the available time options with 30-minute intervals.
+ * timeOptionsAll lists the available time options per minute.
+ * The value is 24 hour formatted, while the label is 12 hour formatted.
  */
-export const timeOptions: Option[] = Array.from({ length: 48 }, (_, index) => {
-  const hours = Math.floor(index / 2);
-  const minutes = index % 2 === 0 ? '00' : '30';
-  const time = `${hours.toString().padStart(2, '0')}:${minutes}`;
-  return { value: time, label: time };
+export const timeOptionsAll: Option[] = Array.from(
+  { length: 1440 },
+  (_, index) => {
+    const hours = Math.floor(index / 60);
+    const minutes = index % 60;
+
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+
+    const parts = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).formatToParts(date);
+
+    const label =
+      parts.find(p => p.type === 'hour')?.value +
+      ':' +
+      parts.find(p => p.type === 'minute')?.value +
+      parts.find(p => p.type === 'dayPeriod')?.value;
+
+    const value = `${hours.toString().padStart(2, '0')}:${minutes
+      .toString()
+      .padStart(2, '0')}`;
+
+    return { value, label };
+  }
+);
+
+/**
+ * timeOptions lists the available time options with 30-minute intervals.
+ * The value is 24 hour formatted, while the label is 12 hour formatted.
+ */
+export const timeOptions: Option[] = timeOptionsAll.filter(option => {
+  const minutes = option.value.split(':')[1];
+  return minutes === '00' || minutes === '30';
 });
