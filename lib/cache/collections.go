@@ -942,15 +942,16 @@ func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecre
 }
 
 func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
-	err := cache.trustCache.DeleteRemoteCluster(ctx, resource.GetName())
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
+	if _, err := cache.trustCache.CreateRemoteCluster(ctx, resource); err != nil {
+		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
+
+		_, err := cache.trustCache.UpdateRemoteCluster(ctx, resource)
+		return trace.Wrap(err)
 	}
-	_, err = cache.trustCache.CreateRemoteCluster(ctx, resource)
-	return trace.Wrap(err)
+
+	return nil
 }
 
 func (remoteClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error {
