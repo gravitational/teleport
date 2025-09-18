@@ -1,5 +1,30 @@
 # Changelog
 
+## 17.7.5 (09/18/25)
+
+* Fix issue preventing auto enrollment of EKS clusters when using the Web UI. [#59273](https://github.com/gravitational/teleport/pull/59273)
+* Terraform provider: Allow creating access lists without setting spec.grants. [#59238](https://github.com/gravitational/teleport/pull/59238)
+* Fixes a panic that occurs when creating a Bound Keypair join token with the `spec.onboarding` field unset. [#59179](https://github.com/gravitational/teleport/pull/59179)
+* Added desktop name for Windows Directory and Clipboard audit events. [#59154](https://github.com/gravitational/teleport/pull/59154)
+* Added the ability to update the AWS Identity Center SCIM token in tctl. [#59115](https://github.com/gravitational/teleport/pull/59115)
+* Fixed client tools managed updates sequential update. [#59089](https://github.com/gravitational/teleport/pull/59089)
+* Fixed headless login so that it supports both WebAuthn and SSO for MFA. [#59077](https://github.com/gravitational/teleport/pull/59077)
+* When selecting a login for an SSH server, Teleport Connect now shows only logins allowed by RBAC for that specific server rather than showing all logins which the user has access to. [#59068](https://github.com/gravitational/teleport/pull/59068)
+* Added services to correctly choose Access Request roles in remote clusters. [#59063](https://github.com/gravitational/teleport/pull/59063)
+* Install script allows specifying a group for agent installation with managed updates V2 enabled. [#59060](https://github.com/gravitational/teleport/pull/59060)
+* Fixed a bug preventing users to create access lists with empty grants through Terraform. [#59031](https://github.com/gravitational/teleport/pull/59031)
+* Fixed a DynamoDB bug potentially causing event queries to return a different range of events. In the worst case scenario, this bug would block the event-handler. [#59030](https://github.com/gravitational/teleport/pull/59030)
+* Teleport Connect now runs in the background by default on macOS and Windows. On Linux, this behavior can be enabled in the app configuration. [#58924](https://github.com/gravitational/teleport/pull/58924)
+* Added fdpass-teleport binary to install script for Teleport tar downloads. [#58920](https://github.com/gravitational/teleport/pull/58920)
+* Support multiple resource editing in `tctl edit` when editing collections. [#58901](https://github.com/gravitational/teleport/pull/58901)
+* Fixed an issue that would cause trusted cluster resource updates to fail silently. [#58887](https://github.com/gravitational/teleport/pull/58887)
+* Added ability for user to select whether IC integration creates roles for all possible Account Assignments. [#58862](https://github.com/gravitational/teleport/pull/58862)
+* Allow controlling the description of auto-discovered Kubernetes apps with an annotation. [#58816](https://github.com/gravitational/teleport/pull/58816)
+* Added new bound_keypair join method for Machine and Workload ID to better support bots in on-prem and other environments without a platform-specific join method. [#58334](https://github.com/gravitational/teleport/pull/58334)
+
+Enterprise:
+* Fixed an issue in the Entra ID integration where a user account with an unsupported username value could prevent other valid users and groups to be synced to Teleport. Such user accounts are now filtered.
+
 ## 17.7.4 (09/08/25)
 
 * Updated Go to 1.24.7. [#58836](https://github.com/gravitational/teleport/pull/58836)
