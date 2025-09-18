@@ -1908,6 +1908,11 @@ build-ui-e: ensure-js-deps ensure-wasm-deps
 docker-ui:
 	$(MAKE) -C build.assets ui
 
+# TODO(rhammonds): Remove this target once all references to it have
+# been removed from e submodule and e ref is updated.
+.PHONY: rustup-set-version
+rustup-set-version: ; # obsoleted by toolchain file
+
 # rustup-install-target-toolchain ensures the required rust compiler is
 # installed to build for $(ARCH)/$(OS) for the version of rust we use, as
 # defined in build.assets/Makefile. It assumes that `rustup` is already
