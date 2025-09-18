@@ -34,7 +34,6 @@ import (
 // [*healthcheckconfigv1.HealthCheckConfig] with defaults set.
 type healthCheckConfig struct {
 	name                  string
-	protocol              types.TargetHealthProtocol
 	interval              time.Duration
 	timeout               time.Duration
 	healthyThreshold      uint32
@@ -48,14 +47,11 @@ func newHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) *healthChe
 	spec := cfg.GetSpec()
 	match := spec.GetMatch()
 	return &healthCheckConfig{
-		name:               cfg.GetMetadata().GetName(),
-		timeout:            cmp.Or(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
-		interval:           cmp.Or(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
-		healthyThreshold:   cmp.Or(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
-		unhealthyThreshold: cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
-		// we only support plain TCP health checks currently, but eventually we
-		// may add support for other protocols such as TLS or HTTP
-		protocol:              types.TargetHealthProtocolTCP,
+		name:                  cfg.GetMetadata().GetName(),
+		timeout:               cmp.Or(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
+		interval:              cmp.Or(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
+		healthyThreshold:      cmp.Or(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
+		unhealthyThreshold:    cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
 		databaseLabelMatchers: newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
 	}
 }
@@ -66,7 +62,6 @@ func (h *healthCheckConfig) equivalent(other *healthCheckConfig) bool {
 	return (h == nil && other == nil) ||
 		h != nil && other != nil &&
 			h.name == other.name &&
-			h.protocol == other.protocol &&
 			h.interval == other.interval &&
 			h.timeout == other.timeout &&
 			h.healthyThreshold == other.healthyThreshold &&

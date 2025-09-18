@@ -238,7 +238,6 @@ func (w *worker) run() {
 func (w *worker) startHealthCheckInterval(ctx context.Context) {
 	w.log.InfoContext(ctx, "Health checker started",
 		"health_check_config", w.healthCheckCfg.name,
-		"protocol", w.healthCheckCfg.protocol,
 		"interval", log.StringerAttr(w.healthCheckCfg.interval),
 		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
@@ -322,7 +321,6 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	}
 	w.log.DebugContext(ctx, "Updated health check config",
 		"health_check_config", w.healthCheckCfg.name,
-		"protocol", w.healthCheckCfg.protocol,
 		"interval", log.StringerAttr(w.healthCheckCfg.interval),
 		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
@@ -466,6 +464,7 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	now := w.clock.Now()
 	w.targetHealth = types.TargetHealth{
 		Address:             strings.Join(w.lastResolvedEndpoints, ","),
+		Protocol:            string(types.TargetHealthProtocolTCP),
 		Status:              string(newStatus),
 		TransitionTimestamp: &now,
 		TransitionReason:    string(reason),
@@ -473,9 +472,6 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	}
 	if w.lastResultErr != nil {
 		w.targetHealth.TransitionError = w.lastResultErr.Error()
-	}
-	if w.healthCheckCfg != nil {
-		w.targetHealth.Protocol = string(w.healthCheckCfg.protocol)
 	}
 }
 

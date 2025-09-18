@@ -37,7 +37,8 @@ import (
 func Test_newUnstartedWorker(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	listener, err := net.Listen("tcp", "localhost:0")
+	protocol := string(types.TargetHealthProtocolTCP)
+	listener, err := net.Listen(protocol, "localhost:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -71,7 +72,7 @@ func Test_newUnstartedWorker(t *testing.T) {
 			},
 			wantHealth: types.TargetHealth{
 				Address:          "",
-				Protocol:         "",
+				Protocol:         protocol,
 				Status:           string(types.TargetHealthStatusUnknown),
 				TransitionReason: string(types.TargetHealthTransitionReasonDisabled),
 				Message:          "No health check config matches this resource",
@@ -96,7 +97,7 @@ func Test_newUnstartedWorker(t *testing.T) {
 			},
 			wantHealth: types.TargetHealth{
 				Address:          "",
-				Protocol:         "",
+				Protocol:         protocol,
 				Status:           string(types.TargetHealthStatusUnknown),
 				TransitionReason: string(types.TargetHealthTransitionReasonInit),
 				Message:          "Health checker initialized",
