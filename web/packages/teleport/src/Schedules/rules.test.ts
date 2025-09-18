@@ -30,16 +30,16 @@ describe('validShift', () => {
     {
       name: 'valid shift',
       shift: {
-        startTime: { value: '00:00', label: '00:00' },
-        endTime: { value: '23:59', label: '23:59' },
+        startTime: { value: '00:00', label: '12:00AM' },
+        endTime: { value: '23:59', label: '11:59PM' },
       },
       valid: true,
     },
     {
       name: 'invalid time value',
       shift: {
-        startTime: { value: '00:00', label: '00:00' },
-        endTime: { value: '24:00', label: '24:00' },
+        startTime: { value: '00:00', label: '12:00AM' },
+        endTime: { value: '24:00', label: '12:00PM' },
       },
       valid: false,
       message: 'invalid time',
@@ -47,8 +47,8 @@ describe('validShift', () => {
     {
       name: 'same start and end time',
       shift: {
-        startTime: { value: '00:00', label: '00:00' },
-        endTime: { value: '00:00', label: '00:00' },
+        startTime: { value: '00:00', label: '12:00AM' },
+        endTime: { value: '00:00', label: '12:00AM' },
       },
       valid: false,
       message: 'start time must be before end time',
@@ -76,12 +76,12 @@ describe('validSchedule', () => {
         shifts: {
           ...newShifts(),
           Monday: {
-            startTime: { value: '00:00', label: '00:00' },
-            endTime: { value: '23:59', label: '23:59' },
+            startTime: { value: '00:00', label: '12:00AM' },
+            endTime: { value: '23:59', label: '11:59PM' },
           },
           Tuesday: {
-            startTime: { value: '00:00', label: '00:00' },
-            endTime: { value: '23:59', label: '23:59' },
+            startTime: { value: '00:00', label: '12:00AM' },
+            endTime: { value: '23:59', label: '11:59PM' },
           },
         },
       },
