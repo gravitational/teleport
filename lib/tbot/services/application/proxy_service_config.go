@@ -60,7 +60,7 @@ func (c *ProxyServiceConfig) CheckAndSetDefaults() error {
 	}
 
 	if _, err := url.Parse(c.Listen); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "parsing listen")
 	}
 
 	return nil
