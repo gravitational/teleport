@@ -200,6 +200,7 @@ require (
 	github.com/google/go-tpm v0.9.5 // indirect
 	github.com/google/go-tpm-tools v0.4.5 // indirect
 	github.com/google/go-tspi v0.3.0 // indirect
+	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
