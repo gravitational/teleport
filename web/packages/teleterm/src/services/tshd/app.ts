@@ -110,7 +110,10 @@ export function getAppAddrWithProtocol(source: App): string {
     } else if (isMCPStdio) {
       addrWithProtocol = `mcp+stdio://${publicAddr}`;
     } else {
-      addrWithProtocol = `https://${publicAddr}`;
+      // publicAddr for Identity Center account app is a URL with scheme.
+      addrWithProtocol = publicAddr.startsWith('https://')
+        ? publicAddr
+        : `https://${publicAddr}`;
     }
   }
 
