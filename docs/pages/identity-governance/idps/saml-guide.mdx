@@ -28,213 +28,231 @@ includes information about the application.
 - (!docs/pages/includes/tctl.mdx!)
 - If you're new to SAML, consider reviewing our [SAML Identity Provider
   Reference](../../reference/access-controls/saml-idp.mdx) before proceeding.
-- User with permission to create service provider resource. The preset `editor` role has this permission.
-- SAML application (also known as a SAML service provider or SP) for testing. For this guide, we'll be using
-[RSA Simple Test Service Provider](https://sptest.iamshowcase.com/) - a free test service that
-lets us test Teleport SAML IdP. The test service has a protected page, which can be accessed only after a
-user is federated to the site with a valid SAML assertion flow.
-![iamshowcase protected page](../../../img/access-controls/saml-idp/iamshowcase-protected-page.png)
+- SAML application (also known as a SAML service provider or SP) for testing. 
+  For this guide, we'll be using [RSA Simple Test Service Provider](https://sptest.iamshowcase.com/) - 
+  a free service that lets us test the Teleport SAML IdP. The test service 
+  has a protected page, which can be accessed only after a user is federated to 
+  the site with a valid SAML assertion flow. Below in this guide, we will refer 
+  to this application as the "IAMShowcase" app. 
+![iamshowcase protected page](../../../img/access-controls/saml-idp/rsa-simplesp-protected-page.png)
 
-## Step 1/3. Add a service provider to Teleport
+## Step 1/4. Create a role
 
-To add a service provider to Teleport, you must configure a service provider
-metadata. This can be configured by either providing an **Entity ID** and **ACS URL** values of the
-service provider or by providing an entity descriptor value (also known as metadata file, which is an XML file)
-of the service provider.
+As a first step, we will create a role which will grant permissions to manage 
+a `saml_idp_service_provider` resource for the IAMShowcase app. 
+The role will also grant permission to log in to this application 
+by authenticating with Teleport. We will name this role as `saml-admin`.
 
-Below we'll show both of the configuration options.
+In the Teleport Web UI, from side the navigation menu, select **Zero Trust Access > Roles** 
+menu. From the **Roles** UI, click `Create New Role` button. 
 
-In the Web UI, select **Add New**, click **Resource**, and look for SAML.
-Choose the appropriate SAML IdP integration tile. Click the tile and follow the resulting steps.
+Enter "saml-admin" as a role name and then click the `Next: Resources` button to 
+move to the "Resources" tab. 
 
-![Enroll SAML app](../../../img/access-controls/saml-idp/saml-idp.png)
+In the **Resources** tab, open the dropdown menu by clicking on the `+ Add Teleport Resource Access` 
+button, then select **Application Access**. Enter "env" as the label key and "saml-test" 
+as the label value. In the Step 3 of this guide below, we will create a SAML service 
+provider resource with this matching label value `env: saml-test`, limiting 
+scope of the permissions granted by this role.
 
-### Option 1: Configure with Entity ID and ACS URL
+![Configure app label](../../../img/access-controls/saml-idp/step-1-create-role-app-label.png)
 
-With this option, the minimum configuration values required to add a service provider are:
-1. **Entity ID:** The SAML metadata value or an endpoint of the service provider.
-1. **ACS URL:** The endpoint where users will be redirected after SAML authentication. ACS URL
-is also referred to as SAML SSO URL.
+Click `Next: Admin Rules` button to move to the **Admin Rules** tab.
 
-To configure Simple Test Service Provider, the values you need to provide are the following:
-- **App Name:** `iamshowcase`
-- **SP Entity ID / Audience URI:** `iamshowcase`
-- **ACS URL / SP SSO URL:** `https://sptest.iamshowcase.com/acs`
+In the **Admin Rules** tab, click `+ Add New` button. In the **Teleport Resources**
+input box, search and select the `saml_idp_service_provider` resource. 
+And then in the **Permissions** section, check `read, list, create, update, delete`
+permissions.
 
-Click **Finish** button, the `iamshowcase` app is now added to Teleport.
+![Configure service provider rule verbs](../../../img/access-controls/saml-idp/step-1-create-role-saml-resource.png)
+
+Click `Next: Options` button to move to next step and then click `Create Role`
+button to create a new role.
 
 <details>
-<summary>Reference `tctl` based configuration</summary>
 
-The following `saml_idp_service_provider` spec is a reference for adding Simple Test
-Service Provider to Teleport:
+<summary>Reference YAML spec for the `saml-admin` role.</summary>
 ```yaml
-kind: saml_idp_service_provider
+kind: role
 metadata:
-  # The friendly name of the service provider. This is used to manage the
-  # service provider as well as in identity provider initiated SSO.
-  name: iamshowcase
+  name: saml-admin
 spec:
-  # entity_id is the metadata value or an endpoint of service provider
-  # that serves entity descriptor, aka SP metadata.
-  entity_id: iamshowcase
-  # acs_url is the endpoint where users will be redirected after
-  # SAML authentication.
-  acs_url: https://sptest.iamshowcase.com/acs
-version: v1
-```
-
-Add the spec to Teleport using `tctl`:
-
-```code
-$ tctl create iamshowcase.yaml
-# SAML IdP service provider 'iamshowcase' has been created.
+  allow:
+    app_labels:
+      env: saml-test
+    rules:
+    - resources:
+      - saml_idp_service_provider
+      verbs:
+      - read
+      - list
+      - create
+      - update
+      - delete
+version: v8
 ```
 </details>
 
-<Admonition type="note">
-With this configuration method, Teleport first tries to fetch an entity descriptor by
-querying the `entity_id` endpoint. If an entity descriptor is not found at that endpoint,
-Teleport will generate a new entity descriptor with the given `entity_id` and `acs_url` values.
-</Admonition>
+(!docs/pages/includes/add-role-to-user.mdx role="saml-admin"!) 
+
+## Step 2/3. Configure the service provider
+
+This step involves configuring the SAML service provider with the Teleport SAML IdP metadata.
+
+You can obtain the Teleport SAML IdP metadata values from the SAML application 
+setup wizard, which is available in the Teleport Web UI.
+
+In the Teleport Web UI, select **Add New > Resource** menu, and search for 
+"saml application". Choose the "SAML Application (Generic)" tile. 
+
+![Enroll SAML app](../../../img/access-controls/saml-idp/step-2-find-saml-discover-tile.png)
+
+As a first step of the SAML Application setup wizard, the Teleport Web UI displays
+the Teleport SAML IdP metadata values. 
+
+The process of SAML service provider configuration varies from service provider 
+to service provider. Some service provider may ask to provide Teleport SAML IdP's 
+entity ID, SSO URL and X.509 certificate explicitly. Other's may ask to upload 
+the Teleport SAML IdP metadata (SAML entity descriptor) file .
+
+![Teleport IdP metadata](../../../img/access-controls/saml-idp/step-2-copy-metadata.png)
+
+In the case of IAMShowcase app, which this guide is 
+based on, it is designed to grant access protected page for any well formatted 
+IdP federated SAML assertion data.
+
+As such, we will move to the next step in the setup wizard to add the IAMShowcase app to Teleport.
+
+## Step 3/4. Add a service provider to Teleport
+
+To add a service provider to Teleport, you must configure a service provider
+metadata. This can be configured by either providing an entity ID and ACS URL 
+values of the service provider or by providing an entity descriptor value 
+(also known as metadata file, which is an XML file) of the service provider.
+
+Below we'll show both of the configuration options.
+
+### Option 1: Configure with entity ID and ACS URL
+
+With this configuration method, Teleport first tries to fetch an entity 
+descriptor by querying the entity ID endpoint. If an entity descriptor is not 
+found at that endpoint, Teleport will generate a new entity descriptor with the 
+given entity ID and ACS URL values.
+
+To configure the IAMShowcase app, the values you 
+need to provide are the following:
+- **App Name:** `IAMShowcase`.
+- **SP Entity ID / Audience URI:** `IAMShowcase`. The SAML metadata value or an 
+  endpoint of the service provider.
+- **ACS URL / SP SSO URL:** `https://sptest.iamshowcase.com/acs`. The endpoint 
+  where users will be redirected after SAML authentication. ACS URL is also 
+  referred to as SAML SSO URL.
+- **Label:** `env: saml-test`. Label will be used in RBAC.
+
+![add service provider](../../../img/access-controls/saml-idp/step-3-add-service-provider.png)
+
+Click `Finish` button. The "IAMShowcase" app is now added to Teleport.
 
 ### Option 2: Configure with Entity Descriptor file
 
-If the service provider provides an option to download an entity descriptor file or you
-need more control over the entity descriptor, this is the recommended option to add a service provider
-to Teleport.
+With this option, you provide the service provider entity descriptor file, which 
+has all the details required to configure service provider metadata.
 
-With this option, you provide service provider entity descriptor file, which has all the details
-required to configure service provider metadata.
+If the service provider provides an option to download its entity descriptor file 
+or you need more control over the entity descriptor, this is the recommended 
+option to add a service provider to Teleport.
 
-![add entity descriptor](../../../img/access-controls/saml-idp/add-entity-descriptor.png)
+To configure the IAMShowcase app, the values you need to provide are the following:
+- **App Name:** `IAMShowcase`.
+- **Entity Descriptor:** Entity descriptor for the IAMShowcase app 
+  which is available in this URL: `https://sptest.iamshowcase.com/testsp_metadata.xml`.
+- **Label:** `env: saml-test`.
 
-In the **Add Service Provider To Teleport** page, provide a SAML service provider name (`iamshowcase`).
-Now click **+ Add Entity Descriptor (optional)** button, which will expand entity descriptor editor.
-Copy Simple Test Service Provider metadata file, which is available at the URL `https://sptest.iamshowcase.com/testsp_metadata.xml`
-and paste it to entity descriptor editor in Teleport Web UI.
+![add service provider with entity descriptor](../../../img/access-controls/saml-idp/step-3-add-service-provider-ed.png)
 
-Click **Finish** button, the `iamshowcase` app is now added to Teleport.
+Click `Finish` button. The "IAMShowcase" app is now added to Teleport.
 
-<details>
-<summary>Reference `tctl` based configuration</summary>
+<Admonition type="important">
+If an entity descriptor is provided, its content takes preference over values 
+provided for entity ID and ACS URL.
+</Admonition>
 
-First download the service provider metadata from Simple Test Service Provider as `iamshowcase.xml`:
+## Step 4/4. Verify access to the protected page
 
-```code
-$ curl -o iamshowcase.xml https://sptest.iamshowcase.com/testsp_metadata.xml
-```
+To verify everything works, navigate to the **Resources** page in the Teleport Web UI 
+and search for the "IAMShowcase" app.
 
-Using the template below, create a file called `iamshowcase.yaml`. Assign the
-metadata you just downloaded to the `entity_descriptor` field in the
-`saml_idp_service_provider` object:
+![Access app](../../../img/access-controls/saml-idp/step-4-login.png)
+
+From the "IAMShowcase" app tile, click the `Log in` button, which will forward 
+you to the IAMShowcase app's protected page with a SAML assertion data signed by 
+the Teleport SAML IdP.
+
+![Protected page access](../../../img/access-controls/saml-idp/step-4-service-provider-authenticated-page.png)
+
+This page shows Teleport user details along with other attributes such as role 
+names that are federated by the Teleport SAML IdP, confirming a successful SAML 
+service provider configuration in Teleport.
+
+
+## Manage SAML IdP service provider resource using `tctl`
+
+Examples of managing a `saml_idp_service_provider` resource using `tctl`.
+
+### Create a `saml_idp_service_provider` resource
 
 ```yaml
+cat > iamshowcase.yaml << EOF
 kind: saml_idp_service_provider
 metadata:
-  # The friendly name of the service provider. This is used to manage the
-  # service provider as well as in identity provider initiated SSO.
-  name: iamshowcase
+  # For RBAC, role allow "app_labels" rule will be matched with this resource label.
+  labels:
+    env: saml-test
+  # The resource name of the service provider.
+  name: IAMShowcase
 spec:
-  # The entity_descriptor is the service provider XML.
-  entity_descriptor: |
-    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"...
+  acs_url: https://sptest.iamshowcase.com/acs
+  entity_id: IAMShowcase
 version: v1
+EOF
 ```
 
 Add this to Teleport using `tctl`:
 
 ```code
 $ tctl create iamshowcase.yaml
-# SAML IdP service provider 'samltest-id' has been created.
+# SAML IdP service provider 'IAMShowcase' has been created.
 ```
-</details>
 
-<Admonition type="important">
-If an `entity_descriptor` is provided, its content takes preference over values provided in `entity_id` and `acs_url`.
-
-Teleport only tries to fetch or generate entity descriptor when service provider is created for the first time.
-Subsequent updates require an entity descriptor to be present in the service provider spec. As such, when updating
-service provider, you should first fetch the spec that is stored in Teleport and only then edit the configuration.
+To update the resource, first, get the latest copy of the resource spec 
+from the Teleport cluster.
 ```code
 # get service provider spec
-$ tctl get saml_idp_service_provider/<service provider name> > service-provider.yml
-```
-</Admonition>
-
-## Step 2/3. Configure the service provider to recognize Teleport's SAML IdP
-
-This step varies from service provider to service provider. Some service provider may ask to
-provide Teleport SAML IdP Entity ID, SSO URL and X.509 certificate. Other's may ask to upload
-an Teleport SAML IdP metadata file.
-
-You will find these values in the Teleport Web UI under the
-**Configure Service Provider with Teleport's Identity Provider Metadata** UI which is the first step
-shown in the SAML app enrollment flow.
-
-![Teleport IdP metadata](../../../img/access-controls/saml-idp/teleport-idp-metadata.png)
-
-In the case of Simple Test Service Provider, which this guide is based on, the sample app is designed to grant access protected page
-for any well formatted IdP federated SAML assertion data.
-
-As such, when you click **Finish** button in the previous step, the protected page of the Simple Test Service Provider is
-already available to access under resources page.
-
-## Step 3/3. Verify access to iamshowcase protected page
-
-To verify everything works, navigate to **Resources** page in Teleport Web UI and look for the app.
-
-![Access app](../../../img/access-controls/saml-idp/access-app.png)
-
-The "iamshowcase" app will now appear under resources tile. Inside this tile,
-click **Login** button, which will now forward you to iamshowcase protected page.
-
-![Protected page access](../../../img/access-controls/saml-idp/protected-page-access.png)
-
-This page shows Teleport user details along with other attributes such as roles are
-federated by Teleport SAML IdP.
-
-This demonstrates adding a service provider to Teleport configured with a working idp-initiated SSO login flow.
-
-## Recommended: Creating dedicated role to manage service provider
-
-For production, we recommend creating a dedicated role to manage service provider.
-
-To create a dedicated role, first, ensure you are logged into Teleport as a user that has
-permissions to read and modify `saml_idp_service_provider` objects. The default `editor` role
-has access to this already, but in case you are using a more customized configuration,
-create a role called `sp-manager.yaml` with the following contents:
-
-```yaml
-kind: role
-metadata:
-  name: sp-manager
-spec:
-  allow:
-    rules:
-    - resources:
-      - saml_idp_service_provider
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
-version: v7
+$ tctl get saml_idp_service_provider/IAMShowcase > iamshowcase.yaml
 ```
 
-Create the role with `tctl`:
-
+Then modify the spec and update it using the `tctl create -f` command:
 ```code
-$ tctl create sp-manager.yaml
-role 'saml-idp-service-provider-manager' has been created
+$ tctl create -f iamshowcase.yaml 
 ```
 
-(!docs/pages/includes/create-role-using-web.mdx!)
+### List `saml_idp_service_provider` resources
+To list a specific service provider:
+```code
+$ tctl get saml_idp_service_provider/IAMShowcase 
+```
 
-Next, add the role to your user.
+To list all the service providers:
+```code
+$ tctl get saml_idp_service_provider 
+```
 
-(!docs/pages/includes/add-role-to-user.mdx role="sp-manager"!)
+### Delete a `saml_idp_service_provider` resource
+```code
+$ tctl rm saml_idp_service_provider/IAMShowcase 
+```
 
 ## Next steps
+
+- Learn how to [control access](saml-idp-rbac.mdx) to the SAML IdP service provider resource.
 - Configure [SAML Attribute Mapping](./saml-attribute-mapping.mdx).
