@@ -487,9 +487,9 @@ func buildFilters(args entraArgs) []*types.PluginSyncFilter {
 	filtersCap := len(args.groupFilterIncludeID) + len(args.groupFilterExcludeID) + len(args.groupFilterIncludeName) + len(args.groupFilterExcludeName)
 	filters := make([]*types.PluginSyncFilter, 0, filtersCap)
 
-	for _, n := range args.groupFilterIncludeID {
+	for _, id := range args.groupFilterIncludeID {
 		filters = append(filters, &types.PluginSyncFilter{
-			Include: &types.PluginSyncFilter_Id{Id: n},
+			Include: &types.PluginSyncFilter_Id{Id: id},
 		})
 	}
 
@@ -499,9 +499,9 @@ func buildFilters(args entraArgs) []*types.PluginSyncFilter {
 		})
 	}
 
-	for _, n := range args.groupFilterExcludeID {
+	for _, id := range args.groupFilterExcludeID {
 		filters = append(filters, &types.PluginSyncFilter{
-			Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: n},
+			Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: id},
 		})
 	}
 
