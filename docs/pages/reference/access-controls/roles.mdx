@@ -261,7 +261,10 @@ allow:
 ```
 
 If this rule was declared in the `deny` section of a role definition, it would
-prohibit users from getting a list of active sessions. You can see all of the
+prohibit users from getting a list of active sessions. If a role does not allow
+access to list a resource, the user will not be able to view it in the Web UI
+or remotely with `tctl`.  The only exception is that a user can always view their 
+assigned roles and their own user information with `tctl`.  You can see all of the
 available resources and verbs under the `allow` section in the example role
 configuration below.
 
