@@ -3476,6 +3476,11 @@
       "source": "/enroll-resources/application-access/introduction/",
       "destination": "/enroll-resources/application-access/getting-started/",
       "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "permanent": true
     }
   ]
 }
