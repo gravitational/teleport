@@ -68,11 +68,14 @@ import (
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -90,6 +93,7 @@ func TestMain(m *testing.M) {
 // TestNodesDontCacheHighVolumeResources verifies that resources classified as "high volume" aren't
 // cached by nodes.
 func TestNodesDontCacheHighVolumeResources(t *testing.T) {
+	t.Parallel()
 	for _, kind := range ForNode(Config{}).Watches {
 		require.False(t, isHighVolumeResource(kind.Kind), "resource=%q", kind.Kind)
 	}
@@ -1613,7 +1617,7 @@ func TestUsers(t *testing.T) {
 
 	testResources(t, p, testFuncs[types.User]{
 		newResource: func(name string) (types.User, error) {
-			return types.NewUser("bob")
+			return types.NewUser(name)
 		},
 		create: func(ctx context.Context, user types.User) error {
 			_, err := p.usersS.UpsertUser(ctx, user)
@@ -1644,7 +1648,7 @@ func TestRoles(t *testing.T) {
 
 	testResources(t, p, testFuncs[types.Role]{
 		newResource: func(name string) (types.Role, error) {
-			return types.NewRole("role1", types.RoleSpecV6{
+			return types.NewRole(name, types.RoleSpecV6{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.Duration(time.Hour),
 				},
@@ -1822,13 +1826,13 @@ func TestRemoteClusters(t *testing.T) {
 			return err
 		},
 		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.trustS.GetRemoteClusters(ctx)
+			return stream.Collect(clientutils.Resources(ctx, p.trustS.ListRemoteClusters))
 		},
 		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
 			return p.cache.GetRemoteCluster(ctx, name)
 		},
 		cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return p.cache.GetRemoteClusters(ctx)
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListRemoteClusters))
 		},
 		update: func(ctx context.Context, rc types.RemoteCluster) error {
 			_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
@@ -1931,7 +1935,7 @@ func TestApps(t *testing.T) {
 	testResources(t, p, testFuncs[types.Application]{
 		newResource: func(name string) (types.Application, error) {
 			return types.NewAppV3(types.Metadata{
-				Name: "foo",
+				Name: name,
 			}, types.AppSpecV3{
 				URI: "localhost",
 			})
@@ -2064,7 +2068,7 @@ func TestDatabaseServices(t *testing.T) {
 	testResources(t, p, testFuncs[types.DatabaseService]{
 		newResource: func(name string) (types.DatabaseService, error) {
 			return types.NewDatabaseServiceV1(types.Metadata{
-				Name: uuid.NewString(),
+				Name: name,
 			}, types.DatabaseServiceSpecV1{
 				ResourceMatchers: []*types.DatabaseResourceMatcher{
 					{Labels: &types.Labels{"env": []string{"prod"}}},
@@ -2073,20 +2077,18 @@ func TestDatabaseServices(t *testing.T) {
 		},
 		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
 		list: func(ctx context.Context) ([]types.DatabaseService, error) {
-			listServicesResp, err := p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindDatabaseService,
-				Limit:        apidefaults.DefaultChunkSize,
-			})
-			require.NoError(t, err)
-			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+			resources, err := listAllResource(t, p.presenceS, types.KindDatabaseService)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return types.ResourcesWithLabels(resources).AsDatabaseServices()
 		},
 		cacheList: func(ctx context.Context) ([]types.DatabaseService, error) {
-			listServicesResp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindDatabaseService,
-				Limit:        apidefaults.DefaultChunkSize,
-			})
-			require.NoError(t, err)
-			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+			resources, err := listAllResource(t, p.cache, types.KindDatabaseService)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return types.ResourcesWithLabels(resources).AsDatabaseServices()
 		},
 		update:    withKeepalive(p.databaseServices.UpsertDatabaseService),
 		deleteAll: p.databaseServices.DeleteAllDatabaseServices,
@@ -2206,19 +2208,17 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 					Name: name,
 				},
 				types.SAMLIdPServiceProviderSpecV1{
-					EntityDescriptor: testEntityDescriptor,
-					EntityID:         "IAMShowcase",
+					EntityDescriptor: fmt.Sprintf(testEntityDescriptorFmt, "IAMShowcase"+name),
+					EntityID:         "IAMShowcase" + name,
 				})
 		},
 		create: p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
 		list: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-			results, _, err := p.samlIDPServiceProviders.ListSAMLIdPServiceProviders(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.samlIDPServiceProviders.ListSAMLIdPServiceProviders))
 		},
 		cacheGet: p.cache.GetSAMLIdPServiceProvider,
 		cacheList: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-			results, _, err := p.cache.ListSAMLIdPServiceProviders(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListSAMLIdPServiceProviders))
 		},
 		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
 		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
@@ -2243,13 +2243,11 @@ func TestUserGroups(t *testing.T) {
 		},
 		create: p.userGroups.CreateUserGroup,
 		list: func(ctx context.Context) ([]types.UserGroup, error) {
-			results, _, err := p.userGroups.ListUserGroups(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.userGroups.ListUserGroups))
 		},
 		cacheGet: p.cache.GetUserGroup,
 		cacheList: func(ctx context.Context) ([]types.UserGroup, error) {
-			results, _, err := p.cache.ListUserGroups(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListUserGroups))
 		},
 		update:    p.userGroups.UpdateUserGroup,
 		deleteAll: p.userGroups.DeleteAllUserGroups,
@@ -2335,13 +2333,11 @@ func TestOktaImportRules(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]types.OktaImportRule, error) {
-			results, _, err := p.okta.ListOktaImportRules(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.okta.ListOktaImportRules))
 		},
 		cacheGet: p.cache.GetOktaImportRule,
 		cacheList: func(ctx context.Context) ([]types.OktaImportRule, error) {
-			results, _, err := p.cache.ListOktaImportRules(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListOktaImportRules))
 		},
 		update: func(ctx context.Context, resource types.OktaImportRule) error {
 			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
@@ -2385,13 +2381,11 @@ func TestOktaAssignments(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]types.OktaAssignment, error) {
-			results, _, err := p.okta.ListOktaAssignments(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.okta.ListOktaAssignments))
 		},
 		cacheGet: p.cache.GetOktaAssignment,
 		cacheList: func(ctx context.Context) ([]types.OktaAssignment, error) {
-			results, _, err := p.cache.ListOktaAssignments(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListOktaAssignments))
 		},
 		update: func(ctx context.Context, resource types.OktaAssignment) error {
 			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
@@ -2423,13 +2417,11 @@ func TestIntegrations(t *testing.T) {
 			return err
 		},
 		list: func(ctx context.Context) ([]types.Integration, error) {
-			results, _, err := p.integrations.ListIntegrations(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.integrations.ListIntegrations))
 		},
 		cacheGet: p.cache.GetIntegration,
 		cacheList: func(ctx context.Context) ([]types.Integration, error) {
-			results, _, err := p.cache.ListIntegrations(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListIntegrations))
 		},
 		update: func(ctx context.Context, i types.Integration) error {
 			_, err := p.integrations.UpdateIntegration(ctx, i)
@@ -2504,7 +2496,7 @@ func TestDiscoveryConfig(t *testing.T) {
 	testResources(t, p, testFuncs[*discoveryconfig.DiscoveryConfig]{
 		newResource: func(name string) (*discoveryconfig.DiscoveryConfig, error) {
 			dc, err := discoveryconfig.NewDiscoveryConfig(
-				header.Metadata{Name: "mydc"},
+				header.Metadata{Name: name},
 				discoveryconfig.Spec{
 					DiscoveryGroup: "group001",
 				})
@@ -2516,13 +2508,11 @@ func TestDiscoveryConfig(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			results, _, err := p.discoveryConfigs.ListDiscoveryConfigs(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.discoveryConfigs.ListDiscoveryConfigs))
 		},
 		cacheGet: p.cache.GetDiscoveryConfig,
 		cacheList: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			results, _, err := p.cache.ListDiscoveryConfigs(ctx, 0, "")
-			return results, err
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListDiscoveryConfigs))
 		},
 		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
 			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
@@ -2643,7 +2633,13 @@ func TestUserLoginStates(t *testing.T) {
 // TestAccessList tests that CRUD operations on access list resources are
 // replicated from the backend to the cache.
 func TestAccessList(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true, Limit: apidefaults.DefaultChunkSize * 2},
+			},
+		},
+	})
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
@@ -2659,13 +2655,11 @@ func TestAccessList(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			items, _, err := p.accessLists.ListAccessLists(ctx, 0 /* page size */, "")
-			return items, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAccessLists))
 		},
 		cacheGet: p.cache.GetAccessList,
 		cacheList: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			items, _, err := p.cache.ListAccessLists(ctx, 0 /* page size */, "")
-			return items, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListAccessLists))
 		},
 		update: func(ctx context.Context, item *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
@@ -2697,15 +2691,16 @@ func TestAccessListMembers(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			items, _, err := p.accessLists.ListAllAccessListMembers(ctx, 0 /* page size */, "")
-			return items, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListMembers))
 		},
 		cacheGet: func(ctx context.Context, name string) (*accesslist.AccessListMember, error) {
 			return p.cache.GetAccessListMember(ctx, al.GetName(), name)
 		},
 		cacheList: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			items, _, err := p.cache.ListAccessListMembers(ctx, al.GetName(), 0 /* page size */, "")
-			return items, trace.Wrap(err)
+			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
+				return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
+			}
+			return stream.Collect(clientutils.Resources(ctx, fn))
 		},
 		update: func(ctx context.Context, item *accesslist.AccessListMember) error {
 			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
@@ -2768,21 +2763,25 @@ func TestAccessListReviews(t *testing.T) {
 		},
 		create: func(ctx context.Context, item *accesslist.Review) error {
 			review, _, err := p.accessLists.CreateAccessListReview(ctx, item)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			// Use the old name from the description.
 			oldName := review.Metadata.Description
 			reviews[oldName].SetName(review.GetName())
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*accesslist.Review, error) {
-			items, _, err := p.accessLists.ListAllAccessListReviews(ctx, 0 /* page size */, "")
-			return items, trace.Wrap(err)
+			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListReviews))
 		},
 		cacheList: func(ctx context.Context) ([]*accesslist.Review, error) {
-			items, _, err := p.cache.ListAccessListReviews(ctx, al.GetName(), 0 /* page size */, "")
-			return items, trace.Wrap(err)
+			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
+				return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
+			}
+			return stream.Collect(clientutils.Resources(ctx, fn))
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
-	})
+	}, withSkipPaginationTest()) // access list reviews resources have customer pagination test.
 }
 
 // TestUserNotifications tests that CRUD operations on user notification resources are
@@ -3056,9 +3055,30 @@ func TestStaticHostUsers(t *testing.T) {
 	})
 }
 
+type testOptions struct {
+	skipPaginationTest bool
+}
+
+type optionsFunc func(*testOptions)
+
+func withSkipPaginationTest() optionsFunc {
+	return func(opts *testOptions) {
+		opts.skipPaginationTest = true
+	}
+}
+
 // testResources is a generic tester for resources.
-func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
-	ctx := context.Background()
+func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
+	t.Helper()
+	var options testOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	ctx := t.Context()
+
+	if !options.skipPaginationTest {
+		testResourcePagination(t, p, funcs)
+	}
 
 	// Create a resource.
 	r, err := funcs.newResource("test-sp")
@@ -3206,6 +3226,89 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 
 	// Check that information has been replicated to the cache.
 	assertCacheContents([]T{})
+}
+
+func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
+	t.Helper()
+	totalItems := apidefaults.DefaultChunkSize + 1
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-p.eventsC:
+				// Discard events to avoid blocking the test.
+			}
+		}
+	}()
+
+	// Generate and create test resources
+	names := make(map[string]struct{}, totalItems)
+	for i := range totalItems {
+		name := fmt.Sprintf("resources-%d", i)
+		r, err := funcs.newResource(name)
+		require.NoError(t, err)
+		require.NoError(t, funcs.create(ctx, r))
+		names[name] = struct{}{}
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		out, err := funcs.cacheList(ctx)
+		require.NoError(t, err)
+		require.Len(t, out, totalItems)
+		all, err := funcs.list(ctx)
+		require.NoError(t, err)
+		require.Len(t, all, totalItems)
+	}, time.Second*3, time.Millisecond*100)
+
+	out, err := funcs.cacheList(ctx)
+	require.NoError(t, err)
+
+	seen := make(map[string]bool, totalItems)
+	for _, item := range out {
+		name := item.GetName()
+		if seen[name] {
+			t.Fatalf("duplicate resource returned in pagination: %q", name)
+		}
+		if _, expected := names[name]; !expected {
+			t.Fatalf("unexpected resource returned: %q", name)
+		}
+		seen[name] = true
+	}
+	// Remove all resource from the backend to has fresh state
+	require.NoError(t, funcs.deleteAll(ctx))
+
+	// Wait for the cache to be empty.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Check that the cache is now empty.
+		out, err = funcs.cacheList(ctx)
+		assert.NoError(t, err)
+		assert.Empty(t, out)
+	}, time.Second*3, time.Millisecond*100)
+}
+
+type resourcesLister interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+func listAllResource(t *testing.T, lister resourcesLister, kind string) ([]types.ResourceWithLabels, error) {
+	return stream.Collect(clientutils.Resources(
+		t.Context(),
+		func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
+			resp, err := lister.ListResources(t.Context(), proto.ListResourcesRequest{
+				ResourceType: kind,
+				Limit:        int32(limit),
+				StartKey:     startKey,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return resp.Resources, resp.NextKey, nil
+		}))
 }
 
 func TestRelativeExpiry(t *testing.T) {
@@ -3684,6 +3787,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 // Cache operates in partially healthy mode in which it serves reads of the confirmed kinds from the cache and
 // lets everything else pass through.
 func TestPartialHealth(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// setup cache such that role resources wouldn't be recognized by the event source and wouldn't be cached.
@@ -4239,8 +4343,8 @@ func modifyNoContext[T any](fn func(T) error) func(context.Context, T) error {
 }
 
 // A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
-const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+const testEntityDescriptorFmt = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
    <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
       <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
       <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
