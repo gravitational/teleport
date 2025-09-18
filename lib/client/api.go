@@ -4159,6 +4159,7 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 	} else {
 		log.DebugContext(ctx, "Attempting to login with new software private keys")
 		var err error
+		// NOTE: Here we generate keys for a local tsh login.
 		sshKey, tlsKey, err = cryptosuites.GenerateUserSSHAndTLSKey(ctx, tc.GetCurrentSignatureAlgorithmSuite)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4182,6 +4183,7 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 	if err != nil {
 		return SSHLogin{}, trace.Wrap(err)
 	}
+	// NOTE: All the stuff we need to log in.
 	return SSHLogin{
 		ProxyAddr:               tc.WebProxyAddr,
 		SSHPubKey:               keyRing.SSHPrivateKey.MarshalSSHPublicKey(),

@@ -541,6 +541,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		return nil, trace.Wrap(err)
 	}
 
+	// NOTE: The first request of the login ceremony.
 	challengeJSON, err := webClient.PostJSON(
 		ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"),
 		&MFAChallengeRequest{
@@ -584,6 +585,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		return nil, trace.Wrap(err)
 	}
 
+	// NOTE: The second request o the login ceremony.
 	loginRespJSON, err := webClient.PostJSON(
 		ctx, webClient.Endpoint("webapi", "mfa", "login", "finish"),
 		&AuthenticateSSHUserRequest{

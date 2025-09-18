@@ -6234,6 +6234,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		// We have to duplicate the behavior of `m.TLSConfig()` here because
 		// http/1.1 needs to take precedence over h2 due to
 		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017#c5 in Chrome.
+		// NOTE: http/1.1 is preferred here.
 		tlsConfig = &tls.Config{
 			GetCertificate: m.GetCertificate,
 			NextProtos: []string{
