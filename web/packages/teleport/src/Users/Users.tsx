@@ -16,18 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 
-import {
-  Alert,
-  Box,
-  Button,
-  Link as ExternalLink,
-  Flex,
-  Indicator,
-  Text,
-} from 'design';
+import { Alert, Box, Button, Link as ExternalLink, Flex, Text } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 import {
   InfoExternalTextLink,
@@ -37,13 +29,14 @@ import {
   ReferenceLinks,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
 
+import { useServerSidePagination } from 'teleport/components/hooks';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import { useGetUsers } from 'teleport/services/user/hooks';
+import { User } from 'teleport/services/user';
 
 import { UserAddEdit } from './UserAddEdit';
 import { UserDelete } from './UserDelete';
@@ -74,9 +67,39 @@ export function Users(props: State) {
     InviteCollaborators,
     EmailPasswordReset,
     onEmailPasswordResetClose,
+    fetch,
   } = props;
 
-  const users = useGetUsers();
+  const [search, setSearch] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const serverSidePagination = useServerSidePagination<User>({
+    pageSize: 20,
+    fetchFunc: async (_, params) => {
+      const { items, startKey } = await fetch(
+        params,
+        abortControllerRef.current?.signal
+      );
+      return { agents: items || [], startKey };
+    },
+    clusterId: '',
+    params: { search },
+  });
+
+  useEffect(() => {
+    // Cancel previous request and create new controller
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+
+    serverSidePagination.fetch();
+  }, [search]);
+
+  // Cleanup controller on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const requiredPermissions = Object.entries(usersAcl)
     .map(([key, value]) => {
@@ -95,7 +118,7 @@ export function Users(props: State) {
     <FeatureBox>
       <FeatureHeader justifyContent="space-between">
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
-        {users.isSuccess && (
+        {serverSidePagination.attempt.status === 'success' && (
           <Flex gap={2}>
             {!InviteCollaborators && (
               <HoverTooltip
@@ -159,12 +182,10 @@ export function Users(props: State) {
           </Flex>
         )}
       </FeatureHeader>
-      {users.isFetching && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
+      {serverSidePagination.attempt.status === 'failed' && (
+        <Alert>{serverSidePagination.attempt.statusText}</Alert>
       )}
-      {showMauInfo && !users.isFetching && (
+      {showMauInfo && serverSidePagination.attempt.status !== 'processing' && (
         <Alert
           data-testid="users-not-mau-alert"
           dismissible
@@ -198,25 +219,29 @@ export function Users(props: State) {
           .
         </Alert>
       )}
-      {users.isError && <Alert kind="danger" children={users.error.message} />}
-      {users.isSuccess && !users.isFetching && (
-        <UserList
-          usersAcl={usersAcl}
-          users={users.data}
-          onEdit={onStartEdit}
-          onDelete={onStartDelete}
-          onReset={onStartReset}
-        />
-      )}
+      <UserList
+        serversidePagination={serverSidePagination}
+        onSearchChange={setSearch}
+        search={search}
+        onEdit={onStartEdit}
+        onDelete={onStartDelete}
+        onReset={onStartReset}
+        usersAcl={usersAcl}
+      />
       {(operation.type === 'create' || operation.type === 'edit') && (
         <UserAddEdit
           isNew={operation.type === 'create'}
           onClose={onClose}
           user={operation.user}
+          modifyFetchedData={serverSidePagination.modifyFetchedData}
         />
       )}
       {operation.type === 'delete' && (
-        <UserDelete onClose={onClose} username={operation.user.name} />
+        <UserDelete
+          onClose={onClose}
+          username={operation.user.name}
+          modifyFetchedData={serverSidePagination.modifyFetchedData}
+        />
       )}
       {operation.type === 'reset' && !EmailPasswordReset && (
         <UserReset
