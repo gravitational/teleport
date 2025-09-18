@@ -313,6 +313,8 @@ const cfg = {
       '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
     rolePath: '/v1/webapi/roles/:name?',
     presetRolesPath: '/v1/webapi/presetroles',
+    listRequestableRolesPath:
+      '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
@@ -1142,6 +1144,14 @@ const cfg = {
 
   getRoleUrl(name?: string) {
     return generatePath(cfg.api.rolePath, { name });
+  },
+
+  getListRequestableRolesUrl(params?: UrlListRolesParams) {
+    return generatePath(cfg.api.listRequestableRolesPath, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getDiscoveryConfigUrl(clusterId: string) {

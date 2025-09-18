@@ -4633,6 +4633,78 @@ func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesReq
 	}, nil
 }
 
+// ListRequestableRoles is a paginated requestable role getter. Unlike ListRoles, this only returns a list of roles that the user can request in an access request.
+// This does not use the resource verbs for RBAC, and all users are allowed to call this endpoint. The requestable roles returned here are only the ones that the user
+// has been granted permission to request. If a user has not been granted permission to request any roles, this will return an empty list.
+func (a *ServerWithRoles) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	if req.PageSize == 0 || req.PageSize > apidefaults.DefaultChunkSize {
+		req.PageSize = apidefaults.DefaultChunkSize
+	}
+
+	requestValidator, err := services.NewRequestValidator(ctx, a.authServer.clock, a.authServer, a.context.GetUserMetadata().User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert ListRequestableRolesRequest to ListRolesRequest for compatibility with `IterateRoles`
+	listReq := &proto.ListRolesRequest{
+		Limit:    req.PageSize,
+		StartKey: req.PageToken,
+	}
+
+	var roleFilter *types.RoleFilter
+	if req.Filter != nil {
+		roleFilter = &types.RoleFilter{
+			SearchKeywords:  req.Filter.SearchKeywords,
+			SkipSystemRoles: true,
+		}
+	}
+	// matchFunc is the function that will be run on each retrieved role to verify that it is requestable and matches the provided filters (if any).
+	matchFunc := func(role *types.RoleV6) (bool, error) {
+		roleName := role.GetName()
+
+		// Users can't request their own roles
+		if slices.Contains(a.context.User.GetRoles(), roleName) {
+			return false, nil
+		}
+
+		// Apply any RoleFilters if defined.
+		if req.Filter != nil && !roleFilter.Match(role) {
+			return false, nil
+		}
+
+		if requestValidator.CanRequestRole(roleName) {
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	out, nextKey, err := a.authServer.IterateRoles(ctx, listReq, matchFunc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.ListRequestableRolesResponse{
+		Roles:         convertRolesToRequestableRoles(out),
+		NextPageToken: nextKey,
+	}, nil
+}
+
+// convertRolesToRequestableRoles turns a slice of Roles into RequestableRoles, stripping all data except the name and description.
+func convertRolesToRequestableRoles(roles []*types.RoleV6) []*proto.ListRequestableRolesResponse_RequestableRole {
+	items := make([]*proto.ListRequestableRolesResponse_RequestableRole, 0, len(roles))
+	for _, role := range roles {
+		item := &proto.ListRequestableRolesResponse_RequestableRole{
+			Name:        role.GetName(),
+			Description: role.GetMetadata().Description,
+		}
+		items = append(items, item)
+	}
+
+	return items
+}
+
 func (a *ServerWithRoles) validateRole(role types.Role) error {
 	if downgradeReason := role.GetMetadata().Labels[types.TeleportDowngradedLabel]; downgradeReason != "" {
 		return trace.BadParameter("refusing to upsert role because %s label is set with reason %q",

@@ -138,6 +138,7 @@ const (
 	AuthService_GenerateSnowflakeJWT_FullMethodName                = "/proto.AuthService/GenerateSnowflakeJWT"
 	AuthService_GetRole_FullMethodName                             = "/proto.AuthService/GetRole"
 	AuthService_ListRoles_FullMethodName                           = "/proto.AuthService/ListRoles"
+	AuthService_ListRequestableRoles_FullMethodName                = "/proto.AuthService/ListRequestableRoles"
 	AuthService_CreateRole_FullMethodName                          = "/proto.AuthService/CreateRole"
 	AuthService_UpdateRole_FullMethodName                          = "/proto.AuthService/UpdateRole"
 	AuthService_UpsertRoleV2_FullMethodName                        = "/proto.AuthService/UpsertRoleV2"
@@ -554,6 +555,8 @@ type AuthServiceClient interface {
 	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error)
 	// ListRoles is a paginated role getter.
 	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error)
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error)
 	// CreateRole creates a new role.
 	CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error)
 	// UpdateRole updates an existing role.
@@ -2133,6 +2136,16 @@ func (c *authServiceClient) ListRoles(ctx context.Context, in *ListRolesRequest,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListRolesResponse)
 	err := c.cc.Invoke(ctx, AuthService_ListRoles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRequestableRolesResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListRequestableRoles_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4042,6 +4055,8 @@ type AuthServiceServer interface {
 	GetRole(context.Context, *GetRoleRequest) (*types.RoleV6, error)
 	// ListRoles is a paginated role getter.
 	ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error)
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error)
 	// CreateRole creates a new role.
 	CreateRole(context.Context, *CreateRoleRequest) (*types.RoleV6, error)
 	// UpdateRole updates an existing role.
@@ -4810,6 +4825,9 @@ func (UnimplementedAuthServiceServer) GetRole(context.Context, *GetRoleRequest) 
 }
 func (UnimplementedAuthServiceServer) ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRoles not implemented")
+}
+func (UnimplementedAuthServiceServer) ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRequestableRoles not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateRole(context.Context, *CreateRoleRequest) (*types.RoleV6, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateRole not implemented")
@@ -7032,6 +7050,24 @@ func _AuthService_ListRoles_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).ListRoles(ctx, req.(*ListRolesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListRequestableRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRequestableRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListRequestableRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListRequestableRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListRequestableRoles(ctx, req.(*ListRequestableRolesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10235,6 +10271,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRoles",
 			Handler:    _AuthService_ListRoles_Handler,
+		},
+		{
+			MethodName: "ListRequestableRoles",
+			Handler:    _AuthService_ListRequestableRoles_Handler,
 		},
 		{
 			MethodName: "CreateRole",
