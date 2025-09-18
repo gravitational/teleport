@@ -34,9 +34,9 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 
@@ -60,7 +60,7 @@ func TestTerraformJoin(t *testing.T) {
 
 	// Test setup: create a fake Kubernetes signer that will allow us to use the kubernetes/jwks join method
 	clock := clockwork.NewRealClock()
-	signer, err := fakejoin.NewKubernetesSigner(clock)
+	signer, err := fakeissuer.NewKubernetesSigner(clock)
 	require.NoError(t, err)
 
 	jwks, err := signer.GetMarshaledJWKS()
@@ -188,7 +188,7 @@ func TestTerraformJoinViaProxy(t *testing.T) {
 
 	// Test setup: create a fake Kubernetes signer that will allow us to use the kubernetes/jwks join method
 	clock := clockwork.NewRealClock()
-	signer, err := fakejoin.NewKubernetesSigner(clock)
+	signer, err := fakeissuer.NewKubernetesSigner(clock)
 	require.NoError(t, err)
 
 	jwks, err := signer.GetMarshaledJWKS()
