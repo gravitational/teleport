@@ -123,11 +123,12 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	if err := scx.SetExecRequest(execRequest); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := t.SessionRegistry.OpenSession(ctx, ch, scx); err != nil {
-		return trace.Wrap(err)
+
+	if joinID, joinMode := scx.GetJoinParams(); joinID != "" {
+		return t.SessionRegistry.JoinSession(ctx, ch, scx, joinID, joinMode)
 	}
 
-	return nil
+	return t.SessionRegistry.OpenSession(ctx, ch, scx)
 }
 
 // HandleFileTransferDecision handles requests of type "file-transfer-decision@goteleport.com" which will
