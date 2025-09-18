@@ -120,16 +120,17 @@ pipelines:
       - step:
           oidc: true
           script:
-            # Download and extract Teleport
-            - wget https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-            - tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+            # Install Teleport
+            - curl "https://<Var name="example.teleport.sh"/>:443/scripts/install.sh" | bash
 
             # Run `tbot` in identity mode for SSH access
-            - ./teleport/tbot start identity --destination=./tbot-user --join-method=bitbucket --proxy-server=example.teleport.sh:443 --token=bot-bitbucket --oneshot
+            - tbot start identity --destination=./tbot-user --join-method=bitbucket --proxy-server=<Var name="example.teleport.sh"/>:443 --token=bot-bitbucket --oneshot
 
             # Make use of the generated SSH credentials
             - ssh -F ./tbot-user/ssh_config user@node.example.teleport.sh echo "hello world"
 ```
+
+Replace <Var name="example.teleport.sh"/> with the address of your Teleport Proxy Service.
 
 This example will start `tbot` in identity mode to generate SSH credentials.
 Refer to the [`tbot start` documentation](../../../reference/cli/tbot.mdx#tbot-start)
@@ -138,7 +139,7 @@ access.
 
 If you're adapting an existing workflow, note these steps:
 1. Set `oidc: true` on the step properties so that step will be issued a token
-1. Download and extract a `.tar.gz` Teleport build
+1. Installs Teleport from your cluster's install script
 1. Run `tbot` with `--join-method=bitbucket`, `--token=example-bot` (or
    whichever name was configured in Step 3), and `--oneshot`
 
