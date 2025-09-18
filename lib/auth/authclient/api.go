@@ -1334,6 +1334,9 @@ type Cache interface {
 
 	// ListProvisionTokens returns a paginated list of provision tokens.
 	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
+
+	// UserLoginStatesGetter defines methods for fetching user login states.
+	services.UserLoginStatesGetter
 }
 
 type NodeWrapper struct {
