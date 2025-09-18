@@ -110,10 +110,10 @@ func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string)
 	})
 }
 
-// PickBotInstanceRecentHeartbeat returns the most recent heartbeat for the
+// GetBotInstanceLatestHeartbeat returns the most recent heartbeat for the
 // given bot instance. The initial heartbeat is returned as a fallback if no
 // latest heartbeats exist.
-func PickBotInstanceRecentHeartbeat(botInstance *machineidv1.BotInstance) *machineidv1.BotInstanceStatusHeartbeat {
+func GetBotInstanceLatestHeartbeat(botInstance *machineidv1.BotInstance) *machineidv1.BotInstanceStatusHeartbeat {
 	heartbeat := botInstance.GetStatus().GetInitialHeartbeat()
 	latestHeartbeats := botInstance.GetStatus().GetLatestHeartbeats()
 	if len(latestHeartbeats) > 0 {

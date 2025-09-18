@@ -154,14 +154,14 @@ func makeNameIndexKey(botName string, instanceID string) string {
 }
 
 func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
-	heartbeat := services.PickBotInstanceRecentHeartbeat(botInstance)
+	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	recordedAt := heartbeat.GetRecordedAt().AsTime()
 	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
 }
 
 func keyForVersionIndex(botInstance *machineidv1.BotInstance) string {
 	version := "000000.000000.000000"
-	heartbeat := services.PickBotInstanceRecentHeartbeat(botInstance)
+	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	if heartbeat == nil {
 		return version + "/" + botInstance.GetMetadata().GetName()
 	}
@@ -183,7 +183,7 @@ func keyForVersionIndex(botInstance *machineidv1.BotInstance) string {
 
 func keyForHostnameIndex(botInstance *machineidv1.BotInstance) string {
 	hostname := "~"
-	heartbeat := services.PickBotInstanceRecentHeartbeat(botInstance)
+	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	if heartbeat != nil {
 		hostname = heartbeat.GetHostname()
 	}

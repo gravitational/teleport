@@ -425,7 +425,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 	}
 
 	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
-		heartbeat := services.PickBotInstanceRecentHeartbeat(instance)
+		heartbeat := services.GetBotInstanceLatestHeartbeat(instance)
 
 		uiInstance := BotInstance{
 			InstanceId: instance.Spec.InstanceId,
@@ -482,7 +482,7 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 	}
 
 	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
-		heartbeat := services.PickBotInstanceRecentHeartbeat(instance)
+		heartbeat := services.GetBotInstanceLatestHeartbeat(instance)
 
 		uiInstance := BotInstance{
 			InstanceId: instance.Spec.InstanceId,
