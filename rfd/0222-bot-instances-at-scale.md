@@ -162,9 +162,51 @@ Instance-specific functions will be supported by implementing a custom `typical.
 | **older_than** | Find instances running versions less than a given version - based on the most recent heartbeat                                                              | `older_than(version, "18.1.0")` or `version.older_than("18.1.0")`               |
 | **between**    | Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat. Inclusive of from and exclusive of to. | `between(version, "18.0.0", "18.1.0")` or `version.between("18.0.0", "18.1.0")` |
 
-## Privacy and Security
+## Service/Output health
 
-The proposed changes are mainly capturing extra data and presenting it in the web UI and CLI. As such, it is light on security and privacy concerns.
+Service health records for each configured `tbot` service/output will be sent with each heartbeat. These records are stored within the bot instance resource alongside heartbeats and authentications.
+
+Each service record includes the name of the configured service or output, a timestamp, it's health status (such as healthy, unhealthy, initializing or unknown), a timestamp, and an optional reason which may include an error message or stack trace.
+
+Any values included which are user-provided or dynamically generated based on errors or external state (namely the configured name and reason fields) will be limited in length to prevent uncapped data submissions.
+
+## Data aggregation
+
+To power the Upgrade Status section of the bot instance dashboard, we will pre-aggregate the following metrics; number of instances per version. Metrics will be stored in memory.
+
+As these metrics are intended to provide a rough overview of fleet health, and do not need to be strictly up-to-date, we will recalculate them on a timer (e.g. every 10 minutes). This is simpler, and in many cases likely more efficient than updating them incrementally by consuming the event stream.
+
+To avoid the need to "elect" a leader to calculate these metrics, each auth server instance will calculate them independently. Users therefore may see the numbers change if they refresh the dashboard, but this is an acceptable trade-off.
+
+## Data fields and expected quantities
+
+| Field                 | Description                                                                                  | Example                                       | Quantity                         | Limitations                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------- |
+| Bot                   | A collection of roles and access assumed by `tbot` using a join token                        |                                               | 0-40+ per cluster                |                                                                                               |
+| Bot instance          | A unique joined instance of `tbot` in either a long-running or ephemeral environment         |                                               | 1-15+ per bot                    |                                                                                               |
+| Authentication record | Created for each join or renewal                                                             |                                               | 0-10 per instance (max enforced) |                                                                                               |
+| Instance heartbeat    | Self-reported by each bot instance                                                           |                                               | 0-10 per instance (max enforced) | Data is **not** validated by the auth server, and cannot be used for making access decisions. |
+| Service health        | An independent, internal part of `tbot`. Generally maps 1:1 with configured outputs/tunnels. | `application-tunnel`, `workload-identity-api` | 1-30 per instance (max enforced) |                                                                                               |
+| OS                    | Operating system from `runtime.GOOS`                                                         | linux, windows or darwin                      | Once per heartbeat               |                                                                                               |
+| Version               | Version of `tbot`                                                                            | 18.1.0                                        | Once per heartbeat               |                                                                                               |
+| Hostname              |                                                                                              |                                               | Once per heartbeat               |                                                                                               |
+| Uptime                | How long `tbot` has been running                                                             |                                               | Once per heartbeat               |                                                                                               |
+| Join token name       |                                                                                              |                                               | Once per auth                    |                                                                                               |
+| Join method           |                                                                                              | github, iam, kubernetes                       | Once per auth                    |                                                                                               |
+| Join attributes       | Metadata specific to a join method                                                           | GitHub repository name                        | Once per auth                    |                                                                                               |
+| Health status         |                                                                                              | INITIALIZING, HEALTHY, UNHEALTHY, UNKNOWN     | Once per service health          |                                                                                               |
+
+## Resource storage (backend)
+
+This proposal adds service health to bot instances. Service health scales with the number of services/outputs `tbot` is configured with. It doesn't make sense to limit the number of service records, as this would no longer provide a complete picture of the instance. As such, if there are more configured services than a maximum, then `tbot` will send none and raise a warning the the logs. Service health records for an instance will be cleared when the instance starts-up (denoted by the heartbeat field `is_startup`). Service health records will be stored as part of an instance's state, alongside heartbeats and authentications. Service health records may be used for filtering the list of bot instance in the web UI and CLI in the future, and so will remain local to the instance itself.
+
+To mitigate the risk of service degradation related to storing and serving additional data as part of `tbot` heartbeats (service health), the auth server will respect an environment variable which will disable the ingestion of this additional data.
+
+```
+TELEPORT_DISABLE_TBOT_HEARTBEAT_EXTRAS=true|false teleport start
+```
+
+While `tbot` will continue to send the extra heartbeat data, and it will continue to be relayed by proxies, the auth server will discard it. The UI and CLI will not be aware of this configuration and will simply receive no service health data when requesting bot instance/s and display an empty state.
 
 ## Proto changes
 
@@ -272,44 +314,27 @@ enum BotInstanceHealthStatus {
 }
 ```
 
-## Data fields and expected quantities
+### RPC: `BotInstanceMetrics()`
+```protobuf
+// BotInstanceService provides functions to record and manage bot instances.
+service BotInstanceService {
+  rpc BotInstanceMetrics(BotInstanceMetricsRequest) returns (BotInstanceMetricsResponse);
+}
 
-| Field                 | Description                                                                                  | Example                                       | Quantity                         | Limitations                                                                                   |
-| --------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------- |
-| Bot                   | A collection of roles and access assumed by `tbot` using a join token                        |                                               | 0-300+ per cluster               |                                                                                               |
-| Bot instance          | A unique joined instance of `tbot` in either a long-running or ephemeral environment         |                                               | 1-300+ per bot                   |                                                                                               |
-| Authentication record | Created for each join or renewal                                                             |                                               | 0-10 per instance (max enforced) |                                                                                               |
-| Instance heartbeat    | Self-reported by each bot instance                                                           |                                               | 0-10 per instance (max enforced) | Data is **not** validated by the auth server, and cannot be used for making access decisions. |
-| Service health        | An independent, internal part of `tbot`. Generally maps 1:1 with configured outputs/tunnels. | `application-tunnel`, `workload-identity-api` | 1-30+ per instance               |                                                                                               |
-| OS                    | Operating system from `runtime.GOOS`                                                         | linux, windows or darwin                      | Once per heartbeat               |                                                                                               |
-| Version               | Version of `tbot`                                                                            | 18.1.0                                        | Once per heartbeat               |                                                                                               |
-| Hostname              |                                                                                              |                                               | Once per heartbeat               |                                                                                               |
-| Uptime                | How long `tbot` has been running                                                             |                                               | Once per heartbeat               |                                                                                               |
-| Join token name       |                                                                                              |                                               | Once per auth                    |                                                                                               |
-| Join method           |                                                                                              | github, iam, kubernetes                       | Once per auth                    |                                                                                               |
-| Join attributes       | Metadata specific to a join method                                                           | GitHub repository name                        | Once per auth                    |                                                                                               |
-| Health status         |                                                                                              | INITIALIZING, HEALTHY, UNHEALTHY, UNKNOWN     | Once per service                 |                                                                                               |
+// The request for BotInstanceMetrics.
+message BotInstanceMetricsRequest {
+  // Empty
+}
 
-## Resource storage (backend)
+// The response from BotInstanceMetrics, containing pre-aggregated metrics about tbot version usage etc.
+message BotInstanceMetricsResponse {
+  // The time at which the metrics were last re-calculated.
+  google.protobuf.Timestamp updated_at = 1;
 
-This proposal adds service health to bot instances. Service health scales with the number of services/outputs `tbot` is configured with. It doesn't make sense to limit the number of service records, as this would no longer provide a complete picture of the instance. As such, if there are more configured services than a maximum, then `tbot` will send none and raise a warning the the logs. Service health records for an instance will be cleared when the instance starts-up (denoted by the heartbeat field `is_startup`). Service health records will be stored as part of an instance's state, alongside heartbeats and authentications. Service health records may be used for filtering the list of bot instance in the web UI and CLI in the future, and so will remain local to the instance itself.
-
-To mitigate the risk of service degradation related to storing and serving additional data as part of `tbot` heartbeats (service health), the auth server will respect an environment variable which will disable the ingestion of this additional data.
-
+  // The number of instances of `tbot` broken down by version number.
+  map<string, int64> count_by_version = 2;
+}
 ```
-TELEPORT_DISABLE_TBOT_HEARTBEAT_EXTRAS=true|false teleport start
-```
-
-While `tbot` will continue to send the extra heartbeat data, and it will continue to be relayed by proxies, the auth server will discard it. The UI and CLI will not be aware of this configuration and will simply receive no service health data when requesting bot instance/s and display an empty state.
-
-## Data aggregation
-
-To power the Upgrade Status section of the bot instance dashboard, we will pre-aggregate the following metrics: Number of instances per version
-
-As these metrics are intended to provide a rough overview of fleet health, and do not need to be strictly up-to-date, we will recalculate them on a timer (e.g. every 10 minutes). This is simpler, and in many cases likely more efficient than updating them incrementally by consuming the event stream.
-
-To avoid the need to "elect" a leader to calculate these metrics, each auth server instance will calculate them independently. Users therefore may see the numbers change if they refresh the dashboard, but this is an acceptable trade-off.
-
 ## Web API
 
 | Endpoint                                                                 | Description                                                                                                                                                                                                                       |
@@ -317,6 +342,10 @@ To avoid the need to "elect" a leader to calculate these metrics, each auth serv
 | **GET /v2/webapi/sites/:site/machine-id/bot-instance**                   | A new version of an existing endpoint with a `query` parameter added to accept a string query in the Teleport predicate language (e.g. `older_than(version, 18.1)`) which is used to filter returned instances.                   |
 | **GET /v2/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id**     | A new version of an existing endpoint which includes the new fields on bot instance (such as service health).                                                                                                                     |
 | **GET /webapi/:site/machine-id/bot-instance/dashboard**                  | A new endpoint to return summary data for bot instances. The result will contain multiple named datasets (one for each supported visualization). A “last updated at” timestamp will be included to give users a sense of recency. |
+
+## Privacy and Security
+
+The proposed changes are mainly capturing extra data and presenting it in the web UI and CLI. As such, there are not security and privacy concerns that need to be highlighted.
 
 ## Backward Compatibility
 
