@@ -35,3 +35,5 @@ packageImportMethod: clone-or-copy
 patchedDependencies:
   # Needed for roundRect support which was merged to jest-canvas-mock but not released.
   jest-canvas-mock@2.5.2: web/patches/jest-canvas-mock@2.5.2.patch
+# Do not install packages released less than 2 days (2880 minutes) ago
+minimumReleaseAge: 2880

@@ -997,6 +997,8 @@
     "teleportinfra",
     "teleportmwi",
     "teleportopensshserverv",
+    "teleportprovisiontoken",
+    "teleportprovisiontokenv2",
     "teleportproxy",
     "teleportrolesv",
     "teleportrolev",
