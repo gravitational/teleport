@@ -10,14 +10,13 @@ import (
 	"net"
 	"net/http"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
@@ -147,7 +146,10 @@ func (s *ProxyService) Run(ctx context.Context) error {
 		err := s.handleProxyRequest(w, req)
 		if err != nil {
 			trace.WriteError(w, err)
-			s.log.Error("Encountered an error while proxying request", "error", err)
+			s.log.ErrorContext(
+				req.Context(), "Encountered an error while proxying request",
+				"error", err,
+			)
 			return
 		}
 	})
@@ -243,7 +245,7 @@ func (s *ProxyService) issueCert(
 // from the Host header, and issue a certificate for that application. The proxy
 // then makes the upstream request to the Teleport Proxy for that application.
 //
-// It does not support HTTP "tunnelling" as defined by RFC2616 via the CONNECT
+// It does not support HTTP "tunneling" as defined by RFC2616 via the CONNECT
 // method. CONNECT requests are rejected with a 501 Not Implemented response.
 func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Request) error {
 	ctx := req.Context()
