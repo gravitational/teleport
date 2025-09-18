@@ -102,7 +102,7 @@ func TestAppCommands(t *testing.T) {
 		}),
 	}
 	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
-	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer, 1)
 
 	// Set up user with MFA device for per session MFA tests below.
 	origin := "https://127.0.0.1"
