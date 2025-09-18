@@ -208,6 +208,53 @@ func (c *Client) newSession(ctx context.Context, chanReqCallback ChannelRequestC
 	return session, trace.Wrap(err)
 }
 
+// HandleChannelOpen starts a goroutine to handle any incoming [ssh.NewChannel] requests matching
+// the provided type using the provided handler. If the type already is being handled,
+// an error is returned.
+//
+// This should be called before NewSession to ensure new channels of this type are
+// not rejected before the handler is registered.
+func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, handleFn func(ctx context.Context, ch ssh.NewChannel)) error {
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
+	ch := c.Client.HandleChannelOpen(channelType)
+	if ch == nil {
+		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", channelType)
+	}
+
+	go func() {
+		for newCh := range ch {
+			ctx, span := tracer.Start(
+				ctx,
+				fmt.Sprintf("ssh.HandleChannelOpen/%s", channelType),
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					append(
+						peerAttr(c.Conn.RemoteAddr()),
+						semconv.RPCServiceKey.String("ssh.Client"),
+						semconv.RPCMethodKey.String("OpenChannel"),
+						semconv.RPCSystemKey.String("ssh"),
+					)...,
+				),
+			)
+
+			handleFn(ctx, newCh)
+			span.End()
+		}
+	}()
+	return nil
+}
+
+// HandleChannelOpenNoTrace returns a channel on which NewChannel requests
+// for the given type are sent. If the type already is being handled,
+// nil is returned. The channel is closed when the connection is closed.
+//
+// This method uses the base [ssh.Client] and thus does not create traces for
+// channels opened by this method. Traces should be created manually in the handling
+// of new channels, or HandleChannelOpen should be used.
+func (c *Client) HandleChannelOpenNoTrace(channelType string) <-chan ssh.NewChannel {
+	return c.Client.HandleChannelOpen(channelType)
+}
+
 // clientWrapper wraps the ssh.Conn for individual ssh.Client
 // operations to intercept internal calls by the ssh.Client to
 // OpenChannel. This allows for internal operations within the

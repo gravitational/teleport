@@ -159,6 +159,8 @@ func (c *ConnectionContext) SetSessionID(sessionID rsession.ID) {
 // is automatically closed when either ConnectionContext, or the supplied context.Context
 // gets canceled.
 func (c *ConnectionContext) StartAgentChannel() (*AgentChannel, error) {
+	// TODO: add span
+
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
 		return nil, trace.AccessDenied("agent forwarding has not been requested")
