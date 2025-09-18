@@ -2,9 +2,10 @@
 title: Deploy tbot
 description: Explains how to deploy tbot on your platform and join it to your Teleport cluster.
 tocDepth: 3
-labels:
+tags:
  - conceptual
  - mwi
+ - infrastructure-identity
 ---
 
 The first step to set up Machine ID is to deploy the `tbot` binary and join a
@@ -47,7 +48,7 @@ Machine ID.
 
 If a specific guide does not exist for your platform, the [Linux
 guide](linux.mdx) is compatible with most platforms. For
-custom approaches, you can also read the [Machine ID Reference](../../../reference/machine-id/machine-id.mdx)
+custom approaches, you can also read the [Machine ID Reference](../../../reference/machine-workload-identity/machine-id/machine-id.mdx)
 and [Architecture](../../../reference/architecture/machine-id-architecture.mdx) to plan your deployment.
 
 ### Self-hosted infrastructure
@@ -83,4 +84,4 @@ integration and continuous deployment platform
 | [Terraform Cloud](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx) | Teleport Terraform Provider via Teleport's Terraform Registry | Terraform Cloud-signed identity document |
 
 
-[bound-keypair]: ../../../reference/machine-id/bound-keypair/getting-started.mdx
+[bound-keypair]: ../../../reference/machine-workload-identity/machine-id/bound-keypair/getting-started.mdx

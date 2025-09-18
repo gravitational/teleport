@@ -2,9 +2,10 @@
 title: Access Monitoring
 description: Learn how to use Access Monitoring.
 sidebar_position: 6
-labels:
+tags:
  - how-to
  - identity-governance
+ - access-risks
 ---
 
 Access Monitoring allows users to understand and analyze the access patterns in a Teleport cluster.
@@ -27,7 +28,7 @@ Users are able to write their own custom access monitoring queries by querying t
 
 ## Prerequisites
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-- For self-hosted Teleport the [Amazon Athena Backend](../reference/backends.mdx) is required.
+- For self-hosted Teleport the [Amazon Athena Backend](../reference/deployment/backends.mdx) is required.
 
 
 ### Configuration
@@ -503,7 +504,7 @@ ORDER BY
     event_date
 ```
 
-**Suggestion:**  Use short-lived tokens to reduce risk of compromise or [delegated](../reference/join-methods.mdx) joining when possible.
+**Suggestion:**  Use short-lived tokens to reduce risk of compromise or [delegated](../reference/deployment/join-methods.mdx) joining when possible.
 
 ### Root SSH sessions
 

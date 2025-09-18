@@ -1,9 +1,10 @@
 ---
 title: Enable a New Service on an Agent
 description: Explains how to edit the services that are running on a Teleport Agent.
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 A single Teleport Agent can run multiple services. This guide shows you how to
@@ -252,9 +253,9 @@ While this guide shows you how to create a token using `tctl`, you can also
 manage tokens using the Teleport Terraform provider or Kubernetes operator. See
 the following documentation for information on the token resource:
 - [Terraform
-  provider](../../reference/terraform-provider/resources/provision_token.mdx)
+  provider](../../reference/infrastructure-as-code/terraform-provider/resources/provision_token.mdx)
 - [Kubernetes
-  operator](../../reference/operator-resources/resources-teleport-dev-provisiontokens.mdx)
+  operator](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-provisiontokens.mdx)
 
 You can set up a system to automate the process of assigning join tokens to
 agents, ensuring that all Teleport services you run have the correct join

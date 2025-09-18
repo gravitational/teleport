@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
@@ -914,16 +915,16 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, configs[i].Apps.Apps)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv, configs[i].Apps.Apps)
 	}
 
 	return servers
 }
 
-func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name string, apps []servicecfg.App) {
+func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, srv *service.TeleportProcess, apps []servicecfg.App) {
 	// Make sure that the app server is ready to accept connections.
 	// The remote site cache needs to be filled with new registered application services.
-	waitForAppInClusterCache(t, tunnel, name, apps)
+	waitForAppInClusterCache(t, tunnel, clusterName, srv, apps)
 }
 
 func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
@@ -1059,29 +1060,46 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, configs[i].Apps.Apps)
+		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, srv, configs[i].Apps.Apps)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv, configs[i].Apps.Apps)
 	}
 
 	return servers
 }
 
-func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App) {
+// waitForAppInClusterCache ensures the applications is present on the cache.
+// Given that the applications might be already served by other application
+// agent, we must assert the applications are served by the provided server.
+func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, clusterName string, srv *service.TeleportProcess, cfgApps []servicecfg.App) {
+	t.Helper()
+
 	ctx := t.Context()
+	hostID, err := srv.WaitForHostID(ctx)
+	require.NoError(t, err)
+
+	type appHost struct {
+		appID  string
+		hostID string
+	}
+
+	wantNames := sliceutils.Map(cfgApps, func(app servicecfg.App) appHost {
+		return appHost{appID: app.Name, hostID: hostID}
+	})
+
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cluster, err := server.Cluster(ctx, clusterName)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		ap, err := cluster.CachingAccessPoint()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		apps, err := ap.GetApplicationServers(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
-		wantNames := sliceutils.Map(cfgApps, func(app servicecfg.App) string {
-			return app.Name
-		})
-		assert.Subset(t,
-			slices.Collect(types.ResourceNames(apps)),
+		require.Subset(t,
+			slices.Collect(iterutils.Map(func(appServer types.AppServer) appHost {
+				return appHost{appID: appServer.GetApp().GetName(), hostID: appServer.GetHostID()}
+			}, slices.Values(apps))),
 			wantNames,
 		)
 	}, time.Minute*2, time.Millisecond*200)

@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -84,6 +85,11 @@ type SessionContext struct {
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.
 	Events map[string]bool
+
+	// UserRoles are the roles assigned to the user.
+	UserRoles []string
+	// UserTraits are the traits assigned to the user.
+	UserTraits wrappers.Traits
 }
 
 // NOP is used on either non-Linux systems or when BPF support is not enabled.

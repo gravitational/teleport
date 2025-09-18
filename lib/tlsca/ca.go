@@ -42,12 +42,14 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -119,6 +121,9 @@ type Identity struct {
 	// Username is the name of the user (for end-users/bots) or the Host ID (for
 	// Teleport processes).
 	Username string
+	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+	// set, the Groups field must not be set.
+	ScopePin *scopesv1.Pin
 	// Impersonator is a username of a user impersonating this user
 	Impersonator string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
@@ -363,6 +368,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 
 	return events.Identity{
 		User:                    id.Username,
+		ScopePin:                pinning.ToEventsPin(id.ScopePin),
 		Impersonator:            id.Impersonator,
 		Roles:                   id.Groups,
 		Usage:                   id.Usage,
@@ -400,8 +406,8 @@ func (id *Identity) CheckAndSetDefaults() error {
 	if id.Username == "" {
 		return trace.BadParameter("missing identity username")
 	}
-	if len(id.Groups) == 0 {
-		return trace.BadParameter("missing identity groups")
+	if len(id.Groups) == 0 && id.ScopePin == nil {
+		return trace.BadParameter("missing identity groups or scope pin")
 	}
 
 	// Set the origin cluster name to the teleport cluster name.
@@ -601,6 +607,10 @@ var (
 	// JoinTokenOID is an extension OID that contains the name of the join token
 	// used when a bot joins.
 	JoinTokenASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 23}
+
+	// ScopePinASN1ExtensionOID is an extension OID that contains the scope pin
+	// used to tie the certificate to a specific scope and set of scoped roles.
+	ScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 24}
 )
 
 // Device Trust OIDs.
@@ -915,6 +925,19 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.ScopePin != nil {
+		pin, err := protojson.Marshal(id.ScopePin)
+		if err != nil {
+			return pkix.Name{}, trace.Errorf("failed to encode scope pin: %w", err)
+		}
+
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ScopePinASN1ExtensionOID,
+				Value: string(pin),
+			})
+	}
+
 	if id.UserType != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1206,6 +1229,15 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.JoinToken = val
+			}
+		case attr.Type.Equal(ScopePinASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				var pin scopesv1.Pin
+				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(val), &pin); err != nil {
+					return nil, trace.Errorf("failed to unmarshal scope pin: %w", err)
+				}
+				id.ScopePin = &pin
 			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)

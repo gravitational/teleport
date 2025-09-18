@@ -494,16 +494,23 @@ const colors: ThemeColors = {
   sessionRecording: {
     resource: '#66C5FF',
     user: '#C5B6FF',
+    player: {
+      progressBar: {
+        background: 'rgba(255, 255, 255, 0.2)',
+        seeking: 'rgba(255, 255, 255, 0.17)',
+        progress: '#FFA028',
+      },
+    },
   },
 
   sessionRecordingTimeline: {
-    background: '#1f2549',
+    background: levels.sunken,
     headerBackground: 'rgba(0, 0, 0, 0.13)',
     frameBorder: 'rgba(255, 255, 255, 0.2)',
     progressLine: '#E53E3E',
     border: {
-      default: '#4c516e',
-      hover: '#5f659e',
+      default: '#474747',
+      hover: '#757575',
     },
     cursor: 'rgba(255, 255, 255, 0.4)',
     events: {
@@ -527,8 +534,8 @@ const colors: ThemeColors = {
       },
     },
     timeMarks: {
-      primary: '#718096',
-      secondary: '#4A5568',
+      primary: '#E2E8F0',
+      secondary: '#A0AEC0',
       absolute: '#E2E8F0',
       text: '#A0AEC0',
     },

@@ -21,10 +21,11 @@ db_service:
     # 'redshift' - discovers and registers Amazon Redshift databases.
     # 'redshift-serverless' - discovers and registers Amazon Redshift Serverless databases.
     # 'elasticache' - discovers and registers Amazon ElastiCache Redis and Valkey databases.
+    # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
     # 'memorydb' - discovers and registers Amazon MemoryDB databases.
     # 'opensearch' - discovers and registers Amazon OpenSearch databases.
     # 'docdb' - discovers and registers Amazon DocumentDB databases.
-  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]
+  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # Optional AWS role that the Database Service will assume to discover
@@ -180,6 +181,12 @@ db_service:
       project_id: "xxx-1234"
       # Cloud SQL instance ID.
       instance_id: "example"
+      # AlloyDB-specific configuration.
+      alloydb:
+        # Endpoint type. Valid types: "private" (default), "public", "PSC".
+        endpoint_type: "private"
+        # Endpoint override. IP address or hostname to be used instead of automatically resolved endpoint.
+        endpoint_override: "11.22.33.44"
 
     # Settings specific to Active Directory authentication e.g. for SQL Server.
     ad:

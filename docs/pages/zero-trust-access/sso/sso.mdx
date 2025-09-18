@@ -1,9 +1,10 @@
 ---
 title: Configure Single Sign-On
 description: How to set up single sign-on (SSO) using Teleport
-labels:
+tags:
  - conceptual
  - zero-trust
+ - privileged-access
 ---
 
 Teleport users can log in to servers, Kubernetes clusters, databases, web
@@ -564,7 +565,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources Reference](../../reference/resources.mdx).
+as described in the [Resources Reference](../../reference/infrastructure-as-code/resources.mdx).
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:

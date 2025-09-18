@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -70,10 +68,8 @@ func TestGetTargetHealth(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(t.Context())
-			synctest.Run(func() {
-				defer cancel()
-				worker, err := newWorker(ctx, workerConfig{
+			synctest.Test(t, func(t *testing.T) {
+				worker, err := newWorker(t.Context(), workerConfig{
 					HealthCheckCfg: test.healthCheckConfig,
 					Target: Target{
 						GetResource: func() types.ResourceWithLabels { return nil },

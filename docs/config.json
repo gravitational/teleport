@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.28.1"
+      "version": "1.29.0"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.1.4",
+      "version": "18.1.8",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -101,7 +101,7 @@
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_accesslists/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-accesslists/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-accesslists/",
       "permanent": true
     },
     {
@@ -111,62 +111,62 @@
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_githubconnectors/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-githubconnectors/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-githubconnectors/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_loginrules/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-loginrules/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-loginrules/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_oidcconnectors/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-oidcconnectors/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-oidcconnectors/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_oktaimportrules/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-oktaimportrules/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-oktaimportrules/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_openssheiceserversv2/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-openssheiceserversv2/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-openssheiceserversv2/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_opensshserversv2/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-opensshserversv2/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-opensshserversv2/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_provisiontokens/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-provisiontokens/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-provisiontokens/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_roles/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-roles/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-roles/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_rolesv6/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-rolesv6/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-rolesv6/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_rolesv7/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-rolesv7/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-rolesv7/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_samlconnectors/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-samlconnectors/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-samlconnectors/",
       "permanent": true
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_users/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-users/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-users/",
       "permanent": true
     },
     {
@@ -210,18 +210,28 @@
       "permanent": true
     },
     {
+      "source": "/kubernetes-ssh/",
+      "destination": "/enroll-resources/kubernetes-access/controls/",
+      "permanent": true
+    },
+    {
       "source": "/machine-id/introduction/",
       "destination": "/machine-workload-identity/machine-id/introduction/",
       "permanent": true
     },
     {
       "source": "/machine-id/reference/telemetry/",
-      "destination": "/reference/machine-id/telemetry/",
+      "destination": "/reference/machine-workload-identity/machine-id/telemetry/",
       "permanent": true
     },
     {
       "source": "/machine-id/reference/v16-upgrade-guide/",
-      "destination": "/reference/machine-id/v16-upgrade-guide/",
+      "destination": "/reference/machine-workload-identity/machine-id/v16-upgrade-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
       "permanent": true
     },
     {
@@ -281,7 +291,7 @@
     },
     {
       "source": "/reference/operator-resources/resources.teleport.dev_trustedclustersv2/",
-      "destination": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-trustedclustersv2/",
       "permanent": true
     },
     {
@@ -651,7 +661,7 @@
     },
     {
       "source": "/enroll-resources/machine-id/getting-started/",
-      "destination": "/machine-workload-identity/machine-id/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
       "permanent": true
     },
     {
@@ -731,17 +741,17 @@
     },
     {
       "source": "/enroll-resources/workload-identity/workload-attestation/",
-      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "destination": "/reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation/",
       "permanent": true
     },
     {
       "source": "/machine-workload-identity/workload-identity/workload-attestation/",
-      "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "destination": "/reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation/",
       "permanent": true
     },
     {
       "source": "/machine-workload-identity/machine-id/deployment/bound-keypair/",
-      "destination": "/reference/machine-id/bound-keypair/getting-started/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/getting-started/",
       "permanent": true
     },
     {
@@ -1677,6 +1687,601 @@
     {
       "source": "/zero-trust-access/sso/azuread/",
       "destination": "/zero-trust-access/sso/entra-id/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/backends/",
+      "destination": "/reference/deployment/backends/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/cloud-faq/",
+      "destination": "/cloud-faq/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/config/",
+      "destination": "/reference/deployment/config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/identity-security-config/",
+      "destination": "/reference/deployment/identity-security-config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/join-methods/",
+      "destination": "/reference/deployment/join-methods/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/bound-keypair/admin-guide/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/admin-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/bound-keypair/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/bound-keypair/concepts/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/concepts/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/bound-keypair/getting-started/",
+      "destination": "/reference/machine-workload-identity/machine-id/bound-keypair/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/configuration/",
+      "destination": "/reference/machine-workload-identity/machine-id/configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/diagnostics-service/",
+      "destination": "/reference/machine-workload-identity/machine-id/diagnostics-service/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/github-actions/",
+      "destination": "/reference/machine-workload-identity/machine-id/github-actions/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/gitlab/",
+      "destination": "/reference/machine-workload-identity/machine-id/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/",
+      "destination": "/reference/machine-workload-identity/machine-id/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/telemetry/",
+      "destination": "/reference/machine-workload-identity/machine-id/telemetry/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/machine-id/v16-upgrade-guide/",
+      "destination": "/reference/machine-workload-identity/machine-id/v16-upgrade-guide/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/managed-updates-v2/",
+      "destination": "/reference/deployment/managed-updates-v2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/monitoring/audit/",
+      "destination": "/reference/deployment/monitoring/audit/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/monitoring/metrics/",
+      "destination": "/reference/deployment/monitoring/metrics/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/monitoring/",
+      "destination": "/reference/deployment/monitoring/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/monitoring/tracing-service-configuration/",
+      "destination": "/reference/deployment/monitoring/tracing-service-configuration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/networking/",
+      "destination": "/reference/deployment/networking/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-accesslists/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-accesslists/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-appsv3/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-appsv3/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-autoupdateconfigsv1/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-autoupdateconfigsv1/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-autoupdateversionsv1/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-autoupdateversionsv1/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-botsv1/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-botsv1/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-databasesv3/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-databasesv3/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-githubconnectors/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-githubconnectors/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-loginrules/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-loginrules/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-oidcconnectors/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-oidcconnectors/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-oktaimportrules/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-oktaimportrules/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-openssheiceserversv2/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-openssheiceserversv2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-opensshserversv2/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-opensshserversv2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-provisiontokens/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-provisiontokens/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-roles/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-roles/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-rolesv6/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-rolesv6/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-rolesv7/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-rolesv7/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-rolesv8/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-rolesv8/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-samlconnectors/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-samlconnectors/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-trustedclustersv2/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-users/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-users/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/operator-resources/resources-teleport-dev-workloadidentitiesv1/",
+      "destination": "/reference/infrastructure-as-code/operator-resources/resources-teleport-dev-workloadidentitiesv1/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/predicate-language/",
+      "destination": "/reference/access-controls/predicate-language/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/resources/",
+      "destination": "/reference/infrastructure-as-code/resources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/signals/",
+      "destination": "/reference/deployment/signals/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/signature-algorithms/",
+      "destination": "/reference/deployment/signature-algorithms/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/data-sources/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/data-sources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/data-sources/kubernetes/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/data-sources/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/ephemeral-resources/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/ephemeral-resources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/ephemeral-resources/kubernetes/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/ephemeral-resources/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider-mwi/",
+      "destination": "/reference/machine-workload-identity/terraform-provider-mwi/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/access_list/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/access_list/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/access_list_member/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/access_list_member/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/access_monitoring_rule/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/access_monitoring_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/app/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/app/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/auth_preference/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/auth_preference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/autoupdate_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/autoupdate_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/autoupdate_version/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/autoupdate_version/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/cluster_maintenance_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/cluster_maintenance_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/cluster_networking_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/cluster_networking_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/database/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/database/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/dynamic_windows_desktop/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/dynamic_windows_desktop/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/github_connector/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/github_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/health_check_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/health_check_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/installer/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/installer/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/login_rule/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/login_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/oidc_connector/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/oidc_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/okta_import_rule/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/okta_import_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/provision_token/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/provision_token/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/role/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/role/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/saml_connector/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/saml_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/session_recording_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/session_recording_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/static_host_user/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/static_host_user/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/trusted_cluster/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/trusted_cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/trusted_device/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/trusted_device/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/user/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/user/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/data-sources/workload_identity/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/data-sources/workload_identity/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/access_list/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/access_list/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/access_list_member/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/access_list_member/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/access_monitoring_rule/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/access_monitoring_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/app/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/app/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/auth_preference/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/auth_preference/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/autoupdate_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/autoupdate_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/autoupdate_version/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/autoupdate_version/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/bot/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/bot/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/cluster_maintenance_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/cluster_maintenance_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/cluster_networking_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/cluster_networking_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/database/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/database/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/dynamic_windows_desktop/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/dynamic_windows_desktop/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/github_connector/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/github_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/health_check_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/health_check_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/installer/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/installer/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/login_rule/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/login_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/oidc_connector/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/oidc_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/okta_import_rule/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/okta_import_rule/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/provision_token/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/provision_token/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/role/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/role/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/saml_connector/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/saml_connector/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/server/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/server/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/session_recording_config/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/session_recording_config/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/static_host_user/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/static_host_user/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/trusted_cluster/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/trusted_cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/trusted_device/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/trusted_device/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/user/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/user/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/resources/workload_identity/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/resources/workload_identity/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/terraform-provider/",
+      "destination": "/reference/infrastructure-as-code/terraform-provider/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/user-types/",
+      "destination": "/reference/access-controls/user-types/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/attributes/",
+      "destination": "/reference/machine-workload-identity/workload-identity/attributes/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/configuration-resource-migration/",
+      "destination": "/reference/machine-workload-identity/workload-identity/configuration-resource-migration/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/issuer-override/",
+      "destination": "/reference/machine-workload-identity/workload-identity/issuer-override/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/revocations/",
+      "destination": "/reference/machine-workload-identity/workload-identity/revocations/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/sigstore-attestation/",
+      "destination": "/reference/machine-workload-identity/workload-identity/sigstore-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "destination": "/reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/workload-identity-resource/",
+      "destination": "/reference/machine-workload-identity/workload-identity/workload-identity-resource/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/workload-identity/",
+      "destination": "/reference/machine-workload-identity/workload-identity/",
       "permanent": true
     }
   ]

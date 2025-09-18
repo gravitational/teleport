@@ -1,9 +1,10 @@
 ---
 title: Teleport Session Recording
 description: An overview of Teleport's session recording and its configuration
-labels:
+tags:
  - conceptual
  - zero-trust
+ - audit
 ---
 
 This page provides an overview of how Teleport records sessions and the various
@@ -81,6 +82,42 @@ and `proxy-sync` identically (perform synchronous recording).
 
 </Admonition>
 
+### Encryption
+
+Teleport supports at-rest encryption of session recordings for all 4 recording
+modes. It can be enabled through the `teleport.yaml` configuration file or
+dynamically through the `session_recording_config` resource.
+
+An example of enabling encryption using the `teleport.yaml`:
+
+```yaml
+teleport:
+  auth_service:
+    session_recording_config:
+      encryption:
+        enabled: yes
+```
+
+And using the dynamic `session_recording_config` resource:
+
+```yaml
+kind: session_recording_config
+spec:
+  encryption:
+    enabled: yes
+```
+
+Any encryption keys are provisioned using the same key storage backend
+configured for CAs.
+
+<Admonition type="note">
+In distributed HA environments where there are multiple Teleport Auth Service
+instances, it is important that all services have access to the same key storage
+backend and keys. Otherwise availability of session replay may be degraded. This
+holds true even when using [Manual Encryption Key
+Management](#manual-encryption-key-management).
+</Admonition>
+
 ### Record at the SSH node
 
 By default, Teleport performs recording at the SSH node. This is because Teleport's
@@ -119,7 +156,7 @@ prevent sessions logs from reaching the Auth Service. With sessions recorded at
 the Proxy Service, users with root privileges on nodes have no way of disabling
 the audit.
 
-See the [reference](../monitoring/audit.mdx) to learn how to
+See the [reference](../deployment/monitoring/audit.mdx) to learn how to
 turn on Recording Proxy Mode. Note that the recording mode is configured on the
 Auth Service.
 
@@ -127,7 +164,7 @@ Auth Service.
 
 When synchronous recording is enabled, the Teleport component doing the recording
 (which may be the Teleport SSH Service or the Proxy Service instance depending on your configuration)
-submits each recording event to Teleport's Auth Service as it occurs. In this mode,
+submits each recording event to the Teleport Auth Service as it occurs. In this mode,
 failure to emit a recording event is considered fatal - the session will be terminated
 if an event cannot be recorded. This makes synchronous recording best suited for highly
 regulated environments where you need to be confident that all data is recorded.
@@ -135,24 +172,28 @@ This also means that you need a reliable and low-latency connection to the Auth
 Server for the duration of the session to ensure that the session isn't interrupted
 or terminated due to temporary connection loss.
 
-In synchronous recording modes, the Auth Service receives a stream of recording
+In synchronous recording modes, the Teleport Auth Service receives a stream of recording
 events and is responsible for assembling them into the final artifact and uploading
-it to the storage backend. Since data is streamed directly to the Auth Service,
-Teleport administrators don't need to be concerned with disk space on their
-Teleport SSH Service and Proxy Service instances, as no recording data is
-written to those disks.
+it to the storage backend. If recording encryption is enabled, the Teleport Auth Service
+is also responsible for encrypting the event stream prior to upload. Since data is
+streamed directly, Teleport administrators don't need to be concerned with disk space on
+their Teleport SSH Service and Proxy Service instances, as no recording data is written
+to those disks.
 
 ### Asynchronous recording
 
-When asynchronous, recording events are written to the local filesystem
-during the session. When the session completes, Teleport assembles the parts into a
-complete recording and submits the entire recording to the Auth Service for storage.
+When asynchronous recording is enabled, recording events are written to the
+local filesystem during the session. When the session completes, Teleport
+assembles the parts into a complete recording and submits the entire recording
+to the Auth Service for storage.
 
 Since recording data is flushed to disk, administrators should be careful to ensure
 that the system has enough disk space to accommodate the expected number of Teleport
 sessions. Additionally, since recording data is temporarily stored on disk, there
 is a greater chance that it can be tampered with, deleted, or otherwise corrupted
-before the upload completes.
+before the upload completes. Enabling recording encryption for asynchronous
+modes ensures that events are encrypted before being written to the local
+filesystem, which can help prevent tampering.
 
 The advantage of asynchronous recording is that it doesn't require a persistent
 connection to the Auth Service. For example, an SSH session can continue to operate
@@ -167,7 +208,7 @@ high-latency.
 ## Storage
 
 Session recordings are stored in Teleport's audit sessions backend, which is
-specified by the `audit_sessions_uri` field in the `teleport.yaml` [configuration file](../config.mdx).
+specified by the `audit_sessions_uri` field in the `teleport.yaml` [configuration file](../deployment/config.mdx).
 Teleport current supports the following session storage backends:
 
 - File: stores recordings on the local filesystem. Suitable for dev environments, demos,
@@ -185,7 +226,8 @@ audit log storage, which supports a different set of services (SQLite, DynamoDB,
 
 A Teleport session recording is an ordered sequence of structured events associated
 with a session. Each event is an encoded [Protocol Buffer](https://developers.google.com/protocol-buffers)
-and the complete session is compressed with gzip before being written to the storage backend.
+and the complete session is compressed with gzip, and optionally encrypted,
+before being written to the storage backend.
 
 These recordings have a `.tar` extension for backwards compatibility reasons, but it
 should be noted that they are not TAR archives and cannot be read using the `tar` utility.
@@ -226,10 +268,67 @@ as a series of parts (in cloud storage or on an Auth Service instance's disk) an
 responsibility of the Auth Service's upload completer to detect the abandoned upload and
 complete it.
 
+## Manual Encryption Key Management
+
+Manual encryption key management places all responsibility and complexity of managing
+keys on the administrator. This comes with much more risk of a misconfiguration impacting
+Teleport's ability to record or replay sessions. It's for this reason that Teleport Cloud
+does not allow configuring manual encryption key management. Consider using the default
+automatic key management unless your usage explicitly requires manual key management.
+
+By default, Teleport will automatically provision and manage session recording encryption
+keys. However there may be cases where automatic management is not possible or desired,
+such as environments where Teleport lacks sufficient privileges to manage keys directly.
+For this reason, Teleport can be configured to use externally managed keys. This is
+controlled using the `encryption.manual_key_management` configuration in either the
+`teleport.yaml` file or the dynamic `session_recording_config` resource.
+
+```yaml
+encryption:
+  enabled: yes
+  manual_key_management:
+    enabled: yes
+    active_keys:
+      - type: pkcs11
+        label: 'session_recordings_002'
+    rotated_keys:
+      - type: pkcs11
+        label: 'session_recordings_001'
+```
+
+<Admonition type="warning">
+Session recording encryption relies on a form of envelope encryption using OAEP with
+4096-bit RSA key pairs. This means RSA 4096 is the only key type eligible for use with
+`manual_key_management`. It is also important that these keys are permitted to be used
+for decryption. What this means varies per key storage backend, but generally must be
+defined when the key is first provisioned.
+</Admonition>
+
+## Recording summaries
+
+With Teleport Identity Security, you can run language models against session
+recordings to generate session summaries. This feature supports SSH,
+Kubernetes, and database sessions and is only available if the Teleport cluster
+is licensed for Identity Security.
+
+After each recording is uploaded, Teleport Auth Service matches session metadata
+against all `inference_policy` resources. If a match is found, it will then use
+configuration from a corresponding `inference_model` resource to generate
+session recording. The inference model specifies, among other options, which
+inference provider and provider-specific model is used to generate a summary.
+
+No more than 150 concurrent summary jobs will be executed per Auth Service
+instance. If more sessions arrive, the Auth Service instance will wait until the
+previous ones are summarized.
+
+Session recording summaries are stored along with session recordings and can be
+viewed using the Teleport web app.
+
 ## Related reading
 
 - [RBAC for session recordings](../access-controls/roles.mdx#rbac-for-session-recordings)
 - [Recording Proxy Mode](../../enroll-resources/server-access/guides/recording-proxy-mode.mdx)
-- [SSH recording modes](../monitoring/audit.mdx)
+- [SSH recording modes](../deployment/monitoring/audit.mdx)
 - [Session recording for desktops](../agent-services/desktop-access-reference/sessions.mdx)
- 
+- [Encrypted Session Recordings](../../enroll-resources/server-access/guides/encrypted-session-recordings/encrypted-session-recordings.mdx)
+- [Session recording summaries](../../identity-security/session-summaries.mdx) 
