@@ -2655,6 +2655,29 @@ func TestUserLoginStates(t *testing.T) {
 		},
 		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
 	})
+
+	testResources(t, p, testFuncs[*userloginstate.UserLoginState]{
+		newResource: func(name string) (*userloginstate.UserLoginState, error) {
+			return newUserLoginState(t, name), nil
+		},
+		create: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.userLoginStates.ListUserLoginStates))
+
+		},
+		cacheGet: p.cache.GetUserLoginState,
+		cacheList: func(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.cache.ListUserLoginStates))
+		},
+		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
+	})
 }
 
 // TestAccessList tests that CRUD operations on access list resources are

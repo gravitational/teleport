@@ -2926,8 +2926,8 @@ var _ executor[*secreports.ReportState, services.SecurityReportStateGetter] = se
 type userLoginStateExecutor struct{}
 
 func (userLoginStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userloginstate.UserLoginState, error) {
-	resources, err := cache.UserLoginStates.GetUserLoginStates(ctx)
-	return resources, trace.Wrap(err)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.UserLoginStates.ListUserLoginStates))
+	return out, trace.Wrap(err)
 }
 
 func (userLoginStateExecutor) upsert(ctx context.Context, cache *Cache, resource *userloginstate.UserLoginState) error {
