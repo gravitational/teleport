@@ -58,7 +58,7 @@ func TestRemoteClusters(t *testing.T) {
 				return p.cache.GetRemoteCluster(ctx, name)
 			},
 			cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
-				return p.cache.GetRemoteClusters(ctx)
+				return stream.Collect(clientutils.Resources(ctx, p.cache.ListRemoteClusters))
 			},
 			update: func(ctx context.Context, rc types.RemoteCluster) error {
 				_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
