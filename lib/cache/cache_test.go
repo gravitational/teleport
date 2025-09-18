@@ -174,28 +174,83 @@ type testPack struct {
 	recordingEncryption     *local.RecordingEncryptionService
 }
 
-// testFuncs are functions to support testing an object in a cache.
-type testFuncs[T types.Resource] struct {
-	newResource    func(string) (T, error)
-	create         func(context.Context, T) error
-	list           func(context.Context) ([]T, error)
-	cacheGet       func(context.Context, string) (T, error)
-	cacheList      func(context.Context, int) ([]T, error)
-	update         func(context.Context, T) error
-	deleteAll      func(context.Context) error
-	changeResource func(T)
+// resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
+// have a slightly different interface.
+type resourceOps[T any] struct {
+	Name    func(T) string
+	Setup   func(T)
+	Modify  func(T)
+	cmpOpts []cmp.Option
 }
 
-// testFuncs153 are functions to support testing an RFD153-style resource in a cache.
-type testFuncs153[T types.Resource153] struct {
+func defaultResourceOps[T types.Resource]() *resourceOps[T] {
+	return &resourceOps[T]{
+		Modify: func(t T) {
+			// types.Resource metadata is immutable, modify expiry only.
+			if t.Expiry().IsZero() {
+				t.SetExpiry(time.Now().Add(30 * time.Minute))
+			} else {
+				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
+			}
+		},
+		Name: func(t T) string { return t.GetName() },
+		Setup: func(t T) {
+			// types.Resource metadata is immutable, modify expiry only.
+			if t.Expiry().IsZero() {
+				t.SetExpiry(time.Now().Add(30 * time.Minute))
+			} else {
+				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
+			}
+		},
+		cmpOpts: []cmp.Option{
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		},
+	}
+}
+
+func defaultResource153Ops[T types.Resource153]() *resourceOps[T] {
+	return &resourceOps[T]{
+		Setup: func(t T) {
+			metadata := t.GetMetadata()
+			if metadata.Expires == nil {
+				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			} else {
+				expiry := metadata.Expires.AsTime()
+				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+			}
+			metadata.Labels = map[string]string{"label": "value1"}
+		},
+		Modify: func(t T) {
+			metadata := t.GetMetadata()
+			if metadata.Expires == nil {
+				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			} else {
+				expiry := metadata.Expires.AsTime()
+				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+			}
+			metadata.Labels["label"] = "value2"
+		},
+		Name: func(t T) string { return t.GetMetadata().GetName() },
+		cmpOpts: []cmp.Option{
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+			protocmp.Transform(),
+			cmpopts.EquateEmpty(),
+		},
+	}
+}
+
+// testFuncs are functions to support testing an object in a cache.
+type testFuncs[T any] struct {
 	newResource func(string) (T, error)
 	create      func(context.Context, T) error
 	list        func(context.Context) ([]T, error)
 	cacheGet    func(context.Context, string) (T, error)
-	cacheList   func(context.Context) ([]T, error)
+	cacheList   func(context.Context, int) ([]T, error)
 	update      func(context.Context, T) error
 	delete      func(context.Context, string) error
 	deleteAll   func(context.Context) error
+	resource    *resourceOps[T]
 }
 
 func (t *testPack) Close() {
@@ -1275,6 +1330,7 @@ type testOptions struct {
 
 type optionsFunc func(*testOptions)
 
+// TODO(okraport): remove this when all getters support pagination.
 func withSkipPaginationTest() optionsFunc {
 	return func(opts *testOptions) {
 		opts.skipPaginationTest = true
@@ -1289,135 +1345,54 @@ func withSkipPaginationTest() optionsFunc {
 // resource list request/call.
 const defaultTestPageSize = 2
 
-// testResources is a generic tester for resources.
+// testResources is a wrapper for testing resources conforming to types.Resource
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
+	funcs.resource = defaultResourceOps[T]()
+	testResourcesInternal(t, p, funcs, opts...)
+}
+
+// testResources153 is a wrapper for testing resources conforming to types.Resource153
+func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
+	funcs.resource = defaultResource153Ops[T]()
+	testResourcesInternal(t, p, funcs, opts...)
+}
+
+// testResourcesInternal is a generic tester for resources.
+func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
 	t.Helper()
+	require.NotNil(t, funcs.resource)
+	require.NotNil(t, funcs.resource.Name)
+	if funcs.update != nil {
+		require.NotNil(t, funcs.resource.Modify)
+		require.NotNil(t, funcs.resource.Setup)
+	}
+
 	var options testOptions
 	for _, opt := range opts {
 		opt(&options)
 	}
 	ctx := t.Context()
 
-	if funcs.changeResource == nil {
-		funcs.changeResource = func(t T) {
-			if t.Expiry().IsZero() {
-				t.SetExpiry(time.Now().Add(30 * time.Minute))
-			} else {
-				t.SetExpiry(t.Expiry().Add(30 * time.Minute))
-			}
-		}
-	}
 	if !options.skipPaginationTest {
 		testResourcePagination(t, p, funcs)
 	}
 
 	// Create a resource.
-	r, err := funcs.newResource("test-sp")
-	require.NoError(t, err)
-	funcs.changeResource(r)
-
-	err = funcs.create(ctx, r)
-	require.NoError(t, err)
-
-	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-	}
-
-	// Check that the resource is now in the backend.
-	out, err := funcs.list(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
-
-	// Wait until the information has been replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx, defaultTestPageSize)
-		assert.NoError(t, err)
-		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
-	}, time.Second*2, time.Millisecond*250)
-
-	// cacheGet is optional as not every resource implements it
-	if funcs.cacheGet != nil {
-		// Make sure a single cache get works.
-		getR, err := funcs.cacheGet(ctx, r.GetName())
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
-
-		// Make sure we get a NotFoundError (and not a panic) when the resource
-		// is not found.
-		_, err = funcs.cacheGet(ctx, "no-such-resource")
-		require.ErrorAs(t, err, new(*trace.NotFoundError))
-	}
-
-	// update is optional as not every resource implements it
-	if funcs.update != nil {
-		// Not all create functions will result in resource being updated
-		// with the latest revision. To avoid any conditional update
-		// failures caused by mismatched revisions, an updated
-		// copy of the resource is loaded prior to updating.
-		if funcs.cacheGet != nil {
-			var err error
-			r, err = funcs.cacheGet(ctx, r.GetName())
-			require.NoError(t, err)
-		}
-		// Update the resource and upsert it into the backend again.
-		funcs.changeResource(r)
-		err = funcs.update(ctx, r)
-		require.NoError(t, err)
-	}
-
-	// Check that the resource is in the backend and only one exists (so an
-	// update occurred).
-	out, err = funcs.list(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
-
-	// Check that information has been replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Make sure the cache has a single resource in it.
-		out, err = funcs.cacheList(ctx, defaultTestPageSize)
-		assert.NoError(t, err)
-		assert.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
-	}, time.Second*2, time.Millisecond*250)
-
-	// Remove all service providers from the backend.
-	err = funcs.deleteAll(ctx)
-	require.NoError(t, err)
-	// Check that information has been replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx, defaultTestPageSize)
-		assert.NoError(t, err)
-		assert.Empty(t, out)
-	}, time.Second*2, time.Millisecond*250)
-
-}
-
-// testResources153 is a generic tester for RFD153-style resources.
-func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs153[T]) {
-	ctx := context.Background()
-
-	// Create a resource.
-	r, err := funcs.newResource("test-resource")
+	r, err := funcs.newResource("test-resource-1")
 	require.NoError(t, err)
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
-		r.GetMetadata().Labels = map[string]string{"label": "value1"}
+		funcs.resource.Setup(r)
 	}
 
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
 
-	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-		protocmp.Transform(),
-		cmpopts.EquateEmpty(),
-	}
+	cmpOpts := funcs.resource.cmpOpts
 
 	assertCacheContents := func(expected []T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			out, err := funcs.cacheList(ctx)
+			out, err := funcs.cacheList(ctx, 0)
 			assert.NoError(t, err)
 
 			// If the cache is expected to be empty, then test explicitly for
@@ -1436,6 +1411,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	// Check that the resource is now in the backend.
 	out, err := funcs.list(ctx)
 	require.NoError(t, err)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
 	// Wait until the information has been replicated to the cache.
@@ -1444,15 +1420,29 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	// cacheGet is optional as not every resource implements it
 	if funcs.cacheGet != nil {
 		// Make sure a single cache get works.
-		getR, err := funcs.cacheGet(ctx, r.GetMetadata().GetName())
+		getR, err := funcs.cacheGet(ctx, funcs.resource.Name(r))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(r, getR, cmpOpts...))
+
+		// Make sure we get a NotFoundError (and not a panic) when the resource
+		// is not found.
+		_, err = funcs.cacheGet(ctx, "no-such-resource")
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	}
 
 	// update is optional as not every resource implements it
 	if funcs.update != nil {
+		// Not all create functions will result in resource being updated
+		// with the latest revision. To avoid any conditional update
+		// failures caused by mismatched revisions, an updated
+		// copy of the resource is loaded prior to updating.
+		if funcs.cacheGet != nil {
+			var err error
+			r, err = funcs.cacheGet(ctx, funcs.resource.Name(r))
+			require.NoError(t, err)
+		}
 		// Update the resource and upsert it into the backend again.
-		r.GetMetadata().Labels["label"] = "value2"
+		funcs.resource.Modify(r)
 		err = funcs.update(ctx, r)
 		require.NoError(t, err)
 	}
@@ -1473,7 +1463,7 @@ func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs test
 		require.NoError(t, funcs.create(ctx, r2))
 		assertCacheContents([]T{r, r2})
 		// Check that only one resource is deleted.
-		require.NoError(t, funcs.delete(ctx, r2.GetMetadata().Name))
+		require.NoError(t, funcs.delete(ctx, funcs.resource.Name(r2)))
 		assertCacheContents([]T{r})
 	}
 
@@ -2618,7 +2608,7 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 	return ev
 }
 
-func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
+func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	t.Helper()
 	totalItems := defaultTestPageSize + 1
 
@@ -2660,7 +2650,7 @@ func testResourcePagination[T types.Resource](t *testing.T, p *testPack, funcs t
 
 	seen := make(map[string]bool, totalItems)
 	for _, item := range out {
-		name := item.GetName()
+		name := funcs.resource.Name(item)
 		if seen[name] {
 			t.Fatalf("duplicate resource returned in pagination: %q", name)
 		}

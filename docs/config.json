@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.1.4",
+      "version": "18.1.8",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -65,7 +65,6 @@
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
     "teleport": {
-      "git": "api/14.0.0-gd1e081e",
       "major_version": "18",
       "version": "18.2.1",
       "url": "teleport.example.com",

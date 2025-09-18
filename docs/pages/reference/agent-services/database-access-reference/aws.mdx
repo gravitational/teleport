@@ -4,6 +4,7 @@ description: AWS IAM policies for Teleport database access.
 tags:
  - reference
  - zero-trust
+ - infrastructure-identity
 ---
 
 The Teleport Database Service requires IAM permissions for various tasks
@@ -50,6 +51,10 @@ the related section below.
 ### ElastiCache managed users
 
 (!docs/pages/includes/database-access/reference/aws-iam/redis/auto-password-access-policy.mdx dbType="ElastiCache" permissionType="elasticache" updateUserPermission="ModifyUser" listTagsPermission="ListTagsForResource"!)
+
+## ElastiCache Serverless for Redis and Valkey
+
+(!docs/pages/includes/database-access/reference/aws-iam/elasticache-serverless/access-policy.mdx!)
 
 ## Keyspaces
 
