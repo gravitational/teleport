@@ -34,12 +34,13 @@ import {
   parseMfaChallengeJson,
   parseMfaRegistrationChallengeJson,
 } from '../mfa/makeMfa';
-import { makeChangedUserAuthn } from './make';
+import { makeChangedUserAuthn, makeMobileDeviceEnrollmentToken } from './make';
 import makePasswordToken from './makePasswordToken';
 import {
   ChangePasswordReq,
   CreateAuthenticateChallengeRequest,
   CreateNewHardwareDeviceRequest,
+  MobileDeviceEnrollmentToken,
   ResetPasswordReqWithEvent,
   ResetPasswordWithWebauthnReqWithEvent,
   UserCredentials,
@@ -339,6 +340,11 @@ const auth = {
     });
   },
 
+  async createMobileDeviceEnrollmentToken(): Promise<MobileDeviceEnrollmentToken> {
+    const json = await api.post(cfg.api.createMobileDeviceEnrollmentTokenPath);
+    return makeMobileDeviceEnrollmentToken(json);
+  },
+
   async getSsoChallengeResponse(
     challenge: SsoChallenge
   ): Promise<MfaChallengeResponse> {
@@ -383,6 +389,7 @@ const auth = {
     };
   },
 
+  // NOTE: Here.
   createRestrictedPrivilegeToken() {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
