@@ -56,13 +56,13 @@ func (p JSONRPCParams) GetName() (string, bool) {
 	return name, ok
 }
 
-// baseJSONRPCMessage is a base message that includes all fields for MCP
+// BaseJSONRPCMessage is a base message that includes all fields for MCP
 // protocol.
 //
 // Note that json.RawMessage is used to keep the original content when
 // marshaling it again. json.RawMessage can also be easily unmarshalled to user
 // defined types when needed. Same applies to other types in this file.
-type baseJSONRPCMessage struct {
+type BaseJSONRPCMessage struct {
 	// JSONRPC specifies the version of JSONRPC.
 	JSONRPC string `json:"jsonrpc"`
 	// ID is the ID for request and response. ID is nil for notification.
@@ -77,24 +77,32 @@ type baseJSONRPCMessage struct {
 	Error json.RawMessage `json:"error,omitempty"`
 }
 
-func (m *baseJSONRPCMessage) isNotification() bool {
+// IsNotification returns true if the message is a notification.
+func (m *BaseJSONRPCMessage) IsNotification() bool {
 	return m.ID.IsNil()
 }
-func (m *baseJSONRPCMessage) isRequest() bool {
+
+// IsRequest returns true if the message is a request.
+func (m *BaseJSONRPCMessage) IsRequest() bool {
 	return !m.ID.IsNil() && m.Method != ""
 }
-func (m *baseJSONRPCMessage) isResponse() bool {
+
+// IsResponse returns if the message is a response.
+func (m *BaseJSONRPCMessage) IsResponse() bool {
 	return !m.ID.IsNil() && (m.Result != nil || m.Error != nil)
 }
 
-func (m *baseJSONRPCMessage) makeNotification() *JSONRPCNotification {
+// MakeNotification converts the base message to JSONRPCNotification.
+func (m *BaseJSONRPCMessage) MakeNotification() *JSONRPCNotification {
 	return &JSONRPCNotification{
 		JSONRPC: m.JSONRPC,
 		Method:  m.Method,
 		Params:  m.Params,
 	}
 }
-func (m *baseJSONRPCMessage) makeRequest() *JSONRPCRequest {
+
+// MakeRequest converts the base message to JSONRPCRequest.
+func (m *BaseJSONRPCMessage) MakeRequest() *JSONRPCRequest {
 	return &JSONRPCRequest{
 		JSONRPC: m.JSONRPC,
 		ID:      m.ID,
@@ -102,7 +110,9 @@ func (m *baseJSONRPCMessage) makeRequest() *JSONRPCRequest {
 		Params:  m.Params,
 	}
 }
-func (m *baseJSONRPCMessage) makeResponse() *JSONRPCResponse {
+
+// MakeResponse converts the base message to JSONRPCResponse.
+func (m *BaseJSONRPCMessage) MakeResponse() *JSONRPCResponse {
 	return &JSONRPCResponse{
 		JSONRPC: m.JSONRPC,
 		ID:      m.ID,
@@ -162,6 +172,19 @@ func (r *JSONRPCResponse) GetInitializeResult() (*mcp.InitializeResult, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &result, nil
+}
+
+// unmarshalResponse is a helper that unmarshalls a raw message to an
+// JSONRPCResponse.
+func unmarshalResponse(rawMessage string) (*JSONRPCResponse, error) {
+	var base BaseJSONRPCMessage
+	if err := json.Unmarshal([]byte(rawMessage), &base); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !base.IsResponse() {
+		return nil, trace.BadParameter("message is not a response")
+	}
+	return base.MakeResponse(), nil
 }
 
 const (
