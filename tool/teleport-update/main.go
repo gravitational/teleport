@@ -129,7 +129,7 @@ func Run(args []string) int {
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	enableCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
-	enableCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
+	enableCmd.Flag("overwrite", "Allow existing installed binaries and services to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	enableCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
 		BoolVar(&ccfg.AllowProxyConflict)
@@ -153,7 +153,7 @@ func Run(args []string) int {
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	pinCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
-	pinCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
+	pinCmd.Flag("overwrite", "Allow existing installed binaries and services to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	pinCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
 		BoolVar(&ccfg.AllowProxyConflict)
@@ -191,7 +191,10 @@ func Run(args []string) int {
 		Envar(autoupdate.SetupVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	setupCmd.Flag("flag", "Use the provided flags to generate configuration files.").
 		Envar(autoupdate.SetupFlagsEnvVar).StringsVar(&ccfg.ForceFlags)
-	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").Hidden().BoolVar(&ccfg.SELinuxSSH)
+	setupCmd.Flag("overwrite", "Allow existing installed binaries and services to be overwritten.").
+		Envar(autoupdate.SetupOverwriteEnvVar).BoolVar(&ccfg.AllowOverwrite)
+	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").
+		Hidden().BoolVar(&ccfg.SELinuxSSH)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 	statusCmd.Flag("err-if-should-update-now",
@@ -487,7 +490,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	}
 	flags := common.NewInstallFlagsFromStrings(ccfg.ForceFlags)
 	rev := autoupdate.NewRevision(ccfg.ForceVersion, flags)
-	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.SELinuxSSH, ccfg.Reload)
+	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.SELinuxSSH, ccfg.Reload, ccfg.AllowOverwrite)
 	if err != nil {
 		return trace.Wrap(err)
 	}

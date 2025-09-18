@@ -73,6 +73,11 @@ type ReadyChecker interface {
 	GetReadiness(ctx context.Context) (debug.Readiness, error)
 }
 
+// Name of the systemd service.
+func (s SystemdService) Name() string {
+	return s.ServiceName
+}
+
 // Reload the systemd service.
 // Attempts a graceful reload before a hard restart.
 // See Process interface for more details.
@@ -301,6 +306,9 @@ func tickFile(ctx context.Context, path string, ch chan<- int, tickC <-chan time
 // waitForReady polls the SocketPath unix domain socket with HTTP requests.
 // If one request returns 200 before the timeout, the service is considered ready.
 func (s SystemdService) waitForReady(ctx context.Context, pid int, tickC <-chan time.Time) error {
+	if s.Ready == nil {
+		return nil
+	}
 	var lastErr error
 	var readiness debug.Readiness
 	for {
