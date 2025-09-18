@@ -161,7 +161,7 @@ func TestJoin(t *testing.T) {
 		// its original certificate and the new token.
 		creds, err := clientCreds(signer, joinResult.Certificates)
 		require.NoError(t, err)
-		rejoinResult, signer, err := join(
+		rejoinResult, _, err := join(
 			t.Context(),
 			authService.TLS.Listener.Addr(),
 			creds,
@@ -325,7 +325,7 @@ func (p *fakeProxy) join(t *testing.T) {
 	result, err := messages.RecvResponse[*messages.HostResult](stream)
 	require.NoError(t, err)
 
-	// Save the host credentials we got from the succesful join.
+	// Save the host credentials we got from the successful join.
 	p.authenticatedAuthCreds, err = clientCreds(hostKeys.tls, result.Certificates)
 	require.NoError(t, err)
 }
