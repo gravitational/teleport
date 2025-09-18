@@ -102,6 +102,8 @@ func (c *Ceremony) Run(
 // On success a [devicepb.DeviceConfirmationToken] is issued. To complete
 // authentication the browser that originated the attempt must forward the token
 // to the /webapi/device/webconfirm endpoint.
+// NOTE: This is what the mobile app needs to run to spend a device web token and receive a device
+// confirmation token.
 func (c *Ceremony) RunWeb(
 	ctx context.Context,
 	devicesClient devicepb.DeviceTrustServiceClient,
@@ -217,6 +219,8 @@ func (c *Ceremony) authenticateDeviceMacOS(
 	}
 	err = stream.Send(&devicepb.AuthenticateDeviceRequest{
 		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
+			// NOTE: The client sends only Signature if there's no sshSigner (as is the case when Connect
+			// does the ceremony).
 			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
 				Signature:    sig,
 				SshSignature: sshSig,
