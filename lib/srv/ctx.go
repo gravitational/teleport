@@ -608,7 +608,7 @@ func (c *ServerContext) GetJoinParams() (string, types.SessionParticipantMode) {
 		mode = types.SessionParticipantMode(modeString)
 	}
 
-	return sid, types.SessionParticipantMode(mode)
+	return sid, mode
 }
 
 // SessionID returns the ID of the session in the context.
