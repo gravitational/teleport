@@ -1921,19 +1921,13 @@ print-rust-toolchain-version:
 ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
-ifneq ($(CI)$(FORCE),)
 	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
 	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
 		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
 		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
 	)
-else
-	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		@echo "Wrong wasm-bindgen version. Want $(NEED_VERSION) have $(INSTALLED_VERSION)"; \
-		echo "Run 'make $@ FORCE=true' to force installation." \
-	)
 endif
-endif
+
 
 .PHONY: ensure-wasm-opt
 ensure-wasm-opt: WASM_OPT_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-wasm-opt-version)
