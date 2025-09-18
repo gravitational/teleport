@@ -35,8 +35,12 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinv1"
 )
 
-type JoinParams = authjoin.RegisterParams
-type JoinResult = authjoin.RegisterResult
+type (
+	JoinParams   = authjoin.RegisterParams
+	JoinResult   = authjoin.RegisterResult
+	AzureParams  = authjoin.AzureParams
+	GitlabParams = authjoin.GitlabParams
+)
 
 // Join is used to join a cluster. A host or bot calls this with the name of a
 // provision token to get its initial certificates.
@@ -126,7 +130,7 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	switch params.JoinMethod {
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
-	case types.JoinMethodToken:
+	case types.JoinMethodToken, types.JoinMethodBoundKeypair:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
 	default:
