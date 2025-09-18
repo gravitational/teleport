@@ -29,9 +29,22 @@
 		45D39C9C2E730E8F005CB76F /* FoobarUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FoobarUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		454F61FA2E7C19E6000869C2 /* Exceptions for "Foobar" folder in "Foobar" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 45D39C842E730E8D005CB76F /* Foobar */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		45D39C872E730E8D005CB76F /* Foobar */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				454F61FA2E7C19E6000869C2 /* Exceptions for "Foobar" folder in "Foobar" target */,
+			);
 			path = Foobar;
 			sourceTree = "<group>";
 		};
@@ -411,6 +424,7 @@
 				DEVELOPMENT_TEAM = K497G57PDJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Foobar/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -439,6 +453,7 @@
 				DEVELOPMENT_TEAM = K497G57PDJ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Foobar/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
