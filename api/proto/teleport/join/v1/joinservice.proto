@@ -38,7 +38,7 @@ message ClientInit {
   // Proxy service. When this is set the Auth service must ignore any
   // any credentials authenticating the request, except for the purpose of
   // accepting ProxySuppliedParams.
-  bool forwarded_by_proxy = 6;
+  bool forwarded_by_proxy = 4;
 
   // ProxySuppliedParams holds parameters set by the Proxy when nodes join
   // via the proxy address. They must only be trusted if the incoming join
@@ -50,7 +50,7 @@ message ClientInit {
     // ClientVersion is the Teleport version of the client attempting to join.
     string client_version = 2;
   }
-  optional ProxySuppliedParams proxy_supplied_parameters = 7;
+  optional ProxySuppliedParams proxy_supplied_parameters = 5;
 }
 
 // PublicKeys holds public keys sent by the client requested subject keys for
@@ -58,10 +58,10 @@ message ClientInit {
 message PublicKeys {
   // PublicTlsKey is the public key requested for the subject of the x509 certificate.
   // It must be encoded in PKIX, ASN.1 DER form.
-  bytes public_tls_key = 4;
+  bytes public_tls_key = 1;
   // PublicSshKey is the public key requested for the subject of the SSH certificate.
   // It must be encoded in SSH wire format.
-  bytes public_ssh_key = 5;
+  bytes public_ssh_key = 2;
 }
 
 // HostParams holds parameters required for host joining.

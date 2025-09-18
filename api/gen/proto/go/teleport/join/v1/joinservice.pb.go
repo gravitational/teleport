@@ -55,8 +55,8 @@ type ClientInit struct {
 	// Proxy service. When this is set the Auth service must ignore any
 	// any credentials authenticating the request, except for the purpose of
 	// accepting ProxySuppliedParams.
-	ForwardedByProxy        bool                            `protobuf:"varint,6,opt,name=forwarded_by_proxy,json=forwardedByProxy,proto3" json:"forwarded_by_proxy,omitempty"`
-	ProxySuppliedParameters *ClientInit_ProxySuppliedParams `protobuf:"bytes,7,opt,name=proxy_supplied_parameters,json=proxySuppliedParameters,proto3,oneof" json:"proxy_supplied_parameters,omitempty"`
+	ForwardedByProxy        bool                            `protobuf:"varint,4,opt,name=forwarded_by_proxy,json=forwardedByProxy,proto3" json:"forwarded_by_proxy,omitempty"`
+	ProxySuppliedParameters *ClientInit_ProxySuppliedParams `protobuf:"bytes,5,opt,name=proxy_supplied_parameters,json=proxySuppliedParameters,proto3,oneof" json:"proxy_supplied_parameters,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -132,10 +132,10 @@ type PublicKeys struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// PublicTlsKey is the public key requested for the subject of the x509 certificate.
 	// It must be encoded in PKIX, ASN.1 DER form.
-	PublicTlsKey []byte `protobuf:"bytes,4,opt,name=public_tls_key,json=publicTlsKey,proto3" json:"public_tls_key,omitempty"`
+	PublicTlsKey []byte `protobuf:"bytes,1,opt,name=public_tls_key,json=publicTlsKey,proto3" json:"public_tls_key,omitempty"`
 	// PublicSshKey is the public key requested for the subject of the SSH certificate.
 	// It must be encoded in SSH wire format.
-	PublicSshKey  []byte `protobuf:"bytes,5,opt,name=public_ssh_key,json=publicSshKey,proto3" json:"public_ssh_key,omitempty"`
+	PublicSshKey  []byte `protobuf:"bytes,2,opt,name=public_ssh_key,json=publicSshKey,proto3" json:"public_ssh_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1066,8 +1066,8 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"token_name\x18\x02 \x01(\tR\ttokenName\x12\x1f\n" +
 	"\vsystem_role\x18\x03 \x01(\tR\n" +
 	"systemRole\x12,\n" +
-	"\x12forwarded_by_proxy\x18\x06 \x01(\bR\x10forwardedByProxy\x12q\n" +
-	"\x19proxy_supplied_parameters\x18\a \x01(\v20.teleport.join.v1.ClientInit.ProxySuppliedParamsH\x01R\x17proxySuppliedParameters\x88\x01\x01\x1a]\n" +
+	"\x12forwarded_by_proxy\x18\x04 \x01(\bR\x10forwardedByProxy\x12q\n" +
+	"\x19proxy_supplied_parameters\x18\x05 \x01(\v20.teleport.join.v1.ClientInit.ProxySuppliedParamsH\x01R\x17proxySuppliedParameters\x88\x01\x01\x1a]\n" +
 	"\x13ProxySuppliedParams\x12\x1f\n" +
 	"\vremote_addr\x18\x01 \x01(\tR\n" +
 	"remoteAddr\x12%\n" +
@@ -1076,8 +1076,8 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\x1a_proxy_supplied_parameters\"X\n" +
 	"\n" +
 	"PublicKeys\x12$\n" +
-	"\x0epublic_tls_key\x18\x04 \x01(\fR\fpublicTlsKey\x12$\n" +
-	"\x0epublic_ssh_key\x18\x05 \x01(\fR\fpublicSshKey\"\xba\x01\n" +
+	"\x0epublic_tls_key\x18\x01 \x01(\fR\fpublicTlsKey\x12$\n" +
+	"\x0epublic_ssh_key\x18\x02 \x01(\fR\fpublicSshKey\"\xba\x01\n" +
 	"\n" +
 	"HostParams\x12=\n" +
 	"\vpublic_keys\x18\x01 \x01(\v2\x1c.teleport.join.v1.PublicKeysR\n" +
