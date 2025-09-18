@@ -271,15 +271,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindRelayServer},
-		// INTENTIONALLY SKIP FOR THE MOMENT
-		// Stack Trace:
-		// github.com/gravitational/teleport/lib/cache/cache.go:1028 github.com/gravitational/teleport/lib/cache.(*Cache).validateWatchRequest
-		// github.com/gravitational/teleport/lib/cache/cache.go:991 github.com/gravitational/teleport/lib/cache.(*Cache).NewWatcher
-		// github.com/gravitational/teleport/lib/services/watcher.go:306 github.com/gravitational/teleport/lib/services.(*resourceWatcher).watch
-		// github.com/gravitational/teleport/lib/services/watcher.go:249 github.com/gravitational/teleport/lib/services.(*resourceWatcher).runWatchLoop
-		// runtime/asm_arm64.s:1268 runtime.goexit
-		// User Message: cache &#34;proxy&#34; does not support watching resource &#34;health_check_config&#34;] services/watcher.go:289
-		{Kind: types.KindHealthCheckConfig}, // TODO(rana): VALIDATE CLEANER DESIGN
+		{Kind: types.KindHealthCheckConfig},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg

@@ -20,32 +20,21 @@ package healthcheck
 
 import (
 	"context"
-	"net"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-// EndpointsResolverFunc is callback func that returns endpoints for a target.
-type EndpointsResolverFunc func(ctx context.Context) ([]string, error)
-
-// OnHealthChangeFunc is a func called on each health change.
-type OnHealthChangeFunc func(oldHealth, newHealth types.TargetHealth)
-
 // Target is a health check target.
 type Target struct {
 	// GetResource gets a copy of the target resource with updated labels.
 	GetResource func() types.ResourceWithLabels
-	// ResolverFn resolves the target endpoint(s).
-	ResolverFn EndpointsResolverFunc
-	// Checks the health of a target resource.
+	// CheckHealth checks the health of a target resource.
 	CheckHealth func(ctx context.Context) error
 
 	// -- test fields below --
 
-	// dialFn used to mock dialing in tests
-	dialFn dialFunc
 	// onHealthCheck is called after each health check.
 	onHealthCheck func(lastResultErr error)
 	// onConfigUpdate is called after each config update.
@@ -58,15 +47,8 @@ func (t *Target) checkAndSetDefaults() error {
 	if t.GetResource == nil {
 		return trace.BadParameter("missing target resource getter")
 	}
-	if t.ResolverFn == nil {
-		return trace.BadParameter("missing target endpoint resolver")
-	}
-	if t.dialFn == nil {
-		t.dialFn = defaultDialer().DialContext
+	if t.CheckHealth == nil {
+		return trace.BadParameter("missing target health check function")
 	}
 	return nil
-}
-
-func defaultDialer() *net.Dialer {
-	return &net.Dialer{}
 }

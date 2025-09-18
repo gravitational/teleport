@@ -536,9 +536,6 @@ func (t *TLSServer) startHealthCheck(kube types.KubeCluster) error {
 	}
 	err = t.healthCheckManager.AddTarget(healthcheck.Target{
 		GetResource: func() types.ResourceWithLabels { return kube },
-		ResolverFn: func(ctx context.Context) ([]string, error) {
-			return []string{"TODO:REMOVE"}, nil
-		},
 		CheckHealth: kubeDetails.checkHealth,
 	})
 	return trace.Wrap(err)

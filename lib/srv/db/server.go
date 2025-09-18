@@ -1480,13 +1480,14 @@ func (s *Server) startHealthCheck(ctx context.Context, db types.Database) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	targetDialer := healthcheck.TargetDialer{Resolver: resolver}
 	err = s.cfg.healthCheckManager.AddTarget(healthcheck.Target{
 		GetResource: func() types.ResourceWithLabels {
 			s.mu.RLock()
 			defer s.mu.RUnlock()
 			return s.copyDatabaseWithUpdatedLabelsLocked(db)
 		},
-		ResolverFn: resolver,
+		CheckHealth: targetDialer.CheckHealth,
 	})
 	return trace.Wrap(err)
 }

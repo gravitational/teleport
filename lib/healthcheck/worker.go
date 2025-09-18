@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -160,9 +158,6 @@ type worker struct {
 	metricType string
 }
 
-// dialFunc dials an address on the given network.
-type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
-
 // GetTargetHealth returns the worker's target health.
 func (w *worker) GetTargetHealth() *types.TargetHealth {
 	w.mu.RLock()
@@ -272,17 +267,12 @@ func (w *worker) nextHealthCheck() <-chan time.Time {
 // updates the worker's health check result history, and possibly updates the
 // target health.
 func (w *worker) checkHealth(ctx context.Context) {
-	initializing := w.lastResultCount == 0
-	var curErr error
-	if w.target.CheckHealth != nil {
-		// Kubernetes health check
-		ctx, cancel := context.WithTimeout(ctx, w.healthCheckCfg.timeout)
-		defer cancel()
-		curErr = w.target.CheckHealth(ctx)
-	} else {
-		// Database health check
-		curErr = w.dialEndpoints(ctx)
-	}
+	ctx, cancel := context.WithTimeout(ctx, w.healthCheckCfg.timeout)
+	defer cancel()
+
+	// check the health of the target
+	curErr := w.target.CheckHealth(ctx)
+
 	if ctx.Err() == context.Canceled {
 		return
 	}
@@ -299,8 +289,8 @@ func (w *worker) checkHealth(ctx context.Context) {
 			"error", w.lastResultErr,
 		)
 	}
-	// update target health when we exactly reach the threshold or initialize
-	if initializing || w.getThreshold(w.healthCheckCfg) == w.lastResultCount {
+	// update target health when we initialize or exactly reach the threshold
+	if w.lastResultCount == 0 || w.getThreshold(w.healthCheckCfg) == w.lastResultCount {
 		w.setThresholdReached(ctx)
 	}
 }
@@ -350,41 +340,6 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	if newThreshold < oldThreshold && w.lastResultCount >= newThreshold {
 		w.setThresholdReached(ctx)
 	}
-}
-
-func (w *worker) dialEndpoints(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, w.healthCheckCfg.timeout)
-	defer cancel()
-	endpoints, err := w.target.ResolverFn(ctx)
-	if err != nil {
-		return trace.Wrap(err, "failed to resolve target endpoints")
-	}
-	w.lastResolvedEndpoints = endpoints
-	switch len(endpoints) {
-	case 0:
-		return trace.NotFound("resolved zero target endpoints")
-	case 1:
-		return w.dialEndpoint(ctx, endpoints[0])
-	default:
-		group, ctx := errgroup.WithContext(ctx)
-		group.SetLimit(10)
-		for _, ep := range endpoints {
-			group.Go(func() error {
-				return trace.Wrap(w.dialEndpoint(ctx, ep))
-			})
-		}
-		return group.Wait()
-	}
-}
-
-func (w *worker) dialEndpoint(ctx context.Context, endpoint string) error {
-	conn, err := w.target.dialFn(ctx, "tcp", endpoint)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// an error while closing the connection could indicate an RST packet from
-	// the endpoint - that's a health check failure.
-	return trace.Wrap(conn.Close())
 }
 
 // getThreshold returns the appropriate threshold to compare against the last

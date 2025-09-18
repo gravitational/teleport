@@ -47,22 +47,22 @@ func TestTarget_checkAndSetDefaults(t *testing.T) {
 			name: "valid target",
 			target: &Target{
 				GetResource: func() types.ResourceWithLabels { return &fakeResource{kind: types.KindDatabase} },
-				ResolverFn:  func(ctx context.Context) ([]string, error) { return []string{"127.0.0.1"}, nil },
+				CheckHealth: func(ctx context.Context) error { return nil },
 			},
 		},
 		{
 			name: "missing resource getter",
 			target: &Target{
-				ResolverFn: func(ctx context.Context) ([]string, error) { return nil, nil },
+				CheckHealth: func(ctx context.Context) error { return nil },
 			},
 			wantErr: "missing target resource getter",
 		},
 		{
-			name: "missing resolver",
+			name: "missing health check function",
 			target: &Target{
 				GetResource: func() types.ResourceWithLabels { return nil },
 			},
-			wantErr: "missing target endpoint resolver",
+			wantErr: "missing target health check function",
 		},
 	}
 
