@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -45,7 +45,7 @@ import (
 
 // Struct to encapsulate the request the HTTP Test Server got.
 // It contains the request and the extracted body, since the default golang HTTP Server closes the body io stream.
-type ProxyRequestResponse struct {
+type proxyReqRes struct {
 	request *http.Request
 	body    []byte
 }
@@ -56,7 +56,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Spin up a test HTTP server
-	receivedRequestsCh := make(chan ProxyRequestResponse, 1)
+	receivedRequestsCh := make(chan proxyReqRes, 1)
 
 	// Spin up 2 servers
 	httpSrvA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +68,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 
 		// Copy the request and the received body into the channel.
 		// We do this because the default http server closes the body io stream to clear the memory.
-		receivedRequestsCh <- ProxyRequestResponse{
+		receivedRequestsCh <- proxyReqRes{
 			request: r,
 			body:    requestBody,
 		}
@@ -88,7 +88,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 
 		// Copy the request and the received body into the channel.
 		// We do this because the default http server closes the body io stream to clear the memory.
-		receivedRequestsCh <- ProxyRequestResponse{
+		receivedRequestsCh <- proxyReqRes{
 			request: r,
 			body:    requestBody,
 		}
@@ -194,7 +194,12 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	})
 
 	proxyUrl, err := url.Parse("http://" + proxyServiceConfig.Listen)
-	httpClient := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyUrl)}}
+	require.NoError(t, err)
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyUrl),
+		},
+	}
 
 	// We can't predict exactly when the tunnel will be ready so we use
 	// EventuallyWithT to retry.
