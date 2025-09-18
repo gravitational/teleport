@@ -2984,6 +2984,11 @@
       "source": "/identity-governance/idps/saml-microsoft-entra-external-id/",
       "destination": "/identity-governance/idps/usage/saml-microsoft-entra-external-id/",
       "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "permanent": true
     }
   ]
 }
