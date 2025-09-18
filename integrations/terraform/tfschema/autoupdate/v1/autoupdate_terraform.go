@@ -147,11 +147,18 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 					Optional:    true,
 				},
 				"tools": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
-						Description: "Mode defines state of the client tools auto update.",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-					}}),
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"mode": {
+							Description: "Mode defines state of the client tools auto update.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"strategies": {
+							Description: "Custom strategies for modifying behavior when updates are applied. For example: protecting against client tool downgrades or ignoring patch updates.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.Int64Type},
+						},
+					}),
 					Description: "",
 					Optional:    true,
 				},
@@ -455,6 +462,33 @@ func CopyAutoUpdateConfigFromTerraform(_ context.Context, tf github_com_hashicor
 													t = string(v.Value)
 												}
 												obj.Mode = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["strategies"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AutoUpdateConfig.spec.tools.strategies"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AutoUpdateConfig.spec.tools.strategies", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.Strategies = make([]github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateToolsStrategy, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AutoUpdateConfig.spec.tools.strategies", "github_com_hashicorp_terraform_plugin_framework_types.Int64"})
+														} else {
+															var t github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateToolsStrategy
+															if !v.Null && !v.Unknown {
+																t = github_com_gravitational_teleport_api_gen_proto_go_teleport_autoupdate_v1.AutoUpdateToolsStrategy(v.Value)
+															}
+															obj.Strategies[k] = t
+														}
+													}
+												}
 											}
 										}
 									}
@@ -951,6 +985,59 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 											v.Value = string(obj.Mode)
 											v.Unknown = false
 											tf.Attrs["mode"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["strategies"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.spec.tools.strategies"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.tools.strategies", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["strategies"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Strategies)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Strategies))
+													}
+												}
+												if obj.Strategies != nil {
+													t := o.ElemType
+													if len(obj.Strategies) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Strategies))
+													}
+													for k, a := range obj.Strategies {
+														v, ok := tf.Attrs["strategies"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.tools.strategies", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.tools.strategies", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+															}
+															v.Null = int64(a) == 0
+														}
+														v.Value = int64(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.Strategies) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["strategies"] = c
+											}
 										}
 									}
 								}

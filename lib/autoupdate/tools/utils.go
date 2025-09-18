@@ -46,7 +46,7 @@ import (
 var (
 	// ErrCancelUpdate is general error for canceling update without breaking
 	// execution.
-	ErrCancelUpdate = errors.New("client tools update is cancelled")
+	ErrCancelUpdate = errors.New("client tools update is canceled")
 	// ErrVersionCheck is returned when the downloaded version fails
 	// to execute for version identification.
 	ErrVersionCheck = errors.New("version check failed")
