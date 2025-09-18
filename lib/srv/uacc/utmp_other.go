@@ -32,17 +32,17 @@ func NewUtmpBackend(utmpFile, wtmpFile, btmpFile string) (*UtmpBackend, error) {
 }
 
 func (u *UtmpBackend) Login(_, _ string, _ net.Addr, _ time.Time) error {
-	return nil
+	return trace.NotImplemented("utmp is linux only")
 }
 
 func (u *UtmpBackend) Logout(_ string, _ time.Time) error {
-	return nil
+	return trace.NotImplemented("utmp is linux only")
 }
 
 func (u *UtmpBackend) FailedLogin(_ string, _ net.Addr, _ time.Time) error {
-	return nil
+	return trace.NotImplemented("utmp is linux only")
 }
 
 func (u *UtmpBackend) IsUserInFile(_ string, _ string) (bool, error) {
-	return false, nil
+	return false, trace.NotImplemented("utmp is linux only")
 }
