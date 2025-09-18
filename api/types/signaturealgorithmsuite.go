@@ -37,6 +37,20 @@ func (s SignatureAlgorithmSuite) MarshalText() ([]byte, error) {
 	}
 }
 
+// SignatureAlgorithmSuiteToString converts a [SignatureAlgorithmSuite] to a user-friendly string.
+func SignatureAlgorithmSuiteToString(s SignatureAlgorithmSuite) string {
+	// The MarshalText impl directly above never returns an error.
+	text, _ := s.MarshalText()
+	return string(text)
+}
+
+// SignatureAlgorithmSuiteFromString parses a string to return a [SignatureAlgorithmSuite].
+func SignatureAlgorithmSuiteFromString(str string) (SignatureAlgorithmSuite, error) {
+	var suite SignatureAlgorithmSuite
+	err := suite.UnmarshalText([]byte(str))
+	return suite, trace.Wrap(err)
+}
+
 // UnmarshalJSON unmarshals a SignatureAlgorithmSuite and supports the custom
 // string format or numeric types matching an enum value.
 func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
