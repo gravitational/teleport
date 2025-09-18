@@ -60,6 +60,9 @@ func ProxyServiceBuilder(
 	}
 }
 
+// ProxyService presents a http_proxy compatible proxy on a listener which will
+// forward traffic to applications through Teleport. Unlike the TunnelService
+// it is protocol aware and does not support TCP applications.
 type ProxyService struct {
 	connCfg                   connection.Config
 	defaultCredentialLifetime bot.CredentialLifetime
