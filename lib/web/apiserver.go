@@ -426,7 +426,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r) || app.IsMCPRequest(r)) {
+	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r)) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -738,6 +738,14 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if h.healthCheckAppServer == nil {
 			h.healthCheckAppServer = appHandler.HealthCheckAppServer
 		}
+
+		// TODO(greedy52) can we handle this better? move to appHandler?
+		h.POST("/mcp/sites/:site/apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
+		h.DELETE("/mcp/sites/:site/apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
+		h.GET("/mcp/sites/:site/apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
+		h.POST("/mcp/apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
+		h.DELETE("/mcp/apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
+		h.GET("/mcp//apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
 	}
 
 	go h.startFeatureWatcher()

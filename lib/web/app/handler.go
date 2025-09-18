@@ -171,6 +171,41 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.router.ServeHTTP(w, r)
 }
 
+func (h *Handler) ServeHTTPForMCP(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	ctx := r.Context()
+	appName := p.ByName("app")
+	clusterName := p.ByName("site")
+	if appName == "" {
+		return nil, trace.BadParameter("app name missing")
+	}
+	if clusterName == "" {
+		cluster, err := h.c.AccessPoint.GetClusterName(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clusterName = cluster.GetClusterName()
+	}
+
+	// Create mcp session.
+	ws, err := h.getMCPSession(r, clusterName, appName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch a cached session or create one if this is the first request this
+	// process has seen.
+	session, err := h.getSession(ctx, ws)
+	if err != nil {
+		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
+		return nil, trace.AccessDenied("invalid session")
+	}
+
+	h.logger.DebugContext(ctx, "==== Handling MCP request", "session_id", ws.GetName(), "app", appName, "cluster", clusterName)
+	// Rewrite path
+	r.URL.Path = "/"
+	return h.handleHttp(w, r, session), nil
+}
+
 // HandleConnection handles connections from plain TCP applications.
 func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) error {
 	tlsConn, ok := clientConn.(utils.TLSConn)
@@ -395,8 +430,6 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 	// then connect to the apps with the issued certs.
 	if HasClientCert(r) {
 		ws, err = h.getAppSessionFromCert(r)
-	} else if IsMCPRequest(r) {
-		ws, err = h.getMCPSession(r)
 	} else {
 		ws, err = h.getAppSessionFromCookie(r)
 	}
@@ -422,11 +455,14 @@ func (h *Handler) getAppSessionFromAccessPoint(ctx context.Context, sessionID st
 	return ws, nil
 }
 
-func (h *Handler) getMCPSession(r *http.Request) (types.WebSession, error) {
+func (h *Handler) getMCPSession(r *http.Request, clusterName, appName string) (types.WebSession, error) {
 	ctx := r.Context()
 	logger := h.logger.With("mcp", "true")
 	logger.DebugContext(ctx, "handling session")
-	authHeader, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	authHeader, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !found {
+		return nil, trace.AccessDenied("missing bearer token")
+	}
 
 	if sessionID, ok := h.mcpSession.Load(authHeader); ok {
 		logger.DebugContext(ctx, "session was present, returning...")
@@ -441,12 +477,7 @@ func (h *Handler) getMCPSession(r *http.Request) (types.WebSession, error) {
 	// First time seeing this, we should verify it and create the app session.
 	logger.DebugContext(ctx, "issuing new session")
 
-	var publicAddrs []string
-	for _, addr := range h.c.ProxyPublicAddrs {
-		publicAddrs = append(publicAddrs, addr.Host())
-	}
-
-	appServer, clusterName, err := ResolveFQDN(ctx, h.c.AuthClient, h.c.ClusterGetter, publicAddrs, r.Host)
+	appServer, err := ResolveBySiteAndName(ctx, h.c.ClusterGetter, clusterName, appName)
 	if err != nil {
 		logger.WarnContext(ctx, "failed to locate app", "error", err)
 		return nil, trace.AccessDenied("access denied")
@@ -625,11 +656,6 @@ func HasSessionCookie(r *http.Request) bool {
 // HasClientCert checks if the request has a client certificate.
 func HasClientCert(r *http.Request) bool {
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
-}
-
-// TODO
-func IsMCPRequest(r *http.Request) bool {
-	return r.Host == "mcp-demo.teleport.dev" && r.Header.Get("Authorization") != ""
 }
 
 // HasName checks if the client is attempting to connect to a
