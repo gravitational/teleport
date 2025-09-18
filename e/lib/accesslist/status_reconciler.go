@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -105,7 +106,7 @@ func newStatusReconciler(config statusReconcilerConfig) (*statusReconciler, erro
 // Run the reconciliation loop. This methods blocks till the context is canceled.
 func (r *statusReconciler) Run(ctx context.Context) {
 	startupDelay := retryutils.SeventhJitter(statusReconcilerStartupSeventhJitter)
-	r.Logger.InfoContext(ctx, "Delaying access_list statuses reconciler startup", "delay", startupDelay.String())
+	r.Logger.DebugContext(ctx, "Delaying access_list statuses reconciler startup", "delay", logutils.StringerAttr(startupDelay))
 
 	timer := r.Clock.NewTimer(startupDelay)
 	defer timer.Stop()
@@ -336,8 +337,8 @@ type statusReconcilerStats struct {
 
 func (s *statusReconcilerStats) wrapLogger(l *slog.Logger, took, waitTime time.Duration) *slog.Logger {
 	return l.With(
-		slog.Duration("took", took),
-		slog.Duration("next_run_in", waitTime),
+		slog.String("took", took.String()),
+		slog.String("next_run_in", waitTime.String()),
 		slog.Int("processed", s.processed),
 		slog.Int("fixed_owner_lists", s.fixedOwnerLists),
 		slog.Int("fixed_member_lists", s.fixedMemberLists),
