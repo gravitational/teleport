@@ -12,7 +12,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.3.3", features = ["wasm_js"] }
+getrandom1 = { package = "getrandom", version = "0.2", features = ["js"] }
 ironrdp-session.workspace = true
 ironrdp-pdu.workspace = true
 ironrdp-core.workspace = true

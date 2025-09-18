@@ -20,7 +20,7 @@
     "highlight-words-core": "^1.2.3",
     "semver": "^7.7.2"
   },
-  "devDependencies" : {
+  "devDependencies": {
     "@types/semver": "^7.7.0"
   }
 }
