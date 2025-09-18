@@ -17,7 +17,7 @@
  */
 
 import { StylesConfig } from 'react-select';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { LabelContent } from 'design/LabelInput/LabelInput';
@@ -35,7 +35,6 @@ export const ScheduleEditor = ({
   schedule: Schedule;
   setSchedule: (option: Schedule) => void;
 }) => {
-  const theme = useTheme();
   const { valid, message } = useRule(validSchedule(schedule));
 
   const setTimezone = (option: Option) => {
@@ -108,7 +107,7 @@ export const ScheduleEditor = ({
         </WeekdayScheduleTable>
         {!valid && (
           <Flex>
-            <Text color={theme.colors.interactive.solid.danger.default}>
+            <Text color="interactive.solid.danger.default">
               {message}
             </Text>
           </Flex>
@@ -125,7 +124,6 @@ const ShiftSelect = ({
   shift: Shift;
   setShift: (option: Shift) => void;
 }) => {
-  const theme = useTheme();
   const { valid } = useRule(validShift(shift));
 
   return (
@@ -139,7 +137,7 @@ const ShiftSelect = ({
           stylesConfig={selectCreatableStyles}
         />
       </Box>
-      <Text color={theme.colors.text.muted}>to</Text>
+      <Text color="text.muted">to</Text>
       <Box flex="1" textAlign="center">
         <SelectCreatable
           value={shift.endTime}
