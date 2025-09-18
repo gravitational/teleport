@@ -195,7 +195,8 @@ const StyledFlex = styled(Flex)<{
     hasError
       ? theme.colors.interactive.solid.danger.default
       : theme.colors.interactive.tonal.neutral[2]};
-  &:hover {
+  &:hover,
+  &:focus-within {
     border-color: ${({ hasError, theme }) =>
       hasError
         ? theme.colors.interactive.solid.danger.default
