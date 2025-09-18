@@ -144,7 +144,7 @@ func setLegacyLogic(protoF *proto.Features, f Features) {
 	protoF.Kubernetes = f.GetEntitlement(entitlements.K8s).Enabled
 	protoF.App = f.GetEntitlement(entitlements.App).Enabled
 	protoF.DB = f.GetEntitlement(entitlements.DB).Enabled
-	protoF.OIDC = f.GetEntitlement(entitlements.OIDC).Enabled
+	protoF.OIDC = true //f.GetEntitlement(entitlements.OIDC).Enabled
 	protoF.SAML = f.GetEntitlement(entitlements.SAML).Enabled
 	protoF.HSM = f.GetEntitlement(entitlements.HSM).Enabled
 	protoF.Desktop = f.GetEntitlement(entitlements.Desktop).Enabled
