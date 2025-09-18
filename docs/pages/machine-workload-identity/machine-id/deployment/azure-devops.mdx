@@ -130,7 +130,7 @@ Create `tbot.yaml` within your repository:
 
 ```yaml
 version: v2
-proxy_server: example.teleport.sh:443
+proxy_server: <Var name="example.teleport.sh" />:443
 onboarding:
   join_method: azure_devops
   token: example-bot
@@ -143,7 +143,7 @@ outputs: []
 
 Replace:
 
-- `example.teleport.sh:443` with the address of your Teleport Proxy Service or
+- <Var name="example.teleport.sh" /> with the address of your Teleport Proxy Service or
 Auth Service. Prefer using the address of the Teleport Proxy Service.
 - `example-bot` with the name of the token you created in the second step
 
@@ -165,7 +165,7 @@ pool:
 
 steps:
 - script: |
-    curl "https://example.teleport.sh:443/scripts/install.sh" | sudo bash
+    curl "https://<Var name="example.teleport.sh"/>:443/scripts/install.sh" | sudo bash
     tbot start -c tbot.yaml
   displayName: 'Install Teleport and start tbot'
   env:
@@ -173,7 +173,7 @@ steps:
     TELEPORT_ANONYMOUS_TELEMETRY: 1
 ```
 
-Replace `example.teleport.sh:443` with the address of your Teleport Proxy Service.
+Replace <Var name="example.teleport.sh"/> with the address of your Teleport Proxy Service.
 
 Note the inclusion of the `SYSTEM_ACCESSTOKEN` environment variable. This
 variable must be populated in any step where `tbot` is run.
