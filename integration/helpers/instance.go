@@ -926,10 +926,10 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 }
 
 // StartDatabase starts the database access service with the provided config.
-func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.TeleportProcess, *authclient.Client, error) {
+func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.TeleportProcess, *authclient.Client, string, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, "", trace.Wrap(err)
 	}
 	i.tempDirs = append(i.tempDirs, dataDir)
 
@@ -951,7 +951,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	// compose this "cluster".
 	process, err := service.NewTeleport(conf)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, "", trace.Wrap(err)
 	}
 	i.Nodes = append(i.Nodes, process)
 
@@ -966,22 +966,24 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := StartAndWait(process, expectedEvents)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, "", trace.Wrap(err)
 	}
 
 	// Retrieve auth server connector.
 	var client *authclient.Client
+	var hostUUID string
 	for _, event := range receivedEvents {
 		if event.Name == service.DatabasesIdentityEvent {
 			conn, ok := (event.Payload).(*service.Connector)
 			if !ok {
-				return nil, nil, trace.BadParameter("unsupported event payload type %q", event.Payload)
+				return nil, nil, "", trace.BadParameter("unsupported event payload type %q", event.Payload)
 			}
 			client = conn.Client
+			hostUUID = conn.HostUUID()
 		}
 	}
 	if client == nil {
-		return nil, nil, trace.BadParameter("failed to retrieve auth client")
+		return nil, nil, "", trace.BadParameter("failed to retrieve auth client")
 	}
 
 	i.Log.DebugContext(context.Background(), "Teleport Database Server started",
@@ -990,7 +992,7 @@ func (i *TeleInstance) StartDatabase(conf *servicecfg.Config) (*service.Teleport
 		"received_events_count", len(receivedEvents),
 	)
 
-	return process, client, nil
+	return process, client, hostUUID, nil
 }
 
 func (i *TeleInstance) StartKube(t *testing.T, conf *servicecfg.Config, clusterName string) (*service.TeleportProcess, error) {
