@@ -107,7 +107,10 @@ export function getAppAddrWithProtocol(source: App): string {
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
     } else {
-      addrWithProtocol = `https://${publicAddr}`;
+      // publicAddr for Identity Center account app is a URL with scheme.
+      addrWithProtocol = publicAddr.startsWith('https://')
+        ? publicAddr
+        : `https://${publicAddr}`;
     }
   }
 
