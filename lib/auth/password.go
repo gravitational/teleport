@@ -89,6 +89,7 @@ func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.BadParameter("unexpected WebSessionV2 type %T", sess)
 	}
 
+	// NOTE: Interesting TODO.
 	// TODO(codingllama): Issue device web token here?
 	//  This could enable the initial transition, after the user sets password and
 	//  MFA, to trigger device web login.

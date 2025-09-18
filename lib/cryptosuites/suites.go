@@ -442,6 +442,7 @@ func GenerateUserSSHAndTLSKey(ctx context.Context, getSuite GetSuiteFunc) (sshKe
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	// NOTE: Here the keys get generated.
 	sshKey, err = GenerateKeyWithAlgorithm(sshKeyAlgorithm)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
