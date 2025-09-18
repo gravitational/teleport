@@ -475,14 +475,14 @@ update-vmlinux-h:
 
 else
 .PHONY: bpf-bytecode
-bpf-bytecode:
+cargo build -p rdp-clientbpf-bytecode:
 endif
 
 .PHONY: rdpclient
 rdpclient:
 ifeq ("$(with_rdpclient)", "yes")
 	$(RDPCLIENT_ENV) \
-		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+		 $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
