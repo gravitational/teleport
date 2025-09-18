@@ -1360,15 +1360,6 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	// add a SAMLIdPServiceProvider
-	const entityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="sp1" validUntil="2025-12-09T09:13:31.006Z">
-   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
-      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
-   </md:SPSSODescriptor>
-</md:EntityDescriptor>
-`
 	samlapp, err := types.NewSAMLIdPServiceProvider(
 		types.Metadata{
 			Name: "sp1",
@@ -1377,8 +1368,8 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			},
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: entityDescriptor,
-			EntityID:         "sp1",
+			EntityID: "https://example.com",
+			ACSURL:   "https://example.com/acs",
 		},
 	)
 	require.NoError(t, err)
@@ -1534,23 +1525,39 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Equal(t, expectedRoles, listResp.Items[0].AWSRoles)
 	t.Log(string(re.Bytes()), listResp)
 
-	// query only apps, SAMLIdPServiceProvider 'app' should be included
-	type appResponse struct {
-		Items      []webui.App `json:"items"`
-		TotalCount int         `json:"totalCount"`
-	}
-	query = url.Values{"sort": []string{"name"}, "kinds": []string{types.KindApp}, "query": []string{``}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
-	appRes := appResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &appRes))
-	require.Len(t, appRes.Items, 3)
-	for _, app := range appRes.Items {
-		require.Equal(t, types.KindApp, app.Kind)
-	}
-	require.False(t, appRes.Items[0].SAMLApp)
-	require.False(t, appRes.Items[1].SAMLApp)
-	require.True(t, appRes.Items[2].SAMLApp)
+	t.Run("saml_idp_service_provider is included with app kinds", func(t *testing.T) {
+		type appResponse struct {
+			Items      []webui.App `json:"items"`
+			TotalCount int         `json:"totalCount"`
+		}
+		query := url.Values{"kinds": []string{types.KindApp}}
+		re, err := pack.clt.Get(context.Background(), endpoint, query)
+		require.NoError(t, err)
+		appRes := appResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &appRes))
+
+		appConfig := webui.MakeAppsConfig{
+			LocalClusterName:      clusterName,
+			LocalProxyDNSName:     "proxy-1.example.com",
+			AppClusterName:        clusterName,
+			RequiresRequest:       false,
+			AllowedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
+		}
+
+		expectedApps := []webui.App{
+			webui.MakeApp(app, appConfig),
+			webui.MakeApp(awsApp, appConfig),
+			webui.MakeAppTypeFromSAMLApp(samlapp, appConfig),
+		}
+
+		// marshal & unmarshal to match API response (i.e. omitempty)
+		expectedJSON, err := json.Marshal(expectedApps)
+		require.NoError(t, err)
+		var expected []webui.App
+		require.NoError(t, json.Unmarshal(expectedJSON, &expected))
+
+		require.ElementsMatch(t, appRes.Items, expected)
+	})
 }
 
 type clusterAlertsGetResponse struct {
