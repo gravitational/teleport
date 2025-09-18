@@ -234,6 +234,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	outgoingReqA = outgoingReqA.WithContext(ctx)
 	resp, err := httpClient.Do(outgoingReqA)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 
 	// Assert server received the request we sent
 	proxyRequestResponseA := <-receivedRequestsCh
@@ -269,6 +270,7 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 	outgoingReqB = outgoingReqB.WithContext(ctx)
 	resp, err = httpClient.Do(outgoingReqB)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 
 	// Assert server received the request we sent
 	proxyRequestResponseB := <-receivedRequestsCh
