@@ -24,9 +24,9 @@ import { LabelContent } from 'design/LabelInput/LabelInput';
 import Select, { Option, SelectCreatable } from 'shared/components/Select';
 import { useRule } from 'shared/components/Validation';
 
-import { TimeOptions, TimezoneOptions, WeekdayOptions } from './const';
+import { timeOptions, timezoneOptions, weekdayOptions } from './const';
 import { validSchedule, validShift } from './rules';
-import { NewShift, Schedule, Shift, Weekday } from './types';
+import { newShift, Schedule, Shift, Weekday } from './types';
 
 export const ScheduleEditor = ({
   schedule,
@@ -47,7 +47,7 @@ export const ScheduleEditor = ({
       ...schedule,
       shifts: {
         ...schedule.shifts,
-        [weekday]: schedule.shifts[weekday] ? null : NewShift(),
+        [weekday]: schedule.shifts[weekday] ? null : newShift(),
       },
     });
   };
@@ -69,11 +69,11 @@ export const ScheduleEditor = ({
         <Select
           value={schedule.timezone}
           onChange={setTimezone}
-          options={TimezoneOptions}
+          options={timezoneOptions}
         />
       </Box>
       <Flex gap={2}>
-        {WeekdayOptions.map(weekday => (
+        {weekdayOptions.map(weekday => (
           <ButtonPrimary
             key={weekday.value}
             size="large"
@@ -89,7 +89,7 @@ export const ScheduleEditor = ({
       <Box>
         <WeekdayScheduleTable>
           <tbody>
-            {WeekdayOptions.filter(
+            {weekdayOptions.filter(
               weekday => !!schedule.shifts[weekday.value]
             ).map(weekday => (
               <tr key={weekday.value}>
@@ -134,7 +134,7 @@ const ShiftSelect = ({
         <SelectCreatable
           value={shift.startTime}
           onChange={option => setShift({ ...shift, startTime: option })}
-          options={TimeOptions}
+          options={timeOptions}
           components={{ DropdownIndicator: () => null }}
           stylesConfig={selectCreatableStyles}
         />
@@ -144,7 +144,7 @@ const ShiftSelect = ({
         <SelectCreatable
           value={shift.endTime}
           onChange={option => setShift({ ...shift, endTime: option })}
-          options={TimeOptions}
+          options={timeOptions}
           components={{ DropdownIndicator: () => null }}
           stylesConfig={selectCreatableStyles}
         />

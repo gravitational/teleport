@@ -23,9 +23,9 @@ import { WeekdayOption } from './types';
 const allTimezones = ['UTC', ...Intl.supportedValuesOf('timeZone')];
 
 /**
- * TimezoneOptions lists the available timezone options.
+ * timezoneOptions lists the available timezone options.
  */
-export const TimezoneOptions: Option[] = allTimezones.map(timeZone => {
+export const timezoneOptions: Option[] = allTimezones.map(timeZone => {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
     timeZoneName: 'short',
@@ -43,9 +43,9 @@ export const TimezoneOptions: Option[] = allTimezones.map(timeZone => {
 });
 
 /**
- * WeekdayOptions lists the available weekday options.
+ * weekdayOptions lists the available weekday options.
  */
-export const WeekdayOptions: WeekdayOption[] = [
+export const weekdayOptions: WeekdayOption[] = [
   { value: 'Sunday', label: 'S' },
   { value: 'Monday', label: 'M' },
   { value: 'Tuesday', label: 'T' },
@@ -56,9 +56,9 @@ export const WeekdayOptions: WeekdayOption[] = [
 ];
 
 /**
- * TimeOptions lists the available time options with 30-minute intervals.
+ * timeOptions lists the available time options with 30-minute intervals.
  */
-export const TimeOptions: Option[] = Array.from({ length: 48 }, (_, index) => {
+export const timeOptions: Option[] = Array.from({ length: 48 }, (_, index) => {
   const hours = Math.floor(index / 2);
   const minutes = index % 2 === 0 ? '00' : '30';
   const time = `${hours.toString().padStart(2, '0')}:${minutes}`;

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TimezoneOptions, WeekdayOptions } from './const';
+import { timezoneOptions, weekdayOptions } from './const';
 import { validSchedule, validShift } from './rules';
 import { Schedule, Shift, Weekday } from './types';
 
@@ -72,7 +72,7 @@ describe('validSchedule', () => {
       name: 'valid schedule',
       schedule: {
         name: 'test',
-        timezone: TimezoneOptions[0],
+        timezone: timezoneOptions[0],
         shifts: {
           ...newShifts(),
           Monday: {
@@ -91,7 +91,7 @@ describe('validSchedule', () => {
       name: 'missing shifts',
       schedule: {
         name: 'test',
-        timezone: TimezoneOptions[0],
+        timezone: timezoneOptions[0],
         shifts: newShifts(),
       },
       valid: false,
@@ -106,7 +106,7 @@ describe('validSchedule', () => {
 });
 
 function newShifts(): Record<Weekday, Shift | null> {
-  return WeekdayOptions.reduce(
+  return weekdayOptions.reduce(
     (shifts, weekday) => {
       shifts[weekday.value] = null;
       return shifts;

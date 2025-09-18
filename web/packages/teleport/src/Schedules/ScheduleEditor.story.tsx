@@ -22,14 +22,14 @@ import { ButtonPrimary } from 'design/Button';
 import Validation from 'shared/components/Validation';
 
 import { ScheduleEditor } from './ScheduleEditor';
-import { NewSchedule, Schedule } from './types';
+import { newSchedule, Schedule } from './types';
 
 export default {
   title: 'Teleport/ScheduleEditor',
 };
 
 export const ScheduleEditorBasic = () => {
-  const [schedule, setSchedule] = useState<Schedule>(NewSchedule());
+  const [schedule, setSchedule] = useState<Schedule>(newSchedule());
   return (
     <Validation>
       {({ validator }) => (
