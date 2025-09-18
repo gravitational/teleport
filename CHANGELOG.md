@@ -521,7 +521,7 @@ within the cluster.
 As the feature is being developed, future Teleport releases will add support for
 periodic audit reviews and deeper integration of Access Lists with Okta.
 
-You can find existing Access Lists documentation [here](docs/pages/identity-governance/access-lists/guide.mdx).
+You can find existing Access Lists documentation [here](docs/pages/identity-governance/access-lists.mdx).
 
 #### Unified resources view
 

@@ -392,12 +392,12 @@
     },
     {
       "source": "/admin-guides/access-controls/access-lists/guide/",
-      "destination": "/identity-governance/access-lists/guide/",
+      "destination": "/identity-governance/access-lists/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/access-lists/nested-access-lists/",
-      "destination": "/identity-governance/access-lists/nested-access-lists/",
+      "destination": "/identity-governance/access-lists/",
       "permanent": true
     },
     {
@@ -2428,6 +2428,21 @@
     {
       "source": "/linux-demo/",
       "destination": "/get-started/deploy-community/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/guide/",
+      "destination": "/identity-governance/access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/nested-access-lists/",
+      "destination": "/reference/access-controls/access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
       "permanent": true
     }
   ]
