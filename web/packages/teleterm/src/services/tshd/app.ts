@@ -101,8 +101,9 @@ export function getAppAddrWithProtocol(source: App): string {
   const isTcp = endpointUri && endpointUri.startsWith('tcp://');
   const isCloud = endpointUri && endpointUri.startsWith('cloud://');
   const isMCPStdio = endpointUri && endpointUri.startsWith('mcp+stdio://');
+  const httpsPublicAddr = publicAddr.startsWith('https://');
   let addrWithProtocol = endpointUri;
-  if (publicAddr) {
+  if (publicAddr && !httpsPublicAddr) {
     if (isCloud) {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
