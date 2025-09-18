@@ -52,7 +52,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodbstreams/attributevalue v1.18.0
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.3
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.11
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.74
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.35
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.36.0
 	github.com/aws/aws-sdk-go-v2/service/athena v1.50.4
 	github.com/aws/aws-sdk-go-v2/service/dax v1.24.2
@@ -76,7 +76,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi v1.26.4
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.2
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.2
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.4
 	github.com/aws/aws-sdk-go-v2/service/sns v1.34.4
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.5
