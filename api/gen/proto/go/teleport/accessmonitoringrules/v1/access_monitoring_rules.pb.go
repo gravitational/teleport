@@ -938,10 +938,13 @@ func (x *ListAccessMonitoringRulesWithFilterResponse) GetNextPageToken() string 
 
 // Shift contains the weekday, start time, and end time of a shift.
 type TimeSchedule_Shift struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Weekday       string                 `protobuf:"bytes,1,opt,name=weekday,proto3" json:"weekday,omitempty"`
-	Start         string                 `protobuf:"bytes,2,opt,name=start,proto3" json:"start,omitempty"`
-	End           string                 `protobuf:"bytes,3,opt,name=end,proto3" json:"end,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Weekday specifies the day of the week, e.g., "Sunday", "Monday", "Tuesday".
+	Weekday string `protobuf:"bytes,1,opt,name=weekday,proto3" json:"weekday,omitempty"`
+	// Start specifies the start time in the format HH:MM, e.g., "12:30".
+	Start string `protobuf:"bytes,2,opt,name=start,proto3" json:"start,omitempty"`
+	// End specifies the end time in the format HH:MM, e.g., "12:30".
+	End           string `protobuf:"bytes,3,opt,name=end,proto3" json:"end,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

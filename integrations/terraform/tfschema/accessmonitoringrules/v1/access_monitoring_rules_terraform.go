@@ -152,17 +152,17 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 								"shifts": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"end": {
-											Description: "",
+											Description: "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
 											Optional:    true,
 											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"start": {
-											Description: "",
+											Description: "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
 											Optional:    true,
 											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"weekday": {
-											Description: "",
+											Description: "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
 											Optional:    true,
 											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
