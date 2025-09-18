@@ -24,6 +24,7 @@ import Flex from 'design/Flex';
 import Indicator from 'design/Indicator';
 
 import type { RecordingType } from 'teleport/services/recordings';
+import { RECORDING_TYPES_WITH_METADATA } from 'teleport/services/recordings/recordings';
 import { DesktopPlayer } from 'teleport/SessionRecordings/view/DesktopPlayer';
 import { TtyRecordingPlayer } from 'teleport/SessionRecordings/view/player/tty/TtyRecordingPlayer';
 import SshPlayer, {
@@ -88,21 +89,26 @@ export function RecordingPlayer({
     );
   }
 
+  const sshPlayer = (
+    <SshPlayer
+      ref={ref}
+      onTimeChange={onTimeChange}
+      onToggleSidebar={onToggleSidebar}
+      sid={sessionId}
+      clusterId={clusterId}
+      durationMs={durationMs}
+      onToggleTimeline={onToggleTimeline}
+    />
+  );
+
+  if (!RECORDING_TYPES_WITH_METADATA.includes(recordingType)) {
+    // For recording types without metadata (e.g., database), render the legacy SshPlayer directly.
+    return sshPlayer;
+  }
+
   return (
     <Container>
-      <ErrorBoundary
-        fallback={
-          <SshPlayer
-            ref={ref}
-            onTimeChange={onTimeChange}
-            onToggleSidebar={onToggleSidebar}
-            sid={sessionId}
-            clusterId={clusterId}
-            durationMs={durationMs}
-            onToggleTimeline={onToggleTimeline}
-          />
-        }
-      >
+      <ErrorBoundary fallback={sshPlayer}>
         <Suspense fallback={<RecordingPlayerLoading />}>
           <TtyRecordingPlayer
             clusterId={clusterId}
