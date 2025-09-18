@@ -2564,7 +2564,9 @@ func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string,
 	}
 
 	var uploadedParts []*recordingencryptionv1pb.Part
-	var partNumber int64
+	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
+	// configured for the auth service
+	var partNumber int64 = 1
 	for part, err := range parts {
 		if err != nil {
 			return trace.Wrap(err)

@@ -927,6 +927,12 @@ const (
 	// MCPSessionNotificationEvent is emitted when a notification is sent by
 	// client during a MCP session.
 	MCPSessionNotificationEvent = "mcp.session.notification"
+	// MCPSessionListenSSEStream is emitted when the client sends a GET request for
+	// listening server notifications via an SSE stream.
+	MCPSessionListenSSEStream = "mcp.session.listen_sse_stream"
+	// MCPSessionInvalidHTTPRequest is a blanket event for all requests that we
+	// do not understand (usually out of MCP spec).
+	MCPSessionInvalidHTTPRequest = "mcp.session.invalid_http_request"
 
 	// BoundKeypairRecovery is emitted when a bound keypair token is used to
 	// perform a recovery.

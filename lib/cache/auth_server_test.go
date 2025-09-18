@@ -42,16 +42,12 @@ func TestAuthServers(t *testing.T) {
 				},
 			}, nil
 		},
-		create: p.presenceS.UpsertAuthServer,
-		list: func(_ context.Context) ([]types.Server, error) {
-			return p.presenceS.GetAuthServers()
-		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
-			return p.cache.GetAuthServers()
-		},
-		update: p.presenceS.UpsertAuthServer,
+		create:    p.presenceS.UpsertAuthServer,
+		list:      getAllAdapter(func(context.Context) ([]types.Server, error) { return p.presenceS.GetAuthServers() }),
+		cacheList: getAllAdapter(func(context.Context) ([]types.Server, error) { return p.cache.GetAuthServers() }),
+		update:    p.presenceS.UpsertAuthServer,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllAuthServers()
 		},
-	})
+	}, withSkipPaginationTest())
 }

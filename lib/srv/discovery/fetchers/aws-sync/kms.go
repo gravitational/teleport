@@ -20,10 +20,13 @@ package aws_sync
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -133,23 +136,23 @@ func (a *Fetcher) fetchKMSKeysForRegion(ctx context.Context, client kmsClient, r
 // useful if permissions don't allow any of the subqueries.
 func (a *Fetcher) fetchKMSKey(ctx context.Context, client kmsClient, keyID string, region string) (*pb.AWSKMSKeyV1, error) {
 	input := &kms.DescribeKeyInput{KeyId: &keyID}
+	var errs []error
 	output, err := client.DescribeKey(ctx, input)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to describe KMS key %q", keyID)
+		a.handleKMSKeyError(ctx, keyID, err, &errs, "cannot describe KMS key")
 	}
-	var errs []error
-	result := awsToProtoKMSKey(output, a.AccountID, region)
-	result.Tags, err = getTags(ctx, client, keyID)
+	result := awsToProtoKMSKey(output, a.AccountID, region, keyID)
+	result.Tags, err = getKMSTags(ctx, client, keyID)
 	if err != nil {
-		errs = append(errs, trace.Wrap(err, "cannot fetch tags for KMS key %q", keyID))
+		a.handleKMSKeyError(ctx, keyID, err, &errs, "cannot get tags for KMS key")
 	}
 	result.Aliases, err = getAliases(ctx, client, keyID)
 	if err != nil {
-		errs = append(errs, trace.Wrap(err, "cannot fetch aliases for KMS key %q", keyID))
+		a.handleKMSKeyError(ctx, keyID, err, &errs, "cannot get aliases for KMS key")
 	}
 	result.PolicyDocument, err = getPolicy(ctx, client, keyID)
 	if err != nil {
-		errs = append(errs, trace.Wrap(err, "cannot fetch policy for KMS key %q", keyID))
+		a.handleKMSKeyError(ctx, keyID, err, &errs, "cannot get key policy for KMS key")
 	}
 	if len(errs) > 0 {
 		return result, trace.NewAggregate(errs...)
@@ -157,9 +160,30 @@ func (a *Fetcher) fetchKMSKey(ctx context.Context, client kmsClient, keyID strin
 	return result, nil
 }
 
+func (a *Fetcher) handleKMSKeyError(ctx context.Context, keyID string, err error, errs *[]error, msg string) {
+	if isAccessDeniedException(err) {
+		a.Log.WarnContext(ctx, "access denied: "+msg, "key_id", keyID) //nolint: sloglint // string literal requirement makes this unnecessarily verbose
+	} else {
+		*errs = append(*errs, trace.Wrap(err, "%s %q", msg, keyID))
+	}
+}
+
+func isAccessDeniedException(err error) bool {
+	var apiErr smithy.APIError
+	return errors.As(err, &apiErr) && apiErr.ErrorCode() == "AccessDeniedException"
+}
+
 // awsToProtoKMSKey converts an AWS KMS key as represented in the AWS client
 // library to the Teleport protobuf representation.
-func awsToProtoKMSKey(output *kms.DescribeKeyOutput, accountID, region string) *pb.AWSKMSKeyV1 {
+func awsToProtoKMSKey(output *kms.DescribeKeyOutput, accountID, region, keyID string) *pb.AWSKMSKeyV1 {
+	if output == nil {
+		return &pb.AWSKMSKeyV1{
+			Arn:          fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID),
+			Region:       region,
+			AccountId:    accountID,
+			LastSyncTime: timestamppb.Now(),
+		}
+	}
 	var multiRegionType string
 	if cfg := output.KeyMetadata.MultiRegionConfiguration; cfg != nil {
 		multiRegionType = string(cfg.MultiRegionKeyType)
@@ -175,10 +199,10 @@ func awsToProtoKMSKey(output *kms.DescribeKeyOutput, accountID, region string) *
 	}
 }
 
-// getTags fetches tags for a KMS key. Potentially access rights to tags differ
+// getKMSTags fetches tags for a KMS key. Potentially access rights to tags differ
 // to the key access rights as tags are sensitive when used for access control
 // via ABAC.
-func getTags(ctx context.Context, client kmsClient, keyID string) ([]*pb.AWSTag, error) {
+func getKMSTags(ctx context.Context, client kmsClient, keyID string) ([]*pb.AWSTag, error) {
 	input := &kms.ListResourceTagsInput{KeyId: &keyID}
 	pager := kms.NewListResourceTagsPaginator(client, input)
 	var tags []*pb.AWSTag
