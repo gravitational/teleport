@@ -18,7 +18,7 @@
 
 import { Option } from 'shared/components/Select';
 
-import { TimeOptions, TimezoneOptions, WeekdayOptions } from './const';
+import { timeOptions, timezoneOptions, weekdayOptions } from './const';
 
 export type Schedule = {
   name: string;
@@ -26,10 +26,10 @@ export type Schedule = {
   shifts: Record<Weekday, Shift | null>;
 };
 
-export const NewSchedule = (): Schedule => ({
+export const newSchedule = (): Schedule => ({
   name: 'default',
-  timezone: TimezoneOptions[0],
-  shifts: WeekdayOptions.reduce(
+  timezone: timezoneOptions[0],
+  shifts: weekdayOptions.reduce(
     (shifts, weekday) => {
       shifts[weekday.value] = null;
       return shifts;
@@ -43,9 +43,9 @@ export type Shift = {
   endTime: Option;
 };
 
-export const NewShift = (): Shift => ({
-  startTime: TimeOptions[0],
-  endTime: TimeOptions[0],
+export const newShift = (): Shift => ({
+  startTime: timeOptions[0],
+  endTime: timeOptions[0],
 });
 
 export type Weekday =
