@@ -26,14 +26,14 @@ Lists. The Teleport Kubernetes Operator and Terraform provider, along with the
 `tctl` command-line tool, can manage agentless SSH services by authenticating to
 the Teleport Auth Service and interacting with its gRPC API.
 
-Access Lists can be managed via IaC but Access List memberships cannot. The goal
-of Access Lists is to decentralize granting and reviewing access. By allowing
-managers to grant access within specific guidelines and automatically enforcing
-review, users can request common access rights without having to go through the
-centralized team managing the Teleport IaC. This reduces the load on the
-centralized IaC/security team, ensures the access reviewer is aware of the
-context, reduces the request resolution time, and ensures access grants are
-periodically reviewed.
+By default, Access Lists can be managed via IaC but Access List memberships
+cannot. The goal of Access Lists is to decentralize granting and reviewing
+access. By allowing managers to grant access within specific guidelines and
+automatically enforcing review, users can request common access rights without
+having to go through the centralized team managing the Teleport IaC. This
+reduces the load on the centralized IaC/security team, ensures the access
+reviewer is aware of the context, reduces the request resolution time, and
+ensures access grants are periodically reviewed.
 
 ## Prerequisites
 
@@ -306,6 +306,158 @@ Members of support-engineers:
 
 </TabItem>
 </Tabs>
+
+## Managing Access List members with Terraform
+
+When using the Teleport Terraform provider (but not the Kubernetes Operator),
+**Static Access Lists** differ from the default Access Lists in that they
+support managing members via Infrastructure as Code. For static Access Lists,
+the source of truth for the membership is external--an Infrastructure as Code
+configuration-- so audit is not supported. The members should be reviewed at
+source, which are the Terraform data sources or manifests and this process has
+to be external to Teleport.
+
+Edit the Access List you created earlier to set the type to `"static"`, which
+marks it as a static Access List. While Teleport ignores the `spec.audit` field
+for static Access Lists, you can remove it for clarity as below:
+
+```diff
+  resource "teleport_access_list" "support-engineers" {
+    header =  {
+      version = "v1"
+      metadata = {
+        name = "support-engineers"
+      }
+    }
+  
+    spec = {
++     type = "static"
+      title = "Production access for support engineers"
+      description = "Use this Access List to grant access to production to your engineers enrolled in the support rotation."
+-     audit = {
+-     recurrence = {
+-       frequency = 6
+-     }
+-   }
+    }
+  # remaining fields truncated
+  }
+```
+
+### Assigning users to an Access List
+
+To assign a user as a member of an Access List, declare a
+`teleport_access_list_member` resource and set its `spec.membership_kind` to
+`1`, which indicates that the member is a user:
+
+```hcl
+resource "teleport_access_list_member" "developers_alice" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "alice" # Teleport user name
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.support-engineers.id
+    membership_kind = 1 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+
+resource "teleport_access_list_member" "developers_bob" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "bob"
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.support-engineers.id
+    membership_kind = 1 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+```
+
+Notice that both members' `spec.access_list` refers to the ID of the
+`support-engineers` Access List you created earlier.
+
+### Assigning nested Access Lists
+
+Static Access Lists also allow you to assign nested Access Lists. For example,
+consider the following `teleport_access_list_member` resource:
+
+```hcl
+resource "teleport_access_list_member" "db_access_staging_developers" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = teleport_access_list.technical-account-managers.id
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.support-engineers.id
+    membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+```
+
+This resource has a `spec.membership_kind` of `2`, indicating that it is a
+nested Access List. The name of the member is the ID of another Access List
+(not shown in this guide) called `technical-account-managers`. This instructs
+the Terraform provider to assign the `technical-account-managers` Access List as
+a nested Access List within `support-engineers`.
+
+### Give access to an Okta or Microsoft Entra ID group
+
+The Okta integration allows [synchronizing Okta groups and
+apps](../../../identity-governance/integrations/okta/app-and-group-sync.mdx) as Teleport Access Lists, while the
+Microsoft Entra ID integration allows [synchronizing
+groups](../../../identity-governance/integrations/entra-id/entra-id.mdx) as Teleport Access Lists. 
+
+To give permissions to an Access List based on these integrations in Terraform,
+navigate to the Access List in the Web UI, and from its URL (e.g.
+`https://example.teleport.sh/web/accesslists/00gt3c8z9ukePm5uF697`) copy the
+last path segment. In this case `00gt3c8z9ukePm5uF697` - this is the name of the
+Access List resource in Teleport.
+
+For example, the following `teleport_access_list_member` configures an Access
+List managed via the Okta integration to be a child of the `support-engineers`
+Access List:
+
+```hcl
+resource "teleport_access_list_member" "db_access_staging_okta_group" {
+  header = {
+    version = "v1"
+    metadata = {
+      name = "00gt3c8z9ukePm5uF697"
+    }
+  }
+  spec = {
+    access_list     = teleport_access_list.support-engineers.id
+    membership_kind = 2 # 1 for "MEMBERSHIP_KIND_USER", 2 for "MEMBERSHIP_KIND_LIST"
+  }
+}
+```
+
+For an Access List managed via the Microsoft Entra ID integration, the name of
+the Access List will be similar to `b1a6a594-a4ac-51d1-a6f6-1746a413a79a`.
+
+### Importing Access Lists created using the Web UI into Terraform
+
+It is usually not possible to import Access Lists created using the Web UI into
+a Terraform module. Any Access List can be imported, but Access Lists created in
+the UI are not of the static type, so their members can't be managed with Terraform.
+The same applies to Access Lists created by an integration (e.g.
+[Okta](../../../identity-governance/integrations/okta/app-and-group-sync.mdx) or
+[Microsoft Entra ID](../../../identity-governance/integrations/entra-id/entra-id.mdx)).  An
+existing static list created by another Terraform setup (with a different state)
+could be imported, and its members can be managed by Terraform, but this
+situation is unusual.
+
+The recommended solution is to create a static Access List managed with
+Terraform and make this list a member of an existing Access List. That way the
+members of the static Access List managed with Terraform will inherit the grants
+of the existing Access List.
 
 ## Next steps
 

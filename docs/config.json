@@ -3014,6 +3014,11 @@
       "source": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
       "destination": "/enroll-resources/agents/argocd-helm/",
       "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "permanent": true
     }
   ]
 }
