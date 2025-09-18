@@ -759,6 +759,11 @@
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
     },
+    {
+      "source": "/admin-guides/access-controls/access-lists/",
+      "destination": "/identity-governance/access-lists/",
+      "permanent": true
+    },
         {
       "source": "/machine-workload-identity/mwi-use-cases/",
       "destination": "/machine-workload-identity/workload-identity/",
@@ -2287,6 +2292,21 @@
     {
       "source": "/enroll-resources/application-access/cloud-apis/aws-console-without-agent/",
       "destination": "/enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/guide/",
+      "destination": "/identity-governance/access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/nested-access-lists/",
+      "destination": "/reference/access-controls/access-lists/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
       "permanent": true
     }
   ]
