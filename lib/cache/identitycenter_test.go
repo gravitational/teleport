@@ -53,7 +53,7 @@ func TestIdentityCenterAccount(t *testing.T) {
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
 
-	testResources153(t, fixturePack, testFuncs153[*identitycenterv1.Account]{
+	testResources153(t, fixturePack, testFuncs[*identitycenterv1.Account]{
 		newResource: func(s string) (*identitycenterv1.Account, error) {
 			return newIdentityCenterAccount(s), nil
 		},
@@ -82,7 +82,7 @@ func TestIdentityCenterAccount(t *testing.T) {
 			r, err := fixturePack.cache.GetIdentityCenterAccount(ctx, id)
 			return r, trace.Wrap(err)
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 func newIdentityCenterPrincipalAssignment(id string) *identitycenterv1.PrincipalAssignment {
@@ -110,7 +110,7 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
 
-	testResources153(t, fixturePack, testFuncs153[*identitycenterv1.PrincipalAssignment]{
+	testResources153(t, fixturePack, testFuncs[*identitycenterv1.PrincipalAssignment]{
 		newResource: func(s string) (*identitycenterv1.PrincipalAssignment, error) {
 			return newIdentityCenterPrincipalAssignment(s), nil
 		},
@@ -139,7 +139,7 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 				ctx, services.PrincipalAssignmentID(id))
 			return r, trace.Wrap(err)
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 func newIdentityCenterAccountAssignment(id string) *identitycenterv1.AccountAssignment {
@@ -166,7 +166,7 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 	fixturePack := newTestPack(t, ForAuth)
 	t.Cleanup(fixturePack.Close)
 
-	testResources153(t, fixturePack, testFuncs153[*identitycenterv1.AccountAssignment]{
+	testResources153(t, fixturePack, testFuncs[*identitycenterv1.AccountAssignment]{
 		newResource: func(s string) (*identitycenterv1.AccountAssignment, error) {
 			return newIdentityCenterAccountAssignment(s), nil
 		},
@@ -194,5 +194,5 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 			r, err := fixturePack.cache.GetAccountAssignment(ctx, services.IdentityCenterAccountAssignmentID(id))
 			return r.AccountAssignment, trace.Wrap(err)
 		},
-	})
+	}, withSkipPaginationTest())
 }
