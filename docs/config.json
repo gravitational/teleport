@@ -3451,6 +3451,11 @@
       "source": "/zero-trust-access/management/guides/",
       "destination": "/zero-trust-access/management/",
       "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-lists/terraform/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "permanent": true
     }
   ]
 }
