@@ -50,7 +50,7 @@ func TestSPIFFEFederations(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*machineidv1.SPIFFEFederation]{
+	testResources153(t, p, testFuncs[*machineidv1.SPIFFEFederation]{
 		newResource: func(s string) (*machineidv1.SPIFFEFederation, error) {
 			return newSPIFFEFederation(s), nil
 		},
@@ -72,5 +72,5 @@ func TestSPIFFEFederations(t *testing.T) {
 			return items, trace.Wrap(err)
 		},
 		cacheGet: p.cache.GetSPIFFEFederation,
-	})
+	}, withSkipPaginationTest())
 }
