@@ -193,11 +193,12 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 		wg.Wait()
 	})
 
-	proxyUrl, err := url.Parse("http://" + proxyServiceConfig.Listen)
-	require.NoError(t, err)
 	httpClient := &http.Client{
 		Transport: &http.Transport{
-			Proxy: http.ProxyURL(proxyUrl),
+			Proxy: http.ProxyURL(&url.URL{
+				Scheme: "http",
+				Host:   botListener.Addr().String(),
+			}),
 		},
 	}
 
