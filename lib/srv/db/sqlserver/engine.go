@@ -28,8 +28,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -245,10 +245,12 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	}
 
 	state := sessionCtx.GetAccessState(authPref)
-	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, state,
-		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
-	)
-	if err != nil {
+	matchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:     sessionCtx.Database,
+		DatabaseUser: sessionCtx.DatabaseUser,
+		DatabaseName: sessionCtx.DatabaseName,
+	})
+	if err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, state, matchers...); err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
 	}
