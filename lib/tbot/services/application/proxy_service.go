@@ -10,8 +10,6 @@ import (
 	"net"
 	"net/http"
 
-	"go.opentelemetry.io/otel"
-
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -28,8 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-var applicationProxyTracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/applicationproxy")
 
 func ProxyServiceBuilder(
 	cfg *ProxyServiceConfig,
@@ -83,7 +79,7 @@ type ProxyService struct {
 }
 
 func (s *ProxyService) Run(ctx context.Context) error {
-	ctx, span := applicationProxyTracer.Start(ctx, "ProxyService/Run")
+	ctx, span := tracer.Start(ctx, "ProxyService/Run")
 	defer span.End()
 
 	l := s.cfg.Listener
@@ -184,12 +180,19 @@ func (s *ProxyService) String() string {
 	)
 }
 
+// issueCert issues a role-impersonated app-routed X509 certificate
 func (s *ProxyService) issueCert(
 	ctx context.Context,
 	appName string,
 ) (*tls.Certificate, types.Application, error) {
-	ctx, span := applicationProxyTracer.Start(ctx, "ProxyService/issueCert")
+	ctx, span := tracer.Start(ctx, "ProxyService/issueCert")
 	defer span.End()
+
+	// TODO(noah): At a later date, we should consider running a background
+	// goroutine that maintains a role-impersonated client. We should probably
+	// make this a generic helper since we have a few services that do this now.
+	// This will avoid the need to create and destroy a client for each new
+	// upstream.
 
 	// Right now we have to redetermine the route to app each time as the
 	// session ID may need to change. Once v17 hits, this will be automagically
@@ -216,12 +219,16 @@ func (s *ProxyService) issueCert(
 			)
 		}
 	}()
-	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), impersonatedClient, appName)
+	route, app, err := getRouteToApp(
+		ctx, s.getBotIdentity(), impersonatedClient, appName,
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	routedIdent, err := s.identityGenerator.Generate(ctx, append(identityOpts, identity.WithRouteToApp(route))...)
+	routedIdent, err := s.identityGenerator.Generate(
+		ctx, append(identityOpts, identity.WithRouteToApp(route))...,
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -262,14 +269,18 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 
 	var appCert *tls.Certificate
 	var err error
-	appCert, err = utils.FnCacheGet(ctx, s.cache, appName, func(ctx context.Context) (*tls.Certificate, error) {
-		s.log.InfoContext(
-			ctx, "Issuing app cert",
-			"app", appName,
-		)
-		cert, _, err := s.issueCert(ctx, appName)
-		return cert, err
-	})
+	appCert, err = utils.FnCacheGet(
+		ctx,
+		s.cache,
+		appName,
+		func(ctx context.Context) (*tls.Certificate, error) {
+			s.log.InfoContext(
+				ctx, "Issuing app cert",
+				"app", appName,
+			)
+			cert, _, err := s.issueCert(ctx, appName)
+			return cert, err
+		})
 	if err != nil {
 		return trace.Wrap(err, "fetching certificate")
 	}
