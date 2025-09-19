@@ -712,6 +712,11 @@ func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Ch
 }
 
 // getSession returns the context's session
+//
+// The associated session is not set in the server context until a
+// shell / exec channel has been initiated for the session, so out-of-band
+// session requests that can occur before these channel requests should
+// consider fallback mechanisms.
 func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
