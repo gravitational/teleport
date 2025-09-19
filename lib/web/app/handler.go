@@ -22,7 +22,9 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
@@ -38,7 +40,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -118,8 +119,6 @@ type Handler struct {
 	clusterName string
 
 	logger *slog.Logger
-
-	mcpSession utils.SyncMap[string, string]
 }
 
 // NewHandler returns a new application handler.
@@ -464,13 +463,11 @@ func (h *Handler) getMCPSession(r *http.Request, clusterName, appName string) (t
 		return nil, trace.AccessDenied("missing bearer token")
 	}
 
-	if sessionID, ok := h.mcpSession.Load(authHeader); ok {
-		logger.DebugContext(ctx, "session was present, returning...")
-		ws, err := h.getAppSessionFromAccessPoint(r.Context(), sessionID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	jwtHash := sha256.Sum256([]byte(authHeader))
+	jwtHashHex := hex.EncodeToString(jwtHash[:])
 
+	if ws, err := h.getAppSessionFromAccessPoint(r.Context(), jwtHashHex); err == nil {
+		logger.DebugContext(ctx, "session was present, returning...", "session_id", ws.GetName())
 		return ws, nil
 	}
 
@@ -484,51 +481,21 @@ func (h *Handler) getMCPSession(r *http.Request, clusterName, appName string) (t
 	}
 	app := appServer.GetApp()
 
-	// 1. Generate Web session form JWT token (like SSO login)
-	logger.DebugContext(ctx, "generating web session from jwt", "jwt", authHeader)
-	ws, err := h.c.AuthClient.CreateWebSessionFromJWT(ctx, authclient.NewWebSessionFromJWTRequest{
-		JWTToken:    authHeader,
-		AppName:     app.GetName(),
-		ClusterName: clusterName,
+	// Generate app session
+	logger.DebugContext(ctx, "generating app session from jwt", "jwt", authHeader)
+	ws, err := h.c.AuthClient.CreateAppSessionFromJWT(ctx, authclient.NewWebSessionFromJWTRequest{
+		JWTToken:      authHeader,
+		AppName:       app.GetName(),
+		AppPublicAddr: app.GetPublicAddr(),
+		AppURI:        app.GetURI(),
+		ClusterName:   clusterName,
 	})
 	if err != nil {
-		logger.ErrorContext(ctx, "failed to create web session", "error", err)
+		logger.ErrorContext(ctx, "failed to create app session", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
-	sctx, err := h.c.Sessions.NewSessionContextFromSession(ctx, ws)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clt, err := sctx.GetClient()
-	if err != nil {
-		logger.WarnContext(ctx, "failed to get user client", "error", err)
-		return nil, trace.AccessDenied("access denied")
-	}
-
-	// 2. Generate app session
-
-	// This returns session without credentials
-	wsWithoutCerts, err := clt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    ws.GetUser(),
-		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: clusterName,
-		AppName:     app.GetName(),
-		URI:         app.GetURI(),
-		ClientAddr:  r.RemoteAddr,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	h.mcpSession.Store(authHeader, wsWithoutCerts.GetName())
-
-	logger.DebugContext(ctx, "fetching session with credentials")
-	ws, err = h.getAppSessionFromAccessPoint(r.Context(), wsWithoutCerts.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	logger.DebugContext(ctx, "generated app session from jwt", "session_id", ws.GetName())
 	return ws, nil
 }
 
