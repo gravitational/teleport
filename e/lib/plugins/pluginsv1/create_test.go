@@ -400,6 +400,63 @@ func TestPluginCreateDelete(t *testing.T) {
 		_, err = suite.pluginStaticCredentialsService.GetPluginStaticCredentials(ctx, staticCredentialsForBadOkta.GetName())
 		require.True(t, trace.IsNotFound(err))
 	})
+
+	entraSettings := types.PluginEntraIDSyncSettings{
+		DefaultOwners:  []string{"testuser"},
+		TenantId:       "testid",
+		EntraAppId:     "testid",
+		SsoConnectorId: "testconnector",
+	}
+	t.Run("entra id integration with invalid filter", func(t *testing.T) {
+		entraSettings.GroupFilters = []*types.PluginSyncFilter{
+			{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "^[)$"}},
+		}
+		entra := &types.PluginV1{
+			Metadata: types.Metadata{Name: "entra-id-default"},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_EntraId{
+					EntraId: &types.PluginEntraIDSettings{
+						SyncSettings: &entraSettings,
+					},
+				},
+			},
+		}
+		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+			Plugin: entra,
+		})
+		require.Error(t, err)
+
+		_, err = suite.pluginService.GetPlugin(ctx, entra.GetName(), true)
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("entra id integration with valid filter", func(t *testing.T) {
+		entraSettings.GroupFilters = []*types.PluginSyncFilter{
+			{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "*"}},
+		}
+		entra := &types.PluginV1{
+			Metadata: types.Metadata{Name: "entra-id-default"},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_EntraId{
+					EntraId: &types.PluginEntraIDSettings{
+						SyncSettings: &entraSettings,
+					},
+				},
+			},
+		}
+		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+			Plugin: entra,
+		})
+		require.NoError(t, err)
+
+		_, err = suite.pluginService.GetPlugin(ctx, entra.GetName(), true)
+		require.NoError(t, err)
+
+		_, err = suite.svc.DeletePlugin(ctx, &pluginspb.DeletePluginRequest{
+			Name: entra.GetName(),
+		})
+		require.NoError(t, err)
+	})
 }
 
 func TestService_CreatePlugin_jamf(t *testing.T) {

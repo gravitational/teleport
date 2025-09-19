@@ -25,13 +25,12 @@ type entraUniqueID string
 func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 	groupsMap map[string]*msgraph.Group,
 	groupMembersMap map[string][]msgraph.GroupMember,
-	groupNameBuilder func(*msgraph.Group) string,
-	emitAsRoles bool,
 ) (map[entraUniqueID]types.User, error) {
-	teleportUsers, err := listTeleportUsers(ctx, r.userSvc)
+	app, err := r.getApplication(ctx, r.entraAppID)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to get Entra ID application")
 	}
+	emitAsRoles, groupNameBuilder := getGroupNameBuilderFunc(app)
 
 	userMemberships := buildUserMemberships(groupsMap, groupMembersMap, groupNameBuilder)
 	entraUsers, err := r.listEntraUsers(ctx, userMemberships, emitAsRoles)
@@ -49,6 +48,10 @@ func (r *DirectoryReconciler) reconcileUsers(ctx context.Context,
 		entraUser.SetRoles(roles)
 	}
 
+	teleportUsers, err := listTeleportUsers(ctx, r.userSvc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	for _, src := range teleportUsers {
 		if dst, ok := entraUsers[src.GetName()]; ok {
 			preserveUserMetadata(dst, src)

@@ -27,11 +27,8 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 	usersByEntraID map[entraUniqueID]types.User,
 	groupsMap map[string]*msgraph.Group,
 	groupMembersMap map[string][]msgraph.GroupMember,
+	teleportAccessLists map[string]*accesslist.AccessList,
 ) error {
-	teleportAccessLists, err := listTeleportAccessLists(ctx, r.accessListSvc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	entraAccessLists := convertEntraAccessLists(ctx, groupsMap, r.tenantID, r.defaultOwners)
 
 	for name, dst := range entraAccessLists {
@@ -117,6 +114,24 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 
 	r.importedGroups = len(entraAccessLists)
 	return nil
+}
+
+func (r *DirectoryReconciler) listEntraGroupsAndMembers(
+	ctx context.Context,
+	entraGroupMatcher func(g *msgraph.Group) bool,
+) (map[string]*msgraph.Group, map[string][]msgraph.GroupMember, error) {
+
+	groupsMap, err := listEntraGroups(ctx, r.graphClient, entraGroupMatcher)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to list Entra ID groups")
+	}
+
+	groupMembersMap, err := listEntraGroupsMembers(ctx, r.graphClient, groupsMap)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to list Entra ID group members")
+	}
+
+	return groupsMap, groupMembersMap, nil
 }
 
 func listTeleportAccessLists(ctx context.Context, svc accessListAccessPoint) (map[string]*accesslist.AccessList, error) {
@@ -352,10 +367,17 @@ func memberMapKey(member *accesslist.AccessListMember) string {
 	return fmt.Sprintf("%s/%s", member.Spec.AccessList, member.GetName())
 }
 
-func listEntraGroups(ctx context.Context, graphClient GraphClient) (map[string]*msgraph.Group, error) {
+func listEntraGroups(ctx context.Context, graphClient GraphClient, filterMatches func(g *msgraph.Group) bool) (map[string]*msgraph.Group, error) {
+	isValidGroup := func(g *msgraph.Group) bool {
+		return g != nil && g.ID != nil && g.DisplayName != nil
+	}
 	result := map[string]*msgraph.Group{}
 	err := graphClient.IterateGroups(ctx, func(g *msgraph.Group) bool {
-		result[*g.ID] = g
+		if isValidGroup(g) && filterMatches(g) {
+			result[*g.ID] = g
+		}
+
+		// defaults to true so the iteration continues.
 		return true
 	})
 	return result, trace.Wrap(err)

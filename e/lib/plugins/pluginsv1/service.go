@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -351,7 +352,7 @@ func (h pluginHandlerFn) validatePlugin(ctx context.Context, p *types.PluginV1, 
 
 // defaultPluginHandlers is the default set of plugin validation handlers for the known plugin types.
 var defaultPluginHandlers = map[types.PluginType]pluginHandler{
-	types.PluginTypeEntraID:           pluginHandlerFn{fn: validateEntraTenantID},
+	types.PluginTypeEntraID:           pluginHandlerFn{fn: validateEntraIDPlugin},
 	types.PluginTypeEmail:             pluginHandlerFn{fn: validateEmailPlugin},
 	types.PluginTypeAWSIdentityCenter: awsicPluginHandler{},
 	types.PluginTypeSCIM:              scimPluginHandler{},
@@ -1106,7 +1107,7 @@ func (s *Service) checkResourceCleanupPermissions(ctx context.Context, pluginTyp
 	return nil
 }
 
-func validateEntraTenantID(plugin *types.PluginV1) error {
+func validateEntraIDPlugin(plugin *types.PluginV1) error {
 	settings := plugin.Spec.GetEntraId()
 	if settings == nil {
 		return trace.BadParameter("missing EntraID settings")
@@ -1115,16 +1116,16 @@ func validateEntraTenantID(plugin *types.PluginV1) error {
 	if settings.SyncSettings == nil {
 		return nil
 	}
-
-	if settings.SyncSettings.TenantId != "" && settings.SyncSettings.EntraAppId != "" {
-		return nil
-	}
-
 	if settings.SyncSettings.EntraAppId == "" {
 		return trace.BadParameter("field Spec.EntraId.SyncSettings.EntraAppId must be present")
 	}
-
-	return trace.BadParameter("field Spec.EntraId.SyncSettings.TenantId must be present")
+	if settings.SyncSettings.TenantId == "" {
+		return trace.BadParameter("field Spec.EntraId.SyncSettings.TenantId must be present")
+	}
+	if _, err := filter.New(settings.SyncSettings.GroupFilters); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func validateEmailPlugin(plugin *types.PluginV1) error {

@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -55,7 +56,7 @@ func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID strin
 func (c *fakeGraphClient) IterateGroups(ctx context.Context, f func(*msgraph.Group) bool, opts ...msgraph.IterateOpt) error {
 	for _, g := range c.groups {
 		if !f(g) {
-			return nil
+			break
 		}
 	}
 	return nil
@@ -661,7 +662,376 @@ func TestUserSync(t *testing.T) {
 		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "bob@example.com"))
 		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "carol@example.com"))
 	})
+}
 
+func TestGroupFilters(t *testing.T) {
+	ctx := t.Context()
+	graphClient := newFakeGraphClient()
+	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+
+	testCases := []struct {
+		name        string
+		entraGroups []*msgraph.Group
+		filters     filter.Filters
+		expected    []*msgraph.Group
+	}{
+		{
+			name: "Filter by ID",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "banana"),
+			},
+			filters: filter.Filters{
+				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "2"}},
+			},
+			expected: []*msgraph.Group{entraGroup(t, "2", "banana")},
+		},
+		{
+			name: "Filter by Name",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "3", "banana"),
+			},
+			filters: filter.Filters{
+				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
+			},
+			expected: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+			},
+		},
+		{
+			name: "Exclude All",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "3", "banana"),
+			},
+			filters: filter.Filters{
+				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "teleport.internal/exclude_all"}},
+			},
+			expected: nil,
+		},
+		{
+			name: "No Filters (matches all)",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "3", "banana"),
+			},
+			filters: nil,
+			expected: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "3", "banana"),
+			},
+		},
+		{
+			name: "Multiple Filters",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "3", "banana"),
+				entraGroup(t, "4", "carrot"),
+			},
+			filters: filter.Filters{
+				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "2"}},
+				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
+				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_Id{Id: "4"}},
+			},
+			expected: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "4", "carrot"),
+			},
+		},
+		{
+			name: "Exclude by ID",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "banana"),
+			},
+			filters: filter.Filters{
+				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: "2"}},
+			},
+			expected: []*msgraph.Group{entraGroup(t, "1", "apple")},
+		},
+		{
+			name: "Exclude by NameRegex",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "3", "banana"),
+			},
+			filters: filter.Filters{
+				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "a*"}},
+			},
+			expected: []*msgraph.Group{entraGroup(t, "3", "banana")},
+		},
+		{
+			name: "Include and Exclude - exclude wins",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "3", "banana"),
+				entraGroup(t, "4", "carrot"),
+			},
+			filters: filter.Filters{
+				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "*"}},
+				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: "1"}},
+			},
+			expected: []*msgraph.Group{
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "3", "banana"),
+				entraGroup(t, "4", "carrot"),
+			},
+		},
+		{
+			name: "Include and Exclude - matching include/exclude regexp",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "admin"),
+				entraGroup(t, "3", "banana"),
+				entraGroup(t, "4", "carrot"),
+			},
+			filters: filter.Filters{
+				&types.PluginSyncFilter{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: "a*"}},
+				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "a*"}},
+				&types.PluginSyncFilter{Include: &types.PluginSyncFilter_NameRegex{NameRegex: "b*"}},
+			},
+			expected: []*msgraph.Group{entraGroup(t, "3", "banana")},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			graphClient.groups = tc.entraGroups
+			env.cfg.GroupsFilter = tc.filters
+			env.cfg.GraphClient = graphClient
+
+			r, err := NewDirectoryReconciler(env.cfg)
+			require.NoError(t, err)
+
+			require.NoError(t, r.Reconcile(ctx))
+
+			accessListsFromBackend, err := listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
+			require.NoError(t, err)
+
+			entraAccessList := convertEntraAccessLists(t.Context(), entraGroupsMap(t, tc.expected), env.cfg.TenantID, env.cfg.DefaultOwners)
+			require.Empty(t, cmp.Diff(entraAccessList, accessListsFromBackend, cmpOpts...), "access list(s) doesn't match")
+		})
+	}
+}
+
+func TestInvalidGroupIsSkipped(t *testing.T) {
+	ctx := t.Context()
+	graphClient := newFakeGraphClient()
+	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+
+	testCases := []struct {
+		name           string
+		entraGroups    []*msgraph.Group
+		expectedGroups []*msgraph.Group
+	}{
+		{
+			name: "Empty group",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				// this invalid group should not prevent the group below to be synced.
+				{},
+				entraGroup(t, "2", "banana"),
+			},
+			expectedGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "banana"),
+			},
+		},
+		{
+			name: "ID Missing",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				// this invalid group should not prevent the group below to be synced.
+				{
+					DirectoryObject: msgraph.DirectoryObject{
+						DisplayName: to.Ptr("carrot"),
+					},
+				},
+				entraGroup(t, "2", "banana"),
+			},
+			expectedGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "banana"),
+			},
+		},
+		{
+			name: "DisplayName missing",
+			entraGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				// this invalid group should not prevent the group below to be synced.
+				{
+					DirectoryObject: msgraph.DirectoryObject{
+						ID: to.Ptr("3"),
+					},
+				},
+				entraGroup(t, "2", "banana"),
+			},
+			expectedGroups: []*msgraph.Group{
+				entraGroup(t, "1", "apple"),
+				entraGroup(t, "2", "banana"),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			graphClient.groups = tc.entraGroups
+			env.cfg.GraphClient = graphClient
+
+			r, err := NewDirectoryReconciler(env.cfg)
+			require.NoError(t, err)
+
+			require.NoError(t, r.Reconcile(ctx))
+
+			accessListsFromBackend, err := listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
+			require.NoError(t, err)
+
+			expected := convertEntraAccessLists(t.Context(), entraGroupsMap(t, tc.expectedGroups), env.cfg.TenantID, env.cfg.DefaultOwners)
+			require.Empty(t, cmp.Diff(expected, accessListsFromBackend, cmpOpts...), "access list(s) doesn't match")
+		})
+	}
+}
+
+// Tests a scenario where an unknown filter should
+// discard filters altogether and instead only reconcile
+// items that are already synced to Teleport.
+func TestUnknownFilter(t *testing.T) {
+	ctx := t.Context()
+	graphClient := newFakeGraphClient()
+	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+
+	// Start with 2 users, 4 groups, 3 group members,
+	// and reconcile without any filters.
+	graphClient.users = []*msgraph.User{
+		entraUser(t, "u1", "alice@example.com"),
+		entraUser(t, "u2", "bob@example.com"),
+	}
+	entraGroups := []*msgraph.Group{
+		entraGroup(t, "g1", "apple"),
+		entraGroup(t, "g2", "admin"),
+		entraGroup(t, "g3", "banana"),
+		entraGroup(t, "g4", "carrot"),
+	}
+	graphClient.groups = entraGroups
+	members := map[string][]msgraph.GroupMember{
+		"g1": {entraUser(t, "u1", "alice@example.com")},
+		"g2": {entraUser(t, "u1", "alice@example.com")},
+		"g3": {entraUser(t, "u2", "bob@example.com")},
+	}
+	graphClient.groupMembers = members
+	env.cfg.GraphClient = graphClient
+
+	// reconcile
+	r, err := NewDirectoryReconciler(env.cfg)
+	require.NoError(t, err)
+	require.NoError(t, r.Reconcile(ctx))
+
+	accessListsFromBackend, err := listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
+	require.NoError(t, err)
+	expected := convertEntraAccessLists(t.Context(), entraGroupsMap(t, entraGroups), env.cfg.TenantID, env.cfg.DefaultOwners)
+	require.Empty(t, cmp.Diff(expected, accessListsFromBackend, cmpOpts...), "access list(s) doesn't match")
+
+	aclM, err := listTeleportAccessListMembers(ctx, env.cfg.AccessListSvc, slices.Collect(maps.Values(expected)))
+	require.NoError(t, err)
+	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "alice@example.com"))
+	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "alice@example.com"))
+	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g3"), "bob@example.com"))
+
+	// Now update the filter with an unknown filter type
+	// and test reconciliation only happens for groups
+	// that are already synced to Teleport before the
+	// introduction of an "unknown" filter.
+
+	// Of the 4 test groups we started with, mock that
+	// group g2 is deleted, but two new groups g5 and g6
+	// are added in Entra ID.
+	newGroup := []*msgraph.Group{
+		entraGroup(t, "g1", "apple"),
+		entraGroup(t, "g3", "banana"),
+		entraGroup(t, "g4", "carrot"),
+		entraGroup(t, "g5", "drum"),
+		entraGroup(t, "g6", "eagle"),
+	}
+	graphClient.groups = newGroup
+	// g1 group gets one additional member
+	members["g1"] = []msgraph.GroupMember{entraUser(t, "u1", "alice@example.com"), entraUser(t, "u2", "bob@example.com")}
+	graphClient.groupMembers = members
+
+	type unsupportedFilterType struct {
+		types.PluginSyncFilter_Id
+	}
+	env.cfg.GroupsFilter = []*types.PluginSyncFilter{
+		{Include: &unsupportedFilterType{}},
+	}
+
+	// reconcile
+	r, err = NewDirectoryReconciler(env.cfg)
+	require.NoError(t, err)
+	err = r.Reconcile(ctx)
+	require.ErrorContains(t, err, "Unknown group filter")
+
+	// If the group was deleted in entra, it must be deleted in Teleport.
+	// If group member was added to already-synced group, that must be reflected.
+	// As a result: g2 should be deleted, g5 and g6 should not be added,
+	// a new member should be added to group g1.
+	expectedGroups := []*msgraph.Group{
+		entraGroup(t, "g1", "apple"),
+		entraGroup(t, "g3", "banana"),
+		entraGroup(t, "g4", "carrot"),
+	}
+
+	accessListsFromBackend, err = listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
+	require.NoError(t, err)
+	expected = convertEntraAccessLists(t.Context(), entraGroupsMap(t, expectedGroups), env.cfg.TenantID, env.cfg.DefaultOwners)
+	require.Empty(t, cmp.Diff(expected, accessListsFromBackend, cmpOpts...), "access list(s) doesn't match")
+
+	aclM, err = listTeleportAccessListMembers(ctx, env.cfg.AccessListSvc, slices.Collect(maps.Values(expected)))
+	require.NoError(t, err)
+	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "alice@example.com"))
+	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g3"), "bob@example.com"))
+	// new g1 member
+	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "bob@example.com"))
+	// g2 group was deleted, so the members shouldn't exist
+	require.False(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "alice@example.com"))
+}
+
+func aclIDFromGroupID(t *testing.T, in map[string]*accesslist.AccessList, gid string) string {
+	t.Helper()
+	for _, a := range in {
+		if id, ok := a.Metadata.GetStaticLabels()[types.EntraUniqueIDLabel]; ok {
+			if id == gid {
+				return a.GetName()
+			}
+		}
+	}
+
+	return ""
+}
+
+var cmpOpts = []cmp.Option{
+	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+	cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
+	cmpopts.IgnoreFields(accesslist.Status{}, "OwnerOf"),
+	cmpopts.IgnoreFields(accesslist.Status{}, "MemberOf"),
+}
+
+func entraGroupsMap(t *testing.T, groups []*msgraph.Group) map[string]*msgraph.Group {
+	t.Helper()
+	result := make(map[string]*msgraph.Group, len(groups))
+	for _, g := range groups {
+		result[*g.ID] = g
+	}
+	return result
 }
 
 type directoryReconcilerEnv struct {
@@ -739,12 +1109,6 @@ func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, conne
 	}
 }
 
-var cmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-	cmpopts.IgnoreFields(accesslist.Status{}, "OwnerOf"),
-	cmpopts.IgnoreFields(accesslist.Status{}, "MemberOf"),
-}
-
 func newSAMLConnector(t *testing.T, connectorID, group1, group2 string) types.SAMLConnector {
 	t.Helper()
 	connector, err := types.NewSAMLConnector(
@@ -781,27 +1145,6 @@ func entraUser(t *testing.T, id, mail string) *msgraph.User {
 		UserPrincipalName: to.Ptr(mail),
 		Mail:              to.Ptr(mail),
 	}
-}
-
-func entraGroupsMap(t *testing.T, groups []*msgraph.Group) map[string]*msgraph.Group {
-	t.Helper()
-	result := make(map[string]*msgraph.Group, len(groups))
-	for _, g := range groups {
-		result[*g.ID] = g
-	}
-	return result
-}
-
-func aclIDFromGroupID(t *testing.T, in map[string]*accesslist.AccessList, gid string) string {
-	t.Helper()
-	for _, a := range in {
-		if id, ok := a.Metadata.GetStaticLabels()[types.EntraUniqueIDLabel]; ok {
-			if id == gid {
-				return a.GetName()
-			}
-		}
-	}
-	return ""
 }
 
 func memberExists(t *testing.T, in map[string]*accesslist.AccessListMember, acl, user string) bool {

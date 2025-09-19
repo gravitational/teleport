@@ -2,6 +2,7 @@ package entraid
 
 import (
 	"context"
+	"errors"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -10,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 )
 
 type userAccessPoint interface {
@@ -59,6 +61,8 @@ type DirectoryReconciler struct {
 	// importedGroups is the number of groups imported as of the most recent reconciliation.
 	// If reconciling groups fails, this number is not updated.
 	importedGroups int
+	// groupsFilter specifies Entra ID group filters.
+	groupsFilter filter.Filters
 }
 
 // DirectoryReconcilerConfig specifies dependencies and parameters for instantiating DirectoryReconciler.
@@ -80,6 +84,8 @@ type DirectoryReconcilerConfig struct {
 	EntraAppID string
 	// TenantID specifies the Entra Tenant ID
 	TenantID string
+	// GroupsFilter specifies Entra ID group filters.
+	GroupsFilter filter.Filters
 }
 
 // Validate ensures that required values are set.
@@ -129,37 +135,53 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 		samlService:    cfg.SAMLSvc,
 		ssoConnectorID: cfg.SSOConnectorID,
 		entraAppID:     cfg.EntraAppID,
+		groupsFilter:   cfg.GroupsFilter,
 	}, nil
 }
 
 // Reconcile does a one-time reconciliation of users and access lists
 // from Entra ID to Teleport.
 func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
-
-	app, err := r.getApplication(ctx, r.entraAppID)
-	if err != nil {
-		return trace.Wrap(err, "failed to get Entra ID application")
+	var filterError error
+	useLocalGroupMatcher := false
+	entraGroupMatcher := groupFilterMatcher(r.groupsFilter)
+	if _, err := filter.New(r.groupsFilter); err != nil {
+		switch {
+		case errors.Is(err, filter.ErrUnknownFilter):
+			// If the configured filter has an unknown filter type,
+			// which may happen during cluster downgrade where an older cluster
+			// may not understand the newer filter type, the reconciliation
+			// should only apply to the already-synced groups.
+			useLocalGroupMatcher = true
+			filterError = trace.WrapWithMessage(err, unknwonFilterErrMsg)
+		default:
+			return trace.Wrap(err)
+		}
 	}
 
-	emitAsRoles, getGroupNameBuilder := getGroupNameBuilderFunc(app)
+	teleportAccessListMap, err := listTeleportAccessLists(ctx, r.accessListSvc)
+	if err != nil {
+		return trace.Wrap(trace.NewAggregate(err, filterError))
+	}
+	if useLocalGroupMatcher {
+		entraGroupMatcher = groupLocalMatcher(teleportAccessListMap)
+	}
+	groupsMap, groupMembersMap, err := r.listEntraGroupsAndMembers(ctx, entraGroupMatcher)
+	if err != nil {
+		return trace.Wrap(trace.NewAggregate(err, filterError))
+	}
 
-	groupsMap, err := listEntraGroups(ctx, r.graphClient)
+	usersByEntraID, err := r.reconcileUsers(ctx, groupsMap, groupMembersMap)
 	if err != nil {
-		return trace.Wrap(err, "failed to list Entra ID groups")
+		return trace.Wrap(trace.NewAggregate(err, filterError))
 	}
 
-	groupMembersMap, err := listEntraGroupsMembers(ctx, r.graphClient, groupsMap)
-	if err != nil {
-		return trace.Wrap(err, "failed to list Entra ID group members")
-	}
-	usersByEntraID, err := r.reconcileUsers(ctx, groupsMap, groupMembersMap, getGroupNameBuilder, emitAsRoles)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := r.reconcileAccessLists(ctx, usersByEntraID, groupsMap, groupMembersMap); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	err = trace.NewAggregate(
+		r.reconcileAccessLists(ctx, usersByEntraID, groupsMap, groupMembersMap, teleportAccessListMap),
+		filterError,
+	)
+
+	return trace.Wrap(err)
 }
 
 // ImportedUsers returns the total number of users imported as of the most recent reconciliation.
@@ -230,3 +252,31 @@ func getGroupNameBuilderFunc(app *msgraph.Application) (bool, func(*msgraph.Grou
 	}
 	return emitAsRoles, getGroupID
 }
+
+// groupFilterMatcher matches group based on the
+// configured group filters.
+func groupFilterMatcher(
+	filters filter.Filters,
+) func(g *msgraph.Group) bool {
+	return func(g *msgraph.Group) bool {
+		return filter.Matches(filters, filter.MatchParam{
+			ID:   *g.ID,
+			Name: *g.DisplayName,
+		})
+	}
+}
+
+// groupLocalMatcher matches group with an existing
+// Entra ID Access List in Teleport.
+func groupLocalMatcher(
+	inACLMap map[string]*accesslist.AccessList,
+) func(g *msgraph.Group) bool {
+	return func(g *msgraph.Group) bool {
+		aclName := accessListName(*g.DisplayName, *g.ID)
+		_, ok := inACLMap[aclName]
+		return ok
+	}
+}
+
+var unknwonFilterErrMsg string = "Unknown group filter encountered, filters will be " +
+	"skipped and reconciliation will be limited to the existing Entra ID groups"

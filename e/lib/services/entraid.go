@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"net/url"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -17,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/service"
 )
 
@@ -100,6 +102,22 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		return trace.Wrap(err, "failed to get app ID")
 	}
 
+	groupsFilters, err := filter.New(spec.SyncSettings.GroupFilters)
+	if err != nil {
+		// unknown filter type is handled within the
+		// directory reconciler service.
+		if !errors.Is(err, filter.ErrUnknownFilter) {
+			if statusSink != nil {
+				statusSink.Emit(ctx, &types.PluginStatusV1{
+					Code:         types.PluginStatusCode_OTHER_ERROR,
+					ErrorMessage: "Failed to initialize group filters",
+					LastRawError: err.Error(),
+				})
+			}
+			return trace.Wrap(err)
+		}
+	}
+
 	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
 		GraphClient:    graphClient,
 		UserSvc:        authServer,
@@ -109,6 +127,7 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 		TenantID:       tenantID,
 		EntraAppID:     appID,
 		SSOConnectorID: spec.SyncSettings.SsoConnectorId,
+		GroupsFilter:   groupsFilters,
 	})
 	if err != nil {
 		return trace.Wrap(err)
