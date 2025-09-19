@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
@@ -173,11 +172,6 @@ func (p *vnetClientApplication) getRootClusterCACertPoolPEM(ctx context.Context,
 }
 
 func (p *vnetClientApplication) retryWithRelogin(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
-	profileName, err := utils.Host(tc.WebProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Make sure the release the login mutex if we end up acquiring it.
 	didLock := false
 	defer func() {
@@ -199,9 +193,6 @@ func (p *vnetClientApplication) retryWithRelogin(ctx context.Context, tc *client
 			}
 			fmt.Printf("Login for cluster %s expired, attempting to log in again.\n", tc.SiteName)
 			return nil
-		}),
-		client.WithAfterLoginHook(func() error {
-			return trace.Wrap(p.clientCache.ClearForRoot(profileName), "clearing client cache after relogin")
 		}),
 		client.WithMakeCurrentProfile(false),
 	)

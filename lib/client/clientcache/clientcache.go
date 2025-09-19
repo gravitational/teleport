@@ -17,6 +17,7 @@
 package clientcache
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"slices"
@@ -36,9 +37,16 @@ type Cache struct {
 	cfg Config
 	mu  sync.RWMutex
 	// clients keeps a mapping from key (profile name and leaf cluster name) to cluster client.
-	clients map[key]*client.ClusterClient
+	clients map[key]*clientWithCert
 	// group prevents duplicate requests to create clients for a given cluster.
 	group singleflight.Group
+}
+
+type clientWithCert struct {
+	// client is cluster client.
+	client *client.ClusterClient
+	// cert used in TeleportClient.ConnectToCluster to create the client
+	coreTLSCert []byte
 }
 
 // NewClientFunc is a function that will return a new [*client.TeleportClient] for a given profile and leaf
@@ -89,7 +97,7 @@ func New(c Config) (*Cache, error) {
 
 	return &Cache{
 		cfg:     c,
-		clients: make(map[key]*client.ClusterClient),
+		clients: make(map[key]*clientWithCert),
 	}, nil
 }
 
@@ -100,7 +108,19 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 	groupClt, err, _ := c.group.Do(k.String(), func() (any, error) {
 		if fromCache := c.getFromCache(k); fromCache != nil {
 			c.cfg.Logger.DebugContext(ctx, "Retrieved client from cache", "cluster", k)
-			return fromCache, nil
+
+			unchanged, err := c.isCoreTLSCertUnchanged(ctx, k.profile, fromCache.coreTLSCert)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if unchanged {
+				return fromCache.client, nil
+			}
+
+			c.cfg.Logger.DebugContext(ctx, "TLS certificate has changed, closing cached client", "cluster", k)
+			if err := c.clearForKey(k); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 		tc, err := c.cfg.NewClientFunc(ctx, profileName, leafClusterName)
@@ -120,8 +140,16 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 			return nil, trace.Wrap(err)
 		}
 
+		keyRing, err := tc.LocalAgent().GetCoreKeyRing()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// Save the client in the cache, so we don't have to build a new connection next time.
-		c.addToCache(k, newClient)
+		c.addToCache(k, &clientWithCert{
+			client:      newClient,
+			coreTLSCert: keyRing.TLSCert,
+		})
 
 		c.cfg.Logger.InfoContext(ctx, "Added client to cache", "cluster", k)
 
@@ -151,7 +179,7 @@ func (c *Cache) ClearForRoot(profileName string) error {
 
 	for k, clt := range c.clients {
 		if k.profile == profileName {
-			if err := clt.Close(); err != nil {
+			if err := clt.client.Close(); err != nil {
 				errors = append(errors, err)
 			}
 			deleted = append(deleted, k.String())
@@ -175,7 +203,7 @@ func (c *Cache) Clear() error {
 
 	var errors []error
 	for _, clt := range c.clients {
-		if err := clt.Close(); err != nil {
+		if err := clt.client.Close(); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -184,19 +212,52 @@ func (c *Cache) Clear() error {
 	return trace.NewAggregate(errors...)
 }
 
-func (c *Cache) addToCache(k key, clusterClient *client.ClusterClient) {
+func (c *Cache) clearForKey(k key) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.clients[k] = clusterClient
+	clt, ok := c.clients[k]
+	delete(c.clients, k)
+	if ok {
+		err := clt.client.Close()
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
-func (c *Cache) getFromCache(k key) *client.ClusterClient {
+
+func (c *Cache) addToCache(k key, cc *clientWithCert) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.clients[k] = cc
+}
+
+func (c *Cache) getFromCache(k key) *clientWithCert {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	clt := c.clients[k]
 	return clt
+}
+
+func (c *Cache) isCoreTLSCertUnchanged(ctx context.Context, profile string, coreTLSCertFromCache []byte) (bool, error) {
+	tc, err := c.cfg.NewClientFunc(ctx, profile, "")
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	keyRing, err := tc.LocalAgent().GetCoreKeyRing()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	if bytes.Equal(coreTLSCertFromCache, keyRing.TLSCert) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // NoCache is a client cache implementation that returns a new client
