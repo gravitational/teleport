@@ -2283,6 +2283,11 @@
       "source": "/reference/workload-identity/",
       "destination": "/reference/machine-workload-identity/workload-identity/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/aws-console-without-agent/",
+      "destination": "/enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere/",
+      "permanent": true
     }
   ]
 }
