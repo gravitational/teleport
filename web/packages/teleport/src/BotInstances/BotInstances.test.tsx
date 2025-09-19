@@ -223,9 +223,10 @@ describe('BotInstances', () => {
     expect(listBotInstances).toHaveBeenCalledTimes(1);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
-        pageSize: 20,
+        pageSize: 30,
         pageToken: '',
         searchTerm: '',
+        query: '',
         sortDir: 'DESC',
         sortField: 'active_at_latest',
       },
@@ -238,9 +239,10 @@ describe('BotInstances', () => {
     expect(listBotInstances).toHaveBeenCalledTimes(2);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
-        pageSize: 20,
+        pageSize: 30,
         pageToken: '.next',
         searchTerm: '',
+        query: '',
         sortDir: 'DESC',
         sortField: 'active_at_latest',
       },
@@ -253,9 +255,10 @@ describe('BotInstances', () => {
     expect(listBotInstances).toHaveBeenCalledTimes(3);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
-        pageSize: 20,
+        pageSize: 30,
         pageToken: '.next.next',
         searchTerm: '',
+        query: '',
         sortDir: 'DESC',
         sortField: 'active_at_latest',
       },
@@ -306,9 +309,10 @@ describe('BotInstances', () => {
     expect(listBotInstances).toHaveBeenCalledTimes(1);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
-        pageSize: 20,
+        pageSize: 30,
         pageToken: '',
         searchTerm: '',
+        query: '',
         sortDir: 'DESC',
         sortField: 'active_at_latest',
       },
@@ -322,9 +326,88 @@ describe('BotInstances', () => {
     expect(listBotInstances).toHaveBeenCalledTimes(2);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
-        pageSize: 20,
+        pageSize: 30,
         pageToken: '.next',
         searchTerm: '',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
+
+    jest.useRealTimers(); // Required as user.type() uses setTimeout internally
+
+    const search = screen.getByPlaceholderText('Search...');
+    await waitFor(() => expect(search).toBeEnabled());
+    await userEvent.click(search);
+    await userEvent.paste('test-search-term');
+    await userEvent.type(search, '{enter}');
+
+    expect(listBotInstances).toHaveBeenCalledTimes(3);
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 30,
+        pageToken: '', // Search should reset to the first page
+        searchTerm: 'test-search-term',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
+  });
+
+  it('Allows filtering (query)', async () => {
+    jest.mocked(listBotInstances).mockImplementation(
+      ({ pageToken }) =>
+        new Promise(resolve => {
+          resolve({
+            bot_instances: [
+              {
+                bot_name: `test-bot`,
+                instance_id: `00000000-0000-4000-0000-000000000000`,
+                active_at_latest: `2025-05-19T07:32:00Z`,
+                host_name_latest: 'test-hostname',
+                join_method_latest: 'test-join-method',
+                version_latest: `1.0.0-dev-a12b3c`,
+              },
+            ],
+            next_page_token: pageToken + '.next',
+          });
+        })
+    );
+
+    expect(listBotInstances).toHaveBeenCalledTimes(0);
+
+    render(<BotInstances />, { wrapper: makeWrapper() });
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    expect(listBotInstances).toHaveBeenCalledTimes(1);
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 30,
+        pageToken: '',
+        searchTerm: '',
+        query: '',
+        sortDir: 'DESC',
+        sortField: 'active_at_latest',
+      },
+      expect.anything()
+    );
+
+    const [nextButton] = screen.getAllByTitle('Next page');
+    await waitFor(() => expect(nextButton).toBeEnabled());
+    fireEvent.click(nextButton);
+
+    expect(listBotInstances).toHaveBeenCalledTimes(2);
+    expect(listBotInstances).toHaveBeenLastCalledWith(
+      {
+        pageSize: 30,
+        pageToken: '.next',
+        searchTerm: '',
+        query: '',
         sortDir: 'DESC',
         sortField: 'active_at_latest',
       },
@@ -335,15 +418,18 @@ describe('BotInstances', () => {
 
     const search = screen.getByPlaceholderText('Search...');
     await waitFor(() => expect(search).toBeEnabled());
-    await userEvent.type(search, 'test-search-term');
+    await userEvent.click(screen.getByLabelText('Advanced'));
+    await userEvent.click(search);
+    await userEvent.paste(`status.latest_heartbeat.hostname == "host-1"`);
     await userEvent.type(search, '{enter}');
 
     expect(listBotInstances).toHaveBeenCalledTimes(3);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
-        pageSize: 20,
+        pageSize: 30,
         pageToken: '', // Search should reset to the first page
-        searchTerm: 'test-search-term',
+        searchTerm: '',
+        query: `status.latest_heartbeat.hostname == "host-1"`,
         sortDir: 'DESC',
         sortField: 'active_at_latest',
       },
@@ -382,9 +468,10 @@ describe('BotInstances', () => {
     expect(listBotInstances).toHaveBeenCalledTimes(1);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
-        pageSize: 20,
+        pageSize: 30,
         pageToken: '',
         searchTerm: '',
+        query: '',
         sortDir: 'DESC',
         sortField: 'active_at_latest',
       },
@@ -396,9 +483,10 @@ describe('BotInstances', () => {
     expect(listBotInstances).toHaveBeenCalledTimes(2);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
-        pageSize: 20,
+        pageSize: 30,
         pageToken: '',
         searchTerm: '',
+        query: '',
         sortDir: 'ASC',
         sortField: 'active_at_latest',
       },
@@ -411,9 +499,10 @@ describe('BotInstances', () => {
     expect(listBotInstances).toHaveBeenCalledTimes(3);
     expect(listBotInstances).toHaveBeenLastCalledWith(
       {
-        pageSize: 20,
+        pageSize: 30,
         pageToken: '',
         searchTerm: '',
+        query: '',
         sortDir: 'DESC',
         sortField: 'bot_name',
       },
