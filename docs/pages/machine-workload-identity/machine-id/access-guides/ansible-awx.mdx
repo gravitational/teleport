@@ -42,6 +42,35 @@ to connect to SSH nodes through the Teleport Proxy Service.
 
 {/* TODO: Kubernetes resources: bot service account, configmap */}
 
+Write the following to `k8s-resources-tbot.yaml`:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tbot-awx-config
+  namespace: awx
+data:
+  tbot.yaml: |
+    version: v2
+    onboarding:
+      join_method: kubernetes
+      # ensure token is set to the name of the join token you created earlier
+      token: awx-bot
+    storage:
+      # a memory destination is used for the bots own state since the kubernetes
+      # join method does not require persistence.
+      type: memory
+    # ensure this is configured to the address of your Teleport Proxy Service.
+    proxy_server: example.teleport.sh:443
+    # outputs will be filled in during the completion of an access guide.
+    services:
+    - type: ssh-multiplexer
+      proxy_command: ["/tbot/fdpass-teleport"]
+      destination:
+        type: directory
+        path: "/tbot-output"
+```
+
 {/* TODO: Teleport resources: bot definition, join token, link to k8s guides */}
 
 ## Step 2/4. Create a new container group
@@ -162,7 +191,7 @@ spec:
       emptyDir: {}
     - name: tbot-config
       configMap:
-        name: tbot-awx-demo
+        name: tbot-awx-config
     - name: join-sa-token
       projected:
         sources:
