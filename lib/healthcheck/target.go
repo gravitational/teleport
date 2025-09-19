@@ -20,51 +20,30 @@ package healthcheck
 
 import (
 	"context"
-	"net"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-// EndpointsResolverFunc is callback func that returns endpoints for a target.
-type EndpointsResolverFunc func(ctx context.Context) ([]string, error)
-
-// OnHealthChangeFunc is a func called on each health change.
-type OnHealthChangeFunc func(oldHealth, newHealth types.TargetHealth)
-
-// Target is a health check target.
-type Target struct {
-	// GetResource gets a copy of the target resource with updated labels.
-	GetResource func() types.ResourceWithLabels
-	// ResolverFn resolves the target endpoint(s).
-	ResolverFn EndpointsResolverFunc
-
-	// -- test fields below --
-
-	// dialFn used to mock dialing in tests
-	dialFn dialFunc
-	// onHealthCheck is called after each health check.
-	onHealthCheck func(lastResultErr error)
-	// onConfigUpdate is called after each config update.
-	onConfigUpdate func()
-	// onClose is called after the target's worker closes.
-	onClose func()
+// Target is a resource which provides health checks.
+type Target interface {
+	// GetResource gets the target resource.
+	GetResource() types.ResourceWithLabels
+	// GetAddress gets the address of the target resource.
+	GetAddress() string
+	// GetProtocol gets the network communication protocol for the target resource.
+	GetProtocol() types.TargetHealthProtocol
+	// CheckAndSetDefaults checks and sets defaults settings for the target resource.
+	CheckAndSetDefaults() error
+	// CheckHealth checks the health of the target resource.
+	CheckHealth(ctx context.Context) error
 }
 
-func (t *Target) checkAndSetDefaults() error {
-	if t.GetResource == nil {
-		return trace.BadParameter("missing target resource getter")
-	}
-	if t.ResolverFn == nil {
-		return trace.BadParameter("missing target endpoint resolver")
-	}
-	if t.dialFn == nil {
-		t.dialFn = defaultDialer().DialContext
-	}
-	return nil
-}
-
-func defaultDialer() *net.Dialer {
-	return &net.Dialer{}
+// TargetMocker supports mock testing a target.
+type TargetMocker interface {
+	// OnHealthCheck is called after each health check.
+	OnHealthCheck(lastResultErr error)
+	// OnConfigUpdate is called after each config update.
+	OnConfigUpdate()
+	// OnClose is called after the target's worker closes.
+	OnClose()
 }
