@@ -20,14 +20,12 @@ package healthcheck
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -37,7 +35,8 @@ import (
 func Test_newUnstartedWorker(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	listener, err := net.Listen("tcp", "localhost:0")
+	protocol := string(types.TargetHealthProtocolTCP)
+	listener, err := net.Listen(protocol, "localhost:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -62,16 +61,14 @@ func Test_newUnstartedWorker(t *testing.T) {
 			desc: "disabled",
 			cfg: workerConfig{
 				HealthCheckCfg: nil,
-				Target: Target{
-					GetResource: func() types.ResourceWithLabels { return db },
-					ResolverFn: func(ctx context.Context) ([]string, error) {
-						return []string{db.GetURI()}, nil
-					},
+				Target: &TargetDialer{
+					Resource: func() types.ResourceWithLabels { return db },
+					Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
 				},
 			},
 			wantHealth: types.TargetHealth{
 				Address:          "",
-				Protocol:         "",
+				Protocol:         protocol,
 				Status:           string(types.TargetHealthStatusUnknown),
 				TransitionReason: string(types.TargetHealthTransitionReasonDisabled),
 				Message:          "No health check config matches this resource",
@@ -86,17 +83,15 @@ func Test_newUnstartedWorker(t *testing.T) {
 					healthyThreshold:   10,
 					unhealthyThreshold: 10,
 				},
-				Target: Target{
-					GetResource: func() types.ResourceWithLabels { return db },
-					ResolverFn: func(ctx context.Context) ([]string, error) {
-						return []string{db.GetURI()}, nil
-					},
+				Target: &TargetDialer{
+					Resource: func() types.ResourceWithLabels { return db },
+					Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
 				},
 				getTargetHealthTimeout: time.Millisecond,
 			},
 			wantHealth: types.TargetHealth{
 				Address:          "",
-				Protocol:         "",
+				Protocol:         protocol,
 				Status:           string(types.TargetHealthStatusUnknown),
 				TransitionReason: string(types.TargetHealthTransitionReasonInit),
 				Message:          "Health checker initialized",
@@ -111,10 +106,8 @@ func Test_newUnstartedWorker(t *testing.T) {
 					healthyThreshold:   10,
 					unhealthyThreshold: 10,
 				},
-				Target: Target{
-					ResolverFn: func(ctx context.Context) ([]string, error) {
-						return []string{db.GetURI()}, nil
-					},
+				Target: &TargetDialer{
+					Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
 				},
 			},
 			wantErr: "missing target resource getter",
@@ -135,87 +128,3 @@ func Test_newUnstartedWorker(t *testing.T) {
 		})
 	}
 }
-
-func Test_dialEndpoints(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	const healthyAddr = "healthy.com:123"
-	const unhealthyAddr = "unhealthy.com:123"
-	tests := []struct {
-		desc            string
-		resolverFn      EndpointsResolverFunc
-		wantErrContains string
-	}{
-		{
-			desc: "resolver error",
-			resolverFn: func(ctx context.Context) ([]string, error) {
-				return nil, trace.Errorf("resolver error")
-			},
-			wantErrContains: "resolver error",
-		},
-		{
-			desc: "resolved zero addrs",
-			resolverFn: func(ctx context.Context) ([]string, error) {
-				return nil, nil
-			},
-			wantErrContains: "resolved zero target endpoints",
-		},
-		{
-			desc: "resolved one healthy addr",
-			resolverFn: func(ctx context.Context) ([]string, error) {
-				return []string{healthyAddr}, nil
-			},
-		},
-		{
-			desc: "resolved one unhealthy addr",
-			resolverFn: func(ctx context.Context) ([]string, error) {
-				return []string{unhealthyAddr}, nil
-			},
-			wantErrContains: "unhealthy addr",
-		},
-		{
-			desc: "resolved multiple healthy addrs",
-			resolverFn: func(ctx context.Context) ([]string, error) {
-				return []string{healthyAddr, healthyAddr, healthyAddr}, nil
-			},
-		},
-		{
-			desc: "resolved a mix of healthy and unhealthy addrs",
-			resolverFn: func(ctx context.Context) ([]string, error) {
-				return []string{healthyAddr, unhealthyAddr, healthyAddr}, nil
-			},
-			wantErrContains: "unhealthy addr",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			w := &worker{
-				healthCheckCfg: &healthCheckConfig{},
-				log:            slog.Default(),
-				target: Target{
-					ResolverFn: test.resolverFn,
-					dialFn: func(ctx context.Context, network, addr string) (net.Conn, error) {
-						if addr == healthyAddr {
-							return fakeConn{}, nil
-						}
-						return nil, trace.Errorf("unhealthy addr")
-					},
-				},
-			}
-			err := w.dialEndpoints(ctx)
-			if test.wantErrContains != "" {
-				require.ErrorContains(t, err, test.wantErrContains)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
-
-type fakeConn struct {
-	net.Conn
-}
-
-func (fakeConn) Close() error { return nil }
