@@ -133,14 +133,16 @@ func newSession(ctx context.Context,
 
 	// TODO(Joerger): DELETE IN v20.0.0 - session params are provided in the session
 	// request as extra data rather than env vars.
-	env[teleport.EnvSSHJoinMode] = string(sessionParams.JoinMode)
-	env[teleport.EnvSSHSessionReason] = sessionParams.Reason
-	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(sessionParams.DisplayParticipantRequirements)
-	encoded, err := json.Marshal(&sessionParams.Invited)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if sessionParams != nil {
+		env[teleport.EnvSSHJoinMode] = string(sessionParams.JoinMode)
+		env[teleport.EnvSSHSessionReason] = sessionParams.Reason
+		env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(sessionParams.DisplayParticipantRequirements)
+		encoded, err := json.Marshal(&sessionParams.Invited)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		env[teleport.EnvSSHSessionInvited] = string(encoded)
 	}
-	env[teleport.EnvSSHSessionInvited] = string(encoded)
 
 	ns := &NodeSession{
 		env:                   env,

@@ -48,6 +48,7 @@ func TestHelperFunctions(t *testing.T) {
 
 func TestNewSession(t *testing.T) {
 	nc := &NodeClient{
+		TC:     &TeleportClient{},
 		Tracer: tracing.NoopProvider().Tracer("test"),
 	}
 
