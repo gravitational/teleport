@@ -1463,6 +1463,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if reExecPath := tools.GetReExecPath(); reExecPath != "" {
+		cf.executablePath = reExecPath
+	}
 
 	// configs
 	setEnvFlags(&cf)
