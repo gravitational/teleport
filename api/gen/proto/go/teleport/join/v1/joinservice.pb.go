@@ -51,20 +51,12 @@ type ClientInit struct {
 	TokenName string `protobuf:"bytes,2,opt,name=token_name,json=tokenName,proto3" json:"token_name,omitempty"`
 	// SystemRole is the system role requested, e.g. Proxy, Node, Instance, Bot.
 	SystemRole string `protobuf:"bytes,3,opt,name=system_role,json=systemRole,proto3" json:"system_role,omitempty"`
-	// PublicTlsKey is the public key requested for the subject of the x509 certificate.
-	// It must be encoded in PKIX, ASN.1 DER form.
-	PublicTlsKey []byte `protobuf:"bytes,4,opt,name=public_tls_key,json=publicTlsKey,proto3" json:"public_tls_key,omitempty"`
-	// PublicSshKey is the public key requested for the subject of the SSH certificate.
-	// It must be encoded in SSH wire format.
-	PublicSshKey []byte `protobuf:"bytes,5,opt,name=public_ssh_key,json=publicSshKey,proto3" json:"public_ssh_key,omitempty"`
 	// ForwardedByProxy will be set to true when the message is forwarded by the
 	// Proxy service. When this is set the Auth service must ignore any
 	// any credentials authenticating the request, except for the purpose of
 	// accepting ProxySuppliedParams.
-	ForwardedByProxy        bool                            `protobuf:"varint,6,opt,name=forwarded_by_proxy,json=forwardedByProxy,proto3" json:"forwarded_by_proxy,omitempty"`
-	HostParams              *ClientInit_HostParams          `protobuf:"bytes,7,opt,name=host_params,json=hostParams,proto3,oneof" json:"host_params,omitempty"`
-	BotParams               *ClientInit_BotParams           `protobuf:"bytes,8,opt,name=bot_params,json=botParams,proto3,oneof" json:"bot_params,omitempty"`
-	ProxySuppliedParameters *ClientInit_ProxySuppliedParams `protobuf:"bytes,9,opt,name=proxy_supplied_parameters,json=proxySuppliedParameters,proto3,oneof" json:"proxy_supplied_parameters,omitempty"`
+	ForwardedByProxy        bool                            `protobuf:"varint,4,opt,name=forwarded_by_proxy,json=forwardedByProxy,proto3" json:"forwarded_by_proxy,omitempty"`
+	ProxySuppliedParameters *ClientInit_ProxySuppliedParams `protobuf:"bytes,5,opt,name=proxy_supplied_parameters,json=proxySuppliedParameters,proto3,oneof" json:"proxy_supplied_parameters,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -120,20 +112,6 @@ func (x *ClientInit) GetSystemRole() string {
 	return ""
 }
 
-func (x *ClientInit) GetPublicTlsKey() []byte {
-	if x != nil {
-		return x.PublicTlsKey
-	}
-	return nil
-}
-
-func (x *ClientInit) GetPublicSshKey() []byte {
-	if x != nil {
-		return x.PublicSshKey
-	}
-	return nil
-}
-
 func (x *ClientInit) GetForwardedByProxy() bool {
 	if x != nil {
 		return x.ForwardedByProxy
@@ -141,23 +119,333 @@ func (x *ClientInit) GetForwardedByProxy() bool {
 	return false
 }
 
-func (x *ClientInit) GetHostParams() *ClientInit_HostParams {
-	if x != nil {
-		return x.HostParams
-	}
-	return nil
-}
-
-func (x *ClientInit) GetBotParams() *ClientInit_BotParams {
-	if x != nil {
-		return x.BotParams
-	}
-	return nil
-}
-
 func (x *ClientInit) GetProxySuppliedParameters() *ClientInit_ProxySuppliedParams {
 	if x != nil {
 		return x.ProxySuppliedParameters
+	}
+	return nil
+}
+
+// PublicKeys holds public keys sent by the client requested subject keys for
+// issued certificates.
+type PublicKeys struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PublicTlsKey is the public key requested for the subject of the x509 certificate.
+	// It must be encoded in PKIX, ASN.1 DER form.
+	PublicTlsKey []byte `protobuf:"bytes,1,opt,name=public_tls_key,json=publicTlsKey,proto3" json:"public_tls_key,omitempty"`
+	// PublicSshKey is the public key requested for the subject of the SSH certificate.
+	// It must be encoded in SSH wire format.
+	PublicSshKey  []byte `protobuf:"bytes,2,opt,name=public_ssh_key,json=publicSshKey,proto3" json:"public_ssh_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublicKeys) Reset() {
+	*x = PublicKeys{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublicKeys) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublicKeys) ProtoMessage() {}
+
+func (x *PublicKeys) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublicKeys.ProtoReflect.Descriptor instead.
+func (*PublicKeys) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PublicKeys) GetPublicTlsKey() []byte {
+	if x != nil {
+		return x.PublicTlsKey
+	}
+	return nil
+}
+
+func (x *PublicKeys) GetPublicSshKey() []byte {
+	if x != nil {
+		return x.PublicSshKey
+	}
+	return nil
+}
+
+// HostParams holds parameters required for host joining.
+type HostParams struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PublicKeys holds the host public keys.
+	PublicKeys *PublicKeys `protobuf:"bytes,1,opt,name=public_keys,json=publicKeys,proto3" json:"public_keys,omitempty"`
+	// HostName is the user-friendly node name for the host. This comes from
+	// teleport.nodename in the service configuration and defaults to the
+	// hostname. It is encoded as a valid principal in issued certificates.
+	HostName string `protobuf:"bytes,2,opt,name=host_name,json=hostName,proto3" json:"host_name,omitempty"`
+	// AdditionalPrincipals is a list of additional principals requested.
+	AdditionalPrincipals []string `protobuf:"bytes,3,rep,name=additional_principals,json=additionalPrincipals,proto3" json:"additional_principals,omitempty"`
+	// DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
+	DnsNames      []string `protobuf:"bytes,4,rep,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HostParams) Reset() {
+	*x = HostParams{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HostParams) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HostParams) ProtoMessage() {}
+
+func (x *HostParams) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HostParams.ProtoReflect.Descriptor instead.
+func (*HostParams) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *HostParams) GetPublicKeys() *PublicKeys {
+	if x != nil {
+		return x.PublicKeys
+	}
+	return nil
+}
+
+func (x *HostParams) GetHostName() string {
+	if x != nil {
+		return x.HostName
+	}
+	return ""
+}
+
+func (x *HostParams) GetAdditionalPrincipals() []string {
+	if x != nil {
+		return x.AdditionalPrincipals
+	}
+	return nil
+}
+
+func (x *HostParams) GetDnsNames() []string {
+	if x != nil {
+		return x.DnsNames
+	}
+	return nil
+}
+
+// BotParams holds parameters required for bot joining.
+type BotParams struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PublicKeys holds the bot public keys.
+	PublicKeys *PublicKeys `protobuf:"bytes,1,opt,name=public_keys,json=publicKeys,proto3" json:"public_keys,omitempty"`
+	// Expires is a desired time of the expiry of the returned certificates.
+	Expires       *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires,proto3,oneof" json:"expires,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BotParams) Reset() {
+	*x = BotParams{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BotParams) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BotParams) ProtoMessage() {}
+
+func (x *BotParams) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BotParams.ProtoReflect.Descriptor instead.
+func (*BotParams) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *BotParams) GetPublicKeys() *PublicKeys {
+	if x != nil {
+		return x.PublicKeys
+	}
+	return nil
+}
+
+func (x *BotParams) GetExpires() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expires
+	}
+	return nil
+}
+
+// ClientParams holds either host or bot join parameters.
+type ClientParams struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*ClientParams_HostParams
+	//	*ClientParams_BotParams
+	Payload       isClientParams_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClientParams) Reset() {
+	*x = ClientParams{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClientParams) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClientParams) ProtoMessage() {}
+
+func (x *ClientParams) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClientParams.ProtoReflect.Descriptor instead.
+func (*ClientParams) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ClientParams) GetPayload() isClientParams_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *ClientParams) GetHostParams() *HostParams {
+	if x != nil {
+		if x, ok := x.Payload.(*ClientParams_HostParams); ok {
+			return x.HostParams
+		}
+	}
+	return nil
+}
+
+func (x *ClientParams) GetBotParams() *BotParams {
+	if x != nil {
+		if x, ok := x.Payload.(*ClientParams_BotParams); ok {
+			return x.BotParams
+		}
+	}
+	return nil
+}
+
+type isClientParams_Payload interface {
+	isClientParams_Payload()
+}
+
+type ClientParams_HostParams struct {
+	HostParams *HostParams `protobuf:"bytes,1,opt,name=host_params,json=hostParams,proto3,oneof"`
+}
+
+type ClientParams_BotParams struct {
+	BotParams *BotParams `protobuf:"bytes,2,opt,name=bot_params,json=botParams,proto3,oneof"`
+}
+
+func (*ClientParams_HostParams) isClientParams_Payload() {}
+
+func (*ClientParams_BotParams) isClientParams_Payload() {}
+
+// TokenInit is sent by the client in response to the ServerInit message for
+// the Token join method.
+//
+// The Token method join flow is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: TokenInit
+// 4. server->client: Result
+type TokenInit struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams  *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TokenInit) Reset() {
+	*x = TokenInit{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TokenInit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TokenInit) ProtoMessage() {}
+
+func (x *TokenInit) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TokenInit.ProtoReflect.Descriptor instead.
+func (*TokenInit) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *TokenInit) GetClientParams() *ClientParams {
+	if x != nil {
+		return x.ClientParams
 	}
 	return nil
 }
@@ -168,6 +456,7 @@ type JoinRequest struct {
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*JoinRequest_ClientInit
+	//	*JoinRequest_TokenInit
 	Payload       isJoinRequest_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -175,7 +464,7 @@ type JoinRequest struct {
 
 func (x *JoinRequest) Reset() {
 	*x = JoinRequest{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[1]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -187,7 +476,7 @@ func (x *JoinRequest) String() string {
 func (*JoinRequest) ProtoMessage() {}
 
 func (x *JoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[1]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -200,7 +489,7 @@ func (x *JoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinRequest.ProtoReflect.Descriptor instead.
 func (*JoinRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{1}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *JoinRequest) GetPayload() isJoinRequest_Payload {
@@ -219,6 +508,15 @@ func (x *JoinRequest) GetClientInit() *ClientInit {
 	return nil
 }
 
+func (x *JoinRequest) GetTokenInit() *TokenInit {
+	if x != nil {
+		if x, ok := x.Payload.(*JoinRequest_TokenInit); ok {
+			return x.TokenInit
+		}
+	}
+	return nil
+}
+
 type isJoinRequest_Payload interface {
 	isJoinRequest_Payload()
 }
@@ -227,21 +525,30 @@ type JoinRequest_ClientInit struct {
 	ClientInit *ClientInit `protobuf:"bytes,1,opt,name=client_init,json=clientInit,proto3,oneof"`
 }
 
+type JoinRequest_TokenInit struct {
+	TokenInit *TokenInit `protobuf:"bytes,2,opt,name=token_init,json=tokenInit,proto3,oneof"`
+}
+
 func (*JoinRequest_ClientInit) isJoinRequest_Payload() {}
+
+func (*JoinRequest_TokenInit) isJoinRequest_Payload() {}
 
 // ServerInit is the first message sent from the server in response to the
 // ClientInit message.
 type ServerInit struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// JoinMethod is the name of the selected join method.
-	JoinMethod    string `protobuf:"bytes,1,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	JoinMethod string `protobuf:"bytes,1,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
+	// SignatureAlgorithmSuite is the name of the signature algorithm suite
+	// currently configured for the cluster.
+	SignatureAlgorithmSuite string `protobuf:"bytes,2,opt,name=signature_algorithm_suite,json=signatureAlgorithmSuite,proto3" json:"signature_algorithm_suite,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *ServerInit) Reset() {
 	*x = ServerInit{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[2]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -253,7 +560,7 @@ func (x *ServerInit) String() string {
 func (*ServerInit) ProtoMessage() {}
 
 func (x *ServerInit) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[2]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -266,12 +573,19 @@ func (x *ServerInit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInit.ProtoReflect.Descriptor instead.
 func (*ServerInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{2}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ServerInit) GetJoinMethod() string {
 	if x != nil {
 		return x.JoinMethod
+	}
+	return ""
+}
+
+func (x *ServerInit) GetSignatureAlgorithmSuite() string {
+	if x != nil {
+		return x.SignatureAlgorithmSuite
 	}
 	return ""
 }
@@ -285,7 +599,7 @@ type Challenge struct {
 
 func (x *Challenge) Reset() {
 	*x = Challenge{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[3]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -297,7 +611,7 @@ func (x *Challenge) String() string {
 func (*Challenge) ProtoMessage() {}
 
 func (x *Challenge) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[3]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -310,7 +624,7 @@ func (x *Challenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Challenge.ProtoReflect.Descriptor instead.
 func (*Challenge) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{3}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{8}
 }
 
 // Result is the final message sent from the cluster back to the client, it
@@ -318,25 +632,18 @@ func (*Challenge) Descriptor() ([]byte, []int) {
 // and issued certificates.
 type Result struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// TlsCert is an X.509 certificate encoded in ASN.1 DER form.
-	TlsCert []byte `protobuf:"bytes,1,opt,name=tls_cert,json=tlsCert,proto3" json:"tls_cert,omitempty"`
-	// TlsCaCerts is a list of TLS certificate authorities that the agent should trust.
-	// Each certificate is encoding in ASN.1 DER form.
-	TlsCaCerts [][]byte `protobuf:"bytes,2,rep,name=tls_ca_certs,json=tlsCaCerts,proto3" json:"tls_ca_certs,omitempty"`
-	// SshCert is an SSH certificate encoded in SSH wire format.
-	SshCert []byte `protobuf:"bytes,3,opt,name=ssh_cert,json=sshCert,proto3" json:"ssh_cert,omitempty"`
-	// SshCaKey is a list of SSH certificate authority public keys that the agent should trust.
-	// Each CA key is encoded in SSH wire format.
-	SshCaKeys [][]byte `protobuf:"bytes,4,rep,name=ssh_ca_keys,json=sshCaKeys,proto3" json:"ssh_ca_keys,omitempty"`
-	// HostId is the unique ID assigned to the host.
-	HostId        *string `protobuf:"bytes,5,opt,name=host_id,json=hostId,proto3,oneof" json:"host_id,omitempty"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*Result_HostResult
+	//	*Result_BotResult
+	Payload       isResult_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Result) Reset() {
 	*x = Result{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[4]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -348,7 +655,7 @@ func (x *Result) String() string {
 func (*Result) ProtoMessage() {}
 
 func (x *Result) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[4]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -361,42 +668,224 @@ func (x *Result) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Result.ProtoReflect.Descriptor instead.
 func (*Result) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{4}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *Result) GetTlsCert() []byte {
+func (x *Result) GetPayload() isResult_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *Result) GetHostResult() *HostResult {
+	if x != nil {
+		if x, ok := x.Payload.(*Result_HostResult); ok {
+			return x.HostResult
+		}
+	}
+	return nil
+}
+
+func (x *Result) GetBotResult() *BotResult {
+	if x != nil {
+		if x, ok := x.Payload.(*Result_BotResult); ok {
+			return x.BotResult
+		}
+	}
+	return nil
+}
+
+type isResult_Payload interface {
+	isResult_Payload()
+}
+
+type Result_HostResult struct {
+	HostResult *HostResult `protobuf:"bytes,1,opt,name=host_result,json=hostResult,proto3,oneof"`
+}
+
+type Result_BotResult struct {
+	BotResult *BotResult `protobuf:"bytes,2,opt,name=bot_result,json=botResult,proto3,oneof"`
+}
+
+func (*Result_HostResult) isResult_Payload() {}
+
+func (*Result_BotResult) isResult_Payload() {}
+
+// Certificates holds issued certificates and cluster CAs.
+type Certificates struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// TlsCert is an X.509 certificate encoded in ASN.1 DER form.
+	TlsCert []byte `protobuf:"bytes,1,opt,name=tls_cert,json=tlsCert,proto3" json:"tls_cert,omitempty"`
+	// TlsCaCerts is a list of TLS certificate authorities that the client should trust.
+	// Each certificate is encoding in ASN.1 DER form.
+	TlsCaCerts [][]byte `protobuf:"bytes,2,rep,name=tls_ca_certs,json=tlsCaCerts,proto3" json:"tls_ca_certs,omitempty"`
+	// SshCert is an SSH certificate encoded in SSH wire format.
+	SshCert []byte `protobuf:"bytes,3,opt,name=ssh_cert,json=sshCert,proto3" json:"ssh_cert,omitempty"`
+	// SshCaKey is a list of SSH certificate authority public keys that the client should trust.
+	// Each CA key is encoded in SSH wire format.
+	SshCaKeys     [][]byte `protobuf:"bytes,4,rep,name=ssh_ca_keys,json=sshCaKeys,proto3" json:"ssh_ca_keys,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Certificates) Reset() {
+	*x = Certificates{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Certificates) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Certificates) ProtoMessage() {}
+
+func (x *Certificates) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Certificates.ProtoReflect.Descriptor instead.
+func (*Certificates) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Certificates) GetTlsCert() []byte {
 	if x != nil {
 		return x.TlsCert
 	}
 	return nil
 }
 
-func (x *Result) GetTlsCaCerts() [][]byte {
+func (x *Certificates) GetTlsCaCerts() [][]byte {
 	if x != nil {
 		return x.TlsCaCerts
 	}
 	return nil
 }
 
-func (x *Result) GetSshCert() []byte {
+func (x *Certificates) GetSshCert() []byte {
 	if x != nil {
 		return x.SshCert
 	}
 	return nil
 }
 
-func (x *Result) GetSshCaKeys() [][]byte {
+func (x *Certificates) GetSshCaKeys() [][]byte {
 	if x != nil {
 		return x.SshCaKeys
 	}
 	return nil
 }
 
-func (x *Result) GetHostId() string {
-	if x != nil && x.HostId != nil {
-		return *x.HostId
+// HostResult holds results for host joining.
+type HostResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Certificates holds issued certificates and cluster CAs.
+	Certificates *Certificates `protobuf:"bytes,1,opt,name=certificates,proto3" json:"certificates,omitempty"`
+	// HostId is the unique ID assigned to the host.
+	HostId        string `protobuf:"bytes,2,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HostResult) Reset() {
+	*x = HostResult{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HostResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HostResult) ProtoMessage() {}
+
+func (x *HostResult) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HostResult.ProtoReflect.Descriptor instead.
+func (*HostResult) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *HostResult) GetCertificates() *Certificates {
+	if x != nil {
+		return x.Certificates
+	}
+	return nil
+}
+
+func (x *HostResult) GetHostId() string {
+	if x != nil {
+		return x.HostId
 	}
 	return ""
+}
+
+// HostResult holds results for bot joining.
+type BotResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Certificates holds issued certificates and cluster CAs.
+	Certificates  *Certificates `protobuf:"bytes,1,opt,name=certificates,proto3" json:"certificates,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BotResult) Reset() {
+	*x = BotResult{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BotResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BotResult) ProtoMessage() {}
+
+func (x *BotResult) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BotResult.ProtoReflect.Descriptor instead.
+func (*BotResult) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *BotResult) GetCertificates() *Certificates {
+	if x != nil {
+		return x.Certificates
+	}
+	return nil
 }
 
 // JoinResponse is the message type sent from the server to the joining client.
@@ -414,7 +903,7 @@ type JoinResponse struct {
 
 func (x *JoinResponse) Reset() {
 	*x = JoinResponse{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[5]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -426,7 +915,7 @@ func (x *JoinResponse) String() string {
 func (*JoinResponse) ProtoMessage() {}
 
 func (x *JoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[5]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -439,7 +928,7 @@ func (x *JoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinResponse.ProtoReflect.Descriptor instead.
 func (*JoinResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{5}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *JoinResponse) GetPayload() isJoinResponse_Payload {
@@ -506,120 +995,6 @@ func (*JoinResponse_Challenge) isJoinResponse_Payload() {}
 
 func (*JoinResponse_Result) isJoinResponse_Payload() {}
 
-// HostParams holds parameters that are specific to host joining and
-// irrelevant to bot joining.
-type ClientInit_HostParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// HostName is the user-friendly node name for the host. This comes from
-	// teleport.nodename in the service configuration and defaults to the
-	// hostname. It is encoded as a valid principal in issued certificates.
-	HostName string `protobuf:"bytes,1,opt,name=host_name,json=hostName,proto3" json:"host_name,omitempty"`
-	// AdditionalPrincipals is a list of additional principals requested.
-	AdditionalPrincipals []string `protobuf:"bytes,2,rep,name=additional_principals,json=additionalPrincipals,proto3" json:"additional_principals,omitempty"`
-	// DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
-	DnsNames      []string `protobuf:"bytes,3,rep,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClientInit_HostParams) Reset() {
-	*x = ClientInit_HostParams{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClientInit_HostParams) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClientInit_HostParams) ProtoMessage() {}
-
-func (x *ClientInit_HostParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClientInit_HostParams.ProtoReflect.Descriptor instead.
-func (*ClientInit_HostParams) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{0, 0}
-}
-
-func (x *ClientInit_HostParams) GetHostName() string {
-	if x != nil {
-		return x.HostName
-	}
-	return ""
-}
-
-func (x *ClientInit_HostParams) GetAdditionalPrincipals() []string {
-	if x != nil {
-		return x.AdditionalPrincipals
-	}
-	return nil
-}
-
-func (x *ClientInit_HostParams) GetDnsNames() []string {
-	if x != nil {
-		return x.DnsNames
-	}
-	return nil
-}
-
-// BotParams holds parameters that are specific to bot joining and irrelevant
-// to host joining.
-type ClientInit_BotParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Expires is a desired time of the expiry of the returned certificates.
-	Expires       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=expires,proto3,oneof" json:"expires,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClientInit_BotParams) Reset() {
-	*x = ClientInit_BotParams{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClientInit_BotParams) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClientInit_BotParams) ProtoMessage() {}
-
-func (x *ClientInit_BotParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClientInit_BotParams.ProtoReflect.Descriptor instead.
-func (*ClientInit_BotParams) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{0, 1}
-}
-
-func (x *ClientInit_BotParams) GetExpires() *timestamppb.Timestamp {
-	if x != nil {
-		return x.Expires
-	}
-	return nil
-}
-
 // ProxySuppliedParams holds parameters set by the Proxy when nodes join
 // via the proxy address. They must only be trusted if the incoming join
 // request is authenticated as the Proxy.
@@ -636,7 +1011,7 @@ type ClientInit_ProxySuppliedParams struct {
 
 func (x *ClientInit_ProxySuppliedParams) Reset() {
 	*x = ClientInit_ProxySuppliedParams{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[8]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -648,7 +1023,7 @@ func (x *ClientInit_ProxySuppliedParams) String() string {
 func (*ClientInit_ProxySuppliedParams) ProtoMessage() {}
 
 func (x *ClientInit_ProxySuppliedParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[8]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -661,7 +1036,7 @@ func (x *ClientInit_ProxySuppliedParams) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientInit_ProxySuppliedParams.ProtoReflect.Descriptor instead.
 func (*ClientInit_ProxySuppliedParams) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{0, 2}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{0, 0}
 }
 
 func (x *ClientInit_ProxySuppliedParams) GetRemoteAddr() string {
@@ -682,7 +1057,7 @@ var File_teleport_join_v1_joinservice_proto protoreflect.FileDescriptor
 
 const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/join/v1/joinservice.proto\x12\x10teleport.join.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf7\x06\n" +
+	"\"teleport/join/v1/joinservice.proto\x12\x10teleport.join.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa0\x03\n" +
 	"\n" +
 	"ClientInit\x12$\n" +
 	"\vjoin_method\x18\x01 \x01(\tH\x00R\n" +
@@ -690,50 +1065,70 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\n" +
 	"token_name\x18\x02 \x01(\tR\ttokenName\x12\x1f\n" +
 	"\vsystem_role\x18\x03 \x01(\tR\n" +
-	"systemRole\x12$\n" +
-	"\x0epublic_tls_key\x18\x04 \x01(\fR\fpublicTlsKey\x12$\n" +
-	"\x0epublic_ssh_key\x18\x05 \x01(\fR\fpublicSshKey\x12,\n" +
-	"\x12forwarded_by_proxy\x18\x06 \x01(\bR\x10forwardedByProxy\x12M\n" +
-	"\vhost_params\x18\a \x01(\v2'.teleport.join.v1.ClientInit.HostParamsH\x01R\n" +
-	"hostParams\x88\x01\x01\x12J\n" +
-	"\n" +
-	"bot_params\x18\b \x01(\v2&.teleport.join.v1.ClientInit.BotParamsH\x02R\tbotParams\x88\x01\x01\x12q\n" +
-	"\x19proxy_supplied_parameters\x18\t \x01(\v20.teleport.join.v1.ClientInit.ProxySuppliedParamsH\x03R\x17proxySuppliedParameters\x88\x01\x01\x1a{\n" +
-	"\n" +
-	"HostParams\x12\x1b\n" +
-	"\thost_name\x18\x01 \x01(\tR\bhostName\x123\n" +
-	"\x15additional_principals\x18\x02 \x03(\tR\x14additionalPrincipals\x12\x1b\n" +
-	"\tdns_names\x18\x03 \x03(\tR\bdnsNames\x1aR\n" +
-	"\tBotParams\x129\n" +
-	"\aexpires\x18\t \x01(\v2\x1a.google.protobuf.TimestampH\x00R\aexpires\x88\x01\x01B\n" +
-	"\n" +
-	"\b_expires\x1a]\n" +
+	"systemRole\x12,\n" +
+	"\x12forwarded_by_proxy\x18\x04 \x01(\bR\x10forwardedByProxy\x12q\n" +
+	"\x19proxy_supplied_parameters\x18\x05 \x01(\v20.teleport.join.v1.ClientInit.ProxySuppliedParamsH\x01R\x17proxySuppliedParameters\x88\x01\x01\x1a]\n" +
 	"\x13ProxySuppliedParams\x12\x1f\n" +
 	"\vremote_addr\x18\x01 \x01(\tR\n" +
 	"remoteAddr\x12%\n" +
 	"\x0eclient_version\x18\x02 \x01(\tR\rclientVersionB\x0e\n" +
-	"\f_join_methodB\x0e\n" +
-	"\f_host_paramsB\r\n" +
-	"\v_bot_paramsB\x1c\n" +
-	"\x1a_proxy_supplied_parameters\"Y\n" +
+	"\f_join_methodB\x1c\n" +
+	"\x1a_proxy_supplied_parameters\"X\n" +
+	"\n" +
+	"PublicKeys\x12$\n" +
+	"\x0epublic_tls_key\x18\x01 \x01(\fR\fpublicTlsKey\x12$\n" +
+	"\x0epublic_ssh_key\x18\x02 \x01(\fR\fpublicSshKey\"\xba\x01\n" +
+	"\n" +
+	"HostParams\x12=\n" +
+	"\vpublic_keys\x18\x01 \x01(\v2\x1c.teleport.join.v1.PublicKeysR\n" +
+	"publicKeys\x12\x1b\n" +
+	"\thost_name\x18\x02 \x01(\tR\bhostName\x123\n" +
+	"\x15additional_principals\x18\x03 \x03(\tR\x14additionalPrincipals\x12\x1b\n" +
+	"\tdns_names\x18\x04 \x03(\tR\bdnsNames\"\x91\x01\n" +
+	"\tBotParams\x12=\n" +
+	"\vpublic_keys\x18\x01 \x01(\v2\x1c.teleport.join.v1.PublicKeysR\n" +
+	"publicKeys\x129\n" +
+	"\aexpires\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\aexpires\x88\x01\x01B\n" +
+	"\n" +
+	"\b_expires\"\x98\x01\n" +
+	"\fClientParams\x12?\n" +
+	"\vhost_params\x18\x01 \x01(\v2\x1c.teleport.join.v1.HostParamsH\x00R\n" +
+	"hostParams\x12<\n" +
+	"\n" +
+	"bot_params\x18\x02 \x01(\v2\x1b.teleport.join.v1.BotParamsH\x00R\tbotParamsB\t\n" +
+	"\apayload\"P\n" +
+	"\tTokenInit\x12C\n" +
+	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\"\x97\x01\n" +
 	"\vJoinRequest\x12?\n" +
 	"\vclient_init\x18\x01 \x01(\v2\x1c.teleport.join.v1.ClientInitH\x00R\n" +
-	"clientInitB\t\n" +
-	"\apayload\"-\n" +
+	"clientInit\x12<\n" +
+	"\n" +
+	"token_init\x18\x02 \x01(\v2\x1b.teleport.join.v1.TokenInitH\x00R\ttokenInitB\t\n" +
+	"\apayload\"i\n" +
 	"\n" +
 	"ServerInit\x12\x1f\n" +
 	"\vjoin_method\x18\x01 \x01(\tR\n" +
-	"joinMethod\"\v\n" +
-	"\tChallenge\"\xaa\x01\n" +
-	"\x06Result\x12\x19\n" +
+	"joinMethod\x12:\n" +
+	"\x19signature_algorithm_suite\x18\x02 \x01(\tR\x17signatureAlgorithmSuite\"\v\n" +
+	"\tChallenge\"\x92\x01\n" +
+	"\x06Result\x12?\n" +
+	"\vhost_result\x18\x01 \x01(\v2\x1c.teleport.join.v1.HostResultH\x00R\n" +
+	"hostResult\x12<\n" +
+	"\n" +
+	"bot_result\x18\x02 \x01(\v2\x1b.teleport.join.v1.BotResultH\x00R\tbotResultB\t\n" +
+	"\apayload\"\x86\x01\n" +
+	"\fCertificates\x12\x19\n" +
 	"\btls_cert\x18\x01 \x01(\fR\atlsCert\x12 \n" +
 	"\ftls_ca_certs\x18\x02 \x03(\fR\n" +
 	"tlsCaCerts\x12\x19\n" +
 	"\bssh_cert\x18\x03 \x01(\fR\asshCert\x12\x1e\n" +
-	"\vssh_ca_keys\x18\x04 \x03(\fR\tsshCaKeys\x12\x1c\n" +
-	"\ahost_id\x18\x05 \x01(\tH\x00R\x06hostId\x88\x01\x01B\n" +
+	"\vssh_ca_keys\x18\x04 \x03(\fR\tsshCaKeys\"i\n" +
 	"\n" +
-	"\b_host_id\"\xbe\x01\n" +
+	"HostResult\x12B\n" +
+	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12\x17\n" +
+	"\ahost_id\x18\x02 \x01(\tR\x06hostId\"O\n" +
+	"\tBotResult\x12B\n" +
+	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\"\xbe\x01\n" +
 	"\fJoinResponse\x122\n" +
 	"\x04init\x18\x01 \x01(\v2\x1c.teleport.join.v1.ServerInitH\x00R\x04init\x12;\n" +
 	"\tchallenge\x18\x02 \x01(\v2\x1b.teleport.join.v1.ChallengeH\x00R\tchallenge\x122\n" +
@@ -754,35 +1149,49 @@ func file_teleport_join_v1_joinservice_proto_rawDescGZIP() []byte {
 	return file_teleport_join_v1_joinservice_proto_rawDescData
 }
 
-var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(*ClientInit)(nil),                     // 0: teleport.join.v1.ClientInit
-	(*JoinRequest)(nil),                    // 1: teleport.join.v1.JoinRequest
-	(*ServerInit)(nil),                     // 2: teleport.join.v1.ServerInit
-	(*Challenge)(nil),                      // 3: teleport.join.v1.Challenge
-	(*Result)(nil),                         // 4: teleport.join.v1.Result
-	(*JoinResponse)(nil),                   // 5: teleport.join.v1.JoinResponse
-	(*ClientInit_HostParams)(nil),          // 6: teleport.join.v1.ClientInit.HostParams
-	(*ClientInit_BotParams)(nil),           // 7: teleport.join.v1.ClientInit.BotParams
-	(*ClientInit_ProxySuppliedParams)(nil), // 8: teleport.join.v1.ClientInit.ProxySuppliedParams
-	(*timestamppb.Timestamp)(nil),          // 9: google.protobuf.Timestamp
+	(*PublicKeys)(nil),                     // 1: teleport.join.v1.PublicKeys
+	(*HostParams)(nil),                     // 2: teleport.join.v1.HostParams
+	(*BotParams)(nil),                      // 3: teleport.join.v1.BotParams
+	(*ClientParams)(nil),                   // 4: teleport.join.v1.ClientParams
+	(*TokenInit)(nil),                      // 5: teleport.join.v1.TokenInit
+	(*JoinRequest)(nil),                    // 6: teleport.join.v1.JoinRequest
+	(*ServerInit)(nil),                     // 7: teleport.join.v1.ServerInit
+	(*Challenge)(nil),                      // 8: teleport.join.v1.Challenge
+	(*Result)(nil),                         // 9: teleport.join.v1.Result
+	(*Certificates)(nil),                   // 10: teleport.join.v1.Certificates
+	(*HostResult)(nil),                     // 11: teleport.join.v1.HostResult
+	(*BotResult)(nil),                      // 12: teleport.join.v1.BotResult
+	(*JoinResponse)(nil),                   // 13: teleport.join.v1.JoinResponse
+	(*ClientInit_ProxySuppliedParams)(nil), // 14: teleport.join.v1.ClientInit.ProxySuppliedParams
+	(*timestamppb.Timestamp)(nil),          // 15: google.protobuf.Timestamp
 }
 var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
-	6, // 0: teleport.join.v1.ClientInit.host_params:type_name -> teleport.join.v1.ClientInit.HostParams
-	7, // 1: teleport.join.v1.ClientInit.bot_params:type_name -> teleport.join.v1.ClientInit.BotParams
-	8, // 2: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
-	0, // 3: teleport.join.v1.JoinRequest.client_init:type_name -> teleport.join.v1.ClientInit
-	2, // 4: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
-	3, // 5: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
-	4, // 6: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
-	9, // 7: teleport.join.v1.ClientInit.BotParams.expires:type_name -> google.protobuf.Timestamp
-	1, // 8: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
-	5, // 9: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
-	9, // [9:10] is the sub-list for method output_type
-	8, // [8:9] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	14, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
+	1,  // 1: teleport.join.v1.HostParams.public_keys:type_name -> teleport.join.v1.PublicKeys
+	1,  // 2: teleport.join.v1.BotParams.public_keys:type_name -> teleport.join.v1.PublicKeys
+	15, // 3: teleport.join.v1.BotParams.expires:type_name -> google.protobuf.Timestamp
+	2,  // 4: teleport.join.v1.ClientParams.host_params:type_name -> teleport.join.v1.HostParams
+	3,  // 5: teleport.join.v1.ClientParams.bot_params:type_name -> teleport.join.v1.BotParams
+	4,  // 6: teleport.join.v1.TokenInit.client_params:type_name -> teleport.join.v1.ClientParams
+	0,  // 7: teleport.join.v1.JoinRequest.client_init:type_name -> teleport.join.v1.ClientInit
+	5,  // 8: teleport.join.v1.JoinRequest.token_init:type_name -> teleport.join.v1.TokenInit
+	11, // 9: teleport.join.v1.Result.host_result:type_name -> teleport.join.v1.HostResult
+	12, // 10: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
+	10, // 11: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
+	10, // 12: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
+	7,  // 13: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
+	8,  // 14: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
+	9,  // 15: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
+	6,  // 16: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
+	13, // 17: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
+	17, // [17:18] is the sub-list for method output_type
+	16, // [16:17] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_teleport_join_v1_joinservice_proto_init() }
@@ -791,23 +1200,31 @@ func file_teleport_join_v1_joinservice_proto_init() {
 		return
 	}
 	file_teleport_join_v1_joinservice_proto_msgTypes[0].OneofWrappers = []any{}
-	file_teleport_join_v1_joinservice_proto_msgTypes[1].OneofWrappers = []any{
-		(*JoinRequest_ClientInit)(nil),
+	file_teleport_join_v1_joinservice_proto_msgTypes[3].OneofWrappers = []any{}
+	file_teleport_join_v1_joinservice_proto_msgTypes[4].OneofWrappers = []any{
+		(*ClientParams_HostParams)(nil),
+		(*ClientParams_BotParams)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[4].OneofWrappers = []any{}
-	file_teleport_join_v1_joinservice_proto_msgTypes[5].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[6].OneofWrappers = []any{
+		(*JoinRequest_ClientInit)(nil),
+		(*JoinRequest_TokenInit)(nil),
+	}
+	file_teleport_join_v1_joinservice_proto_msgTypes[9].OneofWrappers = []any{
+		(*Result_HostResult)(nil),
+		(*Result_BotResult)(nil),
+	}
+	file_teleport_join_v1_joinservice_proto_msgTypes[13].OneofWrappers = []any{
 		(*JoinResponse_Init)(nil),
 		(*JoinResponse_Challenge)(nil),
 		(*JoinResponse_Result)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_join_v1_joinservice_proto_rawDesc), len(file_teleport_join_v1_joinservice_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -57,6 +57,7 @@ type AuthService interface {
 	GenerateHostCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *HostCertsParams) (*proto.Certs, error)
 	GenerateBotCertsForJoin(ctx context.Context, provisionToken types.ProvisionToken, req *BotCertsParams) (*proto.Certs, string, error)
 	EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }
 
 // ServerConfig holds configuration parameters for [Server].
@@ -113,9 +114,6 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		if clientInit.JoinMethod != nil {
 			i.RequestedJoinMethod = *clientInit.JoinMethod
 		}
-		if clientInit.HostParams != nil {
-			i.NodeName = clientInit.HostParams.HostName
-		}
 	})
 	if err := clientInit.Check(); err != nil {
 		return trace.Wrap(err, "validating ClientInit message")
@@ -123,17 +121,10 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 
 	// Authenticate the request in case the node/bot is rejoining with previous
 	// credentials.
-	authCtx, err := s.authenticate(ctx, clientInit)
+	authCtx, err := s.authenticate(ctx, diag, clientInit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Set any diagnostic info we can get from the authenticated identity.
-	diag.Set(func(i *diagnostic.Info) {
-		i.HostID = authCtx.HostID
-		i.SystemRoles = authCtx.SystemRoles.StringSlice()
-		i.BotInstanceID = authCtx.BotInstanceID
-		i.BotGeneration = authCtx.BotGeneration
-	})
 
 	// Fetch the provision token and validate that it is not expired.
 	provisionToken, err := s.cfg.AuthService.ValidateToken(ctx, clientInit.TokenName)
@@ -161,50 +152,48 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): implement checks for all join methods.
-	switch joinMethod {
-	case types.JoinMethodToken:
-		// No additional checks necessary for the token join method.
-	default:
-		return trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
+	authPref, err := s.cfg.AuthService.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting cluster auth preference")
 	}
 
-	var (
-		certs  *proto.Certs
-		hostID *string
-	)
-	if types.SystemRole(clientInit.SystemRole) == types.RoleBot {
-		params, err := makeBotCertsParams(diag, authCtx, clientInit)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		certs, _, err = s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisionToken, params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		params, err := makeHostCertsParams(ctx, diag, authCtx, clientInit, joinMethod)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		hostID = &params.HostID
-		certs, err = s.cfg.AuthService.GenerateHostCertsForJoin(ctx, provisionToken, params)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// Send the ServerInit message with the selected join method and current
+	// cluster signature algorithm suite so that the client can generate keys
+	// with the right algorithm.
+	if err := stream.Send(&messages.ServerInit{
+		JoinMethod:              string(joinMethod),
+		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
+	}); err != nil {
+		return trace.Wrap(err, "sending ServerInit message")
 	}
 
-	// Convert the result from GenerateCertsForJoin to a Result message and
-	// send it back to the client.
-	result, err := makeResultMessage(certs)
+	// Call out to the handler for the specific join method.
+	result, err := s.handleJoinMethod(stream, authCtx, clientInit, provisionToken, joinMethod)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	result.HostID = hostID
+
+	// Finally, send the result back to the client.
 	return trace.Wrap(stream.Send(result))
 }
 
-func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientInit) (*joinauthz.Context, error) {
+func (s *Server) handleJoinMethod(
+	stream messages.ServerStream,
+	authCtx *joinauthz.Context,
+	clientInit *messages.ClientInit,
+	provisionToken types.ProvisionToken,
+	joinMethod types.JoinMethod,
+) (messages.Response, error) {
+	switch joinMethod {
+	case types.JoinMethodToken:
+		return s.handleTokenJoin(stream, authCtx, clientInit, provisionToken)
+	default:
+		// TODO(nklaassen): implement checks for all join methods.
+		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
+	}
+}
+
+func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, clientInit *messages.ClientInit) (*joinauthz.Context, error) {
 	authCtx, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err, "unexpected error authorizing request")
@@ -223,6 +212,13 @@ func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientIn
 		if !isProxy {
 			return nil, trace.BadParameter("client claims to be a proxy forwarding the request but did not authenticate as a proxy (this is a bug)")
 		}
+		if clientInit.ProxySuppliedParams == nil {
+			return nil, trace.BadParameter("proxy forwarded request but did not set ProxySuppliedParams (this is a bug)")
+		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.RemoteAddr = clientInit.ProxySuppliedParams.RemoteAddr
+			i.ClientVersion = clientInit.ProxySuppliedParams.ClientVersion
+		})
 		// Must ignore any authentication if the request was forwarded by a
 		// proxy to avoid forgery of a host ID or system role via the proxy
 		// credentials.
@@ -251,6 +247,14 @@ func (s *Server) authenticate(ctx context.Context, clientInit *messages.ClientIn
 	} else {
 		hostID = strings.SplitN(id.Username, ".", 2)[0]
 	}
+
+	// Set any diagnostic info we can get from the authenticated identity.
+	diag.Set(func(i *diagnostic.Info) {
+		i.HostID = hostID
+		i.SystemRoles = systemRoles.StringSlice()
+		i.BotInstanceID = botInstanceID
+		i.BotGeneration = botGeneration
+	})
 
 	return &joinauthz.Context{
 		IsInstance:    isInstance,
@@ -302,17 +306,60 @@ func ProvisionTokenAllowsRole(provisionToken types.ProvisionToken, role types.Sy
 	return nil
 }
 
+func (s *Server) makeResult(
+	ctx context.Context,
+	diag *diagnostic.Diagnostic,
+	authCtx *joinauthz.Context,
+	clientInit *messages.ClientInit,
+	clientParams *messages.ClientParams,
+	provisionToken types.ProvisionToken,
+) (messages.Response, error) {
+	switch types.SystemRole(clientInit.SystemRole) {
+	case types.RoleInstance:
+		return s.makeHostResult(ctx, diag, authCtx, clientParams.HostParams, provisionToken)
+	case types.RoleBot:
+		return s.makeBotResult(ctx, diag, authCtx, clientParams.BotParams, provisionToken)
+	default:
+		return nil, trace.NotImplemented("new join service only supports Instance and Bot system roles, client requested %s", clientInit.SystemRole)
+	}
+}
+
+func (s *Server) makeHostResult(
+	ctx context.Context,
+	diag *diagnostic.Diagnostic,
+	authCtx *joinauthz.Context,
+	hostParams *messages.HostParams,
+	provisionToken types.ProvisionToken,
+) (*messages.HostResult, error) {
+	certsParams, err := makeHostCertsParams(ctx, diag, authCtx, hostParams, provisionToken.GetJoinMethod())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := s.cfg.AuthService.GenerateHostCertsForJoin(ctx, provisionToken, certsParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certificates, err := convertCerts(certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &messages.HostResult{
+		Certificates: *certificates,
+		HostID:       certsParams.HostID,
+	}, nil
+}
+
 // MakeHostCertsParams returns [HostCertsParams] populated by the ClientInit
 // message and context of the request.
 func makeHostCertsParams(
 	ctx context.Context,
 	diag *diagnostic.Diagnostic,
 	authCtx *joinauthz.Context,
-	clientInit *messages.ClientInit,
+	hostParams *messages.HostParams,
 	joinMethod types.JoinMethod,
 ) (*HostCertsParams, error) {
 	// GenerateHostCertsForJoin requires the TLS key to be PEM-encoded.
-	tlsPub, err := x509.ParsePKIXPublicKey(clientInit.PublicTLSKey)
+	tlsPub, err := x509.ParsePKIXPublicKey(hostParams.PublicKeys.PublicTLSKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -322,22 +369,20 @@ func makeHostCertsParams(
 	}
 
 	// GenerateHostCertsForJoin requires the SSH key to be in authorized keys format.
-	sshPub, err := ssh.ParsePublicKey(clientInit.PublicSSHKey)
+	sshPub, err := ssh.ParsePublicKey(hostParams.PublicKeys.PublicSSHKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sshAuthorizedKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	params := &HostCertsParams{
-		SystemRole:   types.SystemRole(clientInit.SystemRole),
-		PublicTLSKey: tlsPubPEM,
-		PublicSSHKey: sshAuthorizedKey,
-	}
-
-	if hostParams := clientInit.HostParams; hostParams != nil {
-		params.HostName = hostParams.HostName
-		params.AdditionalPrincipals = hostParams.AdditionalPrincipals
-		params.DNSNames = hostParams.DNSNames
+		SystemRole:           types.RoleInstance,
+		PublicTLSKey:         tlsPubPEM,
+		PublicSSHKey:         sshAuthorizedKey,
+		HostName:             hostParams.HostName,
+		AdditionalPrincipals: hostParams.AdditionalPrincipals,
+		DNSNames:             hostParams.DNSNames,
+		RemoteAddr:           diag.Get().RemoteAddr,
 	}
 
 	if authCtx.IsInstance {
@@ -355,16 +400,31 @@ func makeHostCertsParams(
 		params.HostID = hostID
 	}
 
-	// Trust the remote address as forwarded by the proxy, or else use the one
-	// we get from the connection context.
-	if authCtx.IsForwardedByProxy && clientInit.ProxySuppliedParams != nil {
-		params.RemoteAddr = clientInit.ProxySuppliedParams.RemoteAddr
-	} else {
-		// This gets set on the diagnostic by the gRPC layer.
-		params.RemoteAddr = diag.Get().RemoteAddr
-	}
-
 	return params, nil
+}
+
+func (s *Server) makeBotResult(
+	ctx context.Context,
+	diag *diagnostic.Diagnostic,
+	authCtx *joinauthz.Context,
+	botParams *messages.BotParams,
+	provisionToken types.ProvisionToken,
+) (*messages.BotResult, error) {
+	certsParams, err := makeBotCertsParams(diag, authCtx, botParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, _, err := s.cfg.AuthService.GenerateBotCertsForJoin(ctx, provisionToken, certsParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certificates, err := convertCerts(certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &messages.BotResult{
+		Certificates: *certificates,
+	}, nil
 }
 
 // makeBotCertsParams returns [BotCertsParams] populated by the
@@ -372,10 +432,10 @@ func makeHostCertsParams(
 func makeBotCertsParams(
 	diag *diagnostic.Diagnostic,
 	authCtx *joinauthz.Context,
-	clientInit *messages.ClientInit,
+	botParams *messages.BotParams,
 ) (*BotCertsParams, error) {
 	// GenerateBotCertsForJoin requires the TLS key to be PEM-encoded.
-	tlsPub, err := x509.ParsePKIXPublicKey(clientInit.PublicTLSKey)
+	tlsPub, err := x509.ParsePKIXPublicKey(botParams.PublicKeys.PublicTLSKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -385,39 +445,26 @@ func makeBotCertsParams(
 	}
 
 	// GenerateBotCertsForJoin requires the SSH key to be in authorized keys format.
-	sshPub, err := ssh.ParsePublicKey(clientInit.PublicSSHKey)
+	sshPub, err := ssh.ParsePublicKey(botParams.PublicKeys.PublicSSHKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sshAuthorizedKey := ssh.MarshalAuthorizedKey(sshPub)
 
-	params := &BotCertsParams{
+	return &BotCertsParams{
 		PublicTLSKey:  tlsPubPEM,
 		PublicSSHKey:  sshAuthorizedKey,
 		BotInstanceID: authCtx.BotInstanceID,
-	}
-
-	if botParams := clientInit.BotParams; botParams != nil {
-		params.BotGeneration = int32(authCtx.BotGeneration)
-		params.BotInstanceID = authCtx.BotInstanceID
-		params.Expires = botParams.Expires
-	}
-
-	// Trust the remote address as forwarded by the proxy, or else use the one
-	// we get from the connection context.
-	if authCtx.IsForwardedByProxy && clientInit.ProxySuppliedParams != nil {
-		params.RemoteAddr = clientInit.ProxySuppliedParams.RemoteAddr
-	} else {
-		// This gets set on the diagnostic by the gRPC layer.
-		params.RemoteAddr = diag.Get().RemoteAddr
-	}
-
-	return params, nil
+		BotGeneration: int32(authCtx.BotGeneration),
+		Expires:       botParams.Expires,
+		RemoteAddr:    diag.Get().RemoteAddr,
+	}, nil
 }
 
-// makeResultMessage returns a [*messages.Result] populated from [*proto.Certs]
-// with the certs converted into the proper wire format.
-func makeResultMessage(certs *proto.Certs) (*messages.Result, error) {
+// convertCerts converts the PEM-encoded TLS certs and the authorized_keys
+// formats SSH cert + keys into the wire formats required for
+// [messages.Certificates].
+func convertCerts(certs *proto.Certs) (*messages.Certificates, error) {
 	sshCert, err := rawSSHCert(certs.SSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -427,7 +474,7 @@ func makeResultMessage(certs *proto.Certs) (*messages.Result, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &messages.Result{
+	return &messages.Certificates{
 		TLSCert:    rawTLSCert(certs.TLS),
 		TLSCACerts: rawTLSCerts(certs.TLSCACerts),
 		SSHCert:    sshCert,
@@ -474,6 +521,14 @@ func rawSSHPublicKeys(authorizedKeys [][]byte) ([][]byte, error) {
 		}
 	}
 	return out, nil
+}
+
+func setDiagnosticClientParams(diag *diagnostic.Diagnostic, clientParams *messages.ClientParams) {
+	if clientParams.HostParams != nil {
+		diag.Set(func(i *diagnostic.Info) {
+			i.NodeName = clientParams.HostParams.HostName
+		})
+	}
 }
 
 func (s *Server) handleJoinFailure(ctx context.Context, diag *diagnostic.Diagnostic, err error) {
