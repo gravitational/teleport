@@ -23,9 +23,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
@@ -34,8 +40,8 @@ func TestReadyz(t *testing.T) {
 
 	reg := readyz.NewRegistry()
 
-	a := reg.AddService("a")
-	b := reg.AddService("b")
+	a := reg.AddService("a", "service")
+	b := reg.AddService("b", "service")
 
 	srv := httptest.NewServer(readyz.HTTPHandler(reg))
 	srv.URL = srv.URL + "/readyz"
@@ -146,3 +152,76 @@ func TestReadyz(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, rsp.StatusCode)
 	})
 }
+
+func TestToProto(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	registry := readyz.NewRegistry(readyz.WithClock(clock))
+
+	reporter := registry.AddService("milkshake-stand", "store")
+	reporter.ReportReason(readyz.Unhealthy, "no more bananas")
+
+	require.Empty(t,
+		cmp.Diff(
+			[]*machineidv1pb.BotInstanceServiceHealth{
+				{
+					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+						Name: "milkshake-stand",
+						Type: "store",
+					},
+					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+					Reason:    ptr("no more bananas"),
+					UpdatedAt: timestamppb.New(clock.Now()),
+				},
+			},
+			registry.ToProto(),
+			protocmp.Transform(),
+		),
+	)
+}
+
+func TestWatch(t *testing.T) {
+	registry := readyz.NewRegistry()
+
+	watcher1, close1 := registry.Watch()
+	t.Cleanup(close1)
+
+	watcher2, close2 := registry.Watch()
+	t.Cleanup(close2)
+
+	select {
+	case <-watcher1:
+		t.Fatal("watcher1 should be blocked")
+	case <-watcher2:
+		t.Fatal("watcher2 should be blocked")
+	default:
+	}
+
+	reporter := registry.AddService("milkshake-stand", "store")
+	reporter.Report(readyz.Healthy)
+
+	select {
+	case <-watcher1:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("watcher1 should not be blocked")
+	}
+	select {
+	case <-watcher1:
+		t.Fatal("watcher1 should be blocked")
+	default:
+	}
+
+	reporter.Report(readyz.Unhealthy)
+
+	select {
+	case <-watcher1:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("watcher1 should not be blocked")
+	}
+	select {
+	case <-watcher2:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("watcher1 should not be blocked")
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

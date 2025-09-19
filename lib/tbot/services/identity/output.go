@@ -69,7 +69,7 @@ func OutputServiceBuilder(
 			clientBuilder:             deps.ClientBuilder,
 		}
 		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
+		svc.statusReporter = deps.StatusRegistry.AddService(svc.String(), OutputServiceType)
 		return svc, nil
 	}
 }
