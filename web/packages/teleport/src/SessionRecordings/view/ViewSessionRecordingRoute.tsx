@@ -30,16 +30,17 @@ import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
 import { RecordingType } from 'teleport/services/recordings';
 import { useSuspenseGetRecordingDuration } from 'teleport/services/recordings/hooks';
+import {
+  RECORDING_TYPES_WITH_METADATA,
+  VALID_RECORDING_TYPES,
+} from 'teleport/services/recordings/recordings';
 
 import { RecordingPlayer } from './RecordingPlayer';
 import {
   RecordingWithMetadata,
   type SummarySlot,
 } from './RecordingWithMetadata';
-
-const validRecordingTypes = ['ssh', 'k8s', 'desktop', 'database'];
-
-const recordingTypesWithMetadata: RecordingType[] = ['ssh', 'k8s'];
+import { RecordingWithSummary } from './RecordingWithSummary';
 
 interface ViewSessionRecordingRouteProps {
   summarySlot?: SummarySlot;
@@ -60,7 +61,7 @@ export function ViewSessionRecordingRoute({
     document.title = `Play ${sid} • ${clusterId}`;
   }, [sid, clusterId]);
 
-  const validRecordingType = validRecordingTypes.includes(recordingType);
+  const validRecordingType = VALID_RECORDING_TYPES.includes(recordingType);
   const durationMs = Number(getUrlParameter('durationMs', search));
   const validDuration = Number.isInteger(durationMs) && durationMs > 0;
 
@@ -89,7 +90,7 @@ export function ViewSessionRecordingRoute({
     );
   }
 
-  if (recordingTypesWithMetadata.includes(recordingType)) {
+  if (RECORDING_TYPES_WITH_METADATA.includes(recordingType)) {
     // If the recording type is SSH, try to load the session metadata (ViewTerminalRecording)
     // and render the SSH player with the session metadata/summary.
     // If that errors (such as during a proxy upgrade), we fall back to the
@@ -110,10 +111,22 @@ export function ViewSessionRecordingRoute({
     );
   }
 
+  if (summarySlot) {
+    return (
+      <RecordingWithSummary
+        clusterId={clusterId}
+        sessionId={sid}
+        durationMs={durationMs}
+        recordingType={recordingType}
+        summarySlot={summarySlot}
+      />
+    );
+  }
+
   return player;
 }
 
-function RecordingPlayerLoading() {
+export function RecordingPlayerLoading() {
   return (
     <Flex width="100%" height="100%" flexDirection="column">
       <Box textAlign="center" mx={10} mt={5}>
@@ -123,7 +136,7 @@ function RecordingPlayerLoading() {
   );
 }
 
-function RecordingPlayerError() {
+export function RecordingPlayerError() {
   return (
     <Flex width="100%" height="100%" flexDirection="column">
       <Box textAlign="center" mx={10} mt={5}>
@@ -139,11 +152,13 @@ function RecordingPlayerError() {
 interface RecordingPlayerWithLoadDurationProps {
   clusterId: string;
   sessionId: string;
+  onToggleSidebar?: () => void;
 }
 
-function RecordingPlayerWithLoadDuration({
+export function RecordingPlayerWithLoadDuration({
   clusterId,
   sessionId,
+  onToggleSidebar,
 }: RecordingPlayerWithLoadDurationProps) {
   const { data } = useSuspenseGetRecordingDuration({
     clusterId,
@@ -156,6 +171,7 @@ function RecordingPlayerWithLoadDuration({
       sessionId={sessionId}
       durationMs={data.durationMs}
       recordingType={data.recordingType}
+      onToggleSidebar={onToggleSidebar}
     />
   );
 }

@@ -124,3 +124,11 @@ export async function fetchRecordingThumbnail(
 }
 
 export const RECORDING_TYPES_WITH_THUMBNAILS: RecordingType[] = ['ssh', 'k8s'];
+export const RECORDING_TYPES_WITH_METADATA: RecordingType[] = ['ssh', 'k8s'];
+
+export const VALID_RECORDING_TYPES: RecordingType[] = [
+  'ssh',
+  'k8s',
+  'desktop',
+  'database',
+];
