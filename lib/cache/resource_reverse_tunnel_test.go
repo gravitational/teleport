@@ -17,14 +17,11 @@
 package cache
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestReverseTunnels tests reverse tunnels caching
@@ -39,13 +36,9 @@ func TestReverseTunnels(t *testing.T) {
 		newResource: func(name string) (types.ReverseTunnel, error) {
 			return types.NewReverseTunnel(name, []string{"example.com:2023"})
 		},
-		create: p.presenceS.UpsertReverseTunnel,
-		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.presenceS.ListReverseTunnels))
-		},
-		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListReverseTunnels))
-		},
+		create:    p.presenceS.UpsertReverseTunnel,
+		list:      p.presenceS.ListReverseTunnels,
+		cacheList: p.cache.ListReverseTunnels,
 		update:    p.presenceS.UpsertReverseTunnel,
 		deleteAll: p.presenceS.DeleteAllReverseTunnels,
 	})

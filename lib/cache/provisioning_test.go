@@ -25,8 +25,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -71,9 +69,7 @@ func TestProvisioningPrincipalState(t *testing.T) {
 			_, err := fixturePack.provisioningStates.UpdateProvisioningState(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.provisioningStates.ListProvisioningStatesForAllDownstreams))
-		},
+		list: fixturePack.provisioningStates.ListProvisioningStatesForAllDownstreams,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteProvisioningState(
 				ctx, testDownstreamID, services.ProvisioningStateID(id)))
@@ -81,13 +77,11 @@ func TestProvisioningPrincipalState(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(fixturePack.provisioningStates.DeleteAllProvisioningStates(ctx))
 		},
-		cacheList: func(ctx context.Context) ([]*provisioningv1.PrincipalState, error) {
-			return stream.Collect(clientutils.Resources(ctx, fixturePack.cache.ListProvisioningStatesForAllDownstreams))
-		},
+		cacheList: fixturePack.cache.ListProvisioningStatesForAllDownstreams,
 		cacheGet: func(ctx context.Context, id string) (*provisioningv1.PrincipalState, error) {
 			r, err := fixturePack.provisioningStates.GetProvisioningState(
 				ctx, testDownstreamID, services.ProvisioningStateID(id))
 			return r, trace.Wrap(err)
 		},
-	}, withSkipPaginationTest())
+	})
 }
