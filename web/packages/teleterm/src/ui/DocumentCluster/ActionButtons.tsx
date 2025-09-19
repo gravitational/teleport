@@ -60,6 +60,14 @@ import { DatabaseUri, routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useVnetContext, useVnetLauncher } from 'teleterm/ui/Vnet';
 
+/**
+ * Width that should be consistent across all displayed buttons.
+ *
+ * The list view of unified resources is not an actual table but a flexbox, so it depends on widths
+ * of elements to be consistent across rows so that they line up.
+ */
+const buttonWidth = 124;
+
 export function ConnectServerActionButton(props: {
   server: Server;
 }): React.JSX.Element {
@@ -105,10 +113,12 @@ export function ConnectServerActionButton(props: {
   };
 
   if (!isVnetSupported) {
-    return <MenuLogin {...commonProps} />;
+    return (
+      <MenuLogin {...commonProps} width={buttonWidth} alignButtonWidthToMenu />
+    );
   }
   return (
-    <MenuLoginWithActionMenu size="small" {...commonProps}>
+    <MenuLoginWithActionMenu size="small" {...commonProps} width={buttonWidth}>
       <MenuItem onClick={connectWithVnet}>Connect with VNet</MenuItem>
     </MenuLoginWithActionMenu>
   );
@@ -265,6 +275,7 @@ function AppButton(props: {
   if (props.app.awsConsole) {
     return (
       <AwsLaunchButton
+        width={buttonWidth}
         awsRoles={props.app.awsRoles}
         getLaunchUrl={arn =>
           getAwsAppLaunchUrl({
@@ -292,6 +303,7 @@ function AppButton(props: {
           rootCluster: props.rootCluster,
         })}
         target="_blank"
+        width={buttonWidth}
       >
         Log In
       </ButtonBorder>
@@ -313,6 +325,7 @@ function AppButton(props: {
         onClick={props.onLaunchUrl}
         target="_blank"
         title="Launch the app in the browser"
+        width={buttonWidth}
       >
         <MenuItem onClick={() => props.setUpGateway()}>
           Set up connection
@@ -329,6 +342,7 @@ function AppButton(props: {
         textTransform="none"
         size="small"
         onClick={() => props.connectWithVnet()}
+        width={buttonWidth}
       >
         <MenuItem onClick={() => props.setUpGateway()}>
           Connect without VNet
@@ -354,6 +368,7 @@ function AppButton(props: {
         textTransform="none"
         size="small"
         onClick={() => props.setUpGateway()}
+        width={buttonWidth}
       >
         <AvailableTargetPorts
           tcpPorts={props.app.tcpPorts}
@@ -369,6 +384,7 @@ function AppButton(props: {
       size="small"
       onClick={() => props.setUpGateway()}
       textTransform="none"
+      width={buttonWidth}
     >
       Connect
     </ButtonBorder>
