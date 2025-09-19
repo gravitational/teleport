@@ -69,7 +69,7 @@ const meta: Meta<StoryProps> = {
 export default meta;
 
 export function Story(props: StoryProps) {
-  const platform = props.vnet ? 'darwin' : 'win32';
+  const platform = props.vnet ? 'darwin' : 'linux';
   const appContext = new MockAppContext({ platform });
   prepareAppContext(appContext);
 
