@@ -160,13 +160,8 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		return nil
 	}
 
-	userState, err := u.accessPoint.GetUserOrLoginState(ctx, user.GetName())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// No need to make assignments for non-SSO users.
-	if userState.GetUserType() != types.UserTypeSSO {
+	if user.GetUserType() != types.UserTypeSSO {
 		return nil
 	}
 
@@ -175,7 +170,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 
 	// Only calculate access if a user has no locks in force.
 	locks, err := u.accessPoint.GetLocks(ctx, true, types.LockTarget{
-		User: userState.GetName(),
+		User: user.GetName(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -186,9 +181,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		return nil
 	}
 
-	// It should be okay to get the access info from the user state here because we're only concerned about
-	// the permissions tied to the user and associated permissions granted by access lists.
-	accessInfo := services.AccessInfoFromUserState(userState)
+	accessInfo := services.AccessInfoFromUserState(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, u.clusterName, u.accessPoint)
 	if err != nil {
 		return trace.Wrap(err)
@@ -204,7 +197,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		return trace.Wrap(err, "listing app servers for Okta access calculation")
 	}
 
-	assignmentName, err := uacAssignmentName(u.hash, userState.GetName(), groups, apps)
+	assignmentName, err := uacAssignmentName(u.hash, user.GetName(), groups, apps)
 	if err != nil {
 		return trace.Wrap(err, "creating user OktaAssignment name")
 	}
@@ -216,7 +209,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		// The Okta assignment already exists, so skip any further processing.
 		foundAssignment, err := u.accessPoint.GetOktaAssignment(ctx, assignmentName)
 		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err, "finding Okta assignment for user %s", userState.GetName())
+			return trace.Wrap(err, "finding Okta assignment for user %s", user.GetName())
 		}
 
 		// The current assignment is still active, so we'll return.
@@ -225,7 +218,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		}
 
 		// The Okta assignment doesn't exist, so let's create the new one.
-		newAssignment, err = u.newOktaAssignment(ctx, assignmentName, userState.GetName(), groups, apps)
+		newAssignment, err = u.newOktaAssignment(ctx, assignmentName, user.GetName(), groups, apps)
 		if err != nil {
 			return trace.Wrap(err, "creating the new Okta assignment")
 		}
@@ -247,7 +240,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 	}
 
 	// The Okta assignment doesn't exist, so find the old reconciler assignment for this user.
-	oldAssignments, err := u.findOldOktaAssignments(ctx, userState.GetName())
+	oldAssignments, err := u.findOldOktaAssignments(ctx, user.GetName())
 	if err != nil {
 		return trace.Wrap(err, "finding old Okta assignments")
 	}
@@ -276,7 +269,7 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		newGroups, newApps, removedGroups, removedApps := assignmentDiff(newAssignment, oldAssignments...)
 
 		u.logger.DebugContext(ctx, "User assignments updated after reconciliation",
-			"user_name", userState.GetName(),
+			"user_name", user.GetName(),
 			"new_groups", newGroups,
 			"removed_groups", removedGroups,
 			"new_apps", newApps,
