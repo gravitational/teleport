@@ -14,36 +14,31 @@ Each scenario links to detailed guides so you can quickly put these capabilities
 ## Identity integrations
 
 Teleport supports multiple identity options so you can plug into your existing stack or make Teleport your source of truth. 
-Use AWS IAM Identity Center, Okta, or Microsoft Entra ID to authenticate users into Teleport via SSO and sync groups to roles 
-for least-privilege access across infrastructure. If you prefer, you can also run Teleport as an identity provider, issuing 
+Use** AWS IAM Identity Center,**** Okta,** or** Microsoft Entra ID** to authenticate users into Teleport via SSO and sync groups to roles 
+for least-privilege access across infrastructure. If you prefer, you can also ru**n Teleport as an identity provider**, issuing 
 short-lived credentials and federating access to downstream apps and services. These integrations enable centralized onboarding/offboarding, 
 group-to-role mapping, and consistent policy enforcement across all your resources.
-
-- AWS IAM Identity Center
-- Okta Integration
-- Entra ID Integration
-- Teleport as an identity provider 
 
 <TileGrid
   tiles={[
     {
       icon: <Icon name="AWS-IAM-IdentityCenter" size="xl" />,
-      to: "/aws-iam-identity-center/aws-iam-identity-center",
+      to: "/docs/aws-iam-identity-center/aws-iam-identity-center",
       name: "AWS IAM Identity Center",
     },
     {
       icon: <Icon name="oktaIntegration" size="xl" />,
-      to: "/okta/okta",
+      to: "/docs/okta/okta",
       name: "Okta Integration",
     },
     {
       icon: <Icon name="entraIDIntegration" size="xl" />,
-      to: "/entra-id/getting-started",
+      to: "/docs/entra-id/getting-started",
       name: "Entra ID Integration",
     },
     {
       icon: <Icon name="teleportIdentity provider" size="xl" />,
-      to: "/idps/idps",
+      to: "/docs/idps/idps",
       name: "Teleport as an identity provider",
     }
   ]}
