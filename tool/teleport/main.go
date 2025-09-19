@@ -21,6 +21,8 @@ package main
 import (
 	"os"
 
+	"log"
+
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
@@ -30,6 +32,7 @@ func init() {
 }
 
 func main() {
+	log.Println("start teleport")
 	common.Run(common.Options{
 		Args: os.Args[1:],
 	})
