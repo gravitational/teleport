@@ -422,6 +422,15 @@ func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService ser
 		return nil, trace.Wrap(err)
 	}
 
+	// Set the full state directly on the user object.
+	// We cannot rely Upsert/Get User login state because the next webhook that calls GetUserLogin
+	// might receive stale data.
+	// Instead of using Upsert/Get calls to pass the object through the login hooks chain,
+	// the login hook updates the user object directly.
+	// TODO(smallinsky): Consider removing the user login state approach entirely, as it currently only mirrors the user state.
+	user.SetRoles(uls.GetRoles())
+	user.SetTraits(uls.GetTraits())
+
 	uls, err = ulsService.UpsertUserLoginState(ctx, uls)
 	return uls, trace.Wrap(err)
 }
