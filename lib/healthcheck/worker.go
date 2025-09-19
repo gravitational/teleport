@@ -22,15 +22,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -71,7 +68,7 @@ func (cfg *workerConfig) checkAndSetDefaults() error {
 	if cfg.getTargetHealthTimeout == 0 {
 		cfg.getTargetHealthTimeout = 10 * time.Second
 	}
-	if err := cfg.Target.checkAndSetDefaults(); err != nil {
+	if err := cfg.Target.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -140,8 +137,6 @@ type worker struct {
 	// lastResultCount is the count of consecutive passing or failing health
 	// check results.
 	lastResultCount uint32
-	// lastResolvedEndpoints are the endpoints last resolved for a health check.
-	lastResolvedEndpoints []string
 
 	// mu guards concurrent access to the target health.
 	mu sync.RWMutex
@@ -159,9 +154,6 @@ type worker struct {
 	// metricType is the resource type (db, k8s, etc) use in Prometheus metrics.
 	metricType string
 }
-
-// dialFunc dials an address on the given network.
-type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 // GetTargetHealth returns the worker's target health.
 func (w *worker) GetTargetHealth() *types.TargetHealth {
@@ -201,9 +193,7 @@ func (w *worker) run() {
 		if w.initCheckPendingCh != nil {
 			close(w.initCheckPendingCh)
 		}
-		if w.target.onClose != nil {
-			w.target.onClose()
-		}
+		w.target.OnClose()
 	}()
 
 	if w.healthCheckCfg != nil {
@@ -219,9 +209,7 @@ func (w *worker) run() {
 		select {
 		case <-w.nextHealthCheck():
 			w.checkHealth(w.closeContext)
-			if w.target.onHealthCheck != nil {
-				w.target.onHealthCheck(w.lastResultErr)
-			}
+			w.target.OnHealthCheck(w.lastResultErr)
 		case newCfg := <-w.healthCheckConfigUpdateCh:
 			w.updateHealthCheckConfig(w.closeContext, newCfg)
 		case <-w.closeContext.Done():
@@ -238,7 +226,6 @@ func (w *worker) run() {
 func (w *worker) startHealthCheckInterval(ctx context.Context) {
 	w.log.InfoContext(ctx, "Health checker started",
 		"health_check_config", w.healthCheckCfg.name,
-		"protocol", w.healthCheckCfg.protocol,
 		"interval", log.StringerAttr(w.healthCheckCfg.interval),
 		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
@@ -257,7 +244,6 @@ func (w *worker) stopHealthCheckInterval(ctx context.Context) {
 	w.log.InfoContext(ctx, "Health checker stopped")
 	w.lastResultErr = nil
 	w.lastResultCount = 0
-	w.lastResolvedEndpoints = nil
 	w.healthCheckInterval.Stop()
 	w.healthCheckInterval = nil
 }
@@ -276,25 +262,30 @@ func (w *worker) nextHealthCheck() <-chan time.Time {
 // updates the worker's health check result history, and possibly updates the
 // target health.
 func (w *worker) checkHealth(ctx context.Context) {
-	initializing := w.lastResultCount == 0
-	dialErr := w.dialEndpoints(ctx)
+	ctx, cancel := context.WithTimeout(ctx, w.healthCheckCfg.timeout)
+	defer cancel()
+
+	// check target health
+	curErr := w.target.CheckHealth(ctx)
+
 	if ctx.Err() == context.Canceled {
 		return
 	}
-	if (dialErr == nil) == (w.lastResultErr == nil) {
+	initializing := w.lastResultCount == 0
+	if (curErr == nil) == (w.lastResultErr == nil) {
 		w.lastResultCount++
 	} else {
 		// the passing/failing result streak has ended, so reset the count
 		w.lastResultCount = 1
 	}
-	w.lastResultErr = dialErr
+	w.lastResultErr = curErr
 
 	if w.lastResultErr != nil {
 		w.log.DebugContext(ctx, "Failed health check",
 			"error", w.lastResultErr,
 		)
 	}
-	// update target health when we exactly reach the threshold or initialize
+	// update target health when we initialize or exactly reach the threshold
 	if initializing || w.getThreshold(w.healthCheckCfg) == w.lastResultCount {
 		w.setThresholdReached(ctx)
 	}
@@ -307,9 +298,7 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	if newCfg.equivalent(oldCfg) {
 		return
 	}
-	if w.target.onConfigUpdate != nil {
-		defer w.target.onConfigUpdate()
-	}
+	defer w.target.OnConfigUpdate()
 	switch {
 	case newCfg == nil:
 		w.stopHealthCheckInterval(ctx)
@@ -322,7 +311,6 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	}
 	w.log.DebugContext(ctx, "Updated health check config",
 		"health_check_config", w.healthCheckCfg.name,
-		"protocol", w.healthCheckCfg.protocol,
 		"interval", log.StringerAttr(w.healthCheckCfg.interval),
 		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
@@ -345,41 +333,6 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	if newThreshold < oldThreshold && w.lastResultCount >= newThreshold {
 		w.setThresholdReached(ctx)
 	}
-}
-
-func (w *worker) dialEndpoints(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, w.healthCheckCfg.timeout)
-	defer cancel()
-	endpoints, err := w.target.ResolverFn(ctx)
-	if err != nil {
-		return trace.Wrap(err, "failed to resolve target endpoints")
-	}
-	w.lastResolvedEndpoints = endpoints
-	switch len(endpoints) {
-	case 0:
-		return trace.NotFound("resolved zero target endpoints")
-	case 1:
-		return w.dialEndpoint(ctx, endpoints[0])
-	default:
-		group, ctx := errgroup.WithContext(ctx)
-		group.SetLimit(10)
-		for _, ep := range endpoints {
-			group.Go(func() error {
-				return trace.Wrap(w.dialEndpoint(ctx, ep))
-			})
-		}
-		return group.Wait()
-	}
-}
-
-func (w *worker) dialEndpoint(ctx context.Context, endpoint string) error {
-	conn, err := w.target.dialFn(ctx, "tcp", endpoint)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// an error while closing the connection could indicate an RST packet from
-	// the endpoint - that's a health check failure.
-	return trace.Wrap(conn.Close())
 }
 
 // getThreshold returns the appropriate threshold to compare against the last
@@ -465,7 +418,8 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	w.decrementPreviousMetric(oldHealth.Status)
 	now := w.clock.Now()
 	w.targetHealth = types.TargetHealth{
-		Address:             strings.Join(w.lastResolvedEndpoints, ","),
+		Address:             w.target.GetAddress(),
+		Protocol:            string(w.target.GetProtocol()),
 		Status:              string(newStatus),
 		TransitionTimestamp: &now,
 		TransitionReason:    string(reason),
@@ -473,9 +427,6 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	}
 	if w.lastResultErr != nil {
 		w.targetHealth.TransitionError = w.lastResultErr.Error()
-	}
-	if w.healthCheckCfg != nil {
-		w.targetHealth.Protocol = string(w.healthCheckCfg.protocol)
 	}
 }
 
