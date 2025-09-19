@@ -724,7 +724,7 @@ func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *trac
 		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
 		teleport.SSHTeleportClusterName: scx.ClusterName,
-		teleport.SSHSessionID:           string(scx.SessionID()),
+		teleport.SSHSessionID:           scx.SessionID(),
 	}
 
 	if err := session.SetEnvs(ctx, envs); err != nil {
