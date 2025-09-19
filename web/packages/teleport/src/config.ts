@@ -487,6 +487,10 @@ const cfg = {
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
     },
 
+    workloadIdentity: {
+      list: '/v1/webapi/sites/:clusterId/workload-identity',
+    },
+
     gcpWorkforceConfigurePath:
       '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
@@ -1591,6 +1595,23 @@ const cfg = {
         });
       default:
         req satisfies never;
+        return '';
+    }
+  },
+
+  getWorkloadIdentityUrl(
+    req: {
+      action: 'list';
+    } & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.workloadIdentity.list, {
+          clusterId,
+        });
+      default:
+        req.action satisfies never;
         return '';
     }
   },

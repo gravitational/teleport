@@ -1186,6 +1186,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	// GET Machine ID bot instances (paged)
 	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 
+	// List workload identities
+	h.GET("/webapi/sites/:site/workload-identity", h.WithClusterAuth(h.listWorkloadIdentities))
+
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
 	// Upsert the timestamp of the latest notification that the user has seen.

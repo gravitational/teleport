@@ -8268,16 +8268,42 @@ func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
-func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
+type WebPackOptions struct {
+	proxyOptions    []proxyOption
+	enableAuthCache bool
+}
+
+type webPackOptions func(*WebPackOptions)
+
+func withWebPackProxyOptions(opts ...proxyOption) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.proxyOptions = opts
+	}
+}
+
+func withWebPackAuthCacheEnabled(enable bool) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.enableAuthCache = enable
+	}
+}
+
+func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
+	options := &WebPackOptions{}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			ClusterName: "localhost",
-			Dir:         t.TempDir(),
-			Clock:       clock,
-			AuditLog:    events.NewDiscardAuditLog(),
+			ClusterName:  "localhost",
+			Dir:          t.TempDir(),
+			Clock:        clock,
+			AuditLog:     events.NewDiscardAuditLog(),
+			CacheEnabled: options.enableAuthCache,
 		},
 	})
 	require.NoError(t, err)
@@ -8389,7 +8415,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, opts...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.

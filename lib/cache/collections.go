@@ -23,6 +23,7 @@ import (
 
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -54,6 +55,7 @@ type collections struct {
 	remoteClusters    *collection[types.RemoteCluster, remoteClusterIndex]
 	plugins           *collection[types.Plugin, pluginIndex]
 	autoUpdateReports *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
+	workloadIdentity  *collection[*workloadidentityv1.WorkloadIdentity, workloadIdentityIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -114,6 +116,14 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 			}
 			out.plugins = collect
 			out.byKind[resourceKind] = out.plugins
+		case types.KindWorkloadIdentity:
+			collect, err := newWorkloadIdentityCollection(c.WorkloadIdentity, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.workloadIdentity = collect
+			out.byKind[resourceKind] = out.workloadIdentity
 		default:
 			_, legacyOk := legacyCollections[resourceKind]
 			if _, ok := out.byKind[resourceKind]; !ok && !legacyOk {
