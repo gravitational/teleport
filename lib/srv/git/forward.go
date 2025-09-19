@@ -373,7 +373,7 @@ func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.Connecti
 
 	// TODO(greedy52) decouple from srv.NewServerContext. We only need
 	// connection monitoring.
-	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx)
+	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -408,8 +408,6 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 			s.reply.RejectWithAcceptError(ctx, nch, err)
 			return
 		}
-
-		ccx.SetSessionParams(sessionParams)
 	}
 
 	if s.remoteClient == nil {
