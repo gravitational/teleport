@@ -616,8 +616,23 @@ func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *FileTransferRe
 func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.TerminalParams, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
-		s.logger.DebugContext(ctx, "Unable to update window size, no session found in context.")
-		return nil
+		sid, _ := scx.GetJoinParams()
+		if sid == "" {
+			s.logger.DebugContext(ctx, "Unable to update window size, no session found in context.")
+			return nil
+		}
+
+		id, err := rsession.ParseID(sid)
+		if err != nil {
+			return trace.BadParameter("invalid session ID %s", sid)
+		}
+
+		var ok bool
+		session, ok = s.findSession(*id)
+		if !ok {
+			s.logger.DebugContext(ctx, "Unable to update window size, no session found in context.")
+			return nil
+		}
 	}
 
 	// Build the resize event.
