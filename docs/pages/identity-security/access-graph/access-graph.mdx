@@ -1,14 +1,27 @@
 ---
-title: "Self-Hosting Teleport Access Graph"
+title: "Self-Hosting Teleport Identity Security"
+sidebar_label: Self-Host Teleport Identity Security
 description: Explains how to deploy Access Graph alongside a self-hosted Teleport cluster.
 tags:
  - identity-security
  - access-risks
+sidebar_position: 4
 ---
 
-If you run a self-hosted Teleport cluster, using Access Graph (part of
-Teleport Identity Security) requires running the Access Graph Service on your own
-infrastructure. The following guides show you how to deploy the Access Graph
-Service.
+If you run a self-hosted Teleport cluster, using Teleport Identity Security
+requires running the **Teleport Access Graph Service** on your own
+infrastructure. 
+
+By default, the Access Graph Service enables access path exploration features,
+including the Dashboard, Browse, Crown Jewels, Graph Explorer, and SQL Editor
+views.
+
+If you enable **Teleport Identity Activity Center** on the Access Graph Service
+and deploy its supporting infrastructure, Teleport Identity Security will
+provide audit log centralization and querying, including the Browse and Alerts
+views.
+
+The following guides show you how to deploy the Access Graph Service and support
+Identity Activity Center on your own infrastructure:
 
 <DocCardList />
