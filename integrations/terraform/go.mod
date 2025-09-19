@@ -89,7 +89,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/avast/retry-go/v4 v4.6.1 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.38.3 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.39.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.1 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.31.6 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.10 // indirect
@@ -98,12 +98,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.6 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.6 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.19.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.7 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.7 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.40.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/athena v1.55.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.58.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dax v1.28.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.50.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.30.2 // indirect
