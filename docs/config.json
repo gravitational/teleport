@@ -551,7 +551,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/linux-demo/",
-      "destination": "/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     },
     {
@@ -2287,6 +2287,11 @@
     {
       "source": "/enroll-resources/application-access/cloud-apis/aws-console-without-agent/",
       "destination": "/enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere/",
+      "permanent": true
+    },
+    {
+      "source": "/linux-demo/",
+      "destination": "/get-started/deploy-community/",
       "permanent": true
     }
   ]
