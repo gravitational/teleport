@@ -1143,7 +1143,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rts, err := process.GetReverseTunnelServer()
 		require.NoError(t, err)
-		cluster, err := rts.Cluster(ctx, "root")
+		cluster, err := rts.GetSite("root")
 		require.NoError(t, err)
 		nw, err := cluster.NodeWatcher()
 		require.NoError(t, err)
