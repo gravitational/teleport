@@ -35,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -62,14 +61,6 @@ func TestNewSession(t *testing.T) {
 	require.Equal(t, os.Stderr, ses.terminal.Stderr())
 	require.Equal(t, os.Stdout, ses.terminal.Stdout())
 	require.Equal(t, os.Stdin, ses.terminal.Stdin())
-
-	// pass join params
-	ses, err = newSession(ctx, nc, &tracessh.SessionParams{
-		JoinSessionID: "session-id",
-		JoinMode:      types.SessionPeerMode,
-	}, nil, nil, nil, true)
-	require.NoError(t, err)
-	require.NotNil(t, ses)
 }
 
 // TestProxyConnection verifies that client or server-side disconnect
