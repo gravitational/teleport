@@ -61,11 +61,9 @@ func Test_newUnstartedWorker(t *testing.T) {
 			desc: "disabled",
 			cfg: workerConfig{
 				HealthCheckCfg: nil,
-				Target: Target{
-					GetResource: func() types.ResourceWithLabels { return db },
-					ResolverFn: func(ctx context.Context) ([]string, error) {
-						return []string{db.GetURI()}, nil
-					},
+				Target: &TargetDialer{
+					Resource: func() types.ResourceWithLabels { return db },
+					Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
 				},
 			},
 			wantHealth: types.TargetHealth{
@@ -85,11 +83,9 @@ func Test_newUnstartedWorker(t *testing.T) {
 					healthyThreshold:   10,
 					unhealthyThreshold: 10,
 				},
-				Target: Target{
-					GetResource: func() types.ResourceWithLabels { return db },
-					ResolverFn: func(ctx context.Context) ([]string, error) {
-						return []string{db.GetURI()}, nil
-					},
+				Target: &TargetDialer{
+					Resource: func() types.ResourceWithLabels { return db },
+					Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
 				},
 				getTargetHealthTimeout: time.Millisecond,
 			},
@@ -110,10 +106,8 @@ func Test_newUnstartedWorker(t *testing.T) {
 					healthyThreshold:   10,
 					unhealthyThreshold: 10,
 				},
-				Target: Target{
-					ResolverFn: func(ctx context.Context) ([]string, error) {
-						return []string{db.GetURI()}, nil
-					},
+				Target: &TargetDialer{
+					Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
 				},
 			},
 			wantErr: "missing target resource getter",

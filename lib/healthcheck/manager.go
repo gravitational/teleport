@@ -143,7 +143,7 @@ func (m *manager) Start(ctx context.Context) error {
 
 // AddTarget adds a new target health checker and starts the health checker.
 func (m *manager) AddTarget(target Target) error {
-	if err := target.checkAndSetDefaults(); err != nil {
+	if err := target.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	resource := target.GetResource()
