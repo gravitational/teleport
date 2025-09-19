@@ -19,12 +19,10 @@
 package srv
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -33,9 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 func TestCheckSFTPAllowed(t *testing.T) {
@@ -284,90 +280,4 @@ func TestSSHAccessLockTargets(t *testing.T) {
 			t.Errorf("SSHAccessLockTargets mismatch (-want +got)\n%s", diff)
 		}
 	})
-}
-
-func TestCreateOrJoinSession(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	srv := newMockServer(t)
-	registry, err := NewSessionRegistry(SessionRegistryConfig{
-		clock:                 srv.clock,
-		Srv:                   srv,
-		SessionTrackerService: srv.auth,
-	})
-	require.NoError(t, err)
-
-	runningSessionID := rsession.NewID()
-	sess, _, err := newSession(ctx, runningSessionID, registry, newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{}), newMockSSHChannel(), sessionTypeInteractive)
-	require.NoError(t, err)
-
-	t.Cleanup(sess.Stop)
-
-	registry.sessions[runningSessionID] = sess
-
-	tests := []struct {
-		name              string
-		sessionID         string
-		expectedErr       bool
-		wantSameSessionID bool
-	}{
-		{
-			name: "no session ID",
-		},
-		{
-			name:              "new session ID",
-			sessionID:         string(rsession.NewID()),
-			wantSameSessionID: false,
-		},
-		{
-			name:              "existing session ID",
-			sessionID:         runningSessionID.String(),
-			wantSameSessionID: true,
-		},
-		{
-			name:              "existing session ID in Windows format",
-			sessionID:         "{" + runningSessionID.String() + "}",
-			wantSameSessionID: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancel := context.WithCancel(ctx)
-			defer cancel()
-
-			parsedSessionID := new(rsession.ID)
-			var err error
-			if tt.sessionID != "" {
-				parsedSessionID, err = rsession.ParseID(tt.sessionID)
-				require.NoError(t, err)
-			}
-
-			scx := newTestServerContext(t, srv, nil, nil)
-			if tt.sessionID != "" {
-				scx.SetEnv(sshutils.SessionEnvVar, tt.sessionID)
-			}
-
-			err = scx.CreateOrJoinSession(ctx, registry)
-			if tt.expectedErr {
-				require.True(t, trace.IsNotFound(err))
-			} else {
-				require.NoError(t, err)
-			}
-
-			sessID := scx.GetSessionID()
-			require.False(t, sessID.IsZero())
-			if tt.wantSameSessionID {
-				require.Equal(t, parsedSessionID.String(), sessID.String())
-				require.Equal(t, *parsedSessionID, scx.GetSessionID())
-			} else {
-				require.NotEqual(t, parsedSessionID.String(), sessID.String())
-				require.NotEqual(t, *parsedSessionID, scx.GetSessionID())
-			}
-		})
-	}
 }

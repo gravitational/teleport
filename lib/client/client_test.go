@@ -69,8 +69,6 @@ func TestNewSession(t *testing.T) {
 	ses, err = newSession(ctx, nc, nil, env, nil, nil, nil, true)
 	require.NoError(t, err)
 	require.NotNil(t, ses)
-	// the session ID must be unset from tne environ map, if we are not joining a session:
-	require.Empty(t, ses.id)
 }
 
 // TestProxyConnection verifies that client or server-side disconnect

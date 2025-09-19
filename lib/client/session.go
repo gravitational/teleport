@@ -58,9 +58,6 @@ const (
 )
 
 type NodeSession struct {
-	// id is the Teleport session ID
-	id session.ID
-
 	// env is the environment variables that need to be created
 	// on the server for this session
 	env map[string]string
@@ -143,8 +140,6 @@ func newSession(ctx context.Context,
 			return nil, trace.Wrap(err)
 		}
 
-		ns.id = session.ID(sessionID)
-
 		if ns.terminal.IsAttached() {
 			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))
 			if err != nil {
@@ -153,7 +148,7 @@ func newSession(ctx context.Context,
 
 		}
 
-		ns.env[sshutils.SessionEnvVar] = string(ns.id)
+		ns.env[sshutils.SessionEnvVar] = sessionID
 	}
 
 	// Close the Terminal when finished.
