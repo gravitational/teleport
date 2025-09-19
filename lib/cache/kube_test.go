@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -42,15 +41,19 @@ func TestKubernetes(t *testing.T) {
 				Name: name,
 			}, types.KubernetesClusterSpecV3{})
 		},
-		create:   p.kubernetes.CreateKubernetesCluster,
-		list:     p.kubernetes.GetKubernetesClusters,
+		create: p.kubernetes.CreateKubernetesCluster,
+		list: func(ctx context.Context, _ int, _ string) ([]types.KubeCluster, string, error) {
+			out, err := p.kubernetes.GetKubernetesClusters(ctx)
+			return out, "", trace.Wrap(err)
+		},
 		cacheGet: p.cache.GetKubernetesCluster,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.KubeCluster, error) {
-			return p.cache.GetKubernetesClusters(ctx)
+		cacheList: func(ctx context.Context, _ int, _ string) ([]types.KubeCluster, string, error) {
+			out, err := p.cache.GetKubernetesClusters(ctx)
+			return out, "", trace.Wrap(err)
 		},
 		update:    p.kubernetes.UpdateKubernetesCluster,
 		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestKubernetesServers tests that CRUD operations on kube servers are
@@ -68,18 +71,14 @@ func TestKubernetesServers(t *testing.T) {
 				require.NoError(t, err)
 				return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
 			},
-			create: withKeepalive(p.presenceS.UpsertKubernetesServer),
-			list: func(ctx context.Context) ([]types.KubeServer, error) {
-				return p.presenceS.GetKubernetesServers(ctx)
-			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.KubeServer, error) {
-				return p.cache.GetKubernetesServers(ctx)
-			},
-			update: withKeepalive(p.presenceS.UpsertKubernetesServer),
+			create:    withKeepalive(p.presenceS.UpsertKubernetesServer),
+			list:      getAllAdapter(p.presenceS.GetKubernetesServers),
+			cacheList: getAllAdapter(p.cache.GetKubernetesServers),
+			update:    withKeepalive(p.presenceS.UpsertKubernetesServer),
 			deleteAll: func(ctx context.Context) error {
 				return p.presenceS.DeleteAllKubernetesServers(ctx)
 			},
-		})
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListResources", func(t *testing.T) {
@@ -90,20 +89,27 @@ func TestKubernetesServers(t *testing.T) {
 				return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
 			},
 			create: withKeepalive(p.presenceS.UpsertKubernetesServer),
-			list: func(ctx context.Context) ([]types.KubeServer, error) {
-				resources, err := listAllResource(t, p.presenceS, types.KindKubeServer, apidefaults.DefaultChunkSize)
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeServer, string, error) {
+				resources, next, err := listResource(ctx, p.presenceS, types.KindKubeServer, pageSize, pageToken)
 				if err != nil {
-					return nil, trace.Wrap(err)
+					return nil, "", trace.Wrap(err)
 				}
-				return types.ResourcesWithLabels(resources).AsKubeServers()
-
+				out, err := types.ResourcesWithLabels(resources).AsKubeServers()
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return out, next, nil
 			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.KubeServer, error) {
-				resources, err := listAllResource(t, p.cache, types.KindKubeServer, pageSize)
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeServer, string, error) {
+				resources, next, err := listResource(ctx, p.cache, types.KindKubeServer, pageSize, pageToken)
 				if err != nil {
-					return nil, trace.Wrap(err)
+					return nil, "", trace.Wrap(err)
 				}
-				return types.ResourcesWithLabels(resources).AsKubeServers()
+				out, err := types.ResourcesWithLabels(resources).AsKubeServers()
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				return out, next, nil
 			},
 			update: withKeepalive(p.presenceS.UpsertKubernetesServer),
 			deleteAll: func(ctx context.Context) error {

@@ -21,8 +21,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestIntegrations tests that CRUD operations on integrations resources are
@@ -46,13 +44,9 @@ func TestIntegrations(t *testing.T) {
 			_, err := p.integrations.CreateIntegration(ctx, i)
 			return err
 		},
-		list: func(ctx context.Context) ([]types.Integration, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.integrations.ListIntegrations))
-		},
-		cacheGet: p.cache.GetIntegration,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.Integration, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListIntegrations, pageSize))
-		},
+		list:      p.integrations.ListIntegrations,
+		cacheGet:  p.cache.GetIntegration,
+		cacheList: p.cache.ListIntegrations,
 		update: func(ctx context.Context, i types.Integration) error {
 			_, err := p.integrations.UpdateIntegration(ctx, i)
 			return err

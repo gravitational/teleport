@@ -41,20 +41,20 @@ func TestAutoUpdateConfig(t *testing.T) {
 			_, err := p.autoUpdateService.UpsertAutoUpdateConfig(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*autoupdatev1.AutoUpdateConfig, error) {
+		list: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateConfig, error) {
 			item, err := p.autoUpdateService.GetAutoUpdateConfig(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateConfig{}, nil
 			}
 			return []*autoupdatev1.AutoUpdateConfig{item}, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context, _ int) ([]*autoupdatev1.AutoUpdateConfig, error) {
+		}),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateConfig, error) {
 			item, err := p.cache.GetAutoUpdateConfig(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateConfig{}, nil
 			}
 			return []*autoupdatev1.AutoUpdateConfig{item}, trace.Wrap(err)
-		},
+		}),
 		deleteAll: func(ctx context.Context) error {
 			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateConfig(ctx))
 		},
@@ -77,23 +77,21 @@ func TestAutoUpdateVersion(t *testing.T) {
 			_, err := p.autoUpdateService.UpsertAutoUpdateVersion(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*autoupdatev1.AutoUpdateVersion, error) {
+		list: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateVersion, error) {
 			item, err := p.autoUpdateService.GetAutoUpdateVersion(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateVersion{}, nil
 			}
 			return []*autoupdatev1.AutoUpdateVersion{item}, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context, _ int) ([]*autoupdatev1.AutoUpdateVersion, error) {
+		}),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateVersion, error) {
 			item, err := p.cache.GetAutoUpdateVersion(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateVersion{}, nil
 			}
 			return []*autoupdatev1.AutoUpdateVersion{item}, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateVersion(ctx))
-		},
+		}),
+		deleteAll: p.autoUpdateService.DeleteAutoUpdateVersion,
 	}, withSkipPaginationTest())
 }
 
@@ -113,22 +111,20 @@ func TestAutoUpdateAgentRollout(t *testing.T) {
 			_, err := p.autoUpdateService.UpsertAutoUpdateAgentRollout(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
+		list: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
 			item, err := p.autoUpdateService.GetAutoUpdateAgentRollout(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateAgentRollout{}, nil
 			}
 			return []*autoupdatev1.AutoUpdateAgentRollout{item}, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context, _ int) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
+		}),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
 			item, err := p.cache.GetAutoUpdateAgentRollout(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateAgentRollout{}, nil
 			}
 			return []*autoupdatev1.AutoUpdateAgentRollout{item}, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateAgentRollout(ctx))
-		},
+		}),
+		deleteAll: p.autoUpdateService.DeleteAutoUpdateAgentRollout,
 	}, withSkipPaginationTest())
 }
