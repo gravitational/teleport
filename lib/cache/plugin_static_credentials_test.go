@@ -86,13 +86,13 @@ func TestPluginStaticCredentials(t *testing.T) {
 						})
 				},
 				create: p.pluginStaticCredentials.CreatePluginStaticCredentials,
-				list:   p.pluginStaticCredentials.GetAllPluginStaticCredentials,
+				list:   getAllAdapter(p.pluginStaticCredentials.GetAllPluginStaticCredentials),
 				update: func(ctx context.Context, cred types.PluginStaticCredentials) error {
 					_, err := p.pluginStaticCredentials.UpdatePluginStaticCredentials(ctx, cred)
 					return err
 				},
 				deleteAll: p.pluginStaticCredentials.DeleteAllPluginStaticCredentials,
-				cacheList: p.cache.pluginStaticCredentialsCache.GetAllPluginStaticCredentials,
+				cacheList: getAllAdapter(p.cache.pluginStaticCredentialsCache.GetAllPluginStaticCredentials),
 				cacheGet:  cacheGet.fn,
 			}, withSkipPaginationTest())
 		})
