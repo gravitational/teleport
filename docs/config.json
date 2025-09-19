@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.1.8",
+      "version": "18.2.0",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
