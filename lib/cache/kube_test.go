@@ -41,16 +41,10 @@ func TestKubernetes(t *testing.T) {
 				Name: name,
 			}, types.KubernetesClusterSpecV3{})
 		},
-		create: p.kubernetes.CreateKubernetesCluster,
-		list: func(ctx context.Context, _ int, _ string) ([]types.KubeCluster, string, error) {
-			out, err := p.kubernetes.GetKubernetesClusters(ctx)
-			return out, "", trace.Wrap(err)
-		},
-		cacheGet: p.cache.GetKubernetesCluster,
-		cacheList: func(ctx context.Context, _ int, _ string) ([]types.KubeCluster, string, error) {
-			out, err := p.cache.GetKubernetesClusters(ctx)
-			return out, "", trace.Wrap(err)
-		},
+		create:    p.kubernetes.CreateKubernetesCluster,
+		list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
+		cacheGet:  p.cache.GetKubernetesCluster,
+		cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
 		update:    p.kubernetes.UpdateKubernetesCluster,
 		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
 	}, withSkipPaginationTest())

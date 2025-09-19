@@ -1925,7 +1925,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:              newKubeWaitingContainer(t),
 		types.KindNotification:                      types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:                types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t)),
+		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t, "test")),
 		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
@@ -2505,12 +2505,14 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 	return notification
 }
 
-func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
+func newAccessMonitoringRule(t *testing.T, name string) *accessmonitoringrulesv1.AccessMonitoringRule {
 	t.Helper()
 	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
-		Kind:     types.KindAccessMonitoringRule,
-		Version:  types.V1,
-		Metadata: &headerv1.Metadata{},
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Notification: &accessmonitoringrulesv1.Notification{
 				Name: "test",
