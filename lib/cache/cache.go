@@ -3789,3 +3789,16 @@ func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pag
 
 	return rg.reader.ListProvisioningStatesForAllDownstreams(ctx, pageSize, pageToken)
 }
+
+// ListUserLoginStates returns a paginated list of user login state resources.
+func (c *Cache) ListUserLoginStates(ctx context.Context, pageSize int, pageToken string) ([]*userloginstate.UserLoginState, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserLoginStates")
+	defer span.End()
+
+	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.userLoginStates)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListUserLoginStates(ctx, pageSize, pageToken)
+}

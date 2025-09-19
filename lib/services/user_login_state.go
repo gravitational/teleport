@@ -31,9 +31,10 @@ import (
 type UserLoginStatesGetter interface {
 	// GetUserLoginStates returns the all user login state resources.
 	GetUserLoginStates(context.Context) ([]*userloginstate.UserLoginState, error)
-
 	// GetUserLoginState returns the specified user login state resource.
 	GetUserLoginState(context.Context, string) (*userloginstate.UserLoginState, error)
+	// ListUserLoginStates returns a paginated list of user login state resources.
+	ListUserLoginStates(ctx context.Context, pageSize int, nextToken string) ([]*userloginstate.UserLoginState, string, error)
 }
 
 // UserLoginStates is the interface for managing with user login states.
