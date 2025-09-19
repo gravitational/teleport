@@ -127,10 +127,9 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	if joinID, joinMode := scx.GetJoinParams(); joinID != "" {
 		err := t.SessionRegistry.JoinSession(ctx, ch, scx, joinID, joinMode)
 
-		// TODO(Joerger): DELETE IN v19.0.0 - old clients set TELEPORT_SESSION for new
-		// sessions, but the client should only provide a session ID for join sessions.
-		// Therefore we ignore the client's provided session ID if there is no session
-		// to join and overwrite the TELEPORT_SESSION env var for the session.
+		// TODO(Joerger): DELETE IN 20.0.0 - v19+ only set TELEPORT_SESSION
+		// when they want to join a session. Always return an error instead
+		// of ignoring the client provided session ID and creating a new session.
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
