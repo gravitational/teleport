@@ -348,7 +348,6 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	upstreamReq.RequestURI = ""
 	// TODO: Are there any headers we should override, add, or remove on the
 	// upstream request?
-	upstreamReq.Proto
 
 	// Execute the upstream request
 	resp, err := httpClient.Do(upstreamReq)
