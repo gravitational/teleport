@@ -204,8 +204,10 @@ type ListBotInstancesV2Request struct {
 	// A search term used to filter the results. If non-empty, it's used to match
 	// against supported fields.
 	FilterSearchTerm string `protobuf:"bytes,6,opt,name=filter_search_term,json=filterSearchTerm,proto3" json:"filter_search_term,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// A Teleport predicate language query used to filter the results.
+	FilterQuery   string `protobuf:"bytes,7,opt,name=filter_query,json=filterQuery,proto3" json:"filter_query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListBotInstancesV2Request) Reset() {
@@ -276,6 +278,13 @@ func (x *ListBotInstancesV2Request) GetFilterBotName() string {
 func (x *ListBotInstancesV2Request) GetFilterSearchTerm() string {
 	if x != nil {
 		return x.FilterSearchTerm
+	}
+	return ""
+}
+
+func (x *ListBotInstancesV2Request) GetFilterQuery() string {
+	if x != nil {
+		return x.FilterQuery
 	}
 	return ""
 }
@@ -489,7 +498,7 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12,\n" +
 	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\x12!\n" +
-	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xe9\x01\n" +
+	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\x8c\x02\n" +
 	"\x19ListBotInstancesV2Request\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -498,7 +507,8 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"sort_field\x18\x03 \x01(\tR\tsortField\x12\x1b\n" +
 	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12&\n" +
 	"\x0ffilter_bot_name\x18\x05 \x01(\tR\rfilterBotName\x12,\n" +
-	"\x12filter_search_term\x18\x06 \x01(\tR\x10filterSearchTerm\"\x8b\x01\n" +
+	"\x12filter_search_term\x18\x06 \x01(\tR\x10filterSearchTerm\x12!\n" +
+	"\ffilter_query\x18\a \x01(\tR\vfilterQuery\"\x8b\x01\n" +
 	"\x18ListBotInstancesResponse\x12G\n" +
 	"\rbot_instances\x18\x01 \x03(\v2\".teleport.machineid.v1.BotInstanceR\fbotInstances\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"V\n" +

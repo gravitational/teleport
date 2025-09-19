@@ -29,8 +29,10 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 type botInstanceIndex string
@@ -119,6 +121,18 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 		return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name or active_at_latest", options.GetSortField())
 	}
 
+	var exp typical.Expression[*expression.Environment, bool]
+	if options.GetFilterQuery() != "" {
+		parser, err := expression.NewBotInstanceExpressionParser()
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		exp, err = parser.Parse(options.GetFilterQuery())
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
 	lister := genericLister[*machineidv1.BotInstance, botInstanceIndex]{
 		cache:           c,
 		collection:      c.collections.botInstances,
@@ -129,7 +143,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, options)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
-			return services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm())
+			return services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp)
 		},
 		nextToken: func(b *machineidv1.BotInstance) string {
 			return keyFn(b)

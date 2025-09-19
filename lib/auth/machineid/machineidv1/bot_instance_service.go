@@ -180,6 +180,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		SortDesc:         req.SortDesc,
 		FilterBotName:    req.FilterBotName,
 		FilterSearchTerm: req.FilterSearchTerm,
+		FilterQuery:      req.FilterQuery,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

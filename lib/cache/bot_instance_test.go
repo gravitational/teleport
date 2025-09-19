@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -181,7 +182,8 @@ func TestBotInstanceCacheBotFilter(t *testing.T) {
 	}
 }
 
-// TestBotInstanceCacheSearchFilter tests that cache items are filtered by search query.
+// TestBotInstanceCacheSearchFilter tests that cache items are filtered by
+// search term.
 func TestBotInstanceCacheSearchFilter(t *testing.T) {
 	t.Parallel()
 
@@ -224,6 +226,70 @@ func TestBotInstanceCacheSearchFilter(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 5)
+}
+
+// TestBotInstanceCacheQueryFilter tests that cache items are filtered by query.
+func TestBotInstanceCacheQueryFilter(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	{
+		_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+			Kind:     types.KindBotInstance,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{},
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    "bot-1",
+				InstanceId: "00000000-0000-0000-0000-000000000000",
+			},
+			Status: &machineidv1.BotInstanceStatus{
+				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
+					{
+						Hostname: "host-1",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	{
+		_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+			Kind:     types.KindBotInstance,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{},
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    "bot-1",
+				InstanceId: uuid.New().String(),
+			},
+			Status: &machineidv1.BotInstanceStatus{
+				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
+					{
+						Hostname: "host-2",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// Let the cache catch up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 2)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		FilterQuery: `status.latest_heartbeat.hostname == "host-1"`,
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "00000000-0000-0000-0000-000000000000", results[0].Spec.InstanceId)
 }
 
 // TestBotInstanceCacheSorting tests that cache items are sorted.

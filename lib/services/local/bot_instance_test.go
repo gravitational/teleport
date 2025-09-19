@@ -392,7 +392,7 @@ func TestBotInstanceList(t *testing.T) {
 	}
 }
 
-// TestBotInstanceListWithSearchFilter verifies list and filtering wit39db3c10-870c-4544-aeec-9fc2e961eca3h search
+// TestBotInstanceListWithSearchFilter verifies list and filtering with search
 // term functionality for bot instances.
 func TestBotInstanceListWithSearchFilter(t *testing.T) {
 	t.Parallel()
@@ -462,6 +462,35 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 			require.Equal(t, tc.instance.Spec.InstanceId, instances[0].Spec.InstanceId)
 		})
 	}
+}
+
+// TestBotInstanceListWithQuery verifies list and filtering with query
+// functionality for bot instances.
+func TestBotInstanceListWithQuery(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	instance := newBotInstance("test-bot", withBotInstanceHeartbeatHostname("svr-eu-tel-123-a"))
+	_, err = service.CreateBotInstance(ctx, instance)
+	require.NoError(t, err)
+	_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
+	require.NoError(t, err)
+
+	instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterQuery: `status.latest_heartbeat.hostname == "svr-eu-tel-123-a"`,
+	})
+
+	require.Len(t, instances, 1)
+	require.Equal(t, instance.Spec.InstanceId, instances[0].Spec.InstanceId)
 }
 
 // TestBotInstanceListWithSort verifies sorting returns a not-implemented error.

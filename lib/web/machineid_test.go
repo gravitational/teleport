@@ -605,6 +605,27 @@ func TestListBotInstances(t *testing.T) {
 					Os:         "linux",
 				},
 			},
+			LatestAuthentications: []*machineidv1.BotInstanceStatusAuthentication{
+				{
+					AuthenticatedAt: &timestamppb.Timestamp{
+						Seconds: 2,
+						Nanos:   0,
+					},
+				},
+				{
+					AuthenticatedAt: &timestamppb.Timestamp{
+						Seconds: 1,
+						Nanos:   0,
+					},
+				},
+				{
+					AuthenticatedAt: &timestamppb.Timestamp{
+						Seconds: 2,
+						Nanos:   0,
+					},
+					JoinMethod: "test-join-method",
+				},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -682,6 +703,9 @@ func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 				JoinMethod: "test-join-method",
 			},
 			LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{},
+			InitialAuthentication: &machineidv1.BotInstanceStatusAuthentication{
+				JoinMethod: "test-join-method",
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -991,6 +1015,66 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListBotInstancesWithQueryFilter(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint(
+		"v2",
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot-instance",
+	)
+
+	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+		Kind:    types.KindBotInstance,
+		Version: types.V1,
+		Spec: &machineidv1.BotInstanceSpec{
+			BotName:    "test-bot-1",
+			InstanceId: "00000000-0000-0000-0000-000000000000",
+		},
+		Status: &machineidv1.BotInstanceStatus{
+			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				Hostname: "svr-eu-tel-123-a",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+		Kind:    types.KindBotInstance,
+		Version: types.V1,
+		Spec: &machineidv1.BotInstanceSpec{
+			BotName:    "test-bot-2",
+			InstanceId: uuid.New().String(),
+		},
+		Status: &machineidv1.BotInstanceStatus{
+			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				Hostname: "test-hostname",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{
+		"query": []string{`status.latest_heartbeat.hostname == "svr-eu-tel-123-a"`},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
+
+	var instances ListBotInstancesResponse
+	require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
+
+	assert.Len(t, instances.BotInstances, 1)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
 }
 
 func TestGetBotInstance(t *testing.T) {
