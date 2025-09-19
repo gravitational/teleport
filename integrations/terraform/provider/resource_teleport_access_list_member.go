@@ -23,13 +23,12 @@ import (
 
 	accesslist "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	convert "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1"
 )
@@ -113,14 +112,24 @@ func (r resourceTeleportMember) Create(ctx context.Context, req tfsdk.CreateReso
 		var accessListMemberI = accessListMemberResource
 	// Try getting the resource until it exists.
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		accessListMemberI, err = r.p.Client.AccessListClient().GetStaticAccessListMember(ctx, idPrefix, id)
 		if trace.IsNotFound(err) {
-			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(err), "access_list_member"))
+		    select {
+			case <-ctx.Done():
+			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(ctx.Err()), "access_list_member"))
 				return
+			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading Member (tried %d times) - state outdated, please import resource", tries)
@@ -251,7 +260,15 @@ func (r resourceTeleportMember) Update(ctx context.Context, req tfsdk.UpdateReso
 		var accessListMemberI = accessListMemberResource
 
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		accessListMemberI, err = r.p.Client.AccessListClient().GetStaticAccessListMember(ctx, idPrefix, name)
@@ -263,9 +280,11 @@ func (r resourceTeleportMember) Update(ctx context.Context, req tfsdk.UpdateReso
 			break
 		}
 
-		if err := backoff.Do(ctx); err != nil {
-			resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(err), "access_list_member"))
+		select {
+		case <-ctx.Done():
+		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Wrap(ctx.Err()), "access_list_member"))
 			return
+		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading Member (tried %d times) - state outdated, please import resource", tries)
