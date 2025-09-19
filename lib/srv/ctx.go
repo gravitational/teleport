@@ -20,6 +20,7 @@ package srv
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
@@ -313,6 +315,9 @@ type ServerContext struct {
 	// term holds PTY if it was requested by the session.
 	term Terminal
 
+	// sessionParams are parameters associated with this server session.
+	sessionParams *tracessh.SessionParams
+
 	// session holds the active session (if there's an active one).
 	session *session
 
@@ -435,7 +440,7 @@ type ServerContext struct {
 // the ServerContext is closed.  The ctx parameter should be a child of the ctx
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
-func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (*ServerContext, error) {
+func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, sessionParams *tracessh.SessionParams, monitorOpts ...func(*MonitorConfig)) (*ServerContext, error) {
 	recConfig, err := srv.GetAccessPoint().GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -475,6 +480,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
 		env:                    make(map[string]string),
 		srv:                    srv,
+		sessionParams:          sessionParams,
 		ExecResultCh:           make(chan ExecResult, 10),
 		SubsystemResultCh:      make(chan SubsystemResult, 10),
 		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
@@ -586,31 +592,6 @@ func (c *ServerContext) ID() int {
 	return c.id
 }
 
-// GetJoinParams gets join params if they are set.
-//
-// These params (env vars) are set synchronously between the "session" channel request
-// and the "shell" / "exec" channel request. Therefore, these params are only guaranteed
-// to be accurately set during and after the "shell" / "exec" channel request.
-//
-// TODO(Joerger): Rather than relying on the out-of-band env var params, we should
-// provide session params upfront as extra data in the session channel request.
-func (c *ServerContext) GetJoinParams() (string, types.SessionParticipantMode) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	sid, found := c.getEnvLocked(sshutils.SessionEnvVar)
-	if !found {
-		return "", ""
-	}
-
-	mode := types.SessionPeerMode // default
-	if modeString, found := c.getEnvLocked(teleport.EnvSSHJoinMode); found {
-		mode = types.SessionParticipantMode(modeString)
-	}
-
-	return sid, mode
-}
-
 // SessionID returns the ID of the session in the context.
 //
 // This value is not set until during and after the "shell" / "exec" channel request.
@@ -692,6 +673,36 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 		return val, true
 	}
 	return c.Parent().GetEnv(key)
+}
+
+// GetSessionParams gets session params for the current session.
+func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Teleport ssh clients should provide session params upfront in the session channel request.
+	if c.sessionParams != nil {
+		return *c.sessionParams
+	}
+
+	// If this is an old client, it will provide session params from
+	// env variables sometime between the session channel request and shell request.
+	// TODO(Joerger): DELETE IN v20.0.0 - just return empty params for an old Teleport client / openSSH client session.
+	sessionParams := tracessh.SessionParams{
+		Reason:                         c.env[teleport.EnvSSHSessionReason],
+		DisplayParticipantRequirements: utils.AsBool(c.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
+		JoinSessionID:                  c.env[sshutils.SessionEnvVar],
+		JoinMode:                       types.SessionParticipantMode(c.env[teleport.EnvSSHJoinMode]),
+		ModeratedSessionID:             c.env[sftp.EnvModeratedSessionID],
+	}
+
+	if invitedUsers := c.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {
+		if err := json.Unmarshal([]byte(invitedUsers), &sessionParams.Invited); err != nil {
+			slog.WarnContext(context.Background(), "Failed to parse invited users", "error", err)
+		}
+	}
+
+	return sessionParams
 }
 
 // setSession sets the context's session

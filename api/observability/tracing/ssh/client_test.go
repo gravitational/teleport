@@ -199,7 +199,7 @@ func TestSetEnvs(t *testing.T) {
 	// create a client and open a session
 	conn, chans, reqs := srv.GetClient(t)
 	client := NewClient(conn, chans, reqs)
-	session, err := client.NewSession(ctx)
+	session, err := client.NewSession(ctx, nil)
 	require.NoError(t, err)
 
 	// the first request shouldn't fall back

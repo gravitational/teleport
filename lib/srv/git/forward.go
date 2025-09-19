@@ -373,7 +373,7 @@ func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.Connecti
 
 	// TODO(greedy52) decouple from srv.NewServerContext. We only need
 	// connection monitoring.
-	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx)
+	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -399,11 +399,22 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 		return
 	}
 
+	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+	var sessionParams *tracessh.SessionParams
+	if len(nch.ExtraData()) > 0 {
+		var err error
+		sessionParams, err = sshutils.ParseSessionParams(nch.ExtraData())
+		if err != nil {
+			s.reply.RejectWithAcceptError(ctx, nch, err)
+			return
+		}
+	}
+
 	if s.remoteClient == nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, trace.NotFound("missing remote client"))
 		return
 	}
-	remoteSession, err := s.remoteClient.NewSession(ctx)
+	remoteSession, err := s.remoteClient.NewSession(ctx, sessionParams)
 	if err != nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, err)
 		return
