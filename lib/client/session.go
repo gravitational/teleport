@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -245,7 +244,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = agent.RequestAgentForwarding(sess.Session)
+		err = sshagent.RequestAgentForwarding(ctx, sess)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

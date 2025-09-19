@@ -160,7 +160,7 @@ func TestClose(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				var buf []byte
 				_, err := tc.conn.Read(buf[0:])
-				assert.ErrorIs(t, err, io.EOF)
+				require.ErrorIs(t, err, io.EOF)
 			}, 5*time.Second, time.Millisecond)
 
 			if !tt.expectTerminateMessage {
@@ -418,6 +418,9 @@ func (tc *testCtx) processMessages() error {
 
 	startupMessage, err := tc.pgClient.ReceiveStartupMessage()
 	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 

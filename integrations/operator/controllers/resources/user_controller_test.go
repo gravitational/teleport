@@ -359,12 +359,12 @@ func TestUserUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Updates the user in Teleport
-	fastEventuallyWithT(t, func(c *assert.CollectT) {
+	fastEventuallyWithT(t, func(t *assert.CollectT) {
 		tUser, err := setup.TeleportClient.GetUser(ctx, userName, false)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		// TeleportUser updated with new roles
-		assert.ElementsMatch(c, tUser.GetRoles(), []string{"x", "z", "y"})
+		assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z", "y"})
 	})
 	require.Equal(t, setup.OperatorName, tUser.GetCreatedBy().User.Name, "createdBy has not been erased")
 }

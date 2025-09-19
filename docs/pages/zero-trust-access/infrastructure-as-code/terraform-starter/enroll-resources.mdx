@@ -4,6 +4,7 @@ h1: "Terraform Starter: Enroll Infrastructure"
 description: Explains how to deploy a pool of Teleport Agents so you can apply dynamic resources to enroll your infrastructure with Teleport.
 tags:
  - zero-trust
+ - infrastructure-identity
 ---
 
 *This guide is Part One of the Teleport Terraform starter guide. Read the
@@ -625,7 +626,7 @@ edit your Terraform module to:
 1. **Change the userdata script** to enable additional Agent services additional
    infrastructure resources for your Agents to proxy.
 1. **Deploy dynamic resources:** Consult the [Terraform provider
-   reference](../../../reference/terraform-provider/terraform-provider.mdx) for
+   reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx) for
    Terraform resources that you can apply in order to enroll dynamic resources
    in your infrastructure.
 

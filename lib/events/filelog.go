@@ -20,6 +20,7 @@ package events
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -30,6 +31,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -196,7 +198,7 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 // This function may never return more than 1 MiB of event data.
 func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	l.logger.DebugContext(ctx, "SearchEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
-	values, next, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -210,7 +212,7 @@ func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]
 
 func (l *FileLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
 	l.logger.DebugContext(ctx, "SearchUnstructuredEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
-	values, next, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -222,12 +224,122 @@ func (l *FileLog) SearchUnstructuredEvents(ctx context.Context, req SearchEvents
 	return evts, next, nil
 }
 
-func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]EventFields, string, error) {
+// checkpointKey is a pointer to an event in the log. This is used to keep track
+// of the last processed event so the caller can resume querying from this event.
+type checkpointKey struct {
+	id        string
+	timestamp time.Time
+}
+
+// MarshalText marshals a checkpointKey into plain text.
+func (c checkpointKey) MarshalText() ([]byte, error) {
+	return []byte(c.String()), nil
+}
+
+// UnmarshalText unmarshals a checkpointKey from its text representation.
+func (c *checkpointKey) UnmarshalText(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
+	id, rawTime, ok := bytes.Cut(b, []byte("/"))
+
+	c.id = string(id)
+	if ok {
+		ns, err := strconv.ParseInt(string(rawTime), 10, 64)
+		if err != nil {
+			return trace.BadParameter("failed to parse checkpoint timestamp: %v", err)
+		}
+		c.timestamp = time.Unix(ns/1e9, ns%1e9)
+	}
+	return nil
+}
+
+// String returns a sting representation of the checkpointKey.
+// Its result can be sent to the caller, or loaded back into a checkpointKey
+// using UnmarshalText.
+func (c checkpointKey) String() string {
+	if c.id == "" {
+		return ""
+	}
+	if c.timestamp.IsZero() {
+		return c.id
+	}
+	return c.id + "/" + strconv.FormatInt(c.timestamp.UnixNano(), 10)
+}
+
+// IsZero returns true if the checkpoint is not pointing to any event.
+func (c *checkpointKey) IsZero() bool {
+	return c.id == "" && c.timestamp.IsZero()
+}
+
+// matches returns true if two checkpoints are pointing to the same event.
+func (c checkpointKey) matches(d checkpointKey) bool {
+	return c.id == d.id
+}
+
+// shouldBeIgnored returns if the checkpoint should be ignored to answer the query.
+func (c checkpointKey) shouldBeIgnored(from, to time.Time, order types.EventOrder) bool {
+	// If the checkpointKey doesn't specify any timeframe, it was created by the
+	// old format. We can't know if the checkpoint is before or not, so we act
+	// like it is not and hope we match events.
+	if c.timestamp.IsZero() {
+		return false
+	}
+	if order == types.EventOrderAscending {
+		// The order is ascending and the checkpoint is before the timeframe.
+		// We can ignore the cursor because we know that all event we're going
+		// to read are older and should be returned.
+		return c.timestamp.Before(from)
+	}
+	// The order is descending and the checkpoint is after the timeframe.
+	// We can ignore the cursor because we know that all event we're going
+	// to read are older and should be returned.
+	return c.timestamp.After(to)
+}
+
+// shouldEarlyReturn returns true if the checkpoint is after (or before for
+// descending order) the requested timeframe and the query is bound to return
+// no event. This is an optimization.
+func (c checkpointKey) shouldEarlyReturn(from, to time.Time, order types.EventOrder) bool {
+	// If the checkpointKey doesn't specify any timeframe, it was created by the
+	// old format. We can't know if the checkpoint is before or not, so we act
+	// like it is not and hope we match events.
+	if c.timestamp.IsZero() {
+		return false
+	}
+	if order == types.EventOrderAscending {
+		// If the order is ascending and the checkpoint is after the timeframe.
+		// We know that no event should match the query and can early return.
+		return c.timestamp.After(to)
+	}
+	// If the order is descending and the checkpoint is before the timeframe.
+	// We know that no event should match the query and can early return.
+	return c.timestamp.Before(from)
+}
+
+func (l *FileLog) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]EventFields, string, error) {
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
 		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+	}
+
+	var checkpoint checkpointKey
+	if err := checkpoint.UnmarshalText([]byte(startAfter)); err != nil {
+		return nil, "", trace.Wrap(err, "parsing startAfter")
+	}
+
+	if checkpoint.shouldEarlyReturn(fromUTC, toUTC, order) {
+		l.logger.DebugContext(ctx, "cursor is after the end of the window, skipping search", "cursor_time", checkpoint.timestamp, "from", fromUTC, "to", toUTC)
+		return nil, "", nil
+	}
+
+	// If the checkpoint is before the requested timeframe, we knoe that every
+	// event we'll read is valid. We must unset the checkpoint to avoid returning no event.
+	if checkpoint.shouldBeIgnored(fromUTC, toUTC, order) {
+		l.logger.WarnContext(ctx, "cursor is from before window start time, resetting cursor", "cursor_time", checkpoint.timestamp, "from", fromUTC, "to", toUTC)
+		checkpoint = checkpointKey{}
 	}
 
 	// how many days of logs to search?
@@ -270,7 +382,7 @@ func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, limit int, or
 	events := make([]EventFields, 0, len(dynamicEvents))
 
 	// This is used as a flag to check if we have found the startAfter checkpoint or not.
-	foundStart := startAfter == ""
+	foundStart := checkpoint.IsZero()
 
 	totalSize := 0
 
@@ -284,11 +396,11 @@ outer:
 		// Skip until we've found the start checkpoint and once more
 		// since it was the last key of the previous set.
 		if !foundStart {
-			checkpoint, err := getCheckpointFromEvent(dynamicEvent)
+			c, err := getCheckpointFromEvent(dynamicEvent)
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			if startAfter == checkpoint {
+			if checkpoint.matches(c) {
 				foundStart = true
 			}
 
@@ -322,11 +434,11 @@ outer:
 		}
 
 		if totalSize+size >= MaxEventBytesInResponse {
-			checkpoint, err := getCheckpointFromEvent(events[len(events)-1])
+			c, err := getCheckpointFromEvent(events[len(events)-1])
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			return events, checkpoint, nil
+			return events, c.String(), nil
 		}
 
 		events = append(events, dynamicEvent)
@@ -335,12 +447,12 @@ outer:
 		// Check if there is a limit and if so, check if we've hit it.
 		// In the event that we've hit the limit, we consider the query partially complete
 		// and return a checkpoint to continue it.
-		if len(events) >= limit && limit > 0 {
-			checkpoint, err := getCheckpointFromEvent(events[len(events)-1])
+		if len(events) >= limit {
+			c, err := getCheckpointFromEvent(events[len(events)-1])
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			return events, checkpoint, nil
+			return events, c.String(), nil
 		}
 	}
 
@@ -348,18 +460,18 @@ outer:
 	return events, "", nil
 }
 
-func getCheckpointFromEvent(event EventFields) (string, error) {
-	if event.GetID() == "" {
-		data, err := utils.FastMarshal(event)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		hash := sha256.Sum256(data)
-		return hex.EncodeToString(hash[:]), nil
+func getCheckpointFromEvent(event EventFields) (checkpointKey, error) {
+	if id := event.GetID(); id != "" {
+		return checkpointKey{id: id, timestamp: event.GetTimestamp()}, nil
 	}
 
-	return event.GetID(), nil
+	data, err := utils.FastMarshal(event)
+	if err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	hash := sha256.Sum256(data)
+	return checkpointKey{id: hex.EncodeToString(hash[:]), timestamp: event.GetTimestamp()}, nil
 }
 
 func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
@@ -376,7 +488,7 @@ func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEven
 		}
 		filter.condition = condFn
 	}
-	events, lastKey, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, filter)
+	events, lastKey, err := l.searchEventsWithFilter(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, filter)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// deriveTeleportEqualUserLoginState returns whether this and that are equal.
+func deriveTeleportEqualUserLoginState(this, that *UserLoginState) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual(&this.ResourceHeader, &that.ResourceHeader) &&
+			deriveTeleportEqual_(&this.Spec, &that.Spec)
+}
+
 // deriveDeepCopyUserLoginState recursively copies the contents of src into dst.
 func deriveDeepCopyUserLoginState(dst, src *UserLoginState) {
 	func() {
@@ -19,6 +27,28 @@ func deriveDeepCopyUserLoginState(dst, src *UserLoginState) {
 		deriveDeepCopy_(field, &src.Spec)
 		dst.Spec = *field
 	}()
+}
+
+// deriveTeleportEqual returns whether this and that are equal.
+func deriveTeleportEqual(this, that *header.ResourceHeader) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Kind == that.Kind &&
+			this.SubKind == that.SubKind &&
+			this.Version == that.Version &&
+			deriveTeleportEqual_1(&this.Metadata, &that.Metadata)
+}
+
+// deriveTeleportEqual_ returns whether this and that are equal.
+func deriveTeleportEqual_(this, that *Spec) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			deriveTeleportEqual_2(this.OriginalRoles, that.OriginalRoles) &&
+			deriveTeleportEqual_3(this.OriginalTraits, that.OriginalTraits) &&
+			deriveTeleportEqual_2(this.Roles, that.Roles) &&
+			deriveTeleportEqual_3(this.Traits, that.Traits) &&
+			this.UserType == that.UserType &&
+			deriveTeleportEqual_4(this.GitHubIdentity, that.GitHubIdentity)
 }
 
 // deriveDeepCopy recursively copies the contents of src into dst.
@@ -92,6 +122,60 @@ func deriveDeepCopy_(dst, src *Spec) {
 	}
 }
 
+// deriveTeleportEqual_1 returns whether this and that are equal.
+func deriveTeleportEqual_1(this, that *header.Metadata) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Name == that.Name &&
+			this.Description == that.Description &&
+			deriveTeleportEqual_5(this.Labels, that.Labels) &&
+			this.Expires.Equal(that.Expires)
+}
+
+// deriveTeleportEqual_2 returns whether this and that are equal.
+func deriveTeleportEqual_2(this, that []string) bool {
+	if this == nil || that == nil {
+		return this == nil && that == nil
+	}
+	if len(this) != len(that) {
+		return false
+	}
+	for i := 0; i < len(this); i++ {
+		if !(this[i] == that[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// deriveTeleportEqual_3 returns whether this and that are equal.
+func deriveTeleportEqual_3(this, that map[string][]string) bool {
+	if this == nil || that == nil {
+		return this == nil && that == nil
+	}
+	if len(this) != len(that) {
+		return false
+	}
+	for k, v := range this {
+		thatv, ok := that[k]
+		if !ok {
+			return false
+		}
+		if !(deriveTeleportEqual_2(v, thatv)) {
+			return false
+		}
+	}
+	return true
+}
+
+// deriveTeleportEqual_4 returns whether this and that are equal.
+func deriveTeleportEqual_4(this, that *ExternalIdentity) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.UserID == that.UserID &&
+			this.Username == that.Username
+}
+
 // deriveDeepCopy_1 recursively copies the contents of src into dst.
 func deriveDeepCopy_1(dst, src *header.Metadata) {
 	dst.Name = src.Name
@@ -135,6 +219,26 @@ func deriveDeepCopy_2(dst, src map[string][]string) {
 			copy(dst[src_key], src_value)
 		}
 	}
+}
+
+// deriveTeleportEqual_5 returns whether this and that are equal.
+func deriveTeleportEqual_5(this, that map[string]string) bool {
+	if this == nil || that == nil {
+		return this == nil && that == nil
+	}
+	if len(this) != len(that) {
+		return false
+	}
+	for k, v := range this {
+		thatv, ok := that[k]
+		if !ok {
+			return false
+		}
+		if !(v == thatv) {
+			return false
+		}
+	}
+	return true
 }
 
 // deriveDeepCopy_3 recursively copies the contents of src into dst.

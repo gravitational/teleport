@@ -22,6 +22,7 @@ import (
 	"encoding/base32"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/text/cases"
 	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -135,11 +136,14 @@ func keyForWorkloadIdentityNameIndex(r *workloadidentityv1pb.WorkloadIdentity) s
 }
 
 func keyForWorkloadIdentitySpiffeIDIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
-	// Encode the id avoid; "a/b" + "/" + "c" vs. "a" + "/" + "b/c"
-	// Base32 hex maintains original ordering.
-	encodedId := unpaddedBase32hex.EncodeToString([]byte(r.GetSpec().GetSpiffe().GetId()))
+	name := keyForWorkloadIdentityNameIndex(r)
+	// Sort case-insensitively to keep /spiffe-1 and /Spiffe-1 together
+	spiffeID := cases.Fold().String(r.GetSpec().GetSpiffe().GetId())
+	// Encode the id avoid; "a/b" + "/" + "c" vs. "a" + "/" + "b/c". Base32 hex
+	// maintains original ordering.
+	spiffeID = unpaddedBase32hex.EncodeToString([]byte(spiffeID))
 	// SPIFFE IDs may not be unique, so append the resource name
-	return encodedId + "/" + r.GetMetadata().GetName()
+	return spiffeID + "/" + name
 }
 
 var unpaddedBase32hex = base32.HexEncoding.WithPadding(base32.NoPadding)

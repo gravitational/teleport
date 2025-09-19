@@ -738,10 +738,19 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	return nil
 }
 
-func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]string {
-	labels := make(map[string]string)
-	maps.Copy(labels, extraLabels)
-	maps.Copy(labels, kubeCluster.GetStaticLabels())
+func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]any {
+	// Labels property in the `teleport-kube-agent` chart is defined as object.
+	// Object values are of map[string]any type, so we need to use `any`.
+	labels := make(map[string]any)
+
+	for k, v := range extraLabels {
+		labels[k] = v
+	}
+
+	for k, v := range kubeCluster.GetStaticLabels() {
+		labels[k] = v
+	}
+
 	labels[types.InternalResourceIDLabel] = resourceID
 
 	return labels

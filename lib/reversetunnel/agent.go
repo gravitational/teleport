@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package reversetunnel sets up persistent reverse tunnel
-// between remote site and teleport proxy, when site agents
-// dial to teleport proxy's socket and teleport proxy can connect
-// to any server through this tunnel.
+// Package reversetunnel sets up persistent reverse tunnels
+// from proxies in leaf clusters and agents in the local cluster
+// with the local cluster proxy.
 package reversetunnel
 
 import (

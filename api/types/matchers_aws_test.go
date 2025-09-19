@@ -326,6 +326,28 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 			},
 		},
+		{
+			name: "invalid update group",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1"},
+				Params: &InstallerParams{
+					UpdateGroup: "invalid!",
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "invalid install suffix",
+			in: &AWSMatcher{
+				Types:   []string{"ec2"},
+				Regions: []string{"us-east-1"},
+				Params: &InstallerParams{
+					Suffix: "invalid!",
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.in.CheckAndSetDefaults()

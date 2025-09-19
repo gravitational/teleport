@@ -134,6 +134,7 @@ CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
 CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
+CARGO_WASM_TARGET := wasm32-unknown-unknown
 
 # If set to 1, Windows RDP client is not built.
 RDPCLIENT_SKIP_BUILD ?= 0
@@ -328,8 +329,8 @@ endif
 
 ifeq ("$(OS)","darwin")
 # Set the minimum version for macOS builds for Go, Rust and Xcode builds.
-# (as of Go 1.23 we require macOS 11)
-MINIMUM_SUPPORTED_MACOS_VERSION = 11.0
+# (as of Go 1.25 we require macOS 12)
+MINIMUM_SUPPORTED_MACOS_VERSION = 12.0
 MACOSX_VERSION_MIN_FLAG = -mmacosx-version-min=$(MINIMUM_SUPPORTED_MACOS_VERSION)
 
 # Go
@@ -488,6 +489,26 @@ ifeq ("$(with_rdpclient)", "yes")
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
 
+define ironrdp_package_json
+{
+  "name": "ironrdp",
+  "version": "0.1.0",
+  "module": "ironrdp.js",
+  "types": "ironrdp.d.ts",
+  "files": ["ironrdp_bg.wasm","ironrdp.js","ironrdp.d.ts"],
+  "sideEffects": ["./snippets/*"]
+}
+endef
+export ironrdp_package_json
+
+.PHONY: build-ironrdp-wasm
+build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
+build-ironrdp-wasm: ensure-wasm-deps
+	cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
+	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
+	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
+
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
 .PHONY: build-fido2
 build-fido2:
@@ -539,7 +560,7 @@ endif
 	rm -f *.zip
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
-	# Clean up wasm-pack build artifacts
+	# Clean up wasm build artifacts
 	rm -rf web/packages/shared/libs/ironrdp/pkg/
 
 .PHONY: clean-ui
@@ -957,7 +978,7 @@ test-go-unit: rdpclient
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit:
-	$(CGOFLAG) GOEXPERIMENT=synctest go test -cover -json -tags "enablesynctest $(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $$(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
@@ -965,7 +986,7 @@ test-go-unit:
 .PHONY: test-go-unit-tbot
 test-go-unit-tbot: FLAGS ?= -race -shuffle on
 test-go-unit-tbot:
-	$(CGOFLAG) go test -cover -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
+	$(CGOFLAG) go test -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
@@ -975,7 +996,7 @@ test-go-touch-id: FLAGS ?= -race -shuffle on
 test-go-touch-id: SUBJECT ?= ./lib/auth/touchid/...
 test-go-touch-id:
 ifneq ("$(TOUCHID_TAG)", "")
-	$(CGOFLAG) go test -cover -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 endif
@@ -1005,7 +1026,7 @@ test-go-vnet-daemon: FLAGS ?= -race -shuffle on
 test-go-vnet-daemon: SUBJECT ?= ./lib/vnet/daemon/...
 test-go-vnet-daemon:
 ifneq ("$(VNETDAEMON_TAG)", "")
-	$(CGOFLAG) go test -cover -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 endif
@@ -1015,7 +1036,7 @@ endif
 test-go-tsh: FLAGS ?= -race -shuffle on
 test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh/...
 test-go-tsh:
-	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG_TSH) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 
@@ -1023,7 +1044,7 @@ test-go-tsh:
 .PHONY: test-go-chaos
 test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go-chaos:
-	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
+	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
 		| gotestsum --raw-command -- cat
 
@@ -1124,7 +1145,7 @@ test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(RDPCLIENT_TAG) $(BPF_TA
 test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
 test-go-flaky: test-go-prepare $(RENDER_TESTS) $(RERUN)
 	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \
-		go test -count=1 -cover -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		go test -count=1 -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(RENDER_TESTS) $(RENDER_FLAGS)
 
 #
@@ -1177,7 +1198,7 @@ integration:  $(TEST_LOG_DIR) ensure-gotestsum
 INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
-integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v 'integration/autoupdate')
 integration-kube: $(TEST_LOG_DIR) ensure-gotestsum
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
@@ -1227,8 +1248,8 @@ lint-tools: lint-build-tooling lint-backport
 
 #
 # Checks that testing symbols and the testify library is not included in binaries.
-# 
-# 
+#
+#
 .PHONY: lint-test-symbols
 lint-test-symbols: ensure-goda
 	@testing_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
@@ -1282,7 +1303,7 @@ fix-imports/host:
 		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
 		exit 1;\
 	fi
-	GOEXPERIMENT=synctest gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
+	gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
 
 lint-build-tooling: GO_LINT_FLAGS ?=
 lint-build-tooling:
@@ -1880,29 +1901,18 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-pack ensure-wasm-bindgen
+ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt rustup-install-wasm-toolchain
 
-# Get the version of wasm-bindgen from cargo, as that is what wasm-pack is
-# going to do when it checks for the right version. The buildboxes do not
-# have jq installed (yet), so have a hacky awk version on standby.
-CARGO_GET_VERSION_JQ = cargo metadata --locked --format-version=1 | jq -r 'first(.packages[] | select(.name? == "$(1)") | .version)'
-CARGO_GET_VERSION_AWK = awk -F '[ ="]+' '/^name = "$(1)"$$/ {inpkg = 1} inpkg && $$1 == "version" {print $$2; exit}' Cargo.lock
+WASM_BINDGEN_VERSION = $(shell awk ' \
+  $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
+  in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
+' Cargo.lock)
 
-BIN_JQ = $(shell which jq 2>/dev/null)
-CARGO_GET_VERSION = $(if $(BIN_JQ),$(CARGO_GET_VERSION_JQ),$(CARGO_GET_VERSION_AWK))
+.PHONY: print-wasm-bindgen-version
+print-wasm-bindgen-version:
+	@echo $(WASM_BINDGEN_VERSION)
 
-ensure-wasm-pack: NEED_VERSION = $(shell $(MAKE) --no-print-directory -s -C build.assets print-wasm-pack-version)
-ensure-wasm-pack: INSTALLED_VERSION = $(word 2,$(shell wasm-pack --version 2>/dev/null))
-ensure-wasm-pack:
-	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		cargo install wasm-pack --force --locked --version "$(NEED_VERSION)", \
-		@echo wasm-pack up-to-date: $(INSTALLED_VERSION) \
-	)
-
-# TODO: Use CARGO_GET_VERSION_AWK instead of hardcoded version
-#       On 386 Arch, calling the variable produces a malformed command that fails the build.
-#ensure-wasm-bindgen: NEED_VERSION = $(shell $(call CARGO_GET_VERSION,wasm-bindgen))
-ensure-wasm-bindgen: NEED_VERSION = 0.2.99
+ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
 ifneq ($(CI)$(FORCE),)
@@ -1918,6 +1928,11 @@ else
 	)
 endif
 endif
+
+.PHONY: ensure-wasm-opt
+ensure-wasm-opt: WASM_OPT_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-wasm-opt-version)
+ensure-wasm-opt:
+	cargo install --locked wasm-opt@$(WASM_OPT_VERSION)
 
 .PHONY: build-ui
 build-ui: ensure-js-deps ensure-wasm-deps
@@ -1943,6 +1958,10 @@ rustup-set-version:
 .PHONY: rustup-install-target-toolchain
 rustup-install-target-toolchain: rustup-set-version
 	rustup target add $(RUST_TARGET_ARCH)
+
+.PHONY: rustup-install-wasm-toolchain
+rustup-install-wasm-toolchain: rustup-set-version
+	rustup target add $(CARGO_WASM_TARGET)
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.

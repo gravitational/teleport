@@ -36,9 +36,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -155,7 +155,7 @@ func setupKubernetesAccessBot(
 	})
 	require.NoError(t, err)
 
-	fakeJoinSigner, err := fakejoin.NewKubernetesSigner(
+	fakeJoinSigner, err := fakeissuer.NewKubernetesSigner(
 		clockwork.NewRealClock(),
 	)
 	require.NoError(t, err)

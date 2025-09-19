@@ -67,7 +67,7 @@ jobs:
           rustup override set ${{ env.RUST_VERSION }}
           rustup target add wasm32-unknown-unknown
 
-      - name: Install wasm-pack
+      - name: Install wasm-deps
         run: make ensure-wasm-deps
 
       - name: Build
