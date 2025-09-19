@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -160,9 +159,6 @@ type worker struct {
 	metricType string
 }
 
-// dialFunc dials an address on the given network.
-type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
-
 // GetTargetHealth returns the worker's target health.
 func (w *worker) GetTargetHealth() *types.TargetHealth {
 	w.mu.RLock()
@@ -238,7 +234,6 @@ func (w *worker) run() {
 func (w *worker) startHealthCheckInterval(ctx context.Context) {
 	w.log.InfoContext(ctx, "Health checker started",
 		"health_check_config", w.healthCheckCfg.name,
-		"protocol", w.healthCheckCfg.protocol,
 		"interval", log.StringerAttr(w.healthCheckCfg.interval),
 		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
@@ -322,7 +317,6 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	}
 	w.log.DebugContext(ctx, "Updated health check config",
 		"health_check_config", w.healthCheckCfg.name,
-		"protocol", w.healthCheckCfg.protocol,
 		"interval", log.StringerAttr(w.healthCheckCfg.interval),
 		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
@@ -466,6 +460,7 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	now := w.clock.Now()
 	w.targetHealth = types.TargetHealth{
 		Address:             strings.Join(w.lastResolvedEndpoints, ","),
+		Protocol:            string(types.TargetHealthProtocolTCP),
 		Status:              string(newStatus),
 		TransitionTimestamp: &now,
 		TransitionReason:    string(reason),
@@ -473,9 +468,6 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	}
 	if w.lastResultErr != nil {
 		w.targetHealth.TransitionError = w.lastResultErr.Error()
-	}
-	if w.healthCheckCfg != nil {
-		w.targetHealth.Protocol = string(w.healthCheckCfg.protocol)
 	}
 }
 
