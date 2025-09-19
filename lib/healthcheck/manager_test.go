@@ -179,22 +179,20 @@ func TestManager(t *testing.T) {
 	require.NoError(t, err)
 
 	var endpointMu sync.Mutex
+
 	prodDialer := fakeDialer{}
-	prodTargetDialer := TargetDialer{
+	err = mgr.AddTarget(&TargetDialer{
+		Resource: func() types.ResourceWithLabels {
+			endpointMu.Lock()
+			defer endpointMu.Unlock()
+			return prodDB
+		},
 		Resolver: func(ctx context.Context) ([]string, error) {
 			endpointMu.Lock()
 			defer endpointMu.Unlock()
 			return []string{prodDB.GetURI()}, nil
 		},
 		dial: prodDialer.DialContext,
-	}
-	err = mgr.AddTarget(Target{
-		GetResource: func() types.ResourceWithLabels {
-			endpointMu.Lock()
-			defer endpointMu.Unlock()
-			return prodDB
-		},
-		CheckHealth: prodTargetDialer.CheckHealth,
 		onHealthCheck: func(lastResultErr error) {
 			eventsCh <- lastResultTestEvent(prodDB.GetName(), lastResultErr)
 		},
@@ -208,21 +206,18 @@ func TestManager(t *testing.T) {
 	require.NoError(t, err)
 
 	devDialer := fakeDialer{}
-	devTargetDialer := TargetDialer{
+	devTarget := &TargetDialer{
+		Resource: func() types.ResourceWithLabels {
+			endpointMu.Lock()
+			defer endpointMu.Unlock()
+			return devDB
+		},
 		Resolver: func(ctx context.Context) ([]string, error) {
 			endpointMu.Lock()
 			defer endpointMu.Unlock()
 			return []string{devDB.GetURI()}, nil
 		},
 		dial: devDialer.DialContext,
-	}
-	err = mgr.AddTarget(Target{
-		GetResource: func() types.ResourceWithLabels {
-			endpointMu.Lock()
-			defer endpointMu.Unlock()
-			return devDB
-		},
-		CheckHealth: devTargetDialer.CheckHealth,
 		onHealthCheck: func(lastResultErr error) {
 			eventsCh <- lastResultTestEvent(devDB.GetName(), lastResultErr)
 		},
@@ -232,26 +227,27 @@ func TestManager(t *testing.T) {
 		onClose: func() {
 			eventsCh <- closedTestEvent(devDB.GetName())
 		},
-	})
+	}
+	err = mgr.AddTarget(devTarget)
 	require.NoError(t, err)
 
-	// TODO(rana): ENABLE
-	// t.Run("duplicate target is an error", func(t *testing.T) {
-	// 	err = mgr.AddTarget(Target{
-	// 		GetResource: func() types.ResourceWithLabels { return devDB },
-	// 		CheckHealth: func(ctx context.Context) error { return nil },
-	// 	})
-	// 	require.Error(t, err)
-	// 	require.IsType(t, trace.AlreadyExists(""), err)
-	// })
-	// t.Run("unsupported target resource is an error", func(t *testing.T) {
-	// 	err = mgr.AddTarget(Target{
-	// 		GetResource: func() types.ResourceWithLabels { return &fakeResource{kind: "node"} },
-	// 		CheckHealth: func(ctx context.Context) error { return nil },
-	// 	})
-	// 	require.Error(t, err)
-	// 	require.IsType(t, trace.BadParameter(""), err)
-	// })
+	t.Run("duplicate target is an error", func(t *testing.T) {
+		err = mgr.AddTarget(devTarget)
+		require.Error(t, err)
+		require.IsType(t, trace.AlreadyExists(""), err)
+	})
+	t.Run("unsupported target resource is an error", func(t *testing.T) {
+		err = mgr.AddTarget(&TargetDialer{
+			Resource: func() types.ResourceWithLabels { return &fakeResource{kind: "node"} },
+			Resolver: func(ctx context.Context) ([]string, error) {
+				endpointMu.Lock()
+				defer endpointMu.Unlock()
+				return nil, nil
+			},
+		})
+		require.Error(t, err)
+		require.IsType(t, trace.BadParameter(""), err)
+	})
 
 	requireTargetHealth := func(t *testing.T, r types.ResourceWithLabels, status types.TargetHealthStatus, reason types.TargetHealthTransitionReason) {
 		t.Helper()
@@ -270,7 +266,6 @@ func TestManager(t *testing.T) {
 		denyAll(devDB.GetName()),
 	)
 	requireTargetHealth(t, devDB, types.TargetHealthStatusUnknown, types.TargetHealthTransitionReasonDisabled)
-	// TODO(rana): FIX
 	requireTargetHealth(t, prodDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
 
 	// another check should reach the prodHCC configured threshold.

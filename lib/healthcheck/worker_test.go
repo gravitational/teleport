@@ -35,7 +35,8 @@ import (
 func Test_newUnstartedWorker(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	listener, err := net.Listen("tcp", "localhost:0")
+	protocol := string(types.TargetHealthProtocolTCP)
+	listener, err := net.Listen(protocol, "localhost:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -60,14 +61,14 @@ func Test_newUnstartedWorker(t *testing.T) {
 			desc: "disabled",
 			cfg: workerConfig{
 				HealthCheckCfg: nil,
-				Target: Target{
-					GetResource: func() types.ResourceWithLabels { return db },
-					CheckHealth: func(ctx context.Context) error { return nil },
+				Target: &TargetDialer{
+					Resource: func() types.ResourceWithLabels { return db },
+					Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
 				},
 			},
 			wantHealth: types.TargetHealth{
 				Address:          "",
-				Protocol:         "",
+				Protocol:         protocol,
 				Status:           string(types.TargetHealthStatusUnknown),
 				TransitionReason: string(types.TargetHealthTransitionReasonDisabled),
 				Message:          "No health check config matches this resource",
@@ -82,15 +83,15 @@ func Test_newUnstartedWorker(t *testing.T) {
 					healthyThreshold:   10,
 					unhealthyThreshold: 10,
 				},
-				Target: Target{
-					GetResource: func() types.ResourceWithLabels { return db },
-					CheckHealth: func(ctx context.Context) error { return nil },
+				Target: &TargetDialer{
+					Resource: func() types.ResourceWithLabels { return db },
+					Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
 				},
 				getTargetHealthTimeout: time.Millisecond,
 			},
 			wantHealth: types.TargetHealth{
 				Address:          "",
-				Protocol:         "",
+				Protocol:         protocol,
 				Status:           string(types.TargetHealthStatusUnknown),
 				TransitionReason: string(types.TargetHealthTransitionReasonInit),
 				Message:          "Health checker initialized",
@@ -105,8 +106,8 @@ func Test_newUnstartedWorker(t *testing.T) {
 					healthyThreshold:   10,
 					unhealthyThreshold: 10,
 				},
-				Target: Target{
-					CheckHealth: func(ctx context.Context) error { return nil },
+				Target: &TargetDialer{
+					Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
 				},
 			},
 			wantErr: "missing target resource getter",

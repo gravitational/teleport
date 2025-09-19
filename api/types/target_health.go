@@ -26,9 +26,9 @@ type TargetHealthProtocol string
 
 const (
 	// TargetHealthProtocolTCP is the TCP target health check protocol.
-	TargetHealthProtocolTCP TargetHealthProtocol = "TCP"
+	TargetHealthProtocolTCP TargetHealthProtocol = "tcp"
 	// TargetHealthProtocolHTTP is the HTTP target health check protocol.
-	TargetHealthProtocolHTTP TargetHealthProtocol = "HTTP"
+	TargetHealthProtocolHTTP TargetHealthProtocol = "http"
 )
 
 // TargetHealthStatus is a target resource's health status.

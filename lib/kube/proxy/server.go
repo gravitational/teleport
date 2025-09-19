@@ -534,10 +534,12 @@ func (t *TLSServer) startHealthCheck(kube types.KubeCluster) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = t.healthCheckManager.AddTarget(healthcheck.Target{
-		GetResource: func() types.ResourceWithLabels { return kube },
-		CheckHealth: kubeDetails.checkHealth,
-	})
+	// TODO(rana): REMOVE
+	// err = t.healthCheckManager.AddTarget(healthcheck.TargetPrevious{
+	// 	GetResource: func() types.ResourceWithLabels { return kube },
+	// 	CheckHealth: kubeDetails.CheckHealth,
+	// })
+	err = t.healthCheckManager.AddTarget(kubeDetails)
 	return trace.Wrap(err)
 }
 
@@ -559,8 +561,6 @@ func (t *TLSServer) stopHealthCheck(kube types.KubeCluster) error {
 //
 // DB uses param types.Database (analgous to types.KubeCluster)
 func (t *TLSServer) getTargetHealth(ctx context.Context, kube types.KubeCluster) types.TargetHealth {
-	// t.log.DebugContext(ctx, "kube health check: getTargetHealth")
-
 	health, err := t.healthCheckManager.GetTargetHealth(kube)
 	t.log.DebugContext(ctx, "kube health check: getTargetHealth", "target_health", health.String())
 	if err == nil {

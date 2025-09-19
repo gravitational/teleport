@@ -23,11 +23,55 @@ import (
 	"net"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
-func Test_dialEndpoints(t *testing.T) {
+func TestTargetDialer_CheckAndSetDefaults(t *testing.T) {
+	tests := []struct {
+		name    string
+		target  *TargetDialer
+		wantErr string
+	}{
+		{
+			name: "valid target",
+			target: &TargetDialer{
+				Resource: func() types.ResourceWithLabels { return &fakeResource{kind: types.KindDatabase} },
+				Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
+			},
+		},
+		{
+			name: "missing resource getter",
+			target: &TargetDialer{
+				Resolver: func(ctx context.Context) ([]string, error) { return nil, nil },
+			},
+			wantErr: "missing target resource getter",
+		},
+		{
+			name: "missing endpoint resolver",
+			target: &TargetDialer{
+				Resource: func() types.ResourceWithLabels { return &fakeResource{kind: types.KindDatabase} },
+			},
+			wantErr: "missing target endpoint resolver",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.target.CheckAndSetDefaults()
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestTargetDialer_dialEndpoints(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -36,45 +80,45 @@ func Test_dialEndpoints(t *testing.T) {
 	const unhealthyAddr = "unhealthy.com:123"
 	tests := []struct {
 		desc            string
-		resolverFn      EndpointsResolverFunc
+		resolver        EndpointsResolverFunc
 		wantErrContains string
 	}{
 		{
 			desc: "resolver error",
-			resolverFn: func(ctx context.Context) ([]string, error) {
+			resolver: func(ctx context.Context) ([]string, error) {
 				return nil, trace.Errorf("resolver error")
 			},
 			wantErrContains: "resolver error",
 		},
 		{
 			desc: "resolved zero addrs",
-			resolverFn: func(ctx context.Context) ([]string, error) {
+			resolver: func(ctx context.Context) ([]string, error) {
 				return nil, nil
 			},
 			wantErrContains: "resolved zero target endpoints",
 		},
 		{
 			desc: "resolved one healthy addr",
-			resolverFn: func(ctx context.Context) ([]string, error) {
+			resolver: func(ctx context.Context) ([]string, error) {
 				return []string{healthyAddr}, nil
 			},
 		},
 		{
 			desc: "resolved one unhealthy addr",
-			resolverFn: func(ctx context.Context) ([]string, error) {
+			resolver: func(ctx context.Context) ([]string, error) {
 				return []string{unhealthyAddr}, nil
 			},
 			wantErrContains: "unhealthy addr",
 		},
 		{
 			desc: "resolved multiple healthy addrs",
-			resolverFn: func(ctx context.Context) ([]string, error) {
+			resolver: func(ctx context.Context) ([]string, error) {
 				return []string{healthyAddr, healthyAddr, healthyAddr}, nil
 			},
 		},
 		{
 			desc: "resolved a mix of healthy and unhealthy addrs",
-			resolverFn: func(ctx context.Context) ([]string, error) {
+			resolver: func(ctx context.Context) ([]string, error) {
 				return []string{healthyAddr, unhealthyAddr, healthyAddr}, nil
 			},
 			wantErrContains: "unhealthy addr",
@@ -83,7 +127,7 @@ func Test_dialEndpoints(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			d := &TargetDialer{
-				Resolver: test.resolverFn,
+				Resolver: test.resolver,
 				dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 					if addr == healthyAddr {
 						return fakeConn{}, nil
@@ -106,3 +150,12 @@ type fakeConn struct {
 }
 
 func (fakeConn) Close() error { return nil }
+
+type fakeResource struct {
+	kind string
+	types.ResourceWithLabels
+}
+
+func (r *fakeResource) GetKind() string {
+	return r.kind
+}

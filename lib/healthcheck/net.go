@@ -23,6 +23,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 )
@@ -35,20 +36,51 @@ type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 // TargetDialer is a health check target which uses a net.Dialer.
 type TargetDialer struct {
+	Resource func() types.ResourceWithLabels
 	// Resolver resolves the target endpoint(s).
 	Resolver EndpointsResolverFunc
+	// Protocol is a network protocol used by the dialer.
+	Protocol types.TargetHealthProtocol
 	// lastResolvedEndpoints are the endpoints last resolved for a health check.
 	lastResolvedEndpoints []string
+	// dial is used to dial network connections.
+	dial dialFunc
 
 	// -- test fields below --
 
-	// dial used to mock dialing in tests
-	dial dialFunc
+	// OnHealthCheck is called after each health check.
+	onHealthCheck func(lastResultErr error)
+	// OnConfigUpdate is called after each config update.
+	onConfigUpdate func()
+	// OnClose is called after the target's worker closes.
+	onClose func()
 }
 
-func (t *TargetDialer) checkAndSetDefaults() error {
+// GetResource gets the target resource.
+func (t *TargetDialer) GetResource() types.ResourceWithLabels {
+	return t.Resource()
+}
+
+// GetAddress gets the address of the target resource.
+func (t *TargetDialer) GetAddress() string {
+	return strings.Join(t.lastResolvedEndpoints, ",")
+}
+
+// GetProtocol gets the network communication protocol for the target resource.
+func (t *TargetDialer) GetProtocol() types.TargetHealthProtocol {
+	return t.Protocol
+}
+
+// CheckAndSetDefaults checks and sets defaults for the target resource.
+func (t *TargetDialer) CheckAndSetDefaults() error {
+	if t.Resource == nil {
+		return trace.BadParameter("missing target resource getter")
+	}
 	if t.Resolver == nil {
 		return trace.BadParameter("missing target endpoint resolver")
+	}
+	if t.Protocol == "" {
+		t.Protocol = types.TargetHealthProtocolTCP
 	}
 	if t.dial == nil {
 		t.dial = defaultDialer().DialContext
@@ -56,6 +88,7 @@ func (t *TargetDialer) checkAndSetDefaults() error {
 	return nil
 }
 
+// CheckHealth checks the health of the target resource.
 func (t *TargetDialer) CheckHealth(ctx context.Context) error {
 	return t.dialEndpoints(ctx)
 }
@@ -84,7 +117,7 @@ func (t *TargetDialer) dialEndpoints(ctx context.Context) error {
 }
 
 func (t *TargetDialer) dialEndpoint(ctx context.Context, endpoint string) error {
-	conn, err := t.dial(ctx, "tcp", endpoint)
+	conn, err := t.dial(ctx, string(t.Protocol), endpoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -93,8 +126,28 @@ func (t *TargetDialer) dialEndpoint(ctx context.Context, endpoint string) error 
 	return trace.Wrap(conn.Close())
 }
 
-func (t *TargetDialer) lastAddress() string {
-	return strings.Join(t.lastResolvedEndpoints, ",")
+// OnHealthCheck is called after each health check.
+// Used for testing only.
+func (t *TargetDialer) OnHealthCheck(lastResultErr error) {
+	if t.onHealthCheck != nil {
+		t.onHealthCheck(lastResultErr)
+	}
+}
+
+// OnConfigUpdate is called after each config update.
+// Used for testing only.
+func (t *TargetDialer) OnConfigUpdate() {
+	if t.onConfigUpdate != nil {
+		t.onConfigUpdate()
+	}
+}
+
+// OnClose is called after the target's worker closes.
+// Used for testing only.
+func (t *TargetDialer) OnClose() {
+	if t.onClose != nil {
+		t.onClose()
+	}
 }
 
 func defaultDialer() *net.Dialer {

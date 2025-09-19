@@ -21,34 +21,28 @@ package healthcheck
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 )
 
-// Target is a health check target.
-type Target struct {
-	// GetResource gets a copy of the target resource with updated labels.
-	GetResource func() types.ResourceWithLabels
-	// CheckHealth checks the health of a target resource.
-	CheckHealth func(ctx context.Context) error
+// Target is a resource which provides health checks.
+type Target interface {
+	// GetResource gets the target resource.
+	GetResource() types.ResourceWithLabels
+	// GetAddress gets the address of the target resource.
+	GetAddress() string
+	// GetProtocol gets the network communication protocol for the target resource.
+	GetProtocol() types.TargetHealthProtocol
+	// CheckAndSetDefaults checks and sets defaults settings for the target resource.
+	CheckAndSetDefaults() error
+	// CheckHealth checks the health of the target resource.
+	CheckHealth(ctx context.Context) error
 
-	// -- test fields below --
+	// -- test methods below --
 
-	// onHealthCheck is called after each health check.
-	onHealthCheck func(lastResultErr error)
-	// onConfigUpdate is called after each config update.
-	onConfigUpdate func()
-	// onClose is called after the target's worker closes.
-	onClose func()
-}
-
-func (t *Target) checkAndSetDefaults() error {
-	if t.GetResource == nil {
-		return trace.BadParameter("missing target resource getter")
-	}
-	if t.CheckHealth == nil {
-		return trace.BadParameter("missing target health check function")
-	}
-	return nil
+	// OnHealthCheck is called after each health check.
+	OnHealthCheck(lastResultErr error)
+	// OnConfigUpdate is called after each config update.
+	OnConfigUpdate()
+	// OnClose is called after the target's worker closes.
+	OnClose()
 }

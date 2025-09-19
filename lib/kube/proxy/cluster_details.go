@@ -265,8 +265,23 @@ func (k *kubeDetails) getObjectGVK(resource apiResource) *schema.GroupVersionKin
 	}]
 }
 
-// checkHealth checks the health of a Kubernetes cluster.
-func (k *kubeDetails) checkHealth(ctx context.Context) error {
+// GetResource returns a copy of a Kubernetes cluster resource.
+func (k *kubeDetails) GetResource() types.ResourceWithLabels {
+	return k.kubeCluster.Copy()
+}
+
+// GetAddress returns the Kubernetes cluster address.
+func (k *kubeDetails) GetAddress() string {
+	return k.getTargetAddr()
+}
+
+// GetProtocol gets the network communication protocol for the target resource.
+func (t *kubeDetails) GetProtocol() types.TargetHealthProtocol {
+	return types.TargetHealthProtocolHTTP
+}
+
+// CheckHealth checks the health of a Kubernetes cluster.
+func (k *kubeDetails) CheckHealth(ctx context.Context) error {
 	client := k.getKubeClient().AuthorizationV1().SelfSubjectAccessReviews()
 	if err := checkImpersonationPermissions(ctx, k.kubeCluster.GetName(), client); err != nil {
 		return err
@@ -287,6 +302,13 @@ func (k *kubeDetails) checkHealth(ctx context.Context) error {
 	}
 	return nil
 }
+
+// Empty operations for the healthcheck.Target interface.
+
+func (t *kubeDetails) CheckAndSetDefaults() error        { return nil }
+func (t *kubeDetails) OnHealthCheck(lastResultErr error) {}
+func (t *kubeDetails) OnConfigUpdate()                   {}
+func (t *kubeDetails) OnClose()                          {}
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
 func getKubeClusterCredentials(ctx context.Context, cfg clusterDetailsConfig) (kubeCreds, error) {
