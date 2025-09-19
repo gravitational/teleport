@@ -889,7 +889,7 @@ func (s *Server) handleForwardedTCPIPRequest(ctx context.Context, nch ssh.NewCha
 
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, nil)
 	if err != nil {
 		if err := nch.Reject(ssh.ConnectionFailed, "failed to open server context"); err != nil {
 			s.logger.ErrorContext(ctx, "Error rejecting forwarded-tcpip channel", "error", err)
@@ -999,7 +999,7 @@ func (s *Server) checkTCPIPForwardRequest(ctx context.Context, r *ssh.Request) e
 
 	// RBAC checks are only necessary when connecting to an agentless node
 	if s.targetServer.IsOpenSSHNode() {
-		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
+		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext, nil)
 		if err != nil {
 			return err
 		}
@@ -1062,7 +1062,7 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, nil)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to create connection context", "error", err)
 		s.stderrWrite(ctx, ch, "Unable to create connection context.")
@@ -1126,8 +1126,6 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 			}
 			return
 		}
-
-		s.connectionContext.SetSessionParams(sessionParams)
 	}
 
 	// Create context for this channel. This context will be closed when the
@@ -1135,7 +1133,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// There is no need for the forwarding server to initiate disconnects,
 	// based on teleport business logic, because this logic is already
 	// done on the server's terminating side.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, sessionParams)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Server context setup failed", "error", err)
 		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("server context setup failed: %v", err)); err != nil {

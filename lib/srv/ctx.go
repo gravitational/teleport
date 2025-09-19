@@ -315,6 +315,9 @@ type ServerContext struct {
 	// term holds PTY if it was requested by the session.
 	term Terminal
 
+	// sessionParams are parameters associated with this server session.
+	sessionParams *tracessh.SessionParams
+
 	// session holds the active session (if there's an active one).
 	session *session
 
@@ -437,7 +440,7 @@ type ServerContext struct {
 // the ServerContext is closed.  The ctx parameter should be a child of the ctx
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
-func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (*ServerContext, error) {
+func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, sessionParams *tracessh.SessionParams, monitorOpts ...func(*MonitorConfig)) (*ServerContext, error) {
 	recConfig, err := srv.GetAccessPoint().GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -477,6 +480,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
 		env:                    make(map[string]string),
 		srv:                    srv,
+		sessionParams:          sessionParams,
 		ExecResultCh:           make(chan ExecResult, 10),
 		SubsystemResultCh:      make(chan SubsystemResult, 10),
 		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
@@ -673,13 +677,13 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 
 // GetSessionParams gets session params for the current session.
 func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
-	// Teleport ssh clients should provide session params upfront in the session channel request.
-	if sessionParams := c.Parent().GetSessionParams(); sessionParams != nil {
-		return *sessionParams
-	}
-
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
+	// Teleport ssh clients should provide session params upfront in the session channel request.
+	if c.sessionParams != nil {
+		return *c.sessionParams
+	}
 
 	// If this is an old client, it will provide session params from
 	// env variables sometime between the session channel request and shell request.

@@ -38,8 +38,6 @@ import (
 
 // ConnectionContext manages connection-level state.
 type ConnectionContext struct {
-	sessionParams *tracessh.SessionParams
-
 	// NetConn is the base connection object.
 	NetConn net.Conn
 
@@ -138,20 +136,6 @@ func (a *AgentChannel) Close() error {
 	return trace.NewAggregate(
 		a.ch.CloseWrite(),
 		a.ch.Close())
-}
-
-// SetSessionParams sets session parameters.
-func (c *ConnectionContext) SetSessionParams(sessionParams *tracessh.SessionParams) {
-	c.mu.Lock()
-	c.sessionParams = sessionParams
-	c.mu.Unlock()
-}
-
-// GetSessionParams gets session parameters.
-func (c *ConnectionContext) GetSessionParams() *tracessh.SessionParams {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.sessionParams
 }
 
 // ParseSessionParams parses session parameters.

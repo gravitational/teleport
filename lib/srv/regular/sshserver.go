@@ -1215,7 +1215,7 @@ func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Proce
 // the server connection is closed.
 func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
 	// Create context for the networking process.
-	nsctx, err := srv.NewServerContext(context.Background(), scx.ConnectionContext, s, scx.Identity)
+	nsctx, err := srv.NewServerContext(context.Background(), scx.ConnectionContext, s, scx.Identity, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1401,7 +1401,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 				return
 			}
 
-			go s.handleSessionRequests(ctx, ccx, identityContext, ch, requests)
+			go s.handleSessionRequests(ctx, ccx, identityContext, nil, ch, requests)
 			return
 		default:
 			s.rejectChannel(ctx, nch, ssh.UnknownChannelType, fmt.Sprintf("unknown channel type: %v", channelType))
@@ -1446,15 +1446,14 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 
 		// SessionParams are not passed by old clients (<v19) or OpenSSH clients.
+		var sessionParams *tracessh.SessionParams
 		if len(nch.ExtraData()) > 0 {
-			sessionParams, err := sshutils.ParseSessionParams(nch.ExtraData())
+			sessionParams, err = sshutils.ParseSessionParams(nch.ExtraData())
 			if err != nil {
 				s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
 				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
-
-			ccx.SetSessionParams(sessionParams)
 		}
 
 		ch, requests, err := nch.Accept()
@@ -1467,7 +1466,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			return
 		}
 		go func() {
-			s.handleSessionRequests(ctx, ccx, identityContext, ch, requests)
+			s.handleSessionRequests(ctx, ccx, identityContext, sessionParams, ch, requests)
 			if decr != nil {
 				decr()
 			}
@@ -1537,7 +1536,7 @@ func (w *stderrWriter) WriteString(s string) (int, error) {
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, channel ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
+	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext, nil)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to create connection context", "error", err)
 		s.writeStderr(ctx, channel, "Unable to create connection context.")
@@ -1599,7 +1598,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 // handleSessionRequests handles out of band session requests once the session
 // channel has been created this function's loop handles all the "exec",
 // "subsystem" and "shell" requests.
-func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, in <-chan *ssh.Request) {
+func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, sessionParams *tracessh.SessionParams, ch ssh.Channel, in <-chan *ssh.Request) {
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to fetch cluster networking config", "error", err)
@@ -1609,7 +1608,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext, func(cfg *srv.MonitorConfig) {
+	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext, sessionParams, func(cfg *srv.MonitorConfig) {
 		cfg.IdleTimeoutMessage = netConfig.GetClientIdleTimeoutMessage()
 		cfg.MessageWriter = &stderrWriter{writer: func(msg string) { s.writeStderr(ctx, ch, msg) }}
 	})
@@ -2093,7 +2092,7 @@ func (s *Server) handleVersionRequest(ctx context.Context, req *ssh.Request) {
 func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionContext, identityContext srv.IdentityContext, ch ssh.Channel, req sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
-	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
+	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext, nil)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to create connection context", "error", err)
 		s.writeStderr(ctx, ch, "Unable to create connection context.")
@@ -2227,7 +2226,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 	}
 
 	// Create context for this request.
-	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext)
+	scx, err := srv.NewServerContext(ctx, ccx, s, identityContext, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
