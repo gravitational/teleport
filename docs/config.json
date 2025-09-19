@@ -759,12 +759,12 @@
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
     },
-        {
+    {
       "source": "/machine-workload-identity/mwi-use-cases/",
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
     },
-        {
+    {
       "source": "/machine-workload-identity/mwi-use-cases/mwi-ci-cd/",
       "destination": "/machine-workload-identity/mwi-ci-cd/",
       "permanent": true
@@ -1036,17 +1036,17 @@
     },
     {
       "source": "/admin-guides/infrastructure-as-code/terraform-starter/enroll-resources/",
-      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
       "permanent": true
     },
     {
       "source": "/admin-guides/infrastructure-as-code/terraform-starter/rbac/",
-      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/rbac/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
       "permanent": true
     },
     {
       "source": "/admin-guides/infrastructure-as-code/terraform-starter/",
-      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
       "permanent": true
     },
     {
@@ -2287,6 +2287,21 @@
     {
       "source": "/enroll-resources/application-access/cloud-apis/aws-console-without-agent/",
       "destination": "/enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/terraform-starter/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/terraform-starter/rbac/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
       "permanent": true
     }
   ]
