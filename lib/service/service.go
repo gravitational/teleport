@@ -3546,7 +3546,7 @@ func waitForInstanceConnector(process *TeleportProcess, log *slog.Logger) (*Conn
 			}
 			return result.c, nil
 		case <-t.C:
-			log.WarnContext(process.ExitContext(), "The Instance connector is still not available, process-wide services such as session uploading will not function")
+			log.WarnContext(process.ExitContext(), "The Instance connector is still not available, process-wide services will not function")
 		}
 	}
 }
