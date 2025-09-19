@@ -70,7 +70,9 @@ type UaccConfig struct {
 func NewUserAccountHandler(cfg UaccConfig) *UserAccountHandler {
 	uacc := &UserAccountHandler{}
 	ctx := context.Background()
+	//nolint:staticcheck // SA4023 Always non-nil error on non-Linux hosts
 	utmp, utmpErr := NewUtmpBackend(cfg.UtmpFile, cfg.WtmpFile, cfg.BtmpFile)
+	//nolint:staticcheck // SA4023 Always non-nil error on non-Linux hosts
 	if utmpErr == nil {
 		uacc.utmp = utmp
 		slog.DebugContext(ctx, "utmp user accounting is active")
@@ -116,6 +118,7 @@ func (uacc *UserAccountHandler) OpenSession(tty *os.File, username string, remot
 	}
 	var errors []error
 	if uacc.utmp != nil {
+		//nolint:staticcheck // SA4023 Always non-nil error on non-Linux hosts
 		if err := uacc.utmp.Login(ttyName, username, remote, loginTime); err == nil {
 			anySucceeded = true
 			session.utmpKey = ttyName
@@ -153,6 +156,7 @@ func (session *Session) Close() error {
 		if utmp == nil {
 			return trace.BadParameter("utmp not supported")
 		}
+		//nolint:staticcheck // SA4023 Always non-nil error on non-Linux hosts
 		if err := utmp.Logout(session.utmpKey, logoutTime); err == nil {
 			anySucceeded = true
 		} else {
@@ -179,6 +183,7 @@ func (session *Session) Close() error {
 // FailedLogin logs a failed login attempt.
 func (uacc *UserAccountHandler) FailedLogin(username string, remote net.Addr) error {
 	if uacc.utmp != nil {
+		//nolint:staticcheck // SA4023 Always non-nil error on non-Linux hosts
 		if err := uacc.utmp.FailedLogin(username, remote, time.Now()); err != nil {
 			return trace.Wrap(err)
 		}
