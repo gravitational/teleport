@@ -2226,7 +2226,7 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
+	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
 		CSRFToken:         req.CSRFToken,
 		ConnectorID:       req.ConnectorID,
 		CreateWebSession:  true,
@@ -2293,7 +2293,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	logger := h.logger.With("auth", "oidc")
 	logger.DebugContext(r.Context(), "Callback start", "query", r.URL.Query())
 
-	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.Context(), r.URL.Query())
+	response, err := h.cfg.ProxyClient.ValidateOIDCAuthCallback(r.Context(), r.URL.Query())
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error while processing callback", "error", err)
 
@@ -2302,7 +2302,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		//
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
 		if requestID := r.URL.Query().Get("state"); requestID != "" {
-			if request, errGet := h.cfg.ProxyClient.GetGithubAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
+			if request, errGet := h.cfg.ProxyClient.GetOIDCAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
 				if redURL, errEnc := RedirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
 					return redURL.String()
 				}
@@ -2341,11 +2341,12 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		return res.ClientRedirectURL
 	}
 
-	logger.InfoContext(r.Context(), "Callback is redirecting to console login")
-	if len(response.Req.SSHPubKey)+len(response.Req.TLSPubKey) == 0 {
-		logger.ErrorContext(r.Context(), "Not a web or console login request")
-		return client.LoginFailedRedirectURL
-	}
+	// ToDo: Commented for debug purpose.
+	// logger.InfoContext(r.Context(), "Callback is redirecting to console login")
+	// if len(response.Req.SSHPubKey)+len(response.Req.TLSPubKey) == 0 {
+	// 	logger.ErrorContext(r.Context(), "Not a web or console login request")
+	// 	return client.LoginFailedRedirectURL
+	// }
 
 	redirectURL, err := ConstructSSHResponse(AuthParams{
 		ClientRedirectURL: response.Req.ClientRedirectURL,
