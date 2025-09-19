@@ -143,44 +143,6 @@ message WindowsDesktopAccess {
 }
 ```
 
-In order to determine if roles created by Teleport for a templated access list is in sync, we need to save some metadata about the roles created to fallback to the expected values if changes outside of Teleport were detected (e.g: using `tctl` to modify roles). This metadata will be saved in the existing `AccessListStatus` object:
-
-```proto
-
-message AccessListStatus {
-  // ... other existing fields
-
-  TemplatedResources templated_resources = 6;
-}
-
-// TemplatedMetadata holds read-only metadata related
-// to a templated access list and is only used/modified by
-// Teleport.
-message TemplatedResources {
-  // starting_role_version is set by Teleport upon
-  // a roles first creation.
-  // Preservation is needed to revert role version
-  // back to this version since a user can update a
-  // role resource (and its version) with `tctl`
-  // potentionally changing a roles behavior.
-  string starting_role_version = 1;
-  // roles made by Teleport.
-  repeated TemplatedResource roles = 2;
-}
-
-// TemplatedResource describes a resource made for a
-// templated access list.
-message TemplatedResource {
-  // name of the resource.
-  string name = 1;
-  // revision the last revision made by Teleport on a resource.
-  // Used to determine if a resource update were made with `tctl`
-  // which will modify the role resources revision, but not this
-  // field.
-  string revision = 2;
-}
-```
-
 ### UX
 
 For all CLI examples, the template feature is added to the existing access list field `spec`. For `spec.title` new value `templated` is used. And a new field `spec.template_config` is introduced:
@@ -268,13 +230,16 @@ The web UI/UX has already gone through POC iterations and has been approved by s
 
 #### Create
 
-A templated access list can only be created if access list field `type: templated` is set. The related field `template_config` will not be required in case the user wants to define the access later or remove access altogether.
+A templated access list can only be created if access list field `type: templated` and `template_config.type: long_term | short_term` is defined. The field `template_config.allow` will not be required in case the user wants to define the access later or remove access altogether.
 
-If `template_config` is defined, Teleport will take the template specifications and create appropriate roles and then assign them to member and owner.
+If `template_config.allow` is defined, Teleport will take the template specifications and create appropriate roles and then assign them as member/owner grants.
 
-If `template_config` was once defined, but becomes undefined, Teleport will delete all roles related to this access list.
+If `template_config.allow` was once defined, but becomes undefined, Teleport will unassign grants and delete all roles related to this access list.
 
-All roles created by Teleport will be labeled with `teleport.internal/resource-type: system` and will be referred to as system-managed roles.
+All roles created by Teleport will be labeled with
+
+- `teleport.internal/resource-type: system`: Tags this role as Teleport managed. Teleport also supports filtering out system managed roles when [listing roles](https://github.com/gravitational/teleport/blob/a4eb5edab6f91a9373857f2449d1bcaf1a2a9d18/api/proto/teleport/legacy/types/types.proto#L3436).
+- `teleport.internal/access-list-name: <UID of access list>`: Tags this role as belonging to an access list. This label will be used to prevent users from updating this role. Teleport currently does not prevent users from modifying system marked roles with `tctl`. This presents a problem where the `access` definition on a templated access list is not in sync with the actual role resource. Rejecting updates will handle this issue.
 
 ##### System-managed roles for short-term template
 
@@ -290,15 +255,15 @@ All roles created by Teleport will be labeled with `teleport.internal/resource-t
 
 ##### Naming format for the system-managed roles
 
-In order to ensure uniqueness and help identifying which roles belong to access lists, the naming convention takes the following format:
+In order to ensure uniqueness, the naming convention takes the following format:
 
-`<purpose>-acl-template-<access list metadata name (UID)>`
+`templated-acl-<purpose>-role-<UID of access list>`
 
-| Parts                             |                      Explanation                      |                             Example Values |
-| :-------------------------------- | :---------------------------------------------------: | -----------------------------------------: |
-| templated-acl                     |          stands for "templated access list"           |                                        n/a |
-| \<purpose\>-role                  |     short word that describes the purpose of role     | requester, reviewer, access, access-aws-ic |
-| <access list metadata name (UID)> | helps identify which access list this role belongs to |                                        n/a |
+| Parts                 |                   Explanation                    |                             Example Values |
+| :-------------------- | :----------------------------------------------: | -----------------------------------------: |
+| templated-acl         |        stands for "templated access list"        |                                        n/a |
+| \<purpose>-role       |  short word that describes the purpose of role   | requester, reviewer, access, access-aws-ic |
+| \<UID of access list> | describes which access list this role belongs to |                                        n/a |
 
 Example names of system-managed roles, if an access list with metadata.name is `b037d55d-c076-474e-b4a8-bc4d0f10f19d`
 
@@ -307,27 +272,23 @@ Example names of system-managed roles, if an access list with metadata.name is `
 - templated-acl-access-role-b037d55d-c076-474e-b4a8-bc4d0f10f19d
 - templated-acl-access-aws-ic-role-b037d55d-c076-474e-b4a8-bc4d0f10f19d
 
-#### Role reconciler for the system-managed roles
-
-Teleport does not prevent users from modifying system-managed roles. A user is able to `tctl create existing-role.yaml -f`. This poses a problem where the `allow` definition defined on an access list might not be in sync with the actual role resource (and its other related roles). To keep roles in sync with access lists, a reconciler will be created that will periodically (or on watched role event) will read roles related to access list and query for its matching access list and match the `role.metadata.revision` with `accesslist.status.templated_role_metadata.revision_XXX_role`. On mismatch, the role will be re-upserted with expected values and expected role version (determined by `status.templated_metadata.starting_role_version`), and once successful the `revision` related fields on the access list status will also be updated.
-
-The reconciler will attempt to immediately reconcile on startup to handle the edge case of modifying roles while offline.
-
-The reconciler will also clean up stale roles by deleting them if querying for its related access list fails with a `Not Found` error.
-
 #### Update
 
-For access lists with `type: templated`, the `template_config.type`, `status.templated_role_metadata`, member grant, and owner grant fields will not be modifiable.
+`spec.type: templated`, `template_config.type`, member grant, and owner grant fields will not be modifiable.
 
 Only the `template_config.allow` is modifiable.
 
-Any update to `type: templated` will act like a reconciler, where it essentially re-upserts all related roles to expected values and expected versions.
+Any updates made on a templated access list will upsert roles regardless if access has actually changed. This is in part to keep the roles in sync. When updating roles, the previous version of the role will be maintained to prevent unintended role behavioral changes with different role verisons. If a user wants to upgrade to a newer role version, user must create a new access list, which will use the latest role version.
+
+When modifying, Teleport will also delete orphaned roles if present. A role can become orphaned if a user changes access in a way it changes grants. E.g: if a user removes access for AWS IC, the role created specifically for AWS IC access becomes unused.
 
 #### Delete
 
-In the backend, after an access list is successfully deleted, all system-managed roles tied to that deleted access list will also be deleted. Note that the access list must be deleted first as roles assigned to access list cannot be deleted.
+In the backend, after an access list is successfully deleted, all roles tied to that deleted access list will also be deleted. Note that the access list must be deleted first as roles assigned to access list cannot be deleted.
 
-In the case deleting roles fail for some reason, the errors can be ignored as the reconciler will eventually clean up stale roles.
+##### Reconciler that cleans up orphaned roles
+
+If deleting roles fail for some reason, it leaves behind orphaned roles. A delete reconciler will be created where periodically the reconciler will iterate through all the roles, and if a role belonged to an access list and that access list no longer exists, reconciler will delete the role.
 
 ### Backwards compatibility
 
@@ -341,8 +302,8 @@ If a templated access list is created in a cluster that supports this feature, a
 
 Upon upgrading again to a cluster that supports this feature:
 
-- if the access list still exists, the reconciler will resync the roles with the access defined in the access list
-- if the access list does not exist, the reconciler will delete the stale roles
+- If the access list still exists, it should work as before. There is a chance a user could've modified this role (tctl). The best we can do here is to document that system roles should not be modified. Also, any updates made will upsert the roles again which will bring it back in sync.
+- If the access list does not exist, the reconciler will delete the orphaned roles.
 
 ### Feature extension
 
