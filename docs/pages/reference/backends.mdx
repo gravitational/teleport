@@ -123,10 +123,10 @@ and user records will be stored.
 To configure Teleport for using etcd as a storage backend:
 
 - Make sure you are using **etcd versions 3.3** or newer.
-- Follow [etcd's cluster hardware recommendations](https://etcd.io/docs/v3.5/op-guide/hardware/). In particular, leverage
+- Follow [etcd's cluster hardware recommendations](https://etcd.io/docs/v3.6/op-guide/hardware/). In particular, leverage
   SSD or high-performance virtualized block device storage for best performance.
 - Install etcd and configure peer and client TLS authentication using the [etcd
-  security guide](https://etcd.io/docs/v3.5/op-guide/security/).
+  security guide](https://etcd.io/docs/v3.6/op-guide/security/).
   - You can use [this script provided by
     etcd](https://github.com/etcd-io/etcd/tree/master/hack/tls-setup) if you
     don't already have a TLS setup.
@@ -186,6 +186,27 @@ teleport:
      # This bumps the size to 15MiB as an example:
      etcd_max_client_msg_size_bytes: 15728640
 ```
+
+### Disk sizing, compaction and defragmentation
+
+For large-scale deployments, plan for high write throughput and allocate sufficient storage to meet the history retention requirements.
+
+A rule of thumb for minimum storage size (excluding metadata) is:
+```
+minimum_storage ≈ backend_resource_count * average_record_size * auto_compaction_retention
+```
+
+- `backend_resource_count`: the total number of resources including replicas.
+- `average_record_size`: the average size (in bytes) of a resource.
+- `auto_compaction_retention`: the maximum number of revisions per item.
+
+Auto-compaction based on revision count is strongly recommended.
+Note that physical disk space is not reclaimed during compaction. To recover space, schedule regular defragmentation
+based on available disk space and write throughput.
+
+Use `etcd_mvcc_db_total_size_in_bytes` and `etcd_mvcc_db_total_size_in_use_in_bytes` metrics to tune as needed.
+
+Refer to [etcd's maintenance guide](https://etcd.io/docs/v3.6/op-guide/maintenance/) for auto-compaction and defragmentation.
 
 ## PostgreSQL
 
