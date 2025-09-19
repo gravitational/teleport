@@ -852,6 +852,8 @@ github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.40.5 h1:0t/Dr8fwx
 github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.40.5/go.mod h1:NUciQYiEOln3pubY8iovZkWZdJrBTnoPPW3JTIk9QAI=
 github.com/aws/aws-sdk-go-v2/service/athena v1.55.6 h1:OC3hqQ29uyNsftVHwdbfHpDopEBViNFypjy9N5eDsMw=
 github.com/aws/aws-sdk-go-v2/service/athena v1.55.6/go.mod h1:I1paYl0qAaXc+6AmLtylg4ApBC0/HEs5myhVIcy4Nng=
+github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.58.2 h1:JPW6ND8muLsBwALrf/VXikyokUmGWNKZa88qZWwFGWA=
+github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.58.2/go.mod h1:3Dh12t3s/KrpEm7HNfg5RH+XWzi9LW2QI7velkc61ac=
 github.com/aws/aws-sdk-go-v2/service/dax v1.29.1 h1:sYEBub6ZSeElTUaelJkffTHj6HdmUsTF5H4B2XI/OiQ=
 github.com/aws/aws-sdk-go-v2/service/dax v1.29.1/go.mod h1:FQ3H4KZGNJ7xNstwjgtKtWM99QtU1y2Y2vGdOSqEPZ8=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.50.5 h1:BX2h98b2Jz3PvWxoxdf+xJXm728Ho8yNdkxX1ANlNTM=
