@@ -14,7 +14,7 @@ Each scenario links to detailed guides so you can quickly put these capabilities
 ## Identity integrations
 
 Teleport supports multiple identity options so you can plug into your existing stack or make Teleport your source of truth. 
-Use **AWS IAM Identity Center**, ***Okta,** or **Microsoft Entra ID** to authenticate users into Teleport via SSO and sync groups to roles 
+Use **AWS IAM Identity Center**, **Okta,** or **Microsoft Entra ID** to authenticate users into Teleport via SSO and sync groups to roles 
 for least-privilege access across infrastructure. If you prefer, you can also run **Teleport as an identity provider**, issuing 
 short-lived credentials and federating access to downstream apps and services. These integrations enable centralized onboarding/offboarding, 
 group-to-role mapping, and consistent policy enforcement across all your resources.
@@ -23,27 +23,26 @@ group-to-role mapping, and consistent policy enforcement across all your resourc
   tiles={[
     {
       icon: <Icon name="AWS-IAM-IdentityCenter" size="xl" />,
-      to: "/docs/identity-governance/aws-iam-identity-center",
+      to: "/identity-governance/aws-iam-identity-center",
       name: "AWS IAM Identity Center",
     },
     {
       icon: <Icon name="oktaIntegration" size="xl" />,
-      to: "/docs/identity-governance/okta",
+      to: "/identity-governance/okta",
       name: "Okta Integration",
     },
     {
       icon: <Icon name="entraIDIntegration" size="xl" />,
-      to: "/docs/identity-governance/entra-id/getting-started",
+      to: "/identity-governance/entra-id/getting-started",
       name: "Entra ID Integration",
     },
     {
       icon: <Icon name="teleportIdentity provider" size="xl" />,
-      to: "/docs/identity-governance/idps",
+      to: "/identity-governance/idps",
       name: "Teleport as an identity provider",
     }
   ]}
 />
-
 
 ## Just-in-time Access Requests
 
@@ -63,12 +62,6 @@ Plugins enforce your reviewer policies, post status updates, and keep a complete
 [Grant auditable access by user group](./access-lists/access-lists.mdx).
 Define membership-based access with owners, eligibility rules, and time-boxed enrollment. 
 Access Lists map groups to Teleport roles, require periodic reviews, and provide a clear record of who had access and why.
-
-## Teleport Okta integration
-
-[Import and grant Okta access through Teleport](./okta/okta.mdx).
-Use Okta for SSO and group management, then map groups to Teleport roles for least-privilege access across infrastructure. 
-Changes in Okta propagate to Teleport immediately, simplifying onboarding and deprovisioning.
 
 ## Device Trust
 
