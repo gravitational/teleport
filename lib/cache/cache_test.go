@@ -19,9 +19,9 @@
 package cache
 
 import (
-	"cmp"
 	"context"
 	"fmt"
+	"iter"
 	"os"
 	"slices"
 	"strconv"
@@ -214,17 +214,50 @@ func defaultResource153Ops[T types.Resource153]() *resourceOps[T] {
 	}
 }
 
+// getAllAdapter adapts collection getters that do not support pagination to conform to [testFuncs] interface
+// TODO(okraport): delete this once all APIs are paginated.
+func getAllAdapter[T any](fn func(context.Context) ([]T, error)) func(context.Context, int, string) ([]T, string, error) {
+	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
+		out, err := fn(ctx)
+		return out, "", trace.Wrap(err)
+	}
+}
+
+// singletonListAdapter adapts a singleton getter to conform to [testFuncs] interface
+func singletonListAdapter[T any](fn func(context.Context) (T, error)) func(context.Context, int, string) ([]T, string, error) {
+	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
+		out, err := fn(ctx)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, "", nil
+			}
+			return nil, "", trace.Wrap(err)
+		}
+		return []T{out}, "", nil
+	}
+}
+
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T any] struct {
 	newResource func(string) (T, error)
 	create      func(context.Context, T) error
-	list        func(context.Context) ([]T, error)
+	list        func(context.Context, int, string) ([]T, string, error)
+	Range       func(context.Context, string, string) iter.Seq2[T, error]
 	cacheGet    func(context.Context, string) (T, error)
-	cacheList   func(context.Context) ([]T, error)
+	cacheList   func(context.Context, int, string) ([]T, string, error)
+	cacheRange  func(context.Context, string, string) iter.Seq2[T, error]
 	update      func(context.Context, T) error
 	delete      func(context.Context, string) error
 	deleteAll   func(context.Context) error
 	resource    *resourceOps[T]
+}
+
+func (f *testFuncs[T]) listAll(ctx context.Context) ([]T, error) {
+	return stream.Collect(clientutils.Resources(ctx, f.list))
+}
+
+func (f *testFuncs[T]) cacheListAll(ctx context.Context) ([]T, error) {
+	return stream.Collect(clientutils.Resources(ctx, f.cacheList))
 }
 
 func (t *testPack) Close() {
@@ -1679,20 +1712,14 @@ func TestUsers(t *testing.T) {
 			_, err := p.usersS.UpsertUser(ctx, user)
 			return err
 		},
-		list: func(ctx context.Context) ([]types.User, error) {
-			return p.usersS.GetUsers(ctx, false)
-		},
-		cacheList: func(ctx context.Context) ([]types.User, error) {
-			return p.cache.GetUsers(ctx, false)
-		},
+		list:      getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.usersS.GetUsers(ctx, false) }),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.cache.GetUsers(ctx, false) }),
 		update: func(ctx context.Context, user types.User) error {
 			_, err := p.usersS.UpdateUser(ctx, user)
 			return err
 		},
-		deleteAll: func(ctx context.Context) error {
-			return p.usersS.DeleteAllUsers(ctx)
-		},
-	})
+		deleteAll: p.usersS.DeleteAllUsers,
+	}, withSkipPaginationTest())
 }
 
 // TestRoles tests caching of roles
@@ -1719,17 +1746,15 @@ func TestRoles(t *testing.T) {
 			_, err := p.accessS.UpsertRole(ctx, role)
 			return err
 		},
-		list:      p.accessS.GetRoles,
+		list:      getAllAdapter(p.accessS.GetRoles),
 		cacheGet:  p.cache.GetRole,
-		cacheList: p.cache.GetRoles,
+		cacheList: getAllAdapter(p.cache.GetRoles),
 		update: func(ctx context.Context, role types.Role) error {
 			_, err := p.accessS.UpsertRole(ctx, role)
 			return err
 		},
-		deleteAll: func(ctx context.Context) error {
-			return p.accessS.DeleteAllRoles(ctx)
-		},
-	})
+		deleteAll: p.accessS.DeleteAllRoles,
+	}, withSkipPaginationTest())
 }
 
 // TestReverseTunnels tests reverse tunnels caching
@@ -1744,18 +1769,14 @@ func TestReverseTunnels(t *testing.T) {
 		newResource: func(name string) (types.ReverseTunnel, error) {
 			return types.NewReverseTunnel(name, []string{"example.com:2023"})
 		},
-		create: modifyNoContext(p.presenceS.UpsertReverseTunnel),
-		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.presenceS.GetReverseTunnels(ctx)
-		},
-		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.cache.GetReverseTunnels(ctx)
-		},
-		update: modifyNoContext(p.presenceS.UpsertReverseTunnel),
+		create:    modifyNoContext(p.presenceS.UpsertReverseTunnel),
+		list:      getAllAdapter(func(ctx context.Context) ([]types.ReverseTunnel, error) { return p.presenceS.GetReverseTunnels(ctx) }),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.ReverseTunnel, error) { return p.cache.GetReverseTunnels(ctx) }),
+		update:    modifyNoContext(p.presenceS.UpsertReverseTunnel),
 		deleteAll: func(ctx context.Context) error {
 			return p.presenceS.DeleteAllReverseTunnels()
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestTunnelConnections tests tunnel connections caching
@@ -1775,17 +1796,17 @@ func TestTunnelConnections(t *testing.T) {
 			})
 		},
 		create: modifyNoContext(p.trustS.UpsertTunnelConnection),
-		list: func(ctx context.Context) ([]types.TunnelConnection, error) {
+		list: getAllAdapter(func(context.Context) ([]types.TunnelConnection, error) {
 			return p.trustS.GetTunnelConnections(clusterName)
-		},
-		cacheList: func(ctx context.Context) ([]types.TunnelConnection, error) {
+		}),
+		cacheList: getAllAdapter(func(context.Context) ([]types.TunnelConnection, error) {
 			return p.cache.GetTunnelConnections(clusterName)
-		},
+		}),
 		update: modifyNoContext(p.trustS.UpsertTunnelConnection),
 		deleteAll: func(ctx context.Context) error {
 			return p.trustS.DeleteAllTunnelConnections()
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestNodes tests nodes cache
@@ -1800,20 +1821,20 @@ func TestNodes(t *testing.T) {
 			return suite.NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
 		create: withKeepalive(p.presenceS.UpsertNode),
-		list: func(ctx context.Context) ([]types.Server, error) {
+		list: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
 			return p.presenceS.GetNodes(ctx, apidefaults.Namespace)
-		},
+		}),
 		cacheGet: func(ctx context.Context, name string) (types.Server, error) {
 			return p.cache.GetNode(ctx, apidefaults.Namespace, name)
 		},
-		cacheList: func(ctx context.Context) ([]types.Server, error) {
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
 			return p.cache.GetNodes(ctx, apidefaults.Namespace)
-		},
+		}),
 		update: withKeepalive(p.presenceS.UpsertNode),
 		deleteAll: func(ctx context.Context) error {
 			return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestProxies tests proxies cache
@@ -1827,18 +1848,14 @@ func TestProxies(t *testing.T) {
 		newResource: func(name string) (types.Server, error) {
 			return suite.NewServer(types.KindProxy, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
-		create: p.presenceS.UpsertProxy,
-		list: func(_ context.Context) ([]types.Server, error) {
-			return p.presenceS.GetProxies()
-		},
-		cacheList: func(_ context.Context) ([]types.Server, error) {
-			return p.cache.GetProxies()
-		},
-		update: p.presenceS.UpsertProxy,
+		create:    p.presenceS.UpsertProxy,
+		list:      getAllAdapter(func(context.Context) ([]types.Server, error) { return p.presenceS.GetProxies() }),
+		cacheList: getAllAdapter(func(context.Context) ([]types.Server, error) { return p.cache.GetProxies() }),
+		update:    p.presenceS.UpsertProxy,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllProxies()
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestAuthServers tests auth servers cache
@@ -1852,18 +1869,14 @@ func TestAuthServers(t *testing.T) {
 		newResource: func(name string) (types.Server, error) {
 			return suite.NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
-		create: p.presenceS.UpsertAuthServer,
-		list: func(_ context.Context) ([]types.Server, error) {
-			return p.presenceS.GetAuthServers()
-		},
-		cacheList: func(_ context.Context) ([]types.Server, error) {
-			return p.cache.GetAuthServers()
-		},
-		update: p.presenceS.UpsertAuthServer,
+		create:    p.presenceS.UpsertAuthServer,
+		list:      getAllAdapter(func(context.Context) ([]types.Server, error) { return p.presenceS.GetAuthServers() }),
+		cacheList: getAllAdapter(func(context.Context) ([]types.Server, error) { return p.cache.GetAuthServers() }),
+		update:    p.presenceS.UpsertAuthServer,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllAuthServers()
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestRemoteClusters tests remote clusters caching
@@ -1881,15 +1894,9 @@ func TestRemoteClusters(t *testing.T) {
 			_, err := p.trustS.CreateRemoteCluster(ctx, rc)
 			return err
 		},
-		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.trustS.ListRemoteClusters))
-		},
-		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
-			return p.cache.GetRemoteCluster(ctx, name)
-		},
-		cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListRemoteClusters))
-		},
+		list:      p.trustS.ListRemoteClusters,
+		cacheGet:  p.cache.GetRemoteCluster,
+		cacheList: p.cache.ListRemoteClusters,
 		// In v16 the RemoteCluster cache collection modifes the item revision on create/update.
 		// At the same time these operations compare the current revision to the stored one, meaning that
 		// the upserts on cache will fail. Comment out the update function to disable this part of the test
@@ -1898,9 +1905,7 @@ func TestRemoteClusters(t *testing.T) {
 		// 	_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
 		// 	return err
 		// },
-		deleteAll: func(ctx context.Context) error {
-			return p.trustS.DeleteAllRemoteClusters(ctx)
-		},
+		deleteAll: p.trustS.DeleteAllRemoteClusters,
 	})
 }
 
@@ -1919,12 +1924,12 @@ func TestKubernetes(t *testing.T) {
 			}, types.KubernetesClusterSpecV3{})
 		},
 		create:    p.kubernetes.CreateKubernetesCluster,
-		list:      p.kubernetes.GetKubernetesClusters,
+		list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
 		cacheGet:  p.cache.GetKubernetesCluster,
-		cacheList: p.cache.GetKubernetesClusters,
+		cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
 		update:    p.kubernetes.UpdateKubernetesCluster,
 		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestApplicationServers tests that CRUD operations on app servers are
@@ -1942,17 +1947,17 @@ func TestApplicationServers(t *testing.T) {
 			return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 		},
 		create: withKeepalive(p.presenceS.UpsertApplicationServer),
-		list: func(ctx context.Context) ([]types.AppServer, error) {
+		list: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
 			return p.presenceS.GetApplicationServers(ctx, apidefaults.Namespace)
-		},
-		cacheList: func(ctx context.Context) ([]types.AppServer, error) {
+		}),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
 			return p.cache.GetApplicationServers(ctx, apidefaults.Namespace)
-		},
+		}),
 		update: withKeepalive(p.presenceS.UpsertApplicationServer),
 		deleteAll: func(ctx context.Context) error {
 			return p.presenceS.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestKubernetesServers tests that CRUD operations on kube servers are
@@ -1970,17 +1975,17 @@ func TestKubernetesServers(t *testing.T) {
 			return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
 		},
 		create: withKeepalive(p.presenceS.UpsertKubernetesServer),
-		list: func(ctx context.Context) ([]types.KubeServer, error) {
+		list: getAllAdapter(func(ctx context.Context) ([]types.KubeServer, error) {
 			return p.presenceS.GetKubernetesServers(ctx)
-		},
-		cacheList: func(ctx context.Context) ([]types.KubeServer, error) {
+		}),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.KubeServer, error) {
 			return p.cache.GetKubernetesServers(ctx)
-		},
+		}),
 		update: withKeepalive(p.presenceS.UpsertKubernetesServer),
 		deleteAll: func(ctx context.Context) error {
 			return p.presenceS.DeleteAllKubernetesServers(ctx)
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestApps tests that CRUD operations on application resources are
@@ -2000,75 +2005,13 @@ func TestApps(t *testing.T) {
 				URI: "localhost",
 			})
 		},
-		create: p.apps.CreateApp,
-		list: func(ctx context.Context) ([]types.Application, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.apps.ListApps))
-		},
-		cacheGet: p.cache.GetApp,
-		cacheList: func(ctx context.Context) ([]types.Application, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListApps))
-		},
+		create:    p.apps.CreateApp,
+		list:      p.apps.ListApps,
+		cacheGet:  p.cache.GetApp,
+		cacheList: p.cache.ListApps,
 		update:    p.apps.UpdateApp,
 		deleteAll: p.apps.DeleteAllApps,
 	})
-}
-
-func TestApplicationPagination(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
-	t.Cleanup(p.Close)
-
-	var expected []types.Application
-	for i := range 1324 {
-		app, err := types.NewAppV3(types.Metadata{
-			Name: "app" + strconv.Itoa(i+1),
-		}, types.AppSpecV3{
-			URI: "localhost",
-		})
-		require.NoError(t, err)
-
-		require.NoError(t, p.apps.CreateApp(ctx, app))
-		expected = append(expected, app)
-	}
-	slices.SortFunc(expected, func(a, b types.Application) int {
-		return cmp.Compare(a.GetName(), b.GetName())
-	})
-
-	// Drain events to prevent deadlocking. Required because the number
-	// of applications exceeds the default buffer size for the channel.
-	drainEvents(p.eventsC)
-
-	// Wait for all the applications to be replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		found, err := stream.Collect(clientutils.Resources(ctx, p.cache.ListApps))
-		assert.NoError(t, err)
-		assert.Len(t, expected, len(found))
-	}, 15*time.Second, 100*time.Millisecond)
-
-	out, err := p.cache.GetApps(ctx)
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	page1, page2Start, err := p.cache.ListApps(ctx, 0, "")
-	require.NoError(t, err)
-	assert.Len(t, page1, 1000)
-	assert.NotEmpty(t, page2Start)
-
-	page2, next, err := p.cache.ListApps(ctx, 1000, page2Start)
-	require.NoError(t, err)
-	assert.Len(t, page2, len(expected)-1000)
-	assert.Empty(t, next)
-
-	listed := append(page1, page2...)
-	assert.Empty(t, gocmp.Diff(expected, listed,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 }
 
 func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
@@ -2104,17 +2047,17 @@ func TestDatabaseServers(t *testing.T) {
 			})
 		},
 		create: withKeepalive(p.presenceS.UpsertDatabaseServer),
-		list: func(ctx context.Context) ([]types.DatabaseServer, error) {
+		list: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
 			return p.presenceS.GetDatabaseServers(ctx, apidefaults.Namespace)
-		},
-		cacheList: func(ctx context.Context) ([]types.DatabaseServer, error) {
+		}),
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
 			return p.cache.GetDatabaseServers(ctx, apidefaults.Namespace)
-		},
+		}),
 		update: withKeepalive(p.presenceS.UpsertDatabaseServer),
 		deleteAll: func(ctx context.Context) error {
 			return p.presenceS.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
 		},
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestDatabaseServices tests that CRUD operations on DatabaseServices are
@@ -2136,19 +2079,27 @@ func TestDatabaseServices(t *testing.T) {
 			})
 		},
 		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
-		list: func(ctx context.Context) ([]types.DatabaseService, error) {
-			resources, err := listAllResource(t, p.presenceS, types.KindDatabaseService)
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
+			resources, next, err := listResource(ctx, p.presenceS, types.KindDatabaseService, pageSize, pageToken)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			return types.ResourcesWithLabels(resources).AsDatabaseServices()
+			dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServices()
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return dbs, next, nil
 		},
-		cacheList: func(ctx context.Context) ([]types.DatabaseService, error) {
-			resources, err := listAllResource(t, p.cache, types.KindDatabaseService)
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
+			resources, next, err := listResource(ctx, p.cache, types.KindDatabaseService, pageSize, pageToken)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
-			return types.ResourcesWithLabels(resources).AsDatabaseServices()
+			dbs, err := types.ResourcesWithLabels(resources).AsDatabaseServices()
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return dbs, next, nil
 		},
 		update:    withKeepalive(p.databaseServices.UpsertDatabaseService),
 		deleteAll: p.databaseServices.DeleteAllDatabaseServices,
@@ -2172,85 +2123,13 @@ func TestDatabases(t *testing.T) {
 				URI:      "localhost:5432",
 			})
 		},
-		create: p.databases.CreateDatabase,
-		list: func(ctx context.Context) ([]types.Database, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.databases.ListDatabases))
-		},
-		cacheGet: p.cache.GetDatabase,
-		cacheList: func(ctx context.Context) ([]types.Database, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListDatabases))
-		},
+		create:    p.databases.CreateDatabase,
+		list:      p.databases.ListDatabases,
+		cacheGet:  p.cache.GetDatabase,
+		cacheList: p.cache.ListDatabases,
 		update:    p.databases.UpdateDatabase,
 		deleteAll: p.databases.DeleteAllDatabases,
 	})
-}
-
-func TestDatabasesPagination(t *testing.T) {
-	// TODO(okraport): extract this into generic helper for other paginated resources.
-	t.Parallel()
-
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
-	t.Cleanup(p.Close)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-p.eventsC: // Drain events to prevent deadlocking.
-			}
-		}
-	}()
-
-	expected := make([]types.Database, 0, 50)
-	for i := range 50 {
-		db, err := types.NewDatabaseV3(types.Metadata{
-			Name: "db" + strconv.Itoa(i+1),
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-		})
-
-		require.NoError(t, err)
-		require.NoError(t, p.databases.CreateDatabase(context.Background(), db))
-		expected = append(expected, db)
-	}
-	slices.SortFunc(expected, func(a, b types.Database) int {
-		return cmp.Compare(a.GetName(), b.GetName())
-	})
-
-	// Wait for all the Databases to be replicated to the cache.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		found, err := stream.Collect(clientutils.Resources(ctx, p.cache.ListDatabases))
-		assert.NoError(t, err)
-		assert.Len(t, expected, len(found))
-	}, 15*time.Second, 100*time.Millisecond)
-
-	out, err := p.cache.GetDatabases(context.Background())
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	page1, page2Start, err := p.cache.ListDatabases(context.Background(), 10, "")
-	require.NoError(t, err)
-	assert.Len(t, page1, 10)
-	assert.NotEmpty(t, page2Start)
-
-	page2, next, err := p.cache.ListDatabases(context.Background(), 1000, page2Start)
-	require.NoError(t, err)
-	assert.Len(t, page2, len(expected)-10)
-	assert.Empty(t, next)
-
-	listed := append(page1, page2...)
-	assert.Empty(t, gocmp.Diff(expected, listed,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
 }
 
 // TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
@@ -2272,14 +2151,10 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 					EntityID:         "IAMShowcase" + name,
 				})
 		},
-		create: p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
-		list: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.samlIDPServiceProviders.ListSAMLIdPServiceProviders))
-		},
-		cacheGet: p.cache.GetSAMLIdPServiceProvider,
-		cacheList: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListSAMLIdPServiceProviders))
-		},
+		create:    p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
+		list:      p.samlIDPServiceProviders.ListSAMLIdPServiceProviders,
+		cacheGet:  p.cache.GetSAMLIdPServiceProvider,
+		cacheList: p.cache.ListSAMLIdPServiceProviders,
 		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
 		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
 	})
@@ -2301,14 +2176,10 @@ func TestUserGroups(t *testing.T) {
 				}, types.UserGroupSpecV1{},
 			)
 		},
-		create: p.userGroups.CreateUserGroup,
-		list: func(ctx context.Context) ([]types.UserGroup, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.userGroups.ListUserGroups))
-		},
-		cacheGet: p.cache.GetUserGroup,
-		cacheList: func(ctx context.Context) ([]types.UserGroup, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListUserGroups))
-		},
+		create:    p.userGroups.CreateUserGroup,
+		list:      p.userGroups.ListUserGroups,
+		cacheGet:  p.cache.GetUserGroup,
+		cacheList: p.cache.ListUserGroups,
 		update:    p.userGroups.UpdateUserGroup,
 		deleteAll: p.userGroups.DeleteAllUserGroups,
 	})
@@ -2334,18 +2205,18 @@ func TestLocks(t *testing.T) {
 			)
 		},
 		create: p.accessS.UpsertLock,
-		list: func(ctx context.Context) ([]types.Lock, error) {
+		list: getAllAdapter(func(ctx context.Context) ([]types.Lock, error) {
 			results, err := p.accessS.GetLocks(ctx, false)
 			return results, err
-		},
+		}),
 		cacheGet: p.cache.GetLock,
-		cacheList: func(ctx context.Context) ([]types.Lock, error) {
+		cacheList: getAllAdapter(func(ctx context.Context) ([]types.Lock, error) {
 			results, err := p.cache.GetLocks(ctx, false)
 			return results, err
-		},
+		}),
 		update:    p.accessS.UpsertLock,
 		deleteAll: p.accessS.DeleteAllLocks,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestOktaImportRules tests that CRUD operations on Okta import rule resources are
@@ -2392,13 +2263,9 @@ func TestOktaImportRules(t *testing.T) {
 			_, err := p.okta.CreateOktaImportRule(ctx, resource)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]types.OktaImportRule, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.okta.ListOktaImportRules))
-		},
-		cacheGet: p.cache.GetOktaImportRule,
-		cacheList: func(ctx context.Context) ([]types.OktaImportRule, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListOktaImportRules))
-		},
+		list:      p.okta.ListOktaImportRules,
+		cacheGet:  p.cache.GetOktaImportRule,
+		cacheList: p.cache.ListOktaImportRules,
 		update: func(ctx context.Context, resource types.OktaImportRule) error {
 			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
 			return trace.Wrap(err)
@@ -2440,13 +2307,9 @@ func TestOktaAssignments(t *testing.T) {
 			_, err := p.okta.CreateOktaAssignment(ctx, resource)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]types.OktaAssignment, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.okta.ListOktaAssignments))
-		},
-		cacheGet: p.cache.GetOktaAssignment,
-		cacheList: func(ctx context.Context) ([]types.OktaAssignment, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListOktaAssignments))
-		},
+		list:      p.okta.ListOktaAssignments,
+		cacheGet:  p.cache.GetOktaAssignment,
+		cacheList: p.cache.ListOktaAssignments,
 		update: func(ctx context.Context, resource types.OktaAssignment) error {
 			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
 			return trace.Wrap(err)
@@ -2476,13 +2339,9 @@ func TestIntegrations(t *testing.T) {
 			_, err := p.integrations.CreateIntegration(ctx, i)
 			return err
 		},
-		list: func(ctx context.Context) ([]types.Integration, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.integrations.ListIntegrations))
-		},
-		cacheGet: p.cache.GetIntegration,
-		cacheList: func(ctx context.Context) ([]types.Integration, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListIntegrations))
-		},
+		list:      p.integrations.ListIntegrations,
+		cacheGet:  p.cache.GetIntegration,
+		cacheList: p.cache.ListIntegrations,
 		update: func(ctx context.Context, i types.Integration) error {
 			_, err := p.integrations.UpdateIntegration(ctx, i)
 			return err
@@ -2507,13 +2366,11 @@ func TestUserTasks(t *testing.T) {
 			_, err := p.userTasks.CreateUserTask(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
-			return items, trace.Wrap(err)
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
+			return p.userTasks.ListUserTasks(ctx, int64(pageSize), pageToken)
 		},
-		cacheList: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
-			return items, trace.Wrap(err)
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
+			return p.userTasks.ListUserTasks(ctx, int64(pageSize), pageToken)
 		},
 		deleteAll: p.userTasks.DeleteAllUserTasks,
 	}, withSkipPaginationTest())
@@ -2567,13 +2424,9 @@ func TestDiscoveryConfig(t *testing.T) {
 			_, err := p.discoveryConfigs.CreateDiscoveryConfig(ctx, discoveryConfig)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.discoveryConfigs.ListDiscoveryConfigs))
-		},
-		cacheGet: p.cache.GetDiscoveryConfig,
-		cacheList: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListDiscoveryConfigs))
-		},
+		list:      p.discoveryConfigs.ListDiscoveryConfigs,
+		cacheGet:  p.cache.GetDiscoveryConfig,
+		cacheList: p.cache.ListDiscoveryConfigs,
 		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
 			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
 			return trace.Wrap(err)
@@ -2598,15 +2451,15 @@ func TestAuditQuery(t *testing.T) {
 			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.secReports.GetSecurityAuditQueries,
+		list:      getAllAdapter(p.secReports.GetSecurityAuditQueries),
 		cacheGet:  p.cache.GetSecurityAuditQuery,
-		cacheList: p.cache.GetSecurityAuditQueries,
+		cacheList: getAllAdapter(p.cache.GetSecurityAuditQueries),
 		update: func(ctx context.Context, item *secreports.AuditQuery) error {
 			err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 			return trace.Wrap(err)
 		},
 		deleteAll: p.secReports.DeleteAllSecurityAuditQueries,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestSecurityReportState tests that CRUD operations on security report state resources are
@@ -2625,15 +2478,15 @@ func TestSecurityReports(t *testing.T) {
 			err := p.secReports.UpsertSecurityReport(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.secReports.GetSecurityReports,
+		list:      getAllAdapter(p.secReports.GetSecurityReports),
 		cacheGet:  p.cache.GetSecurityReport,
-		cacheList: p.cache.GetSecurityReports,
+		cacheList: getAllAdapter(p.cache.GetSecurityReports),
 		update: func(ctx context.Context, item *secreports.Report) error {
 			err := p.secReports.UpsertSecurityReport(ctx, item)
 			return trace.Wrap(err)
 		},
 		deleteAll: p.secReports.DeleteAllSecurityReports,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestSecurityReportState tests that CRUD operations on security report state resources are
@@ -2652,15 +2505,15 @@ func TestSecurityReportState(t *testing.T) {
 			err := p.secReports.UpsertSecurityReportsState(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.secReports.GetSecurityReportsStates,
+		list:      getAllAdapter(p.secReports.GetSecurityReportsStates),
 		cacheGet:  p.cache.GetSecurityReportState,
-		cacheList: p.cache.GetSecurityReportsStates,
+		cacheList: getAllAdapter(p.cache.GetSecurityReportsStates),
 		update: func(ctx context.Context, item *secreports.ReportState) error {
 			err := p.secReports.UpsertSecurityReportsState(ctx, item)
 			return trace.Wrap(err)
 		},
 		deleteAll: p.secReports.DeleteAllSecurityReportsStates,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestUserLoginStates tests that CRUD operations on user login state resources are
@@ -2679,15 +2532,15 @@ func TestUserLoginStates(t *testing.T) {
 			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
 			return trace.Wrap(err)
 		},
-		list:      p.userLoginStates.GetUserLoginStates,
+		list:      getAllAdapter(p.userLoginStates.GetUserLoginStates),
 		cacheGet:  p.cache.GetUserLoginState,
-		cacheList: p.cache.GetUserLoginStates,
+		cacheList: getAllAdapter(p.cache.GetUserLoginStates),
 		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
 			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
 			return trace.Wrap(err)
 		},
 		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestAccessList tests that CRUD operations on access list resources are
@@ -2714,13 +2567,9 @@ func TestAccessList(t *testing.T) {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAccessLists))
-		},
-		cacheGet: p.cache.GetAccessList,
-		cacheList: func(ctx context.Context) ([]*accesslist.AccessList, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.cache.ListAccessLists))
-		},
+		list:      p.accessLists.ListAccessLists,
+		cacheGet:  p.cache.GetAccessList,
+		cacheList: p.cache.ListAccessLists,
 		update: func(ctx context.Context, item *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
 			return trace.Wrap(err)
@@ -2750,17 +2599,12 @@ func TestAccessListMembers(t *testing.T) {
 			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListMembers))
-		},
+		list: p.accessLists.ListAllAccessListMembers,
 		cacheGet: func(ctx context.Context, name string) (*accesslist.AccessListMember, error) {
 			return p.cache.GetAccessListMember(ctx, al.GetName(), name)
 		},
-		cacheList: func(ctx context.Context) ([]*accesslist.AccessListMember, error) {
-			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
-				return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
-			}
-			return stream.Collect(clientutils.Resources(ctx, fn))
+		cacheList: func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.AccessListMember, string, error) {
+			return p.cache.ListAccessListMembers(ctx, al.GetName(), pageSize, startKey)
 		},
 		update: func(ctx context.Context, item *accesslist.AccessListMember) error {
 			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
@@ -2831,14 +2675,9 @@ func TestAccessListReviews(t *testing.T) {
 			reviews[oldName].SetName(review.GetName())
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*accesslist.Review, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.accessLists.ListAllAccessListReviews))
-		},
-		cacheList: func(ctx context.Context) ([]*accesslist.Review, error) {
-			fn := func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
-				return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
-			}
-			return stream.Collect(clientutils.Resources(ctx, fn))
+		list: p.accessLists.ListAllAccessListReviews,
+		cacheList: func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
+			return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
 		},
 		deleteAll: p.accessLists.DeleteAllAccessListReviews,
 	}, withSkipPaginationTest()) // access list reviews resources have customer pagination test.
@@ -2860,16 +2699,10 @@ func TestUserNotifications(t *testing.T) {
 			_, err := p.notifications.CreateUserNotification(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*notificationsv1.Notification, error) {
-			items, _, err := p.notifications.ListUserNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*notificationsv1.Notification, error) {
-			items, _, err := p.cache.ListUserNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list:      p.notifications.ListUserNotifications,
+		cacheList: p.cache.ListUserNotifications,
 		deleteAll: p.notifications.DeleteAllUserNotifications,
-	}, withSkipPaginationTest())
+	})
 }
 
 // TestCrownJewel tests that CRUD operations on user notification resources are
@@ -2888,16 +2721,14 @@ func TestCrownJewel(t *testing.T) {
 			_, err := p.crownJewels.CreateCrownJewel(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
-			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
-			return items, trace.Wrap(err)
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {
+			return p.crownJewels.ListCrownJewels(ctx, int64(pageSize), pageToken)
 		},
-		cacheList: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
-			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
-			return items, trace.Wrap(err)
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {
+			return p.crownJewels.ListCrownJewels(ctx, int64(pageSize), pageToken)
 		},
 		deleteAll: p.crownJewels.DeleteAllCrownJewels,
-	}, withSkipPaginationTest())
+	})
 }
 
 func TestDatabaseObjects(t *testing.T) {
@@ -2914,14 +2745,8 @@ func TestDatabaseObjects(t *testing.T) {
 			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
-			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*dbobjectv1.DatabaseObject, error) {
-			items, _, err := p.databaseObjects.ListDatabaseObjects(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list:      p.databaseObjects.ListDatabaseObjects,
+		cacheList: p.databaseObjects.ListDatabaseObjects,
 		deleteAll: func(ctx context.Context) error {
 			token := ""
 			var objects []*dbobjectv1.DatabaseObject
@@ -2948,7 +2773,7 @@ func TestDatabaseObjects(t *testing.T) {
 			}
 			return nil
 		},
-	}, withSkipPaginationTest())
+	})
 }
 
 // TestAutoUpdateConfig tests that CRUD operations on AutoUpdateConfig resources are
@@ -2967,23 +2792,9 @@ func TestAutoUpdateConfig(t *testing.T) {
 			_, err := p.autoUpdateService.UpsertAutoUpdateConfig(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateConfig, error) {
-			item, err := p.autoUpdateService.GetAutoUpdateConfig(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdate.AutoUpdateConfig{}, nil
-			}
-			return []*autoupdate.AutoUpdateConfig{item}, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*autoupdate.AutoUpdateConfig, error) {
-			item, err := p.cache.GetAutoUpdateConfig(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdate.AutoUpdateConfig{}, nil
-			}
-			return []*autoupdate.AutoUpdateConfig{item}, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateConfig(ctx))
-		},
+		list:      singletonListAdapter(p.autoUpdateService.GetAutoUpdateConfig),
+		cacheList: singletonListAdapter(p.cache.GetAutoUpdateConfig),
+		deleteAll: p.autoUpdateService.DeleteAutoUpdateConfig,
 	}, withSkipPaginationTest())
 }
 
@@ -3003,23 +2814,9 @@ func TestAutoUpdateVersion(t *testing.T) {
 			_, err := p.autoUpdateService.UpsertAutoUpdateVersion(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateVersion, error) {
-			item, err := p.autoUpdateService.GetAutoUpdateVersion(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdate.AutoUpdateVersion{}, nil
-			}
-			return []*autoupdate.AutoUpdateVersion{item}, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*autoupdate.AutoUpdateVersion, error) {
-			item, err := p.cache.GetAutoUpdateVersion(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdate.AutoUpdateVersion{}, nil
-			}
-			return []*autoupdate.AutoUpdateVersion{item}, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateVersion(ctx))
-		},
+		list:      singletonListAdapter(p.autoUpdateService.GetAutoUpdateVersion),
+		cacheList: singletonListAdapter(p.cache.GetAutoUpdateVersion),
+		deleteAll: p.autoUpdateService.DeleteAutoUpdateVersion,
 	}, withSkipPaginationTest())
 }
 
@@ -3039,23 +2836,9 @@ func TestAutoUpdateAgentRollout(t *testing.T) {
 			_, err := p.autoUpdateService.UpsertAutoUpdateAgentRollout(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateAgentRollout, error) {
-			item, err := p.autoUpdateService.GetAutoUpdateAgentRollout(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdate.AutoUpdateAgentRollout{}, nil
-			}
-			return []*autoupdate.AutoUpdateAgentRollout{item}, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*autoupdate.AutoUpdateAgentRollout, error) {
-			item, err := p.cache.GetAutoUpdateAgentRollout(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdate.AutoUpdateAgentRollout{}, nil
-			}
-			return []*autoupdate.AutoUpdateAgentRollout{item}, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateAgentRollout(ctx))
-		},
+		list:      singletonListAdapter(p.autoUpdateService.GetAutoUpdateAgentRollout),
+		cacheList: singletonListAdapter(p.cache.GetAutoUpdateAgentRollout),
+		deleteAll: p.autoUpdateService.DeleteAutoUpdateAgentRollout,
 	}, withSkipPaginationTest())
 }
 
@@ -3075,16 +2858,10 @@ func TestGlobalNotifications(t *testing.T) {
 			_, err := p.notifications.CreateGlobalNotification(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
-			items, _, err := p.notifications.ListGlobalNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*notificationsv1.GlobalNotification, error) {
-			items, _, err := p.cache.ListGlobalNotifications(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list:      p.notifications.ListGlobalNotifications,
+		cacheList: p.cache.ListGlobalNotifications,
 		deleteAll: p.notifications.DeleteAllGlobalNotifications,
-	}, withSkipPaginationTest())
+	})
 }
 
 // TestStaticHostUsers tests that CRUD operations on static host user resources are
@@ -3103,14 +2880,8 @@ func TestStaticHostUsers(t *testing.T) {
 			_, err := p.staticHostUsers.CreateStaticHostUser(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
-			items, _, err := p.staticHostUsers.ListStaticHostUsers(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
-			items, _, err := p.cache.ListStaticHostUsers(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list:      p.staticHostUsers.ListStaticHostUsers,
+		cacheList: p.cache.ListStaticHostUsers,
 		deleteAll: p.cache.staticHostUsersCache.DeleteAllStaticHostUsers,
 	}, withSkipPaginationTest())
 }
@@ -3175,7 +2946,7 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 
 	assertCacheContents := func(expected []T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			out, err := funcs.cacheList(ctx)
+			out, err := funcs.cacheListAll(ctx)
 			assert.NoError(t, err)
 			// If the cache is expected to be empty, then test explicitly for
 			// *that* rather than do an equality test. An equality test here
@@ -3189,7 +2960,7 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 		}, 2*time.Second, 10*time.Millisecond)
 	}
 	// Check that the resource is now in the backend.
-	out, err := funcs.list(ctx)
+	out, err := funcs.listAll(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
@@ -3227,7 +2998,7 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 	}
 	// Check that the resource is in the backend and only one exists (so an
 	// update occurred).
-	out, err = funcs.list(ctx)
+	out, err = funcs.listAll(ctx)
 	require.NoError(t, err)
 	require.Empty(t, gocmp.Diff([]T{r}, out, cmpOpts...))
 	// Check that information has been replicated to the cache.
@@ -3252,11 +3023,13 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 
 func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	t.Helper()
-	totalItems := apidefaults.DefaultChunkSize + 1
+
+	const defaultTestPageSize = 2
+	const numberOfFullPages = 2
+	const totalItemCount = (numberOfFullPages * defaultTestPageSize) + 1
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-
 	go func() {
 		for {
 			select {
@@ -3268,69 +3041,111 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 		}
 	}()
 
-	// Generate and create test resources
-	names := make(map[string]struct{}, totalItems)
-	for i := range totalItems {
+	// Generate resources
+	for i := range totalItemCount {
 		name := fmt.Sprintf("resources-%d", i)
 		r, err := funcs.newResource(name)
 		require.NoError(t, err)
 		require.NoError(t, funcs.create(ctx, r))
-		names[name] = struct{}{}
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		out, err := funcs.cacheList(ctx)
-		require.NoError(t, err)
-		require.Len(t, out, totalItems)
-		all, err := funcs.list(ctx)
-		require.NoError(t, err)
-		require.Len(t, all, totalItems)
-	}, time.Second*3, time.Millisecond*100)
-
-	out, err := funcs.cacheList(ctx)
+	// Fetch all of the created items from the upstream:
+	expected, err := funcs.listAll(ctx)
 	require.NoError(t, err)
+	require.Len(t, expected, totalItemCount)
 
-	seen := make(map[string]bool, totalItems)
-	for _, item := range out {
-		name := funcs.resource.Name(item)
-		if seen[name] {
-			t.Fatalf("duplicate resource returned in pagination: %q", name)
-		}
-		if _, expected := names[name]; !expected {
-			t.Fatalf("unexpected resource returned: %q", name)
-		}
-		seen[name] = true
+	cmpOpts := funcs.resource.cmpOpts
+
+	// Wait for all the resources to be replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		items, _ := funcs.cacheListAll(ctx)
+		assert.Len(t, items, len(expected))
+	}, 15*time.Second, 100*time.Millisecond)
+
+	page1, page2Start, err := funcs.cacheList(ctx, defaultTestPageSize, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, defaultTestPageSize)
+	assert.NotEmpty(t, page2Start)
+
+	page2, page3Start, err := funcs.cacheList(ctx, defaultTestPageSize, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, defaultTestPageSize)
+	assert.NotEmpty(t, page3Start)
+
+	page3, end, err := funcs.cacheList(ctx, defaultTestPageSize, page3Start)
+	require.NoError(t, err)
+	assert.Len(t, page3, 1)
+	assert.Empty(t, end)
+
+	var listed []T
+	listed = append(listed, page1...)
+	listed = append(listed, page2...)
+	listed = append(listed, page3...)
+
+	// All items have been returned as expected
+	assert.Empty(t, gocmp.Diff(expected, listed, cmpOpts...))
+
+	// Small pages
+	pageSmall, pageSmallNext, err := funcs.cacheList(ctx, 1, "")
+	require.NoError(t, err)
+	assert.Len(t, pageSmall, 1)
+	assert.NotEmpty(t, pageSmallNext)
+
+	if funcs.Range != nil && funcs.cacheRange != nil {
+		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
+		require.NoError(t, err)
+		assert.Len(t, out, len(page1))
+		assert.Empty(t, gocmp.Diff(page1, out, cmpOpts...))
+
+		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected))
+		assert.Empty(t, gocmp.Diff(expected, out, cmpOpts...))
+
+		out, err = stream.Collect(funcs.cacheRange(ctx, page2Start, ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected)-defaultTestPageSize)
+		assert.Empty(t, gocmp.Diff(expected, append(page1, out...), cmpOpts...))
+
+		// invalidate the cache, cover upstream fallback
+		p.cache.ok = false
+		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected))
+		assert.Empty(t, gocmp.Diff(expected, out, cmpOpts...))
 	}
-	// Remove all resource from the backend to has fresh state
+
+	// invalidate the cache, cover upstream fallback
+	p.cache.ok = false
+	out, err := funcs.cacheListAll(ctx)
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out, cmpOpts...))
+
 	require.NoError(t, funcs.deleteAll(ctx))
 
 	// Wait for the cache to be empty.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx)
+		items, err := funcs.cacheListAll(ctx)
 		assert.NoError(t, err)
-		assert.Empty(t, out)
-	}, time.Second*3, time.Millisecond*100)
+		assert.Empty(t, items)
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 type resourcesLister interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
-func listAllResource(t *testing.T, lister resourcesLister, kind string) ([]types.ResourceWithLabels, error) {
-	return stream.Collect(clientutils.Resources(
-		t.Context(),
-		func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
-			resp, err := lister.ListResources(t.Context(), proto.ListResourcesRequest{
-				ResourceType: kind,
-				Limit:        int32(limit),
-				StartKey:     startKey,
-			})
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			return resp.Resources, resp.NextKey, nil
-		}))
+func listResource(ctx context.Context, lister resourcesLister, kind string, pageSize int, pageToken string) ([]types.ResourceWithLabels, string, error) {
+	resp, err := lister.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: kind,
+		Limit:        int32(pageSize),
+		StartKey:     pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.Resources, resp.NextKey, nil
 }
 
 func TestRelativeExpiry(t *testing.T) {

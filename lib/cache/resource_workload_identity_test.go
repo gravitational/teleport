@@ -57,18 +57,9 @@ func TestWorkloadIdentity(t *testing.T) {
 			_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			items, _, err := p.workloadIdentity.ListWorkloadIdentities(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
-		},
-
-		cacheList: func(ctx context.Context) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			items, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheGet: p.cache.GetWorkloadIdentity,
-	}, withSkipPaginationTest())
+		list:      p.workloadIdentity.ListWorkloadIdentities,
+		deleteAll: p.workloadIdentity.DeleteAllWorkloadIdentities,
+		cacheList: p.cache.ListWorkloadIdentities,
+		cacheGet:  p.cache.GetWorkloadIdentity,
+	})
 }
