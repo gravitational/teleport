@@ -49,6 +49,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       inputType = MenuInputType.INPUT,
       required = true,
       width,
+      buttonWidth,
       style,
     } = props;
     const [filter, setFilter] = useState('');
@@ -128,7 +129,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
     return (
       <React.Fragment>
         <ButtonComponent
-          width={alignButtonWidthToMenu ? width : null}
+          width={alignButtonWidthToMenu ? width : buttonWidth}
           textTransform={props.textTransform}
           size="small"
           ref={anchorRef}
