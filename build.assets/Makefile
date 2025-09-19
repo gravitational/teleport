@@ -60,6 +60,9 @@ REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cr
 # responsible for building webassets.
 WASM_BINDGEN_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-wasm-bindgen-version)
 
+# Determine which version of rust is required to build rust components.
+RUST_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-rust-toolchain-version)
+
 # This determines which make target we call in this repo's top level Makefile when
 # make release in this Makefile is called. Currently this supports its default value
 # (release) and release-unix-preserving-webassets. See the release-arm target for

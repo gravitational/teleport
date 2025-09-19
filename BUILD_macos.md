@@ -17,46 +17,15 @@ and updates are welcome!
       ```
 
 1. Install Rust
-    1. Install rustup
 
-        Install rustup with Homebrew:
+    Install rustup with Homebrew:
 
-        ```shell
-        brew install rustup
+    ```shell
+    brew install rustup
 
-        rustup-init
-        # Accept defaults
-        ```
-
-    1. Install and configure Rust toolchain
-        1. Find the required Rust version in
-            [`build.assets/versions.mk`](/build.assets/versions.mk)
-            (`RUST_VERSION`).
-
-        1. Install the Rust toolchain:
-
-            ```shell
-            # Replace <version> with the value of RUST_VERSION from build.assets/versions.mk (e.g., 1.81.0)
-            rustup toolchain install <version>
-            ```
-
-        1. Set the default Rust toolchain globally (applies to all projects):
-
-            ```shell
-            # Replace <version> with the value of RUST_VERSION from build.assets/versions.mk (e.g., 1.81.0)
-            rustup default <version>
-            ```
-
-            > **Note:** Using `rustup default <version>` sets the toolchain
-            > globally for your user. If you only want to override the toolchain
-            > for a specific project directory, use `rustup override set
-            > <version>` inside that directory instead.
-
-        1. Verify the installed version:
-
-            ```shell
-            rustc --version
-            ```
+    rustup-init
+    # Accept defaults
+    ```
 
 1. Install Node.js
     1. Find the required Node version in
