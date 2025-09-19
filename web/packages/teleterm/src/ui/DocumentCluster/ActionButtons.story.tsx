@@ -46,6 +46,7 @@ import {
 type StoryProps = {
   vnet: boolean;
   lotsOfMenuItems: boolean;
+  singleColumn: boolean;
 };
 
 const meta: Meta<StoryProps> = {
@@ -53,6 +54,7 @@ const meta: Meta<StoryProps> = {
   component: Buttons,
   argTypes: {
     vnet: { control: { type: 'boolean' } },
+    singleColumn: { control: { type: 'boolean' } },
     lotsOfMenuItems: {
       control: { type: 'boolean' },
       description:
@@ -63,6 +65,7 @@ const meta: Meta<StoryProps> = {
   args: {
     vnet: true,
     lotsOfMenuItems: false,
+    singleColumn: false,
   },
 };
 
@@ -86,7 +89,11 @@ export function Story(props: StoryProps) {
 
 function Buttons(props: StoryProps) {
   return (
-    <Flex gap={4} flexWrap="wrap">
+    <Flex
+      gap={4}
+      flexWrap="wrap"
+      flexDirection={props.singleColumn ? 'column' : 'row'}
+    >
       <Flex gap={3} flexDirection="column">
         <Box>
           <Text>TCP app</Text>
