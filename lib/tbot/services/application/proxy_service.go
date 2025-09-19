@@ -265,6 +265,12 @@ func (s *ProxyService) issueCert(
 //
 // It does not support HTTP "tunneling" as defined by RFC2616 via the CONNECT
 // method. CONNECT requests are rejected with a 501 Not Implemented response.
+//
+// We currently do not account for HTTP/2 support because we have an unencrypted
+// listener. By default, http.Server will only support HTTP/2 if TLS is enabled.
+// At a later date, we could add support for h2c with prior-knowledge, but this
+// would introduce significant additional complexity to this proxy - so we shall
+// defer until there is a demonstrated need.
 func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Request) error {
 	ctx := req.Context()
 	s.log.DebugContext(
@@ -342,6 +348,7 @@ func (s *ProxyService) handleProxyRequest(w http.ResponseWriter, req *http.Reque
 	upstreamReq.RequestURI = ""
 	// TODO: Are there any headers we should override, add, or remove on the
 	// upstream request?
+	upstreamReq.Proto
 
 	// Execute the upstream request
 	resp, err := httpClient.Do(upstreamReq)
