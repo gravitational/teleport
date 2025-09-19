@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -159,9 +158,6 @@ type worker struct {
 	// metricType is the resource type (db, k8s, etc) use in Prometheus metrics.
 	metricType string
 }
-
-// dialFunc dials an address on the given network.
-type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 // GetTargetHealth returns the worker's target health.
 func (w *worker) GetTargetHealth() *types.TargetHealth {

@@ -19,19 +19,10 @@
 package healthcheck
 
 import (
-	"context"
-	"net"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 )
-
-// EndpointsResolverFunc is callback func that returns endpoints for a target.
-type EndpointsResolverFunc func(ctx context.Context) ([]string, error)
-
-// OnHealthChangeFunc is a func called on each health change.
-type OnHealthChangeFunc func(oldHealth, newHealth types.TargetHealth)
 
 // Target is a health check target.
 type Target struct {
@@ -63,8 +54,4 @@ func (t *Target) checkAndSetDefaults() error {
 		t.dialFn = defaultDialer().DialContext
 	}
 	return nil
-}
-
-func defaultDialer() *net.Dialer {
-	return &net.Dialer{}
 }

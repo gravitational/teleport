@@ -213,9 +213,3 @@ func Test_dialEndpoints(t *testing.T) {
 		})
 	}
 }
-
-type fakeConn struct {
-	net.Conn
-}
-
-func (fakeConn) Close() error { return nil }
