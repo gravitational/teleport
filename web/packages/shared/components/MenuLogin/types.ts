@@ -54,7 +54,7 @@ export type MenuLoginProps = {
   textTransform?: string;
   placeholder?: string;
   required?: boolean;
-  width?: string;
+  width?: ComponentPropsWithRef<typeof ButtonBorder>['width'];
   ButtonComponent?: ComponentType<ComponentPropsWithRef<typeof ButtonBorder>>;
   buttonText?: string;
   style?: CSSProperties;

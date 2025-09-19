@@ -18,6 +18,7 @@
 
 import React, {
   ChangeEvent,
+  ComponentPropsWithoutRef,
   useImperativeHandle,
   useRef,
   useState,
@@ -180,7 +181,7 @@ const LoginItemList = ({
   onKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder: string;
-  width?: string;
+  width?: ComponentPropsWithoutRef<typeof Flex>['minWidth'];
   inputType?: MenuInputType;
 }) => {
   const content = getLoginItemListContent(items, getLoginItemsAttempt, onClick);

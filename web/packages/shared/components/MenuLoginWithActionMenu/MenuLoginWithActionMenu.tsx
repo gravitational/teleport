@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactElement, useRef, useState } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  ReactElement,
+  useRef,
+  useState,
+} from 'react';
 
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
 import { ButtonSize } from 'design/Button';
@@ -67,7 +72,7 @@ export const MenuLoginWithActionMenu = ({
   getLoginItems: () => LoginItem[] | Promise<LoginItem[]>;
   /** Action menu items. */
   children: MenuItemComponent | MenuItemComponent[];
-  width?: string;
+  width?: ComponentPropsWithoutRef<typeof MenuLogin>['width'];
   size?: ButtonSize;
   /** Text for action menu search box or static label.  */
   placeholder?: string;
