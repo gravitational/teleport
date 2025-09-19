@@ -25,6 +25,9 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"log/slog"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -227,7 +230,7 @@ func GenerateCredentials(ctx context.Context, req GenerateCredentialsRequest) (*
 	// Providing a custom role session name to the CreateSessionAPI for a Profile that doesn't accept it, results in an Access Denied error.
 	// https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-create-session.html#create-session-and-assume-role
 	if req.AcceptRoleSessionName {
-		createSessionReq.RoleSessionName = req.SubjectCommonName
+		createSessionReq.RoleSessionName = roleSessionNameFromSubject(ctx, req.SubjectCommonName)
 	}
 
 	createSessionResp, err := req.CreateSession(ctx, createSessionReq)
@@ -248,4 +251,31 @@ func GenerateCredentials(ctx context.Context, req GenerateCredentialsRequest) (*
 		Expiration:      parsedExpiration,
 		SerialNumber:    x509Cert.SerialNumber.String(),
 	}, nil
+}
+
+// RolesAnywhere CreateSessionAPI does not mention any validation of the RoleSessionName field:
+// https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-create-session.html
+// However, the API returns the following error, if it doesn't match the expected format:
+// > Value '<xyz>' at 'roleSessionName' failed to satisfy constraint: Member must satisfy regular expression pattern: [a-zA-Z0-9_=,.@-]*"
+func roleSessionNameFromSubject(ctx context.Context, subject string) string {
+	roleSessionName := strings.Builder{}
+	changed := false
+	for _, r := range subject {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || slices.Contains([]rune{'_', '=', ',', '.', '@', '-'}, r) {
+			roleSessionName.WriteRune(r)
+		} else {
+			roleSessionName.WriteRune('_')
+			changed = true
+		}
+	}
+
+	if changed {
+		slog.InfoContext(ctx,
+			"AWS role session name does not comply with Roles Anywhere CreateSession API, replaced invalid chars with _.",
+			"original", subject,
+			"role_session_name", roleSessionName.String(),
+		)
+	}
+
+	return roleSessionName.String()
 }
