@@ -44,7 +44,7 @@ import {
   getWebAppLaunchUrl,
   isWebApp,
 } from 'teleterm/services/tshd/app';
-import { GatewayProtocol } from 'teleterm/services/tshd/types';
+import { GatewayProtocol } from 'teleterm/services/tshd/gateway';
 import { appToAddrToCopy } from 'teleterm/services/vnet/app';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
