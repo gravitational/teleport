@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestUserLoginStates tests that CRUD operations on user login state resources are
@@ -45,6 +47,29 @@ func TestUserLoginStates(t *testing.T) {
 		cacheGet: p.cache.GetUserLoginState,
 		cacheList: func(ctx context.Context, pageSize int) ([]*userloginstate.UserLoginState, error) {
 			return p.cache.GetUserLoginStates(ctx)
+		},
+		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
+	}, withSkipPaginationTest())
+
+	testResources(t, p, testFuncs[*userloginstate.UserLoginState]{
+		newResource: func(name string) (*userloginstate.UserLoginState, error) {
+			return newUserLoginState(t, name), nil
+		},
+		create: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
+			return stream.Collect(clientutils.Resources(ctx, p.userLoginStates.ListUserLoginStates))
+
+		},
+		cacheGet: p.cache.GetUserLoginState,
+		cacheList: func(ctx context.Context, page int) ([]*userloginstate.UserLoginState, error) {
+			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListUserLoginStates, page))
 		},
 		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
 			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
