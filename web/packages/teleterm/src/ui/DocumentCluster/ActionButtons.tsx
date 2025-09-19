@@ -19,6 +19,7 @@
 import React from 'react';
 
 import {
+  Box,
   ButtonBorder,
   ButtonPrimary,
   ButtonWithMenu,
@@ -48,6 +49,7 @@ import {
   getAwsAppLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
+  isMcp,
   isWebApp,
 } from 'teleterm/services/tshd/app';
 import { GatewayProtocol } from 'teleterm/services/tshd/gateway';
@@ -320,6 +322,13 @@ function AppButton(props: {
         Log In
       </ButtonBorder>
     );
+  }
+
+  if (isMcp(props.app)) {
+    // TODO(greedy52) decide what to do with MCP servers.
+    // In the meantime, display a box of specific width to make the other columns line up for MCP
+    // apps in the list view of unified resources.
+    return <Box width={buttonWidth} />;
   }
 
   if (isWebApp(props.app)) {
