@@ -182,6 +182,9 @@ type SessionParams struct {
 	// JoinMode is the participant mode to join the session with.
 	// Required if JoinSessionID is set.
 	JoinMode types.SessionParticipantMode
+	// ModeratedSessionID is an optional parameter sent during SCP requests to specify which moderated session
+	// to check for valid FileTransferRequests.
+	ModeratedSessionID string
 }
 
 // NewSession opens a new Session for this client with the given (optional) params.

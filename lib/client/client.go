@@ -741,7 +741,7 @@ func newClientConn(
 }
 
 // TransferFiles transfers files over SFTP.
-func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error {
+func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config, moderatedSessionID string) error {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/TransferFiles",
@@ -749,7 +749,7 @@ func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error 
 	)
 	defer span.End()
 
-	if err := cfg.TransferFiles(ctx, c.Client.Client); err != nil {
+	if err := cfg.TransferFiles(ctx, c.Client, moderatedSessionID); err != nil {
 		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
 		// a trace.BadParameter error when ~user path expansion was rejected, and
 		// reauthentication logic is attempted on BadParameter errors.
