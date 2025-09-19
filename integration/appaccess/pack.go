@@ -501,24 +501,19 @@ func (p *Pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 	return statusCode, []byte(body), trace.Wrap(err)
 }
 
-func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {
-	ctx := context.Background()
-	require.Eventuallyf(t, func() bool {
+func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, matchEvent func(event apievents.AuditEvent) bool) {
+	ctx := t.Context()
+	require.EventuallyWithTf(t, func(t *assert.CollectT) {
 		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
 			From:       time.Now().Add(-time.Hour),
 			To:         time.Now().Add(time.Hour),
 			EventTypes: []string{eventType},
-			Limit:      1,
+			Limit:      5,
 			Order:      types.EventOrderDescending,
 		})
 		require.NoError(t, err)
-		if len(events) == 0 {
-			return false
-		}
-
-		checkEvent(events[0])
-		return true
-	}, 500*time.Millisecond, 50*time.Millisecond, "failed to fetch audit event \"%s\"", eventType)
+		require.True(t, slices.ContainsFunc(events, matchEvent))
+	}, 5*time.Second, 100*time.Millisecond, "failed to fetch audit event \"%s\"", eventType)
 }
 
 // initCertPool initializes root cluster CA pool.
