@@ -143,16 +143,19 @@ func (l *yamuxLogger) Printf(format string, args ...any) {
 
 // Print implements [yamux.Logger].
 func (l *yamuxLogger) Print(args ...any) {
+	// the Print method doesn't seem to be used by yamux, it's only implemented
+	// here for completeness' sake
+
 	//nolint:sloglint // we're adapting a fmt.Print-like interface
 	(*slog.Logger)(l).ErrorContext(context.Background(), fmt.Sprint(args...))
 }
 
 // Println implements [yamux.Logger].
 func (l *yamuxLogger) Println(args ...any) {
-	// the Println method doesn't seem to be used by yamux, but the concept of
-	// adding a newline at the end of a log message is so weird that we will
-	// just avoid doing that and just do a Sprint instead
+	// the Println method doesn't seem to be used by yamux, it's only
+	// implemented here for completeness' sake, and the concept of adding a
+	// newline at the end of a log message is so weird that we will just avoid
+	// doing that and just redirect to Print instead
 
-	//nolint:sloglint // we're adapting a fmt.Print-like interface
-	(*slog.Logger)(l).ErrorContext(context.Background(), fmt.Sprint(args...))
+	l.Print(args...)
 }
