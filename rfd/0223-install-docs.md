@@ -40,22 +40,26 @@ However, a user who attempts to read the documentation might follow a path that 
 11. Sees the install script instructions again, along with other outdated installation instructions
 12. Finds and executes manual joining instructions, which are unnecessary if the Web UI is used.
 
-The Teleport Downloads page has a similar issue that is actively being worked on.
+The Teleport Downloads page has a similar issue that is actively being addressed.
 
-This RFD proposes that we add three new top-level sections:
+This RFD proposes that we add one new top-level "Platform" section, with three subsections:
 
 1. "Installation"
 2. "Upgrading"
 3. "Operations"
 
 These sections would cover all Teleport components.
+Installation sections will cover setup for Managed Updates, and link to more details Upgrading docs where appropriate.
 
-Notably, these sections differ from the marketing categories for our product features because they are cross-cutting,
-operational, and generally do not involve in-product UX workflows.
+Notably, the Platform section differs from the marketing-branded categories for our product features because it is cross-cutting,
+operational, and (in most cases) does not involve in-product UX workflows.
 Users install Teleport first, ensure they have a way to upgrade it, ensure they have day-two operations like backups
 configured, and then they (or different end-users) dive into the product itself.
 
-If this results in too many top-level sections, a single "Installation & Operation" section may suffice.
+A complete user story for a Teleport installation workflow may need to involve in-product configuration.
+For example, it is common to configure roles after installing a self-hosted cluster.
+As we cannot repeat these instructions for every combination of component and target platform, we can rely on cross-linking to ensure
+that the user is guided to the correct page regardless of their starting point.
 
 ## Details
 
@@ -87,6 +91,7 @@ instructions for an even larger number of target platforms:
    3. Agent on EC2
       1. Teleport AMI
       2. Custom AMI
+      3. Via Deploy Service / AWS OIDC
    4. Agent on GCP
    5. Agent on OCI
    6. Agent on Azure
@@ -129,10 +134,12 @@ instructions for an even larger number of target platforms:
 Users will generally know which target platform they need to perform the installation on, but they may not know
 which Teleport component they need to install.
 
+A Teleport user may need to mix and match instructions for their use case.
+For example, they may need to install a self-hosted cluster on GKE, deploy an agent into EKS, and then configure the agent to allow App access.
 
 ### Proposed Organization
 
-I propose the following organization, from the top-level:
+The following organization is proposed, nested under a top-level Platform section:
 
 1. Installation - New page, maps each use case for Teleport to the correct component
    1. Installing Teleport Agents
@@ -150,9 +157,12 @@ I propose the following organization, from the top-level:
    3. Operating Self-Hosted Teleport Clusters
    4. Operating Teleport Plugins & Integrations
 
-Notably, any cluster operations that are not handled by Cloud should be included under the marketing-branded sections, not Operations.
+Notably, cluster operations that are not handled by Cloud should be included under the marketing-branded sections, not Platform.
 For example, a guide to configuring a cluster to support AWS KMS would be included in Operating Self-Hosted Teleport Clusters, while
 a guide for getting started with Teleport roles would be included in the "Zero Trust Access" section.
+The only exception to this rule is global, shared configuration that is directly related to platform operations and does not
+fit into the marketing-branded sections. For example, some of the `cluster_*` or `autoupdate_*` resources may be described in Platform.
+These are generally optional for Cloud users to configure.
 
 Installation instructions should not be complete user guides that include in-product configuration.
 Installation instructions should link to user guides when they are more appropriate, and user guides should link to
@@ -168,18 +178,17 @@ Note: these are best understood by opening https://goteleport.com/docs and follo
 - Create new sections and new pages described above.
 - For each existing installation page, separate agent, client, and cluster sections into new pages. No single guide or instruction page should address more than one.
 - "Installation -> Installing Teleport Agents" contains a link to "Enrolling Resources" with separate "Custom Agent Installation" instructions
-- "Introduction -> Installation" moves to "Installation"
-- "Introduction -> Upgrading" moves to "Upgrading"
+- "Introduction -> Installation" moves to "Platform -> Installation"
+- "Introduction -> Upgrading" moves to "Platform -> Upgrading"
 - "Introduction -> Migrate Teleport Plans" moves to "User Guides"
-- "Zero Trust Access -> Exporting Teleport Audit Events" contains links to "Installation -> Installing Teleport Plugins & Integrations -> Event Exporter", and vice-versa
-- "Zero Trust Access -> Infrastructure as Code -> Teleport Kubernetes Operator" moves to "Installation -> Installing Teleport Plugins & Integrations -> Teleport Kubernetes Operator" (install guides only)
-- "Zero Trust Access -> Cluster management -> Cluster Administration guides -> Uninstall Teleport" moves to "Installation" (subsections as appropriate)
-- "Zero Trust Access -> Cluster management -> Cluster Administration guides -> Run Teleport as a Daemon" moves to "Installation -> Installing Teleport Agents -> Linux Servers"
-- "Zero Trust Access -> Cluster management" moves to "Operations -> Operating Self-Hosted Teleport Clouds"
-- "Zero Trust Access -> Self-Hosting Teleport -> Guides for running Teleport using Helm" moves to "Installation -> Installing Self-Hosted Clusters -> Kubernetes"
-- "Zero Trust Access -> Self-Hosting Teleport" moves to "Operations -> Operating Self-Hosted Teleport Clusters"
-- "Zero Trust Access -> Using the Teleport API" moves to "User Guides"
+- "Zero Trust Access -> Exporting Teleport Audit Events" contains links to "Platform -> Installation -> Installing Teleport Plugins & Integrations -> Event Exporter", and vice-versa
+- "Zero Trust Access -> Infrastructure as Code -> Teleport Kubernetes Operator" moves to "Platform -> Installation -> Installing Teleport Plugins & Integrations -> Teleport Kubernetes Operator" (install guides only, with cross-linking)
+- "Zero Trust Access -> Cluster management -> Cluster Administration guides -> Uninstall Teleport" moves to "Platform -> Installation" (subsections as appropriate)
+- "Zero Trust Access -> Cluster management -> Cluster Administration guides -> Run Teleport as a Daemon" moves to "Platform -> Installation -> Installing Teleport Agents -> Linux Servers"
+- "Zero Trust Access -> Cluster management" moves to "Platform -> Operations -> Operating Self-Hosted Teleport Clouds"
+- "Zero Trust Access -> Self-Hosting Teleport -> Guides for running Teleport using Helm" moves to "Platform -> Installation -> Installing Self-Hosted Clusters -> Kubernetes" (many subsections)
+- "Zero Trust Access -> Self-Hosting Teleport" moves to "Platform -> Operations -> Operating Self-Hosted Teleport Clusters" (remaining sections)
 - "Machine & Workload Identity" -> Machine ID -> Deploy tbot" links to "Installation -> Installing Teleport Client Tools -> tbot" (instead of including agent install instructions)
-- "Identity Security -> Self-Hosting Teleport Access Graph" moves to "Installation -> Installing Self-Hosted Teleport Clusters"
+- "Identity Security -> Self-Hosting Teleport Access Graph" moves to "Installation -> Installing Self-Hosted Teleport Clusters -> Access Graph"
 
-Marketing-branded sections may link to Installation, Upgrading, or Operations sections where relevant.
+Marketing-branded sections may link to Installation, Upgrading, or Operations sections where relevant, and vice-versa.
