@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-import { Flex, H3, MenuItem } from 'design';
+import { Box, Flex, H3, MenuItem, Stack, Text } from 'design';
 import { MenuInputType } from 'shared/components/MenuLogin';
 
 import { MenuLoginWithActionMenu as MenuLoginWithActionMenuComponent } from './MenuLoginWithActionMenu';
@@ -29,76 +29,116 @@ export default {
 
 export const MenuLoginWithActionMenu = () => {
   return (
-    <Flex
-      inline
-      p={4}
-      gap="128px"
-      justifyContent="flex-start"
-      bg="levels.surface"
-    >
-      <Example>
-        <H3>No logins</H3>
-        <MenuLoginWithActionMenuComponent
-          getLoginItems={() => []}
-          onSelect={() => null}
-          buttonText="Connect"
-          size="small"
-        >
-          {menuItems}
-        </MenuLoginWithActionMenuComponent>
-      </Example>
-      <Example>
-        <H3>Processing state</H3>
-        <MenuLoginWithActionMenuComponent
-          getLoginItems={() => new Promise(() => {})}
-          onSelect={() => null}
-          buttonText="Connect"
-          size="small"
-        >
-          {menuItems}
-        </MenuLoginWithActionMenuComponent>
-      </Example>
-      <Example>
-        <H3>With logins</H3>
-        <MenuLoginWithActionMenuComponent
-          size="small"
-          buttonText="Connect"
-          getLoginItems={() => urlItems}
-          onSelect={() => null}
-          placeholder="Select item to log in..."
-          inputType={MenuInputType.NONE}
-        >
-          {menuItems}
-        </MenuLoginWithActionMenuComponent>
-      </Example>
-      <Example>
-        <H3>With logins and search input</H3>
-        <MenuLoginWithActionMenuComponent
-          buttonText="Connect"
-          size="small"
-          getLoginItems={() => loginItems}
-          onSelect={() => null}
-          placeholder="search login"
-        >
-          {menuItems}
-        </MenuLoginWithActionMenuComponent>
-      </Example>
-      <Example>
-        <H3>Large button with custom width</H3>
-        <MenuLoginWithActionMenuComponent
-          size="large"
-          width="150px"
-          buttonText="Connect"
-          getLoginItems={() => urlItems}
-          onSelect={() => null}
-          placeholder="Select item to log in..."
-        >
-          {menuItems}
-        </MenuLoginWithActionMenuComponent>
-      </Example>
-    </Flex>
+    <Stack gap={4}>
+      <Flex
+        inline
+        p={4}
+        gap="128px"
+        justifyContent="flex-start"
+        bg="levels.surface"
+      >
+        <Example>
+          <H3>No logins</H3>
+          <MenuLoginWithActionMenuComponent
+            getLoginItems={() => []}
+            onSelect={() => null}
+            buttonText="Connect"
+            size="small"
+          >
+            {menuItems}
+          </MenuLoginWithActionMenuComponent>
+        </Example>
+        <Example>
+          <H3>Processing state</H3>
+          <MenuLoginWithActionMenuComponent
+            getLoginItems={() => new Promise(() => {})}
+            onSelect={() => null}
+            buttonText="Connect"
+            size="small"
+          >
+            {menuItems}
+          </MenuLoginWithActionMenuComponent>
+        </Example>
+        <Example>
+          <H3>With logins</H3>
+          <MenuLoginWithActionMenuComponent
+            size="small"
+            buttonText="Connect"
+            getLoginItems={() => urlItems}
+            onSelect={() => null}
+            placeholder="Select item to log in..."
+            inputType={MenuInputType.NONE}
+          >
+            {menuItems}
+          </MenuLoginWithActionMenuComponent>
+        </Example>
+        <Example>
+          <H3>With logins and search input</H3>
+          <MenuLoginWithActionMenuComponent
+            buttonText="Connect"
+            size="small"
+            getLoginItems={() => loginItems}
+            onSelect={() => null}
+            placeholder="search login"
+          >
+            {menuItems}
+          </MenuLoginWithActionMenuComponent>
+        </Example>
+        <Example>
+          <H3>Large button with custom width</H3>
+          <MenuLoginWithActionMenuComponent
+            size="large"
+            menuWidth="150px"
+            buttonText="Connect"
+            getLoginItems={() => urlItems}
+            onSelect={() => null}
+            placeholder="Select item to log in..."
+          >
+            {menuItems}
+          </MenuLoginWithActionMenuComponent>
+        </Example>
+      </Flex>
+
+      <Stack p={4} gap={3} bg="levels.surface">
+        <Example>
+          <Box>
+            <H3>width=&#123;{constantWidth}&#125;</H3>
+            <Text>Affects total component width</Text>
+          </Box>
+          <MenuLoginWithActionMenuComponent
+            width={constantWidth}
+            buttonText="Connect"
+            size="small"
+            getLoginItems={() => loginItems}
+            onSelect={() => null}
+            placeholder="search login"
+          >
+            {menuItems}
+          </MenuLoginWithActionMenuComponent>
+        </Example>
+
+        <Example>
+          <Box>
+            <H3>menuWidth=&#123;{constantWidth}&#125;</H3>
+            <Text>Affects button and menu width</Text>
+          </Box>
+          <MenuLoginWithActionMenuComponent
+            menuWidth={constantWidth}
+            buttonText="Connect"
+            size="small"
+            getLoginItems={() => loginItems}
+            onSelect={() => null}
+            placeholder="search login"
+          >
+            {menuItems}
+          </MenuLoginWithActionMenuComponent>
+        </Example>
+      </Stack>
+    </Stack>
   );
 };
+
+const constantWidth = 250;
 
 const Example = styled(Flex).attrs({
   gap: 2,

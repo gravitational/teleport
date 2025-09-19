@@ -102,3 +102,17 @@ export function getGatewayTargetUriKind(
   // However, at the moment that field is essentially of type string, so there's not much we can do
   // with regards to type safety.
 }
+
+/**
+ * Available types are listed here:
+ * https://github.com/gravitational/teleport/blob/v9.0.3/lib/defaults/defaults.go#L513-L530
+ *
+ * The list below can get out of sync with what tsh actually implements.
+ */
+export type GatewayProtocol =
+  | 'postgres'
+  | 'mysql'
+  | 'mongodb'
+  | 'cockroachdb'
+  | 'redis'
+  | 'sqlserver';

@@ -498,7 +498,7 @@ function makeSamlAppLoginWithMenuButton(
       return (
         <MenuLoginWithActionMenu
           getLoginItems={() => makeSamlAppLoginOptions(launchUrls)}
-          width="100px"
+          menuWidth="100px"
           onSelect={() => {}} // login item rendered as <a> link for saml apps.
           buttonText="Log In"
           size="small"
@@ -515,7 +515,7 @@ function makeSamlAppLoginWithMenuButton(
   return (
     <ButtonWithMenu
       text="Log In"
-      width="100px"
+      buttonWidth="100px"
       size="small"
       target="_blank"
       href={ssoUrl}

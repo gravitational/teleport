@@ -89,19 +89,3 @@ export {
  * @deprecated Import directly from gen-proto-ts instead.
  */
 export * from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
-/**
- * Available types are listed here:
- * https://github.com/gravitational/teleport/blob/v9.0.3/lib/defaults/defaults.go#L513-L530
- *
- * The list below can get out of sync with what tsh actually implements.
- *
- * @deprecated Move to a better suited file.
- */
-export type GatewayProtocol =
-  | 'postgres'
-  | 'mysql'
-  | 'mongodb'
-  | 'cockroachdb'
-  | 'redis'
-  | 'sqlserver';
