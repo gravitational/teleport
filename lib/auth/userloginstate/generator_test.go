@@ -705,6 +705,54 @@ func TestGitHubIdentity(t *testing.T) {
 	}
 }
 
+type upsertTracer struct {
+	countCallsUpsertUserLoginState int
+	*svc
+}
+
+func (u *upsertTracer) UpsertUserLoginState(ctx context.Context, state *userloginstate.UserLoginState) (*userloginstate.UserLoginState, error) {
+	u.countCallsUpsertUserLoginState++
+	return u.svc.UpsertUserLoginState(ctx, state)
+}
+
+func TestGenerateOnUnchangedState(t *testing.T) {
+	ctx := context.Background()
+	svc, backendSvc, err := initGeneratorSvc()
+	require.NoError(t, err)
+
+	aliceUser, err := types.NewUser("alice")
+	require.NoError(t, err)
+	bkTracker := &upsertTracer{svc: backendSvc}
+
+	assertGenerate := func(count int) {
+		require.Equal(t, count, bkTracker.countCallsUpsertUserLoginState)
+		require.NoError(t, err)
+	}
+
+	triggerGenerate := func() {
+		err = svc.LoginHook(bkTracker)(ctx, aliceUser)
+		require.NoError(t, err)
+	}
+
+	assertGenerate(0)
+	triggerGenerate()
+	assertGenerate(1)
+
+	st, err := backendSvc.GetUserLoginState(ctx, "alice")
+	require.NoError(t, err)
+	st.Spec.Roles = []string{"newrole"}
+	_, err = backendSvc.UpsertUserLoginState(ctx, st)
+	require.NoError(t, err)
+
+	assertGenerate(1)
+
+	triggerGenerate()
+	assertGenerate(2)
+
+	triggerGenerate()
+	assertGenerate(2)
+}
+
 type svc struct {
 	services.AccessLists
 	services.Access
