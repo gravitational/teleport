@@ -19,7 +19,6 @@
 package web
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -67,6 +66,8 @@ type fileTransferRequest struct {
 }
 
 func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	ctx := r.Context()
+
 	query := r.URL.Query()
 	req := fileTransferRequest{
 		cluster:               cluster.GetName(),
@@ -155,9 +156,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	ctx := r.Context()
+	var moderatedSessionID string
 	if req.fileTransferRequestID != "" {
-		ctx = context.WithValue(ctx, sftp.ModeratedSessionID, req.moderatedSessionID)
+		moderatedSessionID = req.moderatedSessionID
 	}
 
 	accessPoint, err := cluster.CachingAccessPoint()
@@ -238,7 +239,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 	defer nodeClient.Close()
 
-	if err := nodeClient.TransferFiles(ctx, cfg); err != nil {
+	if err := nodeClient.TransferFiles(ctx, cfg, moderatedSessionID); err != nil {
 		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
 			return nil, trace.Errorf("transferring directories through the Web UI is not supported at the moment, please use tsh scp -r")
 		}

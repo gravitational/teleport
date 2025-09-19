@@ -8054,7 +8054,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		isNilOrEOFErr(t, transferSess.Close())
 	})
 
-	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+	err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
 	require.NoError(t, err)
 
 	err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
@@ -8116,7 +8116,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, transferSess.Close())
 	})
 
-	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+	err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
 	require.NoError(t, err)
 
 	// Test that only operations needed to complete the download

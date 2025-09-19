@@ -165,7 +165,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 
 			// new exec request context
 			scx := newTestServerContext(t, reg.Srv, accessRoleSet, &decisionpb.SSHAccessPermit{})
-			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
+			scx.SetEnv(sftp.EnvModeratedSessionID, sess.ID())
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())
