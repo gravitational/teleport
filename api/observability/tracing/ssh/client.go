@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
@@ -33,9 +34,11 @@ import (
 // Client is a wrapper around ssh.Client that adds tracing support.
 type Client struct {
 	*ssh.Client
-	opts          []tracing.Option
-	capability    tracingCapability
-	sessionClient *SessionClient
+	opts       []tracing.Option
+	capability tracingCapability
+
+	requestHandlersMu sync.Mutex
+	requestHandlers   map[string]chan *ssh.Request
 }
 
 type tracingCapability int
@@ -56,10 +59,10 @@ const (
 // of whether they should provide tracing context.
 func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) *Client {
 	clt := &Client{
-		Client:        ssh.NewClient(c, chans, reqs),
-		sessionClient: NewSessionClient(),
-		opts:          opts,
-		capability:    tracingUnsupported,
+		Client:          ssh.NewClient(c, chans, reqs),
+		opts:            opts,
+		capability:      tracingUnsupported,
+		requestHandlers: map[string]chan *ssh.Request{},
 	}
 
 	if bytes.HasPrefix(clt.ServerVersion(), []byte("SSH-2.0-Teleport")) {
@@ -190,8 +193,24 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		contexts:   make(map[string][]context.Context),
 	}
 
-	session, err := c.sessionClient.NewSession(wrapper)
+	// open a session manually so we can take ownership of the
+	// requests chan
+	ch, reqs, err := wrapper.OpenChannel("session", nil)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Capture requests not handled by registered request handlers and
+	// pass them to the crypto [ssh.Session].
+	unhandledReqs := make(chan *ssh.Request, cap(reqs))
+	go func() {
+		c.serveRequests(reqs, unhandledReqs)
+		close(unhandledReqs)
+	}()
+
+	session, err := newCryptoSSHSession(ch, unhandledReqs)
+	if err != nil {
+		_ = ch.Close()
 		return nil, trace.Wrap(err)
 	}
 
@@ -211,7 +230,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 // not processed before the handler is registered.
 func (c *Client) HandleRequests(ctx context.Context, requestType string, handleFn func(ctx context.Context, ch *ssh.Request)) error {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
-	ch := c.sessionClient.HandleRequests(requestType)
+	ch := c.handleRequests(requestType)
 	if ch == nil {
 		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", requestType)
 	}
@@ -237,6 +256,61 @@ func (c *Client) HandleRequests(ctx context.Context, requestType string, handleF
 		}
 	}()
 	return nil
+}
+
+// handleRequests returns a channel on which ssh Requests for the given
+// type are sent. If the type already is being handled, nil is returned.
+// The channel is closed when the connection is closed.
+//
+// This method was adapted from golang/x/crypto/ssh.Client.HandleChannelOpen.
+// golang/x/crypto/ssh does not currently provide a similar method for session
+// requests out of the box.
+func (c *Client) handleRequests(requestType string) <-chan *ssh.Request {
+	c.requestHandlersMu.Lock()
+	defer c.requestHandlersMu.Unlock()
+	if c.requestHandlers == nil {
+		// The SSH channel has been closed.
+		c := make(chan *ssh.Request)
+		close(c)
+		return c
+	}
+
+	ch := c.requestHandlers[requestType]
+	if ch != nil {
+		return nil
+	}
+
+	// This is the same buffer size used in golang/x/crypto/ssh for the channel requests
+	// channel serviced by registered handlers from [ssh.Client.HandleChannelOpen].
+	const bufferSize = 16
+
+	ch = make(chan *ssh.Request, bufferSize)
+	c.requestHandlers[requestType] = ch
+	return ch
+}
+
+// serveRequests from the remote side.
+func (c *Client) serveRequests(in <-chan *ssh.Request, unhandledReqs chan<- *ssh.Request) {
+	for req := range in {
+		c.requestHandlersMu.Lock()
+		handler := c.requestHandlers[req.Type]
+		c.requestHandlersMu.Unlock()
+
+		if handler != nil {
+			handler <- req
+		} else {
+			// Pass on requests without a registered handler. These will be
+			// handled by the default x/crypto/ssh request handler.
+			unhandledReqs <- req
+		}
+	}
+
+	c.requestHandlersMu.Lock()
+	for _, ch := range c.requestHandlers {
+		close(ch)
+	}
+	c.requestHandlers = nil
+	c.requestHandlersMu.Unlock()
 }
 
 // connWrapper wraps the ssh.Conn for individual ssh.Client
@@ -358,4 +432,37 @@ func (c channelWrapper) SendRequest(name string, wantReply bool, payload []byte)
 	defer func() { tracing.EndSpan(span, err) }()
 
 	return c.Channel.SendRequest(name, wantReply, wrapPayload(ctx, c.manager.capability, config.TextMapPropagator, payload))
+}
+
+// sshSession allows an SSH session to be created while also allowing
+// callers to take ownership of the SSH channel requests chan.
+type sshSession struct {
+	ssh.Conn
+
+	channelOpened atomic.Bool
+
+	ch   ssh.Channel
+	reqs <-chan *ssh.Request
+}
+
+func (f *sshSession) OpenChannel(_ string, _ []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+	if !f.channelOpened.CompareAndSwap(false, true) {
+		panic("WrappedSSHConn.OpenChannel called more than once")
+	}
+
+	return f.ch, f.reqs, nil
+}
+
+// newCryptoSSHSession allows callers to take ownership of the SSH
+// channel requests chan and allow callers to handle SSH channel requests.
+// golang.org/x/crypto/ssh.(Client).NewSession takes ownership of all
+// SSH channel requests and doesn't allow the caller to view or reply
+// to them, so this workaround is needed.
+func newCryptoSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request) (*ssh.Session, error) {
+	return (&ssh.Client{
+		Conn: &sshSession{
+			ch:   ch,
+			reqs: reqs,
+		},
+	}).NewSession()
 }
