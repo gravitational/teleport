@@ -34,6 +34,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"syscall"
 	"time"
 
@@ -43,6 +44,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	types "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packaging"
@@ -267,7 +269,6 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 	}
 
 	updateResp := &UpdateResponse{Version: u.localVersion, ReExec: false}
-
 	switch {
 	case !resp.AutoUpdate.ToolsAutoUpdate || resp.AutoUpdate.ToolsVersion == "":
 		updateResp = &UpdateResponse{Version: u.localVersion, ReExec: false, Disabled: true}
@@ -275,6 +276,13 @@ func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string, insecure bo
 		updateResp = &UpdateResponse{Version: u.localVersion, ReExec: false}
 	default:
 		updateResp = &UpdateResponse{Version: resp.AutoUpdate.ToolsVersion, ReExec: true}
+	}
+
+	err = validateUpdateByStrategy(resp.AutoUpdate.ToolsAutoUpdateStrategies, updateResp.Version, u.localVersion)
+	if errors.Is(err, ErrCancelUpdate) {
+		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if err := updateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
@@ -521,4 +529,32 @@ func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) 
 	}
 
 	return h.Sum(nil), nil
+}
+
+func validateUpdateByStrategy(strategies []string, requestedVersion, localVersion string) error {
+	requestedSemVer, err := semver.NewVersion(requestedVersion)
+	if err != nil {
+		return err
+	}
+	localSemVer, err := semver.NewVersion(localVersion)
+	if err != nil {
+		return err
+	}
+
+	if slices.Contains(strategies, types.ToolStrategyNoDowngrade) &&
+		requestedSemVer.Compare(*localSemVer) < 0 {
+		return ErrCancelUpdate
+	}
+
+	if slices.Contains(strategies, types.ToolStrategyIgnorePatchUpdate) &&
+		localSemVer.Major == requestedSemVer.Major && localSemVer.Minor == requestedSemVer.Minor {
+		return ErrCancelUpdate
+	}
+
+	if slices.Contains(strategies, types.ToolStrategyIgnoreMinorUpdate) &&
+		localSemVer.Major == requestedSemVer.Major {
+		return ErrCancelUpdate
+	}
+
+	return nil
 }

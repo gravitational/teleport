@@ -184,7 +184,7 @@ func DownloadUpdate(ctx context.Context, name string, insecure bool) error {
 		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
 		defer cancel()
 		err := updater.Update(ctxUpdate, resp.Version)
-		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrCancelUpdate) {
 			return trace.Wrap(err)
 		}
 	}
@@ -199,7 +199,7 @@ func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string,
 	// is required if the user passed in the TELEPORT_TOOLS_VERSION
 	// explicitly.
 	err := updater.Update(ctxUpdate, toolsVersion)
-	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
+	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrCancelUpdate) {
 		slog.ErrorContext(ctx, "Failed to update tools version", "error", err, "version", toolsVersion)
 		// Continue executing the current version of the client tools (tsh, tctl)
 		// to avoid potential issues with update process (timeout, missing version).

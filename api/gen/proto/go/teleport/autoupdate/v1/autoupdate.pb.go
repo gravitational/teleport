@@ -38,6 +38,66 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// AutoUpdateToolsStrategy defines additional strategy that must be applied
+// for client tools to decide if update must be initiated.
+type AutoUpdateToolsStrategy int32
+
+const (
+	// AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED is unspecified strategy.
+	AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED AutoUpdateToolsStrategy = 0
+	// AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE is strategy that restricts client tools to downgrade.
+	AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE AutoUpdateToolsStrategy = 1
+	// AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE is strategy that restricts client tools
+	// to upgrade/downgrade minor version.
+	AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE AutoUpdateToolsStrategy = 2
+	// AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE is strategy that restricts client tools
+	// to upgrade/downgrade patch version
+	AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE AutoUpdateToolsStrategy = 3
+)
+
+// Enum value maps for AutoUpdateToolsStrategy.
+var (
+	AutoUpdateToolsStrategy_name = map[int32]string{
+		0: "AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED",
+		1: "AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE",
+		2: "AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE",
+		3: "AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE",
+	}
+	AutoUpdateToolsStrategy_value = map[string]int32{
+		"AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED":         0,
+		"AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE":        1,
+		"AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE": 2,
+		"AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE": 3,
+	}
+)
+
+func (x AutoUpdateToolsStrategy) Enum() *AutoUpdateToolsStrategy {
+	p := new(AutoUpdateToolsStrategy)
+	*p = x
+	return p
+}
+
+func (x AutoUpdateToolsStrategy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AutoUpdateToolsStrategy) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[0].Descriptor()
+}
+
+func (AutoUpdateToolsStrategy) Type() protoreflect.EnumType {
+	return &file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[0]
+}
+
+func (x AutoUpdateToolsStrategy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AutoUpdateToolsStrategy.Descriptor instead.
+func (AutoUpdateToolsStrategy) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{0}
+}
+
 // AutoUpdateAgentGroupState represents the agent group state. This state controls whether the agents from this group
 // should install the start version, the target version, and if they should update immediately or wait.
 type AutoUpdateAgentGroupState int32
@@ -91,11 +151,11 @@ func (x AutoUpdateAgentGroupState) String() string {
 }
 
 func (AutoUpdateAgentGroupState) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[0].Descriptor()
+	return file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[1].Descriptor()
 }
 
 func (AutoUpdateAgentGroupState) Type() protoreflect.EnumType {
-	return &file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[0]
+	return &file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[1]
 }
 
 func (x AutoUpdateAgentGroupState) Number() protoreflect.EnumNumber {
@@ -104,7 +164,7 @@ func (x AutoUpdateAgentGroupState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AutoUpdateAgentGroupState.Descriptor instead.
 func (AutoUpdateAgentGroupState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{0}
+	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{1}
 }
 
 // AutoUpdateAgentRolloutState represents the rollout state. This tells if Teleport started updating agents from the
@@ -156,11 +216,11 @@ func (x AutoUpdateAgentRolloutState) String() string {
 }
 
 func (AutoUpdateAgentRolloutState) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[1].Descriptor()
+	return file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[2].Descriptor()
 }
 
 func (AutoUpdateAgentRolloutState) Type() protoreflect.EnumType {
-	return &file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[1]
+	return &file_teleport_autoupdate_v1_autoupdate_proto_enumTypes[2]
 }
 
 func (x AutoUpdateAgentRolloutState) Number() protoreflect.EnumNumber {
@@ -169,7 +229,7 @@ func (x AutoUpdateAgentRolloutState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AutoUpdateAgentRolloutState.Descriptor instead.
 func (AutoUpdateAgentRolloutState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{1}
+	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{2}
 }
 
 // AutoUpdateConfig is a config singleton used to configure cluster
@@ -307,7 +367,10 @@ func (x *AutoUpdateConfigSpec) GetAgents() *AutoUpdateConfigSpecAgents {
 type AutoUpdateConfigSpecTools struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Mode defines state of the client tools auto update.
-	Mode          string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	Mode string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	// Custom strategies for modifying behavior when updates are applied.
+	// For example: protecting against client tool downgrades or ignoring patch updates.
+	Strategies    []AutoUpdateToolsStrategy `protobuf:"varint,2,rep,packed,name=strategies,proto3,enum=teleport.autoupdate.v1.AutoUpdateToolsStrategy" json:"strategies,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -347,6 +410,13 @@ func (x *AutoUpdateConfigSpecTools) GetMode() string {
 		return x.Mode
 	}
 	return ""
+}
+
+func (x *AutoUpdateConfigSpecTools) GetStrategies() []AutoUpdateToolsStrategy {
+	if x != nil {
+		return x.Strategies
+	}
+	return nil
 }
 
 // AutoUpdateConfigSpecAgents encodes the parameters of automatic agent updates.
@@ -1629,9 +1699,12 @@ const file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = "" +
 	"\x04spec\x18\x05 \x01(\v2,.teleport.autoupdate.v1.AutoUpdateConfigSpecR\x04spec\"\xc3\x01\n" +
 	"\x14AutoUpdateConfigSpec\x12G\n" +
 	"\x05tools\x18\x02 \x01(\v21.teleport.autoupdate.v1.AutoUpdateConfigSpecToolsR\x05tools\x12J\n" +
-	"\x06agents\x18\x03 \x01(\v22.teleport.autoupdate.v1.AutoUpdateConfigSpecAgentsR\x06agentsJ\x04\b\x01\x10\x02R\x10tools_autoupdate\"/\n" +
+	"\x06agents\x18\x03 \x01(\v22.teleport.autoupdate.v1.AutoUpdateConfigSpecAgentsR\x06agentsJ\x04\b\x01\x10\x02R\x10tools_autoupdate\"\x80\x01\n" +
 	"\x19AutoUpdateConfigSpecTools\x12\x12\n" +
-	"\x04mode\x18\x01 \x01(\tR\x04mode\"\x8e\x02\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\x12O\n" +
+	"\n" +
+	"strategies\x18\x02 \x03(\x0e2/.teleport.autoupdate.v1.AutoUpdateToolsStrategyR\n" +
+	"strategies\"\x8e\x02\n" +
 	"\x1aAutoUpdateConfigSpecAgents\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x1a\n" +
 	"\bstrategy\x18\x02 \x01(\tR\bstrategy\x12Y\n" +
@@ -1728,7 +1801,12 @@ const file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = "" +
 	"updater_id\x18\x01 \x01(\tR\tupdaterId\x12\x17\n" +
 	"\ahost_id\x18\x02 \x01(\tR\x06hostId\x12\x1a\n" +
 	"\bhostname\x18\x03 \x01(\tR\bhostname\x12\x18\n" +
-	"\asuccess\x18\x04 \x01(\bR\asuccess*\xa1\x02\n" +
+	"\asuccess\x18\x04 \x01(\bR\asuccess*\xda\x01\n" +
+	"\x17AutoUpdateToolsStrategy\x12*\n" +
+	"&AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED\x10\x00\x12+\n" +
+	"'AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE\x10\x01\x122\n" +
+	".AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE\x10\x02\x122\n" +
+	".AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE\x10\x03*\xa1\x02\n" +
 	"\x19AutoUpdateAgentGroupState\x12-\n" +
 	")AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED\x10\x00\x12+\n" +
 	"'AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED\x10\x01\x12(\n" +
@@ -1755,74 +1833,76 @@ func file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP() []byte {
 	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescData
 }
 
-var file_teleport_autoupdate_v1_autoupdate_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_teleport_autoupdate_v1_autoupdate_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_teleport_autoupdate_v1_autoupdate_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_teleport_autoupdate_v1_autoupdate_proto_goTypes = []any{
-	(AutoUpdateAgentGroupState)(0),                // 0: teleport.autoupdate.v1.AutoUpdateAgentGroupState
-	(AutoUpdateAgentRolloutState)(0),              // 1: teleport.autoupdate.v1.AutoUpdateAgentRolloutState
-	(*AutoUpdateConfig)(nil),                      // 2: teleport.autoupdate.v1.AutoUpdateConfig
-	(*AutoUpdateConfigSpec)(nil),                  // 3: teleport.autoupdate.v1.AutoUpdateConfigSpec
-	(*AutoUpdateConfigSpecTools)(nil),             // 4: teleport.autoupdate.v1.AutoUpdateConfigSpecTools
-	(*AutoUpdateConfigSpecAgents)(nil),            // 5: teleport.autoupdate.v1.AutoUpdateConfigSpecAgents
-	(*AgentAutoUpdateSchedules)(nil),              // 6: teleport.autoupdate.v1.AgentAutoUpdateSchedules
-	(*AgentAutoUpdateGroup)(nil),                  // 7: teleport.autoupdate.v1.AgentAutoUpdateGroup
-	(*AutoUpdateVersion)(nil),                     // 8: teleport.autoupdate.v1.AutoUpdateVersion
-	(*AutoUpdateVersionSpec)(nil),                 // 9: teleport.autoupdate.v1.AutoUpdateVersionSpec
-	(*AutoUpdateVersionSpecTools)(nil),            // 10: teleport.autoupdate.v1.AutoUpdateVersionSpecTools
-	(*AutoUpdateVersionSpecAgents)(nil),           // 11: teleport.autoupdate.v1.AutoUpdateVersionSpecAgents
-	(*AutoUpdateAgentRollout)(nil),                // 12: teleport.autoupdate.v1.AutoUpdateAgentRollout
-	(*AutoUpdateAgentRolloutSpec)(nil),            // 13: teleport.autoupdate.v1.AutoUpdateAgentRolloutSpec
-	(*AutoUpdateAgentRolloutStatus)(nil),          // 14: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus
-	(*AutoUpdateAgentRolloutStatusGroup)(nil),     // 15: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup
-	(*AutoUpdateAgentReport)(nil),                 // 16: teleport.autoupdate.v1.AutoUpdateAgentReport
-	(*AutoUpdateAgentReportSpec)(nil),             // 17: teleport.autoupdate.v1.AutoUpdateAgentReportSpec
-	(*AutoUpdateAgentReportSpecGroup)(nil),        // 18: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup
-	(*AutoUpdateAgentReportSpecGroupVersion)(nil), // 19: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroupVersion
-	(*AutoUpdateAgentReportSpecOmitted)(nil),      // 20: teleport.autoupdate.v1.AutoUpdateAgentReportSpecOmitted
-	(*Canary)(nil),                                // 21: teleport.autoupdate.v1.Canary
-	nil,                                           // 22: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.GroupsEntry
-	nil,                                           // 23: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup.VersionsEntry
-	(*v1.Metadata)(nil),                           // 24: teleport.header.v1.Metadata
-	(*durationpb.Duration)(nil),                   // 25: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),                 // 26: google.protobuf.Timestamp
+	(AutoUpdateToolsStrategy)(0),                  // 0: teleport.autoupdate.v1.AutoUpdateToolsStrategy
+	(AutoUpdateAgentGroupState)(0),                // 1: teleport.autoupdate.v1.AutoUpdateAgentGroupState
+	(AutoUpdateAgentRolloutState)(0),              // 2: teleport.autoupdate.v1.AutoUpdateAgentRolloutState
+	(*AutoUpdateConfig)(nil),                      // 3: teleport.autoupdate.v1.AutoUpdateConfig
+	(*AutoUpdateConfigSpec)(nil),                  // 4: teleport.autoupdate.v1.AutoUpdateConfigSpec
+	(*AutoUpdateConfigSpecTools)(nil),             // 5: teleport.autoupdate.v1.AutoUpdateConfigSpecTools
+	(*AutoUpdateConfigSpecAgents)(nil),            // 6: teleport.autoupdate.v1.AutoUpdateConfigSpecAgents
+	(*AgentAutoUpdateSchedules)(nil),              // 7: teleport.autoupdate.v1.AgentAutoUpdateSchedules
+	(*AgentAutoUpdateGroup)(nil),                  // 8: teleport.autoupdate.v1.AgentAutoUpdateGroup
+	(*AutoUpdateVersion)(nil),                     // 9: teleport.autoupdate.v1.AutoUpdateVersion
+	(*AutoUpdateVersionSpec)(nil),                 // 10: teleport.autoupdate.v1.AutoUpdateVersionSpec
+	(*AutoUpdateVersionSpecTools)(nil),            // 11: teleport.autoupdate.v1.AutoUpdateVersionSpecTools
+	(*AutoUpdateVersionSpecAgents)(nil),           // 12: teleport.autoupdate.v1.AutoUpdateVersionSpecAgents
+	(*AutoUpdateAgentRollout)(nil),                // 13: teleport.autoupdate.v1.AutoUpdateAgentRollout
+	(*AutoUpdateAgentRolloutSpec)(nil),            // 14: teleport.autoupdate.v1.AutoUpdateAgentRolloutSpec
+	(*AutoUpdateAgentRolloutStatus)(nil),          // 15: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus
+	(*AutoUpdateAgentRolloutStatusGroup)(nil),     // 16: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup
+	(*AutoUpdateAgentReport)(nil),                 // 17: teleport.autoupdate.v1.AutoUpdateAgentReport
+	(*AutoUpdateAgentReportSpec)(nil),             // 18: teleport.autoupdate.v1.AutoUpdateAgentReportSpec
+	(*AutoUpdateAgentReportSpecGroup)(nil),        // 19: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup
+	(*AutoUpdateAgentReportSpecGroupVersion)(nil), // 20: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroupVersion
+	(*AutoUpdateAgentReportSpecOmitted)(nil),      // 21: teleport.autoupdate.v1.AutoUpdateAgentReportSpecOmitted
+	(*Canary)(nil),                                // 22: teleport.autoupdate.v1.Canary
+	nil,                                           // 23: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.GroupsEntry
+	nil,                                           // 24: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup.VersionsEntry
+	(*v1.Metadata)(nil),                           // 25: teleport.header.v1.Metadata
+	(*durationpb.Duration)(nil),                   // 26: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),                 // 27: google.protobuf.Timestamp
 }
 var file_teleport_autoupdate_v1_autoupdate_proto_depIdxs = []int32{
-	24, // 0: teleport.autoupdate.v1.AutoUpdateConfig.metadata:type_name -> teleport.header.v1.Metadata
-	3,  // 1: teleport.autoupdate.v1.AutoUpdateConfig.spec:type_name -> teleport.autoupdate.v1.AutoUpdateConfigSpec
-	4,  // 2: teleport.autoupdate.v1.AutoUpdateConfigSpec.tools:type_name -> teleport.autoupdate.v1.AutoUpdateConfigSpecTools
-	5,  // 3: teleport.autoupdate.v1.AutoUpdateConfigSpec.agents:type_name -> teleport.autoupdate.v1.AutoUpdateConfigSpecAgents
-	25, // 4: teleport.autoupdate.v1.AutoUpdateConfigSpecAgents.maintenance_window_duration:type_name -> google.protobuf.Duration
-	6,  // 5: teleport.autoupdate.v1.AutoUpdateConfigSpecAgents.schedules:type_name -> teleport.autoupdate.v1.AgentAutoUpdateSchedules
-	7,  // 6: teleport.autoupdate.v1.AgentAutoUpdateSchedules.regular:type_name -> teleport.autoupdate.v1.AgentAutoUpdateGroup
-	24, // 7: teleport.autoupdate.v1.AutoUpdateVersion.metadata:type_name -> teleport.header.v1.Metadata
-	9,  // 8: teleport.autoupdate.v1.AutoUpdateVersion.spec:type_name -> teleport.autoupdate.v1.AutoUpdateVersionSpec
-	10, // 9: teleport.autoupdate.v1.AutoUpdateVersionSpec.tools:type_name -> teleport.autoupdate.v1.AutoUpdateVersionSpecTools
-	11, // 10: teleport.autoupdate.v1.AutoUpdateVersionSpec.agents:type_name -> teleport.autoupdate.v1.AutoUpdateVersionSpecAgents
-	24, // 11: teleport.autoupdate.v1.AutoUpdateAgentRollout.metadata:type_name -> teleport.header.v1.Metadata
-	13, // 12: teleport.autoupdate.v1.AutoUpdateAgentRollout.spec:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRolloutSpec
-	14, // 13: teleport.autoupdate.v1.AutoUpdateAgentRollout.status:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus
-	25, // 14: teleport.autoupdate.v1.AutoUpdateAgentRolloutSpec.maintenance_window_duration:type_name -> google.protobuf.Duration
-	15, // 15: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus.groups:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup
-	1,  // 16: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus.state:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRolloutState
-	26, // 17: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus.start_time:type_name -> google.protobuf.Timestamp
-	26, // 18: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus.time_override:type_name -> google.protobuf.Timestamp
-	26, // 19: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup.start_time:type_name -> google.protobuf.Timestamp
-	0,  // 20: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup.state:type_name -> teleport.autoupdate.v1.AutoUpdateAgentGroupState
-	26, // 21: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup.last_update_time:type_name -> google.protobuf.Timestamp
-	21, // 22: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup.canaries:type_name -> teleport.autoupdate.v1.Canary
-	24, // 23: teleport.autoupdate.v1.AutoUpdateAgentReport.metadata:type_name -> teleport.header.v1.Metadata
-	17, // 24: teleport.autoupdate.v1.AutoUpdateAgentReport.spec:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpec
-	26, // 25: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.timestamp:type_name -> google.protobuf.Timestamp
-	22, // 26: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.groups:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpec.GroupsEntry
-	20, // 27: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.omitted:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpecOmitted
-	23, // 28: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup.versions:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup.VersionsEntry
-	18, // 29: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.GroupsEntry.value:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup
-	19, // 30: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup.VersionsEntry.value:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroupVersion
-	31, // [31:31] is the sub-list for method output_type
-	31, // [31:31] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	25, // 0: teleport.autoupdate.v1.AutoUpdateConfig.metadata:type_name -> teleport.header.v1.Metadata
+	4,  // 1: teleport.autoupdate.v1.AutoUpdateConfig.spec:type_name -> teleport.autoupdate.v1.AutoUpdateConfigSpec
+	5,  // 2: teleport.autoupdate.v1.AutoUpdateConfigSpec.tools:type_name -> teleport.autoupdate.v1.AutoUpdateConfigSpecTools
+	6,  // 3: teleport.autoupdate.v1.AutoUpdateConfigSpec.agents:type_name -> teleport.autoupdate.v1.AutoUpdateConfigSpecAgents
+	0,  // 4: teleport.autoupdate.v1.AutoUpdateConfigSpecTools.strategies:type_name -> teleport.autoupdate.v1.AutoUpdateToolsStrategy
+	26, // 5: teleport.autoupdate.v1.AutoUpdateConfigSpecAgents.maintenance_window_duration:type_name -> google.protobuf.Duration
+	7,  // 6: teleport.autoupdate.v1.AutoUpdateConfigSpecAgents.schedules:type_name -> teleport.autoupdate.v1.AgentAutoUpdateSchedules
+	8,  // 7: teleport.autoupdate.v1.AgentAutoUpdateSchedules.regular:type_name -> teleport.autoupdate.v1.AgentAutoUpdateGroup
+	25, // 8: teleport.autoupdate.v1.AutoUpdateVersion.metadata:type_name -> teleport.header.v1.Metadata
+	10, // 9: teleport.autoupdate.v1.AutoUpdateVersion.spec:type_name -> teleport.autoupdate.v1.AutoUpdateVersionSpec
+	11, // 10: teleport.autoupdate.v1.AutoUpdateVersionSpec.tools:type_name -> teleport.autoupdate.v1.AutoUpdateVersionSpecTools
+	12, // 11: teleport.autoupdate.v1.AutoUpdateVersionSpec.agents:type_name -> teleport.autoupdate.v1.AutoUpdateVersionSpecAgents
+	25, // 12: teleport.autoupdate.v1.AutoUpdateAgentRollout.metadata:type_name -> teleport.header.v1.Metadata
+	14, // 13: teleport.autoupdate.v1.AutoUpdateAgentRollout.spec:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRolloutSpec
+	15, // 14: teleport.autoupdate.v1.AutoUpdateAgentRollout.status:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus
+	26, // 15: teleport.autoupdate.v1.AutoUpdateAgentRolloutSpec.maintenance_window_duration:type_name -> google.protobuf.Duration
+	16, // 16: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus.groups:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup
+	2,  // 17: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus.state:type_name -> teleport.autoupdate.v1.AutoUpdateAgentRolloutState
+	27, // 18: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus.start_time:type_name -> google.protobuf.Timestamp
+	27, // 19: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatus.time_override:type_name -> google.protobuf.Timestamp
+	27, // 20: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup.start_time:type_name -> google.protobuf.Timestamp
+	1,  // 21: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup.state:type_name -> teleport.autoupdate.v1.AutoUpdateAgentGroupState
+	27, // 22: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup.last_update_time:type_name -> google.protobuf.Timestamp
+	22, // 23: teleport.autoupdate.v1.AutoUpdateAgentRolloutStatusGroup.canaries:type_name -> teleport.autoupdate.v1.Canary
+	25, // 24: teleport.autoupdate.v1.AutoUpdateAgentReport.metadata:type_name -> teleport.header.v1.Metadata
+	18, // 25: teleport.autoupdate.v1.AutoUpdateAgentReport.spec:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpec
+	27, // 26: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.timestamp:type_name -> google.protobuf.Timestamp
+	23, // 27: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.groups:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpec.GroupsEntry
+	21, // 28: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.omitted:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpecOmitted
+	24, // 29: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup.versions:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup.VersionsEntry
+	19, // 30: teleport.autoupdate.v1.AutoUpdateAgentReportSpec.GroupsEntry.value:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup
+	20, // 31: teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroup.VersionsEntry.value:type_name -> teleport.autoupdate.v1.AutoUpdateAgentReportSpecGroupVersion
+	32, // [32:32] is the sub-list for method output_type
+	32, // [32:32] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_teleport_autoupdate_v1_autoupdate_proto_init() }
@@ -1835,7 +1915,7 @@ func file_teleport_autoupdate_v1_autoupdate_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_autoupdate_v1_autoupdate_proto_rawDesc), len(file_teleport_autoupdate_v1_autoupdate_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   0,
