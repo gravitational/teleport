@@ -276,6 +276,10 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) handleYamuxTunnel(c io.ReadWriteCloser, clientID *tlsca.Identity) error {
+	// this is a copy of the default config as returned by [yamux.DefaultConfig]
+	// at the time of writing with a slightly tighter timing for
+	// StreamOpenTimeout (because we expect the dialing stream open requests to
+	// be handled very promptly by the client) and our logger adapter
 	cfg := &yamux.Config{
 		AcceptBacklog: 128,
 
@@ -283,13 +287,19 @@ func (s *Server) handleYamuxTunnel(c io.ReadWriteCloser, clientID *tlsca.Identit
 		KeepAliveInterval:      30 * time.Second,
 		ConnectionWriteTimeout: 10 * time.Second,
 
+		// the window size defines a maximum throughput limit per stream based
+		// on the RTT but the relay is intended for use in low latency
+		// environments (it's the whole point of it) so unless we find a reason
+		// we will just stick with the default for now; the values can differ
+		// between client and server since they take effect on the receive
+		// direction of the stream
 		MaxStreamWindowSize: 256 * 1024,
 
-		StreamCloseTimeout: time.Minute,
+		StreamCloseTimeout: 5 * time.Minute,
 		StreamOpenTimeout:  30 * time.Second,
 
 		LogOutput: nil,
-		Logger:    (*yamuxLogger)(slog.Default()),
+		Logger:    (*yamuxLogger)(s.log),
 	}
 
 	session, err := yamux.Server(c, cfg)

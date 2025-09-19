@@ -345,6 +345,15 @@ func (c *Client) dialOnceGrouped(log *slog.Logger) error {
 			return cert, nil
 		},
 
+		// we're likely going to connect to a self-determined IP address, and we
+		// are not really going to get any benefit from allowing any
+		// self-determined address in IP SANs at join time just so we can verify
+		// them (or, even worse, requiring some general hostname based on the
+		// hostname), so instead we disregard the normal verification (which
+		// would enforce that the address is in the server cert's SANs) and we
+		// check that the server cert is valid for the Relay role; as a bonus,
+		// we get to be good clients and pass the appropriate SNI in our TLS
+		// ClientHello
 		InsecureSkipVerify: true,
 		VerifyConnection: func(cs tls.ConnectionState) error {
 			if cs.NegotiatedProtocol == "" {
@@ -377,6 +386,10 @@ func (c *Client) dialOnceGrouped(log *slog.Logger) error {
 			}
 			serverID = id
 
+			// multiple system roles (as used by the Instance cert) are
+			// currently only in SystemRoles (with Groups only containing the
+			// Instance role) for the sake of backwards compatibility, but
+			// there's no drawback to checking both
 			if !slices.Contains(id.Groups, string(types.RoleRelay)) &&
 				!slices.Contains(id.SystemRoles, string(types.RoleRelay)) {
 				return trace.BadParameter("dialed server is not a relay (roles %+q, system roles %+q)", id.Groups, id.SystemRoles)
@@ -387,6 +400,8 @@ func (c *Client) dialOnceGrouped(log *slog.Logger) error {
 			_, alreadyConnected := c.activeConnections[serverHostID]
 			c.mu.Unlock()
 			if alreadyConnected {
+				// by aborting the handshake here we reduce the cpu load on both
+				// client and server
 				return trace.AlreadyExists("relay %+q already claimed", serverHostID)
 			}
 
@@ -405,6 +420,10 @@ func (c *Client) dialOnceGrouped(log *slog.Logger) error {
 		return trace.Wrap(err)
 	}
 
+	// this is a copy of the default config as returned by [yamux.DefaultConfig]
+	// at the time of writing with a slightly tighter timing for
+	// StreamOpenTimeout (because we expect the control stream open request to
+	// be handled very promptly by the server) and our logger adapter
 	yamuxConfig := &yamux.Config{
 		AcceptBacklog: 128,
 
@@ -412,9 +431,15 @@ func (c *Client) dialOnceGrouped(log *slog.Logger) error {
 		KeepAliveInterval:      30 * time.Second,
 		ConnectionWriteTimeout: 10 * time.Second,
 
+		// the window size defines a maximum throughput limit per stream based
+		// on the RTT but the relay is intended for use in low latency
+		// environments (it's the whole point of it) so unless we find a reason
+		// we will just stick with the default for now; the values can differ
+		// between client and server since they take effect on the receive
+		// direction of the stream
 		MaxStreamWindowSize: 256 * 1024,
 
-		StreamCloseTimeout: time.Minute,
+		StreamCloseTimeout: 5 * time.Minute,
 		StreamOpenTimeout:  30 * time.Second,
 
 		LogOutput: nil,
