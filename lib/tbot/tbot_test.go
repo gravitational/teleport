@@ -52,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -943,11 +943,11 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rts, err := process.GetReverseTunnelServer()
 		require.NoError(t, err)
-		cluster, err := rts.Cluster(ctx, "root")
+		cluster, err := rts.GetSite("root")
 		require.NoError(t, err)
 		nw, err := cluster.NodeWatcher()
 		require.NoError(t, err)
-		got, err := nw.CurrentResourcesWithFilter(ctx, func(r readonly.Server) bool {
+		got := nw.GetNodes(ctx, func(r services.Node) bool {
 			return r.GetHostname() == "server01"
 		})
 		require.NoError(t, err)
