@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 const (
@@ -75,8 +76,8 @@ const (
 )
 
 var (
-	agentRepoURL        = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
-	agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
+	agentRepoURL        = teleportassets.HelmRepoURL()
+	agentStagingRepoURL = teleportassets.HelmStagingRepoURL()
 )
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil

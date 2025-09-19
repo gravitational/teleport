@@ -20,6 +20,7 @@ package fakeissuer
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -144,6 +145,24 @@ func (f *IDP) IssueToken(
 			Expiration: oidc.FromTime(expiry),
 		},
 		Kubernetes: k8s,
+	}
+
+	return f.signer.signWithClaims(claims)
+}
+
+// IssueKubeToken makes the IDP sign a token for a Kubernetes pod.
+func (f *IDP) IssueKubeToken(pod, namespace, serviceAccount, clusterName string) (string, error) {
+	now := f.signer.clock.Now()
+	claims := tokenclaims.OIDCServiceAccountClaims{
+		TokenClaims: oidc.TokenClaims{
+			Issuer:     f.IssuerURL(),
+			Subject:    fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccount),
+			Audience:   oidc.Audience{clusterName},
+			IssuedAt:   oidc.FromTime(now.Add(-time.Minute)),
+			NotBefore:  oidc.FromTime(now.Add(-time.Minute)),
+			Expiration: oidc.FromTime(now.Add(29 * time.Minute)),
+		},
+		Kubernetes: kubeClaims(pod, namespace, serviceAccount),
 	}
 
 	return f.signer.signWithClaims(claims)
