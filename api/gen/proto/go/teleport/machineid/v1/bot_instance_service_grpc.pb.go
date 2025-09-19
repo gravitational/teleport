@@ -34,10 +34,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BotInstanceService_GetBotInstance_FullMethodName    = "/teleport.machineid.v1.BotInstanceService/GetBotInstance"
-	BotInstanceService_ListBotInstances_FullMethodName  = "/teleport.machineid.v1.BotInstanceService/ListBotInstances"
-	BotInstanceService_DeleteBotInstance_FullMethodName = "/teleport.machineid.v1.BotInstanceService/DeleteBotInstance"
-	BotInstanceService_SubmitHeartbeat_FullMethodName   = "/teleport.machineid.v1.BotInstanceService/SubmitHeartbeat"
+	BotInstanceService_GetBotInstance_FullMethodName     = "/teleport.machineid.v1.BotInstanceService/GetBotInstance"
+	BotInstanceService_ListBotInstances_FullMethodName   = "/teleport.machineid.v1.BotInstanceService/ListBotInstances"
+	BotInstanceService_DeleteBotInstance_FullMethodName  = "/teleport.machineid.v1.BotInstanceService/DeleteBotInstance"
+	BotInstanceService_SubmitHeartbeat_FullMethodName    = "/teleport.machineid.v1.BotInstanceService/SubmitHeartbeat"
+	BotInstanceService_BotInstanceMetrics_FullMethodName = "/teleport.machineid.v1.BotInstanceService/BotInstanceMetrics"
 )
 
 // BotInstanceServiceClient is the client API for BotInstanceService service.
@@ -54,6 +55,8 @@ type BotInstanceServiceClient interface {
 	DeleteBotInstance(ctx context.Context, in *DeleteBotInstanceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SubmitHeartbeat submits a heartbeat for a BotInstance.
 	SubmitHeartbeat(ctx context.Context, in *SubmitHeartbeatRequest, opts ...grpc.CallOption) (*SubmitHeartbeatResponse, error)
+	// BotInstanceMetrics returns the pre-aggregated metrics about BotInstances.
+	BotInstanceMetrics(ctx context.Context, in *BotInstanceMetricsRequest, opts ...grpc.CallOption) (*BotInstanceMetricsResponse, error)
 }
 
 type botInstanceServiceClient struct {
@@ -104,6 +107,16 @@ func (c *botInstanceServiceClient) SubmitHeartbeat(ctx context.Context, in *Subm
 	return out, nil
 }
 
+func (c *botInstanceServiceClient) BotInstanceMetrics(ctx context.Context, in *BotInstanceMetricsRequest, opts ...grpc.CallOption) (*BotInstanceMetricsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BotInstanceMetricsResponse)
+	err := c.cc.Invoke(ctx, BotInstanceService_BotInstanceMetrics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BotInstanceServiceServer is the server API for BotInstanceService service.
 // All implementations must embed UnimplementedBotInstanceServiceServer
 // for forward compatibility.
@@ -118,6 +131,8 @@ type BotInstanceServiceServer interface {
 	DeleteBotInstance(context.Context, *DeleteBotInstanceRequest) (*emptypb.Empty, error)
 	// SubmitHeartbeat submits a heartbeat for a BotInstance.
 	SubmitHeartbeat(context.Context, *SubmitHeartbeatRequest) (*SubmitHeartbeatResponse, error)
+	// BotInstanceMetrics returns the pre-aggregated metrics about BotInstances.
+	BotInstanceMetrics(context.Context, *BotInstanceMetricsRequest) (*BotInstanceMetricsResponse, error)
 	mustEmbedUnimplementedBotInstanceServiceServer()
 }
 
@@ -139,6 +154,9 @@ func (UnimplementedBotInstanceServiceServer) DeleteBotInstance(context.Context, 
 }
 func (UnimplementedBotInstanceServiceServer) SubmitHeartbeat(context.Context, *SubmitHeartbeatRequest) (*SubmitHeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SubmitHeartbeat not implemented")
+}
+func (UnimplementedBotInstanceServiceServer) BotInstanceMetrics(context.Context, *BotInstanceMetricsRequest) (*BotInstanceMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BotInstanceMetrics not implemented")
 }
 func (UnimplementedBotInstanceServiceServer) mustEmbedUnimplementedBotInstanceServiceServer() {}
 func (UnimplementedBotInstanceServiceServer) testEmbeddedByValue()                            {}
@@ -233,6 +251,24 @@ func _BotInstanceService_SubmitHeartbeat_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BotInstanceService_BotInstanceMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BotInstanceMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BotInstanceServiceServer).BotInstanceMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BotInstanceService_BotInstanceMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BotInstanceServiceServer).BotInstanceMetrics(ctx, req.(*BotInstanceMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BotInstanceService_ServiceDesc is the grpc.ServiceDesc for BotInstanceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -255,6 +291,10 @@ var BotInstanceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SubmitHeartbeat",
 			Handler:    _BotInstanceService_SubmitHeartbeat_Handler,
+		},
+		{
+			MethodName: "BotInstanceMetrics",
+			Handler:    _BotInstanceService_BotInstanceMetrics_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
