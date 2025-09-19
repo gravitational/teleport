@@ -18,7 +18,13 @@
 
 import React from 'react';
 
-import { ButtonBorder, ButtonPrimary, ButtonWithMenu, MenuItem } from 'design';
+import {
+  ButtonBorder,
+  ButtonPrimary,
+  ButtonWithMenu,
+  Flex,
+  MenuItem,
+} from 'design';
 import {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
@@ -138,7 +144,12 @@ export function ConnectKubeActionButton(props: {
   }
 
   return (
-    <ButtonBorder textTransform="none" size="small" onClick={connect}>
+    <ButtonBorder
+      textTransform="none"
+      size="small"
+      onClick={connect}
+      width={buttonWidth}
+    >
       Connect
     </ButtonBorder>
   );
@@ -213,6 +224,7 @@ export function ConnectDatabaseActionButton(props: {
       )}
       textTransform="none"
       width="195px"
+      buttonWidth={buttonWidth}
       getLoginItems={() => getDatabaseUsers(appContext, props.database.uri)}
       onSelect={(_, user) => {
         connect(user);
@@ -422,7 +434,7 @@ export function AccessRequestButton(props: {
   return props.isResourceAdded ? (
     <ButtonPrimary
       textTransform="none"
-      width="124px"
+      width={buttonWidth}
       size="small"
       onClick={props.onClick}
     >
@@ -431,7 +443,7 @@ export function AccessRequestButton(props: {
   ) : (
     <ButtonBorder
       textTransform="none"
-      width="124px"
+      width={buttonWidth}
       size="small"
       onClick={props.onClick}
     >
@@ -455,23 +467,26 @@ export function ConnectWindowsDesktopActionButton(props: {
   }
 
   return (
-    <MenuLogin
-      textTransform="none"
-      width="195px"
-      getLoginItems={() =>
-        props.windowsDesktop.logins.map(l => ({ login: l, url: '' }))
-      }
-      onSelect={(_, user) => {
-        connect(user);
-      }}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'right',
-      }}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'right',
-      }}
-    />
+    <Flex width={buttonWidth}>
+      <MenuLogin
+        textTransform="none"
+        width="195px"
+        buttonWidth={buttonWidth}
+        getLoginItems={() =>
+          props.windowsDesktop.logins.map(l => ({ login: l, url: '' }))
+        }
+        onSelect={(_, user) => {
+          connect(user);
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+      />
+    </Flex>
   );
 }
