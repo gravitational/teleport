@@ -71,7 +71,7 @@ func TestIdentityCenterAccount(t *testing.T) {
 		deleteAll: fixturePack.identityCenter.DeleteAllIdentityCenterAccounts,
 		cacheList: fixturePack.cache.ListIdentityCenterAccounts2,
 		cacheGet:  fixturePack.cache.GetIdentityCenterAccount,
-	}, withSkipPaginationTest())
+	})
 }
 
 func newIdentityCenterPrincipalAssignment(id string) *identitycenterv1.PrincipalAssignment {
@@ -123,7 +123,7 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 			r, err := fixturePack.cache.GetPrincipalAssignment(ctx, services.PrincipalAssignmentID(id))
 			return r, trace.Wrap(err)
 		},
-	}, withSkipPaginationTest())
+	})
 }
 
 func newIdentityCenterAccountAssignment(id string) *identitycenterv1.AccountAssignment {
@@ -174,5 +174,5 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 			r, err := fixturePack.cache.GetAccountAssignment(ctx, services.IdentityCenterAccountAssignmentID(id))
 			return r.AccountAssignment, trace.Wrap(err)
 		},
-	}, withSkipPaginationTest())
+	})
 }

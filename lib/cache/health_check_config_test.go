@@ -65,5 +65,5 @@ func TestHealthCheckConfig(t *testing.T) {
 		deleteAll: p.healthCheckConfig.DeleteAllHealthCheckConfigs,
 		cacheList: p.cache.ListHealthCheckConfigs,
 		cacheGet:  p.cache.GetHealthCheckConfig,
-	}, withSkipPaginationTest())
+	})
 }
