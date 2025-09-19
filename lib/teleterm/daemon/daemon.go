@@ -885,8 +885,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		kubeGw.ClearCerts()
 	}
 
-	// We have to reconnect using the updated cert.
-	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
+	return nil
 }
 
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
