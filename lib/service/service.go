@@ -3433,6 +3433,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		var agentPool *reversetunnel.AgentPool
+		var relayTunnelClient *relaytunnel.Client
 		if useLocalListener {
 			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
@@ -3518,10 +3519,32 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), "Service is configured for relay tunnel mode but the agent is running in direct connection mode, so the configured relay will be ignored.")
 		}
 		if conn.UseTunnel() && cfg.RelayServer != "" {
-			// TODO(espadolini): replace this with the relay tunnel client
-			// implementation, which will make use of SetRelayInfo
-			_ = relayInfoHolder.SetRelayInfo
-			panic("relay tunnel mode is not implemented")
+			var serverHandler reversetunnel.ServerHandler = s
+			if resumableServer != nil {
+				serverHandler = resumableServer
+			}
+
+			relayTunnelClient, err = relaytunnel.NewClient(relaytunnel.ClientConfig{
+				Log: logger,
+
+				GetCertificate: conn.ClientGetCertificate,
+				GetPool:        conn.ClientGetPool,
+				Ciphersuites:   cfg.CipherSuites,
+
+				TunnelType: types.NodeTunnel,
+				RelayAddr:  cfg.RelayServer,
+
+				HandleConnection: serverHandler.HandleConnection,
+				RelayInfoSetter:  relayInfoHolder.SetRelayInfo,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := relayTunnelClient.Start(); err != nil {
+				return trace.Wrap(err)
+			}
+			defer relayTunnelClient.Close()
+			logger.InfoContext(process.ExitContext(), "Service is starting in relay tunnel mode.")
 		}
 
 		// Broadcast that the node has started.
@@ -3550,6 +3573,9 @@ func (process *TeleportProcess) initSSH() error {
 		s.Wait()
 		agentPool.Stop()
 		agentPool.Wait()
+		if relayTunnelClient != nil {
+			relayTunnelClient.Close()
+		}
 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil

@@ -160,6 +160,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
 	github.com/guptarohit/asciigraph v0.7.3
 	github.com/hashicorp/golang-lru/v2 v2.0.7
+	github.com/hashicorp/yamux v0.1.2
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/icza/mjpeg v0.0.0-20230330134156-38318e5ab8f4
 	github.com/jackc/pgconn v1.14.3
