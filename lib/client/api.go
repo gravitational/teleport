@@ -2680,7 +2680,7 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, clt *ClusterClient,
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(nodeClient.TransferFiles(ctx, cfg))
+	return trace.Wrap(nodeClient.TransferFiles(ctx, cfg, "" /*moderatedSessionID*/))
 }
 
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster

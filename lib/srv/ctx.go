@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
@@ -693,6 +694,7 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 		DisplayParticipantRequirements: utils.AsBool(c.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
 		JoinSessionID:                  c.env[sshutils.SessionEnvVar],
 		JoinMode:                       types.SessionParticipantMode(c.env[teleport.EnvSSHJoinMode]),
+		ModeratedSessionID:             c.env[sftp.EnvModeratedSessionID],
 	}
 
 	if invitedUsers := c.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {

@@ -58,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -482,11 +481,10 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 }
 
 func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, error) {
-	// If the TELEPORT_MODERATED_SESSION_ID environment variable was not
-	// set, return not approved and no error. This means the file
-	// transfer came from a non-moderated session. sessionID will be
-	// passed after a moderated session approval process has completed.
-	sessID, _ := scx.GetEnv(string(sftp.ModeratedSessionID))
+	// If the ModeratedSessionID param was not provided, return not approved
+	// and no error. This means the file transfer came from a non-moderated session.
+	// sessionID will be passed after a moderated session approval process has completed.
+	sessID := scx.GetSessionParams().ModeratedSessionID
 	if sessID == "" {
 		return false, nil
 	}
