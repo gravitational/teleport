@@ -1687,6 +1687,11 @@
       "source": "/zero-trust-access/sso/azuread/",
       "destination": "/zero-trust-access/sso/entra-id/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/aws-console-without-agent/",
+      "destination": "/enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere/",
+      "permanent": true
     }
   ]
 }
