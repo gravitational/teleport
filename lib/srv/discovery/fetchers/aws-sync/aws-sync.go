@@ -27,6 +27,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
@@ -132,6 +133,8 @@ type awsClientProvider interface {
 	getSTSClient(cfg aws.Config, optFns ...func(*sts.Options)) stsClient
 	// getKMSClient provides a [kmsClient].
 	getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient
+	// getCloudWatchLogsClient provides a [cwlClient].
+	getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cwlClient
 }
 
 type defaultAWSClients struct{}
@@ -154,6 +157,10 @@ func (defaultAWSClients) getSTSClient(cfg aws.Config, optFns ...func(*sts.Option
 
 func (defaultAWSClients) getKMSClient(cfg aws.Config, optFns ...func(*kms.Options)) kmsClient {
 	return kms.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getCloudWatchLogsClient(cfg aws.Config, optFns ...func(*cloudwatchlogs.Options)) cwlClient {
+	return cloudwatchlogs.NewFromConfig(cfg, optFns...)
 }
 
 // AssumeRole is the configuration for assuming an AWS role.

@@ -518,6 +518,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 	eksAuditLogClustersCh := make(chan []eksAuditLogCluster)
 
 	if cfg.AccessGraphConfig.Enabled {
+		go s.initEKSAuditLogWatcher(ctx, eksAuditLogClustersCh)
 		go func() {
 			reloadCh := s.newDiscoveryConfigChangedSub()
 			for {
@@ -882,7 +883,7 @@ func (s *Server) receiveTAGResumeFromStream(ctx context.Context, stream accessgr
 	return nil
 }
 
-func consumeTillErr(stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailStreamClient) error {
+func consumeTillErr[Req any, Res any](stream grpc.BidiStreamingClient[Req, Res]) error {
 	for {
 		_, err := stream.Recv()
 		if err != nil {
