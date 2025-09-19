@@ -1378,7 +1378,18 @@ func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	if len(loginHooks) == 0 {
 		return nil
 	}
-
+	// Clone the input user so that hooks never mutate the original object.
+	//
+	// Currently, login hook share state via UserLoginState resources.
+	// The login hook calls GetUserLoginState to read the state, updates it,
+	// and then saves the changes  when a next looking hood loads the state from storage.
+	//
+	// Note: We intentionally do not write access-list–derived roles/traits back
+	// to the user record. Doing so could create inconsistencies with user objects
+	// provisioned by Entra ID / Okta Sync or via SCIM. If we choose to persist
+	// these attributes in the future, we should first define a single source of
+	// truth and a clear reconciliation strategy.
+	user = user.Clone()
 	var errs []error
 	for _, hook := range loginHooks {
 		errs = append(errs, hook(ctx, user))
