@@ -500,7 +500,7 @@ const cfg = {
 
     botInstance: {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
-      list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+      list: '/v2/webapi/sites/:clusterId/machine-id/bot-instance',
     },
 
     gcpWorkforceConfigurePath:

@@ -18,25 +18,20 @@
 
 import { http, HttpResponse } from 'msw';
 
+import cfg from 'teleport/config';
 import {
   GetBotInstanceResponse,
   ListBotInstancesResponse,
 } from 'teleport/services/bot/types';
 
-const listBotInstancesPath =
-  '/v1/webapi/sites/:cluster_id/machine-id/bot-instance';
-
-const getBotInstancePath =
-  '/v1/webapi/sites/:cluster_id/machine-id/bot/:bot_name/bot-instance/:id';
-
 export const listBotInstancesSuccess = (mock: ListBotInstancesResponse) =>
-  http.get(listBotInstancesPath, () => {
+  http.get(cfg.api.botInstance.list, () => {
     return HttpResponse.json(mock);
   });
 
 export const listBotInstancesForever = () =>
   http.get(
-    listBotInstancesPath,
+    cfg.api.botInstance.list,
     () =>
       new Promise(() => {
         /* never resolved */
@@ -47,16 +42,16 @@ export const listBotInstancesError = (
   status: number,
   error: string | null = null
 ) =>
-  http.get(listBotInstancesPath, () => {
+  http.get(cfg.api.botInstance.list, () => {
     return HttpResponse.json({ error: { message: error } }, { status });
   });
 
 export const getBotInstanceSuccess = (mock: GetBotInstanceResponse) =>
-  http.get(getBotInstancePath, () => {
+  http.get(cfg.api.botInstance.read, () => {
     return HttpResponse.json(mock);
   });
 
 export const getBotInstanceError = (status: number) =>
-  http.get(getBotInstancePath, () => {
+  http.get(cfg.api.botInstance.read, () => {
     return new HttpResponse(null, { status });
   });

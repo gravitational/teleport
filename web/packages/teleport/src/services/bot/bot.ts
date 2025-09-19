@@ -176,12 +176,14 @@ export async function listBotInstances(
     pageToken: string;
     pageSize: number;
     searchTerm?: string;
-    sort?: string;
+    sortField?: string;
+    sortDir?: string;
     botName?: string;
   },
   signal?: AbortSignal
 ) {
-  const { pageToken, pageSize, searchTerm, sort, botName } = variables;
+  const { pageToken, pageSize, searchTerm, sortField, sortDir, botName } =
+    variables;
 
   const path = cfg.getBotInstanceUrl({ action: 'list' });
   const qs = new URLSearchParams();
@@ -191,8 +193,11 @@ export async function listBotInstances(
   if (searchTerm) {
     qs.set('search', searchTerm);
   }
-  if (sort) {
-    qs.set('sort', sort);
+  if (sortField) {
+    qs.set('sort_field', sortField);
+  }
+  if (sortDir) {
+    qs.set('sort_dir', sortDir);
   }
   if (botName) {
     qs.set('bot_name', botName);
