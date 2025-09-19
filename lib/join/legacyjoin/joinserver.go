@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package joinserver contains the implementation of the JoinService gRPC server
-// which runs on both Auth and Proxy.
-package joinserver
+// Package legacyjoin contains the implementation of the legacy JoinService
+// gRPC server which runs on both Auth and Proxy.
+package legacyjoin
 
 import (
 	"context"
@@ -66,12 +66,16 @@ type joinServiceClient interface {
 	) (*proto.Certs, error)
 }
 
-// JoinServiceGRPCServer implements proto.JoinServiceServer and is designed
-// to run on both the Teleport Proxy and Auth servers.
+// JoinServiceGRPCServer implements the legacy proto.JoinServiceServer and is
+// designed to run on both the Teleport Proxy and Auth servers.
 //
 // On the Proxy, this uses a gRPC client to forward the request to the Auth
 // server. On the Auth Server, this is passed to auth.ServerWithRoles and
 // through to auth.Server to be handled.
+//
+// This is being phased out in favor of lib/join/joinv1.Service, but it will
+// remain here for a while for backward compat (ETA pending until we figure out
+// an LTS strategy).
 type JoinServiceGRPCServer struct {
 	proto.UnimplementedJoinServiceServer
 
@@ -496,6 +500,6 @@ func (s *JoinServiceGRPCServer) handleStreamingRegistration(ctx context.Context,
 			joinMethod, joinRequestTimeout,
 		)
 	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
+		return trace.Wrap(context.Cause(ctx))
 	}
 }
