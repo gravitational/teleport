@@ -353,7 +353,7 @@ As we've configured `tbot` to use its built-in `ssh-multiplexer` service,
 connections will still be multiplexed - by Teleport instead of OpenSSH - and
 performance should be equivalent.
 
-Next, start with this simple playbook example:
+Next, start with this simple `hello_world.yml` playbook example:
 
 ```yaml
 - name: Hello World Sample
@@ -402,6 +402,26 @@ non-Teleport SSH hosts. In this case, make sure your playbooks still check to
 make certain the Teleport `ssh_config` is ready for use before trying to connect
 to hosts.
 
+Once ready, do the following to run the playbook using the new `tbot`-enabled
+container group in an AWX job:
+1. Commit these two files to a Git repository
+2. Create a new project pointing to it in your AWX dashboard and ensure it is
+   synced to your Git repository.
+3. Create a new job template and configure the following values:
+   - Select the inventory you created in step 4 using the selection dialog
+   - Select the project you just created in the selection dialog
+   - Select the `hello_world.yml` playbook from the drop-down
+   - Select the instance group you created in step 3 in the selection dialog
+   - To see node hostname output, select verbosity level "1 (Verbose)" from the
+     drop-down
+4. Perform any additional customizations you might need, depending on your
+   environment
+
+Once finished, save the new job template. On the resulting details page, select
+"Launch" to run the job. If successful, you should see a successful job run. If
+verbose logging was enabled, you should see `"stdout": "$hostname"` in the log
+output for each inventory node.
+
 ## Troubleshooting
 
 ### Ansible fails to connect to Teleport hosts with an error like: "Shared connection to foo.example.teleport.sh closed."
@@ -420,6 +440,10 @@ We've configured the `tbot` client to provide its own multiplexer (via the
 `ssh-multiplexer` service), so performance should be equivalent.
 
 ## Next Steps
+
+- Learn more about [deploying Machine ID in Kubernetes](../deployment/kubernetes.mdx)
+- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
+  all the available configuration options.
 
 {/* see also: https://github.com/ansible/awx-logos/blob/master/TRADEMARKS.md */}
 
