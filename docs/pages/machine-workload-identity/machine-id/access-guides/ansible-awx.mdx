@@ -14,10 +14,13 @@ ID can provide short-lived certificates to Ansible jobs run via AWX that allow
 the job to connect to SSH nodes enrolled in Teleport in a secure and auditable
 manner.
 
-In this guide, you will configure a container group to run Machine ID's `tbot`
-client as a sidecar to provide credentials and a high-performance proxy to your
-existing Ansible AWX jobs, and then configure Ansible to use these credentials
-to connect to SSH nodes through the Teleport Proxy Service.
+## How it works
+
+In this guide, you will configure a container group in Ansible AWX to run
+Machine ID's `tbot` client as a sidecar, which will provide credentials
+and a high-performance multiplexing proxy to your Ansible AWX jobs. You'll then
+configure Ansible to use these credentials to connect to SSH nodes through the
+Teleport Proxy Service.
 
 ## Prerequisites
 
@@ -25,19 +28,15 @@ to connect to SSH nodes through the Teleport Proxy Service.
 
 - A working Ansible AWX installation (or Ansible Tower, or Ansible Automation
   Platform)
-
 - You must have permissions to create a new container group.
-
 - This guide does not apply to instance groups running outside of Kubernetes:
   these can be treated as traditional Ansible nodes and should follow our
   [traditional Ansible guide](./ansible.mdx) instead.
-
 - While not required, you may wish to read our guides on [Deploying tbot
   in Kubernetes](../deployment/kubernetes.mdx) or [Deploying tbot in
   Kubernetes with OIDC](../deployment/kubernetes-oidc.mdx) to learn more about
   how to deploy Machine ID in Kubernetes, which is the foundation of the steps
   we'll be taking in this guide.
-
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Configure Teleport resources
@@ -189,11 +188,9 @@ guide, and what alternatives you might consider when implementing this yourself:
    binaries into an arbitrary execution environment (like `awx-ee`), but if you
    build your own EE, you can instead install these Teleport binaries into your
    EE directly and will not need to use an `initContainer`.
-
 2. A `tbot` sidecar is added to connect to Teleport, fetch and update SSH
    credentials, and provide an `ssh-multiplexer` socket to enable efficient SSH
    connections to your SSH hosts managed by Teleport.
-
 3. Four additional volumes are be added to the pod spec:
    1. A projected service account token (`join-sa-token`), used for [Kubernetes
       joining](../deployment/kubernetes.mdx)
@@ -202,7 +199,6 @@ guide, and what alternatives you might consider when implementing this yourself:
       credentials
    4. A `configMap` volume (`tbot-config`) to contain a YAML configuration used
       for the `tbot` sidecar
-
 4. Several volume mounts are added:
    1. The `tbot-binaries` volume is mounted to both the "tbot-installer"
       `initContainer` and the `awx-ee` worker container so your Ansible job can
