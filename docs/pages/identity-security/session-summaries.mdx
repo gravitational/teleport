@@ -13,13 +13,23 @@ what your users do and estimate legitimacy of their actions before digging
 deeper and reviewing the entire recording.
 
 <Admonition type="note">
-Session Recording Summaries are available only to Teleport Enterprise (Self-Hosted)
-customers with Teleport Identity Security. 
+**Session Recording Summaries and AI Usage**
+Session Recording Summaries are available to Teleport Enterprise customers with Teleport Identity Security.
 
-Session Recording Summaries will be coming soon to Teleport Enterprise (Cloud) customers 
-with Teleport Identity Security. If you would like an [early preview; please get in touch](https://goteleport.com/contact-sales/).
+**Important**: AI-powered summarization is **disabled by default** in all Teleport deployments 
+(both self-hosted and cloud). No AI processing occurs unless you explicitly enable this feature. 
 
-[Learn more about the features included in Teleport Identity Security](../feature-matrix.mdx#teleport-identity-security).
+When you choose to enable summarization:
+
+- For Teleport Enterprise (Self-hosted): You configure and manage your own AI integration. Using OpenAI or 
+OpenAI compatible LLMs gateways such as Lite LMM.
+- For Teleport Enterprise (Cloud) with Identity Security: Session Recording Summarization can be enabled 
+with your own OpenAI key. Later this year, Teleport Enterprise (Cloud) will provide summarization via AWS Bedrock. 
+
+This ensures you have complete control over whether and how AI is used with your session recordings.
+
+Existing customers will never have AI features automatically enabled without explicit consent.
+Learn more about the features included in [Teleport Identity Security](https://goteleport.com/platform/identity-security/).
 </Admonition>
 
 ## How it works
