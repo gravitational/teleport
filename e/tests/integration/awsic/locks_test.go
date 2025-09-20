@@ -36,15 +36,18 @@ func TestLockHandling(t *testing.T) {
 
 	require.EventuallyWithT(t,
 		func(c *assert.CollectT) {
-			assertSCIMUsersExist(ctx, c, client.ViaSCIM(), "alice", "bob")
-			assertRole(ctx, c, auth, "admin-on-account1-1111111111",
+			requireSCIMUsersExist(ctx, c, client.ViaSCIM(), "alice", "bob")
+			requireRole(ctx, c, auth, "admin-on-account1-1111111111",
 				hasAllowAccountAssignments(
 					types.IdentityCenterAccountAssignment{
 						Account:       "1111111111",
 						PermissionSet: "arn:aws:sso:::permissionSet/Admin",
 					}))
 		},
-		time.Second*3, time.Millisecond*30)
+		// Initial Identity Center startup takes a while to run, especially under
+		// the flakey test detector, so we give this more than the usual 3s to run
+		10*time.Second, 100*time.Millisecond,
+		"Initial state setup failed or timed out")
 
 	// WHEN I grant Bob an account assignment via a role
 	mustUpdateUser(ctx, t, auth, "bob",
@@ -56,7 +59,7 @@ func TestLockHandling(t *testing.T) {
 	// EXPECT that the corresponding Account Assignments are created in AWS
 	require.EventuallyWithT(t,
 		func(c *assert.CollectT) {
-			assertICUser(ctx, c, client.ViaAPI(), "bob",
+			requireICUser(ctx, c, client.ViaAPI(), "bob",
 				hasAccountAssignments(
 					&icsdk.Assignment{
 						AccountID:        "1111111111",

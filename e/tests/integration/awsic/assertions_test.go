@@ -3,7 +3,6 @@ package awsic
 import (
 	"context"
 	"slices"
-	"testing"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/gravitational/trace"
@@ -81,6 +80,9 @@ func assertSCIMUsers(ctx context.Context, t assert.TestingT, client scimsdk.Clie
 // requireSCIMUsers asserts that the SCIM service user list includes the supplied
 // users by name, and ONLY those users. Aborts the test immediately on failure.
 func requireSCIMUsers(ctx context.Context, t require.TestingT, client scimsdk.Client, expectedUsers ...string) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	if assertSCIMUsers(ctx, t, client, expectedUsers...) {
 		return
 	}
@@ -89,7 +91,7 @@ func requireSCIMUsers(ctx context.Context, t require.TestingT, client scimsdk.Cl
 
 // assertSCIMUsersExist asserts that the SCIM service user list includes the supplied
 // users by name. The test is not exclusive, meaning the SCIM service may have
-// other users as well Takes an [assert.TestingT] rathe than a [require.TestingT]
+// other users as well. Takes an [assert.TestingT] rather than a [require.TestingT]
 // in order to be usable inside a [require.EventuallyWithT] callback.
 func assertSCIMUsersExist(ctx context.Context, t assert.TestingT, client scimsdk.Client, expectedUsers ...string) bool {
 	required := set.New(expectedUsers...)
@@ -100,6 +102,19 @@ func assertSCIMUsersExist(ctx context.Context, t assert.TestingT, client scimsdk
 		required.Remove(scimUser.UserName)
 	}
 	return assert.Empty(t, required)
+}
+
+// requireSCIMUsersExist asserts that the SCIM service user list includes the supplied
+// users by name, immediately failing the test if the supplied users don't exist.
+// The test is not exclusive, meaning the SCIM service may have other users as well.
+func requireSCIMUsersExist(ctx context.Context, t require.TestingT, client scimsdk.Client, expectedUsers ...string) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+	if assertSCIMUsersExist(ctx, t, client, expectedUsers...) {
+		return
+	}
+	t.FailNow()
 }
 
 func assertSCIMGroupsByDisplayName(ctx context.Context, t assert.TestingT, client scimsdk.Client, expectedDisplayNames ...string) bool {
@@ -166,8 +181,10 @@ func assertSCIMGroup(ctx context.Context, t assert.TestingT, client scimsdk.Clie
 // requireSCIMGroup asserts the existence of a SCIM group with a given display name,
 // and runs the supplied assertions on it. Immediately fails the test if any
 // assertions fail.
-func requireSCIMGroup(ctx context.Context, t *testing.T, client scimsdk.Client, displayName string, assertions ...scimGroupAssertion) {
-	t.Helper()
+func requireSCIMGroup(ctx context.Context, t require.TestingT, client scimsdk.Client, displayName string, assertions ...scimGroupAssertion) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	if assertSCIMGroup(ctx, t, client, displayName, assertions...) {
 		return
 	}
@@ -236,8 +253,10 @@ func assertNoPrincipalAssignment(ctx context.Context, t assert.TestingT, getter 
 // requirePrincipalAssignment asserts that an Identity Center Principal Assignment
 // record exists for the supplied principal ID, and runs the supplied assertions
 // on it.
-func requirePrincipalAssignment(ctx context.Context, t *testing.T, getter services.IdentityCenterPrincipalAssignments, id services.PrincipalAssignmentID, assertions ...principalAssignmentAssertion) {
-	t.Helper()
+func requirePrincipalAssignment(ctx context.Context, t require.TestingT, getter services.IdentityCenterPrincipalAssignments, id services.PrincipalAssignmentID, assertions ...principalAssignmentAssertion) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	if assertPrincipalAssignment(ctx, t, getter, id, assertions...) {
 		return
 	}
@@ -273,8 +292,10 @@ func assertSCIMProvisioningState(ctx context.Context, t assert.TestingT, getter 
 	return true
 }
 
-func requireSCIMProvisioningState(ctx context.Context, t *testing.T, getter services.ProvisioningStates, id services.ProvisioningStateID, assertions ...scimProvisioningStateAssertion) {
-	t.Helper()
+func requireSCIMProvisioningState(ctx context.Context, t require.TestingT, getter services.ProvisioningStates, id services.ProvisioningStateID, assertions ...scimProvisioningStateAssertion) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	if assertSCIMProvisioningState(ctx, t, getter, id, assertions...) {
 		return
 	}
@@ -314,6 +335,18 @@ func assertRole(ctx context.Context, t assert.TestingT, rolesSvc services.RoleGe
 	return true
 }
 
+// assertRole asserts that the names Teleport role exists, and runs the supplied
+// assertions on it.
+func requireRole(ctx context.Context, t require.TestingT, rolesSvc services.RoleGetter, roleName string, roleAssertions ...roleAssertion) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+	if assertRole(ctx, t, rolesSvc, roleName, roleAssertions...) {
+		return
+	}
+	t.FailNow()
+}
+
 type icUserAssertion func(context.Context, assert.TestingT, icsdk.Client, *icsdk.User) bool
 
 func hasAccountAssignments(expected ...*icsdk.Assignment) icUserAssertion {
@@ -326,6 +359,9 @@ func hasAccountAssignments(expected ...*icsdk.Assignment) icUserAssertion {
 	}
 }
 
+// assertICUser asserts that a user with the given name exists in the Identity Center
+// instance, and runs the supplied assertions on it. The function will return on
+// the first failed assertion.
 func assertICUser(ctx context.Context, t assert.TestingT, client icsdk.Client, username string, assertions ...icUserAssertion) bool {
 	users, err := client.ListUsers(ctx)
 	if !assert.NoError(t, err) {
@@ -342,4 +378,17 @@ func assertICUser(ctx context.Context, t assert.TestingT, client icsdk.Client, u
 		}
 	}
 	return true
+}
+
+// requireICUser  asserts that a user with the given name exists in the Identity Center
+// instance and runs the supplied assertions on it, immediately failing the test
+// if any assertion fails.
+func requireICUser(ctx context.Context, t require.TestingT, client icsdk.Client, username string, assertions ...icUserAssertion) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+	if assertICUser(ctx, t, client, username, assertions...) {
+		return
+	}
+	t.FailNow()
 }

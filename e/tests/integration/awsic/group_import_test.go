@@ -19,6 +19,8 @@ import (
 )
 
 func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
+	ctx := t.Context()
+
 	mockIC := icsdk.NewClientMock(nil)
 	mockSCIM := scimsdk.NewSCIMClientMock()
 	setupMockAWSICEnvironment(t, mockIC, mockSCIM)
@@ -35,21 +37,28 @@ func TestAWSGroupImportCreatesAccessLists(t *testing.T) {
 
 	mustSetupAWSIdentityCenterIntegration(t, aliceClient.AuthClient)
 
-	ctx := t.Context()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	// On the first run through, the underlying SCIM provisioner has to adopt
+	// the downstream groups before the IC permissions calculator and provisioner
+	// even get started on them. This can take a while in resource-constrained
+	// environments (like the flaky test detector), so we need to give
+	// this assertion a bit more time than the regular `require.Eventually()` 3
+	// seconds
 
-		accounts, _, err := auth.ListIdentityCenterAccounts(ctx, 0, "")
-		require.NoError(t, err)
-		require.Len(t, mockIC.Accounts, len(accounts))
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			accounts, _, err := auth.ListIdentityCenterAccounts(ctx, 0, "")
+			require.NoError(t, err)
+			require.Len(t, mockIC.Accounts, len(accounts))
 
-		permissionSet, _, err := auth.ListPermissionSets(ctx, 0, "")
-		require.NoError(t, err)
-		require.Len(t, mockIC.PermissionSets, len(permissionSet))
+			permissionSet, _, err := auth.ListPermissionSets(ctx, 0, "")
+			require.NoError(t, err)
+			require.Len(t, mockIC.PermissionSets, len(permissionSet))
 
-		accList, _, err := auth.ListAccessLists(ctx, 0, "")
-		require.NoError(t, err)
-		require.Len(t, mockIC.Groups, len(accList))
-	}, time.Second*3, time.Millisecond*30)
+			accList, _, err := auth.ListAccessLists(ctx, 0, "")
+			require.NoError(t, err)
+			require.Len(t, mockIC.Groups, len(accList))
+		},
+		10*time.Second, 100*time.Millisecond)
 
 	mustUpdatePlugin(t, aliceClient.AuthClient, func(plugin *types.PluginAWSICSettings) {
 		plugin.AwsAccountsFilters = []*types.AWSICResourceFilter{{Include: &types.AWSICResourceFilter_Id{Id: "1111111111"}}}
@@ -192,38 +201,48 @@ func TestImportedGroupsAreNotDeletedOnFilterChange(t *testing.T) {
 	// EXPECT the plugin to start up, and that eventually
 	//  - all of the IC users are adopted by Teleport, and
 	//  - all of the IC groups are imported into Teleport
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// EXPECT that Teleport has adopted the Identity Center users and correctly
-		// bound them to their corresponding Teleport users
-		for _, icUser := range expectedUsers {
-			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForUserName(icUser.UserName),
-				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
-				hasExternalID(icUser.ID),
-			)
-		}
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			// EXPECT that Teleport has adopted the Identity Center users and correctly
+			// bound them to their corresponding Teleport users
+			for _, icUser := range expectedUsers {
+				requirePrincipalAssignment(ctx, t, auth, principal.GetIDForUserName(icUser.UserName),
+					hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+					hasExternalID(icUser.ID),
+				)
+			}
 
-		// EXPECT that the Teleport Access Lists have created and correctly bound
-		// to their corresponding Identity Center groups
-		for _, awsGroup := range expectedGroups {
-			acl, err := getAccessListByTitle(ctx, auth, awsGroup.DisplayName)
-			require.NoError(t, err)
+			// EXPECT that the Teleport Access Lists have created and correctly bound
+			// to their corresponding Identity Center groups
+			for _, awsGroup := range expectedGroups {
+				acl, err := getAccessListByTitle(ctx, auth, awsGroup.DisplayName)
+				require.NoError(t, err)
 
-			assertPrincipalAssignment(ctx, t, auth, principal.GetIDForAccessList(acl),
-				hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
-				hasExternalID(awsGroup.ID),
-			)
-		}
-	}, time.Second*3, time.Millisecond*30)
+				requirePrincipalAssignment(ctx, t, auth, principal.GetIDForAccessList(acl),
+					hasProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
+					hasExternalID(awsGroup.ID),
+				)
+			}
+		},
+		// Initial Identity Center startup takes a while to run, especially under
+		// the flakey test detector, so we give this more than the usual 3s to run
+		10*time.Second, 100*time.Millisecond,
+		"Initial conditions setup failed or timed out")
 
 	// WHEN I update the group filter to exclude "Group2"
 	mustUpdatePlugin(t, aliceClient.AuthClient, func(plugin *types.PluginAWSICSettings) {
-		plugin.GroupSyncFilters = []*types.AWSICResourceFilter{{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "Group2"}}}
+		plugin.GroupSyncFilters = []*types.AWSICResourceFilter{
+			{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "Group2"}},
+		}
 	})
 
 	// EXPECT that the Teleport Access List representing "Group2" is deleted
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assertAccessLists(ctx, t, auth, "Group1", "Group3")
-	}, time.Second*3, time.Millisecond*30)
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			assertAccessLists(ctx, t, auth, "Group1", "Group3")
+		},
+		time.Second*10, time.Millisecond*30,
+		"Expected Access List excluded by filter to be deleted")
 
 	// EXPECT that the original AWS group was *NOT* deleted, and its member list
 	// is preserved.

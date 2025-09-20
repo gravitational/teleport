@@ -133,8 +133,11 @@ func TestUsersAreNotUpdatedInHybridMode(t *testing.T) {
 					hasExternalID(icUser.ID),
 				)
 			}
-		}, time.Second*3, time.Millisecond*30,
-		"Users must be provisioned")
+		},
+		// Initial Identity Center startup takes a while to run, especially under
+		// the flakey test detector, so we give this more than the usual 3s to run
+		10*time.Second, 100*time.Millisecond,
+		"Initial users must be provisioned")
 
 	// EXPECT that the Account role-based Account Assignments have been provisioned
 	// into AWS
