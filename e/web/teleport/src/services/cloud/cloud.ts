@@ -1,17 +1,17 @@
 import cfg from 'e-teleport/config';
+import { GetBillingSummaryInformationResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
 import api from 'teleport/services/api';
 import auth from 'teleport/services/auth/auth';
 import { User } from 'teleport/services/user/types';
 
 import {
-  BillingSummaryInformation,
   NonBillableSummaryInformation,
   SendTeleportCredentialReset,
   SendTeleportInvite,
 } from './types';
 
 class CloudService {
-  fetchBillingSummaryInformation(): Promise<BillingSummaryInformation> {
+  fetchBillingSummaryInformation(): Promise<GetBillingSummaryInformationResponse> {
     return api
       .get(cfg.api.billingSummaryPath)
       .then(makeBillingSummaryInformation);
@@ -43,7 +43,9 @@ class CloudService {
 
 export default CloudService;
 
-function makeBillingSummaryInformation(json: any): BillingSummaryInformation {
+function makeBillingSummaryInformation(
+  json: any
+): GetBillingSummaryInformationResponse {
   const { usageHistory } = json.usageSummary;
   return {
     ...json,

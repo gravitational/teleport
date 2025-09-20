@@ -2,7 +2,7 @@ import styled, { useTheme } from 'styled-components';
 
 import { Box, ButtonSecondary, Flex, Text } from 'design';
 
-import { ProductUsage } from 'e-teleport/UsageSummary/types';
+import { ProductUsage } from 'e-teleport/UsageSummary/Cycle/Cycle';
 import { getSalesURL } from 'teleport/services/sales';
 import { CtaEvent } from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';

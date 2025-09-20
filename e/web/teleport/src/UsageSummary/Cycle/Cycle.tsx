@@ -1,14 +1,12 @@
 import styled, { useTheme } from 'styled-components';
 
-import { Box, Flex, H2, H3, Text } from 'design';
+import { Box, Flex, H2, H3, SyncStamp, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
 
 import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
+import { isCalibrationPeriod } from 'e-teleport/UsageSummary/helpers';
 import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
 
-import { isCalibrationPeriod } from './SummaryPage';
-import { ProductUsage } from './types';
-import { UpdatedAtDisplay } from './UpdatedAtDisplay';
 import { UsageBar } from './UsageBar';
 
 // MWI_PER_MAU is how many free MWI customers get for each MAU they aquire.
@@ -22,6 +20,21 @@ export interface CycleProps {
   hasIdentityGovernance: boolean;
   hasIdentitySecurity: boolean;
 }
+
+export type ProductUsage = {
+  name: string;
+  info: string;
+  blurb?: string;
+  enabled: boolean;
+  ctaUrl?: string;
+  usages: {
+    name: string;
+    total: number;
+    percentageMax: number;
+    hardMax: number;
+    percentage: number;
+  }[];
+};
 
 export const Cycle = ({
   summary: {
@@ -37,12 +50,12 @@ export const Cycle = ({
     hasCloudAnonymizationKey,
     salesforceIdUpdatedAt,
     usageUpdatedAt,
-    usageUpdatedAtFormatted,
   },
   hasIdentityGovernance,
   hasIdentitySecurity,
 }: CycleProps) => {
   const theme = useTheme();
+  const updated = usageUpdatedAt ? new Date(usageUpdatedAt * 1000) : undefined; // convert unix to milliseconds
   const calibrationPeriod = isCalibrationPeriod(
     cloud,
     cycleStart,
@@ -189,12 +202,7 @@ export const Cycle = ({
           </CyclesContainer>
         ))}
       </Flex>
-
-      <UpdatedAtDisplay
-        theme={theme}
-        usageUpdatedAt={usageUpdatedAt}
-        usageUpdatedAtFormatted={usageUpdatedAtFormatted}
-      />
+      <SyncStamp date={updated}>| Updated every 12 hours</SyncStamp>
     </Box>
   );
 };

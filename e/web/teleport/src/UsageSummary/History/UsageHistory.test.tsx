@@ -4,7 +4,7 @@ import { render, screen, theme } from 'design/utils/testing';
 
 import { UsageHistoryItem } from 'e-teleport/services/cloud/v1/tenants_pb';
 
-import { usageHistory } from './fixtures';
+import { usageHistory } from '../testHelpers';
 import { UsageHistory } from './UsageHistory';
 
 const calibrationInfo =

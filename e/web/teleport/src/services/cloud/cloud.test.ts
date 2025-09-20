@@ -1,8 +1,8 @@
 import cfg from 'e-teleport/config';
+import { GetBillingSummaryInformationResponse as CloudGetBillingSummaryInformationResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
 import api from 'teleport/services/api';
 
 import CloudSvc from './cloud';
-import { BillingSummaryInformation } from './types';
 
 describe('cloudService', () => {
   let cloud: CloudSvc;
@@ -13,7 +13,7 @@ describe('cloudService', () => {
   });
 
   test('fetchBillingSummaryInformation', async () => {
-    const expected: BillingSummaryInformation = {
+    const expected: CloudGetBillingSummaryInformationResponse = {
       usageBasedBilling: false,
       stripeCurrentUsage: {
         invoiceId: 'some-invoiceId',

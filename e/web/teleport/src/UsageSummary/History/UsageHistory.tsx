@@ -7,7 +7,7 @@ import Text, { H2 } from 'design/Text';
 
 import { UsageHistoryItem } from 'e-teleport/services/cloud/v1/tenants_pb';
 
-import { isCalibrationPeriod } from './SummaryPage';
+import { isCalibrationPeriod } from '../helpers';
 
 export type UsageHistoryProps = {
   cloud: boolean;

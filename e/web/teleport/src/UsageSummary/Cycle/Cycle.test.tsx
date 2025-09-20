@@ -4,9 +4,9 @@ import type { ReactNode } from 'react';
 import { render, screen } from 'design/utils/testing';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { Cycle, CycleProps } from 'e-teleport/UsageSummary/Cycle';
+import { Cycle, CycleProps } from 'e-teleport/UsageSummary/Cycle/Cycle';
 import { makeUsageSummary } from 'e-teleport/UsageSummary/testHelpers';
-import { ContextProvider } from 'teleport/index';
+import { ContextProvider } from 'teleport';
 
 function renderWithContext(component: ReactNode) {
   const ctx = createTeleportContextE();
@@ -160,21 +160,14 @@ describe('cycle', () => {
     expect(within(ispr).getByText(/\(400%\)/i)).toBeInTheDocument();
   });
 
-  test('renders usage updated at with no value', () => {
-    props.summary.usageUpdatedAt = 0;
-    renderWithContext(<Cycle {...props} />);
-
-    expect(screen.getByText('Updated every 12 hours')).toBeInTheDocument();
-    expect(screen.queryByText(/Last updated/)).not.toBeInTheDocument();
-  });
-
   test('renders usage updated at with value', () => {
     props.summary.usageUpdatedAt = 1699538455; // 2023-11-09 14:00:55
     props.summary.usageUpdatedAtFormatted = 'Nov 09, 2023';
     renderWithContext(<Cycle {...props} />);
 
-    expect(screen.getByText('Last updated: Nov 09, 2023')).toBeInTheDocument();
-    expect(screen.getByText(/Updated every 12 hours/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Last Sync: 2 years ago | Updated every 12 hours')
+    ).toBeInTheDocument();
   });
 
   test('show IGS CTA if Identity is disabled', () => {

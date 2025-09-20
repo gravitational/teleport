@@ -1,3 +1,3 @@
-import { SummaryLoader } from './SummaryLoader';
+import { Summary } from './Summary';
 
-export default SummaryLoader;
+export default Summary;
