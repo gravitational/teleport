@@ -178,6 +178,7 @@ func deriveDeepCopy_1(dst, src *Status) {
 func deriveDeepCopy_2(dst, src *AccessListMemberSpec) {
 	dst.AccessList = src.AccessList
 	dst.Name = src.Name
+	dst.Title = src.Title
 	func() {
 		field := new(time.Time)
 		deriveDeepCopy_8(field, &src.Joined)

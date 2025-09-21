@@ -87,6 +87,7 @@ type accessListAndMembersGetter struct {
 func (s *accessListAndMembersGetter) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	return s.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, pageToken)
 }
+
 func (s *accessListAndMembersGetter) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
 	return s.service.GetResource(ctx, name)
 }
@@ -169,6 +170,19 @@ func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID
 // ListAccessLists returns a paginated list of access lists.
 func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
 	return a.service.ListResources(ctx, pageSize, nextToken)
+}
+
+// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
+func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
+	// Currently, the backend only sorts on lexicographical keys and not
+	// based on fields within a resource
+	if req.SortBy != nil && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc != false) {
+		return nil, "", trace.CompareFailed("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
+	}
+
+	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
+		return services.MatchAccessList(item, req.GetFilter())
+	})
 }
 
 // GetAccessList returns the specified access list resource.

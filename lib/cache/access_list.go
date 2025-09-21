@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -34,7 +35,11 @@ import (
 
 type accessListIndex string
 
-const accessListNameIndex accessListIndex = "name"
+const (
+	accessListNameIndex          accessListIndex = "name"
+	accessListTitleIndex         accessListIndex = "title"
+	accessListAuditNextDateIndex accessListIndex = "auditNextDate"
+)
 
 func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex], error) {
 	if upstream == nil {
@@ -46,9 +51,12 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 			types.KindAccessList,
 			(*accesslist.AccessList).Clone,
 			map[accessListIndex]func(*accesslist.AccessList) string{
-				accessListNameIndex: func(al *accesslist.AccessList) string {
-					return al.GetMetadata().Name
-				},
+				// sorted by name
+				accessListNameIndex: services.AccessListNameIndexKey,
+				// sorted by title, sanitized.
+				accessListTitleIndex: services.AccessListTitleIndexKey,
+				// sorted by upcoming audit date. lists with no audit dates sorted to the back
+				accessListAuditNextDateIndex: services.AccessListAuditDateIndexKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAccessLists))
@@ -90,6 +98,52 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 		out = append(out, n.Clone())
 	}
 	return out, nil
+}
+
+// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
+func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListsV2")
+	defer span.End()
+
+	index := accessListNameIndex
+
+	var isDesc bool
+	sortBy := req.GetSortBy()
+	if sortBy != nil {
+		isDesc = req.GetSortBy().IsDesc
+
+		switch sortBy.Field {
+		case "name", "":
+			index = accessListNameIndex
+		case "auditNextDate":
+			index = accessListAuditNextDateIndex
+		case "title":
+			index = accessListTitleIndex
+		default:
+			return nil, "", trace.BadParameter("unsupported sort %q but expected name, title or auditNextDate", sortBy.Field)
+		}
+	}
+	lister := genericLister[*accesslist.AccessList, accessListIndex]{
+		cache:           c,
+		collection:      c.collections.accessLists,
+		isDesc:          isDesc,
+		index:           index,
+		defaultPageSize: 100,
+		upstreamList: func(ctx context.Context, limit int, start string) ([]*accesslist.AccessList, string, error) {
+			return c.Config.AccessLists.ListAccessListsV2(ctx, req)
+		},
+		filter: func(al *accesslist.AccessList) bool {
+			return services.MatchAccessList(al, req.GetFilter())
+		},
+		nextToken: func(al *accesslist.AccessList) string {
+			// ignore error because CreateAccessListNextKey only errors
+			// if the index is invalid, which we already check above
+			nextKey, _ := services.CreateAccessListNextKey(al, string(index))
+			return nextKey
+		},
+	}
+	out, next, err := lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
+	return out, next, trace.Wrap(err)
 }
 
 // ListAccessLists returns a paginated list of access lists.

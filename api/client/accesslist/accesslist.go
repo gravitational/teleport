@@ -61,7 +61,10 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, 
 }
 
 // ListAccessLists returns a paginated list of access lists.
+// TODO (avatus): DELETE IN 21.0.0
 func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
+	//nolint:staticcheck // SA1019. ListAccessLists is deprecated but will
+	// continue be supported for backward compatibility.
 	resp, err := c.grpcClient.ListAccessLists(ctx, &accesslistv1.ListAccessListsRequest{
 		PageSize:  int32(pageSize),
 		NextToken: nextToken,
@@ -80,6 +83,24 @@ func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken st
 	}
 
 	return accessLists, resp.GetNextToken(), nil
+}
+
+// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
+func (c *Client) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
+	resp, err := c.grpcClient.ListAccessListsV2(ctx, req)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		accessLists[i], err = conv.FromProto(accessList, conv.WithOwnersIneligibleStatusField(accessList.GetSpec().GetOwners()))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	return accessLists, resp.GetNextPageToken(), nil
 }
 
 // GetAccessList returns the specified access list resource.
