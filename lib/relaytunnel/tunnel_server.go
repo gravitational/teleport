@@ -411,6 +411,14 @@ func (s *Server) Dial(ctx context.Context, hostID string, tunnelType types.Tunne
 		tunnelType: tunnelType,
 	}]
 	if len(scs) > 0 {
+		// new tunnels are appended to the store so by always taking the last we
+		// are prioritizing the last tunnel that connected to us, following the
+		// same logic as reversetunnel.localCluster.getRemoteConn
+		//
+		// TODO(espadolini): think about passing a nonce and a generation
+		// counter that gets bumped whenever we reload Teleport so newer
+		// executions of the same instance are guaranteed to be connected last;
+		// this applies to the reverse tunnel too
 		sc = scs[len(scs)-1]
 	}
 	s.mu.Unlock()
