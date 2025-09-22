@@ -5563,6 +5563,12 @@ func (tc *TeleportClient) DialMCPServer(ctx context.Context, appName string) (ne
 		return nil, trace.BadParameter("app %q is not a MCP server", appName)
 	}
 
+	// TODO(greedy52) support streamable HTTP for "tsh mcp connect" before
+	// release.
+	if transport := types.GetMCPServerTransportType(apps[0].GetURI()); transport == types.MCPTransportHTTP {
+		return nil, trace.NotImplemented("MCP support for %s is not yet implemented", transport)
+	}
+
 	cert, err := tc.issueMCPCertWithMFA(ctx, apps[0])
 	if err != nil {
 		return nil, trace.Wrap(err)

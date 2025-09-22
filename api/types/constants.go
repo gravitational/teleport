@@ -951,6 +951,14 @@ const (
 	SchemeMCPSSEHTTPS = "mcp+sse+https"
 	// MCPTransportSSE indicates the MCP server uses SSE transport.
 	MCPTransportSSE = "SSE"
+	// SchemeMCPHTTP is a URI scheme for MCP servers using HTTP with streamable
+	// HTTP transport.
+	SchemeMCPHTTP = "mcp+http"
+	// SchemeMCPHTTPS is a URI scheme for MCP servers using HTTPS with
+	// streamable HTTP transport.
+	SchemeMCPHTTPS = "mcp+https"
+	// MCPTransportHTTP indicates the MCP server uses SSE transport.
+	MCPTransportHTTP = "Streamable HTTP"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
