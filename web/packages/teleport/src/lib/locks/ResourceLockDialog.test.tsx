@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { UserEvent } from '@testing-library/user-event';
 import { setupServer } from 'msw/node';
-import { PropsWithChildren } from 'react';
+import { ComponentPropsWithoutRef, PropsWithChildren } from 'react';
 
 import {
-  fireEvent,
   Providers,
   render,
   screen,
   testQueryClient,
+  userEvent,
   waitFor,
 } from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
-import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import {
   createLockSuccess,
   listV2LocksSuccess,
@@ -59,15 +59,7 @@ describe('ResourceLockDialog', () => {
 
     const onCancel = jest.fn();
 
-    render(
-      <ResourceLockDialog
-        targetKind="user"
-        targetName="test-user"
-        onCancel={onCancel}
-        onComplete={jest.fn()}
-      />,
-      { wrapper: makeWrapper() }
-    );
+    const { user } = renderComponent({ onCancel });
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
@@ -75,7 +67,7 @@ describe('ResourceLockDialog', () => {
 
     expect(screen.getByText('Lock test-user?')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
@@ -84,25 +76,17 @@ describe('ResourceLockDialog', () => {
 
     const onComplete = jest.fn();
 
-    render(
-      <ResourceLockDialog
-        targetKind="user"
-        targetName="test-user"
-        onCancel={jest.fn()}
-        onComplete={onComplete}
-      />,
-      { wrapper: makeWrapper() }
-    );
+    const { user } = renderComponent({ onComplete });
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
     });
 
-    inputMessage('This is a test message');
-    inputTtl('24h');
+    await inputMessage(user, 'This is a test message');
+    await inputTtl(user, '24h');
 
     withLockSuccess();
-    fireEvent.click(screen.getByRole('button', { name: 'Create Lock' }));
+    await user.click(screen.getByRole('button', { name: 'Create Lock' }));
 
     await waitFor(() => {
       expect(onComplete).toHaveBeenCalledTimes(1);
@@ -127,21 +111,30 @@ describe('ResourceLockDialog', () => {
   });
 });
 
-function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
-  const {
-    customAcl = makeAcl({
-      lock: {
-        ...defaultAccess,
-        list: true,
-        remove: true,
-        create: true,
-        edit: true,
-      },
-    }),
-  } = params ?? {};
-  const ctx = createTeleportContext({
-    customAcl,
-  });
+function renderComponent(
+  params?: Pick<
+    Partial<ComponentPropsWithoutRef<typeof ResourceLockDialog>>,
+    'onCancel' | 'onComplete'
+  >
+) {
+  const { onCancel = jest.fn(), onComplete = jest.fn() } = params ?? {};
+  const user = userEvent.setup();
+  return {
+    ...render(
+      <ResourceLockDialog
+        targetKind="user"
+        targetName="test-user"
+        onCancel={onCancel}
+        onComplete={onComplete}
+      />,
+      { wrapper: makeWrapper() }
+    ),
+    user,
+  };
+}
+
+function makeWrapper() {
+  const ctx = createTeleportContext();
   return (props: PropsWithChildren) => (
     <Providers>
       <TeleportProviderBasic teleportCtx={ctx}>
@@ -151,14 +144,14 @@ function makeWrapper(params?: { customAcl?: ReturnType<typeof makeAcl> }) {
   );
 }
 
-async function inputMessage(value: string) {
+async function inputMessage(user: UserEvent, value: string) {
   const input = screen.getByLabelText('Reason');
-  fireEvent.change(input, { target: { value } });
+  await user.type(input, value);
 }
 
-async function inputTtl(value: string) {
+async function inputTtl(user: UserEvent, value: string) {
   const input = screen.getByLabelText('Expiry');
-  fireEvent.change(input, { target: { value } });
+  await user.type(input, value);
 }
 
 function withListLocksSuccess(

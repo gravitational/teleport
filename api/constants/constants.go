@@ -438,6 +438,10 @@ const (
 	// TraitMCPTools is the name of the variable to specify the MCP tools for
 	// MCP servers.
 	TraitMCPTools = "mcp_tools"
+
+	// TraitDefaultRelayAddr is the trait used to specify the default relay
+	// address passed to clients at login time.
+	TraitDefaultRelayAddr = "default_relay_addr"
 )
 
 const (

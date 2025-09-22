@@ -266,7 +266,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ServerID")
 	}
 	if a.UploadHandler == nil {
-		return trace.BadParameter("missing parameter UploadHandler")
+		return trace.BadParameter("missing parameter DownloadHandler")
 	}
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
@@ -649,7 +649,9 @@ func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID strin
 	}
 
 	var streamParts []StreamPart
-	var partNumber int64
+	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
+	// configured for the auth service
+	var partNumber int64 = 1
 	for part, err := range parts {
 		if err != nil {
 			return trace.Wrap(err)

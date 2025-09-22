@@ -132,6 +132,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// trusted clusters
+	// TODO(noah): DELETE IN v21.0.0 - this has been migrated to gRPC from v19.
 	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
 	// SSO validation handlers
@@ -451,6 +452,9 @@ type githubAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions authclient.ClientOptions `json:"client_options"`
 }
 
 /*
@@ -470,11 +474,12 @@ func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.Res
 		return nil, trace.Wrap(err)
 	}
 	raw := githubAuthRawResponse{
-		Username: response.Username,
-		Identity: response.Identity,
-		Cert:     response.Cert,
-		TLSCert:  response.TLSCert,
-		Req:      response.Req,
+		Username:      response.Username,
+		Identity:      response.Identity,
+		Cert:          response.Cert,
+		TLSCert:       response.TLSCert,
+		Req:           response.Req,
+		ClientOptions: response.ClientOptions,
 	}
 	if response.Session != nil {
 		rawSession, err := services.MarshalWebSession(

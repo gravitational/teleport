@@ -56,6 +56,8 @@ const (
 	AWSMatcherRedshiftServerless = "redshift-serverless"
 	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
 	AWSMatcherElastiCache = "elasticache"
+	// AWSMatcherElastiCacheServerless is the AWS matcher type for ElastiCacheServerless databases.
+	AWSMatcherElastiCacheServerless = "elasticache-serverless"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
 	AWSMatcherMemoryDB = "memorydb"
 	// AWSMatcherOpenSearch is the AWS matcher type for OpenSearch databases.
@@ -81,6 +83,7 @@ var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherRedshift,
 	AWSMatcherRedshiftServerless,
 	AWSMatcherElastiCache,
+	AWSMatcherElastiCacheServerless,
 	AWSMatcherMemoryDB,
 	AWSMatcherOpenSearch,
 	AWSMatcherDocumentDB,
@@ -107,6 +110,18 @@ func (m AWSMatcher) CopyWithTypes(t []string) Matcher {
 	newMatcher := m
 	newMatcher.Types = t
 	return newMatcher
+}
+
+func isAlphanumericIncluding(s string, extraChars ...rune) bool {
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || slices.Contains(extraChars, r) {
+			continue
+		}
+
+		return false
+	}
+
+	return true
 }
 
 // CheckAndSetDefaults that the matcher is correct and adds default values.
@@ -197,6 +212,18 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 
 	if m.Params.SSHDConfig == "" {
 		m.Params.SSHDConfig = SSHDConfigPath
+	}
+
+	if m.Params.Suffix != "" {
+		if !isAlphanumericIncluding(m.Params.Suffix, '-') {
+			return trace.BadParameter("install.suffix can only contain alphanumeric characters and hyphens")
+		}
+	}
+
+	if m.Params.UpdateGroup != "" {
+		if !isAlphanumericIncluding(m.Params.UpdateGroup, '-') {
+			return trace.BadParameter("install.update_group can only contain alphanumeric characters and hyphens")
+		}
 	}
 
 	if m.Params.ScriptName == "" {

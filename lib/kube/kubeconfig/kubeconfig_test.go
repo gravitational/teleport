@@ -108,10 +108,8 @@ func setup(t *testing.T) (string, clientcmdapi.Config) {
 				Extensions:       map[string]runtime.Object{},
 			},
 		},
-		Preferences: clientcmdapi.Preferences{
-			Extensions: map[string]runtime.Object{},
-		},
-		Extensions: map[string]runtime.Object{},
+		Preferences: clientcmdapi.Preferences{},
+		Extensions:  map[string]runtime.Object{},
 	}
 
 	initialContent, err := clientcmd.Write(initialConfig)
@@ -157,10 +155,8 @@ func TestSave(t *testing.T) {
 				Extensions:       map[string]runtime.Object{},
 			},
 		},
-		Preferences: clientcmdapi.Preferences{
-			Extensions: map[string]runtime.Object{},
-		},
-		Extensions: map[string]runtime.Object{},
+		Preferences: clientcmdapi.Preferences{},
+		Extensions:  map[string]runtime.Object{},
 	}
 
 	err := Save(kubeconfigPath, cfg)

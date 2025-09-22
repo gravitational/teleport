@@ -30,6 +30,17 @@ export type RecordingsResponse = {
 
 export type RecordingType = 'ssh' | 'desktop' | 'k8s' | 'database';
 
+export function validateRecordingType(
+  value: RecordingType | string
+): value is RecordingType {
+  return (
+    value === 'ssh' ||
+    value === 'database' ||
+    value === 'desktop' ||
+    value === 'k8s'
+  );
+}
+
 export type Recording = {
   duration: number;
   durationText: string;
@@ -40,6 +51,7 @@ export type Recording = {
   description: string;
   recordingType: RecordingType;
   playable: boolean;
+  user: string;
 };
 
 export enum SessionRecordingMessageType {
@@ -60,18 +72,22 @@ export interface SessionRecordingThumbnail {
   rows: number;
   cursorX: number;
   cursorY: number;
-  startOffsetMs: number;
-  endOffsetMs: number;
+  cursorVisible: boolean;
+  startOffset: number;
+  endOffset: number;
 }
 
 export interface SessionRecordingMetadata {
-  durationMs: number;
+  duration: number;
   events: SessionRecordingEvent[];
   startCols: number;
   startRows: number;
-  startTimeMs: number;
-  endTimeMs: number;
+  startTime: number;
+  endTime: number;
   clusterName: string;
+  user: string;
+  resourceName: string;
+  type: RecordingType;
 }
 
 export interface SessionRecordingError {
@@ -96,8 +112,8 @@ export type SessionRecordingMessage =
   | WrappedMessage<SessionRecordingMessageType.Error, SessionRecordingError>;
 
 interface BaseSessionRecordingEvent {
-  startOffsetMs: number;
-  endOffsetMs: number;
+  startTime: number;
+  endTime: number;
 }
 
 interface SessionRecordingInactivityEvent extends BaseSessionRecordingEvent {
@@ -109,13 +125,13 @@ interface SessionRecordingJoinEvent extends BaseSessionRecordingEvent {
   user: string;
 }
 
-interface SessionRecordingResizeEvent extends BaseSessionRecordingEvent {
+export interface SessionRecordingResizeEvent extends BaseSessionRecordingEvent {
   type: SessionRecordingEventType.Resize;
   cols: number;
   rows: number;
 }
 
-type SessionRecordingEvent =
+export type SessionRecordingEvent =
   | SessionRecordingJoinEvent
   | SessionRecordingResizeEvent
   | SessionRecordingInactivityEvent;

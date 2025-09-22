@@ -267,11 +267,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 
 		recordingEncryptionManager, err := recordingencryption.NewManager(closeCtx, recordingencryption.ManagerConfig{
-			Backend:       localRecordingEncryption,
-			Cache:         localRecordingEncryption,
-			ClusterConfig: cfg.ClusterConfiguration,
-			KeyStore:      cfg.KeyStore,
-			Logger:        cfg.Logger,
+			Backend:                       localRecordingEncryption,
+			Cache:                         localRecordingEncryption,
+			ClusterConfig:                 cfg.ClusterConfiguration,
+			KeyStore:                      cfg.KeyStore,
+			Logger:                        cfg.Logger,
+			InitialSessionRecordingConfig: cfg.SessionRecordingConfig,
 			LockConfig: backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
 					Backend:            cfg.Backend,
@@ -281,7 +282,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			},
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "initializing session recording encryption")
 		}
 
 		cfg.RecordingEncryption = recordingEncryptionManager
@@ -1377,7 +1378,18 @@ func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	if len(loginHooks) == 0 {
 		return nil
 	}
-
+	// Clone the input user so that hooks never mutate the original object.
+	//
+	// Currently, login hook share state via UserLoginState resources.
+	// The login hook calls GetUserLoginState to read the state, updates it,
+	// and then saves the changes  when a next looking hood loads the state from storage.
+	//
+	// Note: We intentionally do not write access-list–derived roles/traits back
+	// to the user record. Doing so could create inconsistencies with user objects
+	// provisioned by Entra ID / Okta Sync or via SCIM. If we choose to persist
+	// these attributes in the future, we should first define a single source of
+	// truth and a clear reconciliation strategy.
+	user = user.Clone()
 	var errs []error
 	for _, hook := range loginHooks {
 		errs = append(errs, hook(ctx, user))
@@ -2152,6 +2164,12 @@ func (a *Server) Close() error {
 
 	if a.bk != nil {
 		if err := a.bk.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.scopedAccessCache != nil {
+		if err := a.scopedAccessCache.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -3596,7 +3614,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			AzureIdentity:                   req.azureIdentity,
 			GCPServiceAccount:               req.gcpServiceAccount,
 		},
-		TeleportCluster: clusterName,
+		TeleportCluster:   clusterName,
+		OriginClusterName: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
 			ServiceName: req.dbService,
 			Protocol:    req.dbProtocol,
@@ -5586,7 +5605,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		a.logger.WarnContext(ctx, "Failed to emit access request create event", "error", err)
 	}
 
-	var resources = []string{}
+	resources := []string{}
 	if len(req.GetRoles()) != 0 {
 		resources = append(resources, types.KindRole)
 	}
@@ -5702,8 +5721,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
 		// be able to see their assigned permission sets.
-		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
-		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
+		asmt, err := a.GetIdentityCenterAccountAssignment(ctx, resource.Name)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching identity center account assignment")
 		}
@@ -5749,6 +5767,7 @@ type cacheWithFetchedAccessLists struct {
 func (c *cacheWithFetchedAccessLists) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
 	return c.fetchedACLs, nil
 }
+
 func (c *cacheWithFetchedAccessLists) ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error) {
 	return c.fetchedACLs, "", nil
 }
@@ -5952,7 +5971,7 @@ func (a *Server) submitAccessReview(
 		a.logger.WarnContext(ctx, "Failed to emit access request update event", "error", err)
 	}
 
-	var resources = []string{}
+	resources := []string{}
 	if len(req.GetRoles()) != 0 {
 		resources = append(resources, types.KindRole)
 	}

@@ -2,9 +2,10 @@
 title: Configure Access Requests
 description: Describes the options available for configuring just-in-time access to roles and resources in your Teleport cluster.
 tocDepth: 3
-labels:
+tags:
  - how-to
  - identity-governance
+ - privileged-access
 ---
 
 This guide explains the considerations you should make when configuring Teleport
@@ -394,7 +395,7 @@ the request has met the criteria specified in one of the thresholds in
 `allow.request.thresholds` associated with that role.
 
 The value of `filter` is an expression that uses the Teleport [predicate
-language](../../reference/predicate-language.mdx).
+language](../../reference/access-controls/predicate-language.mdx).
 
 For example, the following configuration includes four thresholds, three of which
 have filters:

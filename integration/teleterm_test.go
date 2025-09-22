@@ -1050,9 +1050,12 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
+	nodeID, err := nodeSvc.WaitForHostID(ctx)
+	require.NoError(t, err)
+
 	// waits for the node to be added
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
 		return err == nil
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 
@@ -1068,7 +1071,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 
 	// waits for the node to be deleted
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
 		return trace.IsNotFound(err)
 	}, time.Minute, time.Second, "waiting for node to be deleted")
 }
@@ -1092,11 +1095,11 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 		_, err = authServer.UpdateRole(ctx, role)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			role, err := authServer.GetRole(ctx, roleName)
-			if assert.NoError(collect, err) {
-				assert.Equal(collect, dbUsers, role.GetDatabaseUsers(types.Allow))
-			}
+			require.NoError(t, err)
+			require.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
+
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
@@ -1110,11 +1113,11 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 		_, err = authServer.UpdateUser(ctx, user)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
-			if assert.NoError(collect, err) {
-				assert.Equal(collect, roles, user.GetRoles())
-			}
+			require.NoError(t, err)
+
+			require.Equal(t, roles, user.GetRoles())
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 

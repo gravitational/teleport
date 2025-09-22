@@ -1,7 +1,7 @@
 ---
 title: Migrate Between Teleport Plans
 description: Explains how to migrate between Teleport Enterprise (Self-Hosted), Teleport Enterprise (Cloud), and Teleport Community Edition.
-labels:
+tags:
  - how-to
  - platform-wide
 ---
@@ -141,7 +141,7 @@ Teleport Auth Service backend. Since your original Teleport cluster uses a
 separate Auth Service backend from your new cluster, you must retrieve the
 resources on the first backend, then re-apply them against the second backend.
 
-Review the [dynamic resources](reference/resources.mdx) list to see if any
+Review the [dynamic resources](reference/infrastructure-as-code/resources.mdx) list to see if any
 other resources need to be migrated. Some common dynamic resources includes:
 
 - `windows_desktop`
@@ -211,7 +211,7 @@ To migrate Teleport Agents:
 
 1. For each Agent and Machine ID Bot, obtain a valid join token. We recommend
    using a [delegated join
-   method](reference/join-methods.mdx).
+   method](reference/deployment/join-methods.mdx).
 
 1. If using ephemeral tokens, ensure you specify the appropriate token type to
    match the Teleport services. Token types can include `node`, `app`, `kube`,

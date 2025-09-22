@@ -1,0 +1,283 @@
+---
+title: Bound Keypair Joining Admin Guide
+description: "How to deploy and maintain bots in production with Bound Keypair Joining"
+tags:
+ - mwi
+ - conceptual
+ - infrastructure-identity
+---
+
+This guide discusses various tasks users administering bots using Bound Keypair
+Joining may need to perform over the lifespan of the bot.
+
+## Allowing additional recovery attempts
+
+When using the `standard` recovery mode, only a configured number of recovery
+attempts can be made. If the limit is reached, no further recovery attempts can
+be made until the limit is increased.
+
+To increase this limit and allow an expired bot to join again, edit the token
+using `tctl edit`:
+```code
+$ tctl edit token/example-token
+```
+
+Find the `spec.bound_keypair.recovery.limit` field and increment the limit by
+the desired amount. You are free to select any desired threshold. For example,
+consider these use cases:
+- If human intervention is desired for each join attempt you can increase this
+  value by 1. This single recovery attempt will be immediately consumed, so
+  future recoveries will again require human intervention, and may result in
+  downtime.
+
+  While this approach makes downtime likely, it does ensure a human verifies the
+  state of the bot host on each recovery.
+
+- If you want human intervention for each recovery, but want to avoid downtime,
+  you can increase this value by 2. The first attempt will be consumed
+  immediately, but the bot will have one recovery attempt for automatic future
+  use.
+
+  A human user can periodically audit the recovery count and bot host to ensure
+  a recovery attempt is always available and the host is behaving as expected.
+
+- Any larger value will increase the amount of time required between human
+  intervention. You can select your tolerance for automatic bot recoveries as
+  desired.
+
+Alternatively, if you wish to allow an unlimited number of automatic recovery
+attempts, [refer to the entry below](#allowing-unlimited-recovery-attempts) on
+the `relaxed` recovery mode.
+
+Note that the recovery limit is always relative to the recovery counter (in the
+`status.bound_keypair.recovery_count` field in the token resource). It is valid
+to decrease the limit or set it to zero, however doing so may prevent future
+bot recovery attempts until the limit is increased again.
+
+Additionally, note that [join state verification](concepts.mdx#join-state-verification)
+is still required, and will prevent multiple concurrent uses of the same keypair
+and token. In other words, increasing the recovery limit will not allow multiple
+clients to join.
+
+## Allowing unlimited recovery attempts
+
+To allow unlimited recovery attempts, the `spec.bound_keypair.recovery.mode`
+field should be set to `relaxed`. To do this, use `tctl edit` to edit the token:
+```code
+$ tctl edit token/example-token
+```
+
+Find or create the `spec.bound_keypair.recovery.mode` field and set the value to
+`relaxed`. Save the file and quit your editor to update the token.
+
+When the recovery mode is set to `relaxed`, the `limit` field is ignored and the
+`status.bound_keypair.recovery_count` field may increase beyond the written
+limit. If the mode is later changed back to `standard`, be aware that future
+recovery attempts will fail unless the `limit` is increased to accommodate the
+current value of `recovery_count`.
+
+Note that when `relaxed` mode is in use,
+[join state verification](concepts.mdx#join-state-verification) is still required and will
+prevent multiple concurrent uses of the same keypair and token. If your use case
+requires this, you can
+[disable join state verification](#disabling-join-state-verification), but doing
+so does impact the security of the token.
+
+## Requesting a keypair rotation
+
+To request a keypair rotation, set the `.spec.bound_keypair.rotate_after` field
+to contain a timestamp. On the next authentication attempt after that timestamp
+has elapsed, the bot will automatically rotate its keypair.
+
+To simplify this process, you can use the `tctl bound-keypair rotate` helper:
+```code
+$ tctl bound-keypair rotate token-name
+```
+
+This sets the timestamp to the current time. Note that by default bots only
+reauthenticate every 20 minutes, so it may take some time for the request to be
+acknowledged. You can monitor the rotation status by watching the token's
+`.status.bound_keypair.last_rotated_at` field.
+
+If you want to force an early rotation and have access to the bot host, you can
+restart the `tbot` process, or send it a signal with `pkill -usr1 tbot` to
+request an early rotation.
+
+Note that the previous 10 keypairs are retained on the client for use in case of
+a cluster rollback; refer to the
+[cluster rollback](#recovery-after-a-cluster-rollback) section for additional
+information.
+
+## Locking a `bound_keypair` bot or bot instance
+
+The simplest way to lock out a bot that joined using the `bound_keypair` join
+method is to use a join token lock target:
+
+```code
+$ tctl lock --join-token=token-name
+```
+
+As a bound keypair token is linked to a single bot, this will effectively lock
+the bot. It will not be able to reauthenticate, recover, interact with the
+Teleport API, or otherwise use its credentials until the lock is removed.
+
+Note that if a bot is locked for long enough - bots have a 1 hour certificate
+TTL by default - its certificates will expire. If you intend to remove this lock
+and reinstate the bot, you may also need to increase the recovery limit
+(`.spec.bound_keypair.recovery.limit`) to accommodate the additional recovery
+attempt.
+
+Other lock targets can also be used, but are not preferred:
+- Bot instance (`tctl lock --bot-instance-id ...`): will lock only a single
+  instance of the bot. Note that if the recovery limit allows for it, the
+  [automatic recovery process](concepts.mdx#recovery) will attempt to rejoin and, if
+  successful, will generate a new bot instance ID.
+- Bot name (`tctl lock --user bot-<name>`): will lock all bots using the same
+  bot / user. This may be overly broad and lock other instances running under
+  this bot user.
+
+## Recovering a locked `bound_keypair` bot instance
+
+Bots joined with the `bound_keypair` join method can become automatically locked
+under various conditions, including:
+- Failing to correctly complete [join state verification](concepts.mdx#join-state-verification)
+- Connecting with certificates that have an invalid [generation counter][ephemeral]
+- Locked manually by a cluster admin
+
+To recover a bot that has become locked, first ensure the bot's internal storage
+(`storage`) has not been compromised. These locking conditions are designed to
+trigger if more than one client tries to join using a copy of the same
+certificates and private key. This can occur due to a misconfiguration or due
+to an attacker copying a bot's credentials, so ideally the latter should be
+ruled out before unlocking a bot.
+
+Next, determine the name (UUID) of the lock or locks targeting the bot:
+```code
+$ tctl get lock
+kind: lock
+metadata:
+  name: 372af058-76d1-4e64-93da-3b04d7d03ac2
+spec:
+  target:
+    user: bot-example
+version: v2
+---
+kind: lock
+metadata:
+  name: 791d0b1d-01b4-4752-8a99-9b2908aebfae
+spec:
+  target:
+    bot_instance_id: e7d494ae-a0ff-4d12-b935-de5e2025f667
+version: v2
+---
+kind: lock
+metadata:
+  name: a69fdbb2-8e53-406a-b453-48b2cda6991d
+spec:
+  target:
+    join_token: example-token-name
+version: v2
+```
+
+Note the different locks and lock targets shown above: bots can be targeted by
+any of their Teleport user name (`bot-example`), the bot instance ID (a UUID),
+or the join token name. Locks created automatically for bots using Bound Keypair
+Joining will typically use a `join_token` target, but a lock targeting any of
+these values could be created manually.
+
+Note that locks may have a message field containing details about why the lock
+was created.
+
+Once the lock name(s) have been determined, remove each using `tctl rm`:
+```code
+$ tctl rm lock/372af058-76d1-4e64-93da-3b04d7d03ac2
+```
+
+Next, join state should be reset. Use `tctl edit` to set the token's recovery
+mode to `insecure`, but make a note of the current value (`standard` or
+`relaxed`):
+```code
+$ tctl edit token/example-token
+```
+
+Change the `.spec.bound_keypair.recovery.mode` field to `insecure`, save, and
+quit the editor.
+
+The bot can now be allowed to rejoin. Given sufficient time it will retry on its
+own, but if you have access to the host, `systemctl restart tbot` or similar can
+be used to restart the bot process.
+
+The bot should now be able to join successfully. You can monitor progress by
+watching for new audit events in Teleport's web UI, or by waiting for the
+recovery counter to increase:
+```code
+$ tctl get token/example-token --format=json | jq '.[].status.bound_keypair.recovery_count'
+```
+
+Once the bot has joined successfully, reset the recovery mode to its previous
+value using `tctl edit`:
+```code
+$ tctl edit token/example-token
+```
+
+If you do suspect the bot's credentials may have been compromised, you may also
+want to [request a keypair rotation](#requesting-a-keypair-rotation) in
+addition to taking other steps to ensure the host is properly secured.
+
+## Disabling join state verification
+
+It is occasionally useful to intentionally disable join state verification. For
+example, this can enable use with:
+- CI/CD providers without an explicit [delegated join method][delegated].
+- Nodes with immutable storage that cannot store an updated join state document
+  after each join.
+
+Before continuing, be aware that disabling join state verification will prevent
+Teleport from detecting if multiple clients are joining using the same bound
+keypair token. In other words, if the private key is copied by an attacker, they
+will be able to join indefinitely. Take care to protect the keypair, and make
+certain to limit access from the bot identity using Teleport's
+[RBAC system][rbac].
+
+When ready, use `tctl edit` to modify the Bound Keypair token:
+```code
+$ tctl edit token/example-token
+```
+
+Find or add the `spec.bound_keypair.recovery.mode` field and set it to
+`insecure`. Save and quit your editor to update the token.
+
+With the mode set to `insecure`, the `recovery.limit` is ignored, allowing
+unlimited reuse of the token, and join state verification is disabled, allowing
+concurrent or stateless reuse.
+
+## Recovery after a cluster rollback
+
+If your Teleport cluster is rolled back for any reason, joining bots may fail
+[join state verification](concepts.mdx#join-state-verification) as their local join state
+document may not match the values currently (or previously) known to Teleport.
+
+The simplest workaround is to temporarily set all bound keypair tokens to
+`insecure` recovery mode for the first join attempt following a cluster restore.
+Once they've joined once, they will once again have a valid join state, so the
+recovery mode can be restored to its previous value.
+
+To change the recovery mode, use `tctl edit` to modify the token resource:
+```code
+$ tctl edit token/example-token
+```
+
+Find the `spec.bound_keypair.recovery.mode` field, and set the value to
+"insecure". Repeat this for each bound keypair token. Wait for all bound keypair
+bots to reauthenticate, and repeat this process to restore the recovery mode to
+its previous value.
+
+If [bot keypairs were rotated](#requesting-a-keypair-rotation) between the
+snapshot and restore of the Teleport cluster, note that bots only keep a record
+of the previous 10 keypairs. This means server-side recovery may impossible if
+the keypair expected by the restored Teleport cluster has been rotated out of
+the client-side history, or if the client-side history has been lost or deleted.
+
+[rbac]: ../../../access-controls/roles.mdx
+[ephemeral]: ../../../architecture/machine-id-architecture.mdx#ephemeral-token
+[delegated]: ../../../deployment/join-methods.mdx#delegated-join-methods

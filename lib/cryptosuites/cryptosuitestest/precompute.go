@@ -30,17 +30,24 @@ import (
 // save on CPU usage.
 func PrecomputeRSAKeys(ctx context.Context) {
 	internalrsa.StartPrecomputeOnce.Do(func() {
-		go precomputeTestKeys(ctx)
+		go precomputeTestKeys(ctx, constants.RSAKeySize)
+		go precomputeTestKeys(ctx, 4096)
 	})
 }
 
-func precomputeTestKeys(ctx context.Context) {
-	generatedTestKeys := generateTestKeys(ctx)
-	keysToReuse := make([]*rsa.PrivateKey, 0, testKeysNumber)
-	for range testKeysNumber {
+func precomputeTestKeys(ctx context.Context, bitSize int) {
+	source := internalrsa.PrecomputedKeys
+	count := testKeysNumber
+	if bitSize == 4096 {
+		source = internalrsa.PrecomputedKeys4096
+		count = testKeysNumber4096
+	}
+	generatedTestKeys := generateTestKeys(ctx, bitSize)
+	keysToReuse := make([]*rsa.PrivateKey, 0, count)
+	for range count {
 		select {
 		case k := <-generatedTestKeys:
-			internalrsa.PrecomputedKeys <- k
+			source <- k
 			keysToReuse = append(keysToReuse, k)
 		case <-ctx.Done():
 			return
@@ -50,7 +57,7 @@ func precomputeTestKeys(ctx context.Context) {
 	for {
 		for _, k := range keysToReuse {
 			select {
-			case internalrsa.PrecomputedKeys <- k:
+			case source <- k:
 			case <-ctx.Done():
 				return
 			}
@@ -61,13 +68,20 @@ func precomputeTestKeys(ctx context.Context) {
 // testKeysNumber is the number of RSA keys generated in tests.
 const testKeysNumber = 25
 
-func generateTestKeys(ctx context.Context) <-chan *rsa.PrivateKey {
-	generatedTestKeys := make(chan *rsa.PrivateKey, testKeysNumber)
-	for range testKeysNumber {
+// testKeysNumber is the number of RSA 4096 keys generated in tests.
+const testKeysNumber4096 = 10
+
+func generateTestKeys(ctx context.Context, bitSize int) <-chan *rsa.PrivateKey {
+	count := testKeysNumber
+	if bitSize == 4096 {
+		count = testKeysNumber4096
+	}
+	generatedTestKeys := make(chan *rsa.PrivateKey, count)
+	for range count {
 		// Generate each key in a separate goroutine to take advantage of
 		// multiple cores if possible.
 		go func() {
-			private, err := generateRSAPrivateKey()
+			private, err := generateRSAPrivateKey(bitSize)
 			if err != nil {
 				// Use only in tests. Safe to panic.
 				panic(err)
@@ -84,7 +98,7 @@ func generateTestKeys(ctx context.Context) <-chan *rsa.PrivateKey {
 	return generatedTestKeys
 }
 
-func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
+func generateRSAPrivateKey(bitSize int) (*rsa.PrivateKey, error) {
 	//nolint:forbidigo // This is the one function allowed to generate RSA keys.
-	return rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	return rsa.GenerateKey(rand.Reader, bitSize)
 }

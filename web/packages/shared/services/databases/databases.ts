@@ -25,6 +25,7 @@ export type DbType =
   | 'gcp'
   | 'azure'
   | 'elasticache'
+  | 'elasticache-serverless'
   | 'memorydb'
   | 'keyspace'
   | 'cassandra'
@@ -99,6 +100,9 @@ export const formatDatabaseInfo = (type: DbType, protocol: DbProtocol) => {
       return output;
     case 'elasticache':
       output.title = 'Amazon ElastiCache';
+      return output;
+    case 'elasticache-serverless':
+      output.title = 'Amazon ElastiCache Serverless';
       return output;
     case 'memorydb':
       output.title = 'Amazon MemoryDB';

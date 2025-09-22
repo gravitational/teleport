@@ -59,7 +59,7 @@ import {
 } from 'shared/services/databases';
 import { waitForever } from 'shared/utils/wait';
 
-import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import { getAppAddrWithProtocol, isMcp } from 'teleterm/services/tshd/app';
 import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
@@ -494,6 +494,10 @@ const Resources = memo(
               kind: 'windows_desktop',
               disabled: false,
             },
+            {
+              kind: 'mcp',
+              disabled: false,
+            },
           ]}
           NoResources={
             <NoResources
@@ -575,7 +579,6 @@ const mapToSharedResource = (
     case 'app': {
       const { resource: app } = resource;
       const addrWithProtocol = getAppAddrWithProtocol(app);
-      const isMCP = addrWithProtocol.startsWith('mcp+');
 
       return {
         resource: {
@@ -589,13 +592,10 @@ const mapToSharedResource = (
           friendlyName: app.friendlyName,
           samlApp: app.samlApp,
           requiresRequest: resource.requiresRequest,
-          subKind: isMCP ? AppSubKind.MCP : undefined,
+          subKind: isMcp(app) ? AppSubKind.MCP : undefined,
         },
         ui: {
-          // TODO(greedy52) decide what to do with MCP servers.
-          ActionButton: isMCP ? undefined : (
-            <ConnectAppActionButton app={app} />
-          ),
+          ActionButton: <ConnectAppActionButton app={app} />,
         },
       };
     }

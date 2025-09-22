@@ -6,5 +6,6 @@ selectors:
   - name: foo
   - labels:
       foo: bar
+    default_namespace: foo-namespace
 credential_ttl: 1m0s
 renewal_interval: 30s

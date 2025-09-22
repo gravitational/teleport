@@ -1,9 +1,11 @@
 ---
 title: Discover AWS Access Patterns and AWS CloudTrail events with Teleport Identity Security
 description: Describes how to import and visualize AWS accounts access patterns using Identity Security and Access Graph.
-labels:
+tags:
  - conceptual
  - identity-security
+ - aws
+ - access-risks
 ---
 
 Identity Security streamlines and centralizes access management across your entire infrastructure. You can view access relationships in seconds,
@@ -28,9 +30,9 @@ service, a Discovery Service, and integration with your AWS account.
 ## How it works
 
 Access Graph discovers AWS access patterns, synchronizes various AWS resources,
-including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, and RDS databases.
+including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, RDS databases, and KMS keys.
 These resources are then visualized using the graph representation detailed in the
-[Identity Security usage page](../policy-how-to-use.mdx).
+[Identity Security usage page](../how-to-use.mdx).
 
 The importing process involves three primary steps:
 
@@ -48,6 +50,7 @@ At intervals of 15 minutes, it retrieves the following resources from your AWS a
 - EKS Clusters
 - RDS Databases
 - S3 Buckets
+- KMS Keys
 
 Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to the
 Access Graph, ensuring that it remains updated with the latest information from your AWS environment.
@@ -82,7 +85,7 @@ services, including login attempts, API calls, and changes to infrastructure.
 - For self-hosted clusters:
   - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
   - A running Access Graph node v1.28.0 or later.
-Check the [Identity Security page](../teleport-policy.mdx) for details on
+Check the [Identity Security page](../identity-security.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
   - AWS CloudTrail setup with notifications being sent to a SNS topic.
@@ -222,7 +225,13 @@ The IAM policy includes the following directives:
         "iam:ListSAMLProviders",
         "iam:GetSAMLProvider",
         "iam:ListOpenIDConnectProviders",
-        "iam:GetOpenIDConnectProvider"
+        "iam:GetOpenIDConnectProvider",
+
+        "kms:ListKeys",
+        "kms:DescribeKey",
+        "kms:ListResourceTags",
+        "kms:ListAliases",
+        "kms:GetKeyPolicy"
       ],
       "Resource": "*"
     }

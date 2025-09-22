@@ -131,7 +131,18 @@ export const SsoOnly = (storyProps: StoryProps) => {
 export const SsoPrompt = (storyProps: StoryProps) => {
   const props = makeProps(storyProps);
   props.loginAttempt.status = 'processing';
-  props.shouldPromptSsoStatus = true;
+  props.ssoPrompt = 'follow-browser-steps';
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const SsoPromptWaitForSync = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.loginAttempt.status = 'processing';
+  props.ssoPrompt = 'wait-for-sync';
   return (
     <TestContainer>
       <ClusterLoginPresentation {...props} />

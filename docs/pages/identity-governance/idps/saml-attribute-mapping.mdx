@@ -2,15 +2,16 @@
 title: SAML IdP Attribute Mapping
 description: How to map user attributes to custom SAML response
 h1: SAML Attribute Mapping
-labels:
+tags:
  - conceptual
  - identity-governance
+ - privileged-access
 ---
 
 Attribute mapping configures Teleport SAML Identity Provider to assert custom user attributes in SAML response.
 The Teleport SAML IdP supports three configurable fields for attribute mapping:
 - `name`: Name of the outgoing attribute. Required. Name should be unique across attribute mapping.
-- `value`: Value defined using a [predicate expression](../../reference/predicate-language.mdx), which can reference
+- `value`: Value defined using a [predicate expression](../../reference/access-controls/predicate-language.mdx), which can reference
 Teleport usernames, roles or traits. Required.
 - `name_format`: SAML attribute name format. Optional. The following formats are supported:
   - `unspecified`: value equals to `urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified`. Used as a default value.

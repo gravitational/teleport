@@ -20,14 +20,18 @@ import { MemoryRouter } from 'react-router';
 
 import { Box, H3 } from 'design';
 
-import { ConsoleCard } from 'teleport/Integrations/status/AwsOidc/Cards/ConsoleCard';
+import {
+  ConsoleCardEnroll,
+  ConsoleCardEnrolled,
+} from 'teleport/Integrations/status/AwsOidc/Cards/ConsoleCard';
 import {
   AwsResource,
   StatCard,
 } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import { RolesAnywhereProfileSync } from 'teleport/services/integrations';
 
 export default {
-  title: 'Teleport/Integrations/AwsOidc/Cards',
+  title: 'Teleport/Integrations/Cards',
 };
 
 export function StatCards() {
@@ -104,33 +108,25 @@ export function StatCards() {
 }
 
 export function ConsoleCards() {
-  const cases = [
-    {
-      name: 'Enrolled CLI',
-      props: {
-        enrolled: true,
-        filters: ['app-*', 'dev-*', 'test'],
-        groups: 78,
-        lastUpdated: 1754427370000,
-        profiles: 5,
-        roles: 3,
-      },
-    },
-    {
-      name: 'Un-enrolled CLI',
-      props: {
-        enrolled: false,
-      },
-    },
-  ];
+  const stats: RolesAnywhereProfileSync = {
+    syncedProfiles: 13,
+    syncEndTime: new Date().getTime(),
+    enabled: false,
+    status: '',
+    errorMessage: '',
+    syncStartTime: new Date().getTime(),
+  };
+
   return (
     <MemoryRouter>
-      {cases.map(c => (
-        <Box key={c.name} mb={2}>
-          <H3>{c.name}</H3>
-          <ConsoleCard key={c.name} {...c.props} />
-        </Box>
-      ))}
+      <Box mb={2}>
+        <H3>Un-enrolled CLI</H3>
+        <ConsoleCardEnroll />
+      </Box>
+      <Box mb={2}>
+        <H3>Enrolled CLI</H3>
+        <ConsoleCardEnrolled stats={stats} />
+      </Box>
     </MemoryRouter>
   );
 }

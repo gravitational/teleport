@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -139,6 +140,7 @@ func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDes
 		},
 		UserMetadata:          userMetadata,
 		SessionMetadata:       d.getSessionMetadata(),
+		ConnectionMetadata:    d.getConnectionMetadata(),
 		WindowsDesktopService: d.desktopServiceUUID,
 		DesktopAddr:           d.desktop.GetAddr(),
 		Domain:                d.desktop.GetDomain(),
@@ -150,7 +152,14 @@ func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDes
 		Recorded:              recorded,
 
 		// There can only be 1 participant, desktop sessions are not join-able.
-		Participants: []string{userMetadata.User},
+		Participants: []string{
+			services.UsernameForCluster(
+				services.UsernameForClusterConfig{
+					User:              d.identity.Username,
+					OriginClusterName: d.identity.OriginClusterName,
+					LocalClusterName:  d.clusterName,
+				},
+			)},
 	}
 }
 
@@ -167,6 +176,7 @@ func (d *desktopSessionAuditor) makeClipboardSend(length int32) *events.DesktopC
 		ConnectionMetadata: d.getConnectionMetadata(),
 		DesktopAddr:        d.desktop.GetAddr(),
 		Length:             length,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -183,6 +193,7 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 		ConnectionMetadata: d.getConnectionMetadata(),
 		DesktopAddr:        d.desktop.GetAddr(),
 		Length:             length,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -218,6 +229,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m tdp.SharedDirectoryA
 		DesktopAddr:   d.desktop.GetAddr(),
 		DirectoryName: m.Name,
 		DirectoryID:   m.DirectoryID,
+		DesktopName:   d.desktop.GetName(),
 	}
 }
 
@@ -248,6 +260,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAc
 		DesktopAddr:        d.desktop.GetAddr(),
 		DirectoryName:      string(name),
 		DirectoryID:        m.DirectoryID,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -296,6 +309,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m tdp.SharedDirecto
 		Path:          path,
 		Length:        m.Length,
 		Offset:        offset,
+		DesktopName:   d.desktop.GetName(),
 	}
 }
 
@@ -348,6 +362,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDire
 		Path:               path,
 		Length:             m.ReadDataLength,
 		Offset:             offset,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 
@@ -392,6 +407,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirect
 			Error:       err.Error(),
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
+		DesktopName:   d.desktop.GetName(),
 		DesktopAddr:   d.desktop.GetAddr(),
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
@@ -449,6 +465,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDir
 		Path:               path,
 		Length:             m.BytesWritten,
 		Offset:             offset,
+		DesktopName:        d.desktop.GetName(),
 	}
 }
 

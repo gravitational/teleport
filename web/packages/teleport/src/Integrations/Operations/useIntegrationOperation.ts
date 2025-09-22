@@ -20,6 +20,7 @@ import { useState } from 'react';
 
 import {
   IntegrationAwsOidc,
+  IntegrationAwsRa,
   IntegrationKind,
   integrationService,
   type Integration,
@@ -105,4 +106,4 @@ export type Operation = {
   item?: Integration;
 };
 
-export type EditableIntegration = IntegrationAwsOidc;
+export type EditableIntegration = IntegrationAwsOidc | IntegrationAwsRa;

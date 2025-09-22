@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -416,6 +415,10 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 			return ok
 		}
 
+		if _, ok := kinds[types.KindMCP]; ok && r.GetSubKind() == types.KindMCP {
+			return true
+		}
+
 		_, ok := kinds[types.KindIdentityCenterAccount]
 		return ok
 	case types.KindKubeServer:
@@ -446,8 +449,19 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 			return ok
 		}
 
-		_, ok := kinds[types.KindAppServer]
-		return ok
+		if _, ok := kinds[types.KindAppServer]; ok {
+			return ok
+		}
+
+		if _, ok := kinds[types.KindMCP]; ok {
+			type appGetter interface {
+				GetApp() types.Application
+			}
+			if appServer, ok := r.(appGetter); ok && appServer.GetApp().GetSubKind() == types.SubKindMCP {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}
@@ -724,20 +738,20 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 
 func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]resource, error) {
 	var accounts []resource
-	var pageRequest pagination.PageRequestToken
+	var startKey string
 	for {
-		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, &pageRequest)
+		resp, nextKey, err := c.ListIdentityCenterAccounts(ctx, apidefaults.DefaultChunkSize, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
-		for _, acct := range resultsPage {
-			accounts = append(accounts, IdentityCenterAccountToAppServer(acct.Account))
+		for _, acct := range resp {
+			accounts = append(accounts, IdentityCenterAccountToAppServer(acct))
 		}
 
-		if nextPage == pagination.EndOfList {
+		if nextKey == "" {
 			break
 		}
-		pageRequest.Update(nextPage)
+		startKey = nextKey
 	}
 	return accounts, nil
 }

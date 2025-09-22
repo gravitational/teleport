@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
@@ -123,20 +124,12 @@ func TestWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-		if !assert.Len(t, servers, 3) {
-			return
-		}
-		if !assert.Equal(t, "db0", servers[0].GetName()) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, servers, 3)
+		require.Equal(t, "db0", servers[0].GetName())
 		wantDBs := types.Databases(types.DatabaseServers(servers).ToDatabases()).ToMap()
 		for _, db := range []types.Database{db0, db1, db2} {
-			if !assert.Contains(t, wantDBs, db.GetName()) {
-				return
-			}
+			require.Contains(t, wantDBs, db.GetName())
 		}
 	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be registered")
 
@@ -166,15 +159,9 @@ func TestWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-		if !assert.Len(t, servers, 1) {
-			return
-		}
-		if !assert.Equal(t, "db0", servers[0].GetName()) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "db0", servers[0].GetName())
 	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be cleaned up")
 }
 
@@ -516,12 +503,17 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 }
 
 type fakeAWSClients struct {
+	ec2Client        db.EC2Client
 	ecClient         db.ElastiCacheClient
 	mdbClient        db.MemoryDBClient
 	openSearchClient db.OpenSearchClient
 	rdsClient        db.RDSClient
 	redshiftClient   db.RedshiftClient
 	rssClient        db.RSSClient
+}
+
+func (f fakeAWSClients) GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) db.EC2Client {
+	return f.ec2Client
 }
 
 func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {

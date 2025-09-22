@@ -1,9 +1,10 @@
 ---
 title: Restrict Access for Privileged Accounts
 description: Explains the risks of root-level access to Teleport-protected resources.
-labels:
+tags:
  - conceptual
  - zero-trust
+ - privileged-access
 ---
 
 As an administrator, you need to make informed decisions about when and how to grant
@@ -63,7 +64,7 @@ following guidelines:
 You should make sure that the Teleport storage backend you use can't be accessed directly or modified. 
 For example, you should ensure that the storage you use for audit log events and session recordings is
 secured so the data can't be tampered with. For more information about managing storage, see 
-[Storage backends](../../../reference/backends.mdx)
+[Storage backends](../../../reference/deployment/backends.mdx)
 
 ## Restrict network access
 

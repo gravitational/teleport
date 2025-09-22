@@ -3,9 +3,11 @@ title: Database Access with Amazon Redshift
 sidebar_label: Amazon Redshift
 description: How to configure Teleport database access with Amazon Redshift.
 videoBanner: UFhT52d5bYg
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
+ - aws
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon Redshift" dbConfigure="with IAM authentication"!)
@@ -154,7 +156,7 @@ $ tsh db connect --db-user=alice --db-name=dev my-redshift
   tokens for Redshift databases. Users must exist in the database.
 </Admonition>
 
-(!docs/pages/includes/database-access/pg-access-webui.mdx!)
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
 
 To log out of the database and remove credentials:
 

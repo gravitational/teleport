@@ -171,7 +171,7 @@ export function Task({
       <H3 my={2} style={{ overflow: 'unset' }}>
         Details
       </H3>
-      <Markdown text={taskAttempt.data.description} />
+      <Markdown text={taskAttempt.data.description} enableLinks />
       <H3 my={2} style={{ overflow: 'unset' }}>
         Impacted instances ({Object.keys(impacts).length})
       </H3>

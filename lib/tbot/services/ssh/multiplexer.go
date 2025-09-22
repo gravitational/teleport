@@ -271,7 +271,7 @@ func (s *MultiplexerService) setup(ctx context.Context) (
 			select {
 			case <-s.botIdentityReadyCh:
 			case <-ctx.Done():
-				return nil, nil, "", nil, nil
+				return nil, nil, "", nil, ctx.Err()
 			}
 		}
 	}
@@ -354,6 +354,7 @@ func (s *MultiplexerService) setup(ctx context.Context) (
 	// Create Proxy and Auth clients
 	proxyClient := newCyclingHostDialClient(100, proxyclient.ClientConfig{
 		ProxyAddress:      proxyAddr,
+		RelayAddress:      s.cfg.RelayAddress,
 		TLSRoutingEnabled: proxyPing.Proxy.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
 			cfg, err := s.identity.TLSConfig()

@@ -1458,54 +1458,6 @@
         }
       }
     },
-    "wasm-pack@latest": {
-      "last_modified": "2024-11-16T04:25:12Z",
-      "resolved": "github:NixOS/nixpkgs/34a626458d686f1b58139620a8b2793e9e123bba#wasm-pack",
-      "source": "devbox-search",
-      "version": "0.13.1",
-      "systems": {
-        "aarch64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/1p81s2kwmj415jvg1v2avgq83mqx7fns-wasm-pack-0.13.1",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/1p81s2kwmj415jvg1v2avgq83mqx7fns-wasm-pack-0.13.1"
-        },
-        "aarch64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/377fivabb47p4xczxxdjlikpzqjiyw1l-wasm-pack-0.13.1",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/377fivabb47p4xczxxdjlikpzqjiyw1l-wasm-pack-0.13.1"
-        },
-        "x86_64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/b491smk9is9kmys0v26gbdnqgic3z993-wasm-pack-0.13.1",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/b491smk9is9kmys0v26gbdnqgic3z993-wasm-pack-0.13.1"
-        },
-        "x86_64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/b8630fh9mnsi9gakpldyp3xjrdh760yi-wasm-pack-0.13.1",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/b8630fh9mnsi9gakpldyp3xjrdh760yi-wasm-pack-0.13.1"
-        }
-      }
-    },
     "yamllint@latest": {
       "last_modified": "2024-11-16T04:25:12Z",
       "resolved": "github:NixOS/nixpkgs/34a626458d686f1b58139620a8b2793e9e123bba#yamllint",

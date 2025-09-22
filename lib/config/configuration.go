@@ -30,7 +30,9 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"math"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -174,6 +176,8 @@ type CommandLineFlags struct {
 	DatabaseAWSRDSClusterID string
 	// DatabaseAWSElastiCacheGroupID is the ElastiCache replication group identifier.
 	DatabaseAWSElastiCacheGroupID string
+	// DatabaseAWSElastiCacheServerlessCacheName is the ElastiCache Serverless cache name.
+	DatabaseAWSElastiCacheServerlessCacheName string
 	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
 	DatabaseAWSMemoryDBClusterName string
 	// DatabaseAWSSessionTags is the AWS STS session tags.
@@ -280,6 +284,13 @@ type CommandLineFlags struct {
 	// is not set to enforcing mode or the global SELinux mode is not set to
 	// enforcing.
 	EnsureSELinuxEnforcing bool
+
+	// BackendKey is the backend key to use for various `teleport backend` commands.
+	BackendKey string
+	// BackendPrefix limits `teleport backend ls` to only output keys matching the prefix.
+	BackendPrefix string
+	// Format is used to change the format of output.
+	Format string
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -567,6 +578,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if err := applyAuthOrProxyAddress(fc, cfg); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if fc.RelayServer != "" {
+		addr, err := utils.ParseHostPortAddr(fc.RelayServer, -1)
+		if err != nil {
+			return trace.Wrap(err, "parsing teleport.relay_server")
+		}
+
+		cfg.RelayServer = addr.Addr
 	}
 
 	if err := applyTokenConfig(fc, cfg); err != nil {
@@ -973,7 +993,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("cannot set both proxy_checks_host_keys and session_recording_config at the same time, prefer session_recording_config.proxy_checks_host_keys")
 			}
 
-			src = *fc.Auth.SessionRecordingConfig
+			src = fc.Auth.SessionRecordingConfig.toSpec()
 		}
 
 		cfg.Auth.SessionRecordingConfig, err = types.NewSessionRecordingConfigFromConfigFile(src)
@@ -1860,6 +1880,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ElastiCache: servicecfg.DatabaseAWSElastiCache{
 					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
 				},
+				ElastiCacheServerless: servicecfg.DatabaseAWSElastiCacheServerless{
+					CacheName: database.AWS.ElastiCacheServerless.CacheName,
+				},
 				MemoryDB: servicecfg.DatabaseAWSMemoryDB{
 					ClusterName: database.AWS.MemoryDB.ClusterName,
 				},
@@ -2184,6 +2207,11 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.WindowsDesktop.DiscoveryInterval = fc.WindowsDesktop.DiscoveryInterval
 	if cfg.WindowsDesktop.DiscoveryInterval < 0 {
 		return trace.BadParameter("desktop discovery interval must not be negative (%v)", fc.WindowsDesktop.DiscoveryInterval.String())
+	}
+
+	cfg.WindowsDesktop.PublishCRLInterval = fc.WindowsDesktop.PublishCRLInterval
+	if cfg.WindowsDesktop.PublishCRLInterval < 0 {
+		return trace.BadParameter("publish CRL interval must not be negative (%v)", fc.WindowsDesktop.PublishCRLInterval.String())
 	}
 
 	var err error
@@ -2544,6 +2572,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				},
 				ElastiCache: servicecfg.DatabaseAWSElastiCache{
 					ReplicationGroupID: clf.DatabaseAWSElastiCacheGroupID,
+				},
+				ElastiCacheServerless: servicecfg.DatabaseAWSElastiCacheServerless{
+					CacheName: clf.DatabaseAWSElastiCacheServerlessCacheName,
 				},
 				MemoryDB: servicecfg.DatabaseAWSMemoryDB{
 					ClusterName: clf.DatabaseAWSMemoryDBClusterName,
@@ -3094,13 +3125,47 @@ func applyRelayConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.Relay.RelayGroup = fc.Relay.RelayGroup
 
-	if len(fc.Relay.APIPublicHostnames) < 1 {
-		return trace.BadParameter("missing relay_service.api_public_hostnames")
+	if fc.Relay.TargetConnectionCount < 1 || fc.Relay.TargetConnectionCount > math.MaxInt32 {
+		return trace.BadParameter("missing or invalid relay_service.target_connection_count")
 	}
-	if slices.Contains(fc.Relay.APIPublicHostnames, "") {
-		return trace.BadParameter("empty string in relay_service.api_public_hostnames")
+	cfg.Relay.TargetConnectionCount = int32(fc.Relay.TargetConnectionCount)
+
+	if len(fc.Relay.PublicHostnames) < 1 {
+		return trace.BadParameter("missing relay_service.public_hostnames")
 	}
-	cfg.Relay.APIPublicHostnames = slices.Clone(fc.Relay.APIPublicHostnames)
+	if slices.Contains(fc.Relay.PublicHostnames, "") {
+		return trace.BadParameter("empty string in relay_service.public_hostnames")
+	}
+	cfg.Relay.PublicHostnames = slices.Clone(fc.Relay.PublicHostnames)
+
+	if fc.Relay.TransportListenAddr == "" {
+		return trace.BadParameter("missing relay_service.transport_listen_addr")
+	}
+	transportListenAddr, err := netip.ParseAddrPort(fc.Relay.TransportListenAddr)
+	if err != nil {
+		return trace.Wrap(err, "parsing relay_service.transport_listen_addr")
+	}
+	cfg.Relay.TransportListenAddr = transportListenAddr
+	cfg.Relay.TransportPROXYProtocol = fc.Relay.TransportPROXYProtocol
+
+	if fc.Relay.PeerListenAddr == "" {
+		return trace.BadParameter("missing relay_service.peer_listen_addr")
+	}
+	peerListenAddr, err := netip.ParseAddrPort(fc.Relay.PeerListenAddr)
+	if err != nil {
+		return trace.Wrap(err, "parsing relay_service.peer_listen_addr")
+	}
+	cfg.Relay.PeerListenAddr = peerListenAddr
+
+	if fc.Relay.TunnelListenAddr == "" {
+		return trace.BadParameter("missing relay_service.tunnel_listen_addr")
+	}
+	tunnelListenAddr, err := netip.ParseAddrPort(fc.Relay.TunnelListenAddr)
+	if err != nil {
+		return trace.Wrap(err, "parsing relay_service.tunnel_listen_addr")
+	}
+	cfg.Relay.TunnelListenAddr = tunnelListenAddr
+	cfg.Relay.TunnelPROXYProtocol = fc.Relay.TunnelPROXYProtocol
 
 	return nil
 }

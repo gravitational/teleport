@@ -56,8 +56,8 @@ func TestService_GetThumbnail(t *testing.T) {
 	require.NoError(t, err, "failed to upload thumbnail")
 
 	service := &Service{
-		authorizer:    &fakeAuthorizer{authorizedSessions: map[string]bool{"test-session": true}},
-		uploadHandler: uploader,
+		authorizer:      &fakeAuthorizer{authorizedSessions: map[string]bool{"test-session": true}},
+		downloadHandler: uploader,
 	}
 
 	resp, err := service.GetThumbnail(ctx, &recordingmetadatav1pb.GetThumbnailRequest{
@@ -76,8 +76,8 @@ func TestService_GetThumbnailNotFound(t *testing.T) {
 	uploader := eventstest.NewMemoryUploader()
 
 	service := &Service{
-		authorizer:    &fakeAuthorizer{authorizedSessions: map[string]bool{"test-session": true}},
-		uploadHandler: uploader,
+		authorizer:      &fakeAuthorizer{authorizedSessions: map[string]bool{"test-session": true}},
+		downloadHandler: uploader,
 	}
 
 	_, err := service.GetThumbnail(ctx, &recordingmetadatav1pb.GetThumbnailRequest{
@@ -114,8 +114,8 @@ func TestService_GetThumbnailAuthorized(t *testing.T) {
 	require.NoError(t, err, "failed to upload thumbnail for test session")
 
 	service := &Service{
-		authorizer:    authorizer,
-		uploadHandler: uploader,
+		authorizer:      authorizer,
+		downloadHandler: uploader,
 	}
 
 	testCases := []struct {
@@ -180,8 +180,8 @@ func TestService_GetMetadata(t *testing.T) {
 	require.NoError(t, err, "failed to upload metadata")
 
 	service := &Service{
-		authorizer:    &fakeAuthorizer{authorizedSessions: map[string]bool{"test-session": true}},
-		uploadHandler: uploader,
+		authorizer:      &fakeAuthorizer{authorizedSessions: map[string]bool{"test-session": true}},
+		downloadHandler: uploader,
 	}
 
 	stream := &fakeServerStream{ctx: ctx}
@@ -235,8 +235,8 @@ func TestService_GetMetadataNotFound(t *testing.T) {
 	uploader := eventstest.NewMemoryUploader()
 
 	service := &Service{
-		authorizer:    &fakeAuthorizer{authorizedSessions: map[string]bool{"test-session": true}},
-		uploadHandler: uploader,
+		authorizer:      &fakeAuthorizer{authorizedSessions: map[string]bool{"test-session": true}},
+		downloadHandler: uploader,
 	}
 
 	stream := &fakeServerStream{ctx: ctx}
@@ -273,8 +273,8 @@ func TestService_GetMetadataAuthorized(t *testing.T) {
 	require.NoError(t, err, "failed to upload metadata for test session")
 
 	service := &Service{
-		authorizer:    authorizer,
-		uploadHandler: uploader,
+		authorizer:      authorizer,
+		downloadHandler: uploader,
 	}
 
 	testCases := []struct {

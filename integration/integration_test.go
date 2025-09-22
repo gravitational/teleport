@@ -433,7 +433,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// Start a node.
 			nodeConf := suite.defaultServiceConfig()
-			nodeConf.HostUUID = "node"
 			nodeConf.Hostname = "node"
 			nodeConf.SSH.Enabled = true
 			nodeConf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &nodeConf.FileDescriptors)
@@ -796,7 +795,8 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			return "", trace.Wrap(err)
 		}
 
-		return node.Config.HostUUID, nil
+		uuid, err := node.WaitForHostID(t.Context())
+		return uuid, trace.Wrap(err)
 	}
 
 	// add two nodes with the same hostname.
@@ -1136,14 +1136,10 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 			}()
 
 			var sessionID string
-			require.EventuallyWithT(t, func(c *assert.CollectT) {
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				trackers, err := authSrv.GetActiveSessionTrackers(ctx)
-				if !assert.NoError(c, err) {
-					return
-				}
-				if !assert.Len(c, trackers, 1) {
-					return
-				}
+				require.NoError(t, err)
+				require.Len(t, trackers, 1)
 				sessionID = trackers[0].GetSessionID()
 			}, time.Second*15, time.Millisecond*100)
 
@@ -1182,13 +1178,13 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				for {
 					select {
 					case err := <-errCh:
-						assert.NoError(t, err)
+						require.NoError(t, err)
 						return
 					case evt := <-eventsCh:
 						if evt != nil {
 							return
 						}
-						assert.Fail(t, "expected event, got nil")
+						require.Fail(t, "expected event, got nil")
 						return
 					}
 				}
@@ -1409,7 +1405,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 			conf.SetToken("token")
 			conf.Testing.UploadEventsC = i.UploadEventsC
 			conf.SetAuthServerAddress(*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))))
-			conf.HostUUID = name
 			conf.Hostname = name
 			conf.SSH.Enabled = true
 			conf.CachePolicy = servicecfg.CachePolicy{
@@ -2039,8 +2034,8 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 					sems, err := site.GetSemaphores(ctx, types.SemaphoreFilter{
 						SemaphoreKind: types.SemaphoreKindConnection,
 					})
-					assert.NoError(t, err)
-					assert.Len(t, sems, 1)
+					require.NoError(t, err)
+					require.Len(t, sems, 1)
 				}, 2*time.Second, 100*time.Millisecond)
 
 				timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -2601,6 +2596,10 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
+	// Wait for nodes to be visible before attempting connections
+	err = b.WaitForNodeCount(ctx, "cluster-a", 2)
+	require.NoError(t, err)
+
 	cmd := []string{"echo", "hello world"}
 	tc, err := b.NewClient(helpers.ClientConfig{
 		Login:   username,
@@ -2610,19 +2609,16 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
+	// Wait for nodes to be visible before attempting connections
+	err = b.WaitForNodeCount(ctx, "cluster-a", 2)
+	require.NoError(t, err)
+
 	output := &bytes.Buffer{}
 	tc.Stdout = output
-	// try to execute an SSH command using the same old client  to helpers.Site-B
+	// try to execute an SSH command using the same old client to helpers.Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for range 10 {
-		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(ctx, cmd)
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
+	require.NoError(t, tc.SSH(ctx, cmd))
 	require.Equal(t, "hello world\n", output.String())
 
 	// Stop cluster "a" to force existing tunnels to close.
@@ -2645,17 +2641,14 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
+	// Wait for nodes to be visible before attempting connections
+	err = b.WaitForNodeCount(ctx, "cluster-a", 2)
+	require.NoError(t, err)
+
 	// try to execute an SSH command using the same old client to site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
 	// and 'tc' (client) is also supposed to reconnect
-	for range 30 {
-		time.Sleep(1 * time.Second)
-		err = tc.SSH(ctx, cmd)
-		if err == nil {
-			break
-		}
-	}
-	require.NoError(t, err)
+	require.NoError(t, tc.SSH(ctx, cmd))
 
 	// stop cluster and remaining nodes
 	require.NoError(t, a.StopAll())
@@ -3868,6 +3861,9 @@ func testTrustedClusterAgentless(t *testing.T, suite *integrationTestSuite) {
 	// create agentless node in leaf cluster
 	node := CreateAgentlessNode(t, leaf.Process.GetAuthServer(), clusterAux, "leaf-agentless-node")
 
+	err = main.WaitForNodeCount(ctx, clusterAux, 1)
+	require.NoError(t, err)
+
 	// connect to leaf agentless node
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:        main.Process,
@@ -4822,9 +4818,9 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 						require.EventuallyWithT(t, func(t *assert.CollectT) {
 							// enter 'printenv DISPLAY > /path/to/tmp/file' into the session (dumping the value of DISPLAY into the temp file)
 							_, err = fmt.Fprintf(keyboard, "printenv %v > %s\n\r", x11.DisplayEnv, tmpFile.Name())
-							assert.NoError(t, err)
+							require.NoError(t, err)
 
-							assert.Eventually(t, func() bool {
+							require.Eventually(t, func() bool {
 								output, err := os.ReadFile(tmpFile.Name())
 								if err == nil && len(output) != 0 {
 									select {
@@ -7890,8 +7886,9 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	var sessTracker types.SessionTracker
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		trackers, err := peerClusterClient.AuthClient.GetActiveSessionTrackers(ctx)
-		assert.NoError(t, err)
-		if assert.Len(t, trackers, 1) {
+		require.NoError(t, err)
+		require.Len(t, trackers, 1)
+		if len(trackers) == 1 {
 			sessTracker = trackers[0]
 		}
 	}, 5*time.Second, 100*time.Millisecond)
