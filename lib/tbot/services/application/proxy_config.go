@@ -31,6 +31,7 @@ import (
 
 const ProxyServiceType = "application-proxy"
 
+// ProxyServiceConfig is the configuration for the ProxyService.
 type ProxyServiceConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	// Optional.
@@ -48,19 +49,23 @@ type ProxyServiceConfig struct {
 	Listener net.Listener `yaml:"-"`
 }
 
+// GetName returns the user-given name of the service for reporting.
 func (c *ProxyServiceConfig) GetName() string {
 	return c.Name
 }
 
+// Type returns the type of the service[
 func (c *ProxyServiceConfig) Type() string {
 	return ProxyServiceType
 }
 
+// MarshalYAML overrides the YAML representation of the service.
 func (c *ProxyServiceConfig) MarshalYAML() (any, error) {
 	type raw ProxyServiceConfig
 	return encoding.WithTypeHeader((*raw)(c), ProxyServiceType)
 }
 
+// UnmarshalYAML is used to override the YAML unmarshaling of the service.
 func (c *ProxyServiceConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw ProxyServiceConfig
@@ -70,6 +75,8 @@ func (c *ProxyServiceConfig) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+// CheckAndSetDefaults checks the user-provided configuration against validation
+// rules and sets any default values.
 func (c *ProxyServiceConfig) CheckAndSetDefaults() error {
 	switch {
 	case c.Listen == "" && c.Listener == nil:
@@ -83,6 +90,7 @@ func (c *ProxyServiceConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// GetCredentialLifetime returns the embedded CredentialLifetime.
 func (c *ProxyServiceConfig) GetCredentialLifetime() bot.CredentialLifetime {
 	return c.CredentialLifetime
 }
