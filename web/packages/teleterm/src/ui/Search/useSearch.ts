@@ -370,11 +370,17 @@ function calculateScore(
     const field = searchResult.resource[match.field];
     const isMainField = mainResourceField[searchResult.kind] === match.field;
     const lengthScore = getLengthScore(searchTerm, field);
-    const weight = isMainField ? 5 : 2;
-    // Bonus multiplier for an exact match on the main field.
-    const exactMainMatchWeight = isMainField && lengthScore === 100 ? 1.25 : 1;
+    const isExactMatch = lengthScore === 100;
+    const mainFieldBoost = isMainField ? 5 : 2;
+    // Boost exact matches on the main field.
+    // Let's say there's two databases, "postgres" with no labels and "postgres-dev" with a
+    // engine:postgres label. If the user searches for "postgres", we want to show the "postgres"
+    // database first. Without this bonus multiplier, "postgres-dev" could end up being first as the
+    // search term "postgres" also matches the label.
+    const exactMainMatchBoost = isMainField && isExactMatch ? 1.25 : 1;
 
-    const resourceMatchScore = lengthScore * weight * exactMainMatchWeight;
+    const resourceMatchScore =
+      lengthScore * mainFieldBoost * exactMainMatchBoost;
     searchResultScore += resourceMatchScore;
   }
 
