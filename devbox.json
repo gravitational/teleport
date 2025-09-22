@@ -27,6 +27,7 @@
     "protobuf3_20@3.20.3",
     "pnpm@10.7.0",
     "gnumake@4.3",
+    "apple-sdk_12@12.3",
 
     "path:build.assets/flake#conditional",
     "path:build.assets/flake#grpc-tools",
@@ -39,7 +40,8 @@
     "init_hook": [
       "export TELEPORT_DEVBOX=1",
       "export PATH=\"$HOME/.cargo/bin:$PATH\"",
-      "type unset 2>/dev/null && unset GOROOT"
+      "type unset 2>/dev/null && unset GOROOT",
+      "unset DEVELOPER_DIR_FOR_TARGET"
     ]
   }
 }

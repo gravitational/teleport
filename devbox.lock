@@ -49,6 +49,34 @@
         }
       }
     },
+    "apple-sdk_12@12.3": {
+      "last_modified": "2025-07-28T17:09:23Z",
+      "resolved": "github:NixOS/nixpkgs/648f70160c03151bc2121d179291337ad6bc564b#apple-sdk_12",
+      "source": "devbox-search",
+      "version": "12.3",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/kvs20yk8vvs0201i1xczafjibvklcacc-apple-sdk-12.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/kvs20yk8vvs0201i1xczafjibvklcacc-apple-sdk-12.3"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/0lwhprmdl5qfhca48jhg3r9zsyv2a7p2-apple-sdk-12.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/0lwhprmdl5qfhca48jhg3r9zsyv2a7p2-apple-sdk-12.3"
+        }
+      }
+    },
     "bash@latest": {
       "last_modified": "2024-11-16T04:25:12Z",
       "resolved": "github:NixOS/nixpkgs/34a626458d686f1b58139620a8b2793e9e123bba#bash",
@@ -360,6 +388,10 @@
           "store_path": "/nix/store/pxpns5vm111i6j3r3wbygaj99wbrm6h1-git-2.47.0"
         }
       }
+    },
+    "github:NixOS/nixpkgs/nixpkgs-unstable": {
+      "last_modified": "2025-08-25T22:07:10Z",
+      "resolved": "github:NixOS/nixpkgs/84c256e42600cb0fdf25763b48d28df2f25a0c8b?lastModified=1756159630&narHash=sha256-ohMvsjtSVdT%2FbruXf5ClBh8ZYXRmD4krmjKrXhEvwMg%3D"
     },
     "gnumake@4.3": {
       "last_modified": "2022-12-08T11:15:29Z",
@@ -730,8 +762,8 @@
       }
     },
     "llvmPackages_14.clangUseLLVM@14.0.6": {
-      "last_modified": "2024-11-16T04:25:12Z",
-      "resolved": "github:NixOS/nixpkgs/34a626458d686f1b58139620a8b2793e9e123bba#llvmPackages_14.clangUseLLVM",
+      "last_modified": "2025-07-28T17:09:23Z",
+      "resolved": "github:NixOS/nixpkgs/648f70160c03151bc2121d179291337ad6bc564b#llvmPackages_14.clangUseLLVM",
       "source": "devbox-search",
       "version": "14.0.6",
       "systems": {
@@ -739,41 +771,41 @@
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/b06905i89z5liqpgafazjwqxk9zrygfp-clang-wrapper-14.0.6",
+              "path": "/nix/store/nbyda6fn0r7pn315ijr5aga8zrbn8sia-clang-wrapper-14.0.6",
               "default": true
             }
           ],
-          "store_path": "/nix/store/b06905i89z5liqpgafazjwqxk9zrygfp-clang-wrapper-14.0.6"
+          "store_path": "/nix/store/nbyda6fn0r7pn315ijr5aga8zrbn8sia-clang-wrapper-14.0.6"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/1frmrf94mqlg64a5wdwpv5n76qi41ib7-clang-wrapper-14.0.6",
+              "path": "/nix/store/j0psmmm38r0jrxh61i3svcdyg92jxxc7-clang-wrapper-14.0.6",
               "default": true
             }
           ],
-          "store_path": "/nix/store/1frmrf94mqlg64a5wdwpv5n76qi41ib7-clang-wrapper-14.0.6"
+          "store_path": "/nix/store/j0psmmm38r0jrxh61i3svcdyg92jxxc7-clang-wrapper-14.0.6"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/92xfly2xhpvsids88fpbk0jh6qalh3py-clang-wrapper-14.0.6",
+              "path": "/nix/store/q0rzijanaqi8s4sjpd2zssz99027ji7n-clang-wrapper-14.0.6",
               "default": true
             }
           ],
-          "store_path": "/nix/store/92xfly2xhpvsids88fpbk0jh6qalh3py-clang-wrapper-14.0.6"
+          "store_path": "/nix/store/q0rzijanaqi8s4sjpd2zssz99027ji7n-clang-wrapper-14.0.6"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/ds4bkq71imxzk67j6ssnlrn5mgzvgjqs-clang-wrapper-14.0.6",
+              "path": "/nix/store/gdvgcbwsfk6c1g5l6wnzs6v0sy9xf5nm-clang-wrapper-14.0.6",
               "default": true
             }
           ],
-          "store_path": "/nix/store/ds4bkq71imxzk67j6ssnlrn5mgzvgjqs-clang-wrapper-14.0.6"
+          "store_path": "/nix/store/gdvgcbwsfk6c1g5l6wnzs6v0sy9xf5nm-clang-wrapper-14.0.6"
         }
       }
     },
