@@ -188,8 +188,21 @@ Note: these are best understood by opening https://goteleport.com/docs and follo
 - "Zero Trust Access -> Cluster management" moves to "Platform -> Operations -> Operating Self-Hosted Teleport Clouds"
 - "Zero Trust Access -> Self-Hosting Teleport -> Guides for running Teleport using Helm" moves to "Platform -> Installation -> Installing Self-Hosted Clusters -> Kubernetes" (many subsections)
 - "Zero Trust Access -> Self-Hosting Teleport" moves to "Platform -> Operations -> Operating Self-Hosted Teleport Clusters" (remaining sections)
-- "Machine & Workload Identity" -> Machine ID -> Deploy tbot" links to "Installation -> Installing Teleport Client Tools -> tbot" (instead of including agent install instructions, which are not necessary for MWI)
+- "Machine & Workload Identity" -> Machine ID -> Deploy tbot" links to "Installation -> Installing Teleport Client Tools -> tbot" (or vice-versa, at MWI team discretion.)
 - "Identity Security -> Self-Hosting Teleport Access Graph" moves to "Installation -> Installing Self-Hosted Teleport Clusters -> Access Graph"
 - "Enroll Resources -> Joining Teleport Agents" moves to "Platform -> Installation -> Installing Teleport Agents" (such that Enroll Resources is always use-case driven, and links to Platform -> Installation for Azure, GCP, etc, instructions.)
 
 Marketing-branded sections may link to Installation, Upgrading, or Operations sections where relevant, and vice-versa.
+
+### Confusing Workflow Reference
+
+This list is an incomplete collection of various flows we need to fix. See the Action Plan above for additional examples.
+
+1. If a Cloud user following "Enroll Resource -> Applications" needs the agent for their application to run on Kubernetes with ArgoCD, they must
+   follow "Zero Trust Access -> Self-Hosting Teleport -> Guides for running Teleport using Helm", even though the instructions are not related to
+   Access or Self-Hosted. Instead, they could follow a link to "Platform -> Installation -> Installing Teleport Agents" and immediately see
+   "Platform -> Installation -> Installing Teleport Agents -> Kubernetes -> ArgoCD".
+2. "Introduction -> Installation -> macOS" says that `teleport` is supported on macOS, but provides no guidance for configuring or using it.
+3. "Introduction -> Installation -> Amazon EC2" links to AMIs and one possible Self-Hosted specific guide, but has no agent install guide.
+4. Agent install docs live under "Introduction -> Upgrading -> Managed Updates for Agents (v2)", instead of a clear Installation page.
+
