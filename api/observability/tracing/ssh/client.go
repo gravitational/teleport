@@ -38,8 +38,10 @@ type Client struct {
 	capability tracingCapability
 
 	requestHandlersMu sync.Mutex
-	requestHandlers   map[string]chan *ssh.Request
+	requestHandlers   map[string]requestHandlerFn
 }
+
+type requestHandlerFn func(ctx context.Context, ch *ssh.Request)
 
 type tracingCapability int
 
@@ -62,7 +64,7 @@ func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request
 		Client:          ssh.NewClient(c, chans, reqs),
 		opts:            opts,
 		capability:      tracingUnsupported,
-		requestHandlers: map[string]chan *ssh.Request{},
+		requestHandlers: map[string]requestHandlerFn{},
 	}
 
 	if bytes.HasPrefix(clt.ServerVersion(), []byte("SSH-2.0-Teleport")) {
@@ -166,6 +168,21 @@ func (c *Client) OpenChannel(
 	}, reqs, err
 }
 
+// HandleSessionRequests registers a handler for any incoming [ssh.Request] matching the
+// provided type within a session. If the type is already being handled, an error is returned.
+// All registered handlers are consumed by the next call to [Client.NewSession].
+func (c *Client) HandleSessionRequests(ctx context.Context, requestType string, handlerFn func(ctx context.Context, ch *ssh.Request)) error {
+	c.requestHandlersMu.Lock()
+	defer c.requestHandlersMu.Unlock()
+
+	if _, ok := c.requestHandlers[requestType]; ok {
+		return trace.AlreadyExists("ssh request type %q is already being handled for this session", requestType)
+	}
+
+	c.requestHandlers[requestType] = handlerFn
+	return nil
+}
+
 // NewSession opens a new Session for this client.
 func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
@@ -200,14 +217,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Capture requests not handled by registered request handlers and
-	// pass them to the crypto [ssh.Session].
-	unhandledReqs := make(chan *ssh.Request, cap(reqs))
-	go func() {
-		c.serveRequests(reqs, unhandledReqs)
-		close(unhandledReqs)
-	}()
-
+	unhandledReqs := c.handleSessionRequests(ctx, reqs)
 	session, err := newCryptoSSHSession(ch, unhandledReqs)
 	if err != nil {
 		_ = ch.Close()
@@ -222,24 +232,27 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	}, nil
 }
 
-// HandleRequests starts a goroutine to handle any incoming [ssh.Request] matching
-// the provided type using the provided handler. If the type already is being handled,
-// an error is returned.
+// handleSessionRequests from the remote side with registered handlers.
 //
-// This should be called before NewSession to ensure requests of this type are
-// not processed before the handler is registered.
-func (c *Client) HandleRequests(ctx context.Context, requestType string, handleFn func(ctx context.Context, ch *ssh.Request)) error {
-	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
-	ch := c.handleRequests(requestType)
-	if ch == nil {
-		return trace.AlreadyExists("ssh request type %q is already being handled by this session client", requestType)
-	}
+// This method consumes all registered handlers so that the next call to
+// [Client.NewSession] will not reuse the same handlers.
+func (c *Client) handleSessionRequests(ctx context.Context, in <-chan *ssh.Request) <-chan *ssh.Request {
+	c.requestHandlersMu.Lock()
+	requestHandlers := c.requestHandlers
+	c.requestHandlers = make(map[string]requestHandlerFn)
+	c.requestHandlersMu.Unlock()
 
+	// Capture requests not handled by registered request handlers and
+	// pass them to the crypto [ssh.Session].
+	unhandledReqs := make(chan *ssh.Request, cap(in))
+
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 	go func() {
-		for req := range ch {
+		defer close(unhandledReqs)
+		for req := range in {
 			ctx, span := tracer.Start(
 				ctx,
-				fmt.Sprintf("ssh.HandleRequests/%s", requestType),
+				fmt.Sprintf("ssh.HandleRequests/%s", req.Type),
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 				oteltrace.WithAttributes(
 					append(
@@ -251,66 +264,20 @@ func (c *Client) HandleRequests(ctx context.Context, requestType string, handleF
 				),
 			)
 
-			handleFn(ctx, req)
+			handler, ok := requestHandlers[req.Type]
+			if ok {
+				handler(ctx, req)
+			} else {
+				// Pass on requests without a registered handler. These will be
+				// handled by the default x/crypto/ssh request handler.
+				unhandledReqs <- req
+			}
+
 			span.End()
 		}
 	}()
-	return nil
-}
 
-// handleRequests returns a channel on which ssh Requests for the given
-// type are sent. If the type already is being handled, nil is returned.
-// The channel is closed when the connection is closed.
-//
-// This method was adapted from golang/x/crypto/ssh.Client.HandleChannelOpen.
-// golang/x/crypto/ssh does not currently provide a similar method for session
-// requests out of the box.
-func (c *Client) handleRequests(requestType string) <-chan *ssh.Request {
-	c.requestHandlersMu.Lock()
-	defer c.requestHandlersMu.Unlock()
-	if c.requestHandlers == nil {
-		// The SSH channel has been closed.
-		c := make(chan *ssh.Request)
-		close(c)
-		return c
-	}
-
-	ch := c.requestHandlers[requestType]
-	if ch != nil {
-		return nil
-	}
-
-	// This is the same buffer size used in golang/x/crypto/ssh for the channel requests
-	// channel serviced by registered handlers from [ssh.Client.HandleChannelOpen].
-	const bufferSize = 16
-
-	ch = make(chan *ssh.Request, bufferSize)
-	c.requestHandlers[requestType] = ch
-	return ch
-}
-
-// serveRequests from the remote side.
-func (c *Client) serveRequests(in <-chan *ssh.Request, unhandledReqs chan<- *ssh.Request) {
-	for req := range in {
-		c.requestHandlersMu.Lock()
-		handler := c.requestHandlers[req.Type]
-		c.requestHandlersMu.Unlock()
-
-		if handler != nil {
-			handler <- req
-		} else {
-			// Pass on requests without a registered handler. These will be
-			// handled by the default x/crypto/ssh request handler.
-			unhandledReqs <- req
-		}
-	}
-
-	c.requestHandlersMu.Lock()
-	for _, ch := range c.requestHandlers {
-		close(ch)
-	}
-	c.requestHandlers = nil
-	c.requestHandlersMu.Unlock()
+	return unhandledReqs
 }
 
 // connWrapper wraps the ssh.Conn for individual ssh.Client
