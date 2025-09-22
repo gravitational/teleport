@@ -221,6 +221,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	})
+	w.Header().Set("sec-session-registration", `(ES256); path="/session"; challenge="challenge_value";`)
 
 	requiredApps := strings.Split(req.RequiredApps, ",")
 	if len(requiredApps) > 1 {

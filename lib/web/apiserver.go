@@ -1554,6 +1554,12 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger 
 
 	return as, nil
 }
+func (h *Handler) startDBSC(w http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (any, error) {
+
+	fmt.Println("-----")
+	fmt.Println("-----")
+	return nil, nil
+}
 
 // traces forwards spans from the web ui to the upstream collector configured for the proxy. If tracing is
 // disabled then the forwarding is a noop.

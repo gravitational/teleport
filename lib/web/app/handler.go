@@ -145,9 +145,16 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.startAppAuthExchange))
 	h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
+	h.router.POST("/session", h.withRouterAuth(h.handleDeviceBoundSession))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
 	return h, nil
+}
+
+func (h *Handler) handleDeviceBoundSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, session *session) error {
+	fmt.Println("----------")
+	fmt.Println("----------")
+	return nil
 }
 
 // ServeHTTP hands the request to the request router.
