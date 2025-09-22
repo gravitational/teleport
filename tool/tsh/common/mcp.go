@@ -94,10 +94,10 @@ func (m *mcpClientConfigFlags) addToCmd(cmd *kingpin.CmdClause) {
 		"format",
 		fmt.Sprintf(
 			"Format specifies the configuration format (%s, %s, %s). If not provided it will assume format from the configuration file, When no configuration file is provided it defaults to %q.",
-			mcpconfig.ConfigFormatClaude,
-			mcpconfig.ConfigFormatVSCode,
+			string(mcpconfig.ConfigFormatClaude),
+			string(mcpconfig.ConfigFormatVSCode),
 			cursorConfigFormatAlias,
-			mcpconfig.DefaultConfigFormat,
+			string(mcpconfig.DefaultConfigFormat),
 		)).
 		IsSetByUser(&m.configFormatSetByUser).
 		StringVar(&m.configFormat)
