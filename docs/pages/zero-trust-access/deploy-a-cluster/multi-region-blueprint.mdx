@@ -25,6 +25,9 @@ Before continuing, you must acknowledge the following warnings:
 - You are responsible for deploying and maintaining the Teleport dependencies
   including the database, object storage, container runtime, network plugins
   and anything else which is required.
+- Regions must be provisioned with enough capacity to handle all traffic in
+  the event of a complete region failure. This includes the ability to
+  immediately absorb new traffic as nodes and users reconnect to the healthy regions.
 
 <Admonition type="tip">
 
@@ -65,6 +68,14 @@ To run a multi-region Teleport deployment, you must have:
 
 Teams with Kubernetes infrastructure will want to host Teleport in Kubernetes.
 This section describes this setup in more detail.
+
+<Admonition type="warning" title="Kubernetes CPU Limits">
+
+We strongly discourage setting CPU limits on any Teleport component, as throttling can introduce unpredictable
+latency, disrupt real-time authentication and networking operations, and trigger cascading failures across
+otherwise healthy regions, potentially leading to a full cluster outage.
+
+</Admonition>
 
 ### Teleport Dependencies
 
