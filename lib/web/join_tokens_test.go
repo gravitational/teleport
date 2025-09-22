@@ -48,6 +48,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -1382,16 +1383,29 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 			TestBuildType: modules.BuildCommunity,
 		}
 	}
+
+	log := logtest.NewLogger()
 	modulestest.SetTestModules(t, *config.testModules)
+	r, err := lookup.NewResolver(lookup.Config{
+		Client: lookup.HybridClient{
+			RolloutClient: ap,
+			// Those tests don't rely on the CMC, if they did, we'd need to set this.
+			CMCClient: nil,
+		},
+		Channels: config.channels,
+		Log:      log,
+		Context:  t.Context(),
+	})
+	require.NoError(t, err)
 	h := &Handler{
 		clusterFeatures: *config.testModules.Features().ToProto(),
 		cfg: Config{
-			AutomaticUpgradesChannels: config.channels,
-			AccessPoint:               ap,
-			PublicProxyAddr:           addr,
-			ProxyClient:               clt,
+			AccessPoint:     ap,
+			PublicProxyAddr: addr,
+			ProxyClient:     clt,
 		},
-		logger: logtest.NewLogger(),
+		logger:             log,
+		autoUpdateResolver: r,
 	}
 	h.PublicProxyAddr()
 	return h
