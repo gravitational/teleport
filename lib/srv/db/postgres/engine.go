@@ -23,11 +23,9 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -108,34 +106,6 @@ func toErrorResponse(err error) *pgproto3.ErrorResponse {
 	}
 }
 
-// fixGCPUsername detects invalid GCP usernames (without domain) and add a default suffix based on database project ID.
-func fixGCPUsername(ctx context.Context, log *slog.Logger, sessionCtx *common.Session) error {
-	if !sessionCtx.Database.IsGCPHosted() {
-		return nil
-	}
-
-	if strings.Contains(sessionCtx.DatabaseUser, "@") {
-		return nil
-	}
-
-	projectID, err := sessionCtx.Database.GetGCPProjectID()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if projectID == "" {
-		// this shouldn't happen, project ID is required for GCP, but if we somehow end up in this situation
-		// return an error message.
-		return trace.BadParameter("invalid GCP user %q, missing domain", sessionCtx.DatabaseUser)
-	}
-
-	userWithDomain := fmt.Sprintf("%v@%v.iam", sessionCtx.DatabaseUser, projectID)
-
-	log.InfoContext(ctx, "Found username without domain, adjusting to include default domain based on database project ID", "username_old", sessionCtx.DatabaseUser, "username_new", userWithDomain)
-	sessionCtx.DatabaseUser = userWithDomain
-
-	return nil
-}
-
 // HandleConnection processes the connection from Postgres proxy coming
 // over reverse tunnel.
 //
@@ -144,15 +114,9 @@ func fixGCPUsername(ctx context.Context, log *slog.Logger, sessionCtx *common.Se
 // all messages i.e. doing protocol parsing.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	observe := common.GetConnectionSetupTimeObserver(sessionCtx.Database)
-
-	err := fixGCPUsername(ctx, e.Log, sessionCtx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Now we know which database/username the user is connecting to, so
 	// perform an authorization check.
-	err = e.checkAccess(ctx, sessionCtx)
+	err := e.checkAccess(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
