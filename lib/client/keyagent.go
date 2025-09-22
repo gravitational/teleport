@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -133,7 +134,13 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
-		a.systemAgent = connectToSSHAgent()
+		a.log.DebugContext(context.Background(), "Connecting to the system agent")
+		systemAgent, err := sshagent.NewSystemAgentClient()
+		if err != nil {
+			a.log.WarnContext(context.Background(), "Unable to connect to system agent", "error", err)
+		} else {
+			a.systemAgent = systemAgent
+		}
 	} else {
 		log.DebugContext(context.Background(), "Skipping connection to the local ssh-agent.")
 
@@ -358,7 +365,7 @@ func (a *LocalKeyAgent) HostKeyCallback(addr string, remote net.Addr, hostKey ss
 
 	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
-			IsHostAuthority: a.checkHostCertificateForClusters(clusters...),
+			IsHostAuthority: a.isHostAuthorityForClusters(clusters...),
 			HostKeyFallback: a.checkHostKey,
 		},
 		FIPS: isFIPS(),
@@ -375,11 +382,11 @@ func (a *LocalKeyAgent) HostKeyCallback(addr string, remote net.Addr, hostKey ss
 	return nil
 }
 
-// checkHostCertificateForClusters validates a host certificate and check if remote key matches the know
-// trusted cluster key based on  ~/.tsh/known_hosts. If server key is not known, the users is prompted to accept or
-// reject the server key.
-func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func(key ssh.PublicKey, addr string) bool {
-	return func(key ssh.PublicKey, addr string) bool {
+// isHostAuthorityForClusters validates a host certificate's issuer to see if it
+// matches the known trusted cluster CA keys in ~/.tsh/known_hosts. If the CA is
+// not known, the users is prompted to accept or reject it.
+func (a *LocalKeyAgent) isHostAuthorityForClusters(clusters ...string) func(authority ssh.PublicKey, addr string) bool {
+	return func(authority ssh.PublicKey, addr string) bool {
 		ctx := context.Background()
 
 		// Check the local cache (where all Teleport CAs are placed upon login) to
@@ -407,14 +414,14 @@ func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func
 		}
 
 		for i := range keys {
-			if sshutils.KeysEqual(key, keys[i]) {
+			if sshutils.KeysEqual(authority, keys[i]) {
 				return true
 			}
 		}
 
-		// If this certificate was not seen before, prompt the user essentially
-		// treating it like a key.
-		err = a.checkHostKey(addr, nil, key)
+		// If this CA was not seen before, prompt the user essentially treating
+		// it like a key.
+		err = a.checkHostKey(addr, nil, authority)
 		return err == nil
 	}
 }

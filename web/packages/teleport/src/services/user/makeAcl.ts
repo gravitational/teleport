@@ -84,6 +84,10 @@ export function makeAcl(json): Acl {
   const gitServers = json.gitServers || defaultAccess;
   const accessGraphSettings = json.accessGraphSettings || defaultAccess;
 
+  const botInstances = json.botInstances || defaultAccess;
+
+  const workloadIdentity = json.workloadIdentity || defaultAccess;
+
   return {
     accessList,
     authConnectors,
@@ -125,6 +129,8 @@ export function makeAcl(json): Acl {
     fileTransferAccess,
     gitServers,
     accessGraphSettings,
+    botInstances,
+    workloadIdentity,
   };
 }
 

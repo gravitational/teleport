@@ -74,7 +74,7 @@ const (
 
 // ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
 // The caller is required to pass a valid desktop certificate.
-func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, desktopCert tls.Certificate, rootCAs *x509.CertPool) (net.Conn, error) {
+func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, desktopCert tls.Certificate, rootCAs *x509.CertPool) (*tls.Conn, error) {
 	connCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	stop := context.AfterFunc(ctx, cancel)
 	defer stop()
@@ -99,7 +99,7 @@ func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string,
 	return nc, nil
 }
 
-func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel context.CancelFunc, stream grpc.BidiStreamingClient[transportv1pb.ProxyWindowsDesktopSessionRequest, transportv1pb.ProxyWindowsDesktopSessionResponse], cluster string, desktopName string, desktopCert tls.Certificate, rootCAs *x509.CertPool) (net.Conn, error) {
+func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel context.CancelFunc, stream grpc.BidiStreamingClient[transportv1pb.ProxyWindowsDesktopSessionRequest, transportv1pb.ProxyWindowsDesktopSessionResponse], cluster string, desktopName string, desktopCert tls.Certificate, rootCAs *x509.CertPool) (*tls.Conn, error) {
 	err := stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{
 		DialTarget: &transportv1pb.TargetWindowsDesktop{
 			DesktopName: desktopName,

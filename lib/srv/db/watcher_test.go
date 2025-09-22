@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	"github.com/aws/aws-sdk-go-v2/service/memorydb"
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
@@ -39,8 +40,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -119,6 +122,17 @@ func TestWatcher(t *testing.T) {
 	// Both should be registered now.
 	assertReconciledResource(t, reconcileCh, types.Databases{db0, db1, db2})
 
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, servers, 3)
+		require.Equal(t, "db0", servers[0].GetName())
+		wantDBs := types.Databases(types.DatabaseServers(servers).ToDatabases()).ToMap()
+		for _, db := range []types.Database{db0, db1, db2} {
+			require.Contains(t, wantDBs, db.GetName())
+		}
+	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be registered")
+
 	// Update db2 URI so it gets re-registered.
 	db2.SetURI("localhost:2345")
 	err = testCtx.authServer.UpdateDatabase(ctx, db2)
@@ -142,6 +156,13 @@ func TestWatcher(t *testing.T) {
 
 	// Only static database should remain.
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "db0", servers[0].GetName())
+	}, 10*time.Second, 100*time.Millisecond, "waiting for database heartbeats to be cleaned up")
 }
 
 // TestWatcherDynamicResource tests dynamic resource registration where the
@@ -183,6 +204,9 @@ func TestWatcherDynamicResource(t *testing.T) {
 					return trace.BadParameter("bad db")
 				},
 				"db5": func(_ context.Context, db types.Database) error {
+					if db.GetURI() == "evil-llama.com" {
+						return trace.BadParameter("bad database URI")
+					}
 					// Validate AssumeRoleARN and ExternalID matches above
 					// services.ResourceMatcherAWS,
 					meta := db.GetAWS()
@@ -289,7 +313,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
 	})
 
-	t.Run("discovery resource - fail check", func(t *testing.T) {
+	t.Run("discovery resource - fail check on create", func(t *testing.T) {
 		// Created a discovery service created database resource that fails the
 		// fakeDiscoveryResourceChecker.
 		dbFailCheck, err := makeDiscoveryDatabase("db-fail-check", map[string]string{"group": "a"}, withRDSURL)
@@ -297,6 +321,15 @@ func TestWatcherDynamicResource(t *testing.T) {
 		require.NoError(t, testCtx.authServer.CreateDatabase(ctx, dbFailCheck))
 
 		// dbFailCheck should not be proxied.
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
+	})
+
+	t.Run("discovery resource - fail check on update", func(t *testing.T) {
+		badDB := db5.Copy()
+		badDB.SetURI("evil-llama.com")
+		err = testCtx.authServer.UpdateDatabase(ctx, badDB)
+		require.NoError(t, err)
+		// update is rejected for failed URI check.
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
 	})
 }
@@ -436,9 +469,7 @@ func makeDatabase(name string, labels map[string]string, additionalLabels map[st
 		labels = make(map[string]string)
 	}
 
-	for k, v := range additionalLabels {
-		labels[k] = v
-	}
+	maps.Copy(labels, additionalLabels)
 
 	ds := types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -472,12 +503,17 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 }
 
 type fakeAWSClients struct {
+	ec2Client        db.EC2Client
 	ecClient         db.ElastiCacheClient
 	mdbClient        db.MemoryDBClient
 	openSearchClient db.OpenSearchClient
 	rdsClient        db.RDSClient
 	redshiftClient   db.RedshiftClient
 	rssClient        db.RSSClient
+}
+
+func (f fakeAWSClients) GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) db.EC2Client {
+	return f.ec2Client
 }
 
 func (f fakeAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) db.ElastiCacheClient {

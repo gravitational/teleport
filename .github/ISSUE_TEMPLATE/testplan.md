@@ -31,7 +31,7 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] RBAC
 
-  Make sure that invalid and valid attempts are reflected in audit log. Do this with both Teleport and [Agentless nodes](https://goteleport.com/docs/server-access/guides/openssh/).
+  Make sure that invalid and valid attempts are reflected in audit log. Do this with both Teleport and [Agentless nodes](https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/).
 
   - [ ] Successfully connect to node with correct role
   - [ ] Unsuccessfully connect to a node in a role restricting access by label
@@ -107,15 +107,14 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Session recording can be disabled
   - [ ] Sessions can be recorded at the node
     - [ ] Sessions in remote clusters are recorded in remote clusters
-  - [ ] [Sessions can be recorded at the proxy](https://goteleport.com/docs/server-access/guides/recording-proxy-mode/)
+  - [ ] [Sessions can be recorded at the proxy](https://goteleport.com/docs/enroll-resources/server-access/guides/recording-proxy-mode/)
     - [ ] Sessions on remote clusters are recorded in the local cluster
     - [ ] With an OpenSSH server without a Teleport CA signed host certificate:
       - [ ] Host key checking enabled rejects connection
       - [ ] Host key checking disabled allows connection
 
 - [ ] Enhanced Session Recording
-  - [ ] `disk`, `command` and `network` events are being logged.
-  - [ ] Recorded events can be enforced by the `enhanced_recording` role option.
+  - [ ] Setting the `enhanced_recording` role option determine which types of events (`disk`, `command`, `network`) are logged on nodes with `enhanced_recording.enabled: true`
   - [ ] Enhanced session recording can be enabled on CentOS 7 with kernel 5.8+.
 
 - [ ] Auditd
@@ -149,10 +148,10 @@ as well as an upgrade of the previous version of Teleport.
 
     Subsystem testing may be achieved using both
     [Recording Proxy mode](
-    https://goteleport.com/teleport/docs/architecture/proxy/#recording-proxy-mode)
+    https://goteleport.com/docs/reference/architecture/session-recording/#record-at-the-proxy-service)
     and
     [OpenSSH integration](
-    https://goteleport.com/docs/server-access/guides/openssh/).
+    https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless/).
 
     Assuming the proxy is `proxy.example.com:3023` and `node1` is a node running
     OpenSSH/sshd, you may use the following command to trigger a subsystem audit
@@ -167,7 +166,7 @@ as well as an upgrade of the previous version of Teleport.
     External Audit Storage must be tested on an Enterprise Cloud tenant.
     Instructions for deploying a custom release to a cloud staging tenant: https://github.com/gravitational/teleport.e/blob/master/dev-deploy.md
 
-  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/choose-an-edition/teleport-cloud/external-audit-storage/
+  - [ ] Discover flow works to configure External Audit Storage https://goteleport.com/docs/admin-guides/management/external-audit-storage/
     - [ ] Docs (including screenshots) are up to date
     - [ ] Discover flow works with or without an existing AWS OIDC integration
     - [ ] Draft configuration can be resumed after navigating away
@@ -181,67 +180,114 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] Interact with a cluster using `tsh`
 
-   These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
+  These commands should ideally be tested for recording and non-recording modes as they are implemented in a different ways.
+  Recording can be disabled by adding `session_recording: off` to `auth_service` in your config. A regular node refers to
+  a [Teleport SSH service](https://goteleport.com/docs/enroll-resources/server-access/getting-started/). An agentless node is an [OpenSSH server](https://goteleport.com/docs/enroll-resources/server-access/openssh/openssh-agentless) that has been enrolled into Teleport. A remote cluster is a leaf cluster that is connected to a root cluster via a [trusted cluster setup](https://goteleport.com/docs/admin-guides/management/admin/trustedclusters/). Here's a recommended setup for testing:
 
-  - [ ] tsh ssh \<regular-node\>
-  - [ ] tsh ssh \<node-remote-cluster\>
-  - [ ] tsh ssh \<agentless-node\>
-  - [ ] tsh ssh \<agentless-node-remote-cluster\>
-  - [ ] tsh ssh -A \<regular-node\>
-  - [ ] tsh ssh -A \<node-remote-cluster\>
-  - [ ] tsh ssh -A \<agentless-node\>
-  - [ ] tsh ssh -A \<agentless-node-remote-cluster\>
-  - [ ] tsh ssh \<regular-node\> ls
-  - [ ] tsh ssh \<node-remote-cluster\> ls
-  - [ ] tsh ssh \<agentless-node\> ls
-  - [ ] tsh ssh \<agentless-node-remote-cluster\> ls
-  - [ ] tsh join \<regular-node\>
-  - [ ] tsh join \<node-remote-cluster\>
-  - [ ] tsh play \<regular-node\>
-  - [ ] tsh play \<node-remote-cluster\>
-  - [ ] tsh play \<agentless-node\>
-  - [ ] tsh play \<agentless-node-remote-cluster\>
-  - [ ] tsh scp \<regular-node\>
-  - [ ] tsh scp \<node-remote-cluster\>
-  - [ ] tsh scp \<agentless-node\>
-  - [ ] tsh scp \<agentless-node-remote-cluster\>
-  - [ ] tsh ssh -L \<regular-node\>
-  - [ ] tsh ssh -L \<node-remote-cluster\>
-  - [ ] tsh ssh -L \<agentless-node\>
-  - [ ] tsh ssh -L \<agentless-node-remote-cluster\>
-  - [ ] tsh ssh -R \<regular-node\>
-  - [ ] tsh ssh -R \<node-remote-cluster\>
-  - [ ] tsh ssh -R \<agentless-node\>
-  - [ ] tsh ssh -R \<agentless-node-remote-cluster\>
-  - [ ] tsh ls
-  - [ ] tsh clusters
+```
+                                         ┌───────────────┐
+                                         │               │
+                                       ┌►│ Regular Node  │
+┌───────────────┐    ┌───────────────┐ │ │               │
+│               │    │               │ │ └───────────────┘
+│ Root Cluster  ├───►│ Leaf Cluster  ├─┤
+│               │    │               │ │ ┌───────────────┐
+└───────────────┘    └───────────────┘ │ │               │
+                                       └►│ OpenSSH Node  │
+                                         │               │
+                                         └───────────────┘
+```
+
+When you want to test a non-remote-cluster, use the Leaf Cluster as your proxy target.
+
+  - [ ] `tsh ssh <regular-node>`
+  - [ ] `tsh ssh <node-remote-cluster>`
+  - [ ] `tsh ssh <agentless-node>`
+  - [ ] `tsh ssh <agentless-node-remote-cluster>`
+
+Test agent had been forwarded by running `ssh-add -L` and check that your teleport keys are listed. Each cluster requires the `permit-agent-forwarding` flag and the role you're assuming in the leaf cluster needs `Agent Forwarding` enabled. Example connection command:
+`tsh ssh -A --proxy $PROXY --cluster $REMOTE_CLUSTER $USER@$NODE_NAME`
+
+  - [ ] `tsh ssh -A <regular-node>`
+  - [ ] `tsh ssh -A <node-remote-cluster>`
+  - [ ] `tsh ssh -A <agentless-node>`
+  - [ ] `tsh ssh -A <agentless-node-remote-cluster>`
+  - [ ] `tsh ssh <regular-node> ls`
+  - [ ] `tsh ssh <node-remote-cluster> ls`
+  - [ ] `tsh ssh <agentless-node> ls`
+  - [ ] `tsh ssh <agentless-node-remote-cluster> ls`
+  - [ ] `tsh join <regular-node-session-id>`
+  - [ ] `tsh join <node-remote-cluster-session-id>`
+
+For `tsh play`, ensure the role you assume on the leaf cluster has `read` and `list` for the `session` resource. Example allow rule:
+```yaml
+spec:
+  allow:
+    rules:
+    - resources:
+      - session
+      verbs:
+      - read
+      - list
+```
+
+  - [ ] `tsh play <regular-node-session-id>`
+  - [ ] `tsh play <node-remote-cluster-session-id>`
+  - [ ] `tsh play <agentless-node>`
+  - [ ] `tsh play <agentless-node-remote-cluster>`
+  - [ ] `tsh scp <regular-node>`
+  - [ ] `tsh scp <node-remote-cluster>`
+  - [ ] `tsh scp <agentless-node>`
+  - [ ] `tsh scp <agentless-node-remote-cluster>`
+
+This forwards the local port to the remote node, test this with a web server running on the remote node, e.g. `python3 -m http.server 8000` on the remote node, setup a tunnel to the node with `tsh ssh -L 9000:localhost:8000 <remote-node>`, then `curl http://localhost:9000` from your local machine.
+
+  - [ ] `tsh ssh -L <regular-node>`
+  - [ ] `tsh ssh -L <node-remote-cluster>`
+  - [ ] `tsh ssh -L <agentless-node>`
+  - [ ] `tsh ssh -L <agentless-node-remote-cluster>`
+
+`-R` forwards the remote port to the local machine, test this with a web server running on your local machine, e.g. `python3 -m http.server 8000`, setup a tunnel to the node with `tsh ssh -R 9000:localhost:8000 <remote-node>`, then `curl http://localhost:9000` from the remote node.
+
+  - [ ] `tsh ssh -R <regular-node>`
+  - [ ] `tsh ssh -R <node-remote-cluster>`
+  - [ ] `tsh ssh -R <agentless-node>`
+  - [ ] `tsh ssh -R <agentless-node-remote-cluster>`
+  - [ ] `tsh ls`
+  - [ ] `tsh clusters`
 
 - [ ] Interact with a cluster using `ssh`
-   Make sure to test both recording and regular proxy modes.
-  - [ ] ssh \<regular-node\>
-  - [ ] ssh \<node-remote-cluster\>
-  - [ ] ssh \<agentless-node\>
-  - [ ] ssh \<agentless-node-remote-cluster\>
-  - [ ] ssh -A \<regular-node\>
-  - [ ] ssh -A \<node-remote-cluster\>
-  - [ ] ssh -A \<agentless-node\>
-  - [ ] ssh -A \<agentless-node-remote-cluster\>
-  - [ ] ssh \<regular-node\> ls
-  - [ ] ssh \<node-remote-cluster\> ls
-  - [ ] ssh \<agentless-node\> ls
-  - [ ] ssh \<agentless-node-remote-cluster\> ls
-  - [ ] scp \<regular-node\>
-  - [ ] scp \<node-remote-cluster\>
-  - [ ] scp \<agentless-node\>
-  - [ ] scp \<agentless-node-remote-cluster\>
-  - [ ] ssh -L \<regular-node\>
-  - [ ] ssh -L \<node-remote-cluster\>
-  - [ ] ssh -L \<agentless-node\>
-  - [ ] ssh -L \<agentless-node-remote-cluster\>
-  - [ ] ssh -R \<regular-node\>
-  - [ ] ssh -R \<node-remote-cluster\>
-  - [ ] ssh -R \<agentless-node\>
-  - [ ] ssh -R \<agentless-node-remote-cluster\>
+
+  Make sure to test both recording and regular proxy modes. Generate an [SSH config](https://goteleport.com/docs/reference/cli/tsh/#tsh-config), one per cluster. An SSH command will look something like this:
+
+  `ssh -p 22 -F /path/to/generated/ssh_config <user>@<node-name>.<cluster-that-the-node-is-in>`
+
+  To test connecting to a remote cluster, use the root cluster's `ssh_config` and the name of the remote cluster for `<cluster-that-the-node-is-in>`.
+
+  - [ ] `ssh <regular-node>`
+  - [ ] `ssh <node-remote-cluster>`
+  - [ ] `ssh <agentless-node>`
+  - [ ] `ssh <agentless-node-remote-cluster>`
+  - [ ] `ssh -A <regular-node>`
+  - [ ] `ssh -A <node-remote-cluster>`
+  - [ ] `ssh -A <agentless-node>`
+  - [ ] `ssh -A <agentless-node-remote-cluster>`
+  - [ ] `ssh <regular-node> ls`
+  - [ ] `ssh <node-remote-cluster> ls`
+  - [ ] `ssh <agentless-node> ls`
+  - [ ] `ssh <agentless-node-remote-cluster> ls`
+  - [ ] `scp <regular-node>`
+  - [ ] `scp <node-remote-cluster>`
+  - [ ] `scp <agentless-node>`
+  - [ ] `scp <agentless-node-remote-cluster>`
+  - [ ] `ssh -L <regular-node>`
+  - [ ] `ssh -L <node-remote-cluster>`
+  - [ ] `ssh -L <agentless-node>`
+  - [ ] `ssh -L <agentless-node-remote-cluster>`
+  - [ ] `ssh -R <regular-node>`
+  - [ ] `ssh -R <node-remote-cluster>`
+  - [ ] `ssh -R <agentless-node>`
+  - [ ] `ssh -R <agentless-node-remote-cluster>`
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
@@ -306,6 +352,19 @@ interactive sessions the 12 combinations are below.
   - [ ] Connect using OpenSSH from root cluster.
   - [ ] Connect using Teleport from root cluster.
   - [ ] Connect using the Web UI from root cluster.
+
+### With SELinux module installed
+
+Install the official SELinux module for Teleport SSH service using `install-selinux.sh` included in the linux amd64 release tarball
+and test on RHEL 8 && 9. You will need to pass the `--enable-selinux` flag to `teleport start`, you can also pass
+`--ensure-selinux-enforcing` as well to ensure SELinux is configured correctly and will enforce Teleport SSH.
+
+- [ ] Verify that connecting to a node with tsh works.
+- [ ] Verify that connecting to a node with the Web UI works.
+- [ ] Verify that enhanced session recording captures commands as expected.
+- [ ] Verify that SSH agent forwarding works as expected.
+- [ ] Verify that auditd logging works as expected.
+- [ ] Verify that SSH connections succeed with PAM authentication enabled.
 
 ### Teleport with EKS/GKE
 
@@ -387,22 +446,393 @@ and cluster v1.30 (does support it by default) and to access them both through k
       * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
     * [ ] Force cluster CA rotation
 
-### Kubernetes Pod RBAC
+### Kubernetes RBAC
 
-* [ ] Verify the following scenarios for `kubernetes_resources`:
-    * [ ] `{"kind":"pod","name":"*","namespace":"*"}` - must allow access to every pod.
-    * [ ] `{"kind":"pod","name":"<somename>","namespace":"*"}` - must allow access to pod `<somename>` in every namespace.
-    * [ ] `{"kind":"pod","name":"*","namespace":"<somenamespace>"}` - must allow access to any pod in `<somenamespace>` namespace.
-    * [ ] Verify support for  `*` wildcards - `<some-name>-*` and regex for `name` and `namespace` fields.
-    * [ ] Verify support for delete pods collection - must use `go-client`.
-* [ ] Verify scenarios with multiple roles defining `kubernetes_resources`:
-    * [ ] Validate that the returned list of pods is the union of every role.
-    * [ ] Validate that access to other pods is denied by RBAC.
-    * [ ] Validate that the Kubernetes Groups/Users are correctly selected depending on the role that applies to the pod.
-        * [ ] Test with a `kubernetes_groups` that denies exec into a pod
-* [ ] Verify the following scenarios for Resource Access Requests to Pods:
-    * [ ] Create a valid resource access request and validate if access to other pods is denied.
-    * [ ] Validate if creating a resource access request with Kubernetes resources denied by `search_as_roles` is not allowed.
+<details><summary>Kubernetes resources</summary>
+<p>
+
+Create some namespaces:
+
+ns.yaml:
+
+```yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    name: dev
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: foo
+  labels:
+    name: foo
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
+  labels:
+    name: prod
+```
+
+Create some deployments:
+
+deployments.yaml:
+
+```yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myapp
+  name: myapp
+  namespace: foo
+spec:
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - command:
+        - sleep
+        - "3600"
+        image: busybox
+        name: busybox
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: myapp
+  name: myapp
+  namespace: dev
+spec:
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - command:
+        - sleep
+        - "3600"
+        image: busybox
+        name: busybox
+```
+
+Create some pods:
+
+pods.yaml
+
+```yaml
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: somename
+  name: somename
+  namespace: foo
+spec:
+  containers:
+  - args:
+    - sleep
+    - "3600"
+    image: busybox
+    name: somename
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: somename
+  name: somename
+  namespace: prod
+spec:
+  containers:
+  - args:
+    - sleep
+    - "3600"
+    image: busybox
+    name: somename
+```
+
+Create some CRDs (namespaced and cluster-wide):
+
+crds.yaml
+
+```yaml
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: crontabs.stable.example.com
+spec:
+  group: stable.example.com
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                cronSpec:
+                  type: string
+                image:
+                  type: string
+                replicas:
+                  type: integer
+  scope: Namespaced
+  names:
+    plural: crontabs
+    singular: crontab
+    kind: CronTab
+    shortNames:
+    - ct
+    - cts
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: globals.stable.example.com
+spec:
+  group: stable.example.com
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                glSpec:
+                  type: string
+                glImage:
+                  type: string
+                glReplicas:
+                  type: integer
+  scope: Cluster
+  names:
+    plural: globals
+    singular: global
+    kind: Global
+    shortNames:
+    - gl
+    - gls
+```
+
+Create some custom resources:
+
+crs.yaml
+
+```yaml
+---
+apiVersion: "stable.example.com/v1"
+kind: CronTab
+metadata:
+  name: my-new-cron-object-dev
+  namespace: dev
+spec:
+  cronSpec: "* * * * */5"
+  image: my-awesome-cron-image
+---
+apiVersion: "stable.example.com/v1"
+kind: CronTab
+metadata:
+  name: my-new-cron-object-prod
+  namespace: prod
+spec:
+  cronSpec: "* * * * */5"
+  image: my-awesome-cron-image
+---
+apiVersion: "stable.example.com/v1"
+kind: CronTab
+metadata:
+  name: my-new-cron-object-prod-2
+  namespace: prod
+spec:
+  cronSpec: "* * * * */5"
+  image: my-awesome-cron-image
+---
+apiVersion: "stable.example.com/v1"
+kind: CronTab
+metadata:
+  name: my-new-cron-object-foo
+  namespace: foo
+spec:
+  cronSpec: "* * * * */5"
+  image: my-awesome-cron-image-foo
+---
+apiVersion: "stable.example.com/v1"
+kind: Global
+metadata:
+  name: my-new-global-object-1
+  namespace: foo
+spec:
+  glSpec: "* * * * */5"
+  glImage: my-awesome-gl-image
+  glReplicas: 1
+---
+apiVersion: "stable.example.com/v1"
+kind: Global
+metadata:
+  name: my-new-global-object-2
+  namespace: foo
+spec:
+  glSpec: "* * * * */2"
+  glImage: my-awesome-gl-image-2
+  glReplicas: 2
+```
+
+Restart the kubernetes_service after creating CRDs.
+
+</p>
+</details>
+
+NOTE: Unless specified otherwise, the `verb` field of `kubernetes_resource` schema needs to be set as `verbs: ["*"]`
+
+* [ ] Verify role v7 with multiple resources. Examples are given for `pod`, but should also be tested with `deployment` and `clusterrole`:
+  * [ ] Verify the following scenarios for `kubernetes_resources`:
+    * [ ] `{"kind":"pod","name":"*","namespace":"*"}` - must allow access to every pod
+    * [ ] `{"kind":"pod","name":"somename","namespace":"*"}` - must allow access to pod `somename` in every namespace
+    * [ ] `{"kind":"pod","name":"*","namespace":"<somenamespace>"}` - must allow access to any pod in `<somenamespace>` namespace
+    * [ ] Verify support for `*` wildcards - `myapp-*` and regex for `name` and `namespace` fields
+    * [ ] Verify support for delete pods collection (`kubectl delete --raw=/api/v1/namespaces/<namespace name>/pods`)
+  * [ ] Verify scenarios with multiple roles defining `kubernetes_resources`:
+    * [ ] Validate that the returned list of pods is the union of every role
+    * [ ] Validate that access to other pods is denied by RBAC
+    * [ ] Validate that the Kubernetes Groups/Users are correctly selected depending on the role that applies to the pod
+      * [ ] Test with a `kubernetes_groups` that denies exec into a pod
+  * [ ] Verify kind wildcard `{"kind":"*","name":"*","namespace":"foo"}`:
+    * [ ] Verify access to namespaced resources like `pods`, `deployments` in the `foo` namespace
+    * [ ] Verify access to global resources like `clusterroles`, `nodes`
+    * [ ] Verify access to namespaced CRD `crontabs` and cluster-wide CRD `globals`
+  * [ ] Verify special `namespace` kind `{"kind":"namespace","name":"foo"}` (different behavior than rolev8)
+    * [ ] Verify access to namespaced resources `pods`, `deployments` in the `foo` namespace
+    * [ ] Verify access to the namespaced CRD `crontabs` in the `foo` namespace
+    * [ ] Verify access denied to global resources like `clusterroles` and `nodes`
+* [ ] Upgrade role v7 to v8:
+  * [ ] Attempt to upgrade without looking at the docs, the errors should be descriptive enough (using the CLI and using the Web editor)
+  * [ ] Attempt to use a rolev7 value in kind with wildcard or matching api group, the following should yield a descriptive error:
+    * [ ] kind: pod, no api_group
+    * [ ] kind: deployment, api_group apps
+    * [ ] kind: jobs, api_group '*'
+* [ ] Verify role v8
+  * [ ] Namespaced CRD
+    * [ ] Restart kuberbetes_service after creating the CRDs above
+    * [ ] Verify you don't have access to the namespaced CRD `crontabs` in any namespace
+    * [ ] Grant access to it with `{"kind":"crontabs","api_group":"stable.example.com","namespace":"foo",...}`
+    * [ ] Verify you have access to the custom resources in the `foo` namespace and no acess in `dev` and `prod` namespaces.
+    * [ ] Verify wildcard api_group `{"kind":"crontabs","api_group":"*.example.com","namespace":"dev",...}`
+    * [ ] Verify you have access to the custom resources in the `dev` namespace
+  * [ ] Cluster-wide CRD
+    * [ ] Restart kuberbetes_service after creating the CRDs above
+    * [ ] Verify you don't have access to the cluster-wide CRD `globals`
+    * [ ] Grant access to a wrong api_group with:  `{"kind":"globals","namespace":"",...}` (missing api_group)
+    * [ ] Verify you still don't have access
+    * [ ] Grant access to it with `{"kind":"globals","api_group":"*","namespace":"",...}`
+    * [ ] Verify you have access to the `globals` cluster-wide resource
+  * [ ] Verify namespace kind
+    * [ ] Grant access to a namespace with `{"kind":"namespaces","namespace":"foo",...}`
+    * [ ] Verify you can access the namespace itself
+    * [ ] Verify you don't have access to any resource within the namespace nor cluster-wide resources
+  * [ ] Verify kind wildcard - global
+    * [ ] Grant a wildcard kind access with wildcard ns `{"kind":"*","name":"*","namespace":"*","api_group":"*","verbs":["*"]}`
+    * [ ] Verify access to namespaced resources like `pods`, `deployments`, including namespaced CRD `crontabs`
+    * [ ] Verify access to cluster-wide resources `clusterroles`, `nodes`, including cluster-wide CRD `globals`
+  * [ ] Verify kind wildcard - cluster-wide
+    * [ ] Grant a wildcard kind acess without namespace `{"kind":"*","name":"*","namespace":"","api_group":"*","verbs":["*"]}`
+    * [ ] Verify access to cluster-wide resources `clusterroles`, `nodes`, including cluster-wide CRDs `globals`
+    * [ ] Verify access denied to namespaced resources `pods`, `deployments`, `services`, including namespaced CRDs `globals`
+  * [ ] Verify deny access to CRDs
+    * [ ] Grant full access to everything in the allow section: `{"kind":"*","name":"*","namespace":"*","api_group":"*","verbs":["*"]}`
+    * [ ] Add a deny rule to a specific namespaced CRD `{"kind":"crontabs","name":"*","namespace":"*","api_group":"*","verbs":["*"]}`
+    * [ ] Verify access denied
+    * [ ] Add a deny rule to a specific cluster-wide CRD `{"kind":"crontabs","name":"*","namespace":"","api_group":"stable.example.com","verbs":["*"]}`
+    * [ ] Verify access denied
+* [ ] Verify support for Teleport v17
+  * [ ] Start a v17 kubernetes_service
+  * [ ] Verify happy path
+    * [ ] Create a role v8 with rbac entries that existed in v7 (pods, deployments, clusterroles)
+          ex: `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"clusterroles","name":"*"}`, `{"kind":"deplyments","name":"*","namespace":"*"}`.
+    * [ ] Verify access to pods, clusterroles and deployments on the v17 cluster
+    * [ ] Verify access denied to other namespaced and cluster-wide resources `services`, `nodes`, `crontabs`, `globals`.
+  * [ ] Verify incomptible role, CRD
+    * [ ] Create a role v8 with access to pods and a crd.
+         ex:  `{"kind":"pods","name":"*","namespace":"*"}`, `{"kind":"crontabs","api_group":"*","name":"*","namespace":"*"}`
+    * [ ] Verify access denied to explicit resources `pods`, `crontabs` andother resources `services`, `globals`, `nodes`.
+  * [ ] Verify incompatible role, namespace
+    * [ ] Create a role v8 with access to a namespace `{"kind":"namespaces","name":"foo","verbs":["*"]}`
+    * [ ] Verify access denied to the namespace and any other resources
+  * [ ] Verify incompatible role, wildcard kind - cluster-wide
+    * [ ] Create a role v8 with a cluster-wide wildcard kind `{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}`
+    * [ ] Verify access denied to any resource
+
+### Kubernetes Access Request
+
+* [ ] Verify that an access request to a `pods` resource grants access to `pods` and not any other resources
+* [ ] Create a role denying access to all `services` resources, use that role as `search_as_roles`, verify access to `services` is not allowed.
+* [ ] Verify resource restriction
+  * Create a role v8 restricted to request only for `pods` and `deployments` (`apps` api group) (i.e. `allow.request.kubernetes_resources`) with a target `search_as_role` granting all access to the cluster
+    * [ ] Verify you can search resources with `tsh request search`
+      * [ ] Verify you can list `pods` and `deployments` with `kubectl` after the request is granted using `tsh kube login`
+    * [ ] Verify you can't search other resources like `services` or `nodes`
+    * [ ] Verify you can request access to `pods` and `deployments`
+    * [ ] Verify you can't request access to `configmaps` nor `secrets`
+    * [ ] Verify creating access request from Web UI
+      * [ ] Verify no error are showing up
+      * [ ] Verify you can list the namespaces to make a request
+      * [ ] verify the request is successful
+* [ ] Verify CRD support (see "Kubernetes RBAC" section for `crontabs.stable.example.com` definition)
+  * [ ] Create a target role v8 with only access to `crontabs` (api group `stable.example.com`), use it as `seach_as_role`
+    * [ ] Verify you can search for the CRD via `tsh request search --kind/--kube-kind/--kube-api-group`
+    * [ ] Verify you can't search for `pods` nor `secrets`
+    * [ ] Verify you can request access to `crontabs`
+      * [ ] Verify you can list `crontabs` with `kubectl` after the request is granted using `tsh kube login`
+    * [ ] Verify you can't request access to `configmaps`
+  * [ ] Create a role v7 with a wildcard, use it as `search_as_role`
+    * [ ] Verify you can search for the CRD via `tsh request search --kind/--kube-kind/--kube-api-group`
+    * [ ] Verify you can request access to `crontabs`
+      * [ ] Verify you can list `crontabs` with `kubectl` after the request is granted using `tsh kube login`
+  * [ ] Update the base role to add resource restriction to `crontabs` (api group `stable.example.com`), still using a `search_as_role` granting all permissions
+    * [ ] Verify you can search for the CRD via `tsh request search --kind/--kube-kind/--kube-api-group`
+    * [ ] Verify you can't search for `pods` nor `secrets`
+    * [ ] Verify you can request access to `crontabs`
+      * [ ] Verify you can list `crontabs` with `kubectl` after the request is granted using `tsh kube login`
+    * [ ] verify you can't search for `pods`
+    * [ ] Verify you can't request access to `configmaps`
+* [ ] Verify wildcard support
+  * [ ] Verify requesting acecss to a full namesapce. Create a role with `search_as_role` granting all permissions
+    * [ ] Verify you can request access to all resources in a namesapce with `--resource '/TELEPORT_CLUSTER_NAME/kube:ns:*.*/K8S_CLSUTER_NAME/NAMESPACE_NAME/*`
+    * [ ] Verify you can access resources like `pods`, `secrets` and `deployments` with `kubectl` using `tsh kube login`
+    * [ ] Verify you can't request access to `nodes` or `persistentvolumes`
+  * [ ] Verify requesting acecss to all cluster-wide resources. Create a role with `search_as_role` granting all permissions
+    * [ ] Verify you can request access to all cluster-wide resources with `--resource '/TELEPORT_CLUSTER_NAME/kube:cw:*.*/K8S_CLSUTER_NAME/*`
+    * [ ] Verify you can access resources like `nodes` and `persistentvolumes` with `kubectl` using `tsh kube login`
+    * [ ] Verify you can't request access to `configmaps` or `services`
+* [ ] Verify tsh v17 support (TODO(@creack) Remove this section in v19)
+  * [ ] Using tsh v17, verify you can search for `pod` and `secret` (can use a role with wildcard permission)
+  * [ ] Using tsh v17, verify you can request access for `pod` and `secret`
+    * [ ] Verify you can list `pod` with `secret` with `kubectl` after the request is granted using `tsh kube login`
 
 ### Teleport with FIPS mode
 
@@ -516,10 +946,38 @@ local browser to complete and SSO login. Run
 on the remote host. Note that the `--callback` URL must be able to resolve to the
 `--bind-addr` over HTTPS.
 
+### SAML SSO login with different binding methods
+
+- [ ] `http-redirect`. Verify SAML authentication request is sent in a URL.
+  - [ ] Verify this is the default SAML request method.
+  - [ ] Verify this is applied with `preferred_request_binding: http-redirect` value in the SAML connector spec.
+  - [ ] Web UI SSO.
+  - [ ] Web UI SLO.
+  - [ ] tsh login SSO.
+  - [ ] Connect login SSO.
+  - [ ] SSO MFA.
+
+- [ ] `http-post`. Verify SAML authentication request is sent in an HTML form.
+  - [ ] Verify this is applied with `preferred_request_binding: http-post` value in the SSO connector spec.
+  - [ ] Web UI login SSO.
+  - [ ] tsh login SSO.
+  - [ ] Connect login SSO.
+  - [ ] SSO MFA should continue working with a default `http-redirect` request.
+
 ### Teleport Plugins
 
-- [ ] Test receiving a message via Teleport Slackbot
-- [ ] Test receiving a new Jira Ticket via Teleport Jira
+- [ ] Datadog
+- [ ] Discord
+- [ ] Email
+- [ ] Jamf
+- [ ] Jira
+- [ ] Mattermost
+- [ ] Microsoft Entra ID
+- [ ] Microsoft Teams
+- [ ] Opsgenie
+- [ ] PagerDuty
+- [ ] ServiceNow
+- [ ] Slack
 
 ### Teleport Operator
 
@@ -531,7 +989,7 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
   - [ ] TeleportProvisionToken
 
 ### AWS Node Joining
-[Docs](https://goteleport.com/docs/setup/guides/joining-nodes-aws/)
+[Docs](https://goteleport.com/docs/enroll-resources/agents/aws-iam/)
 - [ ] On EC2 instance with `ec2:DescribeInstances` permissions for local account:
   `TELEPORT_TEST_EC2=1 go test ./integration -run TestEC2NodeJoin`
 - [ ] On EC2 instance with any attached role:
@@ -544,20 +1002,24 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
 - [ ] Join a tbot instance running in a different Kubernetes cluster as Teleport with a Kubernetes JWKS ProvisionToken
 
 ### Azure Node Joining
-[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/azure/)
+[Docs](https://goteleport.com/docs/enroll-resources/agents/azure/)
 - [ ] Join a Teleport node running in an Azure VM
 
 ### GCP Node Joining
-[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/gcp/)
+[Docs](https://goteleport.com/docs/enroll-resources/agents/gcp/)
 - [ ] Join a Teleport node running in a GCP VM.
 
+### Oracle Node Joining
+[Docs](https://goteleport.com/docs/enroll-resources/agents/oracle/)
+- [ ] Join a Teleport node running in an OCI VM.
+
 ### Cloud Labels
-- [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
+- [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/admin-guides/management/guides/ec2-tags/)
 and with tag `foo`: `bar`. Verify that a node running on the instance has label
 `aws/foo=bar`.
 - [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
 instance has label `azure/foo=bar`.
-- [ ] Create a GCP instance with [the required permissions]((https://goteleport.com/docs/management/guides/gcp-tags/))
+- [ ] Create a GCP instance with [the required permissions](https://goteleport.com/docs/admin-guides/management/guides/gcp-tags/)
 and with [label](https://cloud.google.com/compute/docs/labeling-resources)
 `foo`: `bar` and [tag](https://cloud.google.com/resource-manager/docs/tags/tags-overview)
 `baz`: `quux`. Verify that a node running on the instance has labels
@@ -668,7 +1130,7 @@ tsh ssh node-that-requires-device-trust
 
     Linux users need read/write permissions to /dev/tpmrm0. The simplest way is
     to assign yourself to the `tss` group. See
-    https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting.
+    https://goteleport.com/docs/identity-governance/device-trust/device-management/#troubleshooting.
 
   - [ ] Verify device extensions on TLS certificate
 
@@ -703,10 +1165,11 @@ tsh ssh node-that-requires-device-trust
     - [ ] GitHub user
     - [ ] OIDC user
     - [ ] SAML user
+    - [ ] SAML service provider access configured via SAML IdP
 
     Confirm that it works by failing first. Most protocols can be tested using
     device_trust.mode="required". App Access and Desktop Access require a custom
-    role (see [enforcing device trust](https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support)).
+    role (see [enforcing device trust](https://goteleport.com/docs/identity-governance/device-trust/enforcing-device-trust/#web-application-support)).
 
     For SSO users confirm that device web authentication happens successfully.
 
@@ -721,6 +1184,8 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access NOT enforced in global mode
     - [ ] Desktop Access NOT enforced in global mode
+  - [ ] device_trust.mode="required-for-humans" enforces enrolled devices for
+        humans, but bots (e.g. `tbot`) function on any device
   - [ ] Role-based authz enforces enrolled devices
         (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
     - [ ] SSH
@@ -772,23 +1237,94 @@ You will need a YubiKey 4.3+ to test this feature.
 
 This feature has additional build requirements, so it should be tested with a pre-release build (eg: `https://cdn.teleport.dev/teleport-ent-v16.0.0-alpha.2-linux-amd64-bin.tar.gz`).
 
-#### Server Access
+Run all tests on Linux, MacOS, and Windows.
 
-This test should be carried out on Linux, MacOS, and Windows.
+#### `tsh`
 
-Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings and login.
+Configuration:
+
+```yaml
+### cap
+spec:
+  require_session_mfa: hardware_key_touch_and_pin
+  hardware_key:
+    pin_cache_ttl: 15s
+```
+
+In the tests below, note how touch and PIN are cached.
+
+- touch is cached on the YubiKey for 15 seconds.
+- pin is cached for 15 seconds within the `tsh` processes This will only appear to work for `tsh proxy` commands.
+- pin is cached in the YubiKey's PIV connection. The connection with intact PIN cache can be claimed within 5 seconds, meaning you can keep the PIN cached by running `tsh` commands one after the other within 5 seconds.
+
 - [ ] `tsh login`
-  - [ ] Prompts for Yubikey touch with message "Tap your YubiKey" (separate from normal MFA prompt).
+  - [ ] Prompts for PIV PIN ("Enter your PIV PIN:")
+  - [ ] Prompts for PIV touch ("Tap your Yubikey", separate from normal MFA prompt).
+- [ ] `tsh ls`
+  - [ ] Prompts for PIV PIN ("Enter your PIV PIN:")
+  - [ ] Prompts for PIV touch ("Tap your Yubikey", separate from normal MFA prompt).
 - [ ] Server Access `tsh ssh`
-  - [ ] Requires yubikey to be connected
-  - [ ] Prompts for touch (if not cached)
+  - [ ] Prompts for PIV PIN and touch
 - [ ] Database Access: `tsh proxy db --tunnel`
-  - [ ] Requires yubikey to be connected
-  - [ ] Prompts for touch (if not cached)
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] Prompts for PIV PIN and Touch for incoming connections or queries
+- [ ] App Access: `tsh proxy app`
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] [Prompts for MFA](https://github.com/gravitational/teleport/blob/master/rfd/0080-hardware-key-support.md#application-access) on start
+  - [ ] Prompts for PIV PIN and Touch for incoming http requests
+- [ ] Kube Access: `tsh proxy kube`
+  - [ ] Prompts for PIV PIN and touch on start
+  - [ ] Prompts for PIV PIN and Touch for incoming `kubectl` commands
+
+#### Teleport Connect and Hardware Key Agent
+
+Install Teleport Connect and open it. The hardware key agent automatically starts if you are running a
+release/dev build. If you are building Teleport Connect in development mode, you will need to set the
+config option `hardwareKeyAgent.enabled: true` and restart Connect. You can run a non-login `tsh`
+command to check if the agent is running.
+
+In `tsh`, without logging into Teleport Connect:
+
+- [ ] `tsh login` prompts for PIV PIN and touch without using the Hardware Key Agent
+- [ ] All other `tsh` commands prompt for PIN and touch via the Hardware Key Agent
+  - [ ] Test a subset of the `tsh` commands from the test above
+    - [ ] The command is displayed in the PIN and touch prompts
+- [ ] The PIN is cached for the configured duration between basic `tsh` commands (set `pin_cache_ttl` to something longer that 15s if needed)
+
+In Teleport Connect:
+
+- [ ] Login prompts for PIN and touch
+- [ ] Server Access
+  - [ ] Prompts for PIN and Touch via the Hardware Key Agent
+  - [ ] The `tsh ssh ...` command is displayed in the prompt
+- [ ] Database Access
+  - [ ] Prompts for PIN and Touch for incoming connections or queries
+- [ ] App Access (Proxy)
+  - [ ] Prompts for MFA on start
+  - [ ] Prompts for PIN and Touch for incoming http requets
+- [ ] Kube Access
+  - [ ] Prompts for PIN and Touch for incoming `kubectl` commands
+- [ ] VNet
+  - [ ] Prompts for PIN and Touch for incoming tcp connections
+
+### Local unit tests
+
+Currently, we do not have a way of testing any PIV funcionality that requires direct access
+to a YubiKey. However, we do have a test suite of local and interactive tests for realworld
+PIV funcionality.
+
+Plug in a YubiKey and run the test suite with the options below:
+
+```bash
+TELEPORT_TEST_YUBIKEY_PIV=yes go test github.com/gravitational/teleport/api/utils/keys/piv -tags=piv -v
+```
+
+Note that these tests will wipe any existing PIV data on the card (keys, certs, custom pin/puk).
+FIDO2 data is not affected.
 
 ### HSM Support
 
-[Docs](https://goteleport.com/docs/choose-an-edition/teleport-enterprise/hsm/)
+[Docs](https://goteleport.com/docs/admin-guides/deploy-a-cluster/hsm/)
 
 - [ ] YubiHSM2 Support (@nklaassen has hardware)
   - [ ] Make sure docs/links are up to date
@@ -853,69 +1389,82 @@ For each of the following cases, create a moderated session with the user using 
 
 ## Performance
 
-### Scaling Test
-Scale up the number of nodes/clusters a few times for each configuration below.
+For all performance tests
 
  1) Verify that there are no memory/goroutine/file descriptor leaks
  2) Compare the baseline metrics with the previous release to determine if resource usage has increased
- 3) Restart all Auth instances and verify that all nodes/clusters reconnect
 
- Perform reverse tunnel node scaling tests for all backend configurations:
-  - [ ] etcd - 10k
-  - [ ] DynamoDB - 10k
-  - [ ] Firestore - 10k
-  - [ ] Postgres - 10k
+### Ansible-like Test
 
-  Perform the following additional scaling tests on DynamoDB:
- - [ ] 10k direct dial nodes.
- - [ ] 500 trusted clusters.
+Run the [ansible-like](https://github.com/gravitational/teleport/tree/4fd411add0c6fa7d4d0d19b1cf0c5c13c541498e/assets/loadtest/ansible-like)
+test against a Cloud tenant with 60k nodes dispersed geographically in multiple regions.
+
+ - [ ] DynamoDB
+ - [ ] CRDB
+
+### Simluated load test
+
+Run a simulated 30k load test against all self-hosted only backends by running the following command
+simultaneously from two auth instances.
+
+```shell
+tctl loadtest node-heartbeats --duration=30m --count=15000 --ttl=2m --interval=1m --labels=2 --concurrency=32
+```
+
+  - [ ] etcd
+  - [ ] Firestore
+  - [ ] Postgres
+
+### Load test
+
+Perform the following additional load tests on one of the self hosted backends, for each
+test scale up and down the resources from 0 a few times.
+
+ - [ ] Add 10k direct dial nodes
+ - [ ] Add 500 trusted clusters
 
 ### Soak Test
 
-Run 30 minute soak test directly against direct and tunnel nodes
-and via label based matching. Tests should be run against a Cloud
-tenant.
+Run the 30 minute soak test directly against a Cloud tenant with 1000 SSH agents.
 
 ```shell
-tsh bench ssh --duration=30m user@direct-dial-node ls
-tsh bench ssh --duration=30m user@reverse-tunnel-node ls
+tsh bench ssh --duration=30m user@node ls
 tsh bench ssh --duration=30m user@foo=bar ls
 tsh bench ssh --duration=30m --random user@foo ls
 ```
 
+ - [ ] via hostname
+ - [ ] via label
+ - [ ] random
+
 ### Concurrent Session Test
 
-* Cluster with 1k reverse tunnel nodes
-
-Run a concurrent session test that will spawn 5 interactive sessions per node in the cluster:
+Run the following tests against a Cloud tenant with 1000 SSH agents.
 
 ```shell
 tsh bench web sessions --max=5000 user ls
-tsh bench web sessions --max=5000 --web user ls
 ```
 
 - [ ] Verify that all 5000 sessions are able to be established.
-- [ ] Verify that tsh and the web UI are still functional.
+- [ ] Verify that tsh and the web UI are functional.
 
-### Robustness
+### init
 
-* Connectivity Issues:
+- [ ] Run with `GODEBUG='inittrace=1'` to find any expensive init functions.
 
-- [ ] Verify that a lack of connectivity to Auth does not prevent access to
-  resources which do not require a moderated session and in async recording
-  mode from an already issued certificate.
-- [ ] Verify that a lack of connectivity to Auth prevents access to resources
-  which require a moderated session and in async recording mode from an already
-  issued certificate.
-- [ ] Verify that an open session is not terminated when all Auth instances
-  are restarted.
+```shell
+GODEBUG='inittrace=1' teleport version  2>&1 | rg '^init' | awk '{print $5 " ms " $2}' | sort -n -r | head -10
+
+
+GODEBUG='inittrace=1' teleport version 2>&1 | rg '^init' | awk '{print $8 " bytes " $2}' | sort -n -r | head -10
+```
 
 ## Teleport with Cloud Providers
 
 ### AWS
 
 - [ ] Deploy Teleport to AWS. Using DynamoDB & S3
-- [ ] Deploy Teleport Enterprise to AWS. Using HA Setup https://goteleport.com/docs/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/
+- [ ] Deploy Teleport Enterprise to AWS. Using HA Setup https://goteleport.com/docs/admin-guides/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/
 
 ### GCP
 
@@ -944,16 +1493,17 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
-- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh apps login`.
-- [ ] Verify [AWS console access](https://goteleport.com/docs/application-access/cloud-apis/aws-console/).
+- [ ] Verify [CLI access](https://goteleport.com/docs/enroll-resources/application-access/guides/api-access/) with `tsh apps login`.
+- [ ] Verify [AWS console access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
   - [ ] Can interact with AWS using `tsh` commands.
-    - [ ] `tsh aws`
-    - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
-- [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh apps login`.
+    - [ ] `tsh aws sts get-caller-identity`
+    - [ ] `tsh aws s3 ls`
+    - [ ] `tsh aws s3 cp ./file s3://<bucket>/test`
+- [ ] Verify [Azure CLI access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/azure/) with `tsh apps login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
-- [ ] Verify [GCP CLI access](https://goteleport.com/docs/application-access/cloud-apis/google-cloud/) with `tsh apps login`.
+- [ ] Verify [GCP CLI access](https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/google-cloud/) with `tsh apps login`.
   - [ ] Can interact with GCP using `tsh gcloud` commands.
   - [ ] Can interact with Google Cloud Storage using `tsh gsutil` commands.
   - [ ] Can interact with GCP/GCS using a combination of `tsh proxy gcloud` and `gcloud`/`gsutil` commands.
@@ -964,7 +1514,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
-  - [ ] Verify `Add Application` links to documentation.
+  - [ ] Verify `Add Application` has the required steps to start a new application.
 
 ## Database Access
 Some tests are marked with "coverved by E2E test" and automatically completed
@@ -995,6 +1545,7 @@ manualy testing.
   - [ ] Amazon Redshift Serverless.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Amazon ElastiCache.
+  - [ ] Amazon ElastiCache Serverless.
   - [ ] Amazon MemoryDB.
   - [ ] Amazon OpenSearch.
   - [ ] Amazon Dynamodb.
@@ -1033,6 +1584,7 @@ manualy testing.
   - [ ] Amazon Redshift.
   - [ ] Amazon Redshift Serverless.
   - [ ] Amazon ElastiCache.
+  - [ ] Amazon ElastiCache Serverless.
   - [ ] Amazon MemoryDB.
   - [ ] Amazon OpenSearch.
   - [ ] Amazon Dynamodb.
@@ -1093,6 +1645,7 @@ manualy testing.
       - [x] Can detect and register Redshift clusters. (covered by E2E test)
       - [x] Can detect and register Redshift serverless workgroups, and their VPC endpoints. (covered by E2E test)
       - [ ] Can detect and register ElastiCache Redis clusters.
+      - [ ] Can detect and register ElastiCache Serverless Redis/Valkey clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
       - [ ] Can detect and register DocumentDB clusters.
@@ -1117,6 +1670,17 @@ manualy testing.
     - [ ] Postgres
 - [ ] Verify database access via Web UI
   - [ ] Postgres
+  - [ ] CockroachDB
+  - [ ] MySQL
+- [ ] Verify database health checks
+  - [ ] Dynamic `health_check_config` resource create, read, update, delete operations are supported using `tctl`
+  - [ ] Database servers (`$ tctl get db_server`) include `db_server.status.target_health` info
+  - [ ] Updating `health_check_config` resets `db_server.status.target_health.status` for matching databases (may take several minutes)
+  - [ ] Updating a `health_check_config` (or deleting it), such that a database should no longer have health checks enabled, resets that database's `db_server.status.target_health` to "unknown/disabled" (may take several minutes)
+  - [ ] Verify health check web UI indicators
+    Configure a database agent with a database that has an unreachable URI (e.g. localhost:5432).
+    - [ ] The web UI resource page shows an warning indicator for that database with error details.
+    - [ ] Without restarting the agent, make the database endpoint reachable and observe that the indicator in the web UI resources page disappears after some time.
 
 ## Git Proxy
 - [ ] [GitHub proxy](https://goteleport.com/docs/admin-guides/management/guides/github-integration/)
@@ -1226,7 +1790,7 @@ manualy testing.
     the desktop should show a Windows menu, not a browser context menu)
   - [ ] Vertical and horizontal scroll work.
     [Horizontal Scroll Test](https://codepen.io/jaemskyle/pen/inbmB)
-- [Locking](https://goteleport.com/docs/access-controls/guides/locking/#step-12-create-a-lock)
+- [Locking](https://goteleport.com/docs/identity-governance/locking/#step-12-create-a-lock)
   - [ ] Verify that placing a user lock terminates an active desktop session.
   - [ ] Verify that placing a desktop lock terminates an active desktop session.
   - [ ] Verify that placing a role lock terminates an active desktop session.
@@ -1314,7 +1878,7 @@ manualy testing.
         a relevant error message.
   - [ ] RBAC for sessions: ensure users can only see their own recordings when
     using the RBAC rule from our
-    [docs](https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions)
+    [docs](https://goteleport.com/docs/reference/access-controls/roles/#rbac-for-sessions)
 - Audit Events (check these after performing the above tests)
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
@@ -1371,6 +1935,11 @@ manualy testing.
   - [ ] Updating dynamic Windows desktop's labels so it no longer matches `windows_desktop_services` deletes
       corresponding Windows desktops
   - [ ] Deleting dynamic Windows desktop deletes corresponding Windows desktops
+  - [ ] If Windows desktop created from dynamic Windows desktop is deleted, it is recreated after at most 5 minutes
+  - [ ] Stopping Windows Desktop Service leads to Windows desktops created by it from dynamic desktops to go away after at most 5 minutes
+- Keyboard Layout
+  - [ ] Keyboard layout is set to the same as the local machine, if "System" is chosen in preferences
+  - [ ] If "United States - International" is chosen in preferences, the keyboard layout is set to "United States - International" on the remote machine
 
 ## Binaries / OS compatibility
 
@@ -1492,7 +2061,7 @@ also managed, but not considered for role-based host user creation.
 
 ## Proxy Peering
 
-[Proxy Peering docs](https://goteleport.com/docs/architecture/proxy-peering/)
+[Proxy Peering docs](https://goteleport.com/docs/reference/architecture/proxy-peering/)
 
 - Verify that Proxy Peering works for the following protocols:
   - [ ] SSH
@@ -1526,7 +2095,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
 
 ## EC2 Discovery
 
-[EC2 Discovery docs](https://goteleport.com/docs/server-access/guides/ec2-discovery/)
+[EC2 Discovery docs](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/)
 
 - Verify EC2 instance discovery
   - [ ]  Only EC2 instances matching given AWS tags have the installer executed on them
@@ -1536,6 +2105,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
   - [ ] New EC2 instances with matching AWS tags are discovered and added to the teleport cluster
     - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
   - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+  - [ ] EC2 instances can be discovered in multiple accounts
 
 ## Azure Discovery
 
@@ -1550,7 +2120,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
 
 ## GCP Discovery
 
-[GCP Discovery docs](https://goteleport.com/docs/server-access/guides/gcp-discovery/)
+[GCP Discovery docs](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/gcp-discovery/)
 
 - Verify GCP instance discovery
   - [ ] Only GCP instances matching given GCP tags have the installer executed on them
@@ -1564,7 +2134,7 @@ Verify that SSH works, and that resumable SSH is not interrupted across a contro
 
 Add a role with `pin_source_ip: true` (requires Enterprise) to test IP pinning.
 Testing will require changing your IP (that Teleport Proxy sees).
-Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning/?scope=enterprise)
+Docs: [IP Pinning](https://goteleport.com/docs/admin-guides/access-controls/guides/ip-pinning/)
 
 - Verify that it works for SSH Access
   - [ ] You can access tunnel node with `tsh ssh` on root cluster
@@ -1611,6 +2181,16 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
       - [ ] For CLI.
       - [ ] For Web UI.
 
+  - [ ] [Automatic Review Rules](https://goteleport.com/docs/ver/18.x/admin-guides/access-controls/access-requests/automatic-reviews/)
+    - [ ] Create automatic review rule with `desired_state` and `automatic_review` spec.
+    - [ ] Verify that `desired_state: review` is required to enable automatic reviews.
+    - [ ] Verify that `automatic_review.integration` is required to enable automatic reviews.
+    - [ ] Verify that `user.traits` in the condition expression is evaluated as expected.
+    - [ ] Verify that automatic approvals are submitted.
+    - [ ] Verify that automatic denials are submitted.
+    - [ ] Verify that if there are conflicting rules that apply, denials take precedence.
+    - [ ] Verify that `automatic_review` and `notification` can both be configured within the same rule.
+
 - [ ] Access Lists
   - [ ] Verify Access List membership/ownership/expiration date.
   - [ ] Verify permissions granted by Access List membership.
@@ -1633,6 +2213,9 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
     - [ ] Verify the Single Sign-On (SSO) connector created by the Okta Plugin.
   - [ ] Verify Okta users/apps/groups sync.
     - [ ] Verify that users/apps/groups are synced from Okta to Teleport.
+    - [ ] Verify that when bidirectional sync is disabled:
+      - [ ] `x.manage` scopes are not required for plugin to function.
+      - [ ] Updates to synced Access Lists' members/grants are not allowed.
     - [ ] Verify the custom `okta_import_rule` rule configuration.
     - [ ] Verify that users/apps/groups are displayed in the Teleport Web UI.
     - [ ] Verify that users/groups are flattened on import, and are not duplicated on sync when their membership is inherited via nested Access Lists.
@@ -1643,7 +2226,8 @@ Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning
 Verify SAML IdP service provider resource management.
 
 ### Docs:
-- [ ] Verify SAML IdP guide instructions work.
+- [ ] Verify generic SAML IdP guide instructions work.
+- [ ] Verify all the screenshots are up-to-date.
 
 ### Manage Service Provider (SP)
 - [ ] `saml_idp_service_provider` resource can be created, updated and deleted with `tctl create/update/delete sp.yaml` command.
@@ -1652,6 +2236,19 @@ Verify SAML IdP service provider resource management.
     - [ ] Verify Entity descriptor is generated.
   - [ ] Verify attribute mapping configuration works.
   - [ ] Verify test attribute mapping command. `$ tctl idp saml test-attribute-mapping --users <usernames or name of file containing user spec> --sp <name of file containing user spec> --format <json/yaml/defaults to text>`
+
+### Login and RBAC
+- [ ] Verify that redirection to login page works.
+  - [ ] Check IdP initiated login.
+  - [ ] Check SP initiated login with http-redirect binding request.
+  - [ ] Check SP initiated login with http-post binding request.
+  - [ ] Check all the conditions above with device trust enabled/disabled.
+- [ ] Verify that redirection for session MFA works.
+  - [ ] Check IdP initiated login.
+  - [ ] Check SP initiated login with http-redirect binding request.
+  - [ ] Check SP initiated login with http-post binding request.
+- [ ] Verify that role version v7 and below enforces `role.options.idp.saml.enabled: true/false` and session MFA.
+- [ ] Verify that role version v8 and above enforces `app_labels` matchers, `saml_idp_service_provider` verbs, device trust and session MFA.
 
 ### SAML service provider catalog
 - [ ] GCP Workforce Identity Federation
@@ -1665,12 +2262,12 @@ Verify SSO MFA core functionality. The tests below should be performed once
 with OIDC and once with SAML.
 
 Configure both an OIDC connector and a SAML connector following the [Quick GitHub/SAML/OIDC Setup Tips]
-and [enable MFA on them](https://goteleport.com/docs/ver/17.x/admin-guides/access-controls/sso/#configuring-sso-for-mfa-checks).
+and [enable MFA on them](https://goteleport.com/docs/admin-guides/access-controls/sso/#configuring-sso-for-mfa-checks).
 
 For simplicity, you can use the same IdP App (client id/secret or entity descriptor)
 for both login and MFA. This way, each Teleport MFA check will make you re-login via SSO.
 
-Ensure [SSO is allowed as a second factor](https://goteleport.com/docs/ver/17.x/admin-guides/access-controls/sso/#allowing-sso-as-an-mfa-method-in-your-cluster).
+Ensure [SSO is allowed as a second factor](https://goteleport.com/docs/admin-guides/access-controls/sso/#allowing-sso-as-an-mfa-method-in-your-cluster).
 e.g. `cap.second_factors: ['webauthn', 'sso']`.
 
 The following should work with SSO MFA, automatically opening the SSO MFA redirect URL:

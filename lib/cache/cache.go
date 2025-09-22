@@ -33,23 +33,23 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
+	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
-	"github.com/gravitational/teleport/api/types/secreports"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -74,7 +74,25 @@ var (
 		[]string{teleport.TagCacheComponent},
 	)
 
-	cacheCollectors = []prometheus.Collector{cacheEventsReceived, cacheStaleEventsReceived}
+	cacheHealth = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "health",
+			Help:      "Whether the cache for a particular Teleport service is healthy.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
+
+	cacheLastReset = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "cache",
+			Name:      "last_reset_seconds",
+			Help:      "The unix time in seconds that the last cache reset was performed.",
+		},
+		[]string{teleport.TagCacheComponent},
+	)
 )
 
 // highVolumeResources is the set of cached resources that tend to produce high
@@ -130,6 +148,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
+		{Kind: scopedaccess.KindScopedRole},
+		{Kind: scopedaccess.KindScopedRoleAssignment},
 		{Kind: types.KindNode},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
@@ -138,7 +158,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -181,15 +200,20 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateAgentRollout},
+		{Kind: types.KindAutoUpdateAgentReport},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProvisioningPrincipalState},
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
+		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindWorkloadIdentity},
 		{Kind: types.KindHealthCheckConfig},
+		{Kind: types.KindRelayServer},
+		{Kind: types.KindBotInstance},
+		{Kind: types.KindRecordingEncryption},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -220,7 +244,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -247,8 +270,26 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
+		{Kind: types.KindRelayServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
+	return cfg
+}
+
+// ForRelay sets up the given cache [Config] for use by the Relay cache.
+func ForRelay(cfg Config) Config {
+	cfg.target = "relay"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, Filter: makeAllKnownCAsFilter().IntoMap()},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindNode},
+		{Kind: types.KindRelayServer},
+		{Kind: types.KindRole},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+	}
+	cfg.QueueSize = defaults.RelayQueueSize
 	return cfg
 }
 
@@ -480,9 +521,6 @@ type Cache struct {
 	// cancel triggers exit context closure
 	cancel context.CancelFunc
 
-	// legacyCacheCollections is a registry of resource legacyCollections
-	legacyCacheCollections *legacyCollections
-
 	// collections is a registry of resource collections.
 	collections *collections
 
@@ -494,34 +532,26 @@ type Cache struct {
 	// regularly called methods.
 	fnCache *utils.FnCache
 
-	trustCache                   services.Trust
-	clusterConfigCache           services.ClusterConfigurationInternal
-	provisionerCache             services.Provisioner
-	usersCache                   services.UsersService
-	accessCache                  services.Access
-	dynamicAccessCache           services.DynamicAccessExt
-	presenceCache                services.Presence
-	restrictionsCache            services.Restrictions
-	userGroupsCache              services.UserGroups
-	discoveryConfigsCache        services.DiscoveryConfigs
-	headlessAuthenticationsCache services.HeadlessAuthenticationService
-	secReportsCache              services.SecReports
-	eventsFanout                 *services.FanoutV2
-	lowVolumeEventsFanout        *utils.RoundRobin[*services.FanoutV2]
-	provisioningStatesCache      *local.ProvisioningStateService
-	identityCenterCache          *local.IdentityCenterService
-	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
-	gitServersCache              *local.GitServerService
+	eventsFanout          *services.FanoutV2
+	lowVolumeEventsFanout *utils.RoundRobin[*services.FanoutV2]
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
 }
+
+var _ authclient.Cache = (*Cache)(nil)
 
 func (c *Cache) setInitError(err error) {
 	c.initOnce.Do(func() {
 		c.initErr = err
 		close(c.initC)
 	})
+
+	if err == nil {
+		cacheHealth.WithLabelValues(c.target).Set(1.0)
+	} else {
+		cacheHealth.WithLabelValues(c.target).Set(0.0)
+	}
 }
 
 // setReadStatus updates Cache.ok, which determines whether the
@@ -537,15 +567,6 @@ func (c *Cache) setReadStatus(ok bool, confirmedKinds map[resourceKind]types.Wat
 	defer c.rw.Unlock()
 	c.ok = ok
 	c.confirmedKinds = confirmedKinds
-}
-
-// readLegacyCollectionCache acquires the cache read lock and uses getReader() to select the appropriate target for read
-// operations on resources of the specified collection. The returned guard *must* be released to prevent deadlocks.
-func readLegacyCollectionCache[R any](cache *Cache, collection collectionReader[R]) (legacyReadGuard[R], error) {
-	if collection == nil {
-		return legacyReadGuard[R]{}, trace.BadParameter("cannot read from an uninitialized cache collection")
-	}
-	return legacyReadCache(cache, collection.watchKind(), collection.getReader)
 }
 
 // acquireReadGuard provides a readGuard that may be used to determine how
@@ -572,55 +593,8 @@ func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (r
 	}, nil
 }
 
-// legacyReadCache acquires the cache read lock and uses getReader() to select the appropriate target for read operations
-// on resources of the specified kind. The returned guard *must* be released to prevent deadlocks.
-func legacyReadCache[R any](cache *Cache, kind types.WatchKind, getReader func(cacheOK bool) R) (legacyReadGuard[R], error) {
-	if cache.closed.Load() {
-		return legacyReadGuard[R]{}, trace.Errorf("cache is closed")
-	}
-	cache.rw.RLock()
-
-	if cache.ok {
-		if _, kindOK := cache.confirmedKinds[resourceKind{kind: kind.Kind, subkind: kind.SubKind}]; kindOK {
-			return legacyReadGuard[R]{
-				reader:  getReader(true),
-				release: cache.rw.RUnlock,
-			}, nil
-		}
-	}
-
-	cache.rw.RUnlock()
-	return legacyReadGuard[R]{
-		reader:  getReader(false),
-		release: nil,
-	}, nil
-}
-
-// legacyReadGuard holds a reference to a read-only "backend" R. If the referenced backed is the cache, then legacyReadGuard
-// also holds the release function for the read lock, and ensures that it is not double-called.
-type legacyReadGuard[R any] struct {
-	reader  R
-	once    sync.Once
-	release func()
-}
-
-// Release releases the read lock if it is held. This method
-// can be called multiple times.
-func (r *legacyReadGuard[R]) Release() {
-	r.once.Do(func() {
-		if r.release == nil {
-			return
-		}
-
-		r.release()
-	})
-}
-
-// IsCacheRead checks if this readGuard holds a cache reference.
-func (r *legacyReadGuard[R]) IsCacheRead() bool {
-	return r.release != nil
-}
-
+// readGuard holds a reference to a read-only "collection" T. If the referenced resource is in the cache,
+// then readGuard also holds the release function for the read lock, and ensures that it is not double-called.
 type readGuard[T any, I comparable] struct {
 	cacheRead bool
 	store     *store[T, I]
@@ -628,6 +602,7 @@ type readGuard[T any, I comparable] struct {
 	release   func()
 }
 
+// ReadCache checks if this readGuard holds a cache reference.
 func (r *readGuard[T, I]) ReadCache() bool {
 	return r.cacheRead
 }
@@ -678,7 +653,7 @@ type Config struct {
 	// Restrictions is a restrictions service
 	Restrictions services.Restrictions
 	// Apps is an apps service.
-	Apps services.Apps
+	Apps services.Applications
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -689,8 +664,6 @@ type Config struct {
 	Databases services.Databases
 	// DatabaseObjects is a database object service.
 	DatabaseObjects services.DatabaseObjects
-	// SAMLIdPSession holds SAML IdP sessions.
-	SAMLIdPSession services.SAMLIdPSession
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
@@ -734,8 +707,6 @@ type Config struct {
 	// WorkloadIdentity is the upstream Workload Identities service that we're
 	// caching
 	WorkloadIdentity services.WorkloadIdentities
-	// Backend is a backend for local cache
-	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
 	MaxRetryPeriod time.Duration
 	// WatcherInitTimeout is the maximum acceptable delay for an
@@ -769,6 +740,8 @@ type Config struct {
 	neverOK bool
 	// Tracer is used to create spans
 	Tracer oteltrace.Tracer
+	// Registerer is used to register prometheus metrics.
+	Registerer prometheus.Registerer
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
@@ -792,15 +765,18 @@ type Config struct {
 	GitServers services.GitServerGetter
 	// HealthCheckConfig is a health check config service.
 	HealthCheckConfig services.HealthCheckConfigReader
+	// BotInstanceService is the upstream service that we're caching
+	BotInstanceService services.BotInstance
+	// RecordingEncryption manages state surrounding session recording encryption
+	RecordingEncryption services.RecordingEncryption
+	// Plugins is the plugin service used to retrieve plugin information.
+	Plugin services.Plugins
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Events == nil {
 		return trace.BadParameter("missing Events parameter")
-	}
-	if c.Backend == nil {
-		return trace.BadParameter("missing Backend parameter")
 	}
 	if c.Context == nil {
 		c.Context = context.Background()
@@ -842,6 +818,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Tracer == nil {
 		c.Tracer = tracing.NoopTracer(c.Component)
 	}
+	if c.Registerer == nil {
+		c.Registerer = prometheus.DefaultRegisterer
+	}
 	if c.FanoutShards == 0 {
 		c.FanoutShards = 1
 	}
@@ -874,15 +853,20 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := metrics.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterConfigCache, err := local.NewClusterConfigurationService(config.Backend)
-	if err != nil {
+	if err := backendmetrics.RegisterCollectors(config.Registerer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := metrics.RegisterCollectors(config.Registerer,
+		cacheEventsReceived,
+		cacheStaleEventsReceived,
+		cacheHealth,
+		cacheLastReset,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -897,59 +881,10 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	userGroupsCache, err := local.NewUserGroupService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	provisioningStatesCache, err := local.NewProvisioningStateService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	discoveryConfigsCache, err := local.NewDiscoveryConfigService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	secReportsCache, err := local.NewSecReportsService(config.Backend, config.Clock)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
-	for i := 0; i < config.FanoutShards; i++ {
+	for range config.FanoutShards {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
-	}
-
-	identityService, err := local.NewIdentityService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	identityCenterCache, err := local.NewIdentityCenterService(local.IdentityCenterServiceConfig{
-		Backend: config.Backend})
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	pluginStaticCredentialsCache, err := local.NewPluginStaticCredentialsService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	gitServersCache, err := local.NewGitServerService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
 	}
 
 	collections, err := setupCollections(config)
@@ -959,40 +894,19 @@ func New(config Config) (*Cache, error) {
 	}
 
 	cs := &Cache{
-		ctx:                          ctx,
-		cancel:                       cancel,
-		Config:                       config,
-		initC:                        make(chan struct{}),
-		fnCache:                      fnCache,
-		trustCache:                   local.NewCAService(config.Backend),
-		clusterConfigCache:           clusterConfigCache,
-		provisionerCache:             local.NewProvisioningService(config.Backend),
-		accessCache:                  local.NewAccessService(config.Backend),
-		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
-		presenceCache:                local.NewPresenceService(config.Backend),
-		restrictionsCache:            local.NewRestrictionsService(config.Backend),
-		userGroupsCache:              userGroupsCache,
-		discoveryConfigsCache:        discoveryConfigsCache,
-		headlessAuthenticationsCache: identityService,
-		secReportsCache:              secReportsCache,
-		eventsFanout:                 fanout,
-		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
-		provisioningStatesCache:      provisioningStatesCache,
-		identityCenterCache:          identityCenterCache,
-		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
-		gitServersCache:              gitServersCache,
-		collections:                  collections,
+		ctx:                   ctx,
+		cancel:                cancel,
+		Config:                config,
+		initC:                 make(chan struct{}),
+		fnCache:               fnCache,
+		eventsFanout:          fanout,
+		collections:           collections,
+		lowVolumeEventsFanout: utils.NewRoundRobin(lowVolumeFanouts),
 		Logger: slog.With(
 			teleport.ComponentKey, config.Component,
 			"target", config.target,
 		),
 	}
-	legacyCollections, err := setupLegacyCollections(cs, config.Watches)
-	if err != nil {
-		cs.Close()
-		return nil, trace.Wrap(err)
-	}
-	cs.legacyCacheCollections = legacyCollections
 
 	if config.Unstarted {
 		return cs, nil
@@ -1219,7 +1133,8 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
-	requestKinds := c.watchKinds()
+	cacheLastReset.WithLabelValues(c.target).SetToCurrentTime()
+	requestKinds := c.Config.Watches
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		Name:                c.Component,
 		Kinds:               requestKinds,
@@ -1529,17 +1444,6 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) watchKinds() []types.WatchKind {
-	out := make([]types.WatchKind, 0, len(c.legacyCacheCollections.byKind)+len(c.collections.byKind))
-	for _, collection := range c.legacyCacheCollections.byKind {
-		out = append(out, collection.watchKind())
-	}
-	for _, handler := range c.collections.byKind {
-		out = append(out, handler.watchKind())
-	}
-	return out
-}
-
 // isClosing checks if the cache has begun closing.
 func (c *Cache) isClosing() bool {
 	if c.closed.Load() {
@@ -1618,33 +1522,8 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchLimit(c.target))
-	applyfns := make([]applyFn, len(c.legacyCacheCollections.byKind)+len(c.collections.byKind))
+	applyfns := make([]applyFn, len(c.collections.byKind))
 	i := 0
-	for kind, collection := range c.legacyCacheCollections.byKind {
-		kind, collection := kind, collection
-		ii := i
-		i++
-
-		g.Go(func() (err error) {
-			ctx, span := c.Tracer.Start(
-				ctx,
-				fmt.Sprintf("cache/fetch/%s", kind.String()),
-				oteltrace.WithAttributes(
-					attribute.String("target", c.target),
-				),
-			)
-			defer func() { apitracing.EndSpan(span, err) }()
-
-			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
-			applyfn, err := collection.fetch(ctx, cacheOK)
-			if err != nil {
-				return trace.Wrap(err, "failed to fetch resource: %q", kind)
-			}
-
-			applyfns[ii] = tracedApplyFn(fetchSpan, c.Tracer, kind, applyfn)
-			return nil
-		})
-	}
 
 	for kind, handler := range c.collections.byKind {
 		ii := i
@@ -1691,20 +1570,9 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 
-	legacyCollection, legacyFound := c.legacyCacheCollections.byKind[resourceKind]
 	handler, handlerFound := c.collections.byKind[resourceKind]
 
 	switch {
-	case !legacyFound && !handlerFound:
-		c.Logger.WarnContext(ctx, "Skipping unsupported event",
-			"event_kind", event.Resource.GetKind(),
-			"event_sub_kind", event.Resource.GetSubKind(),
-		)
-		return nil
-	case legacyFound:
-		if err := legacyCollection.processEvent(ctx, event); err != nil {
-			return trace.Wrap(err)
-		}
 	case handlerFound:
 		switch event.Type {
 		case types.OpDelete:
@@ -1733,165 +1601,8 @@ func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
 	return nil
 }
 
-// GetNetworkRestrictions gets the network restrictions.
-func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetNetworkRestrictions")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.networkRestrictions)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	return rg.reader.GetNetworkRestrictions(ctx)
-}
-
-// ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
-func (c *Cache) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDiscoveryConfigs")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.discoveryConfigs)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListDiscoveryConfigs(ctx, pageSize, nextKey)
-}
-
-// GetDiscoveryConfig returns the specified DiscoveryConfig resource.
-func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDiscoveryConfig")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.discoveryConfigs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetDiscoveryConfig(ctx, name)
-}
-
-// GetSecurityAuditQuery returns the specified audit query resource.
-func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secreports.AuditQuery, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQuery")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.auditQueries)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityAuditQuery(ctx, name)
-}
-
-// GetSecurityAuditQueries returns a list of all audit query resources.
-func (c *Cache) GetSecurityAuditQueries(ctx context.Context) ([]*secreports.AuditQuery, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityAuditQueries")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.auditQueries)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityAuditQueries(ctx)
-}
-
-// ListSecurityAuditQueries returns a paginated list of all audit query resources.
-func (c *Cache) ListSecurityAuditQueries(ctx context.Context, pageSize int, nextKey string) ([]*secreports.AuditQuery, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityAuditQueries")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.auditQueries)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListSecurityAuditQueries(ctx, pageSize, nextKey)
-}
-
-// GetSecurityReport returns the specified security report resource.
-func (c *Cache) GetSecurityReport(ctx context.Context, name string) (*secreports.Report, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReport")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReports)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityReport(ctx, name)
-}
-
-// GetSecurityReports returns a list of all security report resources.
-func (c *Cache) GetSecurityReports(ctx context.Context) ([]*secreports.Report, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReports")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReports)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityReports(ctx)
-}
-
-// ListSecurityReports returns a paginated list of all security report resources.
-func (c *Cache) ListSecurityReports(ctx context.Context, pageSize int, nextKey string) ([]*secreports.Report, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReports")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReports)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListSecurityReports(ctx, pageSize, nextKey)
-}
-
-// GetSecurityReportState returns the specified security report state resource.
-func (c *Cache) GetSecurityReportState(ctx context.Context, name string) (*secreports.ReportState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportState")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReportsStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityReportState(ctx, name)
-}
-
-// GetSecurityReportsStates returns a list of all security report resources.
-func (c *Cache) GetSecurityReportsStates(ctx context.Context) ([]*secreports.ReportState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSecurityReportsStates")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReportsStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetSecurityReportsStates(ctx)
-}
-
-// ListSecurityReportsStates returns a paginated list of all security report resources.
-func (c *Cache) ListSecurityReportsStates(ctx context.Context, pageSize int, nextKey string) ([]*secreports.ReportState, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSecurityReportsStates")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.secReportsStates)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.ListSecurityReportsStates(ctx, pageSize, nextKey)
-}
-
 // ListResources is a part of auth.Cache implementation
-func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (c *Cache) ListResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
 	defer span.End()
 
@@ -1916,7 +1627,7 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	return resp, trace.Wrap(err)
 }
 
-func (c *Cache) listResourcesFallback(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (c *Cache) listResourcesFallback(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/listResourcesFallback")
 	defer span.End()
 
@@ -1957,7 +1668,7 @@ func (c *Cache) listResourcesFallback(ctx context.Context, req proto.ListResourc
 	return resp, trace.Wrap(err)
 }
 
-func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	_, span := c.Tracer.Start(ctx, "cache/listResources")
 	defer span.End()
 
@@ -2058,7 +1769,7 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 			func(r types.ResourceWithLabels) types.ResourceWithLabels {
 				unwrapper := r.(types.Resource153UnwrapperT[*identitycenterv1.Account])
 				return types.Resource153ToResourceWithLabels(services.IdentityCenterAccount{
-					Account: apiutils.CloneProtoMsg(unwrapper.UnwrapT()),
+					Account: proto.CloneOf(unwrapper.UnwrapT()),
 				})
 			},
 		)
@@ -2077,9 +1788,17 @@ func (c *Cache) listResources(ctx context.Context, req proto.ListResourcesReques
 			func(r types.ResourceWithLabels) types.ResourceWithLabels {
 				unwrapper := r.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment])
 				return types.Resource153ToResourceWithLabels(services.IdentityCenterAccountAssignment{
-					AccountAssignment: apiutils.CloneProtoMsg(unwrapper.UnwrapT()),
+					AccountAssignment: proto.CloneOf(unwrapper.UnwrapT()),
 				})
 			},
+		)
+		return resp, trace.Wrap(err)
+	case types.KindSAMLIdPServiceProvider:
+		resp, err := buildListResourcesResponse(
+			c.collections.samlIdPServiceProviders.store.resources(samlIdPServiceProviderNameIndex, req.StartKey, ""),
+			limit,
+			filter,
+			types.SAMLIdPServiceProvider.CloneResource,
 		)
 		return resp, trace.Wrap(err)
 	default:
@@ -2104,17 +1823,4 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 	}
 
 	return &resp, nil
-}
-
-func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.DownstreamID, id services.ProvisioningStateID) (*provisioningv1.PrincipalState, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetProvisioningState")
-	defer span.End()
-
-	rg, err := readLegacyCollectionCache(c, c.legacyCacheCollections.provisioningStates)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	return rg.reader.GetProvisioningState(ctx, downstream, id)
 }

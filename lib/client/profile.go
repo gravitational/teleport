@@ -226,6 +226,13 @@ type ProfileStatus struct {
 	// ProxyURL is the URL the web client is accessible at.
 	ProxyURL url.URL
 
+	// RelayAddr is the address of the relay to use, if any.
+	RelayAddr string
+
+	// DefaultRelayAddr is the address of the relay to use specified by the
+	// cluster at login time, if any.
+	DefaultRelayAddr string
+
 	// Username is the Teleport username.
 	Username string
 
@@ -322,6 +329,8 @@ type profileOptions struct {
 	ProfileName             string
 	ProfileDir              string
 	WebProxyAddr            string
+	RelayAddr               string
+	DefaultRelayAddr        string
 	Username                string
 	SiteName                string
 	KubeProxyAddr           string
@@ -411,6 +420,8 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			Scheme: "https",
 			Host:   opts.WebProxyAddr,
 		},
+		RelayAddr:               opts.RelayAddr,
+		DefaultRelayAddr:        opts.DefaultRelayAddr,
 		Username:                opts.Username,
 		Logins:                  sshCert.ValidPrincipals,
 		ValidUntil:              validUntil,

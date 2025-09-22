@@ -480,63 +480,127 @@ func (s *FooService) ListFoos(ctx context.Context, pageSize int, pageToken strin
 
 ### Cache
 
-One thing to consider when creating a resource is whether it will need to be cached. As mentioned above, any resource
-that is cached must have its backend layer implement the specific set of operations required by the cache collections
-[executor](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/cache/collections.go#L54-L76).
-While `Upsert` and `DeleteAll` semantics are required by the cache it is preferred that the two methods are not directly
-exposed in the gRPC API. Several existing resources include a `DeleteAll` purely for the cache that always returns a
-`trace.NotImplemented` error. To avoid exposing the methods in the gRPC API at all, a local variant of the backend
-service similar
-to [`services.DynamicAccessExt`](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/services/access_request.go#L260-L278)
-should be used.
-
 Caching is most important for resources that are accessed frequently and in a "hot path" (i.e., during the process of
 performing normal day-to-day operations). For example, resources like cluster networking config, session recording
 config, CAs, roles, etc. which are retrieved per connection should be cached to reduce latency. Resources which are
 accessed infrequently, or which scale linearly with cluster size are good examples of resources that should NOT be
 cached.
 
-If a resource is to be cached, it must be added to
-the [Auth cache](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/cache/cache.go#L95-L154)
-and the cache of any service that requires it. To add the `Foo` resource to the cache its executor would look similar
-to the following:
+If a resource is to be cached, it must be added to the
+[Auth cache](https://github.com/gravitational/teleport/blob/004d0db0c1f6e9b312d0b0e1330b6e5bf1ffef6e/lib/cache/cache.go#L95-L154)
+and the cache of any service that requires it. To add the `Foo` resource to the cache, a new `lib/cache/foo.go` file should be
+added which houses a collection and any `(Cache)` receiver methods. The collection MUST be
+[registered](https://github.com/gravitational/teleport/blob/4c71ad634b3564ad3234f1b3e46f00faabdbcbef/lib/cache/collections.go#L164-L712)
+and added to the list of cache
+[collections](https://github.com/gravitational/teleport/blob/4c71ad634b3564ad3234f1b3e46f00faabdbcbef/lib/cache/collections.go#L65-L135).
+
+> [!NOTE]
+> Some resources may not need to be stored in the cache, but still need to be registered with the cache to allow
+watchers for said resource to be created. These resources do NOT need a collection and can instead be [registered](https://github.com/gravitational/teleport/blob/cc9712c0444ee16e07adc75c21cb6b0a6ebd1af8/lib/cache/collections.go#L137-L147)
+with the unique set of resources to indicate as such to the cache.
+
+<details open><summary>lib/cache/foo.go</summary>
 
 ```go
-type fooExecutor struct{}
+package cache
 
-func (fooExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*foov1.Foo, error) {
-	var (
-		startKey string
-		allFoos []*foov1.Foo
-	)
-	for {
-		foos, nextKey, err := cache.Foo.ListFoos(ctx, 0, startKey, "")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+import (
+	"context"
 
-		allFoos = append(allFoos, foos...)
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+type fooIndex string
+
+const fooNameIndex fooIndex = "name"
+
+func newHealthCheckConfigCollection(upstream services.Foo, w types.WatchKind) (*collection[*foov1.Foo, fooIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter Foo")
 	}
-	return allFoos, nil
+
+	return &collection[*foov1.Foo, fooIndex]{
+		store: newStore(
+			proto.CloneOf[*foov1.Foo],
+			map[healthCheckConfigIndex]func(*foov1.Foo) string{
+				fooNameIndex: func(r *foov1.Foo) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*foov1.Foo, error) {
+			var out []*foov1.Foo
+			var startKey string
+			for {
+				page, nextKey, err := upstream.ListFoos(ctx, 0, startKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				out = append(out, page...)
+
+				if nextKey == "" {
+					break
+				}
+				startKey = nextKey
+			}
+
+			return out, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *foov1.Foo {
+			return &foov1.Foo{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
 }
 
-func (fooExecutor) upsert(ctx context.Context, cache *Cache, resource foov1.Foo) error {
-	return cache.Foo.UpsertFoo(ctx, resource)
+// ListFoos lists foos with pagination.
+func (c *Cache) ListFoos(ctx context.Context, pageSize int, nextToken string) ([]*foov1.Foo, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListFoos")
+	defer span.End()
+
+	lister := genericLister[*foov1.Foo, fooIndex]{
+		cache:           c,
+		collection:      c.collections.foo,
+		index:           fooNameIndex,
+		upstreamList:    c.Config.Foo.ListFoos,
+		nextToken: func(t *foov1.Foo) string {
+			return t.GetMetadata().GetName()
+		},
+	}
+	out, next, err := lister.list(ctx, pageSize, nextToken)
+	return out, next, trace.Wrap(err)
 }
 
-func (fooExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.FooLocal.DeleteAllFoos(ctx)
+// GetFoo fetches a foo by name.
+func (c *Cache) GetFoo(ctx context.Context, name string) (*foov1.Foo, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetFoo")
+	defer span.End()
+
+	getter := genericGetter[*foov1.Foo, fooIndex]{
+		cache:       c,
+		collection:  c.collections.foo,
+		index:       fooNameIndex,
+		upstreamGet: c.Config.Foo.GetFoo,
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
 }
 
-func (fooExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.Foo.DeleteFoo(ctx, &foov1.DeleteFoo{Name: resource.GetName()})
-}
 ```
+
+</details>
 
 #### Event stream mechanism
 

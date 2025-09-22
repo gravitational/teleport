@@ -1,6 +1,10 @@
 ---
 title: Introduction to Enrolling Kubernetes Clusters
 description: Learn how Teleport can protect your Kubernetes clusters with RBAC, audit logging, and more.
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
 ---
 
 Teleport provides secure access to Kubernetes clusters:
@@ -15,7 +19,7 @@ Teleport provides secure access to Kubernetes clusters:
 The guides in this section show you how to protect Kubernetes clusters with
 Teleport. For instructions on self-hosting Teleport Community Edition or
 Teleport Enterprise on Kubernetes, see the [Kubernetes Deployment
-Guides](../../admin-guides/deploy-a-cluster/helm-deployments/helm-deployments.mdx).
+Guides](../../zero-trust-access/deploy-a-cluster/helm-deployments/helm-deployments.mdx).
 
 Here is an example of using Teleport to access a Kubernetes cluster, execute
 commands, and view your `kubectl`  activity in Teleport's audit log:
@@ -29,7 +33,7 @@ auto-discovery](../auto-discovery/kubernetes/kubernetes.mdx).
 Teleport protects Kubernetes clusters through the Teleport Kubernetes Service,
 which is a Teleport Agent service. For more information on agent services, read
 [Teleport Agent Architecture](../../reference/architecture/agents.mdx). You can also learn
-how to deploy a [pool of Teleport Agents](../agents/introduction.mdx) to run
+how to deploy a [pool of Teleport Agents](../agents/agents.mdx) to run
 multiple agent services.
 
 ## Get started

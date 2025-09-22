@@ -50,7 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestHandleAWSAccessSigVerification tests if LocalProxy verifies the AWS SigV4 signature of incoming request.
@@ -113,7 +113,6 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -323,7 +322,7 @@ func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
 	}()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -407,7 +406,6 @@ func TestCheckDBCerts(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tlsCert := mustGenCertSignedWithCA(t, suite.ca,
 				withIdentity(tlsca.Identity{
@@ -542,16 +540,14 @@ func TestKubeMiddleware(t *testing.T) {
 			km.HandleRequest(rw, req)
 
 			// request timed out.
-			assert.Equal(t, http.StatusInternalServerError, rw.Status())
-			assert.Contains(t, rw.Buffer().String(), "context canceled")
+			require.Equal(t, http.StatusInternalServerError, rw.Status())
+			require.Contains(t, rw.Buffer().String(), "context canceled")
 
 			// but certificate still was reissued.
 			certs, err := km.OverwriteClientCerts(req)
-			assert.NoError(t, err)
-			if !assert.Len(t, certs, 1) {
-				return
-			}
-			assert.Equal(t, newCert, certs[0], "certificate was not reissued")
+			require.NoError(t, err)
+			require.Len(t, certs, 1)
+			require.Equal(t, newCert, certs[0], "certificate was not reissued")
 
 		}, 15*time.Second, 100*time.Millisecond)
 	})
@@ -614,7 +610,7 @@ func TestKubeMiddleware(t *testing.T) {
 			km := NewKubeMiddleware(KubeMiddlewareConfig{
 				Certs:        tt.startCerts,
 				CertReissuer: certReissuer,
-				Logger:       utils.NewSlogLoggerForTests(),
+				Logger:       logtest.NewLogger(),
 				Clock:        tt.clock,
 				CloseContext: context.Background(),
 			})
@@ -659,7 +655,7 @@ func createAWSAccessProxySuite(t *testing.T, provider aws.CredentialsProvider) *
 	return lp
 }
 
-func requireExpiredCertErr(t require.TestingT, err error, _ ...interface{}) {
+func requireExpiredCertErr(t require.TestingT, err error, _ ...any) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()
 	}
@@ -669,7 +665,7 @@ func requireExpiredCertErr(t require.TestingT, err error, _ ...interface{}) {
 	require.Equal(t, x509.Expired, certErr.Reason)
 }
 
-func requireCertSubjectUserErr(t require.TestingT, err error, _ ...interface{}) {
+func requireCertSubjectUserErr(t require.TestingT, err error, _ ...any) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()
 	}
@@ -677,7 +673,7 @@ func requireCertSubjectUserErr(t require.TestingT, err error, _ ...interface{}) 
 	require.ErrorContains(t, err, "certificate subject is for user")
 }
 
-func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...interface{}) {
+func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...any) {
 	if h, ok := t.(*testing.T); ok {
 		h.Helper()
 	}
@@ -751,7 +747,6 @@ func TestGetCertsForConn(t *testing.T) {
 		},
 	}
 	for name, tt := range tests {
-		tt := tt
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			// we wont actually be listening for connections, but local proxy config needs to be valid to pass checks.

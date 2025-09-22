@@ -16,14 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { useHistory, useLocation } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
-import { Notification, NotificationItem } from 'shared/components/Notification';
+import {
+  ToastNotification,
+  ToastNotificationItem,
+} from 'shared/components/ToastNotification';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import { FeatureBox } from 'teleport/components/Layout';
@@ -38,8 +41,9 @@ import { integrationService, UserTask } from 'teleport/services/integrations';
 export function Tasks() {
   const theme = useTheme();
   const history = useHistory();
-  const searchParams = new URLSearchParams(history.location.search);
-  const [notification, setNotification] = useState<NotificationItem>();
+  const { search } = useLocation();
+  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
+  const [notification, setNotification] = useState<ToastNotificationItem>();
 
   const { integrationAttempt } = useAwsOidcStatus();
   const { data: integration } = integrationAttempt;
@@ -180,7 +184,7 @@ export function Tasks() {
           />
           {notification && (
             <NotificationContainer>
-              <Notification
+              <ToastNotification
                 key={notification.id}
                 item={notification}
                 onRemove={() => setNotification(undefined)}

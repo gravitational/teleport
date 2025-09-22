@@ -53,10 +53,7 @@ func (m mockListSecurityGroupsClient) DescribeSecurityGroups(ctx context.Context
 	}
 
 	sliceStart := m.pageSize * (requestedPage - 1)
-	sliceEnd := m.pageSize * requestedPage
-	if sliceEnd > totalSG {
-		sliceEnd = totalSG
-	}
+	sliceEnd := min(m.pageSize*requestedPage, totalSG)
 
 	ret := &ec2.DescribeSecurityGroupsOutput{
 		SecurityGroups: m.sgs[sliceStart:sliceEnd],
@@ -82,7 +79,7 @@ func TestListSecurityGroups(t *testing.T) {
 		totalSecurityGroups := 203
 
 		allSGs := make([]ec2Types.SecurityGroup, 0, totalSecurityGroups)
-		for i := 0; i < totalSecurityGroups; i++ {
+		for i := range totalSecurityGroups {
 			allSGs = append(allSGs, ec2Types.SecurityGroup{
 				GroupId:   aws.String(fmt.Sprintf("sg-%d", i)),
 				GroupName: aws.String(fmt.Sprintf("MySG-%d", i)),

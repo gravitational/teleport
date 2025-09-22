@@ -1,0 +1,154 @@
+Teleport MySQL interactive shell (v19.0.0-dev)
+Connected to instance "mysql-test-container" as user "root".
+Type 'help' or '\h' for help.
+
+(none)> -- with ANSI_QUOTES double quotes are identifiers
+(none)> SET SESSION sql_mode='ANSI_QUOTES';
+
+0 warnings, 0 rows affected
+
+(none)> SELECT "thing";
+
+ERR ERROR 1054 (42S22): Unknown column 'thing' in 'field list'
+
+(none)> -- without ANSI_QUOTES double quotes are literals
+(none)> SET SESSION sql_mode='';
+
+0 warnings, 0 rows affected
+
+(none)> SELECT "thing";
+
+thing   
+------- 
+'thing' 
+
+1 row in set
+
+(none)> select 1,  -1,1.24, -1.24, 'foo', null, 'null';
+
+1    -1   1.24   -1.24   foo   NULL null   
+-    --   ------ ------- ----- ---- ------ 
+1    -1   '1.24' '-1.24' 'foo' NULL 'null' 
+
+1 row in set
+
+(none)> select
+     ->     1 as 'unsigned int',
+     ->     -1 as 'negative int',
+     ->     1.24 as "float",
+     ->     -1.24 as 'negative float',
+     ->     'foo' as 'string',
+     ->     null as 'actual NULL',
+     ->     "null" as 'string null';
+
+unsigned int negative int float  negative float string actual NULL string null 
+------------ ------------ ------ -------------- ------ ----------- ----------- 
+1            -1           '1.24' '-1.24'        'foo'  NULL        'null'      
+
+1 row in set
+
+(none)> 
+(none)> select 1 as 'multiple rows of literals'
+     -> union
+     ->     select -1
+     -> union
+     ->     select 1.24
+     -> union
+     ->     select -1.24
+     -> union
+     ->     select 'foo'
+     -> union
+     ->     select null
+     -> union
+     ->     select 'null';
+
+multiple rows of literals 
+------------------------- 
+'1'                       
+'-1'                      
+'1.24'                    
+'-1.24'                   
+'foo'                     
+NULL                      
+'null'                    
+
+7 rows in set
+
+(none)> 
+(none)> select 'a
+     '> b
+     '> c' as 'multiline-string';
+
+multiline-string 
+---------------- 
+'a
+b
+c'   
+
+1 row in set
+
+(none)> 
+(none)> select 'a
+     '>     ;
+     '>     b
+     '>     ;
+     '> c' as 'multiline with delimiters';
+
+multiline with delimiters 
+------------------------- 
+'a
+    ;
+    b
+    ;
+c'   
+
+1 row in set
+
+(none)> 
+(none)> /* foo bar */
+(none)> select 1;
+
+1    
+-    
+1    
+
+1 row in set
+
+(none)> /* foo bar */select /*
+    /*> baz */ 42;
+
+42   
+--   
+42   
+
+1 row in set
+
+(none)> 
+(none)> delimiter $$
+(none)> select '$$1$$'$$
+
+$$1$$   
+------- 
+'$$1$$' 
+
+1 row in set
+
+(none)> select '$$;$$';$$
+
+$$;$$   
+------- 
+'$$;$$' 
+
+1 row in set
+
+(none)> delimiter ;
+(none)> select 1;
+
+1    
+-    
+1    
+
+1 row in set
+
+(none)> 
+(none)> 

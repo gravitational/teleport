@@ -18,7 +18,11 @@
 
 import { Property } from 'csstype';
 import styled from 'styled-components';
-import { ResponsiveValue } from 'styled-system';
+import {
+  fontFamily,
+  ResponsiveValue,
+  type FontFamilyProps,
+} from 'styled-system';
 
 import {
   color,
@@ -47,7 +51,8 @@ export type TextProps<E extends React.ElementType = 'div'> =
     SpaceProps &
     ColorProps &
     TextAlignProps &
-    FontWeightProps;
+    FontWeightProps &
+    FontFamilyProps;
 
 const Text = styled.div.withConfig({
   shouldForwardProp: shouldForwardTypographyProp,
@@ -61,6 +66,7 @@ const Text = styled.div.withConfig({
   ${color}
   ${textAlign}
   ${fontWeight}
+  ${fontFamily}
 `;
 
 Text.displayName = 'Text';

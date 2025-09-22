@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"iter"
 	"time"
 )
 
@@ -38,7 +39,39 @@ const (
 	TargetHealthStatusUnhealthy TargetHealthStatus = "unhealthy"
 	// TargetHealthStatusUnknown indicates that an unknown health check target health status.
 	TargetHealthStatusUnknown TargetHealthStatus = "unknown"
+	// TargetHealthStatusMixed indicates the resource has a mix of health
+	// statuses. This can happen when multiple agents proxy the same resource.
+	TargetHealthStatusMixed TargetHealthStatus = "mixed"
 )
+
+// Canonical converts a status into its canonical form.
+// An empty or unknown status is converted to [TargetHealthStatusUnknown].
+//
+// Returns only a healthy, unhealthy, or unknown status.
+func (s TargetHealthStatus) Canonical() TargetHealthStatus {
+	switch s {
+	case TargetHealthStatusHealthy, TargetHealthStatusUnhealthy:
+		return s
+	default:
+		return TargetHealthStatusUnknown
+	}
+}
+
+// AggregateHealthStatus health statuses into a single status. If there are a
+// mix of different statuses then the aggregate status is "mixed".
+func AggregateHealthStatus(statuses iter.Seq[TargetHealthStatus]) TargetHealthStatus {
+	first := true
+	out := TargetHealthStatusUnknown
+	for s := range statuses {
+		if first {
+			out = s.Canonical()
+			first = false
+		} else if out != s.Canonical() {
+			return TargetHealthStatusMixed
+		}
+	}
+	return out
+}
 
 // TargetHealthTransitionReason is the reason for the target health status
 // transition.
@@ -66,15 +99,17 @@ func (t *TargetHealth) GetTransitionTimestamp() time.Time {
 	return *t.TransitionTimestamp
 }
 
-type targetHealthGetter interface {
-	GetTargetHealth() TargetHealth
+// TargetHealthStatusGetter is a type that can return [TargetHealthStatus].
+type TargetHealthStatusGetter interface {
+	// GetTargetHealthStatus returns the target health status.
+	GetTargetHealthStatus() TargetHealthStatus
 }
 
-// GroupByTargetHealth groups resources by target health and returns [TargetHealthGroups].
-func GroupByTargetHealth[T targetHealthGetter](resources []T) TargetHealthGroups[T] {
+// GroupByTargetHealthStatus groups resources by target health and returns [TargetHealthGroups].
+func GroupByTargetHealthStatus[T TargetHealthStatusGetter](resources []T) TargetHealthGroups[T] {
 	var groups TargetHealthGroups[T]
 	for _, r := range resources {
-		switch TargetHealthStatus(r.GetTargetHealth().Status) {
+		switch r.GetTargetHealthStatus() {
 		case TargetHealthStatusHealthy:
 			groups.Healthy = append(groups.Healthy, r)
 		case TargetHealthStatusUnhealthy:
@@ -88,15 +123,20 @@ func GroupByTargetHealth[T targetHealthGetter](resources []T) TargetHealthGroups
 }
 
 // TargetHealthGroups holds resources grouped by target health status.
-type TargetHealthGroups[T targetHealthGetter] struct {
+type TargetHealthGroups[T TargetHealthStatusGetter] struct {
 	// Healthy is the resources with [TargetHealthStatusHealthy].
 	Healthy []T
 	// Unhealthy is the resources with [TargetHealthStatusUnhealthy].
 	Unhealthy []T
 	// Unknown is the resources with any status that isn't healthy or unhealthy.
-	// Namely [TargetHealthStatusUnknown] and the empty string are grouped
-	// together.
+	// Namely [TargetHealthStatusUnknown], [TargetHealthStatusMixed], and the
+	// empty string are grouped together.
 	// Agents running with a version prior to health checks will always report
 	// an empty health status.
+	// A mixed status should only be set if health status for multiple servers
+	// are aggregated. An aggregated mixed status is equivalent to "unknown"
+	// because the underlying statuses that compose the mix are not known,
+	// although it really doesn't make sense to aggregate the health status
+	// before grouping it (please don't do that).
 	Unknown []T
 }

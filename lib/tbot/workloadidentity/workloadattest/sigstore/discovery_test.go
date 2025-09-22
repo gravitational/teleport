@@ -36,8 +36,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+var loopbackPrefixes = []string{"127.0.0.1/8", "::1/128"}
 
 func TestDiscovery_SimpleSigning(t *testing.T) {
 	registry := sigstoretest.RunTestRegistry(t, sigstoretest.NoAuth)
@@ -47,7 +49,8 @@ func TestDiscovery_SimpleSigning(t *testing.T) {
 		fmt.Sprintf("%s/simple-signing:v1", registry),
 		"sha256:21c76c650023cac8d753af4cb591e6f7450c6e2b499b5751d4a21e26e2fc5012",
 		sigstore.DiscoveryConfig{
-			Logger: utils.NewSlogLoggerForTests(),
+			Logger:                        logtest.NewLogger(),
+			AllowedPrivateNetworkPrefixes: loopbackPrefixes,
 		},
 	)
 	require.NoError(t, err)
@@ -125,7 +128,8 @@ func TestDiscovery_Attestations(t *testing.T) {
 		fmt.Sprintf("%s/attestations:v1", registry),
 		"sha256:32c91fcdf8b41ef78cf63e7be080a366597fd5a748480f5d2a6dc0cff5203807",
 		sigstore.DiscoveryConfig{
-			Logger: utils.NewSlogLoggerForTests(),
+			Logger:                        logtest.NewLogger(),
+			AllowedPrivateNetworkPrefixes: loopbackPrefixes,
 		},
 	)
 	require.NoError(t, err)
@@ -164,7 +168,8 @@ func TestDiscovery_InfiniteRedirects(t *testing.T) {
 		fmt.Sprintf("%s/foo:v1", regURL.Host),
 		"sha256:32c91fcdf8b41ef78cf63e7be080a366597fd5a748480f5d2a6dc0cff5203807",
 		sigstore.DiscoveryConfig{
-			Logger: utils.NewSlogLoggerForTests(),
+			Logger:                        logtest.NewLogger(),
+			AllowedPrivateNetworkPrefixes: loopbackPrefixes,
 		},
 	)
 	require.NoError(t, err)

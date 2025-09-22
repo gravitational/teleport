@@ -57,21 +57,21 @@ func TestValidateReverseTunnel(t *testing.T) {
 		{
 			name:   "empty cluster name",
 			tunnel: newReverseTunnel("", []string{"example.com:3022"}),
-			requireErr: func(t require.TestingT, err error, i ...interface{}) {
+			requireErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 			},
 		},
 		{
 			name:   "empty dial address",
 			tunnel: newReverseTunnel("example.com", []string{""}),
-			requireErr: func(t require.TestingT, err error, i ...interface{}) {
+			requireErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 			},
 		},
 		{
 			name:   "no dial address",
 			tunnel: newReverseTunnel("example.com", []string{}),
-			requireErr: func(t require.TestingT, err error, i ...interface{}) {
+			requireErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
 			},
 		},

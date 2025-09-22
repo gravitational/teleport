@@ -19,32 +19,37 @@
 package helpers
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
 // TestMainImplementation will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMainImplementation(m *testing.M) {
-	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
+	logtest.InitLogger(testing.Verbose)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	SetTestTimeouts(3 * time.Second)
 	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if srv.IsReexec() {
+		defer cancel()
 		common.Run(common.Options{Args: os.Args[1:]})
 		return
 	}
 
 	// Otherwise run tests as normal.
-	code := m.Run()
-	os.Exit(code)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }

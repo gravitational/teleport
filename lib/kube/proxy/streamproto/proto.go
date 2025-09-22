@@ -165,9 +165,8 @@ func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, erro
 }
 
 func (s *SessionStream) readTask() {
+	defer s.closeOnce.Do(func() { close(s.done) })
 	for {
-		defer s.closeOnce.Do(func() { close(s.done) })
-
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {
 			if !errors.Is(err, io.EOF) && !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
@@ -178,7 +177,7 @@ func (s *SessionStream) readTask() {
 			// If it's a close error, we want to send a message to the stdout
 			if s.isClient && errors.As(err, &closeErr) && closeErr.Text != "" {
 				select {
-				case s.in <- []byte(fmt.Sprintf("\r\n---\r\nConnection closed: %v\r\n", closeErr.Text)):
+				case s.in <- fmt.Appendf(nil, "\r\n---\r\nConnection closed: %v\r\n", closeErr.Text):
 				case <-s.done:
 					return
 				}

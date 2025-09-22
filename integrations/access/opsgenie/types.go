@@ -70,7 +70,7 @@ type RespondersResult struct {
 	// Data is a wrapper around the OnCallRecipients.
 	Data struct {
 		OnCallRecipients []string `json:"onCallRecipients,omitempty"`
-	} `json:"data,omitempty"`
+	} `json:"data"`
 }
 
 // AlertResult is a wrapper around Alert

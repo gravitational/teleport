@@ -1,6 +1,9 @@
 ---
 title: TLS Routing
 description: How Teleport implements a single-port setup with TLS routing
+tags:
+ - conceptual
+ - platform-wide
 ---
 
 In TLS routing mode [Teleport proxy](./proxy.mdx) multiplexes all client
@@ -236,7 +239,15 @@ You can set up the Teleport Proxy Service behind the reverse proxy and run the
 following command to test the connection, assigning
 <Var name="teleport.example.com" /> to the domain name of the Proxy Service:
 
-(!docs/pages/includes/reference/code-blocks-no-cspell/tls-routing-conn-upgrade-test-command.mdx!)
+{/* spell-checker: disable */}
+
+```code
+$ curl --no-alpn -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" -H "Sec-WebSocket-Version: 13" \
+  https://<Var name="teleport.example.com" />/webapi/connectionupgrade
+```
+
+{/* spell-checker: enable */}
 
 For a successful upgrade, the server should return "101 Switching Protocols"
 with an empty response:
@@ -258,6 +269,6 @@ behind layer 7 load balancers.
 
 ## Next steps
 
-- See [migration guide](../../admin-guides/management/operations/tls-routing.mdx) to learn how to
+- See [migration guide](../../zero-trust-access/management/operations/tls-routing.mdx) to learn how to
   upgrade an existing cluster to use TLS routing.
 - Read through TLS routing design document [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md).

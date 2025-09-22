@@ -3,6 +3,10 @@ title: Using Teleport with OpenSSH in agentless mode
 description: This guide shows you how to set up Teleport in agentless mode to enable secure access to OpenSSH servers so you can protect systems that do not run a Teleport binary.
 keywords: [openssh, teleport, agentless]
 videoBanner: x0eYFUEIOrM
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 In this guide, we will show you how to configure Teleport in agentless mode and
@@ -14,9 +18,9 @@ Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 `teleport` SSH servers have support for multiple features that are incompatible with OpenSSH:
 
-- RBAC and resource filtering based on [dynamically updated labels](../../../admin-guides/management/admin/labels.mdx)
+- RBAC and resource filtering based on [dynamically updated labels](../../../zero-trust-access/rbac-get-started/labels.mdx)
 - [Session recording without SSH connection termination](../guides/recording-proxy-mode.mdx)
-- [Session sharing](../../../connect-your-client/tsh.mdx)
+- [Session sharing](../../../zero-trust-access/authentication/joining-sessions.mdx)
 - [Advanced session recording](../guides/bpf-session-recording.mdx)
 
 ## How it works
@@ -59,22 +63,6 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
   but not Teleport. The SSH port on this host must be open to traffic from the
   Teleport Proxy Service host.
 - (!docs/pages/includes/tctl.mdx!)
-
-### Upgrading to v14 from legacy OpenSSH nodes
-
-  If you have previously configured OpenSSH nodes to trust a Teleport CA without
-  registering them and you upgrade your Teleport cluster to Teleport 14, you won't
-  be able to connect to them anymore by default. This is because open dialing to
-  OpenSSH servers not registered with the cluster is no longer allowed in Teleport 14.
-  To ensure that you will retain access to your OpenSSH nodes you will need to follow
-  this guide to register every OpenSSH node with Teleport that you previously
-  configured. This must be done *before* your Teleport cluster is upgraded to Teleport 14.
-
-  If you are having issues registering OpenSSH nodes or need to upgrade your
-  Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can
-  pass the `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING` environment variable to your
-  Proxy Service and set it to `yes`. This will allow connections to unregistered
-  OpenSSH nodes but will be removed in Teleport v15.
 
 ## Step 1/3. Configure `sshd`
 

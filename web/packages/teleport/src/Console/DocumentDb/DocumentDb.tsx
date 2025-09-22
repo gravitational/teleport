@@ -35,7 +35,7 @@ type Props = {
 };
 
 export function DocumentDb({ doc, visible }: Props) {
-  const terminalRef = useRef<TerminalRef>();
+  const terminalRef = useRef<TerminalRef>(undefined);
   const { tty, status, closeDocument, sendDbConnectData } = useDbSession(doc);
   const mfa = useMfaEmitter(tty);
   useEffect(() => {

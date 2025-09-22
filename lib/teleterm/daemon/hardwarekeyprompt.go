@@ -56,8 +56,8 @@ type hardwareKeyPrompter struct {
 // Touch prompts the user to touch the hardware key.
 func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.ContextualKeyInfo) error {
 	// Don't include "tsh daemon" commands.
-	if strings.Contains(keyInfo.Command, "tsh daemon") {
-		keyInfo.Command = ""
+	if strings.Contains(keyInfo.AgentKeyInfo.Command, "tsh daemon") {
+		keyInfo.AgentKeyInfo.Command = ""
 	}
 
 	clt, err := h.c.GetClient(ctx)
@@ -67,7 +67,7 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.Con
 
 	_, err = clt.PromptHardwareKeyTouch(ctx, &api.PromptHardwareKeyTouchRequest{
 		ProxyHostname: keyInfo.ProxyHost,
-		Command:       keyInfo.Command,
+		Command:       keyInfo.AgentKeyInfo.Command,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -78,8 +78,8 @@ func (h *hardwareKeyPrompter) Touch(ctx context.Context, keyInfo hardwarekey.Con
 // AskPIN prompts the user for a PIN.
 func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwarekey.PINPromptRequirement, keyInfo hardwarekey.ContextualKeyInfo) (string, error) {
 	// Don't include "tsh daemon" commands.
-	if strings.Contains(keyInfo.Command, "tsh daemon") {
-		keyInfo.Command = ""
+	if strings.Contains(keyInfo.AgentKeyInfo.Command, "tsh daemon") {
+		keyInfo.AgentKeyInfo.Command = ""
 	}
 
 	clt, err := h.c.GetClient(ctx)
@@ -90,12 +90,18 @@ func (h *hardwareKeyPrompter) AskPIN(ctx context.Context, requirement hardwareke
 	res, err := clt.PromptHardwareKeyPIN(ctx, &api.PromptHardwareKeyPINRequest{
 		ProxyHostname: keyInfo.ProxyHost,
 		PinOptional:   requirement == hardwarekey.PINOptional,
-		Command:       keyInfo.Command,
+		Command:       keyInfo.AgentKeyInfo.Command,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return res.Pin, nil
+
+	pin := res.Pin
+	if pin == "" {
+		pin = hardwarekey.DefaultPIN
+	}
+
+	return pin, nil
 }
 
 // ChangePIN asks for a new PIN.

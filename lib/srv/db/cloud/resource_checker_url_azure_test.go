@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestURLChecker_Azure(t *testing.T) {
@@ -47,7 +47,7 @@ func TestURLChecker_Azure(t *testing.T) {
 	}
 
 	c := newURLChecker(DiscoveryResourceCheckerConfig{
-		Logger: utils.NewSlogLoggerForTests(),
+		Logger: logtest.NewLogger(),
 	})
 	for _, database := range testCases {
 		t.Run(database.GetName(), func(t *testing.T) {

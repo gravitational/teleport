@@ -1,0 +1,19 @@
+type: kubernetes/argo-cd
+name: my-argo-service
+credential_ttl: 1m0s
+renewal_interval: 30s
+selectors:
+  - name: foo
+  - labels:
+      foo: bar
+secret_namespace: argocd
+secret_name_prefix: my-argo-cluster-
+secret_labels:
+  my-label: value
+secret_annotations:
+  my-annotation: value
+project: super-secret-project
+namespaces:
+  - prod
+  - dev
+cluster_resources: true

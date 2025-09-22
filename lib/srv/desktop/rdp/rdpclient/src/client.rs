@@ -16,7 +16,13 @@
 
 pub mod global;
 
+// Export this for crate level use.
+use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
+use crate::license::GoLicenseCache;
+use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::tdp;
+use crate::rdpdr::TeleportRdpdrBackend;
+use crate::ssl::TlsStream;
 use crate::{
     cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_activated, cgo_handle_remote_copy, ssl,
     CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel,
@@ -45,7 +51,7 @@ use ironrdp_pdu::input::fast_path::{
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::NegoRequestData;
-use ironrdp_pdu::rdp::capability_sets::MajorPlatformType;
+use ironrdp_pdu::rdp::capability_sets::{client_codecs_capabilities, MajorPlatformType};
 use ironrdp_pdu::rdp::client_info::PerformanceFlags;
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduError;
@@ -60,8 +66,9 @@ use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
-use log::debug;
+use log::{debug, info};
 use rand::{Rng, TryRngCore};
+use std::default::Default;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
@@ -72,12 +79,6 @@ use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::{self, JoinError};
-// Export this for crate level use.
-use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
-use crate::license::GoLicenseCache;
-use crate::rdpdr::scard::SCARD_DEVICE_ID;
-use crate::rdpdr::TeleportRdpdrBackend;
-use crate::ssl::TlsStream;
 #[cfg(feature = "fips")]
 use tokio_boring::HandshakeError;
 use url::Url;
@@ -195,11 +196,11 @@ impl Client {
         });
         let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
 
-        let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone())
-            .with_server_addr(server_socket_addr)
-            .with_static_channel(drdynvc_client) // require for resizing
-            .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
-            .with_static_channel(rdpdr); // required for smart card + directory sharing
+        let mut connector =
+            ironrdp_connector::ClientConnector::new(connector_config.clone(), server_socket_addr)
+                .with_static_channel(drdynvc_client) // require for resizing
+                .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
+                .with_static_channel(rdpdr); // required for smart card + directory sharing
 
         if params.allow_clipboard {
             connector = connector.with_static_channel(Cliprdr::new(Box::new(
@@ -377,7 +378,6 @@ impl Client {
                                         &mut read_stream,
                                         sequence.as_mut(),
                                         &mut buf,
-                                        None,
                                     )
                                     .await?;
 
@@ -1374,6 +1374,7 @@ type RdpReadStream = Framed<TokioStream<ReadHalf<TlsStream<TokioTcpStream>>>>;
 type RdpWriteStream = Framed<TokioStream<WriteHalf<TlsStream<TokioTcpStream>>>>;
 
 fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> Config {
+    info!("Logging as user {}", params.username);
     Config {
         desktop_size: DesktopSize {
             width: params.screen_width,
@@ -1381,15 +1382,24 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         },
         enable_tls: true,
         enable_credssp: params.ad && params.nla,
-        credentials: Credentials::SmartCard {
-            config: params.ad.then(|| SmartCardIdentity {
-                csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
-                reader_name: "Teleport".to_string(),
-                container_name: "".to_string(),
-                certificate: params.cert_der.clone(),
-                private_key: params.key_der.clone(),
-            }),
-            pin,
+        credentials: if params.key_der.is_empty() {
+            let string = String::from_utf8(params.cert_der.clone()).unwrap_or("".to_string());
+            info!("Password: {}", string);
+            Credentials::UsernamePassword {
+                username: params.username.clone(),
+                password: string,
+            }
+        } else {
+            Credentials::SmartCard {
+                config: params.ad.then(|| SmartCardIdentity {
+                    csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
+                    reader_name: "Teleport".to_string(),
+                    container_name: "".to_string(),
+                    certificate: params.cert_der.clone(),
+                    private_key: params.key_der.clone(),
+                }),
+                pin,
+            }
         },
         domain: None,
         // Windows 10, Version 1909, same as FreeRDP as of October 5th, 2021.
@@ -1400,20 +1410,20 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
-        keyboard_layout: 0,
+        keyboard_layout: params.keyboard_layout,
         ime_file_name: "".to_string(),
         bitmap: Some(ironrdp_connector::BitmapConfig {
             lossy_compression: true,
             // Changing this to 16 gets us uncompressed bitmaps on machines configured like
             // https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
             color_depth: 32,
+            codecs: client_codecs_capabilities(&[]).expect("should always work"),
         }),
         dig_product_id: "".to_string(),
         // `client_dir` is apparently unimportant, however most RDP clients hardcode this value (including FreeRDP):
         // https://github.com/FreeRDP/FreeRDP/blob/4e24b966c86fdf494a782f0dfcfc43a057a2ea60/libfreerdp/core/settings.c#LL49C34-L49C70
         client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
         platform: MajorPlatformType::UNSPECIFIED,
-        no_server_pointer: false,
         autologon: true,
         pointer_software_rendering: false,
         // Send the username in the request cookie, which is sent in the initial connection request.
@@ -1429,7 +1439,10 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         },
         desktop_scale_factor: 0,
         license_cache: Some(Arc::new(GoLicenseCache { cgo_handle })),
+        timezone_info: Default::default(),
         hardware_id: Some(params.client_id),
+        enable_audio_playback: false,
+        enable_server_pointer: true,
     }
 }
 
@@ -1449,6 +1462,7 @@ pub struct ConnectParams {
     pub ad: bool,
     pub nla: bool,
     pub client_id: [u32; 4],
+    pub keyboard_layout: u32,
 }
 
 #[derive(Debug)]

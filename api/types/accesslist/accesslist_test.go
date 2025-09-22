@@ -18,13 +18,16 @@ package accesslist
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
 
 func TestParseReviewFrequency(t *testing.T) {
@@ -182,6 +185,8 @@ func TestAuditMarshaling(t *testing.T) {
 }
 
 func TestAuditUnmarshaling(t *testing.T) {
+	const twoWeeks = 14 * 24 * time.Hour
+
 	tests := []struct {
 		name                      string
 		input                     map[string]interface{}
@@ -243,86 +248,95 @@ func TestAuditUnmarshaling(t *testing.T) {
 	}
 }
 
-func TestAccessListDefaults(t *testing.T) {
-	newValidAccessList := func() *AccessList {
-		return &AccessList{
-			ResourceHeader: header.ResourceHeader{
-				Metadata: header.Metadata{
-					Name: "test",
-				},
-			},
-			Spec: Spec{
-				Title:  "test access list",
-				Owners: []Owner{{Name: "Daphne"}},
-				Grants: Grants{Roles: []string{"requester"}},
-				Audit: Audit{
-					NextAuditDate: time.Date(2000, time.September, 12, 1, 2, 3, 4, time.UTC),
-				},
-			},
-		}
-	}
-
-	t.Run("owners are required", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Owners = []Owner{}
-
-		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "owners")
-	})
-}
-
 func TestSelectNextReviewDate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name              string
+		accessListTypes   []Type
 		frequency         ReviewFrequency
 		dayOfMonth        ReviewDayOfMonth
 		currentReviewDate time.Time
 		expected          time.Time
+		expectedErr       bool
 	}{
 		{
 			name:              "one month, first day",
+			accessListTypes:   []Type{Default, DeprecatedDynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        FirstDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			expectedErr:       false,
 		},
 		{
 			name:              "one month, fifteenth day",
+			accessListTypes:   []Type{Default, DeprecatedDynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        FifteenthDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 2, 15, 0, 0, 0, 0, time.UTC),
+			expectedErr:       false,
 		},
 		{
 			name:              "one month, last day",
+			accessListTypes:   []Type{Default, DeprecatedDynamic},
 			frequency:         OneMonth,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 2, 28, 0, 0, 0, 0, time.UTC),
+			expectedErr:       false,
 		},
 		{
 			name:              "six months, last day",
+			accessListTypes:   []Type{Default, DeprecatedDynamic},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expected:          time.Date(2023, 7, 31, 0, 0, 0, 0, time.UTC),
+			expectedErr:       false,
+		},
+		{
+			name:              "six months, last day",
+			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
+			frequency:         SixMonths,
+			dayOfMonth:        LastDayOfMonth,
+			currentReviewDate: time.Time{},
+			expected:          time.Time{},
+			expectedErr:       true,
+		},
+		{
+			name:              "six months, last day",
+			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
+			frequency:         SixMonths,
+			dayOfMonth:        LastDayOfMonth,
+			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+			expected:          time.Time{},
+			expectedErr:       true,
 		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			accessList := AccessList{}
-			accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
-			accessList.Spec.Audit.Recurrence = Recurrence{
-				Frequency:  test.frequency,
-				DayOfMonth: test.dayOfMonth,
+			for _, typ := range test.accessListTypes {
+				t.Run(fmt.Sprintf("type=%q", typ), func(t *testing.T) {
+					accessList := AccessList{}
+					accessList.Spec.Type = typ
+					accessList.Spec.Audit.NextAuditDate = test.currentReviewDate
+					accessList.Spec.Audit.Recurrence = Recurrence{
+						Frequency:  test.frequency,
+						DayOfMonth: test.dayOfMonth,
+					}
+					nextReviewDate, err := accessList.SelectNextReviewDate()
+					if test.expectedErr {
+						require.Error(t, err)
+					} else {
+						require.NoError(t, err)
+						require.Equal(t, test.expected, nextReviewDate)
+					}
+				})
 			}
-			require.Equal(t, test.expected, accessList.SelectNextReviewDate())
 		})
 	}
 }
@@ -380,4 +394,13 @@ func TestAccessList_setInitialReviewDate(t *testing.T) {
 			require.Equal(t, test.expected, accessList.Spec.Audit.NextAuditDate)
 		})
 	}
+}
+
+func TestAccessListClone(t *testing.T) {
+	item := &AccessList{}
+	err := structfill.Fill(item)
+	require.NoError(t, err)
+	cpy := item.Clone()
+	require.Empty(t, cmp.Diff(item, cpy))
+	require.NotSame(t, item, cpy)
 }

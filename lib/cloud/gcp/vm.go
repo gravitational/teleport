@@ -263,7 +263,7 @@ func (clt *instancesClient) getHostKeys(ctx context.Context, req *gcpimds.Instan
 	keys := make([]ssh.PublicKey, 0, len(items))
 	var errs []error
 	for _, item := range items {
-		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fmt.Sprintf("%v %v", item.GetKey(), item.GetValue())))
+		key, _, _, _, err := ssh.ParseAuthorizedKey(fmt.Appendf(nil, "%v %v", item.GetKey(), item.GetValue()))
 		if err == nil {
 			keys = append(keys, key)
 		} else {

@@ -22,7 +22,7 @@ import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
-import type { NotificationItem } from 'shared/components/Notification';
+import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 
 import ActionMenu from './ActionMenu';
 import { AlertDropdown } from './AlertDropdown';
@@ -54,35 +54,28 @@ export default function TopBar(props: Props) {
     <TopNav
       height="40px"
       bg="levels.deep"
-      style={{
-        justifyContent: 'space-between',
-      }}
+      justifyContent="space-between"
+      gap={3}
+      px={3}
     >
-      <Text px={3} style={{ color: theme.colors.text.slightlyMuted }}>
-        {userHost}
-      </Text>
+      <Text style={{ color: theme.colors.text.slightlyMuted }}>{userHost}</Text>
 
       {isConnected && (
-        <Flex px={3}>
-          <Flex alignItems="center" gap={3}>
-            {latency && <LatencyDiagnostic latency={latency} />}
-            <HoverTooltip
-              tipContent={directorySharingToolTip(
-                canShareDirectory,
-                isSharingDirectory
-              )}
-              placement="bottom"
-            >
-              <FolderShared style={primaryOnTrue(isSharingDirectory)} />
-            </HoverTooltip>
-            <HoverTooltip
-              tipContent={clipboardSharingMessage}
-              placement="bottom"
-            >
-              <Clipboard style={primaryOnTrue(isSharingClipboard)} />
-            </HoverTooltip>
-            <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
-          </Flex>
+        <Flex gap={3} alignItems="center">
+          {latency && <LatencyDiagnostic latency={latency} />}
+          <HoverTooltip
+            tipContent={directorySharingToolTip(
+              canShareDirectory,
+              isSharingDirectory
+            )}
+            placement="bottom"
+          >
+            <FolderShared style={primaryOnTrue(isSharingDirectory)} />
+          </HoverTooltip>
+          <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
+            <Clipboard style={primaryOnTrue(isSharingClipboard)} />
+          </HoverTooltip>
+          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
           <ActionMenu
             onDisconnect={onDisconnect}
             showShareDirectory={canShareDirectory && !isSharingDirectory}
@@ -117,7 +110,7 @@ type Props = {
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
-  alerts: NotificationItem[];
+  alerts: ToastNotificationItem[];
   isConnected: boolean;
   onRemoveAlert(id: string): void;
   latency: {

@@ -59,7 +59,7 @@ export default class Logger {
 
 // NullService is a logger service implementation which swallows logs. For use in tests.
 export class NullService implements LoggerService {
-  /* eslint-disable @typescript-eslint/no-unused-vars */
+  /* eslint-disable unused-imports/no-unused-vars */
   createLogger(loggerName: string): types.Logger {
     return {
       warn(...args: any[]) {},
@@ -67,7 +67,7 @@ export class NullService implements LoggerService {
       error(...args: any[]) {},
     };
   }
-  /* eslint-enable @typescript-eslint/no-unused-vars */
+  /* eslint-enable unused-imports/no-unused-vars */
 }
 
 export class ConsoleService implements LoggerService {

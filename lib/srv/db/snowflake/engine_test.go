@@ -157,7 +157,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 	const loginResponse = `{"data":{"CLIENT_APP_ID":"","CLIENT_APP_VERSION":"","SVN_REVISION":"","ACCOUNT_NAME":"testAccountName","AUTHENTICATOR":"SNOWFLAKE_JWT","CLIENT_ENVIRONMENT":null,"LOGIN_NAME":"alice","TOKEN":"testJWT"}}`
 
 	type args struct {
-		loginReq    map[string]interface{}
+		loginReq    map[string]any
 		jwtToken    string
 		accountName string
 		loginName   string
@@ -170,7 +170,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 		{
 			name: "base case",
 			args: args{
-				loginReq: map[string]interface{}{
+				loginReq: map[string]any{
 					"TOKEN":        "testJWT",
 					"ACCOUNT_NAME": "testAccountName",
 				},
@@ -183,7 +183,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 		{
 			name: "remove password",
 			args: args{
-				loginReq: map[string]interface{}{
+				loginReq: map[string]any{
 					"TOKEN":        "testJWT",
 					"ACCOUNT_NAME": "testAccountName",
 					"PASSWORD":     "password",
@@ -197,7 +197,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 		{
 			name: "remove username",
 			args: args{
-				loginReq: map[string]interface{}{
+				loginReq: map[string]any{
 					"TOKEN":        "testJWT",
 					"ACCOUNT_NAME": "testAccountName",
 					"LOGIN_NAME":   "alice",
@@ -211,7 +211,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 		{
 			name: "replace authenticator username",
 			args: args{
-				loginReq: map[string]interface{}{
+				loginReq: map[string]any{
 					"TOKEN":         "testJWT",
 					"ACCOUNT_NAME":  "testAccountName",
 					"AUTHENTICATOR": "PASSWORD",
@@ -225,7 +225,7 @@ func Test_replaceLoginReqToken(t *testing.T) {
 		{
 			name: "replace login name",
 			args: args{
-				loginReq: map[string]interface{}{
+				loginReq: map[string]any{
 					"TOKEN":         "testJWT",
 					"ACCOUNT_NAME":  "testAccountName",
 					"AUTHENTICATOR": "PASSWORD",

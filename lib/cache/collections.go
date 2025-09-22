@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -31,12 +32,18 @@ import (
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // collectionHandler is used by the [Cache] to seed the initial
@@ -63,68 +70,91 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
-	provisionTokens                  *collection[types.ProvisionToken, provisionTokenIndex]
-	staticTokens                     *collection[types.StaticTokens, staticTokensIndex]
-	certAuthorities                  *collection[types.CertAuthority, certAuthorityIndex]
-	users                            *collection[types.User, userIndex]
-	roles                            *collection[types.Role, roleIndex]
-	authServers                      *collection[types.Server, authServerIndex]
-	proxyServers                     *collection[types.Server, proxyServerIndex]
-	nodes                            *collection[types.Server, nodeIndex]
-	apps                             *collection[types.Application, appIndex]
-	appServers                       *collection[types.AppServer, appServerIndex]
-	dbs                              *collection[types.Database, databaseIndex]
-	dbServers                        *collection[types.DatabaseServer, databaseServerIndex]
-	dbServices                       *collection[types.DatabaseService, databaseServiceIndex]
-	kubeServers                      *collection[types.KubeServer, kubeServerIndex]
-	kubeClusters                     *collection[types.KubeCluster, kubeClusterIndex]
-	kubeWaitingContainers            *collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]
-	windowsDesktops                  *collection[types.WindowsDesktop, windowsDesktopIndex]
-	windowsDesktopServices           *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
-	dynamicWindowsDesktops           *collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]
-	userGroups                       *collection[types.UserGroup, userGroupIndex]
-	identityCenterAccounts           *collection[*identitycenterv1.Account, identityCenterAccountIndex]
-	identityCenterAccountAssignments *collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]
-	healthCheckConfig                *collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]
-	reverseTunnels                   *collection[types.ReverseTunnel, reverseTunnelIndex]
-	spiffeFederations                *collection[*machineidv1.SPIFFEFederation, spiffeFederationIndex]
-	workloadIdentity                 *collection[*workloadidentityv1.WorkloadIdentity, workloadIdentityIndex]
-	userNotifications                *collection[*notificationsv1.Notification, userNotificationIndex]
-	globalNotifications              *collection[*notificationsv1.GlobalNotification, globalNotificationIndex]
-	clusterName                      *collection[types.ClusterName, clusterNameIndex]
-	auditConfig                      *collection[types.ClusterAuditConfig, clusterAuditConfigIndex]
-	networkingConfig                 *collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex]
-	authPreference                   *collection[types.AuthPreference, authPreferenceIndex]
-	sessionRecordingConfig           *collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]
-	autoUpdateConfig                 *collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]
-	autoUpdateVerion                 *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
-	autoUpdateRollout                *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
-	oktaImportRules                  *collection[types.OktaImportRule, oktaImportRuleIndex]
-	oktaAssignments                  *collection[types.OktaAssignment, oktaAssignmentIndex]
-	samlIdPServiceProviders          *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
-	samlIdPSessions                  *collection[types.WebSession, samlIdPSessionIndex]
-	webSessions                      *collection[types.WebSession, webSessionIndex]
-	appSessions                      *collection[types.WebSession, appSessionIndex]
-	snowflakeSessions                *collection[types.WebSession, snowflakeSessionIndex]
-	accessLists                      *collection[*accesslist.AccessList, accessListIndex]
-	accessListMembers                *collection[*accesslist.AccessListMember, accessListMemberIndex]
-	accessListReviews                *collection[*accesslist.Review, accessListReviewIndex]
-	crownJewels                      *collection[*crownjewelv1.CrownJewel, crownJewelIndex]
-	accessGraphSettings              *collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]
-	integrations                     *collection[types.Integration, integrationIndex]
-	pluginStaticCredentials          *collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]
-	accessMonitoringRules            *collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]
-	webTokens                        *collection[types.WebToken, webTokenIndex]
-	uiConfigs                        *collection[types.UIConfig, webUIConfigIndex]
-	installers                       *collection[types.Installer, installerIndex]
-	locks                            *collection[types.Lock, lockIndex]
-	tunnelConnections                *collection[types.TunnelConnection, tunnelConnectionIndex]
-	remoteClusters                   *collection[types.RemoteCluster, remoteClusterIndex]
-	userTasks                        *collection[*usertasksv1.UserTask, userTaskIndex]
-	userLoginStates                  *collection[*userloginstate.UserLoginState, userLoginStateIndex]
-	gitServers                       *collection[types.Server, gitServerIndex]
-	databaseObjects                  *collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]
-	staticHostUsers                  *collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex]
+	provisionTokens                    *collection[types.ProvisionToken, provisionTokenIndex]
+	staticTokens                       *collection[types.StaticTokens, staticTokensIndex]
+	certAuthorities                    *collection[types.CertAuthority, certAuthorityIndex]
+	users                              *collection[types.User, userIndex]
+	roles                              *collection[types.Role, roleIndex]
+	authServers                        *collection[types.Server, authServerIndex]
+	proxyServers                       *collection[types.Server, proxyServerIndex]
+	nodes                              *collection[types.Server, nodeIndex]
+	apps                               *collection[types.Application, appIndex]
+	appServers                         *collection[types.AppServer, appServerIndex]
+	dbs                                *collection[types.Database, databaseIndex]
+	dbServers                          *collection[types.DatabaseServer, databaseServerIndex]
+	dbServices                         *collection[types.DatabaseService, databaseServiceIndex]
+	kubeServers                        *collection[types.KubeServer, kubeServerIndex]
+	kubeClusters                       *collection[types.KubeCluster, kubeClusterIndex]
+	kubeWaitingContainers              *collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]
+	windowsDesktops                    *collection[types.WindowsDesktop, windowsDesktopIndex]
+	windowsDesktopServices             *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
+	dynamicWindowsDesktops             *collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]
+	userGroups                         *collection[types.UserGroup, userGroupIndex]
+	identityCenterAccounts             *collection[*identitycenterv1.Account, identityCenterAccountIndex]
+	identityCenterAccountAssignments   *collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]
+	healthCheckConfig                  *collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]
+	reverseTunnels                     *collection[types.ReverseTunnel, reverseTunnelIndex]
+	spiffeFederations                  *collection[*machineidv1.SPIFFEFederation, spiffeFederationIndex]
+	workloadIdentity                   *collection[*workloadidentityv1.WorkloadIdentity, workloadIdentityIndex]
+	userNotifications                  *collection[*notificationsv1.Notification, userNotificationIndex]
+	globalNotifications                *collection[*notificationsv1.GlobalNotification, globalNotificationIndex]
+	clusterName                        *collection[types.ClusterName, clusterNameIndex]
+	auditConfig                        *collection[types.ClusterAuditConfig, clusterAuditConfigIndex]
+	networkingConfig                   *collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex]
+	authPreference                     *collection[types.AuthPreference, authPreferenceIndex]
+	sessionRecordingConfig             *collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]
+	autoUpdateConfig                   *collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]
+	autoUpdateVerion                   *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
+	autoUpdateRollout                  *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
+	autoUpdateReports                  *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
+	oktaImportRules                    *collection[types.OktaImportRule, oktaImportRuleIndex]
+	oktaAssignments                    *collection[types.OktaAssignment, oktaAssignmentIndex]
+	samlIdPServiceProviders            *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
+	webSessions                        *collection[types.WebSession, webSessionIndex]
+	appSessions                        *collection[types.WebSession, appSessionIndex]
+	snowflakeSessions                  *collection[types.WebSession, snowflakeSessionIndex]
+	accessLists                        *collection[*accesslist.AccessList, accessListIndex]
+	accessListMembers                  *collection[*accesslist.AccessListMember, accessListMemberIndex]
+	accessListReviews                  *collection[*accesslist.Review, accessListReviewIndex]
+	crownJewels                        *collection[*crownjewelv1.CrownJewel, crownJewelIndex]
+	accessGraphSettings                *collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]
+	integrations                       *collection[types.Integration, integrationIndex]
+	pluginStaticCredentials            *collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]
+	accessMonitoringRules              *collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]
+	webTokens                          *collection[types.WebToken, webTokenIndex]
+	uiConfigs                          *collection[types.UIConfig, webUIConfigIndex]
+	installers                         *collection[types.Installer, installerIndex]
+	locks                              *collection[types.Lock, lockIndex]
+	tunnelConnections                  *collection[types.TunnelConnection, tunnelConnectionIndex]
+	remoteClusters                     *collection[types.RemoteCluster, remoteClusterIndex]
+	userTasks                          *collection[*usertasksv1.UserTask, userTaskIndex]
+	userLoginStates                    *collection[*userloginstate.UserLoginState, userLoginStateIndex]
+	gitServers                         *collection[types.Server, gitServerIndex]
+	databaseObjects                    *collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]
+	staticHostUsers                    *collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex]
+	networkRestrictions                *collection[types.NetworkRestrictions, networkingRestrictionIndex]
+	discoveryConfigs                   *collection[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]
+	provisioningStates                 *collection[*provisioningv1.PrincipalState, principalStateIndex]
+	identityCenterPrincipalAssignments *collection[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]
+	auditQueries                       *collection[*secreports.AuditQuery, auditQueryIndex]
+	secReports                         *collection[*secreports.Report, securityReportIndex]
+	secReportsStates                   *collection[*secreports.ReportState, securityReportStateIndex]
+	relayServers                       *collection[*presencev1.RelayServer, relayServerIndex]
+	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
+	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
+	plugins                            *collection[types.Plugin, pluginIndex]
+}
+
+// isKnownUncollectedKind is true if a resource kind is not stored in
+// the cache itself but it's only configured in the cache so that the
+// resources events can be processed by downstream watchers.
+func isKnownUncollectedKind(kind string) bool {
+	switch kind {
+	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment:
+		return true
+	default:
+		return false
+	}
 }
 
 // setupCollections ensures that the appropriate [collection] is
@@ -136,8 +166,11 @@ func setupCollections(c Config) (*collections, error) {
 	}
 
 	for _, watch := range c.Watches {
-		resourceKind := resourceKindFromWatchKind(watch)
+		if isKnownUncollectedKind(watch.Kind) {
+			continue
+		}
 
+		resourceKind := resourceKindFromWatchKind(watch)
 		switch watch.Kind {
 		case types.KindToken:
 			collect, err := newProvisionTokensCollection(c.Provisioner, watch)
@@ -435,6 +468,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.autoUpdateRollout = collect
 			out.byKind[resourceKind] = out.autoUpdateRollout
+		case types.KindAutoUpdateAgentReport:
+			collect, err := newAutoUpdateAgentReportCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateReports = collect
+			out.byKind[resourceKind] = out.autoUpdateReports
 		case types.KindOktaImportRule:
 			collect, err := newOktaImportRuleCollection(c.Okta, watch)
 			if err != nil {
@@ -477,15 +518,6 @@ func setupCollections(c Config) (*collections, error) {
 
 				out.snowflakeSessions = collect
 				out.byKind[resourceKind] = out.snowflakeSessions
-			case types.KindSAMLIdPSession:
-				collect, err := newSAMLIdPSessionCollection(c.SAMLIdPSession, watch)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				out.samlIdPSessions = collect
-				out.byKind[resourceKind] = out.samlIdPSessions
-
 			case types.KindWebSession:
 				collect, err := newWebSessionCollection(c.WebSession, watch)
 				if err != nil {
@@ -639,8 +671,142 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.staticHostUsers = collect
 			out.byKind[resourceKind] = out.staticHostUsers
+		case types.KindNetworkRestrictions:
+			collect, err := newNetworkingRestrictionCollection(c.Restrictions, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.networkRestrictions = collect
+			out.byKind[resourceKind] = out.networkRestrictions
+		case types.KindDiscoveryConfig:
+			collect, err := newDiscoveryConfigCollection(c.DiscoveryConfigs, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.discoveryConfigs = collect
+			out.byKind[resourceKind] = out.discoveryConfigs
+		case types.KindProvisioningPrincipalState:
+
+			collect, err := newPrincipalStateCollection(c.ProvisioningStates, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.provisioningStates = collect
+			out.byKind[resourceKind] = out.provisioningStates
+		case types.KindIdentityCenterPrincipalAssignment:
+			collect, err := newIdentityCenterPrincipalAssignmentCollection(c.IdentityCenter, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.identityCenterPrincipalAssignments = collect
+			out.byKind[resourceKind] = out.identityCenterPrincipalAssignments
+		case types.KindAuditQuery:
+			collect, err := newAuditQueryCollection(c.SecReports, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.auditQueries = collect
+			out.byKind[resourceKind] = out.auditQueries
+		case types.KindSecurityReport:
+			collect, err := newSecurityReportCollection(c.SecReports, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.secReports = collect
+			out.byKind[resourceKind] = out.secReports
+		case types.KindSecurityReportState:
+			collect, err := newSecurityReportStateCollection(c.SecReports, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.secReportsStates = collect
+			out.byKind[resourceKind] = out.secReportsStates
+		case types.KindRelayServer:
+			collect, err := newRelayServerCollection(c.Presence, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.relayServers = collect
+			out.byKind[resourceKind] = out.relayServers
+		case types.KindBotInstance:
+			collect, err := newBotInstanceCollection(c.BotInstanceService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.botInstances = collect
+			out.byKind[resourceKind] = out.botInstances
+		case types.KindRecordingEncryption:
+			collect, err := newRecordingEncryptionCollection(c.RecordingEncryption, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.recordingEncryption = collect
+			out.byKind[resourceKind] = out.recordingEncryption
+		case types.KindPlugin:
+			collect, err := newPluginsCollection(c.Plugin, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out.plugins = collect
+			out.byKind[resourceKind] = out.plugins
+		default:
+			if _, ok := out.byKind[resourceKind]; !ok {
+				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
+			}
+
 		}
 	}
 
 	return out, nil
+}
+
+func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
+	switch wk.Kind {
+	case types.KindWebSession:
+		// Web sessions use subkind to differentiate between
+		// the types of sessions
+		return resourceKind{
+			kind:    wk.Kind,
+			subkind: wk.SubKind,
+		}
+	}
+	return resourceKind{
+		kind: wk.Kind,
+	}
+}
+
+func resourceKindFromResource(res types.Resource) resourceKind {
+	switch res.GetKind() {
+	case types.KindWebSession:
+		// Web sessions use subkind to differentiate between
+		// the types of sessions
+		return resourceKind{
+			kind:    res.GetKind(),
+			subkind: res.GetSubKind(),
+		}
+	}
+	return resourceKind{
+		kind: res.GetKind(),
+	}
+}
+
+type resourceKind struct {
+	kind    string
+	subkind string
+}
+
+func (r resourceKind) String() string {
+	if r.subkind == "" {
+		return r.kind
+	}
+	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }

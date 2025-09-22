@@ -1,13 +1,16 @@
 ---
 title: Enrolling Teleport Resources
 description: Provides step-by-step instructions for enrolling servers, databases, and other infrastructure resources with your Teleport cluster.
+tags:
+ - conceptual
+ - zero-trust
 ---
 
 You can use Teleport to protect infrastructure resources like servers,
 databases, and Kubernetes clusters. Once an infrastructure resource is protected
 by Teleport, you can restrict access to the resource using the Teleport
 [role-based access controls
-system](../admin-guides/access-controls/access-controls.mdx) and use Teleport
+system](../zero-trust-access/authentication/authentication.mdx) and use Teleport
 features like session recordings and audit events to understand how your users
 interact with the resource.
 
@@ -16,7 +19,7 @@ the `teleport` binary configured to run certain services, such as the Teleport
 SSH Service and Teleport Database Service. You then configure the Agent to proxy
 a resource by querying a service discovery API (Auto Discovery), using a
 [dynamic Teleport
-resource](../admin-guides/infrastructure-as-code/infrastructure-as-code.mdx), or
+resource](../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx), or
 naming the resource in the Agent's configuration file. Read more about [Teleport
 Agent architecture](../reference/architecture/agents.mdx).
 

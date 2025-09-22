@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
+import { Text } from 'design';
 import { ACL } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { DesktopSession } from 'shared/components/DesktopSession';
 import {
@@ -25,17 +26,19 @@ import {
   makeProcessingAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-import { BrowserFileSystem, TdpClient } from 'shared/libs/tdp';
+import { SharedDirectoryAccess, TdpClient, useListener } from 'shared/libs/tdp';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import Logger from 'teleterm/logger';
+import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import Document from 'teleterm/ui/Document';
+import Document, { ForegroundSession } from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { routing, WindowsDesktopUri } from 'teleterm/ui/uri';
+import { DesktopUri, isWindowsDesktopUri, routing } from 'teleterm/ui/uri';
 
 // The check for another active session is disabled in Connect:
 // 1. This protection was added to the Web UI to prevent a situation where a user could be tricked
@@ -49,12 +52,27 @@ export function DocumentDesktopSession(props: {
   visible: boolean;
   doc: types.DocumentDesktopSession;
 }) {
+  return (
+    <ForegroundSession
+      visible={props.visible}
+      connected={props.doc.status === 'connected'}
+    >
+      <DesktopSessionComponent visible={props.visible} doc={props.doc} />
+    </ForegroundSession>
+  );
+}
+
+function DesktopSessionComponent(props: {
+  visible: boolean;
+  doc: types.DocumentDesktopSession;
+}) {
   const logger = useLogger('DocumentDesktopSession');
-  const { desktopUri, login, origin } = props.doc;
+  const { desktopUri, login, origin, uri } = props.doc;
   const appCtx = useAppContext();
+  const { documentsService } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
   const acl = useMemo<Attempt<ACL>>(() => {
-    if (!loggedInUser) {
+    if (!loggedInUser?.acl) {
       return makeProcessingAttempt();
     }
     return makeSuccessAttempt(loggedInUser.acl);
@@ -62,29 +80,63 @@ export function DocumentDesktopSession(props: {
 
   const [client] = useState(
     () =>
-      new TdpClient(async abortSignal => {
-        const stream = appCtx.tshd.connectToDesktop({
-          abort: cloneAbortSignal(abortSignal),
-        });
-        appCtx.usageService.captureProtocolUse({
-          uri: desktopUri,
-          protocol: 'desktop',
-          origin,
-          accessThrough: 'proxy_service',
-        });
-        return adaptGRPCStreamToTdpTransport(
-          stream,
-          {
+      new TdpClient(
+        async abortSignal => {
+          const stream = appCtx.tshd.connectToDesktop({
+            abort: cloneAbortSignal(abortSignal),
+          });
+          appCtx.usageService.captureProtocolUse({
+            uri: desktopUri,
+            protocol: 'desktop',
+            origin,
+            accessThrough: 'proxy_service',
+          });
+          return adaptGRPCStreamToTdpTransport(
+            stream,
+            { desktopUri, login },
+            logger
+          );
+        },
+        () =>
+          shareDirectoryInTshd(appCtx.mainProcessClient, {
             desktopUri,
             login,
-          },
-          logger
-        );
-      }, new BrowserFileSystem())
+          })
+      )
   );
 
-  return (
-    <Document visible={props.visible}>
+  useListener(
+    client.onTransportOpen,
+    useCallback(
+      () => documentsService.update(uri, { status: 'connected' }),
+      [documentsService, uri]
+    )
+  );
+  useListener(
+    client.onTransportClose,
+    useCallback(
+      error => documentsService.update(uri, { status: error ? 'error' : '' }),
+      [documentsService, uri]
+    )
+  );
+  useListener(
+    client.onError,
+    useCallback(
+      () => documentsService.update(uri, { status: 'error' }),
+      [documentsService, uri]
+    )
+  );
+
+  let content = (
+    <Text m="auto" mt={10} textAlign="center">
+      Cannot open a connection to "{desktopUri}".
+      <br />
+      Only Windows desktops are supported.
+    </Text>
+  );
+
+  if (isWindowsDesktopUri(desktopUri)) {
+    content = (
       <DesktopSession
         hasAnotherSession={noOtherSession}
         desktop={
@@ -93,15 +145,18 @@ export function DocumentDesktopSession(props: {
         client={client}
         username={login}
         aclAttempt={acl}
+        browserSupportsSharing
       />
-    </Document>
-  );
+    );
+  }
+
+  return <Document visible={props.visible}>{content}</Document>;
 }
 
 async function adaptGRPCStreamToTdpTransport(
   stream: ReturnType<TshdClient['connectToDesktop']>,
   targetDesktop: {
-    desktopUri: WindowsDesktopUri;
+    desktopUri: DesktopUri;
     login: string;
   },
   logger: Logger
@@ -134,4 +189,60 @@ async function adaptGRPCStreamToTdpTransport(
       });
     },
   };
+}
+
+/**
+ * Opens a directory picker and then shares the selected directory using tsh daemon.
+ *
+ * The process begins when the Electron main process opens a directory picker.
+ * Once a path is selected, it is passed to tshd via the SetSharedDirectoryForDesktopSession API.
+ *
+ * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
+ * Once that's done, everything is ready on the tsh daemon to intercept and handle the file system events.
+ *
+ * The final step is to send a SharedDirectoryAnnounce message to the server, which is done in the JS TDP client.
+ * This message is safe to send from the renderer because it only provides
+ * a display name for the mounted drive on the remote machine and has no effect on local file system operations.
+ */
+async function shareDirectoryInTshd(
+  mainProcessClient: MainProcessClient,
+  target: {
+    desktopUri: string;
+    login: string;
+  }
+): Promise<SharedDirectoryAccess> {
+  const directoryName =
+    await mainProcessClient.selectDirectoryForDesktopSession(target);
+  return {
+    getDirectoryName: () => directoryName,
+    // These functions are unimplemented because all file system operations
+    // are handled exclusively by the tsh daemon.
+    stat: () => {
+      throw new NotImplemented();
+    },
+    readDir: () => {
+      throw new NotImplemented();
+    },
+    read: () => {
+      throw new NotImplemented();
+    },
+    write: () => {
+      throw new NotImplemented();
+    },
+    truncate: () => {
+      throw new NotImplemented();
+    },
+    create: () => {
+      throw new NotImplemented();
+    },
+    delete: () => {
+      throw new NotImplemented();
+    },
+  };
+}
+
+class NotImplemented extends Error {
+  constructor() {
+    super('Not implemented, file system operation are handled by tsh demon.');
+  }
 }

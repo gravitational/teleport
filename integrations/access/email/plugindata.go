@@ -79,7 +79,7 @@ func DecodePluginData(dataMap map[string]string) (data PluginData) {
 		data.EmailThreads = append(data.EmailThreads, EmailThread{Email: email, Timestamp: timestamp})
 	}
 	if str := dataMap["email_threads"]; str != "" {
-		for _, encodedThread := range strings.Split(str, ",") {
+		for encodedThread := range strings.SplitSeq(str, ",") {
 			if parts := strings.Split(encodedThread, "/"); len(parts) == 3 {
 				data.EmailThreads = append(data.EmailThreads, EmailThread{Email: parts[0], Timestamp: parts[1], MessageID: parts[2]})
 			}

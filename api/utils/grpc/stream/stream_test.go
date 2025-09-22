@@ -52,7 +52,7 @@ func (m *mockStream) Recv() ([]byte, error) {
 	return b[:n], err
 }
 
-func newStreamPipe(t *testing.T) (*ReadWriter, net.Conn) {
+func newStreamPipe(t *testing.T, opts ...Option) (*ReadWriter, net.Conn) {
 	local, remote := net.Pipe()
 	stream := newMockStream(context.Background(), remote)
 
@@ -63,7 +63,7 @@ func newStreamPipe(t *testing.T) (*ReadWriter, net.Conn) {
 	require.NoError(t, remote.SetReadDeadline(timeout))
 	require.NoError(t, remote.SetWriteDeadline(timeout))
 
-	streamConn, err := NewReadWriter(stream)
+	streamConn, err := NewReadWriter(stream, opts...)
 	require.NoError(t, err)
 
 	return streamConn, local
@@ -116,6 +116,30 @@ func TestReadWriter_WriteChunk(t *testing.T) {
 		n, err = local.Read(b)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, n)
+		assert.Equal(t, data[:n], b[:n])
+	}()
+
+	wg.Wait()
+}
+
+func TestReadWriter_WriteDisabledChunk(t *testing.T) {
+	streamConn, local := newStreamPipe(t, WithDisabledChunking())
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+
+	data := make([]byte, MaxChunkSize+1)
+	go func() {
+		defer wg.Done()
+		n, err := streamConn.Write(data)
+		assert.NoError(t, err)
+		assert.Len(t, data, n)
+	}()
+	go func() {
+		defer wg.Done()
+		b := make([]byte, 2*MaxChunkSize)
+		n, err := local.Read(b)
+		assert.NoError(t, err)
+		assert.Len(t, data, n)
 		assert.Equal(t, data[:n], b[:n])
 	}()
 

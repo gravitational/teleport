@@ -83,7 +83,7 @@ func ParseWebLinks(response *http.Response) WebLinks {
 
 	if links, ok := response.Header["Link"]; ok && len(links) > 0 {
 		for _, lnk := range links {
-			for _, link := range strings.Split(lnk, ",") {
+			for link := range strings.SplitSeq(lnk, ",") {
 				segments := strings.Split(strings.TrimSpace(link), ";")
 
 				// link must at least have href and rel

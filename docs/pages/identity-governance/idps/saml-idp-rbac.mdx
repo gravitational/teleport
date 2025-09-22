@@ -1,0 +1,167 @@
+---
+title: SAML Application Access Control
+description: Learn how to manage access to a SAML service provider (SAML applications).
+sidebar_position: 2
+labels:
+ - identity-governance
+---
+
+This page explains how access to a SAML IdP service provider resource (SAML application)
+can be managed in Teleport. 
+
+If you are new to the Teleport SAML IdP, start by learning how to configure [Teleport as 
+an SAML IdP](saml-guide.mdx).
+
+## How it works 
+
+User access to the SAML IdP service provider resource can be categorized into two different 
+use cases:
+- **Managing a SAML IdP service provider resource.** For example, when a Teleport administrator 
+  attempts to create or update a SAML IdP service provider resource.
+- **Logging in to the SAML service provider.** For example, when a Teleport user attempts to
+  log in to the SAML IdP service provider by authenticating with Teleport. 
+
+In both the cases, access can be configured by using a Teleport role 
+with an allow/deny rule targeting the `saml_idp_service_provider` resource and label matchers
+matching role `app_labels` with the `saml_idp_service_provider` resource labels. 
+
+
+## RBAC behavior between different Teleport role versions
+
+The Teleport SAML IdP applies different RBAC logic to the service provider resource in
+role version 8 versus role version 7 and below. 
+
+In role version 7 and below, the following access controls are applied to the `saml_idp_service_provider`
+resource access: 
+
+- Role option that enables the IdP: `spec.options.idp.saml.enabled: true/false`.
+- Cluster auth preference that enables the IdP: `spec.idp.saml.enabled: true/false`.
+- Resource rule `spec.allow/deny.rules.resources.saml_idp_service_provider`. Applicable only
+  to admin actions. 
+  - Allow rules with `read,list` verbs are applied implicitly. 
+  - Deny rules with `read,list` verbs gets precedence over implicit allow. 
+- Per session MFA: `spec.options.require_session_mfa: true/false`.
+
+Teleport role version 8 (released with Teleport version 18.0) introduced the following RBAC changes:
+- Label matchers based on `app_labels`.
+- Resource rule with verbs targeting `saml_idp_service_provider` is now applicable to both resource 
+  access and admin actions. 
+- Device Trust for SAML IdP session.
+
+The role option `spec.options.idp.saml.enabled: true/false` is no longer supported starting 
+role version 8.
+
+Per session MFA is supported in all role versions.
+
+
+## RBAC precedence
+
+Users can be assigned with both the newer role (version 8) and the older versioned roles 
+(version 7 and below) at the same time. If a user is assigned with both role version 7 and 8, 
+deny rules of the version 8 takes precedence.
+
+For example,
+- If role version 7 denies access, access is denied.
+- If role version 7 allows access but role version 8 denies access, access is denied. 
+- If role version 7 allows access but role version 8 does not explicitly allow access 
+  (via matching app labels), access is denied. 
+- If role version 7 allows access and role version 8 also allows access, access is allowed.
+
+The table below shows a few more examples of applicable RBAC, when two roles with version 7 and 8 each are assigned to the user.
+
+| Role v7                                                                    | Role v8                                                    |  Result           |
+|----------------------------------------------------------------------------|------------------------------------------------------------|-------------------|
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: false</pre>      | <pre>allow:<br/>  app_labels:<br/>    * : *</pre>          | ❌ no access.      |
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>deny:<br/>  app_labels:<br/>     * : *</pre>          | ❌ no access       |  
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>allow:<br/>  app_labels:<br/>    * : *<br/>deny:<br/>  rules:<br/>    resources:<br/>    - saml_idp_service_provider<br/>    verbs:<br/>    - read<br/>    - list</pre>          | ❌ no access     | 
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>allow:<br/>  app_labels:<br/>    * : *</pre>          | ✅ full access     | 
+| No version 7 role assigned to the user                                     | <pre>allow:<br/>  app_labels:<br/>    * : *</pre>          | ✅ full access     | 
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | <pre>allow:<br/>  app_labels:<br/>    env : dev</pre>      | ✅ access to SAML app matching `env:dev` resource label       |  
+| <pre>options:<br/>  idp:<br/>    saml:<br/>      enabled: true</pre>       | No version 8 role assigned to the user           | ✅ full access     | 
+
+<Admonition type="important" title="Admin Actions">
+ `saml_idp_service_provider` resource does not yet support MFA and Device Trust for admin actions. 
+</Admonition>
+
+## Role examples
+
+Examples of Teleport role that grants permissions to either access or manage 
+the SAML IdP service provider resource. 
+
+### Role to manage SAML IdP service provider resource
+
+In this case, the role needs to target `saml_idp_service_provider` resource with 
+either `create,update,read,list,delete` or all of them as needed. 
+
+The role should also grants access to the `app_labels` that matches with the 
+resource label configured for the `saml_idp_service_provider` resource. 
+
+`saml_idp_service_provider` resource access verb
+```yaml
+kind: role
+version: v8
+metadata:
+  name: saml-resource-manager
+spec:
+  allow:
+    app_labels:
+      'env': 'dev' # This label must match with the saml_idp_service_provider resource label
+    rules:
+    - resources:
+      - saml_idp_service_provider
+      verbs:
+      - read
+      - list
+      - create
+      - update
+      - delete
+```
+
+### Role to allow users to log in to a SAML IdP service provider 
+
+In this case, at minimum, user needs `read,list` access to the `saml_idp_service_provider` 
+resource and must have an `app_labels` value matching with the resource label defined for 
+the `saml_idp_service_provider` resource. 
+
+Resource labels matching role `app_labels`.
+```yaml 
+kind: role
+version: v8
+metadata:
+  name: saml-access
+spec:
+  allow:
+    app_labels:
+      'env': 'dev' # This label must match with the saml_idp_service_provider resource label
+    rules:
+    - resources:
+      - saml_idp_service_provider
+      verbs:
+      - read
+      - list
+options:
+    device_trust_mode: required
+    require_session_mfa: true
+```
+
+
+## Disabling SAML identity provider at cluster level
+
+To disable access to the identity provider at the cluster level, create
+or update the `cluster_auth_preference` object with the following setting:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  ...
+  idp:
+    saml:
+      enabled: false
+  ...
+version: v2
+```
+
+This will disable access to the SAML identity provider for all users regardless
+of their role level permissions.

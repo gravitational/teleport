@@ -18,6 +18,7 @@ package vnet
 
 import (
 	"context"
+	"errors"
 	"net"
 	"slices"
 	"strconv"
@@ -25,8 +26,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows/registry"
-
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // platformOSConfigState holds state about which addresses and routes have
@@ -42,7 +41,6 @@ type platformOSConfigState struct {
 	configuredV4Address bool
 	configuredV6Address bool
 	configuredRanges    []string
-	configuredDNSZones  []string
 
 	ifaceIndex string
 }
@@ -70,8 +68,9 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		if !state.configuredV4Address {
 			log.InfoContext(ctx, "Setting IPv4 address for the TUN device",
 				"device", cfg.tunName, "address", cfg.tunIPv4)
+			netMask := maskForIPNet(cfg.tunIPv4Net)
 			if err := runCommand(ctx,
-				"netsh", "interface", "ip", "set", "address", cfg.tunName, "static", cfg.tunIPv4,
+				"netsh", "interface", "ip", "set", "address", cfg.tunName, "static", cfg.tunIPv4, netMask,
 			); err != nil {
 				return trace.Wrap(err)
 			}
@@ -113,11 +112,8 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		state.configuredV6Address = true
 	}
 
-	if shouldUpdateDNSConfig(cfg, state) {
-		if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddr); err != nil {
-			return trace.Wrap(err, "configuring DNS")
-		}
-		state.configuredDNSZones = cfg.dnsZones
+	if err := configureDNS(ctx, cfg.dnsZones, cfg.dnsAddrs); err != nil {
+		return trace.Wrap(err, "configuring DNS")
 	}
 
 	return nil
@@ -131,29 +127,64 @@ func addrMaskForCIDR(cidr string) (string, string, error) {
 	if err != nil {
 		return "", "", trace.Wrap(err, "parsing CIDR range %s", cidr)
 	}
-	return ipNet.IP.String(), net.IP(ipNet.Mask).String(), nil
+	return ipNet.IP.String(), maskForIPNet(ipNet), nil
 }
 
-func shouldUpdateDNSConfig(cfg *osConfig, state *platformOSConfigState) bool {
-	// Always reconfigure if there should be no zones, to make sure we clear
-	// any leftover state when starting up.
-	if len(cfg.dnsZones) == 0 {
-		return true
-	}
-	// Otherwise, reconfigure if anything has changed.
-	return !utils.ContainSameUniqueElements(cfg.dnsZones, state.configuredDNSZones)
+func maskForIPNet(ipNet *net.IPNet) string {
+	return net.IP(ipNet.Mask).String()
 }
 
-func configureDNS(ctx context.Context, zones []string, nameserver string) (err error) {
-	if len(nameserver) == 0 && len(zones) > 0 {
-		return trace.BadParameter("empty nameserver with non-empty zones")
-	}
-	log.InfoContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
-
+const (
 	// Split DNS is configured via the Name Resolution Policy Table in the
-	// Windows registry. The UUID at the end was randomly generated, we'll
-	// always write to this key and clean it up on shutdown.
-	const nrptRegKey = `SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig\{ad074e9a-bd1b-447e-9108-14e545bf11a5}`
+	// Windows registry.
+
+	// This key holds the local system NRPT configuration.
+	systemNRPTParentKey = `SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig`
+	// This key holds NRPT entries coming from group policy, if it's present
+	// then policies under systemNRPTParentKey are ignored, so VNet needs to write policies here.
+	groupPolicyNRPTParentKey = `SOFTWARE\Policies\Microsoft\Windows NT\DNSClient\DnsPolicyConfig`
+	// The UUID at the end was randomly generated once, VNet
+	// always writes policies at this key and cleans it up on shutdown.
+	vnetNRPTKeyID = `{ad074e9a-bd1b-447e-9108-14e545bf11a5}`
+)
+
+func configureDNS(ctx context.Context, zones, nameservers []string) error {
+	// Always configure NRPT rules under the local system NRPT registry key.
+	// This is harmless/innefective if groupPolicyNRPTParentKey exists, but
+	// always writing the rules here means they will be effective if
+	// groupPolicyNRPTParentKey gets deleted later.
+	nrptRegKey := systemNRPTParentKey + `\` + vnetNRPTKeyID
+	if err := configureDNSAtNRPTKey(ctx, nrptRegKey, zones, nameservers); err != nil {
+		return trace.Wrap(err, "configuring DNS NRPT at local system path %s", nrptRegKey)
+	}
+
+	// If groupPolicyNRPTParentKey exists then all rules under
+	// systemNRPTParentKey will be ignored and rules under
+	// groupPolicyNRPTParentKey take precendence, so VNet needs to write rules
+	// under this key as well.
+	groupPolicyKey, err := registry.OpenKey(registry.LOCAL_MACHINE, groupPolicyNRPTParentKey, registry.READ)
+	if err != nil {
+		if !errors.Is(err, registry.ErrNotExist) {
+			return trace.Wrap(err, "opening group policy NRPT registry key %s", groupPolicyNRPTParentKey)
+		}
+		// The group policy parent key doesn't exist, no need to write under it.
+		return nil
+	}
+	if err := groupPolicyKey.Close(); err != nil {
+		return trace.Wrap(err, "closing registry key %s", groupPolicyNRPTParentKey)
+	}
+
+	nrptRegKey = groupPolicyNRPTParentKey + `\` + vnetNRPTKeyID
+	return trace.Wrap(configureDNSAtNRPTKey(ctx, nrptRegKey, zones, nameservers),
+		"configuring DNS NRPT at group policy path %s", nrptRegKey)
+}
+
+func configureDNSAtNRPTKey(ctx context.Context, nrptRegKey string, zones, nameservers []string) (err error) {
+	if len(nameservers) == 0 {
+		// Can't handle any zones if there are no nameservers.
+		zones = nil
+	}
+	log.InfoContext(ctx, "Configuring DNS.", "zones", zones, "nameservers", nameservers)
 
 	if len(zones) == 0 {
 		// Either we have no zones we want to handle (the user is not
@@ -162,7 +193,7 @@ func configureDNS(ctx context.Context, zones []string, nameserver string) (err e
 		return trace.Wrap(deleteRegistryKey(nrptRegKey))
 	}
 
-	// Open the registry key where split DNS is configured for VNet.
+	// Open the registry key where split DNS will be configured.
 	dnsKey, _ /*alreadyExisted*/, err := registry.CreateKey(registry.LOCAL_MACHINE, nrptRegKey, registry.SET_VALUE)
 	if err != nil {
 		return trace.Wrap(err, "failed to open Windows registry key to configure split DNS")
@@ -182,15 +213,24 @@ func configureDNS(ctx context.Context, zones []string, nameserver string) (err e
 		err = trace.NewAggregate(origErr, deleteErr, closeErr)
 	}()
 
+	// The NRPT version must be 1.
 	if err := dnsKey.SetDWordValue("Version", 1); err != nil {
 		return trace.Wrap(err, "failed to set Version in DNS registry key")
 	}
+	// Name is a list of strings holding the DNS suffixes to match.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpnrpt/c1f8a4c0-d4e0-49b2-b4ef-87031be16662
 	if err := dnsKey.SetStringsValue("Name", normalizeDNSZones(zones)); err != nil {
 		return trace.Wrap(err, "failed to set Name in DNS registry key")
 	}
-	if err := dnsKey.SetStringValue("GenericDNSServers", nameserver); err != nil {
+	// GenericDNSServers is a string value holding a semicolon-delimited list of
+	// IP addresses of DNS nameservers.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpnrpt/06088ca3-4cf1-48fa-8837-ca8d853ee1e8
+	if err := dnsKey.SetStringValue("GenericDNSServers", strings.Join(nameservers, ";")); err != nil {
 		return trace.Wrap(err, "failed to set GenericDNSServers in DNS registry key")
 	}
+	// Setting ConfigOptions to 8 tells NRPT that only GenericDNSServers is
+	// specified (DNSSEC, DirectAccess, and IDN options are not set).
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpnrpt/2d34f260-1e9e-4a52-ac91-2056dfd29702
 	if err := dnsKey.SetDWordValue("ConfigOptions", 8); err != nil {
 		return trace.Wrap(err, "failed to set ConfigOptions in DNS registry key")
 	}

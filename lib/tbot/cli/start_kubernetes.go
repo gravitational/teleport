@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 )
 
 // KubernetesCommand implements `tbot start kubernetes` and
@@ -67,7 +68,7 @@ func (c *KubernetesCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) e
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.KubernetesOutput{
+	cfg.Services = append(cfg.Services, &k8s.OutputV1Config{
 		Destination:       dest,
 		KubernetesCluster: c.KubernetesCluster,
 		DisableExecPlugin: c.DisableExecPlugin,

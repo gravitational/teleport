@@ -32,7 +32,7 @@ import { ConnectionsSliderStep } from './ConnectionsSliderStep';
 export function Connections() {
   const { connectionTracker } = useAppContext();
   connectionTracker.useState();
-  const iconRef = useRef();
+  const iconRef = useRef(undefined);
   const { isOpen, toggle, close, stepToOpen } = useConnectionsContext();
   const { status: vnetStatus, showDiagWarningIndicator } = useVnetContext();
   const isAnyConnectionActive =

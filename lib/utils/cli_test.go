@@ -19,10 +19,8 @@
 package utils
 
 import (
-	"bytes"
 	"crypto/x509"
 	"fmt"
-	"io"
 	"log/slog"
 	"testing"
 
@@ -164,81 +162,53 @@ func TestAllowWhitespace(t *testing.T) {
 	}
 }
 
-func TestUpdateAppUsageTemplate(t *testing.T) {
-	makeApp := func(usageWriter io.Writer) *kingpin.Application {
-		app := InitCLIParser("TestUpdateAppUsageTemplate", "some help message")
-		app.UsageWriter(usageWriter)
-		app.Terminate(func(int) {})
+// TestFilterArguments tests filtering command arguments.
+func TestFilterArguments(t *testing.T) {
+	t.Parallel()
 
-		app.Command("hello", "Hello.")
-
-		create := app.Command("create", "Create.")
-		create.Command("box", "Box.")
-		create.Command("rocket", "Rocket.")
-		return app
-	}
+	app := kingpin.New("tsh", "")
+	app.Flag("proxy", "").String()
+	app.Flag("check-update", "").Bool()
 
 	tests := []struct {
-		name           string
-		inputArgs      []string
-		outputContains string
+		args     []string
+		expected []string
 	}{
 		{
-			name:      "command width aligned for app help",
-			inputArgs: []string{},
-			outputContains: `
-Commands:
-  help          Show help.
-  hello         Hello.
-  create box    Box.
-  create rocket Rocket.
-`,
+			args:     []string{"--insecure", "--proxy", "localhost", "--check-update", "test"},
+			expected: []string{"--proxy", "localhost", "--check-update"},
 		},
 		{
-			name:      "command width aligned for command help",
-			inputArgs: []string{"create"},
-			outputContains: `
-Commands:
-  create box    Box.
-  create rocket Rocket.
-`,
+			args:     []string{"--insecure", "--proxy=localhost", "--check-update", "test"},
+			expected: []string{"--proxy=localhost", "--check-update"},
 		},
 		{
-			name:      "command width aligned for unknown command error",
-			inputArgs: []string{"unknown"},
-			outputContains: `
-Commands:
-  help          Show help.
-  hello         Hello.
-  create box    Box.
-  create rocket Rocket.
-`,
+			args:     []string{"--proxy", "localhost", "test"},
+			expected: []string{"--proxy", "localhost"},
+		},
+		{
+			args:     []string{"--proxy"},
+			expected: []string(nil),
+		},
+		{
+			args:     []string{"--insecure", "--check-update", "test", "--proxy=localhost"},
+			expected: []string{"--proxy=localhost", "--check-update"},
+		},
+		{
+			args:     []string{"--insecure", "--check-update", "test", "--proxy1=localhost"},
+			expected: []string{"--check-update"},
+		},
+		{
+			args:     []string{"--check-update", "test", "--proxy1", "localhost"},
+			expected: []string{"--check-update"},
+		},
+		{
+			args:     []string{"--insecure", "test", "--proxy1", "localhost", "--check-update"},
+			expected: []string{"--check-update"},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Run("help flag", func(t *testing.T) {
-				var buffer bytes.Buffer
-				app := makeApp(&buffer)
-				args := append(tt.inputArgs, "--help")
-				UpdateAppUsageTemplate(app, args)
 
-				app.Usage(args)
-				require.Contains(t, buffer.String(), tt.outputContains)
-			})
-
-			t.Run("help command", func(t *testing.T) {
-				var buffer bytes.Buffer
-				app := makeApp(&buffer)
-				args := append([]string{"help"}, tt.inputArgs...)
-				UpdateAppUsageTemplate(app, args)
-
-				// HelpCommand is triggered on PreAction during Parse.
-				// See kingpin.Application.init for more details.
-				_, err := app.Parse(args)
-				require.NoError(t, err)
-				require.Contains(t, buffer.String(), tt.outputContains)
-			})
-		})
+	for i, tt := range tests {
+		require.Equal(t, tt.expected, FilterArguments(tt.args, app.Model()), fmt.Sprintf("test case %v", i))
 	}
 }

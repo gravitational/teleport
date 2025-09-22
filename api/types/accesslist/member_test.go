@@ -21,11 +21,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
 
 func TestAccessListMemberDefaults(t *testing.T) {
@@ -50,19 +52,21 @@ func TestAccessListMemberDefaults(t *testing.T) {
 		}
 	}
 
-	t.Run("join date required for member", func(t *testing.T) {
+	t.Run("membership kind defaults to user", func(t *testing.T) {
 		uut := newValidAccessListMember()
-		uut.Spec.Joined = time.Time{}
+		uut.Spec.MembershipKind = ""
 
 		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
+		require.NoError(t, err)
+		require.Equal(t, MembershipKindUser, uut.Spec.MembershipKind)
 	})
+}
 
-	t.Run("added-by required", func(t *testing.T) {
-		uut := newValidAccessListMember()
-		uut.Spec.AddedBy = ""
-
-		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
-	})
+func TestAccessListMemberClone(t *testing.T) {
+	item := &AccessListMember{}
+	err := structfill.Fill(item)
+	require.NoError(t, err)
+	cpy := item.Clone()
+	require.Empty(t, cmp.Diff(item, cpy))
+	require.NotSame(t, item, cpy)
 }

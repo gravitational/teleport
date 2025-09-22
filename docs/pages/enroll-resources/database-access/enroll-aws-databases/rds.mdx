@@ -1,7 +1,12 @@
 ---
-title: Database Access with AWS RDS and Aurora
-h1: Database Access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB
-description: How to configure Teleport database access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
+title: Database Access with Amazon RDS and Aurora for PostgreSQL/MySQL/MariaDB
+sidebar_label: Amazon RDS and Aurora for PostgreSQL/MySQL/MariaDB
+description: How to configure Teleport database access with Amazon RDS and Aurora for PostgreSQL, MySQL and MariaDB.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon RDS or Aurora" dbConfigure="with IAM authentication"!)
@@ -305,18 +310,7 @@ $ tsh db ls
 # rds-example             env=dev
 ```
 
-Retrieve credentials for the database and connect to it as the `alice` user:
-
-```code
-$ tsh db connect --db-user=alice --db-name=postgres rds-example
-```
-
-(!docs/pages/includes/database-access/pg-access-webui.mdx!)
-
-<Admonition type="note" title="Note">
-  The appropriate database command-line client (`psql`, `mysql`, `mariadb`) should be
-  available in `PATH` in order to be able to connect.
-</Admonition>
+(!docs/pages/includes/database-access/pg-mysql-connect.mdx dbUser="alice" dbService="rds-example"!)
 
 Log out of the database and remove credentials:
 

@@ -26,18 +26,30 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
+	"github.com/gravitational/teleport/lib/tbot/services/example"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/ssh"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -47,128 +59,68 @@ const (
 	DefaultRenewInterval  = 20 * time.Minute
 )
 
-var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
+// ReservedServiceNames are the service names reserved for internal use.
+var ReservedServiceNames = []string{
+	"ca-rotation",
+	"crl-cache",
+	"heartbeat",
+	"identity",
+	"spiffe-trust-bundle-cache",
+}
 
-var SupportedJoinMethods = []string{
-	string(types.JoinMethodAzure),
-	string(types.JoinMethodBitbucket),
-	string(types.JoinMethodCircleCI),
-	string(types.JoinMethodGCP),
-	string(types.JoinMethodGitHub),
-	string(types.JoinMethodGitLab),
-	string(types.JoinMethodIAM),
-	string(types.JoinMethodKubernetes),
-	string(types.JoinMethodSpacelift),
-	string(types.JoinMethodToken),
-	string(types.JoinMethodTPM),
-	string(types.JoinMethodTerraformCloud),
+var reservedServiceNamesMap = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(ReservedServiceNames))
+	for _, k := range ReservedServiceNames {
+		m[k] = struct{}{}
+	}
+	return m
+}()
+
+var serviceNameRegex = regexp.MustCompile(`\A[a-z\d_\-+]+\z`)
+
+func validateServiceName(name string) error {
+	if name == "" {
+		return nil
+	}
+	if _, ok := reservedServiceNamesMap[name]; ok {
+		return trace.BadParameter("service name %q is reserved for internal use", name)
+	}
+	if !serviceNameRegex.MatchString(name) {
+		return trace.BadParameter("invalid service name: %q, may only contain lowercase letters, numbers, hyphens, underscores, or plus symbols", name)
+	}
+	return nil
 }
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
-// AzureOnboardingConfig holds configuration relevant to the "azure" join method.
-type AzureOnboardingConfig struct {
-	// ClientID of the managed identity to use. Required if the VM has more
-	// than one assigned identity.
-	ClientID string `yaml:"client_id,omitempty"`
-}
-
-// TerraformOnboardingConfig contains parameters for the "terraform" join method
-type TerraformOnboardingConfig struct {
-	// TokenTag is the name of the tag configured via the environment variable
-	// `TERRAFORM_WORKLOAD_IDENTITY_AUDIENCE(_$TAG)`. If unset, the untagged
-	// variant is used.
-	AudienceTag string `yaml:"audience_tag,omitempty"`
-}
-
-// GitlabOnboardingConfig holds configuration relevant to the "gitlab" join method.
-type GitlabOnboardingConfig struct {
-	// TokenEnvVarName is the name of the environment variable that contains the
-	// GitLab ID token. This can be useful to override in cases where a single
-	// gitlab job needs to authenticate to multiple Teleport clusters.
-	TokenEnvVarName string `yaml:"token_env_var_name,omitempty"`
-}
-
-// OnboardingConfig contains values relevant to how the bot authenticates with
-// the Teleport cluster.
-type OnboardingConfig struct {
-	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
-	// that contains the token
-	//
-	// You should use Token() instead - this has to be an exported field for YAML unmarshaling
-	// to work correctly, but this could be a path instead of a token
-	TokenValue string `yaml:"token,omitempty"`
-
-	// CAPath is an optional path to a CA certificate.
-	CAPath string `yaml:"ca_path,omitempty"`
-
-	// CAPins is a list of certificate authority pins, used to validate the
-	// connection to the Teleport auth server.
-	CAPins []string `yaml:"ca_pins,omitempty"`
-
-	// JoinMethod is the method the bot should use to exchange a token for the
-	// initial certificate
-	JoinMethod types.JoinMethod `yaml:"join_method"`
-
-	// Azure holds configuration relevant to the azure joining method.
-	Azure AzureOnboardingConfig `yaml:"azure,omitempty"`
-
-	// Terraform holds configuration relevant to the `terraform` join method.
-	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
-
-	// Gitlab holds configuration relevant to the `gitlab` join method.
-	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
-}
-
-// HasToken gives the ability to check if there has been a token value stored
-// in the config
-func (conf *OnboardingConfig) HasToken() bool {
-	return conf.TokenValue != ""
-}
-
-// SetToken stores the value for --token or auth_token in the config
-//
-// In the case of the token value pointing to a file, this allows us to
-// fetch the value of the token when it's needed (when connecting for the first time)
-// instead of trying to read the file every time that teleport is launched.
-// This means we can allow temporary token files that are removed after teleport has
-// successfully connected the first time.
-func (conf *OnboardingConfig) SetToken(token string) {
-	conf.TokenValue = token
-}
-
-// Token returns token needed to join the auth server
-//
-// If the value stored points to a file, it will attempt to read the token value from the file
-// and return an error if it wasn't successful
-// If the value stored doesn't point to a file, it'll return the value stored
-func (conf *OnboardingConfig) Token() (string, error) {
-	token, err := utils.TryReadValueAsFile(conf.TokenValue)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return token, nil
-}
-
 // BotConfig is the bot's root config object.
 // This is currently at version "v2".
 type BotConfig struct {
-	Version    Version          `yaml:"version"`
-	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
-	Storage    *StorageConfig   `yaml:"storage,omitempty"`
+	Version    Version           `yaml:"version"`
+	Onboarding onboarding.Config `yaml:"onboarding,omitempty"`
+	Storage    *StorageConfig    `yaml:"storage,omitempty"`
 	// Deprecated: Use Services
 	Outputs  ServiceConfigs `yaml:"outputs,omitempty"`
 	Services ServiceConfigs `yaml:"services,omitempty"`
 
-	Debug      bool   `yaml:"debug"`
-	AuthServer string `yaml:"auth_server,omitempty"`
-	// ProxyServer is the teleport proxy address. Unlike `AuthServer` this must
-	// explicitly point to a Teleport proxy.
-	// Example: "example.teleport.sh:443"
-	ProxyServer        string             `yaml:"proxy_server,omitempty"`
-	CredentialLifetime CredentialLifetime `yaml:",inline"`
-	Oneshot            bool               `yaml:"oneshot"`
+	Debug       bool   `yaml:"debug"`
+	AuthServer  string `yaml:"auth_server,omitempty"`
+	ProxyServer string `yaml:"proxy_server,omitempty"`
+
+	// AuthServerAddressMode controls whether it's permissible to provide a
+	// proxy server address as an auth server address. This is unsupported in
+	// the tbot binary as of v19, but we maintain support for cases where tbot
+	// is embedded in a binary which does not differentiate between address types
+	// such as tctl or the Kubernetes operator.
+	AuthServerAddressMode connection.AuthServerAddressMode `yaml:"-"`
+
+	// JoinURI is a joining URI, used to supply connection and authentication
+	// parameters in a single bundle. If set, the value is parsed and merged on
+	// top of the existing configuration during `CheckAndSetDefaults()`.
+	JoinURI string `yaml:"join_uri,omitempty"`
+
+	CredentialLifetime bot.CredentialLifetime `yaml:",inline"`
+	Oneshot            bool                   `yaml:"oneshot"`
 	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
 	// regulations. This means the bot should:
 	// - Refuse to run if not compiled with boringcrypto
@@ -189,35 +141,40 @@ type BotConfig struct {
 	Insecure bool `yaml:"insecure,omitempty"`
 }
 
-type AddressKind string
-
-const (
-	AddressKindUnspecified AddressKind = ""
-	AddressKindProxy       AddressKind = "proxy"
-	AddressKindAuth        AddressKind = "auth"
-)
-
-// Address returns the address to the auth server, either directly or via
-// a proxy, and the kind of address it is.
-func (conf *BotConfig) Address() (string, AddressKind) {
-	switch {
-	case conf.AuthServer != "" && conf.ProxyServer != "":
-		// This is an error case that should be prevented by the validation.
-		return "", AddressKindUnspecified
-	case conf.ProxyServer != "":
-		return conf.ProxyServer, AddressKindProxy
-	case conf.AuthServer != "":
-		return conf.AuthServer, AddressKindAuth
-	default:
-		return "", AddressKindUnspecified
+// ConnectionConfig creates a connection.Config from the user's configuration.
+func (conf *BotConfig) ConnectionConfig() connection.Config {
+	cc := connection.Config{
+		Insecure:              conf.Insecure,
+		AuthServerAddressMode: conf.AuthServerAddressMode,
+		StaticProxyAddress:    shouldUseProxyAddr(),
 	}
+
+	switch {
+	case conf.ProxyServer != "":
+		cc.Address = conf.ProxyServer
+		cc.AddressKind = connection.AddressKindProxy
+	case conf.AuthServer != "":
+		cc.Address = conf.AuthServer
+		cc.AddressKind = connection.AddressKindAuth
+	}
+
+	return cc
 }
 
-func (conf *BotConfig) CipherSuites() []uint16 {
-	if conf.FIPS {
-		return defaults.FIPSCipherSuites
-	}
-	return utils.DefaultCipherSuites()
+// useProxyAddrEnv is an environment variable which can be set to
+// force `tbot` to prefer using the proxy address explicitly provided by the
+// user over the one fetched from the proxy ping. This is only intended to work
+// in cases where TLS routing is enabled, and is intended to support cases where
+// the Proxy is accessible from multiple addresses, and the one included in the
+// ProxyPing is incorrect.
+const useProxyAddrEnv = "TBOT_USE_PROXY_ADDR"
+
+// shouldUseProxyAddr returns true if the TBOT_USE_PROXY_ADDR environment
+// variable is set to "yes". More generally, this indicates that the user wishes
+// for tbot to prefer using the proxy address that has been explicitly provided
+// by the user rather than the one fetched via a discovery process (e.g ping).
+func shouldUseProxyAddr() bool {
+	return os.Getenv(useProxyAddrEnv) == "yes"
 }
 
 func (conf *BotConfig) UnmarshalYAML(node *yaml.Node) error {
@@ -263,6 +220,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	// We've migrated Outputs to Services, so copy all Outputs to Services.
 	conf.Services = append(conf.Services, conf.Outputs...)
+	uniqueNames := make(map[string]struct{}, len(conf.Services))
 	for i, service := range conf.Services {
 		if err := service.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
@@ -270,19 +228,30 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if err := service.GetCredentialLifetime().Validate(conf.Oneshot); err != nil {
 			return trace.Wrap(err, "validating service[%d]", i)
 		}
+		if name := service.GetName(); name != "" {
+			if err := validateServiceName(name); err != nil {
+				return trace.Wrap(err, "validating service[%d]", i)
+			}
+			if _, seen := uniqueNames[name]; seen {
+				return trace.BadParameter("validating service[%d]: duplicate name: %q", i, name)
+			}
+			uniqueNames[name] = struct{}{}
+		}
 	}
 
 	destinationPaths := map[string]int{}
-	addDestinationToKnownPaths := func(d bot.Destination) {
+	addDestinationToKnownPaths := func(d destination.Destination) {
 		switch d := d.(type) {
-		case *DestinationDirectory:
+		case *destination.Directory:
 			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
-		case *DestinationKubernetesSecret:
+		case *k8s.SecretDestination:
 			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
 		}
 	}
 	for _, svc := range conf.Services {
-		v, ok := svc.(interface{ GetDestination() bot.Destination })
+		v, ok := svc.(interface {
+			GetDestination() destination.Destination
+		})
 		if ok {
 			addDestinationToKnownPaths(v.GetDestination())
 		}
@@ -315,7 +284,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	// Therefore, we need to check its valid here, but enforce its presence
 	// elsewhere.
 	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
-		if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
+		if !slices.Contains(onboarding.SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
 			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
 		}
 	}
@@ -336,7 +305,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	// Validate CertificateTTL and RenewalInterval options
-	var ttlErr SuboptimalCredentialTTLError
+	var ttlErr bot.SuboptimalCredentialTTLError
 	err := conf.CredentialLifetime.Validate(conf.Oneshot)
 	switch {
 	case errors.As(err, &ttlErr):
@@ -344,7 +313,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		// just reject the configuration in a future release.
 		//
 		//nolint:sloglint // msg cannot be constant
-		log.WarnContext(context.TODO(), ttlErr.msg, ttlErr.LogLabels()...)
+		log.WarnContext(context.TODO(), ttlErr.Message(), ttlErr.LogLabels()...)
 	case err != nil:
 		return err
 	}
@@ -360,7 +329,11 @@ type ServiceConfig interface {
 	// GetCredentialLifetime returns the service's custom certificate TTL and
 	// RenewalInterval. It's used for validation purposes; services that do not
 	// support these options should return the zero value.
-	GetCredentialLifetime() CredentialLifetime
+	GetCredentialLifetime() bot.CredentialLifetime
+
+	// GetName returns the user-given name of the service, used for validation
+	// purposes.
+	GetName() string
 }
 
 // ServiceConfigs assists polymorphic unmarshaling of a slice of ServiceConfigs.
@@ -368,6 +341,7 @@ type ServiceConfigs []ServiceConfig
 
 func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	var out []ServiceConfig
+	var unmarshalContext unmarshalConfigContext
 	for _, node := range node.Content {
 		header := struct {
 			Type string `yaml:"type"`
@@ -377,99 +351,93 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		switch header.Type {
-		case ExampleServiceType:
-			v := &ExampleService{}
+		case example.ServiceType:
+			v := &example.Config{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SPIFFEWorkloadAPIServiceType:
-			v := &SPIFFEWorkloadAPIService{}
+		case database.TunnelServiceType:
+			v := &database.TunnelConfig{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case DatabaseTunnelServiceType:
-			v := &DatabaseTunnelService{}
+		case ssh.MultiplexerServiceType:
+			v := &ssh.MultiplexerConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case k8s.OutputV1ServiceType:
+			v := &k8s.OutputV1Config{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case k8s.OutputV2ServiceType:
+			v := &k8s.OutputV2Config{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case k8s.ArgoCDOutputServiceType:
+			v := &k8s.ArgoCDOutputConfig{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SSHMultiplexerServiceType:
-			v := &SSHMultiplexerService{}
+		case ssh.HostOutputServiceType:
+			v := &ssh.HostOutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case application.OutputServiceType:
+			v := &application.OutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case database.OutputServiceType:
+			v := &database.OutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case identity.OutputServiceType:
+			v := &identity.OutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case application.TunnelServiceType:
+			v := &application.TunnelConfig{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case KubernetesOutputType:
-			v := &KubernetesOutput{}
+		case workloadidentity.X509OutputServiceType:
+			v := &workloadidentity.X509OutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case workloadidentity.WorkloadAPIServiceType:
+			v := &workloadidentity.WorkloadAPIConfig{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case KubernetesV2OutputType:
-			v := &KubernetesV2Output{}
-			if err := node.Decode(v); err != nil {
+		case workloadidentity.JWTOutputServiceType:
+			v := &workloadidentity.JWTOutputConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
-		case SPIFFESVIDOutputType:
-			v := &SPIFFESVIDOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case SSHHostOutputType:
-			v := &SSHHostOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case ApplicationOutputType:
-			v := &ApplicationOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case DatabaseOutputType:
-			v := &DatabaseOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case IdentityOutputType:
-			v := &IdentityOutput{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case ApplicationTunnelServiceType:
-			v := &ApplicationTunnelService{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case WorkloadIdentityX509OutputType:
-			v := &WorkloadIdentityX509Service{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case WorkloadIdentityAPIServiceType:
-			v := &WorkloadIdentityAPIService{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case WorkloadIdentityJWTOutputType:
-			v := &WorkloadIdentityJWTService{}
-			if err := node.Decode(v); err != nil {
-				return trace.Wrap(err)
-			}
-			out = append(out, v)
-		case WorkloadIdentityAWSRAType:
-			v := &WorkloadIdentityAWSRAService{}
-			if err := node.Decode(v); err != nil {
+		case awsra.ServiceType:
+			v := &awsra.Config{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
@@ -482,21 +450,11 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func withTypeHeader[T any](payload T, payloadType string) (interface{}, error) {
-	header := struct {
-		Type    string `yaml:"type"`
-		Payload T      `yaml:",inline"`
-	}{
-		Type:    payloadType,
-		Payload: payload,
-	}
-
-	return header, nil
+type unmarshalConfigContext struct {
+	internal.DefaultDestinationUnmarshaler
 }
 
-// unmarshalDestination takes a *yaml.Node and produces a bot.Destination by
-// considering the `type` field.
-func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
+func (ctx unmarshalConfigContext) UnmarshalDestination(node *yaml.Node) (destination.Destination, error) {
 	header := struct {
 		Type string `yaml:"type"`
 	}{}
@@ -505,35 +463,23 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 	}
 
 	switch header.Type {
-	case DestinationMemoryType:
-		v := &DestinationMemory{}
-		if err := node.Decode(v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return v, nil
-	case DestinationDirectoryType:
-		v := &DestinationDirectory{}
-		if err := node.Decode(v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return v, nil
-	case DestinationKubernetesSecretType:
-		v := &DestinationKubernetesSecret{}
+	case k8s.SecretDestinationType:
+		v := &k8s.SecretDestination{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return v, nil
 	default:
-		return nil, trace.BadParameter("unrecognized destination type (%s)", header.Type)
+		return ctx.DefaultDestinationUnmarshaler.UnmarshalDestination(node)
 	}
 }
 
 // Initable represents any ServiceConfig which is compatible with
 // `tbot init`.
 type Initable interface {
-	GetDestination() bot.Destination
+	GetDestination() destination.Destination
 	Init(ctx context.Context) error
-	Describe() []FileDescription
+	Describe() []bot.FileDescription
 }
 
 func (conf *BotConfig) GetInitables() []Initable {
@@ -547,8 +493,8 @@ func (conf *BotConfig) GetInitables() []Initable {
 }
 
 // DestinationFromURI parses a URI from the input string and returns a matching
-// bot.Destination implementation, if possible.
-func DestinationFromURI(uriString string) (bot.Destination, error) {
+// destination.Destination implementation, if possible.
+func DestinationFromURI(uriString string) (destination.Destination, error) {
 	uri, err := url.Parse(uriString)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing --data-dir")
@@ -562,7 +508,7 @@ func DestinationFromURI(uriString string) (bot.Destination, error) {
 		}
 		// TODO(strideynet): eventually we can allow for URI query parameters
 		// to be used to configure symlinks/acl protection.
-		return &DestinationDirectory{
+		return &destination.Directory{
 			Path: uri.Path,
 		}, nil
 	case "memory":
@@ -571,27 +517,21 @@ func DestinationFromURI(uriString string) (bot.Destination, error) {
 				"memory-backed data storage should not have host or path specified",
 			)
 		}
-		return &DestinationMemory{}, nil
+		return &destination.Memory{}, nil
 	case "kubernetes-secret":
-		if uri.Host != "" {
-			return nil, trace.BadParameter(
-				"kubernetes-secret scheme should not be specified with host",
-			)
-		}
 		if uri.Path == "" {
 			return nil, trace.BadParameter(
 				"kubernetes-secret scheme should have a path specified",
 			)
 		}
 		// kubernetes-secret:///my-secret
-		// TODO(noah): Eventually we'll support namespace in the host part of
-		// the URI. For now, we'll default to the namespace tbot is running in.
 
 		// Path will be prefixed with '/' so we'll strip it off.
 		secretName := strings.TrimPrefix(uri.Path, "/")
 
-		return &DestinationKubernetesSecret{
-			Name: secretName,
+		return &k8s.SecretDestination{
+			Name:      secretName,
+			Namespace: uri.Host,
 		}, nil
 	default:
 		return nil, trace.BadParameter(
@@ -648,7 +588,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	case V1, "":
 		if !manualMigration {
 			log.WarnContext(
-				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/")
+				context.TODO(), "Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration using `tbot migrate`.")
 		}
 		config := &configV1{}
 		if err := decoder.Decode(config); err != nil {
@@ -658,7 +598,7 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 		if err != nil {
 			return nil, trace.WithUserMessage(
 				trace.Wrap(err, "migrating v1 config"),
-				"Failed to migrate. See https://goteleport.com/docs/reference/machine-id/v14-upgrade-guide/",
+				"Failed to migrate. Please contact Teleport support or use https://goteleport.com/docs/reference/machine-id/configuration/ to manually migrate your configuration.",
 			)
 		}
 		return latestConfig, nil
@@ -675,102 +615,4 @@ func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) 
 	default:
 		return nil, trace.BadParameter("unrecognized config version %q", version.Version)
 	}
-}
-
-// CredentialLifetime contains configuration for how long credentials will
-// last (TTL) and the frequency at which they'll be renewed (RenewalInterval).
-//
-// It's a member on the BotConfig and service/output config structs, marked with
-// the `inline` YAML tag so its fields become individual fields in the YAML
-// config format.
-type CredentialLifetime struct {
-	TTL             time.Duration `yaml:"credential_ttl,omitempty"`
-	RenewalInterval time.Duration `yaml:"renewal_interval,omitempty"`
-	// skipMaxTTLValidation is used by services that do not abide by standard
-	// teleport credential lifetime limits to override the check that the
-	// user specified TTL is less than the max TTL. For example, X509 SVIDs can
-	// be issued with a lifetime of up to 2 weeks.
-	skipMaxTTLValidation bool
-}
-
-// IsEmpty returns whether none of the fields is set (i.e. it is unconfigured).
-func (l CredentialLifetime) IsEmpty() bool {
-	// We don't care about this field being set when checking empty state.
-	l.skipMaxTTLValidation = false
-	return l == CredentialLifetime{}
-}
-
-// Validate checks whether the combination of the fields is valid.
-func (l CredentialLifetime) Validate(oneShot bool) error {
-	if l.IsEmpty() {
-		return nil
-	}
-
-	if l.TTL == 0 || l.RenewalInterval == 0 {
-		return trace.BadParameter("credential_ttl and renewal_interval must both be specified if either is")
-	}
-
-	if l.TTL < 0 {
-		return trace.BadParameter("credential_ttl must be positive")
-	}
-
-	if l.RenewalInterval < 0 {
-		return trace.BadParameter("renewal_interval must be positive")
-	}
-
-	if l.TTL < l.RenewalInterval && !oneShot {
-		return SuboptimalCredentialTTLError{
-			msg: "Credential TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the credential TTL or decrease the renewal interval",
-			details: map[string]any{
-				"ttl":      l.TTL,
-				"interval": l.RenewalInterval,
-			},
-		}
-	}
-
-	if !l.skipMaxTTLValidation && l.TTL > defaults.MaxRenewableCertTTL {
-		return SuboptimalCredentialTTLError{
-			msg: "Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
-			details: map[string]any{
-				"requested_ttl": l.TTL,
-				"maximum_ttl":   defaults.MaxRenewableCertTTL,
-			},
-		}
-	}
-
-	return nil
-}
-
-// SuboptimalCredentialTTLError is returned from CredentialLifetime.Validate
-// when the user has set CredentialTTL to something unusual that we can work
-// around (e.g. if they exceed MaxRenewableCertTTL the server will reduce it)
-// rather than rejecting their configuration.
-//
-// In the future, these probably *should* be hard failures - but that would be
-// a breaking change.
-type SuboptimalCredentialTTLError struct {
-	msg     string
-	details map[string]any
-}
-
-// Error satisfies the error interface.
-func (e SuboptimalCredentialTTLError) Error() string {
-	if len(e.details) == 0 {
-		return e.msg
-	}
-	parts := make([]string, 0, len(e.details))
-	for k, v := range e.details {
-		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
-	}
-	return fmt.Sprintf("%s (%s)", e.msg, strings.Join(parts, ", "))
-}
-
-// LogLabels returns the error's details as a slice that can be passed as the
-// varadic args parameter to log functions.
-func (e SuboptimalCredentialTTLError) LogLabels() []any {
-	labels := make([]any, 0, len(e.details)*2)
-	for k, v := range e.details {
-		labels = append(labels, k, v)
-	}
-	return labels
 }

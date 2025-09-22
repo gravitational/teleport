@@ -92,6 +92,7 @@ func Test_newUnstartedWorker(t *testing.T) {
 						return []string{db.GetURI()}, nil
 					},
 				},
+				getTargetHealthTimeout: time.Millisecond,
 			},
 			wantHealth: types.TargetHealth{
 				Address:          "",

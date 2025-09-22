@@ -258,6 +258,9 @@ auth_service:
       # - 'required' - enables device authentication and device-aware audit.
       #   Additionally, it requires a trusted device for all SSH, Database
       #   and Kubernetes connections.
+      # - 'required-for-humans' - enables device authentication and device-aware
+      #   audit. Additionally, it requires a trusted device for all SSH, Database
+      #   and Kubernetes connections, for human users only (bots are exempt).
       mode: optional # always "off" for Teleport Community Edition
 
     # Determines the default time to live for user certificates
@@ -312,29 +315,66 @@ auth_service:
   # We recommend to use tools like `pwgen` to generate sufficiently random
   # tokens of 32+ byte length.
   tokens:
-    - "proxy,node:xxxxx"
-    - "auth:yyyy"
+    - 'proxy,node:xxxxx'
+    - 'auth:yyyy'
 
-  # Optional setting for configuring session recording. Possible values are:
-  #    "node"      : (default) sessions will be recorded on the node
-  #                  and periodically cleaned up after they are uploaded
-  #                  to the storage service.
-  #    "node-sync" : session recordings will be streamed from
-  #                  node -> auth -> storage service without being stored on
-  #                  disk at all.
-  #    "proxy"     : sessions will be recorded on the proxy and periodically
-  #                  cleaned up after they are uploaded to the storage service.
-  #    "proxy-sync : session recordings will be streamed from
-  #                  proxy -> auth -> storage service without being stored on
-  #                  disk at all.
-  #    "off"   : session recording is turned off
-  #
-  session_recording: "node"
-
-  # This setting determines if a Teleport proxy performs strict host key
-  # checks.
-  # Only applicable if session_recording=proxy
-  proxy_checks_host_keys: yes
+  # Optional configuration for session recording.
+  session_recording_config:
+    # Recording mode that should be use for session recordings. Possible
+    # values are:
+    #    "node"      : (default) sessions will be recorded on the node
+    #                  and periodically cleaned up after they are uploaded
+    #                  to the storage service.
+    #    "node-sync" : session recordings will be streamed from
+    #                  node -> auth -> storage service without being stored on
+    #                  disk at all.
+    #    "proxy"     : sessions will be recorded on the Teleport Proxy Service
+    #                  and periodically cleaned up after they are uploaded to
+    #                  the storage service.
+    #    "proxy-sync : session recordings will be streamed from
+    #                  proxy -> auth -> storage service without being stored on
+    #                  disk at all.
+    #    "off"   : session recording is turned off
+    #
+    mode: 'node'
+    # This setting determines if a Teleport Proxy Service instance performs
+    # strict host key checks.
+    # Only applicable if session_recording=proxy
+    proxy_checks_host_keys: yes
+    # Optional configuration for encrypting session recordings.
+    encryption:
+      # Determines whether or not session recordings should be encrypted at
+      # rest. By default, all encryption keys required will be provisioned
+      # using the key storage backend defined in ca_key_params.
+      enabled: yes
+      # Optional configuration allowing for manually managing encryption keys
+      # instead of relying on automatic key provisioning and management.
+      manual_key_management:
+        # Determine whether or not manual key management should be used.
+        enabled: yes
+        # The list of key labels that should be used to find active encryption
+        # keys. These support encrypting new session recordings and are each a
+        # pair of key backend type and label value to use during key lookup.
+        # Possible values for 'type' match the possible keys in ca_key_params,
+        # which are:
+        #   "pkcs11"  : PKCS#11 compliant HSM
+        #   "aws_kms" : AWS KMS
+        #   "gcp_kms" : Google Cloud KMS
+        #
+        # Label values are used to identify the key(s) within the key backend.
+        # For "pkcs11" keys these are expected to map directly to labels within
+        # the HSM. For 'aws_kms' keys, both ARN or ID values are valid. For
+        # 'gcp_kms' the full key version name is expected.
+        active_keys:
+          - type: pkcs11
+            label: "session_recording"
+        # The list of key labels that should be used to find rotated encryption
+        # keys. These allow for replaying historical session recordings
+        # encrypted with keys that are no longer active. Individual list
+        # elements share the format described above for "active_keys".
+        rotated_keys:
+          - type: pkcs11
+            label: "rotated_session_recording"
 
   # Determines if sessions to cluster resources are forcefully terminated after
   # no activity from a client (idle client).

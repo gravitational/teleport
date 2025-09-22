@@ -40,17 +40,20 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 	filter.FromMap(w.Filter)
 
 	return &collection[types.CertAuthority, certAuthorityIndex]{
-		store: newStore(map[certAuthorityIndex]func(types.CertAuthority) string{
-			certAuthorityIDIndex: func(ca types.CertAuthority) string {
-				return string(ca.GetType()) + "/" + ca.GetID().DomainName
-			},
-		}),
+		store: newStore(
+			types.KindCertAuthority,
+			types.CertAuthority.Clone,
+			map[certAuthorityIndex]func(types.CertAuthority) string{
+				certAuthorityIDIndex: func(ca types.CertAuthority) string {
+					return string(ca.GetType()) + "/" + ca.GetID().DomainName
+				},
+			}),
 		watch:  w,
 		filter: filter.Match,
 		headerTransform: func(hdr *types.ResourceHeader) types.CertAuthority {
 			return &types.CertAuthorityV2{
-				Kind:    types.KindCertAuthority,
-				Version: types.V2,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -167,7 +170,13 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 
 	if rg.ReadCache() {
 		cas := make([]types.CertAuthority, 0, rg.store.len())
-		for ca := range rg.store.resources(certAuthorityIDIndex, string(caType), sortcache.NextKey(string(caType))) {
+		// CA keys are suffixed with the cluster name, e.g. db/teleport.example.com
+		// Use the exact key with the trailing slash to avoid matching CA types
+		// with a common prefix, i.e. to avoid matching db_client CAs when
+		// querying for db CAs.
+		startKey := string(caType) + "/"
+		endKey := sortcache.NextKey(startKey)
+		for ca := range rg.store.resources(certAuthorityIDIndex, startKey, endKey) {
 			if loadSigningKeys {
 				cas = append(cas, ca.Clone())
 			} else {

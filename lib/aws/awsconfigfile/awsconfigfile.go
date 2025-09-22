@@ -93,6 +93,31 @@ func addCredentialProcessToSection(configFilePath, sectionName, sectionComment, 
 
 // RemoveCredentialProcessByComment removes the credential_process key on sections that have a specific section comment.
 func RemoveCredentialProcessByComment(configFilePath, sectionComment string) error {
+	if !strings.HasPrefix(sectionComment, "; ") {
+		sectionComment = "; " + sectionComment
+	}
+
+	compareExactlyFn := func(comment string) bool {
+		return sectionComment == comment
+	}
+
+	return removeCredentialProcess(configFilePath, compareExactlyFn)
+}
+
+// RemoveCredentialProcessByCommentPrefix removes the credential_process key on sections that have a specific section comment prefix.
+func RemoveCredentialProcessByCommentPrefix(configFilePath, sectionComment string) error {
+	if !strings.HasPrefix(sectionComment, "; ") {
+		sectionComment = "; " + sectionComment
+	}
+
+	comparePrefixFn := func(comment string) bool {
+		return strings.HasPrefix(comment, sectionComment)
+	}
+	return removeCredentialProcess(configFilePath, comparePrefixFn)
+}
+
+// RemoveCredentialProcessByComment removes the credential_process key on sections that have a specific section comment.
+func removeCredentialProcess(configFilePath string, matchCommentFn func(string) bool) error {
 	iniFile, err := ini.LoadSources(ini.LoadOptions{
 		AllowNestedValues: true,  // Allow AWS-like nested values. Docs: http://docs.aws.amazon.com/cli/latest/topic/config-vars.html#nested-values
 		Loose:             false, // If file does not exist, then there's nothing to be removed.
@@ -106,13 +131,9 @@ func RemoveCredentialProcessByComment(configFilePath, sectionComment string) err
 		return trace.Wrap(err)
 	}
 
-	if !strings.HasPrefix(sectionComment, "; ") {
-		sectionComment = "; " + sectionComment
-	}
-
 	sectionChanged := false
 	for _, section := range iniFile.Sections() {
-		if section.Comment != sectionComment {
+		if !matchCommentFn(section.Comment) {
 			continue
 		}
 

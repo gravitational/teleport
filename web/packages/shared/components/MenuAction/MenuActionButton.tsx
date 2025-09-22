@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
+import React, { PropsWithChildren, Ref } from 'react';
 import styled from 'styled-components';
 
 import { Button, ButtonBorder } from 'design';
@@ -35,8 +35,17 @@ type Props = MenuProps & {
   icon?: React.ReactNode;
 };
 
-export default class MenuActionIcon extends React.Component<
-  PropsWithChildren<Props>
+export default function MenuActionIcon({
+  ref,
+  ...otherProps
+}: PropsWithChildren<Props> & { ref?: Ref<HTMLButtonElement> }) {
+  // Since React class components can't forward refs, we wrap it in a function component.
+  // This lets HoverTooltip access the ref to attach the tooltip to it.
+  return <InnerMenuActionIcon {...otherProps} forwardedRef={ref} />;
+}
+
+class InnerMenuActionIcon extends React.Component<
+  PropsWithChildren<Props & { forwardedRef?: Ref<HTMLButtonElement> }>
 > {
   anchorEl = null;
 
@@ -58,6 +67,16 @@ export default class MenuActionIcon extends React.Component<
     this.setState({ open: false });
   };
 
+  private assignRef(e: HTMLButtonElement) {
+    this.anchorEl = e;
+    const { forwardedRef } = this.props;
+    if (typeof forwardedRef === 'function') {
+      forwardedRef(e);
+    } else if (forwardedRef && typeof forwardedRef === 'object') {
+      forwardedRef.current = e;
+    }
+  }
+
   render() {
     const { open } = this.state;
     const { children, menuProps, buttonProps, icon } = this.props;
@@ -66,7 +85,9 @@ export default class MenuActionIcon extends React.Component<
         {icon ? (
           <FilledButtonIcon
             intent="neutral"
-            setRef={e => (this.anchorEl = e)}
+            ref={e => {
+              this.assignRef(e);
+            }}
             onClick={this.onOpen}
             {...buttonProps}
           >
@@ -75,7 +96,9 @@ export default class MenuActionIcon extends React.Component<
         ) : (
           <ButtonBorder
             size="small"
-            setRef={e => (this.anchorEl = e)}
+            ref={e => {
+              this.assignRef(e);
+            }}
             onClick={this.onOpen}
             {...buttonProps}
           >
@@ -111,7 +134,7 @@ export default class MenuActionIcon extends React.Component<
 
   renderItems(children) {
     const filtered = React.Children.toArray(children);
-    const cloned = filtered.map((child: React.ReactElement) => {
+    const cloned = filtered.map((child: React.ReactElement<any>) => {
       return React.cloneElement(child, {
         onClick: this.makeOnClick(child.props.onClick),
       });

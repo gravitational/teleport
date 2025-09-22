@@ -68,6 +68,14 @@ type Profile struct {
 	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
 	MongoProxyAddr string `yaml:"mongo_proxy_addr,omitempty"`
 
+	// RelayAddr is the relay in use specified at login time, or "none" if use
+	// of a relay is explicitly disabled.
+	RelayAddr string `yaml:"relay_addr,omitempty"`
+
+	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
+	// be used if RelayAddr is unspecified. Set at login time.
+	DefaultRelayAddr string `yaml:"default_relay_addr,omitempty"`
+
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
 
@@ -317,19 +325,26 @@ func FullProfilePath(dir string) string {
 
 // defaultProfilePath retrieves the default path of the TSH profile.
 func defaultProfilePath() string {
-	// start with UserHomeDir, which is the fastest option as it
-	// relies only on environment variables and does not perform
-	// a user lookup (which can be very slow on large AD environments)
-	home, err := os.UserHomeDir()
-	if err == nil && home != "" {
-		return filepath.Join(home, profileDir)
-	}
-
-	home = os.TempDir()
-	if u, err := user.Current(); err == nil && u.HomeDir != "" {
-		home = u.HomeDir
+	home, ok := UserHomeDir()
+	if !ok {
+		home = os.TempDir()
 	}
 	return filepath.Join(home, profileDir)
+}
+
+// UserHomeDir returns the current user's home directory if it can be found.
+func UserHomeDir() (string, bool) {
+	// Start with os.UserHomeDir, which is the fastest option as it relies only
+	// on environment variables and does not perform a user lookup (which can be
+	// very slow on large AD environments).
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		return home, true
+	}
+	// Fall back to the user lookup.
+	if u, err := user.Current(); err == nil && u.HomeDir != "" {
+		return u.HomeDir, true
+	}
+	return "", false
 }
 
 // FromDir reads the user profile from a given directory. If dir is empty,

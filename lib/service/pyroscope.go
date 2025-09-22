@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // TODO: Replace logger when pyroscope uses slog
@@ -34,7 +36,25 @@ type pyroscopeLogger struct {
 	l *slog.Logger
 }
 
-func (l pyroscopeLogger) Infof(format string, args ...interface{}) {
+type roundTripper struct {
+	tripper http.RoundTripper
+	timeout time.Duration
+	logger  *slog.Logger
+}
+
+// CloseIdleConnections ensures idle connections of the wrapped
+// [http.RoundTripper] are closed.
+func (rt roundTripper) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+
+	if tr, ok := rt.tripper.(closeIdler); ok {
+		tr.CloseIdleConnections()
+	}
+}
+
+func (l pyroscopeLogger) Infof(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelInfo) {
 		return
 	}
@@ -42,7 +62,7 @@ func (l pyroscopeLogger) Infof(format string, args ...interface{}) {
 	l.l.Info(fmt.Sprintf(format, args...))
 }
 
-func (l pyroscopeLogger) Debugf(format string, args ...interface{}) {
+func (l pyroscopeLogger) Debugf(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelDebug) {
 		return
 	}
@@ -51,13 +71,26 @@ func (l pyroscopeLogger) Debugf(format string, args ...interface{}) {
 	l.l.Debug(fmt.Sprintf(format, args...))
 }
 
-func (l pyroscopeLogger) Errorf(format string, args ...interface{}) {
+func (l pyroscopeLogger) Errorf(format string, args ...any) {
 	if !l.l.Handler().Enabled(context.Background(), slog.LevelError) {
 		return
 	}
 
 	//nolint:sloglint // msg cannot be constant
 	l.l.Error(fmt.Sprintf(format, args...))
+}
+
+func (rt roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	start := time.Now()
+	resp, err := rt.tripper.RoundTrip(req)
+	duration := time.Since(start)
+
+	threshold := rt.timeout * 90 / 100
+	if duration > threshold {
+		rt.logger.DebugContext(req.Context(), "Pyroscope upload exceeded threshold", "upload_duration", duration, "upload_threshold", threshold, "upload_url", logutils.StringerAttr(req.URL))
+	}
+
+	return resp, err
 }
 
 // createPyroscopeConfig generates the Pyroscope configuration for the Teleport process.
@@ -71,6 +104,17 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 		hostname = "unknown"
 	}
 
+	const httpTimeout = 60 * time.Second
+
+	httpClient := &http.Client{
+		Timeout: httpTimeout,
+		Transport: roundTripper{
+			tripper: http.DefaultTransport,
+			timeout: httpTimeout,
+			logger:  logger,
+		},
+	}
+
 	config := pyroscope.Config{
 		ApplicationName: teleport.ComponentTeleport,
 		ServerAddress:   address,
@@ -80,6 +124,8 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 			"version": teleport.Version,
 			"git_ref": teleport.Gitref,
 		},
+		HTTPClient: httpClient,
+		UploadRate: 60 * time.Second,
 	}
 
 	// Evaluate if profile configuration is customized
@@ -90,21 +136,14 @@ func createPyroscopeConfig(ctx context.Context, logger *slog.Logger, address str
 		logger.InfoContext(ctx, "Pyroscope will configure profiles from env")
 	}
 
-	var uploadRate *time.Duration
 	if rate := os.Getenv("TELEPORT_PYROSCOPE_UPLOAD_RATE"); rate != "" {
 		parsedRate, err := time.ParseDuration(rate)
 		if err != nil {
 			logger.InfoContext(ctx, "invalid TELEPORT_PYROSCOPE_UPLOAD_RATE, ignoring value", "provided_value", rate, "error", err)
 		} else {
-			uploadRate = &parsedRate
+			logger.InfoContext(ctx, "TELEPORT_PYROSCOPE_UPLOAD_RATE configured", "rate", parsedRate)
+			config.UploadRate = parsedRate
 		}
-	} else {
-		logger.InfoContext(ctx, "TELEPORT_PYROSCOPE_UPLOAD_RATE not specified, using default")
-	}
-
-	// Set UploadRate or fall back to defaults
-	if uploadRate != nil {
-		config.UploadRate = *uploadRate
 	}
 
 	if value, isSet := os.LookupEnv("TELEPORT_PYROSCOPE_KUBE_COMPONENT"); isSet {
@@ -131,13 +170,13 @@ func (process *TeleportProcess) initPyroscope(address string) {
 	if err != nil {
 		logger.ErrorContext(process.ExitContext(), "error starting pyroscope profiler", "address", address, "error", err)
 	} else {
+		logger.InfoContext(process.ExitContext(), "Pyroscope has successfully started")
 		process.OnExit("pyroscope.profiler", func(payload any) {
 			// Observed rare and inconsistent panics, short term solution is to not wait for flush
 			profiler.Flush(false)
 			_ = profiler.Stop()
 		})
 	}
-	logger.InfoContext(process.ExitContext(), "Pyroscope has successfully started")
 }
 
 // getPyroscopeProfileTypesFromEnv sets the profile types based on environment variables.

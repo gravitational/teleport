@@ -21,8 +21,10 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -31,16 +33,21 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// baseURL is the default value for [client.baseURL]. It is the address of MS Graph API v1.0.
-const baseURL = "https://graph.microsoft.com/v1.0"
+// graphVersion is the default version of the MS Graph API endpoint.
+const graphVersion = "v1.0"
 
 // defaultPageSize is the page size used when [Config.PageSize] is not specified.
 const defaultPageSize = 500
@@ -51,6 +58,9 @@ var scopes = []string{"https://graph.microsoft.com/.default"}
 // AzureTokenProvider defines a method to get an authorization token from the Entra STS.
 // Concrete implementations of this are defined by [github.com/Azure/azure-sdk-for-go/sdk/azidentity].
 type AzureTokenProvider interface {
+	// GetToken requests an access token from Microsoft Entra ID. Token providers from azidentity
+	// return cached tokens whenever possible and are safe for concurrent use.
+	// https://github.com/Azure/azure-sdk-for-go/blob/sdk/azidentity/v1.11.0/sdk/azidentity/TOKEN_CACHING.MD
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
 }
 
@@ -85,6 +95,9 @@ type Config struct {
 	RetryConfig *retryutils.RetryV2Config
 	// PageSize limits the number of objects to return in one batch when using paginated requests (via the `$top` parameter).
 	PageSize int
+	// GraphEndpoint specifies root domain of the Graph API.
+	GraphEndpoint string
+	Logger        *slog.Logger
 }
 
 // SetDefaults sets the default values for optional fields.
@@ -101,6 +114,12 @@ func (cfg *Config) SetDefaults() {
 	if cfg.PageSize <= 0 {
 		cfg.PageSize = defaultPageSize
 	}
+	if cfg.GraphEndpoint == "" {
+		cfg.GraphEndpoint = types.MSGraphDefaultEndpoint
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, "msgraph")
+	}
 }
 
 // Validate checks that required fields are set.
@@ -110,6 +129,9 @@ func (cfg *Config) Validate() error {
 	}
 	if cfg.HTTPClient == nil {
 		return trace.BadParameter("HTTPClient must be set")
+	}
+	if err := types.ValidateMSGraphEndpoints("", cfg.GraphEndpoint); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -121,6 +143,7 @@ type Client struct {
 	retryConfig   retryutils.RetryV2Config
 	baseURL       *url.URL
 	pageSize      int
+	logger        *slog.Logger
 }
 
 // NewClient returns a new client for the given config.
@@ -129,7 +152,7 @@ func NewClient(cfg Config) (*Client, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	uri, err := url.Parse(baseURL)
+	base, err := url.Parse(cfg.GraphEndpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,14 +161,17 @@ func NewClient(cfg Config) (*Client, error) {
 		tokenProvider: cfg.TokenProvider,
 		clock:         cfg.Clock,
 		retryConfig:   *cfg.RetryConfig,
-		baseURL:       uri,
+		baseURL:       base.JoinPath(graphVersion),
 		pageSize:      cfg.PageSize,
+		logger:        cfg.Logger,
 	}, nil
 }
 
 // request is the base function for HTTP API calls.
 // It implements retry handling in case of API throttling, see [https://learn.microsoft.com/en-us/graph/throttling].
-func (c *Client) request(ctx context.Context, method string, uri string, payload []byte) (*http.Response, error) {
+// If the response from the Graph API has status code outside of [200, 400) range, request attempts
+// to parse the response body as [GraphError] and if successful returns it as error.
+func (c *Client) request(ctx context.Context, method string, uri string, header http.Header, payload []byte) (*http.Response, error) {
 	var body io.ReadSeeker = nil
 	if len(payload) > 0 {
 		body = bytes.NewReader(payload)
@@ -155,17 +181,15 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if body != nil {
-		req.Header.Add("Content-Type", "application/json")
+	for key := range header {
+		for _, value := range header.Values(key) {
+			req.Header.Add(key, value)
+		}
 	}
 
-	token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: scopes,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to get azure authentication token")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
-	req.Header.Add("Authorization", "Bearer "+token.Token)
 
 	const maxRetries = 5
 	var retryAfter time.Duration
@@ -177,7 +201,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 	}
 
 	var lastErr error
-	for i := 0; i < maxRetries; i++ {
+	for range maxRetries {
 		if retryAfter > 0 {
 			select {
 			case <-c.clock.After(retryAfter):
@@ -185,6 +209,27 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 				return nil, trace.NewAggregate(ctx.Err(), trace.Wrap(lastErr, "%s %s", req.Method, req.URL.Path))
 			}
 		}
+		token, err := c.tokenProvider.GetToken(ctx, policy.TokenRequestOptions{
+			Scopes: scopes,
+		})
+		if err != nil {
+			authFailedError := &azidentity.AuthenticationFailedError{}
+			if ok := errors.As(err, &authFailedError); ok && authFailedError.RawResponse != nil &&
+				authFailedError.RawResponse.Body != nil {
+				resp := authFailedError.RawResponse
+				authError, conversionErr := readAuthError(resp.Body, resp.StatusCode)
+				resp.Body.Close()
+				if conversionErr == nil {
+					err = authError
+				}
+			}
+			return nil, trace.Wrap(err, "failed to get azure authentication token")
+		}
+		req.Header.Set("Authorization", "Bearer "+token.Token)
+
+		requestID := uuid.NewString()
+		// https://learn.microsoft.com/en-us/graph/best-practices-concept#reliability-and-support
+		req.Header.Set("client-request-id", requestID)
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
@@ -195,8 +240,22 @@ func (c *Client) request(ctx context.Context, method string, uri string, payload
 			return resp, nil
 		}
 
-		graphError, err := readError(resp.Body)
-		resp.Body.Close()
+		respBody, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := resp.Body.Close(); err != nil {
+			c.logger.WarnContext(req.Context(), "Failed to close http.Response body", "error", err)
+		}
+
+		c.logger.DebugContext(req.Context(), "Request failed",
+			"body", string(respBody),
+			"status", resp.StatusCode,
+			"url", req.URL,
+			"client_request_id", requestID,
+		)
+
+		graphError, err := readError(respBody, resp.StatusCode)
 		if err != nil {
 			lastErr = err // error while reading the graph error, relay
 		} else if graphError != nil {
@@ -255,7 +314,7 @@ func roundtrip[T any](ctx context.Context, c *Client, method string, uri string,
 			return zero, trace.Wrap(err)
 		}
 	}
-	resp, err := c.request(ctx, method, uri, body)
+	resp, err := c.request(ctx, method, uri, nil /* extra headers */, body)
 	if err != nil {
 		return zero, trace.Wrap(err)
 	}
@@ -275,7 +334,7 @@ func (c *Client) patch(ctx context.Context, uri string, in any) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	resp, err := c.request(ctx, http.MethodPatch, uri, body)
+	resp, err := c.request(ctx, http.MethodPatch, uri, nil /* extra headers */, body)
 	if err != nil {
 		return trace.Wrap(err)
 	}

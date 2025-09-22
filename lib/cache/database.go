@@ -18,16 +18,19 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -35,24 +38,33 @@ type databaseIndex string
 
 const databaseNameIndex = "name"
 
-func newDatabaseCollection(p services.Databases, w types.WatchKind) (*collection[types.Database, databaseIndex], error) {
-	if p == nil {
+func newDatabaseCollection(upstream services.Databases, w types.WatchKind) (*collection[types.Database, databaseIndex], error) {
+	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter Databases")
 	}
 
 	return &collection[types.Database, databaseIndex]{
-		store: newStore(map[databaseIndex]func(types.Database) string{
-			databaseNameIndex: func(u types.Database) string {
-				return u.GetName()
+		store: newStore(
+			types.KindDatabase,
+			func(d types.Database) types.Database {
+				return d.Copy()
 			},
-		}),
+			map[databaseIndex]func(types.Database) string{
+				databaseNameIndex: types.Database.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Database, error) {
-			return p.GetDatabases(ctx)
+			out, err := stream.Collect(upstream.RangeDatabases(ctx, "", ""))
+			// TODO(lokraszewski): DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				out, err := upstream.GetDatabases(ctx)
+				return out, trace.Wrap(err)
+			}
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Database {
 			return &types.DatabaseV3{
-				Kind:    types.KindDatabase,
-				Version: types.V3,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -87,6 +99,7 @@ func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, e
 }
 
 // GetDatabases returns all database resources.
+// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
 	defer span.End()
@@ -110,6 +123,77 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	return out, nil
 }
 
+// ListDatabases returns a page of database resources.
+func (c *Cache) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabases")
+	defer span.End()
+
+	lister := genericLister[types.Database, databaseIndex]{
+		cache:        c,
+		collection:   c.collections.dbs,
+		index:        databaseNameIndex,
+		upstreamList: c.Config.Databases.ListDatabases,
+		nextToken:    types.Database.GetName,
+	}
+	out, next, err := lister.list(ctx, limit, startKey)
+	return out, next, trace.Wrap(err)
+}
+
+// RangeDatabases returns database resources within the range [start, end).
+func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+	return func(yield func(types.Database, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeDatabases")
+		defer span.End()
+
+		rg, err := acquireReadGuard(c, c.collections.dbs)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		defer rg.Release()
+
+		if rg.ReadCache() {
+			for database := range rg.store.resources(databaseNameIndex, start, end) {
+				if !yield(database.Copy(), nil) {
+					return
+				}
+			}
+			return
+		}
+
+		rg.Release()
+
+		for database, err := range c.Config.Databases.RangeDatabases(ctx, start, end) {
+			if err != nil {
+				// TODO(lokraszewski): DELETE IN v21.0.0
+				if trace.IsNotImplemented(err) {
+					databases, err := c.Config.Databases.GetDatabases(ctx)
+					if err != nil {
+						yield(nil, err)
+						return
+					}
+
+					for _, database := range databases {
+						if !yield(database, nil) {
+							return
+						}
+					}
+
+					return
+				}
+
+				yield(nil, err)
+				return
+			}
+
+			if !yield(database, nil) {
+				return
+			}
+		}
+	}
+
+}
+
 type databaseServerIndex string
 
 const databaseServerNameIndex databaseServerIndex = "name"
@@ -120,18 +204,21 @@ func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*colle
 	}
 
 	return &collection[types.DatabaseServer, databaseServerIndex]{
-		store: newStore(map[databaseServerIndex]func(types.DatabaseServer) string{
-			databaseServerNameIndex: func(u types.DatabaseServer) string {
-				return u.GetHostID() + "/" + u.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindDatabaseServer,
+			types.DatabaseServer.Copy,
+			map[databaseServerIndex]func(types.DatabaseServer) string{
+				databaseServerNameIndex: func(u types.DatabaseServer) string {
+					return u.GetHostID() + "/" + u.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.DatabaseServer, error) {
 			return p.GetDatabaseServers(ctx, defaults.Namespace)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.DatabaseServer {
 			return &types.DatabaseServerV3{
-				Kind:    types.KindDatabaseServer,
-				Version: types.V3,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -178,13 +265,14 @@ func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*coll
 	}
 
 	return &collection[types.DatabaseService, databaseServiceIndex]{
-		store: newStore(map[databaseServiceIndex]func(types.DatabaseService) string{
-			databaseServiceNameIndex: func(u types.DatabaseService) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindDatabaseService,
+			types.DatabaseService.Clone,
+			map[databaseServiceIndex]func(types.DatabaseService) string{
+				databaseServiceNameIndex: types.DatabaseService.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.DatabaseService, error) {
-			resources, err := client.GetResourcesWithFilters(ctx, p, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
+			resources, err := client.GetResourcesWithFilters(ctx, p, clientproto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -203,8 +291,8 @@ func newDatabaseServiceCollection(p services.Presence, w types.WatchKind) (*coll
 		headerTransform: func(hdr *types.ResourceHeader) types.DatabaseService {
 			return &types.DatabaseServiceV1{
 				ResourceHeader: types.ResourceHeader{
-					Kind:    types.KindDatabase,
-					Version: types.V3,
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
 					Metadata: types.Metadata{
 						Name: hdr.Metadata.Name,
 					},
@@ -225,28 +313,17 @@ func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.Watc
 	}
 
 	return &collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
-		store: newStore(map[databaseObjectIndex]func(*dbobjectv1.DatabaseObject) string{
-			databaseObjectNameIndex: func(r *dbobjectv1.DatabaseObject) string {
-				return r.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			types.KindDatabaseObject,
+			proto.CloneOf[*dbobjectv1.DatabaseObject],
+			map[databaseObjectIndex]func(*dbobjectv1.DatabaseObject) string{
+				databaseObjectNameIndex: func(r *dbobjectv1.DatabaseObject) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*dbobjectv1.DatabaseObject, error) {
-			var out []*dbobjectv1.DatabaseObject
-			var nextToken string
-			for {
-				var page []*dbobjectv1.DatabaseObject
-				var err error
-
-				page, nextToken, err = upstream.ListDatabaseObjects(ctx, 0, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				out = append(out, page...)
-				if nextToken == "" {
-					break
-				}
-			}
-			return out, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListDatabaseObjects))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *dbobjectv1.DatabaseObject {
 			return &dbobjectv1.DatabaseObject{
@@ -270,7 +347,6 @@ func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1
 		collection:  c.collections.databaseObjects,
 		index:       databaseObjectNameIndex,
 		upstreamGet: c.Config.DatabaseObjects.GetDatabaseObject,
-		clone:       utils.CloneProtoMsg[*dbobjectv1.DatabaseObject],
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
@@ -288,7 +364,6 @@ func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken str
 		nextToken: func(dbo *dbobjectv1.DatabaseObject) string {
 			return dbo.GetMetadata().GetName()
 		},
-		clone: utils.CloneProtoMsg[*dbobjectv1.DatabaseObject],
 	}
 	out, next, err := lister.list(ctx, size, pageToken)
 	return out, next, trace.Wrap(err)

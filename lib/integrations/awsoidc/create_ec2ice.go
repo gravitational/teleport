@@ -27,7 +27,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 )
 
 // CreateEC2ICERequest contains the required fields to create an AWS EC2 Instance Connect Endpoint.
@@ -85,7 +85,7 @@ func (req *CreateEC2ICERequest) CheckAndSetDefaults() error {
 	}
 
 	if len(req.ResourceCreationTags) == 0 {
-		req.ResourceCreationTags = tags.DefaultResourceCreationTags(req.Cluster, req.IntegrationName)
+		req.ResourceCreationTags = defaultResourceCreationTags(req.Cluster, req.IntegrationName)
 	}
 
 	return nil

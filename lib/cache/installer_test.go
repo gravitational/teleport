@@ -31,17 +31,13 @@ func TestInstallers(t *testing.T) {
 
 	testResources(t, p, testFuncs[types.Installer]{
 		newResource: func(name string) (types.Installer, error) {
-			return types.NewInstallerV1("test", "test.sh")
+			return types.NewInstallerV1(name, "test.sh")
 		},
-		create: p.clusterConfigS.SetInstaller,
-		list: func(ctx context.Context) ([]types.Installer, error) {
-			return p.clusterConfigS.GetInstallers(ctx)
-		},
-		cacheList: func(ctx context.Context) ([]types.Installer, error) {
-			return p.cache.GetInstallers(ctx)
-		},
+		create:    p.clusterConfigS.SetInstaller,
+		list:      getAllAdapter(p.clusterConfigS.GetInstallers),
+		cacheList: getAllAdapter(p.cache.GetInstallers),
 		deleteAll: func(ctx context.Context) error {
 			return p.clusterConfigS.DeleteAllInstallers(ctx)
 		},
-	})
+	}, withSkipPaginationTest())
 }

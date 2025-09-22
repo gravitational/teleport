@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -131,10 +132,8 @@ func (e EventMapping) matches(currentEvent string, m map[string]Event) (bool, er
 		}
 	}
 	// current event that is firing should match one of the expected events
-	for _, in := range e.In {
-		if currentEvent == in {
-			return true, nil
-		}
+	if slices.Contains(e.In, currentEvent) {
+		return true, nil
 	}
 
 	// mapping not satisfied, and this event is not part of the mapping
@@ -207,7 +206,7 @@ func NewSupervisor(id string, parentLog *slog.Logger) Supervisor {
 // by various goroutines in the supervisor
 type Event struct {
 	Name    string
-	Payload interface{}
+	Payload any
 }
 
 func (e *Event) String() string {
@@ -252,7 +251,7 @@ func (s *LocalSupervisor) RemoveService(srv Service) error {
 	defer s.Unlock()
 	for i, el := range s.services {
 		if el == srv {
-			s.services = append(s.services[:i], s.services[i+1:]...)
+			s.services = slices.Delete(s.services, i, i+1)
 			l.DebugContext(s.closeContext, "Service is completed and removed")
 			return nil
 		}
@@ -284,6 +283,7 @@ var metricsServicesRunningMap = map[string]string{
 	"ssh.node":             "ssh_service",
 	"auth.tls":             "auth_service",
 	"proxy.web":            "proxy_service",
+	"relay.run":            "relay_service",
 	"kube.init":            "kubernetes_service",
 	"apps.start":           "application_service",
 	"db.init":              "database_service",
@@ -292,7 +292,27 @@ var metricsServicesRunningMap = map[string]string{
 	"jamf.init":            "jamf_service",
 }
 
+// isShuttingDown returns true if the supervisor is in the process of shutting down
+// either gracefully or immediately.
+// Should be called with the lock held to make sure the state doesn't change
+func (s *LocalSupervisor) isShuttingDown() bool {
+	select {
+	case <-s.exitContext.Done():
+		return true
+	case <-s.gracefulExitContext.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// server starts the service in a separate goroutine.
+// Should be called with the lock held.
 func (s *LocalSupervisor) serve(srv Service) {
+	if s.isShuttingDown() {
+		s.log.WarnContext(s.closeContext, "Not starting new service, process is shutting down")
+		return
+	}
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -355,6 +375,9 @@ func (s *LocalSupervisor) Services() []string {
 	return out
 }
 
+// Wait blocks until all registered services have exited.
+// It is invoked during process shutdown to ensure
+// that all registered services have exited.
 func (s *LocalSupervisor) Wait() error {
 	defer s.signalClose()
 	s.wg.Wait()

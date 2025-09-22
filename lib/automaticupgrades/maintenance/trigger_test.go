@@ -28,7 +28,7 @@ import (
 
 // checkTraceError is a test helper that converts trace.IsXXXError into a require.ErrorAssertionFunc
 func checkTraceError(check func(error) bool) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, i ...interface{}) {
+	return func(t require.TestingT, err error, i ...any) {
 		require.True(t, check(err), i...)
 	}
 }

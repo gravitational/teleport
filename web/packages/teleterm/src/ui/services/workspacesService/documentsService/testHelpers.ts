@@ -44,6 +44,7 @@ export function makeDocumentCluster(
       resourceKinds: [],
       search: '',
       advancedSearchEnabled: false,
+      statuses: [],
     },
     ...props,
   };
@@ -102,8 +103,8 @@ export function makeDocumentPtySession(
 }
 
 export function makeDocumentTshNode(
-  props?: Partial<types.DocumentTshNodeWithServerId>
-): types.DocumentTshNodeWithServerId {
+  props?: Partial<types.DocumentTshNode>
+): types.DocumentTshNode {
   return {
     kind: 'doc.terminal_tsh_node',
     uri: '/docs/terminal_tsh_node',
@@ -114,6 +115,7 @@ export function makeDocumentTshNode(
     leafClusterId: '',
     origin: 'connection_list',
     serverId: '1234abcd-1234-abcd-1234-abcd1234abcd',
+    login: 'alice',
     ...props,
   };
 }
@@ -220,7 +222,7 @@ export function makeDocumentVnetInfo(
     uri: '/docs/vnet-info',
     title: 'VNet',
     rootClusterUri,
-    app: undefined,
+    launcherArgs: undefined,
     ...props,
   };
 }
@@ -235,6 +237,7 @@ export function makeDocumentDesktopSession(
     desktopUri: windowsDesktopUri,
     login: 'admin',
     origin: 'resource_table',
+    status: '',
     ...props,
   };
 }

@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -125,6 +126,112 @@ func TestOneOffScript(t *testing.T) {
 		require.Contains(t, string(out), "teleport version")
 		require.Contains(t, string(out), teleportVersionOutput)
 		require.Contains(t, string(out), "Test was a success.")
+
+		// Script should remove the temporary directory.
+		require.NoDirExists(t, testWorkingDir)
+	})
+
+	t.Run("command can be executed on MacOS", func(t *testing.T) {
+		// set up
+		testWorkingDir := t.TempDir()
+		require.NoError(t, os.Mkdir(testWorkingDir+"/bin/", 0o755))
+		scriptLocation := testWorkingDir + "/" + scriptName
+
+		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			assert.NoError(t, teleportMock.Close())
+		})
+
+		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		require.NoError(t, err)
+
+		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			assert.Equal(t, "/teleport-v13.1.0-darwin-universal-bin.tar.gz", req.URL.Path)
+			http.ServeContent(w, req, "teleport-v13.1.0-darwin-universal-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
+		}))
+		t.Cleanup(func() { testServer.Close() })
+
+		script, err := BuildScript(OneOffScriptParams{
+			BinUname:        unameMock.Path,
+			BinMktemp:       mktempMock.Path,
+			CDNBaseURL:      testServer.URL,
+			TeleportVersion: "v13.1.0",
+			EntrypointArgs:  "version",
+			SuccessMessage:  "Test was a success.",
+		})
+		require.NoError(t, err)
+
+		unameMock.Expect("-s").AndWriteToStdout("Darwin")
+		unameMock.Expect("-m").AndWriteToStdout("x86_64")
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
+		teleportMock.Expect("version").AndWriteToStdout(teleportVersionOutput)
+
+		err = os.WriteFile(scriptLocation, []byte(script), 0700)
+		require.NoError(t, err)
+
+		// execute script
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
+
+		// validate
+		require.NoError(t, err, string(out))
+
+		require.True(t, unameMock.Check(t))
+		require.True(t, mktempMock.Check(t))
+		require.True(t, teleportMock.Check(t))
+
+		require.Contains(t, string(out), "teleport version")
+		require.Contains(t, string(out), teleportVersionOutput)
+		require.Contains(t, string(out), "Test was a success.")
+
+		// Script should remove the temporary directory.
+		require.NoDirExists(t, testWorkingDir)
+	})
+
+	t.Run("MacOS + fips fails", func(t *testing.T) {
+		// set up
+		testWorkingDir := t.TempDir()
+		require.NoError(t, os.Mkdir(testWorkingDir+"/bin/", 0o755))
+		scriptLocation := testWorkingDir + "/" + scriptName
+
+		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			assert.NoError(t, teleportMock.Close())
+		})
+
+		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			assert.Fail(t, "should not be called", req.URL.String())
+		}))
+		t.Cleanup(func() { testServer.Close() })
+
+		script, err := BuildScript(OneOffScriptParams{
+			BinUname:        unameMock.Path,
+			BinMktemp:       mktempMock.Path,
+			CDNBaseURL:      testServer.URL,
+			TeleportVersion: "v13.1.0",
+			EntrypointArgs:  "version",
+			SuccessMessage:  "Test was a success.",
+			TeleportFIPS:    true,
+		})
+		require.NoError(t, err)
+
+		unameMock.Expect("-s").AndWriteToStdout("Darwin")
+		unameMock.Expect("-m").AndWriteToStdout("x86_64")
+		mktempMock.Expect("-d", "-p", homeDir).AndWriteToStdout(testWorkingDir)
+		// no call expected to teleportMock
+
+		err = os.WriteFile(scriptLocation, []byte(script), 0700)
+		require.NoError(t, err)
+
+		// execute script
+		out, err := exec.Command("sh", scriptLocation).CombinedOutput()
+
+		// validate
+		require.Error(t, err, string(out))
+
+		require.True(t, unameMock.Check(t))
+		require.True(t, mktempMock.Check(t))
 
 		// Script should remove the temporary directory.
 		require.NoDirExists(t, testWorkingDir)
@@ -326,7 +433,7 @@ func TestOneOffScript(t *testing.T) {
 			assert.NoError(t, teleportMock.Close())
 		})
 
-		modules.SetTestModules(t, &modules.TestModules{
+		modulestest.SetTestModules(t, modulestest.Modules{
 			TestBuildType: modules.BuildEnterprise,
 		})
 		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport-ent/teleport"}, singleFileFS{file: teleportMock.Path})

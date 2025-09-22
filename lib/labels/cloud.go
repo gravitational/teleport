@@ -131,9 +131,7 @@ func (l *CloudImporter) Get() map[string]string {
 // Apply adds cloud labels to the provided resource.
 func (l *CloudImporter) Apply(r types.ResourceWithLabels) {
 	labels := l.Get()
-	for k, v := range r.GetStaticLabels() {
-		labels[k] = v
-	}
+	maps.Copy(labels, r.GetStaticLabels())
 	r.SetStaticLabels(labels)
 }
 

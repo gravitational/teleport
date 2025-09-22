@@ -64,7 +64,7 @@ func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHa
 }
 
 // connectionUpgrade handles connection upgrades.
-func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	upgradeType, upgradeHandler, err := h.selectConnectionUpgrade(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -100,7 +100,7 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 	return nil, nil
 }
 
-func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (interface{}, error) {
+func (h *Handler) upgradeALPNWebSocket(w http.ResponseWriter, r *http.Request, upgradeHandler ConnectionHandler) (any, error) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 		Subprotocols: []string{

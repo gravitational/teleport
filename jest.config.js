@@ -16,6 +16,7 @@ const esModules = [
   'd3-path',
   'internmap',
   '@nivo/bar',
+  'react-error-boundary',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */

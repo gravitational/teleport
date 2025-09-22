@@ -31,15 +31,15 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
-var badParameterCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+var badParameterCheck = func(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
 }
 
-var notFoundCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+var notFoundCheck = func(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsNotFound(err), `expected "not found", but got %v`, err)
 }
 

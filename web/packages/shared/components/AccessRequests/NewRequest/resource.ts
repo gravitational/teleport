@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceIdKind } from 'teleport/services/agents';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { KubeResourceKind } from 'teleport/services/kube';
 
 /** Available request kinds for resource-based and role-based access requests. */

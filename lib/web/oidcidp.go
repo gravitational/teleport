@@ -37,7 +37,7 @@ const (
 )
 
 // openidConfiguration returns the openid-configuration for setting up the AWS OIDC Integration
-func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (interface{}, error) {
+func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (any, error) {
 	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -47,7 +47,7 @@ func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ 
 }
 
 // jwksOIDC returns all public keys used to sign JWT tokens for this cluster.
-func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
 	return h.jwks(r.Context(), types.OIDCIdPCA, true)
 }
 
@@ -56,6 +56,6 @@ func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
 // Returns the thumbprint of the top intermediate CA that signed the TLS cert used to serve HTTPS requests.
 // In case of a self signed certificate, then it returns the thumbprint of the TLS cert itself.
-func (h *Handler) thumbprint(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+func (h *Handler) thumbprint(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
 	return awsoidc.ThumbprintIdP(r.Context(), h.PublicProxyAddr())
 }

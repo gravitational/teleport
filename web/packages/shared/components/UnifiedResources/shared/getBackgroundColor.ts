@@ -23,12 +23,12 @@ export interface BackgroundColorProps {
   selected?: boolean;
   pinned?: boolean;
   theme: Theme;
-  hasUnhealthyStatus: boolean;
+  shouldDisplayWarning: boolean;
   showingStatusInfo: boolean;
 }
 
 export const getBackgroundColor = (props: BackgroundColorProps) => {
-  if (props.hasUnhealthyStatus) {
+  if (props.shouldDisplayWarning) {
     return 'transparent';
   }
   if (props.selected) {

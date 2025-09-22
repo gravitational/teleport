@@ -131,8 +131,8 @@ func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) err
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
-func (s *ClusterConfigurationService) GetStaticTokens() (types.StaticTokens, error) {
-	item, err := s.Get(context.TODO(), backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
+func (s *ClusterConfigurationService) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("static tokens not found")
@@ -191,11 +191,6 @@ func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (ty
 
 // CreateAuthPreference creates an auth preference if once does not already exist.
 func (s *ClusterConfigurationService) CreateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
-	// Perform the modules-provided checks.
-	if err := modules.ValidateResource(preference); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	value, err := services.MarshalAuthPreference(preference)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -217,12 +212,7 @@ func (s *ClusterConfigurationService) CreateAuthPreference(ctx context.Context, 
 
 // UpdateAuthPreference updates an existing auth preference.
 func (s *ClusterConfigurationService) UpdateAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
-	// Perform the modules-provided checks.
 	rev := preference.GetRevision()
-	if err := modules.ValidateResource(preference); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	value, err := services.MarshalAuthPreference(preference)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -245,11 +235,6 @@ func (s *ClusterConfigurationService) UpdateAuthPreference(ctx context.Context, 
 
 // UpsertAuthPreference creates a new auth preference or overwrites an existing auth preference.
 func (s *ClusterConfigurationService) UpsertAuthPreference(ctx context.Context, preference types.AuthPreference) (types.AuthPreference, error) {
-	// Perform the modules-provided checks.
-	if err := modules.ValidateResource(preference); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	rev := preference.GetRevision()
 	value, err := services.MarshalAuthPreference(preference)
 	if err != nil {
@@ -690,7 +675,7 @@ func (s *ClusterConfigurationService) GetClusterMaintenanceConfig(ctx context.Co
 	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, maintenancePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("no maintenance config has been created")
+			return nil, trace.NotFound("cluster maintenance config not found")
 		}
 		return nil, trace.Wrap(err)
 	}

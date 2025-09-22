@@ -35,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -45,10 +46,12 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mcptest"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -57,7 +60,17 @@ import (
 // It allows to make the entire cluster set up once, instead of per test,
 // which speeds things up significantly.
 func TestAppAccess(t *testing.T) {
-	pack := Setup(t)
+	// Enable MCP test servers.
+	sseServerURL := mcptest.MustStartSSETestServer(t)
+	extraApps := []servicecfg.App{{
+		Name: "test-sse",
+		URI:  "mcp+sse+" + sseServerURL,
+	}}
+
+	// Reusing the pack as much as we can.
+	pack := SetupWithOptions(t, AppTestOptions{
+		ExtraRootApps: extraApps,
+	})
 
 	t.Run("Forward", bind(pack, testForward))
 	t.Run("Websockets", bind(pack, testWebsockets))
@@ -70,6 +83,9 @@ func TestAppAccess(t *testing.T) {
 	t.Run("JWT", bind(pack, testJWT))
 	t.Run("NoHeaderOverrides", bind(pack, testNoHeaderOverrides))
 	t.Run("AuditEvents", bind(pack, testAuditEvents))
+
+	// MCP access tests.
+	t.Run("MCP", bind(pack, testMCP))
 
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", bind(pack, testServersHA))
@@ -137,7 +153,6 @@ func testForward(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
@@ -199,7 +214,6 @@ func testWebsockets(p *Pack, t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			body, err := p.makeWebsocketRequest(tt.inCookies, "/")
@@ -250,7 +264,6 @@ func testForwardModes(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
@@ -264,7 +277,7 @@ func testForwardModes(p *Pack, t *testing.T) {
 // testClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func testClientCert(p *Pack, t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -366,7 +379,6 @@ func testClientCert(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.makeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
@@ -575,7 +587,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 	require.Contains(t, body, p.rootMessage)
 
 	// session start event
-	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) bool {
 		expectedEvent := &apievents.AppSessionStart{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionStartEvent,
@@ -589,16 +601,16 @@ func testAuditEvents(p *Pack, t *testing.T) {
 			},
 			PublicAddr: p.rootAppPublicAddr,
 		}
-		require.Empty(t, cmp.Diff(
+		return len(cmp.Diff(
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
-		))
+		)) == 0
 	})
 
 	// session chunk event
-	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) bool {
 		expectedEvent := &apievents.AppSessionChunk{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionChunkEvent,
@@ -611,13 +623,13 @@ func testAuditEvents(p *Pack, t *testing.T) {
 				AppName:       p.rootAppName,
 			},
 		}
-		require.Empty(t, cmp.Diff(
+		return len(cmp.Diff(
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time", "Index"),
 			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
-		))
+		)) == 0
 	})
 }
 
@@ -814,7 +826,6 @@ func TestTCP(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.description, func(t *testing.T) {
 			t.Parallel()
 
@@ -1065,7 +1076,7 @@ func testServersHA(p *Pack, t *testing.T) {
 	}
 
 	// asserts that the response has error.
-	responseWithError := func(t *testing.T, status int, err error) {
+	responseWithError := func(t *assert.CollectT, status int, err error) {
 		if status > 0 {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusFound, status)
@@ -1075,7 +1086,7 @@ func testServersHA(p *Pack, t *testing.T) {
 		require.Error(t, err)
 	}
 	// asserts that the response has no errors.
-	responseWithoutError := func(t *testing.T, status int, err error) {
+	responseWithoutError := func(t *assert.CollectT, status int, err error) {
 		if status > 0 {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, status)
@@ -1085,12 +1096,14 @@ func testServersHA(p *Pack, t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	makeRequests := func(t *testing.T, pack *Pack, httpCookies, wsCookies []*http.Cookie, responseAssertion func(*testing.T, int, error)) {
-		status, _, err := pack.MakeRequest(httpCookies, http.MethodGet, "/")
-		responseAssertion(t, status, err)
+	makeRequests := func(t *testing.T, pack *Pack, httpCookies, wsCookies []*http.Cookie, responseAssertion func(*assert.CollectT, int, error)) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			status, _, err := pack.MakeRequest(httpCookies, http.MethodGet, "/")
+			responseAssertion(t, status, err)
 
-		_, err = pack.makeWebsocketRequest(wsCookies, "/")
-		responseAssertion(t, 0, err)
+			_, err = pack.makeWebsocketRequest(wsCookies, "/")
+			responseAssertion(t, 0, err)
+		}, 10*time.Second, 200*time.Millisecond)
 	}
 
 	for name, test := range testCases {

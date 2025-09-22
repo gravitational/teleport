@@ -1,0 +1,29 @@
+---
+title: Workload Identity
+description: Securely issue flexible short-lived identities to your workloads
+tags:
+ - mwi
+ - infrastructure-identity
+---
+
+The guides in this section explain how to use Workload Identity, which securely
+issues flexible short-lived identities to workloads in your infrastructure.
+
+## Getting started
+- [Introduction to Workload Identity](./introduction.mdx): Describes Teleport Workload Identity, which securely issues flexible, short-lived cryptographic identities to workloads and non-human identities.
+- [Introduction to SPIFFE](./spiffe.mdx): Learn about Secure Production Identity Framework For Everyone (SPIFFE) and how it is implemented by Teleport Workload Identity
+- [Getting Started with Workload Identity](./getting-started.mdx): Getting started with Teleport Workload Identity for SPIFFE and Machine ID
+
+## Guides
+- [Configuring Workload Identity and AWS OIDC Federation](./aws-oidc-federation.mdx): Configuring AWS to accept Workload Identity JWTs as authentication using OIDC Federation
+- [Configuring Workload Identity and AWS Roles Anywhere](./aws-roles-anywhere.mdx): Configuring AWS to accept Workload Identity certificates as authentication using AWS Roles Anywhere
+- [Configuring Workload Identity and Azure Federated Credentials](./azure-federated-credentials.mdx): Configuring Azure to accept Workload Identity JWTs as authentication using Azure Federated Credentials
+- [Configuring Workload Identity and GCP Workload Identity Federation with JWTs](./gcp-workload-identity-federation-jwt.mdx): Configuring GCP to accept Workload Identity JWTs as authentication using Workload Identity Federation
+- [Workload Identity and tsh](./tsh.mdx): Issuing SPIFFE SVIDs using Workload Identity and tsh
+
+## Configuration & management
+- [Best Practices for Teleport Workload Identity](./best-practices.mdx): Answers common questions and describes best practices for using Teleport Workload Identity in production.
+- [JWT SVIDs](./jwt-svids.mdx): An overview of the JWT SVIDs issued by Teleport Workload Identity
+- [SPIFFE Federation](./federation.mdx): An overview of the Teleport Workload Identity SPIFFE Federation feature.
+- [Workload Attestation](../../reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation.mdx): An overview of the Teleport Workload Identity Workload Attestation feature.
+- [Workload Identity Resource](../../reference/machine-workload-identity/workload-identity/workload-identity-resource.mdx): The full reference for the Workload Identity resource.

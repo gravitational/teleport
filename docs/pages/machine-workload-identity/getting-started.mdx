@@ -1,0 +1,439 @@
+---
+title: Machine and Workload Identity Getting Started Guide
+description: Getting started with Teleport Machine and Workload Identity
+videoBanner: YzVK2tr6u-U
+tags:
+ - get-started
+ - mwi
+ - infrastructure-identity
+---
+
+{/* lint disable page-structure remark-lint */}
+
+Teleport Machine and Workload Identity (MWI) provides secure access for Non-Human Identities across multiple platforms
+and resource types, supporting everything from [Infrastructure-as-Code](../machine-workload-identity/iac-mwi.mdx)
+workflows to [AI agent](../machine-workload-identity/ai-agents-mwi.mdx) operations. This guide focuses on a popular
+implementation: executing commands on deployment targets through CI/CD pipelines. Even if your specific use case differs,
+this guide covers the fundamental MWI setup process, after which you can reference the dedicated use case pages for tool-specific guidance.
+
+Here's an overview of what you will do:
+
+- Choose a Linux server or Kubernetes cluster as your target resource.
+- Create a Role for your Bot, or choose an existing one.
+- Create a Bot in Teleport with a role allowing it to access your target resource.
+- Create a GitHub join token for the Bot.
+- Set up a GitHub Actions workflow that authenticates and issues a command using the `tbot` binary.
+
+This guide covers configuring MWI for development and learning purposes.
+For a production-ready configuration of MWI, visit the [Deploying Machine
+ID](../machine-workload-identity/machine-id/deployment/deployment.mdx) guides.
+
+## Prerequisites
+
+In this getting started guide, you will configure MWI to issue commands to a Linux
+server or Kubernetes cluster from a GitHub Actions workflow. This guide assumes you've already enrolled a Linux server
+or Kubernetes cluster to Teleport. If you haven't done so, refer to the
+[guides on enrolling resources](../enroll-resources/enroll-resources.mdx).
+
+- A GitHub repository where you have permissions to create GitHub Actions workflows.
+  - You can fork the [example repository for this guide](https://github.com/asteroid-earth/mwi-getting-started-guide) to go faster.
+
+    <details>
+    <summary>Using GitHub Enterprise?</summary>
+
+    There is extra configuration needed when using GitHub Enterprise repositories, either
+    cloud or self-hosted. We recommend using a personal repository for this guide if possible.
+
+    If you need to use GitHub Enterprise, check the following:
+    - Cloud
+      - In the join token, under `github` set the `enterprise_slug` field to the name of your enterprise's slug, likely the name of the organization.
+    - Self-hosted
+      - Your Teleport proxies must be able to reach your GitHub Enterprise instance.
+      - In the join token, under `github`, set the `enterprise_server_host` field to the hostname of your GitHub Enterprise instance.
+
+    <br/>
+    The join token fields are available and commented out in the example join token file.
+    </details>
+- A target resource enrolled in Teleport, either:
+  - A Linux server
+  - A Kubernetes cluster
+  - If you don't have a target resource that you can use, follow one of the [guides](../enroll-resources/enroll-resources.mdx)
+    for enrolling a new resource.
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+(!/docs/pages/includes/tctl.mdx!)
+
+## Step 1/5. Choose a target resource
+
+First, choose a target resource that you want to access using Machine and Workload Identity. We will
+use the labels for this resource in the Role that we assign to the bot so it can access the resource.
+
+Here are example resources with labels we can reference:
+
+<Tabs>
+<TabItem label="Server">
+
+You can find your nodes and labels in the GUI or with the following command:
+
+```code
+$ tctl nodes ls --format=text
+
+Host    UUID                                 Public Address Labels                              Version
+------- ------------------------------------ -------------- ----------------------------------- -------
+target1 8a50c8aa-c45f-403c-95ff-83f50561d64c                env=mwi-demo,hostname=ip-10-0-0-200 18.1.5
+```
+
+</TabItem>
+
+<TabItem label="Kubernetes">
+
+  You can find your clusters and labels in the GUI or with the following command:
+
+```code
+$ tctl kube ls --format=text
+
+Cluster  Labels                        Version
+-------- ----------------------------- -------
+staging  env=mwi-demo,region=us-west-2  18.1.5
+```
+
+</TabItem>
+</Tabs>
+
+## Step 2/5. Choose or create a role
+
+<Admonition
+  type="tip"
+  title="Using the example repository"
+>
+  You can find the files you'll need for the rest of the steps in the
+  [example repository](https://github.com/asteroid-earth/mwi-getting-started-guide) for this guide.
+  We'll examine the file content here, but you can fork that repository or clone it and copy the files to your own.
+</Admonition>
+
+If you have an existing role that allows access to your target resource, you can skip this step.
+Every Teleport cluster has a preset `access` role that allows access to all nodes and clusters,
+but if you cannot use that one for this guide, we can quickly make a new, more restrictive role.
+
+<Tabs>
+<TabItem label="Server">
+
+For the role definition, edit the `node_labels`
+field to match the labels on your target resource. You can also change the `logins` field to match the user
+you want to log in as on your target resource.
+
+<details>
+<summary>The role file is at `teleport/github_bot_server_role.yaml`</summary>
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: github-bot
+spec:
+  allow:
+    node_labels:
+      env: my-env-label
+    logins:
+      - ubuntu
+```
+</details>
+
+- Replace the `node_labels` selector with your own
+
+Run `tctl create` with the file:
+```code
+$ tctl create -f ./teleport/github_bot_server_role.yaml
+```
+
+</TabItem>
+
+<TabItem label="Kubernetes">
+
+For the role definition, edit the `kubernetes_labels`
+fields to match the labels on your target resource. To make going through this guide more secure,
+this role only allows the bot to take actions in the `default` namespace.
+
+<details>
+<summary>The role file is at `teleport/github_bot_k8s_role.yaml`</summary>
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: github-bot
+spec:
+  allow:
+    kubernetes_labels:
+      env: my-env-label
+    kubernetes_groups:
+      - system:masters
+    kubernetes_resources:
+      - kind: '*'
+        name: '*'
+        namespace: default
+        verbs:
+          - '*'
+```
+</details>
+
+- Replace the `kubernetes_labels` selector with your own
+
+Run `tctl create` with the file:
+```code
+$ tctl create -f .teleport/github_bot_k8s_role.yaml
+```
+
+</TabItem>
+</Tabs>
+
+## Step 3/5. Create a bot
+
+In Teleport, a **Bot** represents an identity for a machine. This is similar to
+how a user represents the identity of a human. Like users, bots are assigned
+roles to manage their access to resources.
+
+<details>
+<summary>The bot definition file is at `teleport/github_bot.yaml`.</summary>
+
+```yaml
+kind: bot
+version: v1
+metadata:
+  name: github-bot
+spec:
+  roles:
+    - github-bot
+```
+</details>
+
+Run `tctl create` with the file:
+```code
+$ tctl create -f ./teleport/github_bot.yaml
+```
+
+## Step 4/5 Create a join token
+
+Unlike users, bots do not authenticate using a username and password or SSO.
+Instead, they authenticate in a process called joining. Teleport
+uses metadata about the platform the bot is running on, such as OIDC endpoints for CI pipelines,
+or the Assumed Role of an AWS EC2 Instance, to attest to the identity of the process,
+ensuring only authorized bots can join the cluster. This means the bot has a verified <i>identity</i>,
+rather than just a shared secret.
+
+Teleport supports a number of secure [join methods](../reference/deployment/join-methods.mdx#delegated-join-methods)
+specific to the platform the bot is running on. Since we are using GitHub Actions,
+we will use the `github` join method.
+
+For the join token definition, edit the `repository`
+field to match the GitHub repository where you will run the GitHub Actions workflow.
+When a bot attempts to join from that GitHub organization and repository, Teleport
+will identify it as your `github-bot` and assign it the correct role. If a bot attempts
+to join from any other repository, it will be rejected.
+
+<details>
+<summary>The join token file is at `teleport/github_bot_join_token.yaml`</summary>
+
+```yaml
+version: v2
+metadata:
+  name: github-bot
+spec:
+  join_method: github
+  roles:
+  - Bot
+  bot_name: github-bot
+  github:
+    allows:
+    - repository: "your-github-username/mwi-getting-started-guide" # if you cloned the example repo, if not, use your repo name
+  # enterprise_server_host: github.my-company.com # use for self-hosted GitHub Enterprise
+  # enterprise_slug: my-company # use for GitHub Enterprise Cloud organization
+```
+</details>
+
+- Replace the `repository` value with your own GitHub repository in the format `owner/repo`.
+
+Run `tctl create` with the file:
+```code
+$ tctl create -f ./teleport/github_bot_join_token.yaml
+```
+
+## Step 5/5 Access a resource from GitHub Actions
+
+We have several published [Actions](../reference/machine-workload-identity/machine-id/github-actions.mdx#github-actions-helpers)
+for convenience, but for this guide we will look at things explicitly to aid understanding.
+
+<Tabs>
+<TabItem label="Server">
+
+<details>
+<summary>The config file for `tbot` is at `action_support/server_bot.yaml`</summary>
+
+```yaml
+version: v2
+proxy_server: example.teleport.sh:443
+onboarding:
+  join_method: github
+  token: github-bot
+certificate_ttl: 5m
+storage:
+  type: memory
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: ./ssh_out
+```
+
+- The `token` value matches the name of the token we created in Step 4/5.
+- The certificate_ttl is set to 5 minutes. In production you can make this slightly longer than the runtime of your job, so the identity expires when its purpose is complete.
+- The output path is set to `./ssh-out`. This is where `tbot` will output the SSH configuration and credentials that the command will use.
+</details>
+
+- Replace the `proxy_server` address with your Teleport Proxy address.
+
+<details>
+<summary>The workflow is at `.github/workflows/server.yaml`</summary>
+
+```yaml
+on:
+  workflow_dispatch:
+
+jobs:
+  check_resource_usage:
+    permissions:
+      # The "id-token: write" permission is required, or MWI will not be
+      # able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    name: Check resource usage on server
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Fetch Teleport binaries
+      uses: teleport-actions/setup@v1
+      with:
+        proxy: example.teleport.sh:443
+        version: auto
+    - name: Export ssh config
+      run: tbot start --oneshot -c ./action_support/server_bot.yaml
+    - name: Run mpstat
+      run: |
+        ssh -F ./ssh_out/ssh_config ubuntu@myinstance.example.teleport.sh mpstat
+```
+
+- In the second step, we use one of the published Actions, which installs the `tbot` binary into the runner.
+- Then we run `tbot start` in one-shot mode with the config file. This authenticates the bot, and writes the SSH configuration and credentials to `./ssh_out`, without starting a long-running process.
+- Finally we run an ssh command using the new identity. No certificates need to be distributed to the target server, or stored as secrets in the Action.
+</details>
+
+- Replace the `proxy` value in the `Fetch Teleport binaries` step with your Teleport proxy address.
+- Replace the address of the target server in the last step with the address of your target.
+- (Optional) Customize the command to run.
+
+This kind of workflow can be used with Ansible or any other kind of SSH-based automation.
+
+</TabItem>
+
+<TabItem label="Kubernetes">
+
+<details>
+<summary>The config file for `tbot` is at `action_support/k8s_bot.yaml`</summary>
+
+```yaml
+version: v2
+proxy_server: example.teleport.sh:443
+onboarding:
+  join_method: github
+  token: github-bot
+certificate_ttl: 5m
+storage:
+  type: memory
+outputs:
+  - type: kubernetes/v2
+    selectors:
+      - labels:
+          env: my-env-label
+    destination:
+      type: directory
+      path: ./k8s_out
+```
+
+- The `token` value matches the name of the token we created in Step 4/5.
+- The certificate_ttl is set to 5 minutes. In production you can make this slightly longer than the runtime of your job, so the identity expires when its purpose is complete.
+- The output path is set to `./k8s-out`. This is where `tbot` will output the kubeconfig that the command will use.
+</details>
+
+- Replace the `proxy_server` address with your Teleport Proxy address.
+- Replace the label selector with your Kubernetes cluster label.
+
+<details>
+<summary>The workflow is at `.github/workflows/k8s.yaml`</summary>
+
+```yaml
+on:
+  workflow_dispatch:
+
+jobs:
+  list_pods:
+    permissions:
+      # The "id-token: write" permission is required, or MWI will not be
+      # able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    name: List pods in default namespace
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Fetch Teleport binaries
+      uses: teleport-actions/setup@v1
+      with:
+        proxy: example.teleport.sh:443
+        version: auto
+    - name: Export kubectl config
+      run: tbot start --oneshot -c ./action_support/server_bot.yaml
+    - name: Run kubectl get pods
+      run: |
+        kubectl --kubeconfig=./k8s_out/kubeconfig.yaml get pods -n default
+```
+
+- In the third step, we use one of the published Actions, which installs the `tbot` binary into the runner.
+- Then we run `tbot start` in one-shot mode with the config file. This authenticates the bot, and writes the kubeconfig to `./k8s_out`, without starting a long-running process.
+- Finally we run a kubectl command using the new identity. No certificates need to be distributed to the target server, or stored as secrets in the Action.
+</details>
+
+- Replace the `proxy` value in the `Fetch Teleport binaries` step with your Teleport proxy address.
+
+This kind of workflow can be used with Helm to deploy apps, or any other kind of automation that relies on kubeconfig.
+
+</TabItem>
+</Tabs>
+
+### Run the workflow
+
+In your GitHub repository
+- Go to the `Actions` tab
+- Select either the server or Kubernetes workflow on the left
+- Click `Run workflow` on the right
+- Make sure the branch is `main` and click the `Run workflow` confirmation button
+
+After the workflow completes, you should see the job complete successfully, and the output of the command in the logs.
+
+## Summary
+
+You've successfully set up a workflow in GitHub Actions that can access your resources securely through the Teleport proxy,
+without distributing long-lived credentials, making the process more secure and efficient for development teams.
+
+## Next Steps
+
+- Check out the [deployment guides](./machine-id/deployment/deployment.mdx) to learn about
+  configuring `tbot` in a production-ready way for your platform.
+- Check out the [access guides](./machine-id/access-guides/access-guides.mdx) to learn about configuring
+  `tbot` for other use cases than SSH and Kubernetes.
+- Read the [configuration reference](../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
+  all the available configuration options.
+- Learn how [Workload Identities](../machine-workload-identity/workload-identity/introduction.mdx) enable the same capabilities
+  for resources like cloud APIs that can't be protected with the Teleport proxy.

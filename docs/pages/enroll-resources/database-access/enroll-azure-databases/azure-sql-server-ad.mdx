@@ -1,6 +1,12 @@
 ---
-title: Database Access with SQL Server on Azure
+title: Database Access with Azure SQL Server
+sidebar_label: Azure SQL Server
 description: How to configure Teleport database access with Azure SQL Server using Microsoft Entra authentication.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - azure
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Azure SQL Server" dbConfigure="with Microsoft Entra ID-based authentication"!)
@@ -8,11 +14,11 @@ description: How to configure Teleport database access with Azure SQL Server usi
 ## How it works
 
 The Teleport Database Service runs on an Azure virtual machine with an attached
-Azure identity with permissions to retrieve authentication tokens from
-Microsoft Entra ID. When a user connects to SQL Server with Teleport, the Teleport
-Database service authenticates with Azure AD, then uses an authentication token
-to connect to SQL Server. The Database Service then forwards user traffic to the
-database.
+Azure identity with permissions to retrieve authentication tokens from Microsoft
+Entra ID. When a user connects to SQL Server with Teleport, the Teleport
+Database service authenticates with Microsoft Entra ID, then uses an
+authentication token to connect to SQL Server. The Database Service then
+forwards user traffic to the database.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -134,8 +140,8 @@ for more information about Azure scopes and creating role assignments.
 
 ### Login identities
 
-The Teleport Database Service needs access tokens from Azure AD to authenticate with
-SQL Server databases.
+The Teleport Database Service needs access tokens from Microsoft Entra ID to
+authenticate with SQL Server databases.
 
 It uses the managed identities attached to its Virtual Machine to fetch the
 authentication token.
@@ -154,9 +160,9 @@ created:
 
 ## Step 5/8. Enable managed identities login on SQL Server
 
-Azure AD SQL Server integration uses database-level authentication (contained
-users), meaning we must create a user for our identities on each database we
-want to access.
+The Microsoft Entra ID SQL Server integration uses database-level authentication
+(contained users), meaning we must create a user for our identities on each
+database we want to access.
 
 To create contained users for the identities, connect to your SQL server using
 its Activity Directory Admin and execute the query:

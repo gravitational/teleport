@@ -68,15 +68,16 @@ const testCases: {
     expected: '/test?sort=name%3Aasc&pinnedOnly=false',
   },
   {
-    title: 'Search, sort, and filter by kind',
+    title: 'Search, sort, filter by kind, and filter by statuses',
     args: {
       pathname: '/test',
       searchString: 'foo',
       sort: { fieldName: 'name', dir: 'DESC' },
       kinds: ['db', 'node'],
+      statuses: ['healthy', 'unhealthy'],
     },
     expected:
-      '/test?search=foo&sort=name%3Adesc&pinnedOnly=false&kinds=db&kinds=node',
+      '/test?search=foo&sort=name%3Adesc&pinnedOnly=false&kinds=db&kinds=node&status=healthy&status=unhealthy',
   },
 ];
 

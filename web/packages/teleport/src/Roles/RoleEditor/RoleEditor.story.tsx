@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { StoryObj } from '@storybook/react';
+import { StoryObj } from '@storybook/react-vite';
 import { delay, http, HttpResponse } from 'msw';
 import { useEffect, useState } from 'react';
 
@@ -87,10 +87,12 @@ const parseHandler = http.post(
   cfg.getYamlParseUrl(YamlSupportedResourceKind.Role),
   () =>
     HttpResponse.json({
-      resource: withDefaults({
-        metadata: { name: 'dummy-role' },
-        version: RoleVersion.V7,
-      }),
+      resource: withDefaults(
+        {
+          metadata: { name: 'dummy-role' },
+        },
+        RoleVersion.V8
+      ),
     })
 );
 
@@ -388,9 +390,6 @@ spec:
     - command
     - network
     forward_agent: false
-    idp:
-      saml:
-        enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     ssh_port_forwarding:
@@ -402,7 +401,7 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v7
+version: v8
 `;
 
 // This role contains an unsupported field. Not that it really matters, since
@@ -424,9 +423,6 @@ spec:
     - command
     - network
     forward_agent: false
-    idp:
-      saml:
-        enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     ssh_port_forwarding:
@@ -438,5 +434,5 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v7
+version: v8
 `;

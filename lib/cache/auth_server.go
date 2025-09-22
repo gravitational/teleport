@@ -34,19 +34,20 @@ func newAuthServerCollection(p services.Presence, w types.WatchKind) (*collectio
 	}
 
 	return &collection[types.Server, authServerIndex]{
-		store: newStore(map[authServerIndex]func(types.Server) string{
-			authServerNameIndex: func(u types.Server) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindAuthServer,
+			types.Server.DeepCopy,
+			map[authServerIndex]func(types.Server) string{
+				authServerNameIndex: types.Server.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
 			servers, err := p.GetAuthServers()
 			return servers, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Server {
 			return &types.ServerV2{
-				Kind:    types.KindAuthServer,
-				Version: types.V2,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.GetName(),
 				},

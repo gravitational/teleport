@@ -53,6 +53,28 @@ func IsValidIAMRoleName(roleName string) error {
 	return nil
 }
 
+// IsValidIAMRolesAnywhereTrustAnchorName checks whether the AWS IAM Roles Anywhere Trust Anchor name is valid.
+// Validation based on the AWS documentation.
+// See https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_CreateTrustAnchor.html#API_CreateTrustAnchor_RequestBody
+func IsValidIAMRolesAnywhereTrustAnchorName(name string) error {
+	if !matchRolesAnywhereTrustAnchorName(name) {
+		return trace.BadParameter("trust anchor name is invalid")
+	}
+
+	return nil
+}
+
+// IsValidIAMRolesAnywhereProfileName checks whether the AWS IAM Roles Anywhere Profile name is valid.
+// Validation based on the AWS documentation.
+// See https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_CreateProfile.html#API_CreateProfile_RequestBody
+func IsValidIAMRolesAnywhereProfileName(name string) error {
+	if !matchRolesAnywhereProfileName(name) {
+		return trace.BadParameter("profile name is invalid")
+	}
+
+	return nil
+}
+
 // IsValidIAMPolicyName checks whether the policy name is a valid AWS IAM Policy
 // identifier.
 //
@@ -167,7 +189,7 @@ var (
 	//
 	// Reference:
 	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
-	matchRegion = regexp.MustCompile(`^[a-z]{2}(-gov|-iso|-isob|-isoe|-isof)?-\w+-\d+$`)
+	matchRegion = regexp.MustCompile(`^(eusc-)?[a-z]{2}(-gov|-iso|-isob|-isoe|-isof)?-\w+-\d+$`)
 
 	// https://docs.aws.amazon.com/athena/latest/APIReference/API_CreateWorkGroup.html
 	matchAthenaWorkgroupName = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,128}$`).MatchString
@@ -179,6 +201,16 @@ var (
 	// > avoid using mixed case for table or column names
 	// > special characters other than underscore (_) are not supported
 	matchGlueName = regexp.MustCompile(`^[a-z0-9_]{1,255}$`).MatchString
+
+	// matchRolesAnywhereTrustAnchorName is a regex that matches against AWS IAM Roles Anywhere Trust Anchor Names.
+	// See https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_CreateTrustAnchor.html#API_CreateTrustAnchor_RequestBody
+	matchRolesAnywhereTrustAnchorName = baseResourceNameMatcher
+
+	// matchRolesAnywhereProfileName is a regex that matches against AWS IAM Roles Anywhere Trust Anchor Names.
+	// See https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_CreateProfile.html#API_CreateProfile_RequestBody
+	matchRolesAnywhereProfileName = baseResourceNameMatcher
+
+	baseResourceNameMatcher = regexp.MustCompile(`^[ a-zA-Z0-9-_]{1,255}$`).MatchString
 
 	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
 	validPartitions = []string{"aws", "aws-cn", "aws-us-gov"}

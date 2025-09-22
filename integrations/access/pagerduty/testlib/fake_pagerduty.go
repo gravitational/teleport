@@ -34,7 +34,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/integrations/access/pagerduty"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 type FakePagerduty struct {
@@ -61,15 +61,15 @@ type FakePagerduty struct {
 
 type QueryValues url.Values
 
-func (q QueryValues) GetAsSet(name string) stringset.StringSet {
+func (q QueryValues) GetAsSet(name string) set.Set[string] {
 	values := q[name]
-	result := stringset.NewWithCap(len(values))
+	result := set.NewWithCapacity[string](len(values))
 	for _, v := range values {
 		if v != "" {
-			result[v] = struct{}{}
+			result.Add(v)
 		}
 	}
-	if len(result) == 0 {
+	if result.Len() == 0 {
 		return nil
 	}
 	return result
@@ -118,7 +118,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 				services = append(services, service)
 			}
 		} else {
-			mock.objects.Range(func(key, value interface{}) bool {
+			mock.objects.Range(func(key, value any) bool {
 				if key, ok := key.(string); !ok || !strings.HasPrefix(key, "service-") {
 					return true
 				}
@@ -154,7 +154,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 		rw.Header().Add("Content-Type", "application/json")
 
 		extensions := []pagerduty.Extension{}
-		mock.objects.Range(func(key, value interface{}) bool {
+		mock.objects.Range(func(key, value any) bool {
 			if extension, ok := value.(pagerduty.Extension); ok {
 				extensions = append(extensions, extension)
 			}
@@ -213,7 +213,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 		rw.Header().Add("Content-Type", "application/json")
 
 		var users []pagerduty.User
-		mock.objects.Range(func(key, value interface{}) bool {
+		mock.objects.Range(func(key, value any) bool {
 			if key, ok := key.(string); !ok || !strings.HasPrefix(key, "user-") {
 				return true
 			}
@@ -249,7 +249,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 
 		var incidents []pagerduty.Incident
 
-		mock.objects.Range(func(key, value interface{}) bool {
+		mock.objects.Range(func(key, value any) bool {
 			if key, ok := key.(string); !ok || !strings.HasPrefix(key, "incident-") {
 				return true
 			}
@@ -366,7 +366,7 @@ func NewFakePagerduty(concurrency int) *FakePagerduty {
 
 		var onCalls []pagerduty.OnCall
 
-		mock.objects.Range(func(key, value interface{}) bool {
+		mock.objects.Range(func(key, value any) bool {
 			if key, ok := key.(string); !ok || !strings.HasPrefix(key, "oncall-") {
 				return true
 			}
@@ -510,7 +510,7 @@ func (s *FakePagerduty) StoreOnCall(onCall pagerduty.OnCall) pagerduty.OnCall {
 
 func (s *FakePagerduty) GetOnCallsByEscalationPolicy(policyID string) []pagerduty.OnCall {
 	var result []pagerduty.OnCall
-	s.objects.Range(func(key, value interface{}) bool {
+	s.objects.Range(func(key, value any) bool {
 		if key, ok := key.(string); !ok || !strings.HasPrefix(key, "oncall-") {
 			return true
 		}

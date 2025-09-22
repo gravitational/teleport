@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgproto3/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -159,7 +160,7 @@ func TestClose(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				var buf []byte
 				_, err := tc.conn.Read(buf[0:])
-				assert.ErrorIs(t, err, io.EOF)
+				require.ErrorIs(t, err, io.EOF)
 			}, 5*time.Second, time.Millisecond)
 
 			if !tt.expectTerminateMessage {
@@ -178,14 +179,34 @@ func TestClose(t *testing.T) {
 func TestConnectionError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	instance, tc := StartWithServer(t, ctx, WithSkipREPLRun())
+	tests := []struct {
+		desc            string
+		modifyTestCtx   func(tc *testCtx)
+		wantErrContains string
+	}{
+		{
+			desc: "closed server",
+			// Force the server to be closed
+			modifyTestCtx:   func(tc *testCtx) { tc.CloseServer() },
+			wantErrContains: "failed to write startup message",
+		},
+		{
+			desc:            "access denied",
+			modifyTestCtx:   func(tc *testCtx) { tc.denyAccess = true },
+			wantErrContains: "server error (ERROR: access to db denied (SQLSTATE 28000))",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			instance, tc := StartWithServer(t, ctx, WithSkipREPLRun())
 
-	// Force the server to be closed
-	tc.CloseServer()
-
-	err := instance.Run(ctx)
-	require.Error(t, err)
-	require.True(t, trace.IsConnectionProblem(err), "expected run to be a connection error but got %T", err)
+			test.modifyTestCtx(tc)
+			err := instance.Run(ctx)
+			require.Error(t, err)
+			require.True(t, trace.IsConnectionProblem(err), "expected run to be a connection error but got %T", err)
+			require.ErrorContains(t, err, test.wantErrContains)
+		})
+	}
 }
 
 func writeLine(t *testing.T, c *testCtx, line string) {
@@ -212,13 +233,9 @@ func writeLine(t *testing.T, c *testCtx, line string) {
 		}
 	}(c.conn)
 
-	// Given that the test connections are piped a problem with the reader side
-	// would lead into blocking writing. To avoid this scenario we're using
-	// the Eventually just to ensure a timeout on writing into the connections.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := c.conn.Write(data)
-		assert.NoError(t, err)
-	}, 5*time.Second, time.Millisecond, "expected to write into the connection successfully")
+	time.Sleep(time.Millisecond)
+	_, err := c.conn.Write(data)
+	assert.NoError(t, err)
 }
 
 // readUntilNextLead reads the contents from the client connection until we
@@ -249,8 +266,8 @@ func readLine(t *testing.T, c *testCtx) string {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var err error
 		n, err = c.conn.Read(buf[0:])
-		assert.NoError(t, err)
-		assert.Greater(t, n, 0)
+		require.NoError(t, err)
+		require.Greater(t, n, 0)
 	}, 5*time.Second, time.Millisecond)
 	return string(buf[:n])
 }
@@ -259,6 +276,8 @@ type testCtx struct {
 	cfg        *testCtxConfig
 	ctx        context.Context
 	cancelFunc context.CancelFunc
+	// denyAccess controls whether access is denied during authentication
+	denyAccess bool
 
 	// conn is the connection used by tests to read/write from/to the REPL.
 	conn net.Conn
@@ -399,11 +418,24 @@ func (tc *testCtx) processMessages() error {
 
 	startupMessage, err := tc.pgClient.ReceiveStartupMessage()
 	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
 	switch msg := startupMessage.(type) {
 	case *pgproto3.StartupMessage:
+		if tc.denyAccess {
+			if err := tc.pgClient.Send(&pgproto3.ErrorResponse{
+				Severity: "ERROR",
+				Code:     pgerrcode.InvalidAuthorizationSpecification,
+				Message:  "access to db denied",
+			}); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
 		// Accept auth and send ready for query.
 		if err := tc.pgClient.Send(&pgproto3.AuthenticationOk{}); err != nil {
 			return trace.Wrap(err)

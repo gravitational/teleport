@@ -19,6 +19,8 @@
 package bitbucket
 
 import (
+	"github.com/zitadel/oidc/v3/pkg/oidc"
+
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
@@ -26,6 +28,8 @@ import (
 // See the following for the structure:
 // https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/
 type IDTokenClaims struct {
+	oidc.TokenClaims
+
 	// Sub provides some information about the Bitbucket Pipelines run that
 	// generated this token. Format: {RepositoryUUID}:{StepUUID}
 	Sub string `json:"sub"`
@@ -57,6 +61,10 @@ type IDTokenClaims struct {
 
 	// BranchName is the name of the branch on which this pipeline executed.
 	BranchName string `json:"branchName"`
+}
+
+func (c *IDTokenClaims) GetSubject() string {
+	return c.Sub
 }
 
 // JoinAttrs returns the protobuf representation of the attested identity.

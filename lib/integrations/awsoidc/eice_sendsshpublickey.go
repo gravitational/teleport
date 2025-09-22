@@ -20,92 +20,103 @@ package awsoidc
 
 import (
 	"context"
+	"net"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
-// EICESendSSHPublicKeyClient describes the required methods to send an SSH Public Key to
-// an EC2 Instance.
-// This is is remains for 60 seconds and is removed afterwards.
-type EICESendSSHPublicKeyClient interface {
-	// SendSSHPublicKey pushes an SSH public key to the specified EC2 instance for use by the specified
-	// user. The key remains for 60 seconds. For more information, see Connect to your
-	// Linux instance using EC2 Instance Connect (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Connect-using-EC2-Instance-Connect.html)
-	// in the Amazon EC2 User Guide.
-	SendSSHPublicKey(ctx context.Context, params *ec2instanceconnect.SendSSHPublicKeyInput, optFns ...func(*ec2instanceconnect.Options)) (*ec2instanceconnect.SendSSHPublicKeyOutput, error)
-}
-
-type defaultEICESendSSHPublicKeyClient struct {
-	*ec2instanceconnect.Client
-}
-
-// NewEICESendSSHPublicKeyClient creates a EICESendSSHPublicKeyClient using AWSClientRequest.
-func NewEICESendSSHPublicKeyClient(ctx context.Context, clientReq *AWSClientRequest) (EICESendSSHPublicKeyClient, error) {
-	ec2instanceconnectClient, err := newEC2InstanceConnectClient(ctx, clientReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &defaultEICESendSSHPublicKeyClient{
-		Client: ec2instanceconnectClient,
-	}, nil
-}
-
-// SendSSHPublicKeyToEC2Request contains the required fields to request the upload of an SSH Public Key.
-type SendSSHPublicKeyToEC2Request struct {
-	// InstanceID is the EC2 Instance's ID.
-	InstanceID string
-
-	// EC2SSHLoginUser is the OS user to use when the user wants SSH access.
-	EC2SSHLoginUser string
-
-	// PublicKey is the SSH public key to send.
-	PublicKey ssh.PublicKey
-}
-
-// CheckAndSetDefaults checks if the required fields are present.
-func (r *SendSSHPublicKeyToEC2Request) CheckAndSetDefaults() error {
-	if r.InstanceID == "" {
-		return trace.BadParameter("instance id is required")
-	}
-
-	if r.EC2SSHLoginUser == "" {
-		return trace.BadParameter("ec2 ssh login user is required")
-	}
-
-	if r.PublicKey == nil {
-		return trace.BadParameter("SSH public key is required")
-	}
-
-	return nil
-}
-
-// SendSSHPublicKeyToEC2 sends an SSH Public Key to a target EC2 Instance.
-// This key will be removed by AWS after 60 seconds and can only be used to authenticate the EC2SSHLoginUser.
-// An [ssh.Signer] is then returned and can be used to access the host.
-func SendSSHPublicKeyToEC2(ctx context.Context, clt EICESendSSHPublicKeyClient, req SendSSHPublicKeyToEC2Request) error {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := sendSSHPublicKey(ctx, clt, req); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// sendSSHPublicKey creates a new Private Key and uploads the Public to the ec2 instance.
-// This key will be removed by AWS after 60 seconds and can only be used to authenticate the EC2SSHLoginUser.
+// GenerateAndUploadKey creates ephemeral SSH credentials and uploads the public key to the target instance.
+// The returned [ssh.Signer] must be used by clients to connect to the target instanace. The credentials
+// will be removed by AWS after 60 seconds and can only be used to authenticate the provided [login].
 // More information: https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
-func sendSSHPublicKey(ctx context.Context, clt EICESendSSHPublicKeyClient, req SendSSHPublicKeyToEC2Request) error {
-	pubKeySSH := string(ssh.MarshalAuthorizedKey(req.PublicKey))
-	_, err := clt.SendSSHPublicKey(ctx,
-		&ec2instanceconnect.SendSSHPublicKeyInput{
-			InstanceId:     &req.InstanceID,
-			InstanceOSUser: &req.EC2SSHLoginUser,
-			SSHPublicKey:   &pubKeySSH,
-		},
-	)
-	return trace.Wrap(err)
+func GenerateAndUploadKey(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
+	awsInfo := target.GetAWSInfo()
+	if awsInfo == nil {
+		return nil, trace.BadParameter("missing aws cloud metadata")
+	}
+
+	if awsInfo.InstanceID == "" {
+		return nil, trace.BadParameter("instance id is required")
+	}
+
+	if login == "" {
+		return nil, trace.BadParameter("ec2 ssh login user is required")
+	}
+
+	if integration == nil || integration.GetAWSOIDCIntegrationSpec() == nil {
+		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
+	}
+
+	ec2instanceconnectClient, err := newEC2InstanceConnectClient(ctx, &AWSClientRequest{
+		Token:   token,
+		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:  awsInfo.Region,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to create an aws client to send ssh public key:  %v", err)
+	}
+
+	sshKey, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(ap),
+		cryptosuites.EC2InstanceConnect)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating SSH key")
+	}
+	sshSigner, err := ssh.NewSignerFromSigner(sshKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SSH signer")
+	}
+
+	if _, err := ec2instanceconnectClient.SendSSHPublicKey(ctx, &ec2instanceconnect.SendSSHPublicKeyInput{
+		InstanceId:     aws.String(awsInfo.InstanceID),
+		InstanceOSUser: aws.String(login),
+		SSHPublicKey:   aws.String(string(ssh.MarshalAuthorizedKey(sshSigner.PublicKey()))),
+	}); err != nil {
+		return nil, trace.BadParameter("send ssh public key failed for instance %s: %v", awsInfo.InstanceID, err)
+	}
+
+	// This is the SSH Signer that the client must use to connect to the EC2.
+	// This signer is trusted because the public key was sent to the target EC2 host.
+	return sshSigner, nil
+}
+
+// DialInstance opens a tunnel to the target host and returns a [net.Conn] that
+// may be used to connect to the instance.
+func DialInstance(ctx context.Context, target types.Server, integration types.Integration, token string) (net.Conn, error) {
+	awsInfo := target.GetAWSInfo()
+	if awsInfo == nil {
+		return nil, trace.BadParameter("missing aws cloud metadata")
+	}
+
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
+	}
+
+	openTunnelClt, err := newOpenTunnelEC2Client(ctx, &AWSClientRequest{
+		Token:   token,
+		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:  awsInfo.Region,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to create the ec2 open tunnel client: %v", err)
+	}
+
+	openTunnelResp, err := openTunnelEC2(ctx, openTunnelClt, OpenTunnelEC2Request{
+		Region:        awsInfo.Region,
+		VPCID:         awsInfo.VPCID,
+		EC2InstanceID: awsInfo.InstanceID,
+		EC2Address:    target.GetAddr(),
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to open AWS EC2 Instance Connect Endpoint tunnel: %v", err)
+	}
+
+	// OpenTunnelResp has the tcp connection that should be used to access the EC2 instance directly.
+	return openTunnelResp.Tunnel, nil
 }

@@ -48,7 +48,7 @@ func tableView(width int, first, second column) string {
 		Align(lipgloss.Left)
 
 	var rows []string
-	for i := 0; i < len(first.content); i++ {
+	for i := range first.content {
 		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Left,
 			leftColumn.Render(first.content[i]),
 			rightColumn.Render(second.content[i]),

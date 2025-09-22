@@ -211,10 +211,10 @@ func TestVariable(t *testing.T) {
 func TestInterpolate(t *testing.T) {
 	t.Parallel()
 
-	errCheckIsNotFound := func(tt require.TestingT, err error, i ...interface{}) {
+	errCheckIsNotFound := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsNotFound(err), "expected not found error, got %v", err)
 	}
-	errCheckIsBadParameter := func(tt require.TestingT, err error, i ...interface{}) {
+	errCheckIsBadParameter := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
 	}
 	type result struct {

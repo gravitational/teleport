@@ -205,6 +205,7 @@ func MigrateWithAWS(ctx context.Context, cfg Config, awsCfg aws.Config) error {
 		return trace.Wrap(err)
 	}
 
+	// TODO(Joerger): Take the exportARN from the checkpoint file rather than starting a new export.
 	exportInfo, err := t.GetOrStartExportAndWaitForResults(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -361,9 +362,15 @@ func (t *task) getDataObjectsInfo(ctx context.Context, manifestPath string) ([]d
 }
 
 func (t *task) getEventsFromDataFiles(ctx context.Context, exportInfo *exportInfo, eventsC chan<- apievents.AuditEvent) error {
+	// TODO(Joerger): Rather than loading the checkpoint and prompting the user after completing the export step,
+	// this should be done at the beginning of program execution.
 	checkpoint, err := t.loadEmitterCheckpoint(ctx, exportInfo.ExportARN)
 	if err != nil {
-		return trace.Wrap(err)
+		t.Logger.InfoContext(ctx, "Failed to load checkpoint file from previous migration attempt", "file", t.CheckpointPath, "error", err)
+		_, err := prompt.Confirmation(ctx, os.Stdout, prompt.Stdin(), fmt.Sprintf("It seems that a previous migration %s stopped with error and there was an issue resuming it. Would you like to start a new migration?", exportInfo.ExportARN))
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if checkpoint != nil {
@@ -662,12 +669,12 @@ func (pq *priorityQueue) Swap(i, j int) {
 	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
 }
 
-func (pq *priorityQueue) Push(x interface{}) {
+func (pq *priorityQueue) Push(x any) {
 	item := x.(*fileLine)
 	*pq = append(*pq, item)
 }
 
-func (pq *priorityQueue) Pop() interface{} {
+func (pq *priorityQueue) Pop() any {
 	old := *pq
 	n := len(old)
 	item := old[n-1]
@@ -774,6 +781,7 @@ func (t *task) loadEmitterCheckpoint(ctx context.Context, exportARN string) (*ch
 		}
 		return nil, trace.Wrap(err)
 	}
+
 	var out checkpointData
 	if err := json.Unmarshal(bb, &out); err != nil {
 		return nil, trace.Wrap(err)
@@ -842,8 +850,7 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 
 	errG, workerCtx := errgroup.WithContext(ctx)
 
-	for i := 0; i < t.NoOfEmitWorkers; i++ {
-		i := i
+	for i := range t.NoOfEmitWorkers {
 		errG.Go(func() error {
 			for {
 				select {

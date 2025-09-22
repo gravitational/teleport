@@ -41,17 +41,19 @@ func TestApps(t *testing.T) {
 	testResources(t, p, testFuncs[types.Application]{
 		newResource: func(name string) (types.Application, error) {
 			return types.NewAppV3(types.Metadata{
-				Name: "foo",
+				Name: name,
 			}, types.AppSpecV3{
 				URI: "localhost",
 			})
 		},
-		create:    p.apps.CreateApp,
-		list:      p.apps.GetApps,
-		cacheGet:  p.cache.GetApp,
-		cacheList: p.cache.GetApps,
-		update:    p.apps.UpdateApp,
-		deleteAll: p.apps.DeleteAllApps,
+		create:     p.apps.CreateApp,
+		list:       p.apps.ListApps,
+		Range:      p.apps.Apps,
+		cacheGet:   p.cache.GetApp,
+		cacheList:  p.cache.ListApps,
+		cacheRange: p.cache.Apps,
+		update:     p.apps.UpdateApp,
+		deleteAll:  p.apps.DeleteAllApps,
 	})
 }
 
@@ -71,17 +73,17 @@ func TestApplicationServers(t *testing.T) {
 				return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 			},
 			create: withKeepalive(p.presenceS.UpsertApplicationServer),
-			list: func(ctx context.Context) ([]types.AppServer, error) {
+			list: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
 				return p.presenceS.GetApplicationServers(ctx, apidefaults.Namespace)
-			},
-			cacheList: func(ctx context.Context) ([]types.AppServer, error) {
+			}),
+			cacheList: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
 				return p.cache.GetApplicationServers(ctx, apidefaults.Namespace)
-			},
+			}),
 			update: withKeepalive(p.presenceS.UpsertApplicationServer),
 			deleteAll: func(ctx context.Context) error {
 				return p.presenceS.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 			},
-		})
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListResources", func(t *testing.T) {
@@ -92,55 +94,43 @@ func TestApplicationServers(t *testing.T) {
 				return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 			},
 			create: withKeepalive(p.presenceS.UpsertApplicationServer),
-			list: func(ctx context.Context) ([]types.AppServer, error) {
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.AppServer, string, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindAppServer,
+					StartKey:     pageToken,
+					Limit:        int32(pageSize),
 				}
 
 				var out []types.AppServer
-				for {
-					resp, err := p.presenceS.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.AppServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
+				resp, err := p.presenceS.ListResources(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
 
-				return out, nil
+				for _, s := range resp.Resources {
+					out = append(out, s.(types.AppServer))
+				}
+
+				return out, resp.NextKey, nil
 			},
-			cacheList: func(ctx context.Context) ([]types.AppServer, error) {
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.AppServer, string, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindAppServer,
+					Limit:        int32(pageSize),
+					StartKey:     pageToken,
 				}
 
 				var out []types.AppServer
-				for {
-					resp, err := p.cache.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.AppServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
+				resp, err := p.cache.ListResources(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
 
-				return out, nil
+				for _, s := range resp.Resources {
+					out = append(out, s.(types.AppServer))
+				}
+
+				return out, resp.NextKey, nil
 
 			},
 			update: withKeepalive(p.presenceS.UpsertApplicationServer),

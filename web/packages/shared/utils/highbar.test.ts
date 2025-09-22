@@ -349,11 +349,6 @@ describe('equalsDeep', () => {
       desktop_directory_sharing: true,
       enhanced_recording: ['command', 'network'],
       forward_agent: false,
-      idp: {
-        saml: {
-          enabled: true,
-        },
-      },
       max_session_ttl: '30h0m0s',
       pin_source_ip: false,
       port_forwarding: true,
@@ -365,12 +360,6 @@ describe('equalsDeep', () => {
     });
 
     expect(equalsDeep(makeOptions(), makeOptions())).toBe(true);
-    expect(
-      equalsDeep(makeOptions(), {
-        ...makeOptions(),
-        idp: { saml: { enabled: false } },
-      })
-    ).toBe(false);
     expect(
       equalsDeep(makeOptions(), {
         ...makeOptions(),

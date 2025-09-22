@@ -35,11 +35,17 @@ import { UpsertAccessListWithMembersResponse } from "./accesslist_service_pb";
 import { UpsertAccessListWithMembersRequest } from "./accesslist_service_pb";
 import { DeleteAllAccessListMembersRequest } from "./accesslist_service_pb";
 import { DeleteAllAccessListMembersForAccessListRequest } from "./accesslist_service_pb";
+import { DeleteStaticAccessListMemberResponse } from "./accesslist_service_pb";
+import { DeleteStaticAccessListMemberRequest } from "./accesslist_service_pb";
 import { DeleteAccessListMemberRequest } from "./accesslist_service_pb";
 import { UpdateAccessListMemberRequest } from "./accesslist_service_pb";
+import { UpsertStaticAccessListMemberResponse } from "./accesslist_service_pb";
+import { UpsertStaticAccessListMemberRequest } from "./accesslist_service_pb";
 import { UpsertAccessListMemberRequest } from "./accesslist_service_pb";
 import { GetAccessListOwnersResponse } from "./accesslist_service_pb";
 import { GetAccessListOwnersRequest } from "./accesslist_service_pb";
+import { GetStaticAccessListMemberResponse } from "./accesslist_service_pb";
+import { GetStaticAccessListMemberRequest } from "./accesslist_service_pb";
 import { Member } from "./accesslist_pb";
 import { GetAccessListMemberRequest } from "./accesslist_service_pb";
 import { ListAllAccessListMembersResponse } from "./accesslist_service_pb";
@@ -57,6 +63,8 @@ import { UpdateAccessListRequest } from "./accesslist_service_pb";
 import { UpsertAccessListRequest } from "./accesslist_service_pb";
 import { AccessList } from "./accesslist_pb";
 import { GetAccessListRequest } from "./accesslist_service_pb";
+import { ListAccessListsV2Response } from "./accesslist_service_pb";
+import { ListAccessListsV2Request } from "./accesslist_service_pb";
 import { ListAccessListsResponse } from "./accesslist_service_pb";
 import { ListAccessListsRequest } from "./accesslist_service_pb";
 import { GetAccessListsResponse } from "./accesslist_service_pb";
@@ -76,10 +84,18 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
     getAccessLists: grpc.handleUnaryCall<GetAccessListsRequest, GetAccessListsResponse>;
     /**
      * ListAccessLists returns a paginated list of all access lists.
+     * Deprecated: Use ListAccessListsV2 instead.
      *
+     * @deprecated
      * @generated from protobuf rpc: ListAccessLists(teleport.accesslist.v1.ListAccessListsRequest) returns (teleport.accesslist.v1.ListAccessListsResponse);
      */
     listAccessLists: grpc.handleUnaryCall<ListAccessListsRequest, ListAccessListsResponse>;
+    /**
+     * ListAccessListsV2 returns a paginated, filtered, and sorted list of all access lists.
+     *
+     * @generated from protobuf rpc: ListAccessListsV2(teleport.accesslist.v1.ListAccessListsV2Request) returns (teleport.accesslist.v1.ListAccessListsV2Response);
+     */
+    listAccessListsV2: grpc.handleUnaryCall<ListAccessListsV2Request, ListAccessListsV2Response>;
     /**
      * GetAccessList returns the specified access list resource.
      *
@@ -144,6 +160,14 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      */
     getAccessListMember: grpc.handleUnaryCall<GetAccessListMemberRequest, Member>;
     /**
+     * GetStaticAccessListMember returns the specified access_list_member resource. If returns error
+     * if the target access_list is not of type static.  This API is there for the IaC tools to
+     * prevent them from making changes to members of dynamic access lists.
+     *
+     * @generated from protobuf rpc: GetStaticAccessListMember(teleport.accesslist.v1.GetStaticAccessListMemberRequest) returns (teleport.accesslist.v1.GetStaticAccessListMemberResponse);
+     */
+    getStaticAccessListMember: grpc.handleUnaryCall<GetStaticAccessListMemberRequest, GetStaticAccessListMemberResponse>;
+    /**
      * GetAccessListOwners returns a list of all owners in an Access List,
      * including those inherited from nested Access Lists.
      *
@@ -157,6 +181,14 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      */
     upsertAccessListMember: grpc.handleUnaryCall<UpsertAccessListMemberRequest, Member>;
     /**
+     * UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns
+     * error and does nothing if the target access_list is not of type static. This API is there for
+     * the IaC tools to prevent them from making changes to members of dynamic access lists.
+     *
+     * @generated from protobuf rpc: UpsertStaticAccessListMember(teleport.accesslist.v1.UpsertStaticAccessListMemberRequest) returns (teleport.accesslist.v1.UpsertStaticAccessListMemberResponse);
+     */
+    upsertStaticAccessListMember: grpc.handleUnaryCall<UpsertStaticAccessListMemberRequest, UpsertStaticAccessListMemberResponse>;
+    /**
      * UpdateAccessListMember conditionally updates an access list member resource.
      *
      * @generated from protobuf rpc: UpdateAccessListMember(teleport.accesslist.v1.UpdateAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
@@ -169,6 +201,14 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: DeleteAccessListMember(teleport.accesslist.v1.DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
      */
     deleteAccessListMember: grpc.handleUnaryCall<DeleteAccessListMemberRequest, Empty>;
+    /**
+     * DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error
+     * and does nothing if the target access_list is not of static type. This API is there for the
+     * IaC tools to prevent them from making changes to members of dynamic access lists.
+     *
+     * @generated from protobuf rpc: DeleteStaticAccessListMember(teleport.accesslist.v1.DeleteStaticAccessListMemberRequest) returns (teleport.accesslist.v1.DeleteStaticAccessListMemberResponse);
+     */
+    deleteStaticAccessListMember: grpc.handleUnaryCall<DeleteStaticAccessListMemberRequest, DeleteStaticAccessListMemberResponse>;
     /**
      * DeleteAllAccessListMembers hard deletes all access list members for an
      * access list.
@@ -268,6 +308,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         requestDeserialize: bytes => ListAccessListsRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(ListAccessListsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListAccessListsRequest.toBinary(value))
+    },
+    listAccessListsV2: {
+        path: "/teleport.accesslist.v1.AccessListService/ListAccessListsV2",
+        originalName: "ListAccessListsV2",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ListAccessListsV2Response.fromBinary(bytes),
+        requestDeserialize: bytes => ListAccessListsV2Request.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ListAccessListsV2Response.toBinary(value)),
+        requestSerialize: value => Buffer.from(ListAccessListsV2Request.toBinary(value))
     },
     getAccessList: {
         path: "/teleport.accesslist.v1.AccessListService/GetAccessList",
@@ -369,6 +419,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         responseSerialize: value => Buffer.from(Member.toBinary(value)),
         requestSerialize: value => Buffer.from(GetAccessListMemberRequest.toBinary(value))
     },
+    getStaticAccessListMember: {
+        path: "/teleport.accesslist.v1.AccessListService/GetStaticAccessListMember",
+        originalName: "GetStaticAccessListMember",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetStaticAccessListMemberResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetStaticAccessListMemberRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetStaticAccessListMemberResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetStaticAccessListMemberRequest.toBinary(value))
+    },
     getAccessListOwners: {
         path: "/teleport.accesslist.v1.AccessListService/GetAccessListOwners",
         originalName: "GetAccessListOwners",
@@ -389,6 +449,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         responseSerialize: value => Buffer.from(Member.toBinary(value)),
         requestSerialize: value => Buffer.from(UpsertAccessListMemberRequest.toBinary(value))
     },
+    upsertStaticAccessListMember: {
+        path: "/teleport.accesslist.v1.AccessListService/UpsertStaticAccessListMember",
+        originalName: "UpsertStaticAccessListMember",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => UpsertStaticAccessListMemberResponse.fromBinary(bytes),
+        requestDeserialize: bytes => UpsertStaticAccessListMemberRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(UpsertStaticAccessListMemberResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(UpsertStaticAccessListMemberRequest.toBinary(value))
+    },
     updateAccessListMember: {
         path: "/teleport.accesslist.v1.AccessListService/UpdateAccessListMember",
         originalName: "UpdateAccessListMember",
@@ -408,6 +478,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         requestDeserialize: bytes => DeleteAccessListMemberRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(Empty.toBinary(value)),
         requestSerialize: value => Buffer.from(DeleteAccessListMemberRequest.toBinary(value))
+    },
+    deleteStaticAccessListMember: {
+        path: "/teleport.accesslist.v1.AccessListService/DeleteStaticAccessListMember",
+        originalName: "DeleteStaticAccessListMember",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => DeleteStaticAccessListMemberResponse.fromBinary(bytes),
+        requestDeserialize: bytes => DeleteStaticAccessListMemberRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(DeleteStaticAccessListMemberResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(DeleteStaticAccessListMemberRequest.toBinary(value))
     },
     deleteAllAccessListMembersForAccessList: {
         path: "/teleport.accesslist.v1.AccessListService/DeleteAllAccessListMembersForAccessList",

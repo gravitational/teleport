@@ -86,7 +86,7 @@ func TestGetUpsertBatchSize(t *testing.T) {
 
 func generateServerInfos(t *testing.T, n int) []types.ServerInfo {
 	serverInfos := make([]types.ServerInfo, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		si, err := types.NewServerInfo(types.Metadata{
 			Name:   fmt.Sprintf("instance-%d", i),
 			Labels: map[string]string{"foo": "bar"},
@@ -129,7 +129,7 @@ func TestLabelReconciler(t *testing.T) {
 	}
 
 	clock.BlockUntil(1)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		clock.Advance(time.Second)
 		var upsertedServerInfos []types.ServerInfo
 	outer:

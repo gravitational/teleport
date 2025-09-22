@@ -27,12 +27,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -155,15 +153,16 @@ func TestPluginsInstallOkta(t *testing.T) {
 				install: pluginInstallArgs{
 					name: "okta-sync-service-test",
 					okta: oktaArgs{
-						org:            mustParseURL("https://example.okta.com"),
-						apiToken:       "api-token-goes-here",
-						samlConnector:  "saml-connector-name",
-						userSync:       true,
-						accessListSync: true,
-						appGroupSync:   true,
-						defaultOwners:  []string{"admin"},
-						groupFilters:   []string{"group-alpha", "group-beta"},
-						appFilters:     []string{"app-gamma", "app-delta", "app-epsilon"},
+						org:                mustParseURL("https://example.okta.com"),
+						apiToken:           "api-token-goes-here",
+						samlConnector:      "saml-connector-name",
+						userSync:           true,
+						assignDefaultRoles: true,
+						accessListSync:     true,
+						appGroupSync:       true,
+						defaultOwners:      []string{"admin"},
+						groupFilters:       []string{"group-alpha", "group-beta"},
+						appFilters:         []string{"app-gamma", "app-delta", "app-epsilon"},
 					},
 				},
 			},
@@ -222,17 +221,18 @@ func TestPluginsInstallOkta(t *testing.T) {
 				install: pluginInstallArgs{
 					name: "okta-scim-test",
 					okta: oktaArgs{
-						org:            mustParseURL("https://example.okta.com"),
-						apiToken:       "api-token-goes-here",
-						appID:          "okta-app-id",
-						samlConnector:  "teleport-saml-connector-id",
-						scimToken:      "i am a scim token",
-						userSync:       true,
-						accessListSync: true,
-						appGroupSync:   true,
-						defaultOwners:  []string{"admin"},
-						groupFilters:   []string{"group-alpha", "group-beta"},
-						appFilters:     []string{"app-gamma", "app-delta", "app-epsilon"},
+						org:                mustParseURL("https://example.okta.com"),
+						apiToken:           "api-token-goes-here",
+						appID:              "okta-app-id",
+						samlConnector:      "teleport-saml-connector-id",
+						scimToken:          "i am a scim token",
+						userSync:           true,
+						assignDefaultRoles: true,
+						accessListSync:     true,
+						appGroupSync:       true,
+						defaultOwners:      []string{"admin"},
+						groupFilters:       []string{"group-alpha", "group-beta"},
+						appFilters:         []string{"app-gamma", "app-delta", "app-epsilon"},
 					},
 				},
 			},
@@ -308,11 +308,12 @@ func TestPluginsInstallOkta(t *testing.T) {
 				install: pluginInstallArgs{
 					name: "okta-barebones-test",
 					okta: oktaArgs{
-						org:           mustParseURL("https://example.okta.com"),
-						samlConnector: "okta-integration",
-						apiToken:      "api-token-goes-here",
-						appGroupSync:  false,
-						scimToken:     "OktaCredPurposeSCIMToken",
+						org:                mustParseURL("https://example.okta.com"),
+						samlConnector:      "okta-integration",
+						apiToken:           "api-token-goes-here",
+						appGroupSync:       false,
+						scimToken:          "OktaCredPurposeSCIMToken",
+						assignDefaultRoles: true,
 					},
 				},
 			},
@@ -361,6 +362,127 @@ func TestPluginsInstallOkta(t *testing.T) {
 			},
 			expectError: require.NoError,
 		},
+		{
+			name: "scim-only can disable default roles assignment",
+			cmd: PluginsCommand{
+				install: pluginInstallArgs{
+					name: "okta",
+					okta: oktaArgs{
+						org:                mustParseURL("https://example.okta.com"),
+						samlConnector:      "okta-integration",
+						apiToken:           "api-token-goes-here",
+						scimToken:          "test-scim-token",
+						assignDefaultRoles: false,
+					},
+				},
+			},
+			expectSAMLConnectorQuery: "okta-integration",
+			expectPing:               true,
+			expectRequest: &pluginsv1.CreatePluginRequest{
+				Plugin: &types.PluginV1{
+					SubKind: types.PluginSubkindAccess,
+					Metadata: types.Metadata{
+						Labels: map[string]string{
+							types.HostedPluginLabel: "true",
+						},
+						Name: "okta",
+					},
+					Spec: types.PluginSpecV1{
+						Settings: &types.PluginSpecV1_Okta{
+							Okta: &types.PluginOktaSettings{
+								OrgUrl: "https://example.okta.com",
+								SyncSettings: &types.PluginOktaSyncSettings{
+									SsoConnectorId:            "okta-integration",
+									DisableAssignDefaultRoles: true,
+								},
+							},
+						},
+					},
+				},
+				StaticCredentialsList: []*types.PluginStaticCredentialsV1{
+					{
+						ResourceHeader: types.ResourceHeader{
+							Metadata: types.Metadata{
+								Name: "okta",
+								Labels: map[string]string{
+									types.OktaCredPurposeLabel: types.CredPurposeOKTAAPITokenWithSCIMOnlyIntegration,
+								},
+							},
+						},
+						Spec: &types.PluginStaticCredentialsSpecV1{
+							Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+								APIToken: "api-token-goes-here",
+							},
+						},
+					},
+				},
+				CredentialLabels: map[string]string{
+					types.OktaOrgURLLabel: "https://example.okta.com",
+				},
+			},
+			expectError: require.NoError,
+		},
+		{
+			name: "disable default roles assignment",
+			cmd: PluginsCommand{
+				install: pluginInstallArgs{
+					name: "okta",
+					okta: oktaArgs{
+						org:                mustParseURL("https://okta.example.com"),
+						samlConnector:      "okta-integration",
+						apiToken:           "api-token-goes-here",
+						userSync:           true,
+						assignDefaultRoles: false,
+						appGroupSync:       true,
+					},
+				},
+			},
+			expectSAMLConnectorQuery: "okta-integration",
+			expectRequest: &pluginsv1.CreatePluginRequest{
+				Plugin: &types.PluginV1{
+					SubKind: types.PluginSubkindAccess,
+					Metadata: types.Metadata{
+						Labels: map[string]string{
+							types.HostedPluginLabel: "true",
+						},
+						Name: "okta",
+					},
+					Spec: types.PluginSpecV1{
+						Settings: &types.PluginSpecV1_Okta{
+							Okta: &types.PluginOktaSettings{
+								OrgUrl: "https://okta.example.com",
+								SyncSettings: &types.PluginOktaSyncSettings{
+									SsoConnectorId:            "okta-integration",
+									SyncUsers:                 true,
+									DisableAssignDefaultRoles: true,
+								},
+							},
+						},
+					},
+				},
+				StaticCredentialsList: []*types.PluginStaticCredentialsV1{
+					{
+						ResourceHeader: types.ResourceHeader{
+							Metadata: types.Metadata{
+								Name: "okta",
+								Labels: map[string]string{
+									types.OktaCredPurposeLabel: types.OktaCredPurposeAuth,
+								},
+							},
+						},
+						Spec: &types.PluginStaticCredentialsSpecV1{
+							Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+								APIToken: "api-token-goes-here",
+							},
+						},
+					},
+				},
+				CredentialLabels: map[string]string{
+					types.OktaOrgURLLabel: "https://okta.example.com",
+				},
+			},
+			expectError: require.NoError,
+		},
 	}
 
 	cmpOptions := []cmp.Option{
@@ -379,7 +501,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			var args installPluginArgs
+			var args pluginServices
 
 			if testCase.expectRequest != nil {
 				pluginsClient := &mockPluginsClient{}
@@ -428,9 +550,14 @@ func TestPluginsInstallOkta(t *testing.T) {
 	}
 }
 
-func requireBadParameter(t require.TestingT, err error, _ ...any) {
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "Expecting bad parameter, got %T: \"%v\"", err, err)
+func requireBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
+	var bpe *trace.BadParameterError
+	require.ErrorAs(t, err, &bpe, msgAndArgs...)
+}
+
+func requireAccessDenied(t require.TestingT, err error, msgAndArgs ...any) {
+	var ade *trace.AccessDeniedError
+	require.ErrorAs(t, err, &ade, msgAndArgs...)
 }
 
 func mustParseURL(text string) *url.URL {
@@ -440,84 +567,3 @@ func mustParseURL(text string) *url.URL {
 	}
 	return url
 }
-
-type mockPluginsClient struct {
-	mock.Mock
-}
-
-func (m *mockPluginsClient) CreatePlugin(ctx context.Context, in *pluginsv1.CreatePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*emptypb.Empty), result.Error(1)
-}
-
-func (m *mockPluginsClient) GetPlugin(ctx context.Context, in *pluginsv1.GetPluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*types.PluginV1), result.Error(1)
-}
-
-func (m *mockPluginsClient) UpdatePlugin(ctx context.Context, in *pluginsv1.UpdatePluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*types.PluginV1), result.Error(1)
-}
-
-func (m *mockPluginsClient) NeedsCleanup(ctx context.Context, in *pluginsv1.NeedsCleanupRequest, opts ...grpc.CallOption) (*pluginsv1.NeedsCleanupResponse, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*pluginsv1.NeedsCleanupResponse), result.Error(1)
-}
-
-func (m *mockPluginsClient) Cleanup(ctx context.Context, in *pluginsv1.CleanupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*emptypb.Empty), result.Error(1)
-}
-
-func (m *mockPluginsClient) DeletePlugin(ctx context.Context, in *pluginsv1.DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	result := m.Called(ctx, in, opts)
-	return result.Get(0).(*emptypb.Empty), result.Error(1)
-}
-
-type mockAuthClient struct {
-	mock.Mock
-}
-
-func (m *mockAuthClient) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
-	result := m.Called(ctx, id, withSecrets)
-	return result.Get(0).(types.SAMLConnector), result.Error(1)
-}
-func (m *mockAuthClient) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	result := m.Called(ctx, connector)
-	return result.Get(0).(types.SAMLConnector), result.Error(1)
-}
-func (m *mockAuthClient) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	result := m.Called(ctx, connector)
-	return result.Get(0).(types.SAMLConnector), result.Error(1)
-}
-func (m *mockAuthClient) CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	result := m.Called(ctx, ig)
-	return result.Get(0).(types.Integration), result.Error(1)
-}
-func (m *mockAuthClient) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
-	result := m.Called(ctx, ig)
-	return result.Get(0).(types.Integration), result.Error(1)
-}
-
-func (m *mockAuthClient) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	result := m.Called(ctx, name)
-	return result.Get(0).(types.Integration), result.Error(1)
-}
-
-func (m *mockAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
-	result := m.Called(ctx)
-	return result.Get(0).(proto.PingResponse), result.Error(1)
-}
-
-func (m *mockAuthClient) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
-	return &proto.MFAAuthenticateResponse{}, nil
-}
-
-func (m *mockAuthClient) GetRole(ctx context.Context, name string) (types.Role, error) {
-	result := m.Called(ctx, name)
-	return result.Get(0).(types.Role), result.Error(1)
-}
-
-// anyContext is an argument matcher for testify mocks that matches any context.
-var anyContext any = mock.MatchedBy(func(context.Context) bool { return true })

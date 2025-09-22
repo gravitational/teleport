@@ -38,9 +38,15 @@ export function useInfiniteScroll({
   const recreateObserver = useCallback(() => {
     observer.current?.disconnect();
     if (trigger.current) {
+      // multiple entries can be received even from a single target, so we loop
+      // through each entry to look for intersection:
+      // https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API#intersection_change_callbacks
       observer.current = new IntersectionObserver(entries => {
-        if (entries[0]?.isIntersecting) {
-          fetch();
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            fetch();
+            break;
+          }
         }
       });
       observer.current.observe(trigger.current);

@@ -18,6 +18,8 @@ package client
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -47,6 +49,38 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 
 // List returns the list of all web sessions
 func (r *webSessions) List(ctx context.Context) ([]types.WebSession, error) {
+	sessions, err := r.listStream(ctx)
+	if err != nil {
+		// TODO(espadolini): DELETE IN 19.0.0
+		if trace.IsNotImplemented(err) {
+			return r.listUnary(ctx)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return sessions, nil
+}
+
+func (r *webSessions) listStream(ctx context.Context) ([]types.WebSession, error) {
+	stream, err := r.c.grpc.StreamWebSessions(ctx, new(emptypb.Empty))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var sessions []types.WebSession
+	for {
+		session, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return sessions, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		sessions = append(sessions, session)
+	}
+}
+
+func (r *webSessions) listUnary(ctx context.Context) ([]types.WebSession, error) {
+	//nolint:staticcheck // this rpc is used as a fallback
 	resp, err := r.c.grpc.GetWebSessions(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -92,6 +92,11 @@ func ResourceNames[R Resource, S ~[]R](s S) iter.Seq[string] {
 	return iterutils.Map(GetName, slices.Values(s))
 }
 
+// CompareResourceByNames compares resources by their names.
+func CompareResourceByNames[R Resource](a, b R) int {
+	return strings.Compare(a.GetName(), b.GetName())
+}
+
 // ResourceDetails includes details about the resource
 type ResourceDetails struct {
 	Hostname     string
@@ -534,9 +539,19 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	if len(kinds) == 0 {
 		return true
 	}
+
 	resourceKind := resource.GetKind()
 	switch resourceKind {
-	case KindApp, KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
+	case KindApp:
+		if slices.Contains(kinds, KindApp) {
+			return true
+		}
+
+		// MCP server resources are subkinds of app resources, but it is
+		// possible for certain APIs like ListUnifiedResources to use KindMCP as
+		// a kind filter.
+		return resource.GetSubKind() == SubKindMCP && slices.Contains(kinds, KindMCP)
+	case KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
 		return slices.Contains(kinds, KindApp)
 	default:
 		return slices.Contains(kinds, resourceKind)
@@ -746,7 +761,7 @@ func GetRevision(v any) (string, error) {
 	case Resource:
 		return r.GetRevision(), nil
 	case ResourceMetadata:
-		return r.GetMetadata().Revision, nil
+		return r.GetMetadata().GetRevision(), nil
 	}
 	return "", trace.BadParameter("unable to determine revision from resource of type %T", v)
 }

@@ -33,13 +33,13 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
@@ -120,7 +120,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		require.Equal(t, "abc", execEvent.ForwardedBy)
 		require.Equal(t, expectedHostname, execEvent.ServerHostname)
 		require.Equal(t, "testNamespace", execEvent.ServerNamespace)
-		require.Equal(t, "xxx", execEvent.SessionID)
+		require.NotEqual(t, "xxx", execEvent.SessionID)
 		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
 		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
 		require.NotEmpty(t, events.EventID)

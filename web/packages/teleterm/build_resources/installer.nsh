@@ -10,8 +10,8 @@
 # https://nsis.sourceforge.io/EnVar_plug-in
 
 !macro customInstall
-    # Make EnVar define user env vars instead of system env vars.
-    EnVar::SetHKCU
+    # Make EnVar define system env vars since Connect is installed per-machine.
+    EnVar::SetHKLM
     EnVar::AddValue "Path" $INSTDIR\resources\bin
 
     nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" vnet-install-service'
@@ -25,17 +25,17 @@
 !macroend
 
 !macro customUnInstall
-    EnVar::SetHKCU
+    EnVar::SetHKLM
     # Inside the uninstaller, $INSTDIR is the directory where the uninstaller lies.
     # Fortunately, electron-builder puts the uninstaller directly into the actual installation dir.
     # https://nsis.sourceforge.io/Docs/Chapter4.html#varother
     EnVar::DeleteValue "Path" $INSTDIR\resources\bin
 
-    nsExec::ExecToStack 'sc delete TeleportVNet'
+    nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" vnet-uninstall-service'
     Pop $0 # ExitCode
     Pop $1 # Output
     ${If} $0 != 0
         MessageBox MB_ICONSTOP \
-            "sc delete TeleportVNet failed with exit code $0. Output: $1"
+            "tsh.exe vnet-uninstall-service failed with exit code $0. The uninstaller is going to continue. Output: $1"
     ${Endif}
 !macroend

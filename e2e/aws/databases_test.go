@@ -56,7 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestDatabases(t *testing.T) {
@@ -283,7 +283,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 		defer cancel()
 
 		databases, err := auth.GetAuthServer().GetDatabases(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// map the registered "db" resource names.
 		seen := map[string]struct{}{}
@@ -291,7 +291,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 			seen[db.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
-			assert.Contains(t, seen, name)
+			require.Contains(t, seen, name)
 		}
 	}, 3*time.Minute, 3*time.Second, "waiting for the discovery service to create db resources")
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -299,7 +299,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 		defer cancel()
 
 		servers, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// map the registered "db_server" resource names.
 		seen := map[string]struct{}{}
@@ -307,7 +307,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 			seen[s.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
-			assert.Contains(t, seen, name)
+			require.Contains(t, seen, name)
 		}
 	}, 1*time.Minute, time.Second, "waiting for the database service to heartbeat the databases")
 }
@@ -338,7 +338,7 @@ func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName
 		_ = conn.Close(ctx)
 	})
 	return &pgConn{
-		logger: utils.NewSlogLoggerForTests().With("test_name", t.Name()),
+		logger: logtest.With("test_name", t.Name()),
 		Conn:   conn,
 	}
 }
@@ -389,7 +389,7 @@ type pgConn struct {
 	*pgx.Conn
 }
 
-func (c *pgConn) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+func (c *pgConn) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	var out pgconn.CommandTag
 	err := withRetry(ctx, c.logger, func() error {
 		var err error
@@ -418,7 +418,7 @@ func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
 
 	// retry a finite number of times before giving up.
 	const retries = 10
-	for i := 0; i < retries; i++ {
+	for range retries {
 		err := f()
 		if err == nil {
 			return nil
@@ -482,6 +482,6 @@ func waitForSuccess(t *testing.T, fn func() error, waitDur, tick time.Duration, 
 		return
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.NoError(t, fn())
+		require.NoError(t, fn())
 	}, waitDur, tick, msgAndArgs...)
 }

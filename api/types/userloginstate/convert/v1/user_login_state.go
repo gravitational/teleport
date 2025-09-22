@@ -32,13 +32,13 @@ func FromProto(msg *userloginstatev1.UserLoginState) (*userloginstate.UserLoginS
 		return nil, trace.BadParameter("spec is missing")
 	}
 
-	uls, err := userloginstate.New(headerv1.FromMetadataProto(msg.Header.Metadata), userloginstate.Spec{
-		OriginalRoles:  msg.Spec.GetOriginalRoles(),
-		OriginalTraits: traitv1.FromProto(msg.Spec.OriginalTraits),
-		Roles:          msg.Spec.Roles,
-		Traits:         traitv1.FromProto(msg.Spec.Traits),
-		UserType:       types.UserType(msg.Spec.UserType),
-		GitHubIdentity: externalIdentityFromProto(msg.Spec.GitHubIdentity),
+	uls, err := userloginstate.New(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), userloginstate.Spec{
+		OriginalRoles:  msg.GetSpec().GetOriginalRoles(),
+		OriginalTraits: traitv1.FromProto(msg.GetSpec().GetOriginalTraits()),
+		Roles:          msg.GetSpec().GetRoles(),
+		Traits:         traitv1.FromProto(msg.GetSpec().GetTraits()),
+		UserType:       types.UserType(msg.GetSpec().GetUserType()),
+		GitHubIdentity: externalIdentityFromProto(msg.GetSpec().GetGitHubIdentity()),
 	})
 
 	return uls, trace.Wrap(err)

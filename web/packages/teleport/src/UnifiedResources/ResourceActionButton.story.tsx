@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router';
 
 import { Flex, Stack, Text } from 'design';
@@ -26,6 +26,7 @@ import {
   awsConsoleApp,
   awsIamIcAccountApp,
   gcpCloudApp,
+  mcpApp,
 } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
@@ -123,6 +124,11 @@ export function ResourceActionButton() {
               ],
             })}
           />
+        </Stack>
+
+        <Stack>
+          <Text>MCP app</Text>
+          <Component resource={mcpApp} />
         </Stack>
       </Stack>
 

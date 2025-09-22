@@ -215,7 +215,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 					authServer = proxies[0].GetPublicAddr()
 				}
 			}
-			return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+			return nodeMessageTemplate.Execute(os.Stdout, map[string]any{
 				"token":       token,
 				"minutes":     int(c.ttl.Minutes()),
 				"roles":       strings.ToLower(roles.String()),

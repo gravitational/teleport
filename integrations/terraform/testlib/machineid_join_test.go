@@ -30,13 +30,15 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
 )
@@ -58,7 +60,7 @@ func TestTerraformJoin(t *testing.T) {
 
 	// Test setup: create a fake Kubernetes signer that will allow us to use the kubernetes/jwks join method
 	clock := clockwork.NewRealClock()
-	signer, err := fakejoin.NewKubernetesSigner(clock)
+	signer, err := fakeissuer.NewKubernetesSigner(clock)
 	require.NoError(t, err)
 
 	jwks, err := signer.GetMarshaledJWKS()
@@ -130,6 +132,138 @@ func TestTerraformJoin(t *testing.T) {
 			retry_max_tries = "12"
 		}
 	`, authHelper.ServerAddr(), testTokenName, types.JoinMethodKubernetes)
+
+	terraformProvider := provider.New()
+	terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))
+	terraformProviders["teleport"] = func() (tfprotov6.ProviderServer, error) {
+		// Terraform configures provider on every test step, but does not clean up previous one, which produces
+		// to "too many open files" at some point.
+		//
+		// With this statement we try to forcefully close previously opened client, which stays cached in
+		// the provider variable.
+		p, ok := terraformProvider.(*provider.Provider)
+		require.True(t, ok)
+		require.NoError(t, p.Close())
+		return providerserver.NewProtocol6(terraformProvider)(), nil
+	}
+
+	// Test execution: apply a TF resource with the provider joining via MachineID
+	dummyResource, err := fixtures.ReadFile(filepath.Join("fixtures", "app_0_create.tf"))
+	require.NoError(t, err)
+	testConfig := terraformConfig + "\n" + string(dummyResource)
+	name := "teleport_app.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: terraformProviders,
+		Steps: []resource.TestStep{
+			{
+				Config: testConfig,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "app"),
+					resource.TestCheckResourceAttr(name, "spec.uri", "localhost:3000"),
+				),
+			},
+		},
+	})
+}
+
+func TestTerraformJoinViaProxy(t *testing.T) {
+	require.NoError(t, os.Setenv("TF_ACC", "true"))
+
+	// Test setup: start a full Teleport process including a proxy.
+	process, err := testenv.NewTeleportProcess(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	// Test setup: get the terraform role
+	tfRole, err := clt.GetRole(t.Context(), teleport.PresetTerraformProviderRoleName)
+	require.NoError(t, err)
+
+	// Test setup: create a fake Kubernetes signer that will allow us to use the kubernetes/jwks join method
+	clock := clockwork.NewRealClock()
+	signer, err := fakeissuer.NewKubernetesSigner(clock)
+	require.NoError(t, err)
+
+	jwks, err := signer.GetMarshaledJWKS()
+	require.NoError(t, err)
+
+	// Test setup: create a token and a bot that can join the cluster with JWT signed by our fake Kubernetes signer
+	testBotName := "testBot"
+	testTokenName := "testToken"
+	fakeNamespace := "test-namespace"
+	fakeServiceAccount := "test-service-account"
+	token, err := types.NewProvisionTokenFromSpec(
+		testTokenName,
+		clock.Now().Add(time.Hour),
+		types.ProvisionTokenSpecV2{
+			Roles:      types.SystemRoles{types.RoleBot},
+			JoinMethod: types.JoinMethodKubernetes,
+			BotName:    testBotName,
+			Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+				Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+					{
+						ServiceAccount: fmt.Sprintf("%s:%s", fakeNamespace, fakeServiceAccount),
+					},
+				},
+				Type: types.KubernetesJoinTypeStaticJWKS,
+				StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+					JWKS: jwks,
+				},
+			},
+		})
+	require.NoError(t, err)
+	err = clt.CreateToken(t.Context(), token)
+	require.NoError(t, err)
+
+	bot := &machineidv1.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: testBotName,
+		},
+		Spec: &machineidv1.BotSpec{
+			Roles: []string{tfRole.GetName()},
+		},
+	}
+	_, err = clt.BotServiceClient().CreateBot(t.Context(), &machineidv1.CreateBotRequest{Bot: bot})
+	require.NoError(t, err)
+
+	// Test setup: sign a Kube JWT for our bot to join the cluster
+	// We sign the token, write it to a temporary file, and point the embedded tbot to it
+	// with an environment variable.
+	pong, err := clt.Ping(t.Context())
+	require.NoError(t, err)
+	clusterName := pong.ClusterName
+	jwt, err := signer.SignServiceAccountJWT("pod-name-doesnt-matter", fakeNamespace, fakeServiceAccount, clusterName)
+	require.NoError(t, err)
+
+	tempDir := t.TempDir()
+	jwtPath := filepath.Join(tempDir, "token")
+	require.NoError(t, os.WriteFile(jwtPath, []byte(jwt), 0600))
+	require.NoError(t, os.Setenv(kubetoken.EnvVarCustomKubernetesTokenPath, jwtPath))
+
+	// Test setup: craft a Terraform provider configuration
+	proxyAddr, err := process.ProxyTunnelAddr()
+	require.NoError(t, err)
+
+	terraformConfig := fmt.Sprintf(`
+		provider "teleport" {
+			addr = %q
+			join_token = %q
+			join_method = %q
+			insecure = true
+			retry_base_duration = "900ms"
+			retry_cap_duration = "4s"
+			retry_max_tries = "12"
+		}
+	`, proxyAddr, testTokenName, types.JoinMethodKubernetes)
 
 	terraformProvider := provider.New()
 	terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // MakeTestClient returns MongoDB client connection according to the provided
@@ -132,8 +133,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log := utils.NewSlogLoggerForTests().With(
-		teleport.ComponentKey, defaults.ProtocolMongoDB,
+	log := logtest.With(teleport.ComponentKey, defaults.ProtocolMongoDB,
 		"name", config.Name,
 	)
 	server := &TestServer{
@@ -781,7 +781,7 @@ func makeIsMasterReply(wireVersion int, maxMessageSize uint32) ([]byte, error) {
 }
 
 // makeFindReply builds a document used as a "find" command reply.
-func makeFindReply(result interface{}) ([]byte, error) {
+func makeFindReply(result any) ([]byte, error) {
 	return bson.Marshal(bson.M{
 		"ok": 1,
 		"cursor": bson.M{

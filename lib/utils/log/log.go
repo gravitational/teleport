@@ -57,6 +57,10 @@ const (
 	LogOutputSyslog = "syslog"
 	// LogOutputOSLog represents os_log, the unified logging system on macOS, as the destination for logs.
 	LogOutputOSLog = "os_log"
+	// LogOutputMCP defines to where the MCP command logs will be directed to.
+	// The stdout is exclusively used as the MCP server transport, leaving only
+	// stderr available.
+	LogOutputMCP = "stderr"
 )
 
 // Initialize configures the default global logger based on the
@@ -114,7 +118,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, error) {
 		w, err = NewSyslogWriter()
 		if err != nil {
 			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
-			slog.SetDefault(slog.New(DiscardHandler{}))
+			slog.SetDefault(slog.New(slog.DiscardHandler))
 			return slog.Default(), level, nil
 		}
 	default:

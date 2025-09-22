@@ -1,0 +1,167 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.summarizer.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
+
+// InferenceModel resource specifies a session summarization inference model
+// configuration. It tells Teleport how to use a specific provider and model to
+// summarize sessions.
+message InferenceModel {
+  // Kind is the resource kind. Should always be set to "inference_model".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  InferenceModelSpec spec = 5;
+}
+
+// InferenceModelSpec specifies the inference provider and provider-specific
+// parameters.
+message InferenceModelSpec {
+  oneof provider {
+    // Openai indicates that this model uses OpenAI as the inference provider
+    // and specifies OpenAI-specific parameters.
+    OpenAIProvider openai = 1;
+  }
+  // MaxSessionLengthBytes is the maximum session length that can be sent to
+  // inference provider. Currently, it's determined by the size of model's
+  // context window; future versions of Teleport will allow summarizing larger
+  // sessions by splitting them.
+  //
+  // Inference providers will reject requests that are larger than given
+  // model's context window. Since context windows are usually sized in tokens,
+  // this value is an approximation. Assuming 2 bytes per input token should be
+  // safe.
+  //
+  // Currently, Teleport will outright reject sessions larger than this limit;
+  // future versions will split sessions in chunks, treating this size as a
+  // maximum.
+  //
+  // If unset or set to 0, defaults to 1MB.
+  int64 max_session_length_bytes = 2;
+}
+
+// OpenAIProvider specifies OpenAI-specific parameters. It can be used to
+// configure OpenAI or an OpenAI-compatible API, such as LiteLLM.
+message OpenAIProvider {
+  // OpenaiModelId specifies the model ID, as understood by the OpenAI API.
+  string openai_model_id = 1;
+  // Temperature controls the randomness of the model's output.
+  double temperature = 2;
+  // ApiKeySecretRef is a reference to an InferenceSecret that contains the
+  // OpenAI API key.
+  string api_key_secret_ref = 3;
+  // BaseUrl is the OpenAI API base URL. Optional, defaults to the public
+  // OpenAI API URL. May be used to point to a custom OpenAI-compatible API,
+  // such as LiteLLM. In such case, the `api_key_secret_ref` must point to a
+  // secret that contains the API key for that custom API.
+  string base_url = 4;
+}
+
+// InferenceSecret resource stores session summarization inference provider
+// secrets, such as API keys. They need to be referenced by appropriate
+// provider configuration inside `InferenceModelSpec`.
+message InferenceSecret {
+  // Kind is the resource kind. Should always be set to "inference_secret".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec contains the secret value. Once set, it can only be read by Teleport
+  // itself; it will not be returned in API responses.
+  InferenceSecretSpec spec = 5;
+}
+
+// InferenceSecretSpec defines the secret value for the inference model.
+message InferenceSecretSpec {
+  // Value is the secret value, such as an API key.
+  string value = 1;
+}
+
+// InferencePolicy resource maps sessions to summarization models.
+message InferencePolicy {
+  // Kind is the resource kind. Should always be set to "inference_policy".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  InferencePolicySpec spec = 5;
+}
+
+// InferencePolicySpec maps sessions to summarization models using a filter.
+message InferencePolicySpec {
+  // Kinds are session kinds matched by this policy, e.g., "ssh", "k8s", "db"
+  repeated string kinds = 1;
+  // Model is the name of the `InferenceModel` resource to be used for
+  // summarization.
+  string model = 2;
+  // Filter is an optional filter expression using Teleport Predicate Language
+  // to select sessions for summarization. If it's empty, all sessions that
+  // match the list of kinds will be summarized using this model.
+  string filter = 3;
+}
+
+// SummaryState is the state of the summarization process.
+enum SummaryState {
+  SUMMARY_STATE_UNSPECIFIED = 0;
+  SUMMARY_STATE_PENDING = 1;
+  SUMMARY_STATE_SUCCESS = 2;
+  SUMMARY_STATE_ERROR = 3;
+}
+
+// Summary represents a summary of a session recording. This format is used to
+// store the summaries in the session storage and return it with gRPC.
+message Summary {
+  // sessionId is an ID of the session whose recording got summarized.
+  string session_id = 1;
+  // State is the state of the summarization process.
+  SummaryState state = 2;
+  // InferenceStartedAt is the time when the summarization process started.
+  google.protobuf.Timestamp inference_started_at = 3;
+  // InferenceFinishedAt is the time when the summarization process finished.
+  google.protobuf.Timestamp inference_finished_at = 4;
+  // Content is the main text content of the summary, stored in Markdown
+  // format. Available if the state is SUMMARY_STATE_SUCCESS.
+  string content = 5;
+  // ModelName is the name of the `InferenceModel` resource that was used to
+  // generate this summary.
+  string model_name = 6;
+  // SessionEndEvent is the event that ended the summarized session. Session
+  // end events carry the most complete set of data that Teleport has about a
+  // given session. Used for checking access based on RBAC rule "where"
+  // filters.
+  //
+  // The event is stored in an unstructured form, as storing an instance of
+  // events.OneOf posed a number of technical challenges with JSON
+  // serialization as a subcomponent of this message. These challenges stem
+  // from the fact that audit events have gogoproto extensions.
+  google.protobuf.Struct session_end_event = 7;
+  // ErrorMessage is an error message if the summarization failed. Available if
+  // the state is SUMMARY_STATE_ERROR.
+  string error_message = 8;
+}

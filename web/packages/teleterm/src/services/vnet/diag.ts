@@ -20,7 +20,10 @@ import { displayDateTime } from 'design/datetime';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
-import { reportOneOfIsRouteConflictReport } from 'teleterm/helpers';
+import {
+  reportOneOfIsRouteConflictReport,
+  reportOneOfIsSSHConfigurationReport,
+} from 'teleterm/helpers';
 
 export const hasReportFoundIssues = (report: diag.Report): boolean =>
   report.checks.some(
@@ -122,6 +125,10 @@ const reportOneofToDisplayDetails: Record<
     errorTitle: 'inspect network routes',
     reportToText: routeConflictReportToText,
   },
+  sshConfigurationReport: {
+    errorTitle: 'inspect SSH configuration',
+    reportToText: sshConfigurationReportToText,
+  },
 };
 
 function routeConflictReportToText({
@@ -139,13 +146,53 @@ function routeConflictReportToText({
   const tableRows = report.routeConflictReport.routeConflicts
     .map(
       routeConflict =>
-        `| ${routeConflict.dest} | ${routeConflict.vnetDest} | ${routeConflict.interfaceName} | ${routeConflict.interfaceApp || 'unknown'} |`
+        `| ${routeConflict.vnetDest} | ${routeConflict.dest} | ${routeConflict.interfaceName} | ${routeConflict.interfaceApp || 'unknown'} |`
     )
     .join('\n');
 
   return `⚠️ There are network routes in conflict with VNet.
 
-| Conflicting destination | VNet destination | Interface | Set up by |
-| ----------------------- | ---------------- | --------- | --------- |
+| VNet destination | Conflicting destination | Interface | Set up by |
+| ---------------- | ----------------------- | --------- | --------- |
 ${tableRows}`;
+}
+
+function sshConfigurationReportToText({ report }: diag.CheckReport): string {
+  if (!reportOneOfIsSSHConfigurationReport(report)) {
+    return null;
+  }
+  const {
+    userOpensshConfigPath,
+    vnetSshConfigPath,
+    userOpensshConfigIncludesVnetSshConfig,
+    userOpensshConfigExists,
+    userOpensshConfigContents,
+  } = report.sshConfigurationReport;
+
+  const status = userOpensshConfigIncludesVnetSshConfig
+    ? '✅ VNet SSH is configured correctly.'
+    : `⚠️ VNet SSH is not configured.
+
+  The user's default SSH configuration file does not include VNet's
+  generated configuration file and connections to VNet SSH hosts will
+  not work by default.`;
+
+  const pathsTable = `
+| File description         | Path |
+| ------------------------ | ---- |
+| User OpenSSH config file | ${userOpensshConfigPath}  |
+| VNet SSH config file     | ${vnetSshConfigPath}  |`;
+
+  const currentContents = userOpensshConfigExists
+    ? `Current contents of ${userOpensshConfigPath}:
+
+\`\`\`
+${userOpensshConfigContents}
+\`\`\``
+    : `${userOpensshConfigPath} does not exist`;
+
+  return `${status}
+${pathsTable}
+
+${currentContents}`;
 }

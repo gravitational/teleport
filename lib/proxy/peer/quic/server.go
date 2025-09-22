@@ -41,6 +41,7 @@ import (
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ServerConfig holds the parameters for [NewServer].
@@ -209,19 +210,19 @@ func (s *Server) Serve(transport *quic.Transport) error {
 	}
 }
 
-func (s *Server) handleConn(conn quic.EarlyConnection) {
+func (s *Server) handleConn(conn *quic.Conn) {
 	log := s.log.With(
 		"remote_addr", conn.RemoteAddr().String(),
 		"internal_id", uuid.NewString(),
 	)
 	state := conn.ConnectionState()
-	log.InfoContext(conn.Context(),
+	log.Log(conn.Context(), logutils.TraceLevel,
 		"handling new peer connection",
 		"gso", state.GSO,
 		"used_0rtt", state.Used0RTT,
 	)
 	defer func() {
-		log.DebugContext(conn.Context(),
+		log.Log(conn.Context(), logutils.TraceLevel,
 			"peer connection closed",
 			"error", ignoreCodeZero(context.Cause(conn.Context())),
 		)
@@ -250,7 +251,7 @@ func (s *Server) handleConn(conn quic.EarlyConnection) {
 	}
 }
 
-func (s *Server) handleStream(stream quic.Stream, conn quic.EarlyConnection, log *slog.Logger) {
+func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Logger) {
 	log = log.With("stream_id", stream.StreamID())
 	log.DebugContext(conn.Context(), "handling stream")
 	defer log.DebugContext(conn.Context(), "done handling stream")

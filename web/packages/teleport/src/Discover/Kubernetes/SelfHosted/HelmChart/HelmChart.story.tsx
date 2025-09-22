@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { StoryObj } from '@storybook/react';
+import { StoryObj } from '@storybook/react-vite';
 import { delay, http, HttpResponse } from 'msw';
 import { PropsWithChildren } from 'react';
 import { withoutQuery } from 'web/packages/build/storybook';

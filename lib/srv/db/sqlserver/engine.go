@@ -23,14 +23,15 @@ import (
 	"context"
 	"io"
 	"net"
+	"runtime/debug"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos"
+	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -40,9 +41,8 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		Connector: &connector{
-			DBAuth: ec.Auth,
-
-			kerberos: kerberos.NewClientProvider(ec.AuthClient, ec.DataDir),
+			DBAuth:   ec.Auth,
+			kerberos: kerberos.NewClientProvider(ec.AuthClient, ec.Log),
 		},
 	}
 }
@@ -132,7 +132,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, clientErrCh chan<- error, sessionCtx *common.Session) {
 	defer func() {
 		if r := recover(); r != nil {
-			e.Log.ErrorContext(e.Context, "Recovered while handling DB connection", "recover", r)
+			e.Log.WarnContext(e.Context, "Recovered while handling DB connection", "problem", r, "stack", debug.Stack())
 			err := trace.BadParameter("failed to handle client connection")
 			e.SendError(err)
 		}
@@ -167,7 +167,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			sqlPacket, err := e.toSQLPacket(initialPacketHeader, p, &chunkData)
 			switch {
 			case err != nil:
-				e.Log.ErrorContext(e.Context, "Failed to parse SQLServer packet.", "error", err)
+				e.Log.WarnContext(e.Context, "Failed to parse SQLServer packet.", "error", err)
 				e.emitMalformedPacket(e.Context, sessionCtx, p)
 			default:
 				e.auditPacket(e.Context, sessionCtx, sqlPacket)
@@ -247,10 +247,12 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	}
 
 	state := sessionCtx.GetAccessState(authPref)
-	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, state,
-		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
-	)
-	if err != nil {
+	matchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:     sessionCtx.Database,
+		DatabaseUser: sessionCtx.DatabaseUser,
+		DatabaseName: sessionCtx.DatabaseName,
+	})
+	if err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, state, matchers...); err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
 	}

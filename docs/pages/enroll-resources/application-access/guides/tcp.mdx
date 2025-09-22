@@ -1,12 +1,29 @@
 ---
 title: TCP Application Access
 description: How to configure Teleport for accessing plain TCP apps
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 Teleport can provide access to any TCP-based application. This allows users to
 connect to applications which Teleport doesn't natively support such as SMTP
 servers or databases not yet natively supported by the Teleport Database
 Service.
+
+## How it works
+
+A Teleport administrator configures the Teleport Application Service to proxy a
+TCP application. The end user starts a local proxy that authenticates to the
+Teleport Proxy Service using mutual TLS. The Proxy Service forwards traffic from
+the local proxy to and from the Teleport Application Service, which in turn
+proxies traffic to and from a Teleport-protected TCP application. 
+
+As with any Teleport-protected resource, the TCP application needs to be in the
+same network as the agent (the Teleport Application Service), but the agent and
+the Teleport-protected resource can run in a separate network from the Teleport
+Proxy Service.
 
 ## Prerequisites
 

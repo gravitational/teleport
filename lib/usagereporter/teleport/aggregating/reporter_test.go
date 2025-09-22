@@ -126,7 +126,7 @@ func TestReporter(t *testing.T) {
 	})
 	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
 		UserName:    "alice",
-		SessionType: types.KindSAMLIdPSession,
+		SessionType: usagereporter.SAMLIdPSessionType,
 	})
 	recvIngested()
 	recvIngested()

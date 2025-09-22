@@ -37,23 +37,17 @@ func TestAccessMonitoringRules(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*accessmonitoringrulesv1.AccessMonitoringRule]{
+	testResources153(t, p, testFuncs[*accessmonitoringrulesv1.AccessMonitoringRule]{
 		newResource: func(name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-			return newAccessMonitoringRule(t), nil
+			return newAccessMonitoringRule(t, name), nil
 		},
 		create: func(ctx context.Context, i *accessmonitoringrulesv1.AccessMonitoringRule) error {
 			_, err := p.accessMonitoringRules.CreateAccessMonitoringRule(ctx, i)
 			return err
 		},
-		list: func(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-			results, _, err := p.accessMonitoringRules.ListAccessMonitoringRules(ctx, 0, "")
-			return results, err
-		},
-		cacheGet: p.cache.GetAccessMonitoringRule,
-		cacheList: func(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-			results, _, err := p.cache.ListAccessMonitoringRules(ctx, 0, "")
-			return results, err
-		},
+		list:      p.accessMonitoringRules.ListAccessMonitoringRules,
+		cacheGet:  p.cache.GetAccessMonitoringRule,
+		cacheList: p.cache.ListAccessMonitoringRules,
 		update: func(ctx context.Context, i *accessmonitoringrulesv1.AccessMonitoringRule) error {
 			_, err := p.accessMonitoringRules.UpdateAccessMonitoringRule(ctx, i)
 			return err
@@ -81,7 +75,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
 					},
@@ -103,7 +97,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: "automaticReviewIntegration",
 						Decision:    types.RequestState_APPROVED.String(),
@@ -126,7 +120,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
 					},
@@ -153,7 +147,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					Notification: &accessmonitoringrulesv1.Notification{
 						Name: "notificationIntegration",
 					},
@@ -179,7 +173,7 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 				},
 				Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 					Subjects:  []string{types.KindAccessRequest},
-					Condition: "someCondition",
+					Condition: "true",
 					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
 						Integration: types.BuiltInAutomaticReview,
 						Decision:    types.RequestState_APPROVED.String(),
@@ -205,9 +199,9 @@ func TestListAccessMonitoringRulesWithFilter(t *testing.T) {
 
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				results, next, err := p.cache.ListAccessMonitoringRules(ctx, 0, "")
-				assert.NoError(t, err)
-				assert.Empty(t, next)
-				assert.Len(t, results, 1)
+				require.NoError(t, err)
+				require.Empty(t, next)
+				require.Len(t, results, 1)
 			},
 				15*time.Second, 100*time.Millisecond)
 

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -30,6 +30,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -43,12 +45,12 @@ func TestCheckHeaders(t *testing.T) {
 	defaultAuthHeader := `Signature headers="x-date x-teleport-challenge"`
 
 	t.Run("ok", func(t *testing.T) {
-		headers := formatHeaderFromMap(map[string]string{
+		headers := auth.FormatHeaderFromMap(map[string]string{
 			"Authorization":        defaultAuthHeader,
 			oracle.DateHeader:      clock.Now().UTC().Format(http.TimeFormat),
 			oracle.ChallengeHeader: defaultChallenge,
 		})
-		require.NoError(t, checkHeaders(headers, defaultChallenge, clock))
+		require.NoError(t, auth.CheckHeaders(headers, defaultChallenge, clock))
 	})
 
 	tests := []struct {
@@ -112,7 +114,7 @@ func TestCheckHeaders(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Error(t, checkHeaders(formatHeaderFromMap(tc.headers), defaultChallenge, clock))
+			require.Error(t, auth.CheckHeaders(auth.FormatHeaderFromMap(tc.headers), defaultChallenge, clock))
 		})
 	}
 }
@@ -288,7 +290,7 @@ func TestCheckOracleAllowRules(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.assert(t, checkOracleAllowRules(tc.claims, "mytoken", tc.allowRules))
+			tc.assert(t, auth.CheckOracleAllowRules(tc.claims, "mytoken", tc.allowRules))
 		})
 	}
 }
@@ -323,7 +325,7 @@ func TestRegisterUsingOracleMethod(t *testing.T) {
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	token, err := types.NewProvisionTokenFromSpec(
@@ -411,8 +413,9 @@ func TestRegisterUsingOracleMethod(t *testing.T) {
 			if tc.modifyTokenRequest != nil {
 				tc.modifyTokenRequest(tokenReq)
 			}
-			_, err = a.registerUsingOracleMethod(
+			_, err = auth.RegisterUsingOracleMethod(
 				ctx,
+				a,
 				tokenReq,
 				func(challenge string) (*proto.OracleSignedRequest, error) {
 					innerHeaders, outerHeaders, err := oracle.CreateSignedRequestWithProvider(provider, challenge)

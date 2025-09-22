@@ -33,7 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/integrations/lib/credentials"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -82,8 +82,8 @@ func (cfg *TeleportConfig) CheckAndSetDefaults() error {
 }
 
 func (cfg *TeleportConfig) CheckTLSConfig() error {
-	provided := stringset.NewWithCap(3)
-	missing := stringset.NewWithCap(3)
+	provided := set.NewWithCapacity[string](3)
+	missing := set.NewWithCapacity[string](3)
 
 	if cfg.ClientCrt != "" {
 		provided.Add("`client_crt`")
@@ -106,8 +106,8 @@ func (cfg *TeleportConfig) CheckTLSConfig() error {
 	if len(provided) > 0 && len(provided) < 3 {
 		return trace.BadParameter(
 			"configuration setting(s) %s are provided but setting(s) %s are missing",
-			strings.Join(provided.ToSlice(), ", "),
-			strings.Join(missing.ToSlice(), ", "),
+			strings.Join(provided.Elements(), ", "),
+			strings.Join(missing.Elements(), ", "),
 		)
 	}
 

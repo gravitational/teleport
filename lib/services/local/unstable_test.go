@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -35,8 +34,7 @@ func TestSystemRoleAssertions(t *testing.T) {
 	const serverID = "test-server"
 	const assertionID = "test-assertion"
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,

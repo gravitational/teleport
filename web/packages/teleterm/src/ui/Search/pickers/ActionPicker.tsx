@@ -68,7 +68,7 @@ import { useActionAttempts } from './useActionAttempts';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
-  const { clustersService, modalsService } = ctx;
+  const { clustersService, modalsService, mainProcessClient } = ctx;
   ctx.clustersService.useState();
 
   const {
@@ -91,6 +91,13 @@ export function ActionPicker(props: { input: ReactElement }) {
   } = useActionAttempts();
   const { isSupported: isVnetSupported } = useVnetContext();
   const totalCountOfClusters = clustersService.getClusters().length;
+
+  // Use memo because this value never changes during app's lifetime but the call to get it goes
+  // through the context bridge.
+  const isScoreDebugEnabled = useMemo(
+    () => mainProcessClient.configService.get('debug.searchResultsScore').value,
+    [mainProcessClient.configService]
+  );
 
   const getClusterName = useCallback(
     (resourceUri: uri.ClusterOrResourceUri) => {
@@ -212,11 +219,17 @@ export function ActionPicker(props: { input: ReactElement }) {
           return {
             key: getKey(item.searchResult),
             Component: (
-              <Component
-                searchResult={item.searchResult}
-                getOptionalClusterName={getOptionalClusterName}
-                isVnetSupported={isVnetSupported}
-              />
+              <>
+                {isScoreDebugEnabled &&
+                item.searchResult.kind !== 'display-results'
+                  ? item.searchResult.score
+                  : undefined}
+                <Component
+                  searchResult={item.searchResult}
+                  getOptionalClusterName={getOptionalClusterName}
+                  isVnetSupported={isVnetSupported}
+                />
+              </>
             ),
           };
         }}

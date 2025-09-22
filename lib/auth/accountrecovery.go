@@ -163,7 +163,7 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 			ctx, "Account recovery codes not found for user, using fake hashes to mitigate timing attacks",
 			"user", username,
 		)
-		for i := 0; i < numOfRecoveryCodes; i++ {
+		for i := range numOfRecoveryCodes {
 			hashedCodes[i].HashedCode = fakeRecoveryCodeHash
 		}
 	} else {
@@ -521,7 +521,7 @@ func (a *Server) isAccountRecoveryAllowed(ctx context.Context) error {
 func generateRecoveryCodes() ([]string, error) {
 	tokenList := make([]string, 0, numOfRecoveryCodes)
 
-	for i := 0; i < numOfRecoveryCodes; i++ {
+	for range numOfRecoveryCodes {
 		wordIDs := make([]uint16, numWordsInRecoveryCode)
 		if err := binary.Read(rand.Reader, binary.NativeEndian, wordIDs); err != nil {
 			return nil, trace.Wrap(err)

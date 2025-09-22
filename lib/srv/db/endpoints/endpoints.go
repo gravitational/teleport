@@ -60,6 +60,8 @@ type ResolverBuilderConfig struct {
 type GCPClients interface {
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+	// GetGCPAlloyDBClient returns GCP AlloyDB Admin client.
+	GetGCPAlloyDBClient(context.Context) (gcp.AlloyDBAdminClient, error)
 }
 
 // RegisterResolver registers a new database endpoint resolver.
@@ -69,6 +71,21 @@ func RegisterResolver(builder ResolverBuilder, names ...string) {
 	for _, name := range names {
 		resolverBuilders[name] = builder
 	}
+}
+
+// GetResolverBuilders is used in tests to cleanup after overriding a resolver.
+func GetResolverBuilders(names ...string) (map[string]ResolverBuilder, error) {
+	resolverBuildersMu.RLock()
+	defer resolverBuildersMu.RUnlock()
+	out := map[string]ResolverBuilder{}
+	for _, name := range names {
+		builder, ok := resolverBuilders[name]
+		if !ok {
+			return nil, trace.NotFound("database endpoint resolver builder %q is not registered", name)
+		}
+		out[name] = builder
+	}
+	return out, nil
 }
 
 // GetResolver returns a resolver for the given database.

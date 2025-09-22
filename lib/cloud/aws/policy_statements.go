@@ -256,7 +256,7 @@ type ExternalAuditStoragePolicyConfig struct {
 	AthenaWorkgroupName string
 	// GlueDatabaseName is the name of the AWS Glue database.
 	GlueDatabaseName string
-	// GlueTabelName is the name of the AWS Glue table.
+	// GlueTableName is the name of the AWS Glue table.
 	GlueTableName string
 }
 
@@ -432,8 +432,78 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:GetSAMLProvider",
 			"iam:ListOpenIDConnectProviders",
 			"iam:GetOpenIDConnectProvider",
+
+			// KMS IAM
+			// If keys disallow IAM policy delegations, these fields need to be
+			// added to the Key policy.
+			"kms:ListKeys",
+			"kms:DescribeKey",
+			"kms:GetKeyPolicy",
+			"kms:ListAliases",
+			"kms:ListResourceTags",
 		},
 		Resources: allResources,
+	}
+}
+
+// StatementAccessGraphAWSSyncSQS returns the statement that allows
+// receiving, deleting, and sending messages to the specified SQS queue.
+// This is used for receiving and processing AWS cloud trail logs notifications
+// from SQS.
+func StatementAccessGraphAWSSyncSQS(sqsQueueARN string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"sqs:ReceiveMessage",
+			"sqs:DeleteMessage",
+		},
+		Resources: []string{sqsQueueARN},
+	}
+}
+
+// StatementsAccessGraphAWSSyncS3BucketDownload returns the statements that allows downloading
+// objects from the specified S3 bucket. This is used for downloading AWS cloud trail logs.
+func StatementsAccessGraphAWSSyncS3BucketDownload(s3BucketARN string) []*Statement {
+	return []*Statement{
+		{
+			Effect: EffectAllow,
+			Actions: []string{
+				"s3:GetObject",
+				"s3:GetObjectVersion",
+			},
+			Resources: []string{s3BucketARN + "/*"},
+		},
+		{
+			Effect: EffectAllow,
+			Actions: []string{
+				"s3:ListBucket",
+				"s3:ListBucketVersions",
+				"s3:GetBucketLocation",
+				"s3:GetBucketVersioning",
+			},
+			Resources: []string{s3BucketARN},
+		},
+	}
+}
+
+// StatementAccessGraphAWSSyncKMSDecrypt returns the statement that allows decrypting
+// KMS encrypted data. This is used for decrypting AWS cloud trail logs from S3
+// and decrypting SQS messages that are encrypted with KMS.
+// It allows the following actions:
+// - `kms:Decrypt` to decrypt data.
+// - `kms:DescribeKey` to get information about the KMS key.
+// - `kms:GenerateDataKey` to generate a data key for encryption.
+// - `kms:GenerateDataKeyWithoutPlaintext` to generate a data key without plaintext.
+func StatementKMSDecrypt(kmsKeysARNs []string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"kms:Decrypt",
+			"kms:DescribeKey",
+			"kms:GenerateDataKey",
+			"kms:GenerateDataKeyWithoutPlaintext",
+		},
+		Resources: kmsKeysARNs,
 	}
 }
 
@@ -478,6 +548,43 @@ func StatementForAWSIdentityCenterAccess() *Statement {
 
 			// ListProvisionedRoles
 			"iam:ListRoles",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSRolesAnywhereSyncRoleTrustRelationship returns the Trust Relationship which allows its usage from the given Trust Anchor ARN.
+// See https://docs.aws.amazon.com/rolesanywhere/latest/userguide/getting-started.html#getting-started-step2
+func StatementForAWSRolesAnywhereSyncRoleTrustRelationship(region, accountID, trustAnchorID string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"sts:AssumeRole",
+			"sts:SetSourceIdentity",
+			"sts:TagSession",
+		},
+		Principals: map[string]SliceOrString{
+			"Service": []string{"rolesanywhere.amazonaws.com"},
+		},
+		Conditions: map[string]StringOrMap{
+			"ArnEquals": {
+				"aws:SourceArn": []string{
+					fmt.Sprintf("arn:aws:rolesanywhere:%s:%s:trust-anchor/%s", region, accountID, trustAnchorID),
+				},
+			},
+		},
+	}
+}
+
+// StatementForAWSRolesAnywhereSyncRolePolicy returns the policy required to perform the sync operation, which imports Roles Anywhere Profiles into Teleport AWS Apps.
+func StatementForAWSRolesAnywhereSyncRolePolicy() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"rolesanywhere:ListProfiles",
+			"rolesanywhere:ListTagsForResource",
+			"rolesanywhere:ImportCrl",
+			"iam:GetRole",
 		},
 		Resources: allResources,
 	}

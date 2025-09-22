@@ -116,8 +116,6 @@ type EngineConfig struct {
 	Log *slog.Logger
 	// Users handles database users.
 	Users Users
-	// DataDir is the Teleport data directory
-	DataDir string
 	// GetUserProvisioner is automatic database users creation handler.
 	GetUserProvisioner func(AutoUsers) *UserProvisioner
 	// UpdateProxiedDatabase finds the proxied database by name and uses the

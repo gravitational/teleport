@@ -51,6 +51,31 @@ type Driver interface {
 	Check() error
 }
 
+// NewConstantDriver creates a constant retry driver with the supplied step value. Resulting
+// retries have always the same value of the provided step.
+func NewConstantDriver(step time.Duration) Driver {
+	return constantDriver{step}
+}
+
+type constantDriver struct {
+	step time.Duration
+}
+
+func (d constantDriver) Duration(_ int64) time.Duration {
+	return d.step
+}
+
+func (d constantDriver) Check() error {
+	if d.step <= 0 {
+		return trace.BadParameter("constant driver requires positive step value")
+	}
+
+	if d.step > maxBackoff {
+		return trace.BadParameter("constant backoff step value too large: %v (max=%v)", d.step, maxBackoff)
+	}
+	return nil
+}
+
 // NewLinearDriver creates a linear retry driver with the supplied step value. Resulting retries
 // have increase their backoff by a fixed step amount on each increment, with the first retry
 // having a base step amount of zero.
@@ -63,11 +88,7 @@ type linearDriver struct {
 }
 
 func (d linearDriver) Duration(attempt int64) time.Duration {
-	dur := d.step * time.Duration(attempt)
-	if dur > maxBackoff {
-		return maxBackoff
-	}
-	return dur
+	return min(d.step*time.Duration(attempt), maxBackoff)
 }
 
 func (d linearDriver) Check() error {
@@ -220,9 +241,7 @@ func (r *RetryV2) Duration() time.Duration {
 		return 0
 	}
 
-	if a > r.Max {
-		a = r.Max
-	}
+	a = min(a, r.Max)
 
 	if r.Jitter != nil {
 		a = r.Jitter(a)

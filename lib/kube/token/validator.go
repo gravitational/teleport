@@ -38,6 +38,8 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	tokenclaims "github.com/gravitational/teleport/lib/kube/token/claims"
+	"github.com/gravitational/teleport/lib/oidc"
 )
 
 const (
@@ -121,7 +123,7 @@ func unsafeGetTokenAudiences(token string) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	claims := &ServiceAccountClaims{}
+	claims := &tokenclaims.ServiceAccountClaims{}
 	err = jwt.UnsafeClaimsWithoutVerification(claims)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -251,32 +253,6 @@ func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
 	return kubeVersion.AtLeast(minKubeVersion), nil
 }
 
-// PodSubClaim are the Pod-specific claims we expect to find on a Kubernetes Service Account JWT.
-type PodSubClaim struct {
-	Name string `json:"name"`
-	UID  string `json:"uid"`
-}
-
-// ServiceAccountSubClaim are the Service Account-specific claims we expect to find on a Kubernetes Service Account JWT.
-type ServiceAccountSubClaim struct {
-	Name string `json:"name"`
-	UID  string `json:"uid"`
-}
-
-// KubernetesSubClaim are the Kubernetes-specific claims (under kubernetes.io)
-// we expect to find on a Kubernetes Service Account JWT.
-type KubernetesSubClaim struct {
-	Namespace      string                  `json:"namespace"`
-	ServiceAccount *ServiceAccountSubClaim `json:"serviceaccount"`
-	Pod            *PodSubClaim            `json:"pod"`
-}
-
-// ServiceAccountClaims are the claims we expect to find on a Kubernetes Service Account JWT.
-type ServiceAccountClaims struct {
-	josejwt.Claims
-	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
-}
-
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using a
 // configured JWKS.
 func ValidateTokenWithJWKS(
@@ -295,7 +271,7 @@ func ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	claims := ServiceAccountClaims{}
+	claims := tokenclaims.ServiceAccountClaims{}
 	if err := jwt.Claims(jwks, &claims); err != nil {
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
@@ -341,6 +317,52 @@ func ValidateTokenWithJWKS(
 		Username: claims.Subject,
 		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 			Subject: claims.Subject,
+			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+				Name: claims.Kubernetes.Pod.Name,
+			},
+			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+				Name:      claims.Kubernetes.ServiceAccount.Name,
+				Namespace: claims.Kubernetes.Namespace,
+			},
+		},
+	}, nil
+}
+
+// ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using an
+// OIDC endpoint.
+func ValidateTokenWithOIDC(
+	ctx context.Context,
+	issuerURL string,
+	clusterName string,
+	token string,
+) (*ValidationResult, error) {
+	claims, err := oidc.ValidateToken[*tokenclaims.OIDCServiceAccountClaims](
+		ctx,
+		issuerURL,
+		clusterName,
+		token,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating OIDC token")
+	}
+
+	// Ensure this is a pod-bound service account token
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+		return nil, trace.BadParameter("oidc joining requires the use of a projected pod bound service account token")
+	}
+
+	// Note: OIDC library requires valid exp and iat.
+	maxAllowedTTL := time.Minute * 30
+	if claims.GetExpiration().Sub(claims.GetIssuedAt()) > maxAllowedTTL {
+		return nil, trace.BadParameter("oidc joining requires the use of a service account token with a TTL of less than %s", maxAllowedTTL)
+	}
+
+	return &ValidationResult{
+		Raw:      claims,
+		Type:     types.KubernetesJoinTypeOIDC,
+		Username: claims.GetSubject(),
+		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+			Subject: claims.GetSubject(),
 			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
 				Name: claims.Kubernetes.Pod.Name,
 			},

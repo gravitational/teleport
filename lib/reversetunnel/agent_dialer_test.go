@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestAgentCertChecker validates that reverse tunnel agents properly validate
@@ -89,7 +90,7 @@ func TestAgentCertChecker(t *testing.T) {
 			dialer := agentDialer{
 				client:      &fakeClient{caKey: ca.PublicKey()},
 				authMethods: []ssh.AuthMethod{ssh.PublicKeys(signer)},
-				logger:      utils.NewSlogLoggerForTests(),
+				logger:      logtest.NewLogger(),
 			}
 
 			_, err = dialer.DialContext(context.Background(), *utils.MustParseAddr(sshServer.Addr()))

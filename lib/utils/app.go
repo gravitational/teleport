@@ -32,7 +32,7 @@ import (
 // <appName>.<localProxyDNSName>
 func AssembleAppFQDN(localClusterName string, localProxyDNSName string, appClusterName string, app types.Application) string {
 	isLocalCluster := localClusterName == appClusterName
-	if isLocalCluster && app.GetPublicAddr() != "" {
+	if isLocalCluster && app.GetPublicAddr() != "" && !app.GetUseAnyProxyPublicAddr() {
 		return app.GetPublicAddr()
 	}
 	return DefaultAppPublicAddr(app.GetName(), localProxyDNSName)

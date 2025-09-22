@@ -43,13 +43,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const fileMaxSize = 1000
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -296,7 +296,7 @@ func TestUpload(t *testing.T) {
 				"tres",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were specified`, i[0]))
 			},
 		},
@@ -312,7 +312,7 @@ func TestUpload(t *testing.T) {
 				"glob3",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were matched by a glob pattern`, i[0]))
 			},
 		},
@@ -325,7 +325,7 @@ func TestUpload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 				require.ErrorAs(t, err, new(*NonRecursiveDirectoryTransferError))
 			},
@@ -335,7 +335,7 @@ func TestUpload(t *testing.T) {
 			srcPaths: []string{
 				"idontexist",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -508,14 +508,14 @@ func TestDownload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 			},
 		},
 		{
 			name:    "non-existent src file",
 			srcPath: "idontexist",
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -590,7 +590,7 @@ func TestHomeDirExpansion(t *testing.T) {
 		{
 			name: "~user path",
 			path: "~user/foo",
-			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			errCheck: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, PathExpansionError{path: "~user/foo"})
 			},
 		},
@@ -1079,6 +1079,19 @@ func TestHandleFilelist(t *testing.T) {
 		}
 	}
 
+	// Add a broken symlink.
+	brokenSymlinkName := "broken-symlink"
+	brokenSymlink := filepath.Join(root, brokenSymlinkName)
+	brokenTarget := filepath.Join(root, "this-file-does-not-exist")
+	require.NoError(t, os.Symlink(brokenTarget, brokenSymlink))
+	symlinkStat, err := os.Lstat(brokenSymlink)
+	require.NoError(t, err)
+	statMap[brokenSymlinkName] = fileInfo{
+		name: brokenSymlinkName,
+		mode: symlinkStat.Mode(),
+		size: int64(len(brokenTarget)),
+	}
+
 	tests := []struct {
 		name           string
 		req            *sftp.Request
@@ -1136,7 +1149,7 @@ func TestHandleFilelist(t *testing.T) {
 				if assert.True(t, ok, "unexpected file %q", fi.Name()) {
 					assert.Equal(t, entry.Name(), fi.Name())
 					assert.Equal(t, entry.Size(), fi.Size(), fi.Name())
-					assert.Equal(t, entry.Mode(), fi.Mode(), fi.Name())
+					assert.Equal(t, entry.Mode(), fi.Mode(), "%s: expected mode 0o%o, got mode 0o%o", fi.Name(), entry.Mode(), fi.Mode())
 				}
 			}
 		})

@@ -52,7 +52,7 @@ export const VnetConnectionItem = (props: {
     onRun: props.openVnetPanel,
   });
 
-  const ref = useRef<HTMLLIElement>();
+  const ref = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -114,7 +114,6 @@ const VnetConnectionItemBase = forwardRef<
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
     showDiagWarningIndicator,
-    isDiagSupported,
   } = useVnetContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
@@ -259,18 +258,16 @@ const VnetConnectionItemBase = forwardRef<
                 </ButtonIcon>
               )}
 
-              {isDiagSupported && (
-                <ButtonIcon
-                  title={disabledDiagnosticsReason || 'Run diagnostics'}
-                  disabled={!!disabledDiagnosticsReason}
-                  onClick={e => {
-                    e.stopPropagation();
-                    props.runDiagnosticsFromVnetPanel();
-                  }}
-                >
-                  <icons.ListMagnifyingGlass size={18} />
-                </ButtonIcon>
-              )}
+              <ButtonIcon
+                title={disabledDiagnosticsReason || 'Run diagnostics'}
+                disabled={!!disabledDiagnosticsReason}
+                onClick={e => {
+                  e.stopPropagation();
+                  props.runDiagnosticsFromVnetPanel();
+                }}
+              >
+                <icons.ListMagnifyingGlass size={18} />
+              </ButtonIcon>
             </>
           )}
 
@@ -291,7 +288,7 @@ const VnetConnectionItemBase = forwardRef<
                 width={toggleVnetButtonWidth}
                 size="small"
                 intent="neutral"
-                fill="minimal"
+                fill="filled"
                 title=""
                 onClick={e => {
                   e.stopPropagation();
@@ -332,7 +329,7 @@ const VnetConnectionItemBase = forwardRef<
             (props.showExtraRightButtons ? (
               <Button
                 intent="neutral"
-                fill="minimal"
+                fill="filled"
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}

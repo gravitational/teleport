@@ -1,6 +1,11 @@
 ---
 title: "Protect Google Cloud API Access with Teleport"
 description: How to enable secure access to Google Cloud APIs.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - google-cloud
 ---
 
 You can use Teleport to manage access to CLI tools that interact with Google
@@ -643,8 +648,8 @@ command.
   ensure that your Teleport users can only manage Google Cloud resources
   temporarily, with no longstanding admin roles for attackers to hijack. View
   our documentation on [Role Access
-  Requests](../../../admin-guides/access-controls/access-requests/role-requests.mdx) and [Access
-  Request plugins](../../../admin-guides/access-controls/access-request-plugins/access-request-plugins.mdx).
+  Requests](../../../identity-governance/access-requests/role-requests.mdx) and [Access
+  Request plugins](../../../identity-governance/access-request-plugins/access-request-plugins.mdx).
 - You can proxy any `gcloud` or `gsutil` command via Teleport. For a full
   reference of commands, view the Google Cloud documentation for
   [`gcloud`](https://cloud.google.com/sdk/gcloud/reference) and

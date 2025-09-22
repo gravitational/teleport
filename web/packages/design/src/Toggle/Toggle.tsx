@@ -26,6 +26,7 @@ export function Toggle({
   disabled,
   className,
   size = 'small',
+  ref,
 }: {
   isToggled: boolean;
   onToggle: () => void;
@@ -33,9 +34,10 @@ export function Toggle({
   disabled?: boolean;
   className?: string;
   size?: 'small' | 'large';
+  ref?: React.ForwardedRef<HTMLLabelElement>;
 }) {
   return (
-    <StyledWrapper disabled={disabled} className={className}>
+    <StyledWrapper disabled={disabled} className={className} ref={ref}>
       <StyledInput
         checked={isToggled}
         onChange={onToggle}
@@ -162,4 +164,8 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })<SizeProps>`
   &:disabled:checked + ${StyledSlider} {
     background: ${props => props.theme.colors.interactive.tonal.success[2]};
   }
+
+  &:focus-visible + ${StyledSlider} {
+    outline: 1px solid ${props => props.theme.colors.interactive.solid.primary.default};
+    outline-offset: 1px;
 `;

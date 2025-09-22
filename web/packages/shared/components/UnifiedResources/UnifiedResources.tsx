@@ -24,6 +24,7 @@ import React, {
   useLayoutEffect,
   useRef,
   useState,
+  type JSX,
 } from 'react';
 import styled from 'styled-components';
 
@@ -55,6 +56,7 @@ import {
 } from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourcesResponse } from 'teleport/services/agents';
 
 import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';
@@ -122,10 +124,39 @@ export type SelectedResource = {
   resource: SharedUnifiedResource['resource'];
 };
 
+/*
+ * ResourceFilterKind are resource kinds that can be used for filtering through
+ * ListUnifiedResources API.
+ *
+ * 'mcp' can be used to filter MCP servers by the backend, even though they are
+ * internally just app resources atm.
+ */
+export type ResourceFilterKind =
+  | SharedUnifiedResource['resource']['kind']
+  | 'mcp';
+
 export type FilterKind = {
-  kind: SharedUnifiedResource['resource']['kind'];
+  kind: ResourceFilterKind;
   disabled: boolean;
 };
+
+const filterKindNameMap: Record<ResourceFilterKind, string> = {
+  app: 'Applications',
+  db: 'Databases',
+  windows_desktop: 'Desktops',
+  kube_cluster: 'Kubernetes Clusters',
+  node: 'SSH Resources',
+  user_group: 'User Groups',
+  git_server: 'Git Servers',
+  mcp: 'MCP Servers',
+};
+
+/*
+ * getFilterKindName returns the human-readable name of the filter kind.
+ */
+export function getFilterKindName(kind: ResourceFilterKind): string {
+  return filterKindNameMap[kind] ?? kind;
+}
 
 export type ResourceAvailabilityFilter =
   | {
@@ -201,7 +232,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     onShowStatusInfo,
   } = props;
 
-  const containerRef = useRef<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
@@ -617,10 +648,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   },
                 }),
                 key: generateUnifiedResourceKey(resource),
-                // TODO(kimlisa): teleterm will pass this field as "null"
-                // to add support later.
-                onShowStatusInfo: () =>
-                  onShowStatusInfo ? onShowStatusInfo(resource) : null,
+                onShowStatusInfo: () => onShowStatusInfo(resource),
                 showingStatusInfo:
                   infoGuideConfig?.id &&
                   infoGuideConfig.id === getResourceId(resource),

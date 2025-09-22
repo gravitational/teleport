@@ -117,7 +117,7 @@ func TestConvertEventReqToUsageEvent(t *testing.T) {
 					EventData: &eventData,
 				}
 			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsBadParameter(err), "expected trace.BadParameter error, got: %v", err)
 			},
 		},

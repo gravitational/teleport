@@ -33,15 +33,18 @@ const userLoginStateNameIndex userLoginStateIndex = "name"
 
 func newUserLoginStateCollection(upstream services.UserLoginStates, w types.WatchKind) (*collection[*userloginstate.UserLoginState, userLoginStateIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter UserTasks")
+		return nil, trace.BadParameter("missing parameter UserLoginStates")
 	}
 
 	return &collection[*userloginstate.UserLoginState, userLoginStateIndex]{
-		store: newStore(map[userLoginStateIndex]func(*userloginstate.UserLoginState) string{
-			userLoginStateNameIndex: func(r *userloginstate.UserLoginState) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.KindUserLoginState,
+			(*userloginstate.UserLoginState).Clone,
+			map[userLoginStateIndex]func(*userloginstate.UserLoginState) string{
+				userLoginStateNameIndex: func(r *userloginstate.UserLoginState) string {
+					return r.GetMetadata().Name
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*userloginstate.UserLoginState, error) {
 			out, err := upstream.GetUserLoginStates(ctx)
 			return out, trace.Wrap(err)
@@ -62,6 +65,7 @@ func newUserLoginStateCollection(upstream services.UserLoginStates, w types.Watc
 }
 
 // GetUserLoginStates returns the all user login state resources.
+// deprecated: Use paginated version ListUserLoginStates
 func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginStates")
 	defer span.End()
@@ -100,9 +104,6 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 			state, err := c.Config.UserLoginStates.GetUserLoginState(ctx, name)
 			return state, trace.Wrap(err)
 		},
-		clone: func(uls *userloginstate.UserLoginState) *userloginstate.UserLoginState {
-			return uls.Clone()
-		},
 	}
 	out, err := getter.get(ctx, name)
 	if trace.IsNotFound(err) && !upstreamRead {
@@ -113,4 +114,23 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 		}
 	}
 	return out, trace.Wrap(err)
+}
+
+// ListUserLoginStates returns the all user login state resources.
+func (c *Cache) ListUserLoginStates(ctx context.Context, pageSize int, pageToken string) ([]*userloginstate.UserLoginState, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserLoginStates")
+	defer span.End()
+
+	lister := genericLister[*userloginstate.UserLoginState, userLoginStateIndex]{
+		cache:           c,
+		collection:      c.collections.userLoginStates,
+		index:           userLoginStateNameIndex,
+		upstreamList:    c.Config.UserLoginStates.ListUserLoginStates,
+		defaultPageSize: pageSize,
+		nextToken: func(state *userloginstate.UserLoginState) string {
+			return state.GetName()
+		},
+	}
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
 }

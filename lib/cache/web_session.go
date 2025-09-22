@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
@@ -33,15 +35,16 @@ const webSessionNameIndex webSessionIndex = "name"
 
 func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKind) (*collection[types.WebSession, webSessionIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter SAMLIdPSession")
+		return nil, trace.BadParameter("missing parameter WebSession")
 	}
 
 	return &collection[types.WebSession, webSessionIndex]{
-		store: newStore(map[webSessionIndex]func(types.WebSession) string{
-			webSessionNameIndex: func(r types.WebSession) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.KindWebSession,
+			types.WebSession.Copy,
+			map[webSessionIndex]func(types.WebSession) string{
+				webSessionNameIndex: types.WebSession.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
 			webSessions, err := upstream.List(ctx)
 			if err != nil {
@@ -49,7 +52,7 @@ func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKi
 			}
 
 			if !loadSecrets {
-				for i := 0; i < len(webSessions); i++ {
+				for i := range webSessions {
 					webSessions[i] = webSessions[i].WithoutSecrets()
 				}
 			}
@@ -86,7 +89,6 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 			session, err := c.Config.WebSession.Get(ctx, types.GetWebSessionRequest{SessionID: s})
 			return session, trace.Wrap(err)
 		},
-		clone: types.WebSession.Copy,
 	}
 	out, err := getter.get(ctx, req.SessionID)
 	if trace.IsNotFound(err) && !upstreamRead {
@@ -116,38 +118,31 @@ func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*
 	}
 
 	return &collection[types.WebSession, appSessionIndex]{
-		store: newStore(map[appSessionIndex]func(types.WebSession) string{
-			appSessionNameIndex: func(r types.WebSession) string {
-				return r.GetMetadata().Name
-			},
-			appSessionUserIndex: func(r types.WebSession) string {
-				return r.GetUser() + "/" + r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.KindAppSession,
+			types.WebSession.Copy,
+			map[appSessionIndex]func(types.WebSession) string{
+				appSessionNameIndex: types.WebSession.GetName,
+				appSessionUserIndex: func(r types.WebSession) string {
+					return r.GetUser() + "/" + r.GetMetadata().Name
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
-			var startKey string
-			var sessions []types.WebSession
+			out, err := stream.Collect(
+				stream.FilterMap(
+					clientutils.Resources(ctx,
+						func(ctx context.Context, size int, startKey string) ([]types.WebSession, string, error) {
+							return upstream.ListAppSessions(ctx, size, startKey, "")
+						}),
+					func(ws types.WebSession) (types.WebSession, bool) {
+						if !loadSecrets {
+							return ws.WithoutSecrets(), true
+						}
 
-			for {
-				webSessions, nextKey, err := upstream.ListAppSessions(ctx, 0, startKey, "")
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				if !loadSecrets {
-					for i := 0; i < len(webSessions); i++ {
-						webSessions[i] = webSessions[i].WithoutSecrets()
-					}
-				}
-
-				sessions = append(sessions, webSessions...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-			return sessions, nil
+						return ws, true
+					}),
+			)
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WebSession {
 			return &types.WebSessionV2{
@@ -179,7 +174,6 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 			session, err := c.Config.AppSession.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: s})
 			return session, trace.Wrap(err)
 		},
-		clone: types.WebSession.Copy,
 	}
 	out, err := getter.get(ctx, req.SessionID)
 	if trace.IsNotFound(err) && !upstreamRead {
@@ -253,11 +247,12 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 	}
 
 	return &collection[types.WebSession, snowflakeSessionIndex]{
-		store: newStore(map[snowflakeSessionIndex]func(types.WebSession) string{
-			snowflakeSessionNameIndex: func(r types.WebSession) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.KindSnowflakeSession,
+			types.WebSession.Copy,
+			map[snowflakeSessionIndex]func(types.WebSession) string{
+				snowflakeSessionNameIndex: types.WebSession.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
 			webSessions, err := upstream.GetSnowflakeSessions(ctx)
 			if err != nil {
@@ -265,7 +260,7 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 			}
 
 			if !loadSecrets {
-				for i := 0; i < len(webSessions); i++ {
+				for i := range webSessions {
 					webSessions[i] = webSessions[i].WithoutSecrets()
 				}
 			}
@@ -302,7 +297,6 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 			session, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: s})
 			return session, trace.Wrap(err)
 		},
-		clone: types.WebSession.Copy,
 	}
 	out, err := getter.get(ctx, req.SessionID)
 	if trace.IsNotFound(err) && !upstreamRead {

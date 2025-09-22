@@ -44,15 +44,9 @@ func TestIntegrations(t *testing.T) {
 			_, err := p.integrations.CreateIntegration(ctx, i)
 			return err
 		},
-		list: func(ctx context.Context) ([]types.Integration, error) {
-			results, _, err := p.integrations.ListIntegrations(ctx, 0, "")
-			return results, err
-		},
-		cacheGet: p.cache.GetIntegration,
-		cacheList: func(ctx context.Context) ([]types.Integration, error) {
-			results, _, err := p.cache.ListIntegrations(ctx, 0, "")
-			return results, err
-		},
+		list:      p.integrations.ListIntegrations,
+		cacheGet:  p.cache.GetIntegration,
+		cacheList: p.cache.ListIntegrations,
 		update: func(ctx context.Context, i types.Integration) error {
 			_, err := p.integrations.UpdateIntegration(ctx, i)
 			return err

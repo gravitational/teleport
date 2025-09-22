@@ -1,7 +1,17 @@
 ---
 title: Automatically Discover Azure Virtual Machines 
 description: How to configure Teleport to automatically enroll Azure virtual machines.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - azure
 ---
+
+This guide shows you how to set up automatic server discovery for Azure virtual
+machines.
+
+## How it works
 
 The Teleport Discovery Service can connect to Azure and automatically
 discover and enroll virtual machines matching configured labels. It will then
@@ -68,10 +78,10 @@ resources:
 - The Discovery Service can run on an Azure VM with attached managed identity. This
   is the recommended way of deploying the Discovery Service in production since
   it eliminates the need to manage Azure credentials.
-- The Discovery Service can be registered as an Azure AD application (via AD's "App
-  registrations") and configured with its credentials. This is only recommended
-  for development and testing purposes since it requires Azure credentials to
-  be present in the Discovery Service's environment.
+- The Discovery Service can be registered as a Microsoft Entra ID application
+  and configured with its credentials. This is only recommended for development
+  and testing purposes since it requires Azure credentials to be present in the
+  Discovery Service's environment.
 
 <Tabs>
 <TabItem label="Using managed identity">
@@ -99,14 +109,14 @@ resources:
 </TabItem>
 <TabItem label="Using app registrations">
   <Admonition type="note">
-    Registering the Discovery Service as Azure AD application is suitable for
-    test and development scenarios, or if your Discovery Service does not run on
-    an Azure VM. For production scenarios prefer to use the managed identity
-    approach.
+    Registering the Discovery Service as a Microsoft Entra ID application is
+    suitable for test and development scenarios, or if your Discovery Service
+    does not run on an Azure VM. For production scenarios prefer to use the
+    managed identity approach.
   </Admonition>
 
   Go to the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
-  page of your Azure Active Directory and click on *New registration*:
+  page in Microsoft Entra ID and click on *New registration*:
 
   ![App registrations](../../../../img/azure/app-registrations@2x.png)
 
@@ -272,7 +282,7 @@ discovery_service:
 
 ## Step 6/6. [Optional] Customize the default installer script
 
-(!docs/pages/includes/server-access/custom-installer.mdx cloud="Azure" matcher="azure" matchTypes="[\"vm\"]"!)
+(!docs/pages/includes/server-access/custom-installer.mdx matcher="azure"!)
 
 If `client_id` is set in the Discovery Service config, custom installers will
 also have the `{{ .AzureClientID }}` templating option.
@@ -301,7 +311,7 @@ logs can be found on the targeted VM at
 
 ## Next steps
 
-- Read [Joining Nodes via Azure Managed Identity](../../agents/join-services-to-your-cluster/azure.mdx)
+- Read [Joining Nodes via Azure Managed Identity](../../agents/azure.mdx)
   for more information on Azure tokens.
 - Full documentation on Azure discovery configuration can be found through the [
-  config file reference documentation](../../../reference/config.mdx).
+  config file reference documentation](../../../reference/deployment/config.mdx).

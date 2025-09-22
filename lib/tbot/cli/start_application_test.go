@@ -23,7 +23,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
 )
 
 // TestApplicationCommand tests that the ApplicationCommand properly parses its
@@ -45,13 +47,13 @@ func TestApplicationCommand(t *testing.T) {
 			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
 				// It must configure a app output with a directory destination.
 				svc := cfg.Services[0]
-				appSvc, ok := svc.(*config.ApplicationOutput)
+				appSvc, ok := svc.(*application.OutputConfig)
 				require.True(t, ok)
 
 				require.Equal(t, "foo", appSvc.AppName)
 				require.True(t, appSvc.SpecificTLSExtensions)
 
-				dir, ok := appSvc.Destination.(*config.DestinationDirectory)
+				dir, ok := appSvc.Destination.(*destination.Directory)
 				require.True(t, ok)
 				require.Equal(t, "/bar", dir.Path)
 			},

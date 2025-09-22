@@ -132,7 +132,7 @@ func (p *PluginDataService) updatePluginData(ctx context.Context, params types.P
 		return trace.Wrap(err)
 	}
 	// Update is attempted multiple times in the event of concurrent writes.
-	for i := 0; i < maxCmpAttempts; i++ {
+	for range maxCmpAttempts {
 		var create bool
 		var data types.PluginData
 		item, err := p.Get(ctx, pluginDataKey(params.Kind, params.Resource))

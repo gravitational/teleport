@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type trustedClusterV2TestingPrimitives struct {
@@ -137,7 +137,7 @@ func (r *trustedClusterV2TestingPrimitives) setupTest(t *testing.T, clusterName 
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      utils.NewSlogLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	})
 	r.remoteCluster = remoteCluster
 
@@ -270,20 +270,21 @@ func TestTrustedClusterV2Update(t *testing.T) {
 	// The resource is created in Kubernetes, with at least a field altered
 	require.NoError(t, test.CreateKubernetesResource(ctx, resourceName))
 
+	logger := t.Logf
 	// Check the resource was updated in Teleport
-	testlib.FastEventuallyWithT(t, func(c *assert.CollectT) {
+	testlib.FastEventuallyWithT(t, func(t *assert.CollectT) {
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
 		if !equal {
-			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
+			logger("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 		}
-		assert.True(c, equal)
+		assert.True(t, equal)
 	})
 
 	// Updating the resource in Kubernetes
@@ -294,19 +295,17 @@ func TestTrustedClusterV2Update(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	testlib.FastEventuallyWithT(t, func(c *assert.CollectT) {
+	testlib.FastEventuallyWithT(t, func(t *assert.CollectT) {
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		if !equal {
-			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
-		}
-		assert.True(c, equal)
+		require.True(t, equal)
+		require.Empty(t, diff)
 	})
 
 	// Delete the resource to avoid leftover state.

@@ -1,6 +1,9 @@
 ---
 title: Databases
 description: Teleport database access introduction, demo and resources.
+tags:
+ - zero-trust
+ - infrastructure-identity
 ---
 
 Teleport can provide secure connections to your databases while improving both
@@ -11,15 +14,36 @@ Some of the things you can do with database access:
 - Enable users to retrieve short-lived database certificates using a Single Sign-On
   flow, thus maintaining their organization-wide identity.
 - Configure role-based access controls for databases and implement custom
-  [Access Request](../../admin-guides/access-controls/access-requests/access-requests.mdx) workflows.
+  [Access Request](../../identity-governance/access-requests/access-requests.mdx) workflows.
 - Capture database activity in the Teleport audit log.
 
 Teleport protects databases through the Teleport Database Service, which is a
 Teleport Agent service. For more information on agent services, read [Teleport
 Agent Architecture](../../reference/architecture/agents.mdx). You can also learn how to
-deploy a [pool of Teleport Agents](../agents/introduction.mdx) to run multiple
+deploy a [pool of Teleport Agents](../agents/agents.mdx) to run multiple
 agent services.
 
 ![Architecture diagram for enrolling databases with Teleport](../../../img/database-access/architecture.svg)
 
-<DocCardList />
+## Getting started
+
+- [Getting Started Guide](./getting-started.mdx): Getting started with Teleport database access and AWS Aurora PostgreSQL.
+
+## Guides
+
+- [Enroll AWS Databases (section)](./enroll-aws-databases/): Provides instructions on protecting databases in your AWS-managed infrastructure with Teleport.
+- [Enroll Azure Databases (section)](./enroll-azure-databases/): Provides instructions on protecting databases in your Azure-managed infrastructure with Teleport.
+- [Enroll Google Cloud Databases (section)](./enroll-google-cloud-databases/): Provides instructions on protecting databases in your Google Cloud-managed infrastructure with Teleport.
+- [Enroll Cloud-Hosted Database Platforms (section)](./enroll-managed-databases/): Provides instructions on protecting managed databases in your infrastructure with Teleport.
+- [Enroll Self-Hosted Databases (section)](./enroll-self-hosted-databases/): Provides instructions on protecting self-hosted databases in your infrastructure with Teleport.
+- [Database Automatic User Provisioning (section)](./auto-user-provisioning/): Configure automatic user provisioning for databases.
+
+## Configuration & management
+
+- [Access Controls](./rbac.mdx): Role-based access control (RBAC) for Teleport database access.
+- [Using the Teleport Database Service (section)](./guides/): Guides to possibilities for running the Teleport Database Service.
+
+## Troubleshooting & support
+
+- [FAQ](./faq.mdx): Frequently asked questions about enrolling databases with Teleport.
+- [Troubleshooting](./troubleshooting.mdx): Common issues and resolutions for enrolling databases with Teleport.

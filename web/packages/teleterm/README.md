@@ -7,6 +7,16 @@ Teleport Connect (previously Teleport Terminal, package name `teleterm`) is a de
 Please refer to [the _Using Teleport Connect_ page from our
 docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
+### Limitations of the OSS version
+
+Client tools updates are disabled in this version as they are licensed under AGPL. 
+To use Community Edition builds or custom binaries, set the `TELEPORT_CDN_BASE_URL` environment variable.
+
+To use Community Edition builds, start Teleport Connect with:
+```bash
+TELEPORT_CDN_BASE_URL=https://cdn.teleport.dev
+```
+
 ## Building and packaging
 
 Teleport Connect consists of two main components: the `tsh` tool and the Electron app.
@@ -39,6 +49,14 @@ process](#build-process) section.
 ```sh
 cd teleport
 pnpm install && make build/tsh
+```
+
+The app depends on Rust WASM code. To compile it, the following tools have to be installed:
+* `Rust` and `Cargo`. The required version is specified by `RUST_VERSION` in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11).
+
+To automatically install `wasm-bindgen-cli` and `wasm-opt`, run the following command:
+```shell
+make ensure-wasm-deps
 ```
 
 To launch `teleterm` in development mode:
@@ -104,9 +122,8 @@ Resulting files can be found in `sharedProcess/api/protogen`.
 On all platforms, with the exception of production builds on macOS, the `CONNECT_TSH_BIN_PATH` env
 var is used to provide the path to the tsh binary that will be included in the package.
 
-See [Teleport Connect build
-process](https://gravitational.slab.com/posts/teleport-connect-build-process-fu6da5ld) on Slab for
-bulid process documentation that is specific to Gravitational.
+See [Teleport Connect build process](https://www.notion.so/goteleport/Teleport-Connect-build-process)
+on Notion for build process documentation that is specific to Gravitational.
 
 ### Native dependencies
 
@@ -162,6 +179,11 @@ Extract the zip file and then pass the path to wintun.dll to `pnpm package-term`
 with the `CONNECT_WINTUN_DLL_PATH` environment variable. By default, electron-builder builds an x64
 version of the app, so you need amd64 version of the DLL.
 
+Another DLL that's not required but one that makes logs in Event Viewer easier to read is
+msgfile.dll. Refer to
+[`lib/utils/log/eventlog/README.md`](/lib/utils/log/eventlog/README.md#message-file) for details on
+how to generate it.
+
 ### macOS
 
 To make a fully-fledged build on macOS with Touch ID support, you need two things:
@@ -198,9 +220,8 @@ variable.
 
 Signing & notarizing is required if the application is supposed to be ran on devices other than the
 one that packaged it. See [electron-builder's docs](https://www.electron.build/code-signing) for a
-general overview and [Teleport Connect build
-process](https://gravitational.slab.com/posts/teleport-connect-build-process-fu6da5ld) Slab page for
-Gravitational-specific nuances.
+general overview and [Teleport Connect build process](https://www.notion.so/goteleport/Teleport-Connect-build-process)
+Notion page for Gravitational-specific nuances.
 
 For the most part, the device that's doing the signing & notarizing needs to have access to an Apple
 Developer ID (certificate + private key). electron-builder should automatically discover it if
@@ -213,7 +234,7 @@ be set to the account email address associated with the developer ID. `APPLE_PAS
 app-specific password](https://support.apple.com/en-us/HT204397), not the account password.
 
 The Team ID needed as an input for notarization must be provided via the `TEAMID` environment
-variable. The top-level `Makefile` exports this when `yarm package-term` is called from `make
+variable. The top-level `Makefile` exports this when `pnpm package-term` is called from `make
 release-connect` with either the developer or production Team ID depending on the `ENVIRONMENT_NAME`
 environment variable. See the top-level `darwin-signing.mk` for details.
 

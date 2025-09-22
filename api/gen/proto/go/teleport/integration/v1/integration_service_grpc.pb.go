@@ -45,6 +45,7 @@ const (
 	IntegrationService_GenerateAzureOIDCToken_FullMethodName           = "/teleport.integration.v1.IntegrationService/GenerateAzureOIDCToken"
 	IntegrationService_GenerateGitHubUserCert_FullMethodName           = "/teleport.integration.v1.IntegrationService/GenerateGitHubUserCert"
 	IntegrationService_ExportIntegrationCertAuthorities_FullMethodName = "/teleport.integration.v1.IntegrationService/ExportIntegrationCertAuthorities"
+	IntegrationService_GenerateAWSRACredentials_FullMethodName         = "/teleport.integration.v1.IntegrationService/GenerateAWSRACredentials"
 )
 
 // IntegrationServiceClient is the client API for IntegrationService service.
@@ -74,6 +75,8 @@ type IntegrationServiceClient interface {
 	GenerateGitHubUserCert(ctx context.Context, in *GenerateGitHubUserCertRequest, opts ...grpc.CallOption) (*GenerateGitHubUserCertResponse, error)
 	// ExportIntegrationCertAuthorities exports cert authorities for an integration.
 	ExportIntegrationCertAuthorities(ctx context.Context, in *ExportIntegrationCertAuthoritiesRequest, opts ...grpc.CallOption) (*ExportIntegrationCertAuthoritiesResponse, error)
+	// GenerateAWSRACredentials generates a set of AWS Credentials using the AWS IAM Roles Anywhere integration.
+	GenerateAWSRACredentials(ctx context.Context, in *GenerateAWSRACredentialsRequest, opts ...grpc.CallOption) (*GenerateAWSRACredentialsResponse, error)
 }
 
 type integrationServiceClient struct {
@@ -184,6 +187,16 @@ func (c *integrationServiceClient) ExportIntegrationCertAuthorities(ctx context.
 	return out, nil
 }
 
+func (c *integrationServiceClient) GenerateAWSRACredentials(ctx context.Context, in *GenerateAWSRACredentialsRequest, opts ...grpc.CallOption) (*GenerateAWSRACredentialsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateAWSRACredentialsResponse)
+	err := c.cc.Invoke(ctx, IntegrationService_GenerateAWSRACredentials_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IntegrationServiceServer is the server API for IntegrationService service.
 // All implementations must embed UnimplementedIntegrationServiceServer
 // for forward compatibility.
@@ -211,6 +224,8 @@ type IntegrationServiceServer interface {
 	GenerateGitHubUserCert(context.Context, *GenerateGitHubUserCertRequest) (*GenerateGitHubUserCertResponse, error)
 	// ExportIntegrationCertAuthorities exports cert authorities for an integration.
 	ExportIntegrationCertAuthorities(context.Context, *ExportIntegrationCertAuthoritiesRequest) (*ExportIntegrationCertAuthoritiesResponse, error)
+	// GenerateAWSRACredentials generates a set of AWS Credentials using the AWS IAM Roles Anywhere integration.
+	GenerateAWSRACredentials(context.Context, *GenerateAWSRACredentialsRequest) (*GenerateAWSRACredentialsResponse, error)
 	mustEmbedUnimplementedIntegrationServiceServer()
 }
 
@@ -250,6 +265,9 @@ func (UnimplementedIntegrationServiceServer) GenerateGitHubUserCert(context.Cont
 }
 func (UnimplementedIntegrationServiceServer) ExportIntegrationCertAuthorities(context.Context, *ExportIntegrationCertAuthoritiesRequest) (*ExportIntegrationCertAuthoritiesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExportIntegrationCertAuthorities not implemented")
+}
+func (UnimplementedIntegrationServiceServer) GenerateAWSRACredentials(context.Context, *GenerateAWSRACredentialsRequest) (*GenerateAWSRACredentialsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateAWSRACredentials not implemented")
 }
 func (UnimplementedIntegrationServiceServer) mustEmbedUnimplementedIntegrationServiceServer() {}
 func (UnimplementedIntegrationServiceServer) testEmbeddedByValue()                            {}
@@ -452,6 +470,24 @@ func _IntegrationService_ExportIntegrationCertAuthorities_Handler(srv interface{
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IntegrationService_GenerateAWSRACredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateAWSRACredentialsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IntegrationServiceServer).GenerateAWSRACredentials(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IntegrationService_GenerateAWSRACredentials_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IntegrationServiceServer).GenerateAWSRACredentials(ctx, req.(*GenerateAWSRACredentialsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IntegrationService_ServiceDesc is the grpc.ServiceDesc for IntegrationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -498,6 +534,10 @@ var IntegrationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExportIntegrationCertAuthorities",
 			Handler:    _IntegrationService_ExportIntegrationCertAuthorities_Handler,
+		},
+		{
+			MethodName: "GenerateAWSRACredentials",
+			Handler:    _IntegrationService_GenerateAWSRACredentials_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

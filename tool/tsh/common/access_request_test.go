@@ -33,12 +33,13 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAccessRequestSearch(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -116,9 +117,9 @@ func TestAccessRequestSearch(t *testing.T) {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Name", "Namespace", "Labels", "Resource ID"},
 					[][]string{
-						{"nginx-1", "default", "", fmt.Sprintf("/%s/pod/%s/default/nginx-1", rootClusterName, rootKubeCluster)},
-						{"nginx-2", "default", "", fmt.Sprintf("/%s/pod/%s/default/nginx-2", rootClusterName, rootKubeCluster)},
-						{"test", "default", "", fmt.Sprintf("/%s/pod/%s/default/test", rootClusterName, rootKubeCluster)},
+						{"nginx-1", "default", "", fmt.Sprintf("/%s/kube:ns:pods/%s/default/nginx-1", rootClusterName, rootKubeCluster)},
+						{"nginx-2", "default", "", fmt.Sprintf("/%s/kube:ns:pods/%s/default/nginx-2", rootClusterName, rootKubeCluster)},
+						{"test", "default", "", fmt.Sprintf("/%s/kube:ns:pods/%s/default/test", rootClusterName, rootKubeCluster)},
 					},
 					"Labels")
 				return table.AsBuffer().String()
@@ -135,7 +136,7 @@ func TestAccessRequestSearch(t *testing.T) {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Name", "Namespace", "Labels", "Resource ID"},
 					[][]string{
-						{"nginx-1", "dev", "", fmt.Sprintf("/%s/pod/%s/dev/nginx-1", rootClusterName, rootKubeCluster)},
+						{"nginx-1", "dev", "", fmt.Sprintf("/%s/kube:ns:pods/%s/dev/nginx-1", rootClusterName, rootKubeCluster)},
 					},
 					"Labels")
 				return table.AsBuffer().String()
@@ -152,9 +153,9 @@ func TestAccessRequestSearch(t *testing.T) {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Name", "Namespace", "Labels", "Resource ID"},
 					[][]string{
-						{"nginx-1", "default", "", fmt.Sprintf("/%s/pod/%s/default/nginx-1", leafClusterName, leafKubeCluster)},
-						{"nginx-2", "default", "", fmt.Sprintf("/%s/pod/%s/default/nginx-2", leafClusterName, leafKubeCluster)},
-						{"test", "default", "", fmt.Sprintf("/%s/pod/%s/default/test", leafClusterName, leafKubeCluster)},
+						{"nginx-1", "default", "", fmt.Sprintf("/%s/kube:ns:pods/%s/default/nginx-1", leafClusterName, leafKubeCluster)},
+						{"nginx-2", "default", "", fmt.Sprintf("/%s/kube:ns:pods/%s/default/nginx-2", leafClusterName, leafKubeCluster)},
+						{"test", "default", "", fmt.Sprintf("/%s/kube:ns:pods/%s/default/test", leafClusterName, leafKubeCluster)},
 					},
 					"Labels")
 				return table.AsBuffer().String()
@@ -171,8 +172,8 @@ func TestAccessRequestSearch(t *testing.T) {
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Name", "Namespace", "Labels", "Resource ID"},
 					[][]string{
-						{"nginx-1", "default", "", fmt.Sprintf("/%s/pod/%s/default/nginx-1", leafClusterName, leafKubeCluster)},
-						{"nginx-1", "dev", "", fmt.Sprintf("/%s/pod/%s/dev/nginx-1", leafClusterName, leafKubeCluster)},
+						{"nginx-1", "default", "", fmt.Sprintf("/%s/kube:ns:pods/%s/default/nginx-1", leafClusterName, leafKubeCluster)},
+						{"nginx-1", "dev", "", fmt.Sprintf("/%s/kube:ns:pods/%s/dev/nginx-1", leafClusterName, leafKubeCluster)},
 					},
 					"Labels")
 				return table.AsBuffer().String()
@@ -197,13 +198,14 @@ func TestAccessRequestSearch(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
 			homePath, _ := mustLoginLegacy(t, s, tc.args.teleportCluster)
 			captureStdout := new(bytes.Buffer)
 			err := Run(
-				context.Background(),
+				ctx,
 				append([]string{
 					"--insecure",
 					"request",
@@ -276,7 +278,6 @@ func TestShowRequestTable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			captureStdout := new(bytes.Buffer)

@@ -35,15 +35,14 @@ type terraformCloudIDTokenValidator interface {
 	) (*terraformcloud.IDTokenClaims, error)
 }
 
-func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*terraformcloud.IDTokenClaims, error) {
+func (a *Server) checkTerraformCloudJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*terraformcloud.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("id_token not provided for terraform_cloud join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("terraform_cloud join method only supports ProvisionTokenV2, '%T' was provided", pt)

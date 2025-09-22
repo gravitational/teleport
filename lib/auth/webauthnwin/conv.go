@@ -50,7 +50,7 @@ func assertOptionsToCType(in wantypes.PublicKeyCredentialRequestOptions, loginOp
 		// https://github.com/microsoft/webauthn/blob/7ab979cc833bfab9a682ed51761309db57f56c8c/webauthn.h#L36-L97
 		// contains information about different versions.
 		// We can set newest version and it still works on older APIs.
-		dwVersion:                     6,
+		dwVersion:                     5,
 		dwTimeoutMilliseconds:         uint32(in.Timeout),
 		dwAuthenticatorAttachment:     dwAuthenticatorAttachment,
 		dwUserVerificationRequirement: userVerificationToCType(in.UserVerification),

@@ -191,7 +191,7 @@ func TestLogin(t *testing.T) {
 			origin:      origin,
 			assertionIn: func() *wantypes.CredentialAssertion { return okAssertion },
 			assertFn: func(t *testing.T, car *wanpb.CredentialAssertionResponse, req *getAssertionRequest) {
-				assert.Equal(t, uint32(6), req.opts.dwVersion)
+				assert.Equal(t, uint32(5), req.opts.dwVersion)
 
 				assert.Equal(t, webauthnUserVerificationDiscouraged, req.opts.dwUserVerificationRequirement)
 
@@ -208,7 +208,7 @@ func TestLogin(t *testing.T) {
 			},
 			opts: LoginOpts{AuthenticatorAttachment: AttachmentPlatform},
 			assertFn: func(t *testing.T, car *wanpb.CredentialAssertionResponse, req *getAssertionRequest) {
-				assert.Equal(t, uint32(6), req.opts.dwVersion)
+				assert.Equal(t, uint32(5), req.opts.dwVersion)
 
 				assert.Equal(t, webauthnUserVerificationRequired, req.opts.dwUserVerificationRequirement)
 
@@ -225,7 +225,7 @@ func TestLogin(t *testing.T) {
 			},
 			opts: LoginOpts{AuthenticatorAttachment: AttachmentCrossPlatform},
 			assertFn: func(t *testing.T, car *wanpb.CredentialAssertionResponse, req *getAssertionRequest) {
-				assert.Equal(t, uint32(6), req.opts.dwVersion)
+				assert.Equal(t, uint32(5), req.opts.dwVersion)
 
 				assert.Equal(t, webauthnUserVerificationPreferred, req.opts.dwUserVerificationRequirement)
 
@@ -242,7 +242,7 @@ func TestLogin(t *testing.T) {
 			},
 			opts: LoginOpts{AuthenticatorAttachment: AttachmentCrossPlatform},
 			assertFn: func(t *testing.T, car *wanpb.CredentialAssertionResponse, req *getAssertionRequest) {
-				assert.Equal(t, uint32(6), req.opts.dwVersion)
+				assert.Equal(t, uint32(5), req.opts.dwVersion)
 
 				assert.Equal(t, webauthnUserVerificationDiscouraged, req.opts.dwUserVerificationRequirement)
 			},

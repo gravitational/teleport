@@ -20,11 +20,13 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -38,18 +40,21 @@ func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*col
 	}
 
 	return &collection[types.KubeServer, kubeServerIndex]{
-		store: newStore(map[kubeServerIndex]func(types.KubeServer) string{
-			kubeServerNameIndex: func(u types.KubeServer) string {
-				return u.GetHostID() + "/" + u.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindKubeServer,
+			types.KubeServer.Copy,
+			map[kubeServerIndex]func(types.KubeServer) string{
+				kubeServerNameIndex: func(u types.KubeServer) string {
+					return u.GetHostID() + "/" + u.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.KubeServer, error) {
 			return p.GetKubernetesServers(ctx)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.KubeServer {
 			return &types.KubernetesServerV3{
-				Kind:    types.KindKubeServer,
-				Version: types.V3,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -96,18 +101,19 @@ func newKubernetesClusterCollection(k services.Kubernetes, w types.WatchKind) (*
 	}
 
 	return &collection[types.KubeCluster, kubeClusterIndex]{
-		store: newStore(map[kubeClusterIndex]func(types.KubeCluster) string{
-			kubeClusterNameIndex: func(u types.KubeCluster) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindKubernetesCluster,
+			types.KubeCluster.Copy,
+			map[kubeClusterIndex]func(types.KubeCluster) string{
+				kubeClusterNameIndex: types.KubeCluster.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.KubeCluster, error) {
 			return k.GetKubernetesClusters(ctx)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.KubeCluster {
 			return &types.KubernetesClusterV3{
-				Kind:    types.KindKubernetesCluster,
-				Version: types.V3,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -175,33 +181,22 @@ func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContai
 	}
 
 	return &collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]{
-		store: newStore(map[kubeWaitingContainerIndex]func(*kubewaitingcontainerv1.KubernetesWaitingContainer) string{
-			kubeWaitingContainerNameIndex: func(u *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
-				return u.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			types.KindKubeWaitingContainer,
+			proto.CloneOf[*kubewaitingcontainerv1.KubernetesWaitingContainer],
+			map[kubeWaitingContainerIndex]func(*kubewaitingcontainerv1.KubernetesWaitingContainer) string{
+				kubeWaitingContainerNameIndex: func(u *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
+					return u.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
-			var startKey string
-			var allConts []*kubewaitingcontainerv1.KubernetesWaitingContainer
-			for {
-				conts, nextKey, err := upstream.ListKubernetesWaitingContainers(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				allConts = append(allConts, conts...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-			return allConts, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListKubernetesWaitingContainers))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *kubewaitingcontainerv1.KubernetesWaitingContainer {
 			return &kubewaitingcontainerv1.KubernetesWaitingContainer{
-				Kind:    types.KindKubeServer,
-				Version: types.V3,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: &headerv1.Metadata{
 					Name: hdr.Metadata.Name,
 				},
@@ -227,7 +222,6 @@ func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize in
 			spec := t.GetSpec()
 			return spec.GetUsername() + "/" + spec.GetCluster() + "/" + spec.GetNamespace() + "/" + spec.GetPodName() + "/" + t.GetMetadata().GetName()
 		},
-		clone: utils.CloneProtoMsg[*kubewaitingcontainerv1.KubernetesWaitingContainer],
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)

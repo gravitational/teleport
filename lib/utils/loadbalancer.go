@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -164,7 +165,7 @@ func (l *LoadBalancer) RemoveBackend(b NetAddr) error {
 	defer l.Unlock()
 	for i := range l.backends {
 		if l.backends[i] == b {
-			l.backends = append(l.backends[:i], l.backends[i+1:]...)
+			l.backends = slices.Delete(l.backends, i, i+1)
 			l.dropConnections(b)
 			return nil
 		}
@@ -302,7 +303,7 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 	}()
 
 	var lastErr error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case err := <-messagesC:
 			if err != nil && !errors.Is(err, io.EOF) {

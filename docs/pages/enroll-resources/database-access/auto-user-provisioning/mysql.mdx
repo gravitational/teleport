@@ -1,6 +1,11 @@
 ---
 title: MySQL Automatic User Provisioning
+sidebar_label: MySQL
 description: Configure automatic user provisioning for MySQL.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 Teleport can automatically create an account in your MySQL database when a
@@ -28,7 +33,7 @@ stripping its privileges.
 
 ## Prerequisites
 
-- Teleport cluster v14.1 or higher with a configured [self-hosted
+- Teleport cluster with a configured [self-hosted
   MySQL](../enroll-self-hosted-databases/mysql-self-hosted.mdx) or [RDS MySQL](../enroll-aws-databases/rds.mdx)
   database.
 - Ability to connect to and create user accounts in the target database.
@@ -49,8 +54,8 @@ The admin user must have privileges within the database to create users and
 grant them privileges. The admin user must also have privileges to monitor user
 processes and role assignments.
 
-In addition, a schema is required for the admin user to log into by default.
-Stored procedures are also created and executed from this schema.
+In addition, a database is required for the admin user to log into by default.
+Stored procedures are also created and executed from this database.
 
 <Tabs>
 <TabItem label="RDS MySQL">
@@ -64,6 +69,9 @@ GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO 'teleport-admin' ;
 CREATE DATABASE IF NOT EXISTS `teleport`;
 GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin' ;
 ```
+
+(!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
+
 </TabItem>
 
 <TabItem label="Self-hosted MySQL">
@@ -76,13 +84,16 @@ GRANT PROCESS, ROLE_ADMIN, CREATE USER ON *.* TO 'teleport-admin' ;
 CREATE DATABASE IF NOT EXISTS `teleport`;
 GRANT ALTER ROUTINE, CREATE ROUTINE, EXECUTE ON `teleport`.* TO 'teleport-admin' ;
 ```
+
+(!docs/pages/includes/database-access/auto-user-provisioning/mysql-default-database-note.mdx!)
+
 </TabItem>
 </Tabs>
 
 Users created by Teleport will be assigned the `teleport-auto-user` role in the
 database, which will be created automatically if it doesn't exist.
 
-(!docs/pages/includes/database-access/auto-user-provisioning/db-definition.mdx protocol="mysql" uri="localhost:3306" !)
+(!docs/pages/includes/database-access/auto-user-provisioning/db-definition-default-dbname.mdx protocol="mysql" uri="localhost:3306" !)
 
 ## Step 2/3. Configure a Teleport role
 
@@ -122,6 +133,8 @@ database queries in the Teleport Audit Logs, when the Teleport username is over
 
 (!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="MySQL Workbench"!)
 
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="MySQL"!)
+
 ## Troubleshooting
 
 ### Access denied to database error
@@ -155,5 +168,5 @@ endpoints. Please use auto-user provisioning on the primary endpoints.
 ## Next steps
 
 - Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
-- Learn about [role templating](../../../admin-guides/access-controls/guides/role-templates.mdx).
+- Learn about [role templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

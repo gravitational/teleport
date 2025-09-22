@@ -88,7 +88,7 @@ type TemplateData struct {
 	Regions map[string]string
 }
 
-// AWSPartitions contains the struct representation of the AWS SDK patitions
+// AWSPartitions contains the struct representation of the AWS SDK partitions
 // JSON file.
 type AWSPartitions struct {
 	Partitions []struct {
@@ -101,7 +101,7 @@ type AWSPartitions struct {
 func main() {
 	partitionsContents, err := loadSDKPartitionsFile()
 	if err != nil {
-		log.Fatalf("failed to parse patitions: %s", trace.DebugReport(err))
+		log.Fatalf("failed to parse partitions: %s", trace.DebugReport(err))
 	}
 
 	data, err := convertToTemplateData(partitionsContents)
@@ -173,7 +173,7 @@ const (
 	outputFilename = "regions.go"
 	// awsPackageName is the AWS package used to find the paritions references.
 	awsPackageName = "github.com/aws/aws-sdk-go-v2"
-	// awsPartitionsFilePath is the patitions JSON file path inside the package.
+	// awsPartitionsFilePath is the partitions JSON file path inside the package.
 	awsPartitionsFilePath = "internal/endpoints/awsrulesfn/partitions.json"
 	// globalRegionSuffix is a strings suffix that indicates a region is a
 	// global region.

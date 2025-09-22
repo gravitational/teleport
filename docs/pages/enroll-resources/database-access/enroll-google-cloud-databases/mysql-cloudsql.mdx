@@ -1,6 +1,12 @@
 ---
 title: Database Access with Cloud SQL for MySQL
+sidebar_label: Cloud SQL for MySQL
 description: How to configure Teleport database access with Cloud SQL for MySQL.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - google-cloud
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="MySQL on Google Cloud SQL" dbConfigure="with a service account"!)
@@ -194,6 +200,8 @@ $ tsh db connect --db-user=cloudsql-user --db-name=mysql cloudsql
 # Or connect the full email ID:
 $ tsh db connect --db-user=cloudsql-user@<Var name="project-id"/>.iam.gserviceaccount.com --db-name=mysql cloudsql
 ```
+
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="MySQL"!)
 
 To log out of the database and remove credentials:
 

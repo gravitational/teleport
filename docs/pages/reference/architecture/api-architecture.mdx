@@ -1,13 +1,16 @@
 ---
 title: API Architecture
 description: Architectural overview of the Teleport gRPC API.
+tags:
+ - conceptual
+ - platform-wide
 ---
 
 This guide describes the architecture of the Teleport gRPC API, which enables
 clients like `tctl`, the Teleport Terraform provider, and the Teleport
 Kubernetes operator to manage dynamic resources in your Teleport cluster. If you
 are new to the Teleport gRPC API, read how to [Get
-Started](../../admin-guides/api/getting-started.mdx).
+Started](../../zero-trust-access/api/getting-started.mdx).
 
 ## Authentication
 
@@ -70,7 +73,7 @@ benefits, here's a quick breakdown:
  - Identity File credentials are the most well-rounded in terms of usability,
    functionality, and customizability. Identity files can be generated through
    `tsh login`, `tctl auth sign`, or with
-   [Machine ID](../../enroll-resources/machine-id/introduction.mdx).
+   [Machine ID](../../machine-workload-identity/machine-id/introduction.mdx).
  - Dynamic Identity File credentials are Identity File credentials with support for
    reloading credentials from disk. This makes them appropriate for Machine ID
    integrations, as you can reload the credentials when Machine ID rotates the

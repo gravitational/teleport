@@ -223,7 +223,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType st
 		req := client.SSOLoginConsoleReq{
 			ConnectorID: "-sso-test",
 			RedirectURL: clientCallbackURL,
-			SSOUserPublicKeys: client.SSOUserPublicKeys{
+			UserPublicKeys: client.UserPublicKeys{
 				SSHPubKey: ssh.MarshalAuthorizedKey(sshPub),
 				TLSPubKey: tlsPub,
 			},

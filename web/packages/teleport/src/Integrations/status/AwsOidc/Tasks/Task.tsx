@@ -17,8 +17,7 @@
  */
 
 import { PropsWithChildren, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import {
   Alert,
@@ -27,12 +26,14 @@ import {
   Link as ExternalLink,
   Flex,
   H2,
+  Indicator,
 } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
 import { TableColumn } from 'design/DataTable/types';
 import * as Icons from 'design/Icon';
 import { H3, P2, P3, Subtitle2 } from 'design/Text';
+import { Markdown } from 'shared/components/Markdown/Markdown';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
@@ -50,7 +51,7 @@ import {
   UserTaskDetail,
 } from 'teleport/services/integrations';
 
-import { AwsResource } from '../StatCard';
+import { AwsResource } from '../Cards/StatCard';
 import { SidePanel } from './SidePanel';
 
 export function Task({
@@ -60,7 +61,6 @@ export function Task({
   name: string;
   close: (resolved: boolean) => void;
 }) {
-  const theme = useTheme();
   const { attempt, setAttempt } = useAttempt('');
 
   const [taskAttempt, fetchTask] = useAsync(() =>
@@ -75,6 +75,14 @@ export function Task({
     return (
       <SidePanel onClose={() => close(false)}>
         <Danger>{taskAttempt.statusText}</Danger>
+      </SidePanel>
+    );
+  }
+
+  if (taskAttempt.status === 'processing') {
+    return (
+      <SidePanel onClose={() => close(false)}>
+        <Indicator />
       </SidePanel>
     );
   }
@@ -163,26 +171,7 @@ export function Task({
       <H3 my={2} style={{ overflow: 'unset' }}>
         Details
       </H3>
-      <ReactMarkdown
-        components={{
-          a(props) {
-            return (
-              <a
-                style={{
-                  fontStyle: 'unset',
-                  color: theme.colors.buttons.link.default,
-                  background: 'none',
-                  textDecoration: 'underline',
-                  textTransform: 'none',
-                }}
-                {...props}
-              />
-            );
-          },
-        }}
-      >
-        {taskAttempt.data.description}
-      </ReactMarkdown>
+      <Markdown text={taskAttempt.data.description} enableLinks />
       <H3 my={2} style={{ overflow: 'unset' }}>
         Impacted instances ({Object.keys(impacts).length})
       </H3>

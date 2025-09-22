@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -63,6 +64,8 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 var (
@@ -124,13 +127,13 @@ func TestAuthenticate(t *testing.T) {
 	require.NoError(t, err)
 
 	tun := mockRevTunnel{
-		sites: map[string]reversetunnelclient.RemoteSite{
-			"remote": mockRemoteSite{name: "remote"},
-			"local":  mockRemoteSite{name: "local"},
+		sites: map[string]reversetunnelclient.Cluster{
+			"remote": mockCluster{name: "remote"},
+			"local":  mockCluster{name: "local"},
 		},
 	}
 	f := &Forwarder{
-		log: utils.NewSlogLoggerForTests(),
+		log: logtest.NewLogger(),
 		cfg: ForwarderConfig{
 			ClusterName:       "local",
 			CachingAuthClient: ap,
@@ -198,8 +201,8 @@ func TestAuthenticate(t *testing.T) {
 			),
 			activeRequests: activeAccessRequests,
 			wantCtx: &authContext{
-				kubeUsers:       utils.StringsSet([]string{"user-a"}),
-				kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeUsers:       set.New("user-a"),
+				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName: "local",
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
@@ -275,8 +278,8 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:       utils.StringsSet([]string{"user-a"}),
-				kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeUsers:       set.New("user-a"),
+				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName: "local",
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
@@ -326,8 +329,8 @@ func TestAuthenticate(t *testing.T) {
 			),
 
 			wantCtx: &authContext{
-				kubeUsers:         utils.StringsSet([]string{"user-a"}),
-				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
@@ -370,8 +373,8 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:         utils.StringsSet([]string{"user-a"}),
-				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				certExpires:       certExpiration,
 				kubeClusterLabels: make(map[string]string),
@@ -416,8 +419,8 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:         utils.StringsSet([]string{"user-a"}),
-				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				certExpires:       certExpiration,
 				kubeClusterLabels: make(map[string]string),
@@ -524,8 +527,8 @@ func TestAuthenticate(t *testing.T) {
 			),
 
 			wantCtx: &authContext{
-				kubeUsers:         utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
-				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeUsers:         set.New("kube-user-a", "kube-user-b"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
@@ -585,8 +588,8 @@ func TestAuthenticate(t *testing.T) {
 			),
 
 			wantCtx: &authContext{
-				kubeUsers:         utils.StringsSet([]string{"user-a"}),
-				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName:   "local",
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
@@ -644,8 +647,8 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:       utils.StringsSet([]string{"user-a"}),
-				kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeUsers:       set.New("user-a"),
+				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
 				kubeClusterName: "foo",
 				certExpires:     certExpiration,
 				kubeClusterLabels: map[string]string{
@@ -758,8 +761,8 @@ func TestAuthenticate(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
-				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, apiResource{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "apiResource"),
+				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, metaResource{}, apiResource{}),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster"),
 			))
 
 			// validate authCtx.key() to make sure it includes certExpires timestamp.
@@ -784,6 +787,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 		desc          string
 		kubeUsers     []string
 		kubeGroups    []string
+		username      string
 		remoteCluster bool
 		isProxy       bool
 		inHeaders     http.Header
@@ -928,9 +932,35 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
+		{
+			desc:       "kubernetes_users wildcard, no impersonation headers",
+			username:   "ted-lasso",
+			kubeUsers:  []string{types.Wildcard},
+			kubeGroups: []string{"kube-group-a"},
+			inHeaders:  http.Header{},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"ted-lasso"},
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			desc:       "kubernetes_users wildcard, impersonation headers given",
+			username:   "ted-lasso",
+			kubeUsers:  []string{types.Wildcard},
+			kubeGroups: []string{"kube-group-a"},
+			inHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			errAssertion: require.NoError,
+		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			var kubeCreds kubeCreds
 			if !tt.isProxy {
@@ -940,8 +970,13 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				&clusterSession{
 					kubeAPICreds: kubeCreds,
 					authContext: authContext{
-						kubeUsers:       utils.StringsSet(tt.kubeUsers),
-						kubeGroups:      utils.StringsSet(tt.kubeGroups),
+						Context: authz.Context{
+							User: &types.UserV2{
+								Metadata: types.Metadata{Name: tt.username},
+							},
+						},
+						kubeUsers:       set.New(tt.kubeUsers...),
+						kubeGroups:      set.New(tt.kubeGroups...),
 						teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
 					},
 				},
@@ -1110,7 +1145,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	require.NoError(t, err)
 
 	return &Forwarder{
-		log:    utils.NewSlogLoggerForTests(),
+		log:    logtest.NewLogger(),
 		router: httprouter.New(),
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
@@ -1159,15 +1194,15 @@ func (c *mockCAClient) GetCertAuthority(ctx context.Context, id types.CertAuthID
 	return nil, trace.NotFound("cluster not found")
 }
 
-// mockRemoteSite is a reversetunnelclient.RemoteSite implementation with hardcoded
+// mockCluster is a reversetunnelclient.Cluster implementation with hardcoded
 // name, because there's no easy way to construct a real
-// reversetunnelclient.RemoteSite.
-type mockRemoteSite struct {
-	reversetunnelclient.RemoteSite
+// reversetunnelclient.Cluster.
+type mockCluster struct {
+	reversetunnelclient.Cluster
 	name string
 }
 
-func (s mockRemoteSite) GetName() string { return s.name }
+func (s mockCluster) GetName() string { return s.name }
 
 type mockAccessPoint struct {
 	authclient.KubernetesAccessPoint
@@ -1210,10 +1245,10 @@ func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAut
 type mockRevTunnel struct {
 	reversetunnelclient.Server
 
-	sites map[string]reversetunnelclient.RemoteSite
+	sites map[string]reversetunnelclient.Cluster
 }
 
-func (t mockRevTunnel) GetSite(name string) (reversetunnelclient.RemoteSite, error) {
+func (t mockRevTunnel) Cluster(_ context.Context, name string) (reversetunnelclient.Cluster, error) {
 	s, ok := t.sites[name]
 	if !ok {
 		return nil, trace.NotFound("remote site %q not found", name)
@@ -1221,8 +1256,8 @@ func (t mockRevTunnel) GetSite(name string) (reversetunnelclient.RemoteSite, err
 	return s, nil
 }
 
-func (t mockRevTunnel) GetSites() ([]reversetunnelclient.RemoteSite, error) {
-	var sites []reversetunnelclient.RemoteSite
+func (t mockRevTunnel) Clusters(context.Context) ([]reversetunnelclient.Cluster, error) {
+	var sites []reversetunnelclient.Cluster
 	for _, s := range t.sites {
 		sites = append(sites, s)
 	}
@@ -1275,7 +1310,7 @@ func (m *mockWatcher) Done() <-chan struct{} {
 
 func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 	return &Forwarder{
-		log:            utils.NewSlogLoggerForTests(),
+		log:            logtest.NewLogger(),
 		router:         httprouter.New(),
 		cfg:            cfg,
 		activeRequests: make(map[string]context.Context),
@@ -1307,8 +1342,7 @@ func (m *mockSemaphoreClient) GetRole(ctx context.Context, name string) (types.R
 }
 
 func TestKubernetesConnectionLimit(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	type testCase struct {
 		name        string
@@ -1463,7 +1497,7 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 					string(entitlements.K8s): {Enabled: false},
 				},
 			},
-			assertErrFunc: func(tt require.TestingT, err error, i ...interface{}) {
+			assertErrFunc: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
 				var kubeErr *kubeerrors.StatusError
 				require.ErrorAs(tt, err, &kubeErr)
@@ -1474,7 +1508,6 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
@@ -1519,6 +1552,11 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 	kubeClusterLabels := map[string]string{
 		"label": "value",
 	}
+	baseAuthCtx := authz.Context{
+		User: &types.UserV2{
+			Metadata: types.Metadata{Name: "ted-lasso"},
+		},
+	}
 	type args struct {
 		req *http.Request
 		ctx *authContext
@@ -1535,6 +1573,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
+					Context:           baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}},
@@ -1558,6 +1597,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					},
 				},
 				ctx: &authContext{
+					Context:           baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
@@ -1578,6 +1618,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
+					Context:           baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
@@ -1595,8 +1636,8 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.args.ctx.eventClusterMeta(tt.args.req)
-			sort.Strings(got.KubernetesGroups)
-			sort.Strings(got.KubernetesGroups)
+			slices.Sort(got.KubernetesUsers)
+			slices.Sort(got.KubernetesGroups)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -1634,7 +1675,7 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 				return x509.NewCertPool(), nil
 			},
 		},
-		log: utils.NewSlogLoggerForTests(),
+		log: logtest.NewLogger(),
 		ctx: context.Background(),
 	}
 

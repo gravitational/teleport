@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Dispatch, SetStateAction, useCallback, useState } from 'react';
+import { Dispatch, SetStateAction, useCallback, useRef, useState } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { StatePersistenceState } from 'teleterm/ui/services/statePersistence';
@@ -85,8 +85,18 @@ export function usePersistedState<
   initialState: WholeState[Key]
 ): [WholeState[Key], Dispatch<SetStateAction<WholeState[Key]>>] {
   const { statePersistenceService } = useAppContext();
-  const wholeState = statePersistenceService.getState() as WholeState;
-  const state = Object.hasOwn(wholeState, key) ? wholeState[key] : initialState;
+
+  // setState below must be stable across updates, so it can't depend on initialState nor
+  // wholeState. Hence the shenanigans with initialStateRef and getState.
+  const initialStateRef = useRef(initialState);
+  const getState = useCallback(() => {
+    const wholeState = statePersistenceService.getState() as WholeState;
+    const state = Object.hasOwn(wholeState, key)
+      ? wholeState[key]
+      : initialStateRef.current;
+    return { wholeState, state };
+  }, [key, statePersistenceService]);
+
   // TODO(ravicious): usePersistedState currently doesn't propagate changes across several
   // callsites.
   //
@@ -96,6 +106,8 @@ export function usePersistedState<
 
   const setState: Dispatch<SetStateAction<WholeState[Key]>> = useCallback(
     newState => {
+      const { wholeState, state } = getState();
+
       if (typeof newState === 'function') {
         statePersistenceService.putState({
           ...(wholeState as StatePersistenceState),
@@ -112,8 +124,8 @@ export function usePersistedState<
 
       rerender({});
     },
-    [key, statePersistenceService, state, wholeState]
+    [key, statePersistenceService, getState]
   );
 
-  return [state, setState];
+  return [getState().state, setState];
 }

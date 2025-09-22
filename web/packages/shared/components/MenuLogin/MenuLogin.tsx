@@ -18,6 +18,7 @@
 
 import React, {
   ChangeEvent,
+  ComponentPropsWithoutRef,
   useImperativeHandle,
   useRef,
   useState,
@@ -48,10 +49,11 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
       inputType = MenuInputType.INPUT,
       required = true,
       width,
+      buttonWidth,
       style,
     } = props;
     const [filter, setFilter] = useState('');
-    const anchorRef = useRef<HTMLButtonElement>();
+    const anchorRef = useRef<HTMLButtonElement>(null);
     const [isOpen, setIsOpen] = useState(false);
     const [getLoginItemsAttempt, runGetLoginItems] = useAsync(() =>
       Promise.resolve().then(() => props.getLoginItems())
@@ -127,10 +129,10 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
     return (
       <React.Fragment>
         <ButtonComponent
-          width={alignButtonWidthToMenu ? width : null}
+          width={alignButtonWidthToMenu ? width : buttonWidth}
           textTransform={props.textTransform}
           size="small"
-          setRef={anchorRef}
+          ref={anchorRef}
           onClick={onOpen}
           style={style}
         >
@@ -180,7 +182,7 @@ const LoginItemList = ({
   onKeyPress: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   placeholder: string;
-  width?: string;
+  width?: ComponentPropsWithoutRef<typeof Flex>['minWidth'];
   inputType?: MenuInputType;
 }) => {
   const content = getLoginItemListContent(items, getLoginItemsAttempt, onClick);

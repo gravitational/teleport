@@ -126,8 +126,8 @@ type IncidentBody struct {
 	ID          string    `json:"id,omitempty"`
 	Title       string    `json:"title,omitempty"`
 	IncidentKey string    `json:"incident_key,omitempty"`
-	Service     Reference `json:"service,omitempty"`
-	Body        Details   `json:"body,omitempty"`
+	Service     Reference `json:"service"`
+	Body        Details   `json:"body"`
 	Type        string    `json:"type,omitempty"`
 	Status      string    `json:"status,omitempty"`
 }

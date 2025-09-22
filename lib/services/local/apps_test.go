@@ -19,13 +19,17 @@
 package local
 
 import (
+	"cmp"
 	"context"
+	"slices"
+	"strconv"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -63,6 +67,18 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 
+	out, next, err := service.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	var iterOut []types.Application
+	for app, err := range service.Apps(ctx, "", "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	require.Empty(t, iterOut)
+
 	// Create both apps.
 	err = service.CreateApp(ctx, app1)
 	require.NoError(t, err)
@@ -72,14 +88,30 @@ func TestAppsCRUD(t *testing.T) {
 	// Fetch all apps.
 	out, err = service.GetApps(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
+	require.Empty(t, gocmp.Diff([]types.Application{app1, app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = service.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Application{app1, app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
+	iterOut = nil
+	for app, err := range service.Apps(ctx, "", "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	require.Empty(t, gocmp.Diff([]types.Application{app1, app2}, iterOut,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Fetch a specific application.
 	app, err := service.GetApp(ctx, app2.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(app2, app,
+	require.Empty(t, gocmp.Diff(app2, app,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -97,16 +129,33 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	app, err = service.GetApp(ctx, app1.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(app1, app,
+	require.Empty(t, gocmp.Diff(app1, app,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
 	// Delete an application.
 	err = service.DeleteApp(ctx, app1.GetName())
 	require.NoError(t, err)
+
 	out, err = service.GetApps(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app2}, out,
+	require.Empty(t, gocmp.Diff([]types.Application{app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = service.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, gocmp.Diff([]types.Application{app2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
+	iterOut = nil
+	for app, err := range service.Apps(ctx, "", "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	require.Empty(t, gocmp.Diff([]types.Application{app2}, iterOut,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -117,7 +166,90 @@ func TestAppsCRUD(t *testing.T) {
 	// Delete all applications.
 	err = service.DeleteAllApps(ctx)
 	require.NoError(t, err)
+
 	out, err = service.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, out)
+
+	out, next, err = service.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	iterOut = nil
+	for app, err := range service.Apps(ctx, "", "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	require.Empty(t, iterOut)
+
+	// Test pagination
+	var expected []types.Application
+	for i := range 1324 {
+		app, err := types.NewAppV3(types.Metadata{
+			Name: "app" + strconv.Itoa(i+1),
+		}, types.AppSpecV3{
+			URI: "localhost",
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, service.CreateApp(ctx, app))
+		expected = append(expected, app)
+	}
+	slices.SortFunc(expected, func(a, b types.Application) int {
+		return cmp.Compare(a.GetName(), b.GetName())
+	})
+
+	out, err = service.GetApps(ctx)
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	page1, page2Start, err := service.ListApps(ctx, 0, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, 1000)
+	require.NotEmpty(t, page2Start)
+
+	page2, next, err := service.ListApps(ctx, 1000, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, len(expected)-1000)
+	require.Empty(t, next)
+
+	listed := append(page1, page2...)
+	assert.Empty(t, gocmp.Diff(expected, listed,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	iterOut = nil
+	for app, err := range service.Apps(ctx, "", page2Start) {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	assert.Len(t, iterOut, len(page1))
+	assert.Empty(t, gocmp.Diff(page1, iterOut,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	iterOut = nil
+	for app, err := range service.Apps(ctx, "", "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+	assert.Len(t, iterOut, len(expected))
+	assert.Empty(t, gocmp.Diff(expected, iterOut,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	iterOut = nil
+	for app, err := range service.Apps(ctx, page2Start, "") {
+		require.NoError(t, err)
+		iterOut = append(iterOut, app)
+	}
+
+	assert.Len(t, iterOut, len(expected)-1000)
+	assert.Empty(t, gocmp.Diff(expected, append(page1, iterOut...),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 }

@@ -64,12 +64,8 @@ service TerminalService {
   rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
-  // GetServers returns filtered, sorted, and paginated servers
-  //
-  // Deprecated: Use ListUnifiedResources instead.
-  rpc GetServers(GetServersRequest) returns (GetServersResponse) {
-    option deprecated = true;
-  }
+  // ListDatabaseServers lists allowed users for the given database based on the role set.
+  rpc ListDatabaseServers(ListDatabaseServersRequest) returns (ListDatabaseServersResponse);
   // GetAccessRequests lists filtered AccessRequests
   rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
   // GetAccessRequest retreives a single Access Request
@@ -185,6 +181,13 @@ service TerminalService {
 
   // ConnectToDesktop is a bidirectional stream for the desktop connection.
   rpc ConnectToDesktop(stream ConnectToDesktopRequest) returns (stream ConnectToDesktopResponse);
+  // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+  // If there is no active desktop session associated with the specified desktop_uri and login,
+  // the RPC returns an error.
+  //
+  // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+  // It only registers file system handlers for processing file system-related TDP events.
+  rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
 }
 
 message EmptyResponse {}
@@ -257,8 +260,7 @@ message CreateAccessRequestRequest {
   repeated string roles = 3;
   // suggested_reviewers is a suggested list of reviewers that can review a request.
   repeated string suggested_reviewers = 4;
-  // TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
-  // a list of resourceIDs requested in the AccessRequest
+  // List of resources to which access is being requested.
   repeated ResourceID resource_ids = 5;
   // assume_start_time is the time after which the requested access can be assumed.
   google.protobuf.Timestamp assume_start_time = 6;
@@ -474,6 +476,28 @@ message ListDatabaseUsersResponse {
   repeated string users = 1;
 }
 
+// ListResourcesParams describes different types of params
+// that can be applied when sending a request to a method that
+// uses the ListResources API underneath.
+message ListResourcesParams {
+  string start_key = 1;
+  int32 limit = 2;
+  string predicate_expression = 3;
+  // UseSearchAsRoles indicates that the response should include all resources
+  // the caller is able to request access to using search_as_roles
+  bool use_search_as_roles = 4;
+}
+
+message ListDatabaseServersRequest {
+  string cluster_uri = 1;
+  ListResourcesParams params = 2;
+}
+
+message ListDatabaseServersResponse {
+  repeated DatabaseServer resources = 1;
+  string next_key = 2;
+}
+
 message CreateGatewayRequest {
   string target_uri = 1;
   string target_user = 2;
@@ -499,22 +523,6 @@ message SetGatewayTargetSubresourceNameRequest {
 message SetGatewayLocalPortRequest {
   string gateway_uri = 1;
   string local_port = 2;
-}
-
-message GetServersRequest {
-  string cluster_uri = 1;
-  int32 limit = 2;
-  string start_key = 3;
-  string search = 4;
-  string query = 5;
-  string sort_by = 6;
-  string search_as_roles = 7;
-}
-
-message GetServersResponse {
-  repeated Server agents = 1;
-  int32 total_count = 2;
-  string start_key = 3;
 }
 
 message GetAuthSettingsRequest {
@@ -615,7 +623,7 @@ message SortBy {
 
 message ListUnifiedResourcesResponse {
   repeated PaginatedResource resources = 1;
-  // A key to use as start_key in a ListResourcesRequest to continue retrieving
+  // A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
   // the next pages. If it is empty, there are no more pages.
   string next_key = 2;
 }
@@ -700,3 +708,16 @@ message ConnectToDesktopResponse {
   // Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
   bytes data = 1;
 }
+
+// Request for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionRequest {
+  // URI of the desktop.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+  // Path to share with a remote machine. Must be a directory.
+  string path = 3;
+}
+
+// Response for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionResponse {}

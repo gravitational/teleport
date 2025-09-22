@@ -24,12 +24,14 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -44,6 +46,7 @@ func TestCheckSFTPAllowed(t *testing.T) {
 		name                 string
 		nodeAllowFileCopying bool
 		permit               *decisionpb.SSHAccessPermit
+		proxyingPermit       *proxyingPermit
 		sessionPolicies      []*types.SessionRequirePolicy
 		expectedErr          error
 	}{
@@ -76,6 +79,22 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			nodeAllowFileCopying: true,
 			permit: &decisionpb.SSHAccessPermit{
 				SshFileCopy: true,
+			},
+			expectedErr: nil,
+		},
+		{
+			name:                 "proxying role disallowed",
+			nodeAllowFileCopying: true,
+			proxyingPermit: &proxyingPermit{
+				SSHFileCopy: false,
+			},
+			expectedErr: errRoleFileCopyingNotPermitted,
+		},
+		{
+			name:                 "proxying role allowed",
+			nodeAllowFileCopying: true,
+			proxyingPermit: &proxyingPermit{
+				SSHFileCopy: true,
 			},
 			expectedErr: nil,
 		},
@@ -123,6 +142,7 @@ func TestCheckSFTPAllowed(t *testing.T) {
 			)
 
 			ctx.Identity.AccessPermit = tt.permit
+			ctx.Identity.ProxyingPermit = tt.proxyingPermit
 
 			err := ctx.CheckSFTPAllowed(nil)
 			if tt.expectedErr == nil {
@@ -147,6 +167,11 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Impersonator:   "llama",
 				Login:          "alpaca1",
 				ActiveRequests: []string{"access-req1", "access-req2"},
+				MappedRoles:    []string{"role1", "role2"},
+				Traits: wrappers.Traits{
+					"trait1": []string{"value1", "value2"},
+					"trait2": []string{"value3"},
+				},
 			},
 			want: apievents.UserMetadata{
 				User:           "alpaca",
@@ -154,6 +179,11 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				Impersonator:   "llama",
 				AccessRequests: []string{"access-req1", "access-req2"},
 				UserKind:       apievents.UserKind_USER_KIND_HUMAN,
+				UserRoles:      []string{"role1", "role2"},
+				UserTraits: wrappers.Traits{
+					"trait1": []string{"value1", "value2"},
+					"trait2": []string{"value3"},
+				},
 			},
 		},
 		{
@@ -259,8 +289,7 @@ func TestSSHAccessLockTargets(t *testing.T) {
 func TestCreateOrJoinSession(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	srv := newMockServer(t)
 	registry, err := NewSessionRegistry(SessionRegistryConfig{
@@ -271,7 +300,7 @@ func TestCreateOrJoinSession(t *testing.T) {
 	require.NoError(t, err)
 
 	runningSessionID := rsession.NewID()
-	sess, _, err := newSession(ctx, runningSessionID, registry, newTestServerContext(t, srv, nil, nil), newMockSSHChannel(), sessionTypeInteractive)
+	sess, _, err := newSession(ctx, runningSessionID, registry, newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{}), newMockSSHChannel(), sessionTypeInteractive)
 	require.NoError(t, err)
 
 	t.Cleanup(sess.Stop)
@@ -281,13 +310,12 @@ func TestCreateOrJoinSession(t *testing.T) {
 	tests := []struct {
 		name              string
 		sessionID         string
+		expectedErr       bool
 		wantSameSessionID bool
 	}{
 		{
-			name:              "no session ID",
-			wantSameSessionID: false,
+			name: "no session ID",
 		},
-		// TODO(capnspacehook): Check that an error is returned in v17
 		{
 			name:              "new session ID",
 			sessionID:         string(rsession.NewID()),
@@ -306,7 +334,6 @@ func TestCreateOrJoinSession(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -326,12 +353,20 @@ func TestCreateOrJoinSession(t *testing.T) {
 			}
 
 			err = scx.CreateOrJoinSession(ctx, registry)
-			require.NoError(t, err)
-			require.False(t, scx.sessionID.IsZero())
-			if tt.wantSameSessionID {
-				require.Equal(t, parsedSessionID.String(), scx.sessionID.String())
+			if tt.expectedErr {
+				require.True(t, trace.IsNotFound(err))
 			} else {
-				require.NotEqual(t, parsedSessionID.String(), scx.sessionID.String())
+				require.NoError(t, err)
+			}
+
+			sessID := scx.GetSessionID()
+			require.False(t, sessID.IsZero())
+			if tt.wantSameSessionID {
+				require.Equal(t, parsedSessionID.String(), sessID.String())
+				require.Equal(t, *parsedSessionID, scx.GetSessionID())
+			} else {
+				require.NotEqual(t, parsedSessionID.String(), sessID.String())
+				require.NotEqual(t, *parsedSessionID, scx.GetSessionID())
 			}
 		})
 	}

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useState, type JSX } from 'react';
 import styled from 'styled-components';
 
 import { Flex, Text, Toggle } from 'design';
@@ -32,25 +32,26 @@ import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 
 import {
   IncludedResourceMode,
-  SharedUnifiedResource,
+  ResourceHealthStatus,
   UnifiedResourcesQueryParams,
 } from './types';
-import { FilterKind, ResourceAvailabilityFilter } from './UnifiedResources';
-
-const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
-  app: 'Application',
-  db: 'Database',
-  windows_desktop: 'Desktop',
-  kube_cluster: 'Kubernetes',
-  node: 'Server',
-  user_group: 'User group',
-  git_server: 'Git Server',
-};
+import {
+  FilterKind,
+  getFilterKindName,
+  ResourceAvailabilityFilter,
+} from './UnifiedResources';
 
 const sortFieldOptions = [
   { label: 'Name', value: 'name' },
   { label: 'Type', value: 'kind' },
 ];
+
+const resourceStatusOptions: { label: string; value: ResourceHealthStatus }[] =
+  [
+    { label: 'Healthy', value: 'healthy' },
+    { label: 'Unhealthy', value: 'unhealthy' },
+    { label: 'Unknown', value: 'unknown' },
+  ];
 
 interface FilterPanelProps {
   availableKinds: FilterKind[];
@@ -91,13 +92,17 @@ export function FilterPanel({
   ClusterDropdown = null,
   onRefresh,
 }: FilterPanelProps) {
-  const { sort, kinds } = params;
+  const { sort, kinds, statuses } = params;
 
   const activeSortFieldOption = sortFieldOptions.find(
     opt => opt.value === sort.fieldName
   );
 
   const onKindsChanged = (newKinds: string[]) => {
+    if (!resourceStatusFilterSupported(newKinds)) {
+      setParams({ ...params, statuses: null, kinds: newKinds });
+      return;
+    }
     setParams({ ...params, kinds: newKinds });
   };
 
@@ -108,6 +113,12 @@ export function FilterPanel({
   const onSortOrderButtonClicked = () => {
     setParams({ ...params, sort: oppositeSort(sort) });
   };
+
+  const onHealthStatusChange = (newStatuses: ResourceHealthStatus[]) => {
+    setParams({ ...params, statuses: newStatuses });
+  };
+
+  const isResourceStatusFilterSupported = resourceStatusFilterSupported(kinds);
 
   return (
     // minHeight is set to 32px so there isn't layout shift when a bulk action button shows up
@@ -130,11 +141,15 @@ export function FilterPanel({
           />
         </HoverTooltip>
         <MultiselectMenu
-          options={availableKinds.map(({ kind, disabled }) => ({
-            value: kind,
-            label: kindToLabel[kind],
-            disabled: disabled,
-          }))}
+          options={availableKinds
+            .toSorted((a, b) =>
+              getFilterKindName(a.kind).localeCompare(getFilterKindName(b.kind))
+            )
+            .map(({ kind, disabled }) => ({
+              value: kind as string,
+              label: getFilterKindName(kind),
+              disabled,
+            }))}
           selected={kinds || []}
           onChange={onKindsChanged}
           label="Types"
@@ -148,6 +163,20 @@ export function FilterPanel({
             onChange={changeAvailableResourceMode}
           />
         )}
+        <MultiselectMenu
+          options={resourceStatusOptions.map(({ label, value }) => ({
+            value,
+            label,
+          }))}
+          selected={statuses || []}
+          onChange={onHealthStatusChange}
+          label="Health Status"
+          tooltip={
+            'Health status filter is only available for database resources. Support for more resource types will be added in the future.'
+          }
+          disabled={!isResourceStatusFilterSupported}
+          buffered
+        />
       </Flex>
       <Flex gap={2} alignItems="center">
         <Flex mr={1}>{BulkActions}</Flex>
@@ -291,16 +320,15 @@ const IncludedResourcesSelector = ({
         onClose={handleClose}
       >
         <AccessRequestsToggleItem>
-          <Text mr={2} mb={1}>
-            Show requestable resources
-          </Text>
           <Toggle
             isToggled={
               availabilityFilter.mode === 'requestable' ||
               availabilityFilter.mode === 'all'
             }
             onToggle={handleToggle}
-          />
+          >
+            <Text ml={2}>Show requestable resources</Text>
+          </Toggle>
         </AccessRequestsToggleItem>
       </Menu>
     </Flex>
@@ -332,3 +360,7 @@ const AccessRequestsToggleItem = styled.div`
   text-decoration: none;
   white-space: nowrap;
 `;
+
+function resourceStatusFilterSupported(kinds: string[]) {
+  return !kinds || kinds.length === 0 || kinds.includes('db');
+}

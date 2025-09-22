@@ -38,21 +38,21 @@ type gitlabIDTokenValidator interface {
 	) (*gitlab.IDTokenClaims, error)
 }
 
-func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*gitlab.IDTokenClaims, error) {
+func (a *Server) checkGitLabJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*gitlab.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for gitlab join request")
 	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
 		return nil, trace.BadParameter("gitlab join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
 	var claims *gitlab.IDTokenClaims
+	var err error
 	if token.Spec.GitLab.StaticJWKS != "" {
 		claims, err = a.gitlabIDTokenValidator.ValidateTokenWithJWKS(
 			ctx, []byte(token.Spec.GitLab.StaticJWKS), req.IDToken,

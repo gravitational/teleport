@@ -91,8 +91,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		c := newSqsMessagesCollector(cfg)
 		eventsChan := c.getEventsChan()
 
-		readSQSCtx, readCancel := context.WithCancel(context.Background())
-		defer readCancel()
+		readSQSCtx := t.Context()
 		go c.fromSQS(readSQSCtx)
 
 		// receiver is used to read messages from eventsChan.
@@ -164,8 +163,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 
 		eventsChan := c.getEventsChan()
 
-		readSQSCtx, readCancel := context.WithCancel(context.Background())
-		defer readCancel()
+		readSQSCtx := t.Context()
 
 		go c.fromSQS(readSQSCtx)
 
@@ -210,8 +208,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 
 		eventsChan := c.getEventsChan()
 
-		readSQSCtx, readCancel := context.WithCancel(context.Background())
-		defer readCancel()
+		readSQSCtx := t.Context()
 
 		go c.fromSQS(readSQSCtx)
 
@@ -221,7 +218,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 
 		// When over 100 unique days are sent
 		eventsToSend := make([]apievents.AuditEvent, 0, 101)
-		for i := 0; i < 101; i++ {
+		for i := range 101 {
 			day := fclock.Now().Add(time.Duration(i) * 24 * time.Hour)
 			eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
 		}
@@ -666,7 +663,7 @@ func TestDeleteMessagesFromQueue(t *testing.T) {
 
 	handlesGen := func(n int) []string {
 		out := make([]string, 0, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			out = append(out, fmt.Sprintf("handle-%d", i))
 		}
 		return out

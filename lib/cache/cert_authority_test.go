@@ -27,9 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 // TestCA tests certificate authorities
@@ -40,8 +38,28 @@ func TestCA(t *testing.T) {
 	t.Cleanup(p.Close)
 	ctx := context.Background()
 
-	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
+	userCA := NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, userCA))
+	dbCA := NewTestCA(types.DatabaseCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, dbCA))
+	dbClientCA := NewTestCA(types.DatabaseClientCA, "example.com")
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, dbClientCA))
+	const totalCAs = 3
+
+	for range totalCAs {
+		select {
+		case <-p.eventsC:
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for cert authority create event")
+		}
+	}
+
+	userCAOut, err := p.cache.GetCertAuthority(ctx, userCA.GetID(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(userCA, userCAOut, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = p.trustS.DeleteCertAuthority(ctx, userCA.GetID())
+	require.NoError(t, err)
 
 	select {
 	case <-p.eventsC:
@@ -49,21 +67,14 @@ func TestCA(t *testing.T) {
 		t.Fatalf("timeout waiting for event")
 	}
 
-	out, err := p.cache.GetCertAuthority(ctx, ca.GetID(), true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(ca, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	_, err = p.cache.GetCertAuthority(ctx, ca.GetID(), false)
+	_, err = p.cache.GetCertAuthority(ctx, userCA.GetID(), false)
 	require.True(t, trace.IsNotFound(err))
+
+	// Make sure the db_client CA isn't returned when listing `db` CAs due to the common prefix.
+	dbCAs, err := p.cache.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1, "GetCertAuthorities returned an extra CA")
+	require.Equal(t, types.DatabaseCA, dbCAs[0].GetType())
 }
 
 func TestNodeCAFiltering(t *testing.T) {
@@ -78,26 +89,21 @@ func TestNodeCAFiltering(t *testing.T) {
 		ClusterName: "example.com",
 	})
 	require.NoError(t, err)
-	err = p.cache.clusterConfigCache.UpsertClusterName(clusterName)
+	err = p.clusterConfigS.UpsertClusterName(clusterName)
 	require.NoError(t, err)
-
-	nodeCacheBackend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, nodeCacheBackend.Close()) })
 
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
 	nodeCache, err := New(ForNode(Config{
 		Events:                  p.cache,
-		Trust:                   p.cache.trustCache,
-		ClusterConfig:           p.cache.clusterConfigCache,
-		Access:                  p.cache.accessCache,
-		DynamicAccess:           p.cache.dynamicAccessCache,
-		Presence:                p.cache.presenceCache,
-		Restrictions:            p.cache.restrictionsCache,
-		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
-		UserGroups:              p.userGroups,
-		StaticHostUsers:         p.staticHostUsers,
-		Backend:                 nodeCacheBackend,
+		Trust:                   p.cache.Trust,
+		ClusterConfig:           p.cache.ClusterConfig,
+		Access:                  p.cache.Access,
+		DynamicAccess:           p.cache.DynamicAccess,
+		Presence:                p.cache.Presence,
+		Restrictions:            p.cache.Restrictions,
+		SAMLIdPServiceProviders: p.cache.SAMLIdPServiceProviders,
+		UserGroups:              p.cache.UserGroups,
+		StaticHostUsers:         p.cache.StaticHostUsers,
 	}))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
@@ -123,7 +129,7 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.Equal(t, types.OpInit, fetchEvent().Type)
 
 	// upsert and delete a local host CA, we expect to see a Put and a Delete event
-	localCA := suite.NewTestCA(types.HostCA, "example.com")
+	localCA := NewTestCA(types.HostCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, localCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, localCA.GetID()))
 
@@ -138,7 +144,7 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.Equal(t, "example.com", ev.Resource.GetName())
 
 	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
-	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
+	nonlocalCA := NewTestCA(types.HostCA, "example.net")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, nonlocalCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, nonlocalCA.GetID()))
 
@@ -148,7 +154,7 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.Equal(t, "example.net", ev.Resource.GetName())
 
 	// whereas we expect to see the Put and Delete for a trusted *user* CA
-	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
+	trustedUserCA := NewTestCA(types.UserCA, "example.net")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, trustedUserCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, trustedUserCA.GetID()))
 
@@ -211,12 +217,11 @@ func TestCAWatcherFilters(t *testing.T) {
 	}
 
 	// generate an OpPut event.
-	ca := suite.NewTestCA(types.UserCA, "example.com")
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	const fetchTimeout = time.Second
 	for _, test := range tests {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 			event := fetchEvent(t, test.watcher, fetchTimeout)

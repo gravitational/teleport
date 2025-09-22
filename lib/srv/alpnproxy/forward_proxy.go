@@ -202,7 +202,7 @@ func isAWSSSMWebsocketRequest(req *http.Request) bool {
 // request.
 func MatchAzureRequests(req *http.Request) bool {
 	h := req.URL.Hostname()
-	return azure.IsAzureEndpoint(h) || types.TeleportAzureMSIEndpoint == h
+	return azure.IsAzureEndpoint(h) || types.TeleportAzureMSIEndpoint == h || types.TeleportAzureIdentityEndpoint == h
 }
 
 // MatchGCPRequests is a MatchFunc that returns true if request is an GCP API request.

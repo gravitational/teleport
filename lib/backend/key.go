@@ -69,7 +69,7 @@ func KeyFromString(s string) Key {
 		components: components,
 		s:          s,
 		exactKey:   s == SeparatorString || (s != "" && s[len(s)-1] == Separator),
-		noEnd:      s == string(noEnd),
+		noEnd:      s == noEnd,
 	}
 }
 
@@ -100,7 +100,7 @@ func (k Key) ExactKey() Key {
 // each component concatenated together via the [Separator].
 func (k Key) String() string {
 	if k.noEnd {
-		return string(noEnd)
+		return noEnd
 	}
 
 	return k.s

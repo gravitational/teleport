@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -62,6 +63,9 @@ type AWSSigninRequest struct {
 	// Integration is the Integration name to use to generate credentials.
 	// If empty, it will use ambient credentials
 	Integration string
+	// RolesAnywhereMetadata contains the Profile/Role information to use when
+	// sourcing the credentials from a Roles Anywhere integration.
+	RolesAnywhereMetadata awsconfig.RolesAnywhereMetadata
 }
 
 // CheckAndSetDefaults validates the request.
@@ -177,16 +181,41 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	// "SessionDuration" is not provided, the web console session duration will
 	// be bound to the duration used in the next AssumeRole call.
 
+	integrationMetadata := awsconfig.IntegrationMetadata{
+		Name:                  req.Integration,
+		RolesAnywhereMetadata: req.RolesAnywhereMetadata,
+	}
+
+	// When using Roles Anywhere integration, the session duration is set to the maximum allowed for temporary sessions: 1h.
+	// TODO(marco): add support for longer sessions which Roles Anywhere allows for but, requires us to know the Role's maximum session duration.
+	if req.RolesAnywhereMetadata.ProfileARN != "" {
+		duration, err := c.getFederationDuration(req, true /* temporarySession */)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		req.RolesAnywhereMetadata.SessionDuration = duration
+	}
+
 	// Sign In requests target IAM endpoints which don't require a region.
 	region := ""
 	baseCfg, err := c.awsCachedProvider.GetConfig(ctx, region,
-		awsconfig.WithCredentialsMaybeIntegration(req.Integration),
+		awsconfig.WithCredentialsMaybeIntegration(integrationMetadata),
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	temporarySession, err := isSessionUsingTemporaryCredentials(ctx, baseCfg)
+	if baseCfg.Credentials == nil {
+		return "", trace.NotFound("session credentials not found")
+	}
+
+	baseCreds, err := baseCfg.Credentials.Retrieve(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	temporarySession, err := isSessionUsingTemporaryCredentials(baseCreds)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -196,39 +225,28 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 		return "", trace.Wrap(err)
 	}
 
-	assumeRole := awsconfig.AssumeRole{
-		RoleARN:    req.Identity.RouteToApp.AWSRoleARN,
-		ExternalID: req.ExternalID,
-		// Setting role session name to Teleport username will allow to
-		// associate CloudTrail events with the Teleport user.
-		SessionName: req.Identity.Username,
-	}
+	awsConfigOptions := append(c.cfg.AWSConfigOptions,
+		awsconfig.WithCredentialsMaybeIntegration(integrationMetadata),
+		awsconfig.WithBaseCredentialsProvider(baseCfg.Credentials),
+	)
 
-	// Setting web console session duration through AssumeRole call for AWS
-	// sessions with temporary credentials.
-	// Technically the session duration can be set this way for
-	// non-temporary sessions. However, the AssumeRole call will fail if we
-	// are requesting duration longer than the maximum session duration of
-	// the role we are assuming. In addition, the session credentials may
-	// not have permission to perform a get-role on the role. Therefore,
-	// "SessionDuration" parameter will be defined when calling federation
-	// endpoint below instead of here, for non-temporary sessions.
+	// Most flows for providing AWS Access, require the following:
+	// - access to credentials for a helper Role (EC2 instance profile's Role, AWS OIDC Integration Role, etc.)
+	// - use the credentials to call sts:AssumeRole to obtain the credentials for the target role
+	// - use the credentials to call the federation endpoint to obtain the federation URL
 	//
-	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
-	if temporarySession {
-		c.cfg.Logger.DebugContext(ctx, "Temporary session")
-		assumeRole.Duration = duration
+	// The exception is the IAM Roles Anywhere integration which only uses the target role (no intermediate role).
+	switch {
+	case req.RolesAnywhereMetadata.ProfileARN != "":
+	default:
+		awsConfigOptions = append(awsConfigOptions,
+			getAssumeDetailedRolesOption(ctx, req, temporarySession, duration),
+		)
 	}
 
 	// Do not use cache provider to avoid returning credentials with wrong
 	// expiry duration.
-	awsCfg, err := awsconfig.GetConfig(ctx, region,
-		append(c.cfg.AWSConfigOptions,
-			awsconfig.WithCredentialsMaybeIntegration(req.Integration),
-			awsconfig.WithBaseCredentialsProvider(baseCfg.Credentials),
-			awsconfig.WithDetailedAssumeRole(assumeRole),
-		)...,
-	)
+	awsCfg, err := awsconfig.GetConfig(ctx, region, awsConfigOptions...)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -285,19 +303,38 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	return fedResp.SigninToken, nil
 }
 
+func getAssumeDetailedRolesOption(ctx context.Context, req *AWSSigninRequest, temporarySession bool, duration time.Duration) awsconfig.OptionsFn {
+	assumeRole := awsconfig.AssumeRole{
+		RoleARN:    req.Identity.RouteToApp.AWSRoleARN,
+		ExternalID: req.ExternalID,
+		// Setting role session name to Teleport username will allow to
+		// associate CloudTrail events with the Teleport user.
+		SessionName: req.Identity.Username,
+	}
+
+	// Setting web console session duration through AssumeRole call for AWS
+	// sessions with temporary credentials.
+	// Technically the session duration can be set this way for
+	// non-temporary sessions. However, the AssumeRole call will fail if we
+	// are requesting duration longer than the maximum session duration of
+	// the role we are assuming. In addition, the session credentials may
+	// not have permission to perform a get-role on the role. Therefore,
+	// "SessionDuration" parameter will be defined when calling federation
+	// endpoint below instead of here, for non-temporary sessions.
+	//
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
+	if temporarySession {
+		assumeRole.Duration = duration
+	}
+
+	return awsconfig.WithDetailedAssumeRole(assumeRole)
+}
+
 // isSessionUsingTemporaryCredentials checks if the current aws session is
 // using temporary credentials.
 //
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html
-func isSessionUsingTemporaryCredentials(ctx context.Context, cfg aws.Config) (bool, error) {
-	if cfg.Credentials == nil {
-		return false, trace.NotFound("session credentials not found")
-	}
-
-	credentials, err := cfg.Credentials.Retrieve(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
+func isSessionUsingTemporaryCredentials(credentials aws.Credentials) (bool, error) {
 
 	switch credentials.Source {
 	case ec2rolecreds.ProviderName:
@@ -320,7 +357,11 @@ func isSessionUsingTemporaryCredentials(ctx context.Context, cfg aws.Config) (bo
 		// ssocreds.Provider is an AWS credential provider that retrieves
 		// temporary AWS credentials by exchanging an SSO login token.
 		// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/credentials/ssocreds#Provider
-		ssocreds.ProviderName:
+		ssocreds.ProviderName,
+
+		// When using the AWS Roles Anywhere integration, the credentials are temporary:
+		// https://docs.aws.amazon.com/rolesanywhere/latest/userguide/authentication-create-session.html#response-elements
+		awsra.AWSCredentialsSourceRolesAnywhere:
 		return true, nil
 	}
 
@@ -338,10 +379,7 @@ func (c *cloud) getFederationDuration(req *AWSSigninRequest, temporarySession bo
 		maxDuration = maxTemporarySessionDuration
 	}
 
-	duration := req.Identity.Expires.Sub(c.cfg.Clock.Now())
-	if duration > maxDuration {
-		duration = maxDuration
-	}
+	duration := min(req.Identity.Expires.Sub(c.cfg.Clock.Now()), maxDuration)
 
 	if duration < minimumSessionDuration {
 		return 0, trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v", minimumSessionDuration, duration)

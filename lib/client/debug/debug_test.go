@@ -206,7 +206,7 @@ func newSocketMockService(t *testing.T, status int, contents []byte) (string, fu
 	}()
 
 	t.Cleanup(func() { srv.Shutdown(context.Background()) })
-	return socketPath, func() []string {
+	return socketDir, func() []string {
 		srv.Shutdown(context.Background())
 		return requests
 	}

@@ -298,9 +298,26 @@ export interface DialogHardwareKeySlotOverwrite {
   onCancel(): void;
 }
 
+export interface DialogConfigureSSHClients {
+  kind: 'configure-ssh-clients';
+  /**
+   * onConfirm will be called when the user clicks the button to confirm automatic configuration
+   * for SSH clients. Any errors thrown by onConfirm will be captured and shown in the modal, the
+   * modal will only close if the promise resolves successfully.
+   */
+  onConfirm(): Promise<void>;
+  vnetSSHConfigPath: string;
+  host?: string;
+}
+
+export interface DialogAppUpdate {
+  kind: 'app-updates';
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
+  | DialogConfigureSSHClients
   | DialogDocumentsReopen
   | DialogUsageData
   | DialogUserJobRole
@@ -311,4 +328,5 @@ export type Dialog =
   | DialogHardwareKeyPin
   | DialogHardwareKeyTouch
   | DialogHardwareKeyPinChange
-  | DialogHardwareKeySlotOverwrite;
+  | DialogHardwareKeySlotOverwrite
+  | DialogAppUpdate;

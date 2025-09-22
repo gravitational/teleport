@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, ReactNode } from 'react';
+import React, { PropsWithChildren, ReactNode, type JSX } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
@@ -104,7 +104,10 @@ export default function Table<T>(props: TableProps<T>) {
   const renderBody = (data: T[]) => {
     const rows: ReactNode[] = [];
 
-    if (fetching?.fetchStatus === 'loading') {
+    if (
+      fetching?.fetchStatus === 'loading' &&
+      !fetching.disableLoadingIndicator
+    ) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
     data.map((item, rowIdx) => {
@@ -146,6 +149,15 @@ export default function Table<T>(props: TableProps<T>) {
 
     if (rows.length) {
       return <tbody>{rows}</tbody>;
+    }
+
+    // if we provide infiniteScrollProps, we want to not render anything if
+    // the fetch status is loading. this is so that the existing items dont dissapear
+    // during the fetch, but also, we dont want the empty text to show while fetching
+    // and lastly, the infinite scroll page will usually provide its own loading
+    // indicator at the bottom of the component
+    if (props.infiniteScrollProps?.fetchStatus === 'loading') {
+      return <tbody></tbody>;
     }
 
     return (
@@ -346,7 +358,7 @@ function ServersideTable<T>({
   return (
     <>
       <StyledPanel>
-        {serversideProps?.serversideSearchPanel}
+        <Box width="100%">{serversideProps?.serversideSearchPanel}</Box>
         {(showTopPager || showBothPager) && (
           <ServerSidePager
             nextPage={nextPage}

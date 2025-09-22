@@ -66,12 +66,7 @@ const (
 
 	// ACLRequired enables ACL support and fails if ACLs are unavailable.
 	ACLRequired ACLMode = "required"
-)
 
-// OpenMode is a mode for opening files.
-type OpenMode int
-
-const (
 	// DefaultMode is the preferred permissions mode for bot files.
 	DefaultMode fs.FileMode = 0600
 
@@ -79,15 +74,31 @@ const (
 	// Directories need the execute bit set for most operations on their
 	// contents to succeed.
 	DefaultDirMode fs.FileMode = 0700
-
-	// ReadMode is the mode with which files should be opened for reading and
-	// writing.
-	ReadMode OpenMode = OpenMode(os.O_CREATE | os.O_RDONLY)
-
-	// WriteMode is the mode with which files should be opened specifically
-	// for writing.
-	WriteMode OpenMode = OpenMode(os.O_CREATE | os.O_WRONLY | os.O_TRUNC)
 )
+
+// OpenFlags is a bitmask containing flags passed to `open()`
+type OpenFlags int
+
+const (
+	// ReadFlags contains `open()` flags to be used when opening files for
+	// reading. The file will be created if it does not exist, and reads should
+	// return an empty byte array.
+	ReadFlags = iota
+
+	// WriteFlags is the mode with which files should be opened specifically
+	// for writing.
+	WriteFlags
+)
+
+// Flags returns opening flags for this OpenFlags variant.
+func (f OpenFlags) Flags() int {
+	switch f {
+	case WriteFlags:
+		return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
+	default:
+		return os.O_RDONLY
+	}
+}
 
 // ACLOptions contains parameters needed to configure ACLs
 type ACLOptions struct {
@@ -124,10 +135,10 @@ func (s *ACLSelector) CheckAndSetDefaults() error {
 	return nil
 }
 
-// openStandard attempts to open the given path for reading and writing with
-// O_CREATE set.
-func openStandard(path string, mode OpenMode) (*os.File, error) {
-	file, err := os.OpenFile(path, int(mode), DefaultMode)
+// openStandard attempts to open the given path. The file may be writable
+// depending on the provided `OpenFlags` value.
+func openStandard(path string, flags OpenFlags) (*os.File, error) {
+	file, err := os.OpenFile(path, flags.Flags(), DefaultMode)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -146,7 +157,7 @@ func createStandard(path string, isDir bool) error {
 		return nil
 	}
 
-	f, err := openStandard(path, WriteMode)
+	f, err := openStandard(path, WriteFlags)
 	if err != nil {
 		return trace.Wrap(err)
 	}

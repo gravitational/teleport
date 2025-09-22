@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
@@ -34,7 +34,7 @@ import (
 // handshake and then forwards the connection to the database service agent.
 type Proxy struct {
 	// Middleware is the auth middleware.
-	Middleware *auth.Middleware
+	Middleware *authz.Middleware
 	// Service is used to connect to a remote database service.
 	Service common.Service
 	// Log is used for logging.

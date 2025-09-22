@@ -31,7 +31,7 @@ import type * as docTypes from 'teleterm/ui/services/workspacesService';
 import { routing } from 'teleterm/ui/uri';
 
 import appAccessPng from './app-access.png';
-import { useVnetAppLauncher } from './useVnetAppLauncher';
+import { useVnetLauncher } from './useVnetLauncher';
 import { useVnetContext } from './vnetContext';
 
 export function DocumentVnetInfo(props: {
@@ -39,29 +39,28 @@ export function DocumentVnetInfo(props: {
   doc: docTypes.DocumentVnetInfo;
 }) {
   const { doc } = props;
-  const { mainProcessClient } = useAppContext();
+  const { mainProcessClient, clustersService } = useAppContext();
   const {
     startAttempt,
     stop: stopVnet,
     stopAttempt,
     status,
   } = useVnetContext();
-  const { launchVnetWithoutFirstTimeCheck } = useVnetAppLauncher();
-  const userAtHost = useMemo(() => {
-    const { hostname, username } = mainProcessClient.getRuntimeSettings();
-    return `${username}@${hostname}`;
+  const { launchVnetWithoutFirstTimeCheck } = useVnetLauncher();
+  const { username, hostname } = useMemo(() => {
+    const { username, hostname } = mainProcessClient.getRuntimeSettings();
+    return { username, hostname };
   }, [mainProcessClient]);
+  const userAtHost = `${username}@${hostname}`;
   const { rootClusterUri, documentsService } = useWorkspaceContext();
   const proxyHostname = routing.parseClusterName(rootClusterUri);
+  const clusterName = clustersService.findCluster(rootClusterUri).name;
 
   const startVnet = async () => {
-    await launchVnetWithoutFirstTimeCheck({
-      addrToCopy: doc.app?.targetAddress,
-      isMultiPort: doc.app?.isMultiPort,
-    });
-    // Remove targetAddress so that subsequent launches of VNet from this specific doc won't copy
-    // the stale app address to the clipboard.
-    documentsService.update(doc.uri, { app: undefined });
+    await launchVnetWithoutFirstTimeCheck(doc.launcherArgs);
+    // Remove launcherArgs so that subsequent launches of VNet from this
+    // specific doc won't copy the stale address to the clipboard.
+    documentsService.update(doc.uri, { launcherArgs: undefined });
   };
 
   return (
@@ -232,6 +231,61 @@ export function DocumentVnetInfo(props: {
             </DemoPart>
           </ComparisonOption>
         </UseCaseSection>
+
+        {/* VNet SSH */}
+        <UseCaseSection>
+          <TitleAndLearnMoreContainer>
+            <H2>SSH Servers With 3rd-Party SSH Clients</H2>
+            <LearnMoreButton href="https://goteleport.com/docs/connect-your-client/vnet/#step-33-connect-to-an-ssh-server">
+              Learn More
+            </LearnMoreButton>
+          </TitleAndLearnMoreContainer>
+
+          <ComparisonOption>
+            <TextPart>
+              <H3>With VNet</H3>
+              <P2>
+                Connect directly to Teleport SSH servers with any
+                OpenSSH-compatible client or your preferred editor's remote SSH
+                extension. VNet will intercept the connection to authenticate
+                with your SSH certificate and handle Teleport features like
+                hardware keys and per-session MFA with prompts displayed in
+                Connect.
+              </P2>
+            </TextPart>
+
+            <DemoTerminal
+              flex={demoFlex}
+              title={userAtHost}
+              text={sshWithVNet(username, clusterName)}
+              width="100%"
+              boxShadow={2}
+            />
+          </ComparisonOption>
+
+          <ComparisonOption>
+            <TextPart>
+              <H3>Without VNet</H3>
+              <P2>
+                You can still connect to Teleport SSH servers with many
+                OpenSSH-compatible clients, but you'll need to configure the
+                client to use your Teleport user SSH certificate and use a
+                ProxyCommand to make the connection, and Teleport features like
+                hardware keys and per-session MFA are not supported.
+              </P2>
+            </TextPart>
+
+            <Stack flex={demoFlex} gap={2} fullWidth>
+              <DemoTerminal
+                flex={demoFlex}
+                title={userAtHost}
+                text={sshWithoutVNet(username, clusterName)}
+                width="100%"
+                boxShadow={2}
+              />
+            </Stack>
+          </ComparisonOption>
+        </UseCaseSection>
       </Stack>
     </Document>
   );
@@ -262,8 +316,11 @@ const ComparisonOption = styled(Flex).attrs({
 })``;
 
 const textFlex = 1;
-const TextPart = styled(Stack).attrs({ gap: 2 })``;
-TextPart.defaultProps = { flex: textFlex };
+const TextPart = styled(Stack).attrs(props => ({
+  gap: 2,
+  flex: textFlex,
+  ...props,
+}))``;
 
 const demoFlex = 2;
 const DemoPart = styled(Flex).attrs({ flex: demoFlex })``;
@@ -298,3 +355,16 @@ const curlWithoutVnet = `$ curl http://127.0.0.1:61397
   "body": ""
 }
 `;
+
+const sshWithVNet = (
+  username: string,
+  clusterName: string
+) => `$ ssh ${username}@server.${clusterName}
+${username}@server:~$ `;
+
+const sshWithoutVNet = (
+  username: string,
+  clusterName: string
+) => `$ tsh config > teleport_ssh_config
+$ ssh -F ./teleport_ssh_config ${username}@server.${clusterName}
+${username}@server:~$ `;

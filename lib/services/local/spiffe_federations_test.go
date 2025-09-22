@@ -150,7 +150,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 	// Create entities to list
 	createdObjects := []*machineidv1.SPIFFEFederation{}
 	// Create 49 entities to test an incomplete page at the end.
-	for i := 0; i < 49; i++ {
+	for i := range 49 {
 		created, err := service.CreateSPIFFEFederation(
 			ctx,
 			newSPIFFEFederation(fmt.Sprintf("%d.example.com", i)),
@@ -166,9 +166,9 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 
 		// Expect that we get all the things we have created
 		for _, created := range createdObjects {
-			slices.ContainsFunc(page, func(federation *machineidv1.SPIFFEFederation) bool {
+			require.True(t, slices.ContainsFunc(page, func(federation *machineidv1.SPIFFEFederation) bool {
 				return proto.Equal(created, federation)
-			})
+			}))
 		}
 	})
 	t.Run("pagination", func(t *testing.T) {
@@ -190,9 +190,9 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 		require.Len(t, fetched, 49)
 		// Expect that we get all the things we have created
 		for _, created := range createdObjects {
-			slices.ContainsFunc(fetched, func(federation *machineidv1.SPIFFEFederation) bool {
+			require.True(t, slices.ContainsFunc(fetched, func(federation *machineidv1.SPIFFEFederation) bool {
 				return proto.Equal(created, federation)
-			})
+			}))
 		}
 	})
 }

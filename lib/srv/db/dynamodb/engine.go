@@ -21,6 +21,7 @@ package dynamodb
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"io"
@@ -36,8 +37,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -45,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
@@ -362,36 +366,49 @@ func (e *Engine) resolveEndpoint(req *http.Request) (*endpoint, error) {
 	var re *endpoint
 	switch target := strings.ToLower(target); {
 	case strings.HasPrefix(target, "dynamodbstreams"):
-		re, err = resolveDynamoDBStreamsEndpoint(req.Context(), awsMeta.Region, e.UseFIPS)
+		re, err = resolveDynamoDBStreamsEndpoint(req.Context(), awsMeta.Region, awsMeta.AccountID, e.UseFIPS)
 	case strings.HasPrefix(target, "dynamodb"):
 		re, err = resolveDynamoDBEndpoint(req.Context(), awsMeta.Region, awsMeta.AccountID, e.UseFIPS)
 	case strings.HasPrefix(target, "amazondax"):
-		re, err = resolveDaxEndpoint(req.Context(), awsMeta.Region, e.UseFIPS)
+		// TODO(gavin): drop DAX API support - it is a deployment API.
+		re, err = resolveDaxEndpoint(req.Context(), awsMeta.Region, awsMeta.AccountID, e.UseFIPS)
 	default:
 		return nil, trace.BadParameter("DynamoDB API target %q is not recognized", target)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	uri := e.sessionCtx.Database.GetURI()
-	if uri != "" && uri != apiaws.DynamoDBURIForRegion(awsMeta.Region) {
+	// TODO(gavin): drop support for custom URIs - custom URI adds complexity,
+	// but doesn't add any value since the signing name and region of the
+	// request must match.
+	if err := rewriteURL(re, e.sessionCtx.Database, awsMeta.Region); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return re, nil
+}
+
+func rewriteURL(re *endpoint, db types.Database, region string) error {
+	uri := db.GetURI()
+	if uri != "" && uri != apiaws.DynamoDBURIForRegion(region) {
 		// Add a temporary schema to make a valid URL for url.Parse.
 		if !strings.Contains(uri, "://") {
 			uri = "schema://" + uri
 		}
 		u, err := url.Parse(uri)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		// override the resolved endpoint URL with the user-configured URI.
 		re.URL = u
 	}
 	// Force HTTPS
 	re.URL.Scheme = "https"
-	return re, nil
+	return nil
 }
 
-func resolveDynamoDBStreamsEndpoint(ctx context.Context, region string, useFIPS bool) (*endpoint, error) {
+type resolverFn func(ctx context.Context, region, accountID string, useFIPS bool) (*endpoint, error)
+
+func resolveDynamoDBStreamsEndpoint(ctx context.Context, region, _ string, useFIPS bool) (*endpoint, error) {
 	params := dynamodbstreams.EndpointParameters{
 		Region:  aws.String(region),
 		UseFIPS: aws.Bool(useFIPS),
@@ -436,7 +453,7 @@ func resolveDynamoDBEndpoint(ctx context.Context, region, accountID string, useF
 	}, nil
 }
 
-func resolveDaxEndpoint(ctx context.Context, region string, useFIPS bool) (*endpoint, error) {
+func resolveDaxEndpoint(ctx context.Context, region, _ string, useFIPS bool) (*endpoint, error) {
 	params := dax.EndpointParameters{
 		Region:  aws.String(region),
 		UseFIPS: aws.Bool(useFIPS),
@@ -477,4 +494,41 @@ func getTargetHeader(req *http.Request) (string, error) {
 		return "", trace.BadParameter("missing %q header in http request", libaws.AmzTargetHeader)
 	}
 	return target, nil
+}
+
+// NewEndpointsResolver resolves endpoints from DB URI.
+func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+	aws := db.GetAWS()
+	fips := dynamodbutils.IsFIPSEnabled()
+	resolverFns := []resolverFn{
+		resolveDynamoDBEndpoint,
+		resolveDynamoDBStreamsEndpoint,
+	}
+	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
+		addrs := make([]string, 0, len(resolverFns))
+		for _, resolve := range resolverFns {
+			re, err := resolve(ctx, aws.Region, aws.AccountID, fips)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Not all of our DB engines respect http proxy env vars, but this one does.
+			// The endpoint resolved for TCP health checks should be the one that the
+			// agent will actually connect to, since often proxy env vars are set to
+			// accommodate self-imposed network restrictions that force external traffic
+			// to go through a proxy.
+			proxyFunc := httpproxy.FromEnvironment().ProxyFunc()
+			proxyURL, err := proxyFunc(re.URL)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if proxyURL != nil {
+				re.URL = proxyURL
+			}
+			host := re.URL.Hostname()
+			port := cmp.Or(re.URL.Port(), "443")
+			addrs = append(addrs, net.JoinHostPort(host, port))
+		}
+		return addrs, nil
+	}), nil
 }

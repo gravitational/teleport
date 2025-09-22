@@ -86,7 +86,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		DiscoveryGroup:    process.Config.Discovery.DiscoveryGroup,
 		Emitter:           asyncEmitter,
 		AccessPoint:       accessPoint,
-		ServerID:          process.Config.HostUUID,
+		ServerID:          conn.HostUUID(),
 		Log:               process.logger,
 		ClusterName:       conn.ClusterName(),
 		ClusterFeatures:   process.GetClusterFeatures,
@@ -98,7 +98,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err)
 	}
 
-	process.OnExit("discovery.stop", func(payload interface{}) {
+	process.OnExit("discovery.stop", func(payload any) {
 		logger.InfoContext(process.ExitContext(), "Shutting down.")
 		if discoveryService != nil {
 			discoveryService.Stop()

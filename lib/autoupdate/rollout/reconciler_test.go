@@ -36,13 +36,13 @@ import (
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // rolloutEquals returns a require.ValueAssertionFunc that checks the rollout is identical.
 // The comparison does not take into account the proto internal state.
 func rolloutEquals(expected *autoupdate.AutoUpdateAgentRollout) require.ValueAssertionFunc {
-	return func(t require.TestingT, i interface{}, _ ...interface{}) {
+	return func(t require.TestingT, i any, _ ...any) {
 		require.IsType(t, &autoupdate.AutoUpdateAgentRollout{}, i, "resource should be an autoupdate_agent_rollout")
 		actual := i.(*autoupdate.AutoUpdateAgentRollout)
 		require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
@@ -52,7 +52,7 @@ func rolloutEquals(expected *autoupdate.AutoUpdateAgentRollout) require.ValueAss
 // cancelContext wraps a require.ValueAssertionFunc so that the given context is canceled before checking the assertion.
 // This is used to test how the reconciler behaves when its context is canceled.
 func cancelContext(assertionFunc require.ValueAssertionFunc, cancel func()) require.ValueAssertionFunc {
-	return func(t require.TestingT, i interface{}, i2 ...interface{}) {
+	return func(t require.TestingT, i any, i2 ...any) {
 		cancel()
 		assertionFunc(t, i, i2...)
 	}
@@ -136,7 +136,7 @@ func TestGetMode(t *testing.T) {
 
 func TestTryReconcile(t *testing.T) {
 	t.Parallel()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -273,7 +273,6 @@ func TestTryReconcile(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// Test setup: creating a fake client answering fixtures
@@ -325,13 +324,13 @@ func TestTryReconcile(t *testing.T) {
 			require.NoError(t, reconciler.tryReconcile(ctx))
 			// Test validation: Checking that the mock client is now empty
 
-			client.checkIfEmpty(t)
+			client.checkIfCallsWereDone(t)
 		})
 	}
 }
 
 func TestReconciler_Reconcile(t *testing.T) {
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	// Test setup: creating fixtures
@@ -399,7 +398,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation succeeds on first try, should exit", func(t *testing.T) {
@@ -423,7 +422,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation faces conflict on first try, should retry and see that there's nothing left to do", func(t *testing.T) {
@@ -449,7 +448,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation faces conflict on first try, should retry and update a second time", func(t *testing.T) {
@@ -491,7 +490,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation faces missing rollout on first try, should retry and create the rollout", func(t *testing.T) {
@@ -531,7 +530,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, reconciler.reconcile(ctx))
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation meets a hard unexpected failure on first try, should exit in error", func(t *testing.T) {
@@ -557,7 +556,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.ErrorContains(t, reconciler.reconcile(ctx), "the DB fell on the floor")
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 
 	t.Run("reconciliation faces conflict on first try, should retry but context is expired so it bails out", func(t *testing.T) {
@@ -589,7 +588,7 @@ func TestReconciler_Reconcile(t *testing.T) {
 		require.ErrorIs(t, reconciler.reconcile(cancelableCtx), context.Canceled)
 
 		// Test validation: check that all the expected calls were received
-		client.checkIfEmpty(t)
+		client.checkIfCallsWereDone(t)
 	})
 }
 
@@ -728,7 +727,7 @@ func (f *fakeRolloutStrategy) progressRollout(ctx context.Context, spec *autoupd
 }
 
 func Test_reconciler_computeStatus(t *testing.T) {
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
 
@@ -981,7 +980,7 @@ func TestDefaultConfigGroup(t *testing.T) {
 			tt.expectError(t, err)
 			require.Equal(t, tt.expectedResult, result)
 			// Test validation: the mock client should be empty.
-			clt.checkIfEmpty(t)
+			clt.checkIfCallsWereDone(t)
 		})
 	}
 }

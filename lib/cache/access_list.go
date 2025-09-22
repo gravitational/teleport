@@ -17,21 +17,29 @@
 package cache
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 )
 
 type accessListIndex string
 
-const accessListNameIndex accessListIndex = "name"
+const (
+	accessListNameIndex          accessListIndex = "name"
+	accessListTitleIndex         accessListIndex = "title"
+	accessListAuditNextDateIndex accessListIndex = "auditNextDate"
+)
 
 func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex], error) {
 	if upstream == nil {
@@ -39,29 +47,20 @@ func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (
 	}
 
 	return &collection[*accesslist.AccessList, accessListIndex]{
-		store: newStore(map[accessListIndex]func(*accesslist.AccessList) string{
-			accessListNameIndex: func(al *accesslist.AccessList) string {
-				return al.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.KindAccessList,
+			(*accesslist.AccessList).Clone,
+			map[accessListIndex]func(*accesslist.AccessList) string{
+				// sorted by name
+				accessListNameIndex: services.AccessListNameIndexKey,
+				// sorted by title, sanitized.
+				accessListTitleIndex: services.AccessListTitleIndexKey,
+				// sorted by upcoming audit date. lists with no audit dates sorted to the back
+				accessListAuditNextDateIndex: services.AccessListAuditDateIndexKey,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessList, error) {
-			var resources []*accesslist.AccessList
-			var nextToken string
-			for {
-				var page []*accesslist.AccessList
-				var err error
-				page, nextToken, err = upstream.ListAccessLists(ctx, 0 /* page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAccessLists))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accesslist.AccessList {
 			return &accesslist.AccessList{
@@ -101,6 +100,52 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 	return out, nil
 }
 
+// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
+func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListsV2")
+	defer span.End()
+
+	index := accessListNameIndex
+
+	var isDesc bool
+	sortBy := req.GetSortBy()
+	if sortBy != nil {
+		isDesc = req.GetSortBy().IsDesc
+
+		switch sortBy.Field {
+		case "name", "":
+			index = accessListNameIndex
+		case "auditNextDate":
+			index = accessListAuditNextDateIndex
+		case "title":
+			index = accessListTitleIndex
+		default:
+			return nil, "", trace.BadParameter("unsupported sort %q but expected name, title or auditNextDate", sortBy.Field)
+		}
+	}
+	lister := genericLister[*accesslist.AccessList, accessListIndex]{
+		cache:           c,
+		collection:      c.collections.accessLists,
+		isDesc:          isDesc,
+		index:           index,
+		defaultPageSize: 100,
+		upstreamList: func(ctx context.Context, limit int, start string) ([]*accesslist.AccessList, string, error) {
+			return c.Config.AccessLists.ListAccessListsV2(ctx, req)
+		},
+		filter: func(al *accesslist.AccessList) bool {
+			return services.MatchAccessList(al, req.GetFilter())
+		},
+		nextToken: func(al *accesslist.AccessList) string {
+			// ignore error because CreateAccessListNextKey only errors
+			// if the index is invalid, which we already check above
+			nextKey, _ := services.CreateAccessListNextKey(al, string(index))
+			return nextKey
+		},
+	}
+	out, next, err := lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
+	return out, next, trace.Wrap(err)
+}
+
 // ListAccessLists returns a paginated list of access lists.
 func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessLists")
@@ -114,9 +159,6 @@ func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, pageToken str
 		upstreamList:    c.Config.AccessLists.ListAccessLists,
 		nextToken: func(t *accesslist.AccessList) string {
 			return t.GetMetadata().Name
-		},
-		clone: func(al *accesslist.AccessList) *accesslist.AccessList {
-			return al.Clone()
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
@@ -137,9 +179,6 @@ func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.Acc
 			upstreamRead = true
 			return c.Config.AccessLists.GetAccessList(ctx, s)
 		},
-		clone: func(al *accesslist.AccessList) *accesslist.AccessList {
-			return al.Clone()
-		},
 	}
 	out, err := getter.get(ctx, name)
 	if trace.IsNotFound(err) && !upstreamRead {
@@ -159,38 +198,30 @@ const (
 	accessListMemberKindIndex accessListMemberIndex = "kind"
 )
 
+func accessListMemberNameIndexKey(r *accesslist.AccessListMember) string {
+	return r.Spec.AccessList + "/" + r.GetName()
+}
+
 func newAccessListMemberCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessListMember, accessListMemberIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AccessLists")
 	}
 
 	return &collection[*accesslist.AccessListMember, accessListMemberIndex]{
-		store: newStore(map[accessListMemberIndex]func(*accesslist.AccessListMember) string{
-			accessListMemberNameIndex: func(r *accesslist.AccessListMember) string {
-				return r.Spec.AccessList + "/" + r.GetName()
-			},
-			accessListMemberKindIndex: func(r *accesslist.AccessListMember) string {
-				return r.Spec.AccessList + "/" + r.Spec.MembershipKind + "/" + r.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindAccessListMember,
+			(*accesslist.AccessListMember).Clone,
+			map[accessListMemberIndex]func(*accesslist.AccessListMember) string{
+				accessListMemberNameIndex: func(r *accesslist.AccessListMember) string {
+					return accessListMemberNameIndexKey(r)
+				},
+				accessListMemberKindIndex: func(r *accesslist.AccessListMember) string {
+					return r.Spec.AccessList + "/" + r.Spec.MembershipKind + "/" + r.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
-			var resources []*accesslist.AccessListMember
-			var nextToken string
-			for {
-				var page []*accesslist.AccessListMember
-				var err error
-				page, nextToken, err = upstream.ListAllAccessListMembers(ctx, 0 /* page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAllAccessListMembers))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accesslist.AccessListMember {
 			return &accesslist.AccessListMember{
@@ -226,17 +257,18 @@ func (c *Cache) CountAccessListMembers(ctx context.Context, accessListName strin
 		return count, listCount, trace.Wrap(err)
 	}
 
-	startKey := accessListName + "/" + accesslist.MembershipKindList + "/"
-	endKey := sortcache.NextKey(startKey)
-	listCount := uint32(rg.store.count(accessListMemberKindIndex, startKey, endKey))
+	startUserKey := accessListName + "/" + accesslist.MembershipKindUser + "/"
+	endUserKey := sortcache.NextKey(startUserKey)
+	userCount := uint32(rg.store.count(accessListMemberKindIndex, startUserKey, endUserKey))
 
-	return uint32(rg.store.len()) - listCount, listCount, trace.Wrap(err)
+	startListKey := accessListName + "/" + accesslist.MembershipKindList + "/"
+	endListKey := sortcache.NextKey(startListKey)
+	listCount := uint32(rg.store.count(accessListMemberKindIndex, startListKey, endListKey))
+
+	return userCount, listCount, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member list.
 func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
 	defer span.End()
@@ -252,11 +284,8 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 		return out, next, trace.Wrap(err)
 	}
 
-	start := accessListName
+	start := cmp.Or(pageToken, accessListName)
 	end := sortcache.NextKey(accessListName + "/")
-	if pageToken != "" {
-		start += "/" + pageToken
-	}
 
 	if pageSize <= 0 {
 		pageSize = defaults.DefaultChunkSize
@@ -275,7 +304,7 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 }
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
-func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListAllAccessListMembers")
 	defer span.End()
 
@@ -286,20 +315,14 @@ func (c *Cache) ListAllAccessListMembers(ctx context.Context, pageSize int, page
 		defaultPageSize: 200,
 		upstreamList:    c.Config.AccessLists.ListAllAccessListMembers,
 		nextToken: func(t *accesslist.AccessListMember) string {
-			return t.GetMetadata().Name
-		},
-		clone: func(al *accesslist.AccessListMember) *accesslist.AccessListMember {
-			return al.Clone()
+			return accessListMemberNameIndexKey(t)
 		},
 	}
-	out, next, err := lister.list(ctx, pageSize, nextToken)
+	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
 }
 
 // GetAccessListMember returns the specified access list member resource.
-// May return a DynamicAccessListError if the requested access list has an
-// implicit member list and the underlying implementation does not have
-// enough information to compute the dynamic member record.
 func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
 	defer span.End()
@@ -332,29 +355,17 @@ func newAccessListReviewCollection(upstream services.AccessLists, w types.WatchK
 	}
 
 	return &collection[*accesslist.Review, accessListReviewIndex]{
-		store: newStore(map[accessListReviewIndex]func(*accesslist.Review) string{
-			accessListReviewNameIndex: func(r *accesslist.Review) string {
-				return r.Spec.AccessList + "/" + r.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindAccessListReview,
+			(*accesslist.Review).Clone,
+			map[accessListReviewIndex]func(*accesslist.Review) string{
+				accessListReviewNameIndex: func(r *accesslist.Review) string {
+					return r.Spec.AccessList + "/" + r.GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accesslist.Review, error) {
-			var resources []*accesslist.Review
-			var nextToken string
-			for {
-				var page []*accesslist.Review
-				var err error
-				page, nextToken, err = upstream.ListAllAccessListReviews(ctx, 0 /* page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAllAccessListReviews))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accesslist.Review {
 			return &accesslist.Review{
@@ -391,16 +402,14 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 		nextToken: func(t *accesslist.Review) string {
 			return t.GetName()
 		},
-		clone: func(r *accesslist.Review) *accesslist.Review {
-			return r.Clone()
-		},
 	}
 
 	start := accessList
+	end := sortcache.NextKey(accessList + "/")
 	if pageToken != "" {
 		start += "/" + pageToken
 	}
 
-	out, next, err := lister.list(ctx, pageSize, start)
+	out, next, err := lister.listRange(ctx, pageSize, start, end)
 	return out, next, trace.Wrap(err)
 }

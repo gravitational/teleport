@@ -333,6 +333,19 @@ export const eventCodes = {
   AUTOUPDATE_AGENT_ROLLOUT_TRIGGER: 'AUAR001I',
   AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE: 'AUAR002I',
   AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
+  MCP_SESSION_START: 'TMCP001I',
+  MCP_SESSION_END: 'TMCP002I',
+  MCP_SESSION_END_FAILURE: 'TMCP002E',
+  MCP_SESSION_REQUEST: 'TMCP003I',
+  MCP_SESSION_REQUEST_FAILURE: 'TMCP003E',
+  MCP_SESSION_NOTIFICATION: 'TMCP004I',
+  MCP_SESSION_NOTIFICATION_FAILURE: 'TMCP004E',
+  MCP_SESSION_LISTEN_SSE_STREAM: 'TMCP005I',
+  MCP_SESSION_LISTEN_SSE_STREAM_FAILURE: 'TMCP005E',
+  MCP_SESSION_INVALID_HTTP_REQUEST: 'TMCP006E',
+  BOUND_KEYPAIR_RECOVERY: 'TBK001I',
+  BOUND_KEYPAIR_ROTATION: 'TBK002I',
+  BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
 } as const;
 
 /**
@@ -1179,6 +1192,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: RawEvent<
@@ -1187,6 +1201,7 @@ export type RawEvents = {
       desktop_addr: string;
       length: number;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: RawEvent<
@@ -1195,6 +1210,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: RawEvent<
@@ -1203,6 +1219,7 @@ export type RawEvents = {
       desktop_addr: string;
       directory_name: string;
       windows_domain: string;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: RawEvent<
@@ -1213,6 +1230,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: RawEvent<
@@ -1223,6 +1241,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: RawEvent<
@@ -1233,6 +1252,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: RawEvent<
@@ -1243,6 +1263,7 @@ export type RawEvents = {
       windows_domain: string;
       file_path: string;
       length: number;
+      desktop_name: string;
     }
   >;
   [eventCodes.DEVICE_CREATE]: RawDeviceEvent<typeof eventCodes.DEVICE_CREATE>;
@@ -1284,7 +1305,7 @@ export type RawEvents = {
     typeof eventCodes.CERTIFICATE_CREATED,
     {
       cert_type: 'user';
-      identity: { user: string };
+      identity: { user: string; usage?: string[] };
     }
   >;
   [eventCodes.UPGRADE_WINDOW_UPDATED]: RawEvent<
@@ -1327,6 +1348,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
@@ -1334,6 +1356,7 @@ export type RawEvents = {
     {
       bot_name: string;
       method: string;
+      token_name: string;
     }
   >;
   [eventCodes.INSTANCE_JOIN]: RawEvent<
@@ -1922,6 +1945,114 @@ export type RawEvents = {
     {
       user: string;
       groups: string[];
+    }
+  >;
+  [eventCodes.MCP_SESSION_START]: RawEvent<
+    typeof eventCodes.MCP_SESSION_START,
+    {
+      sid: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_END]: RawEvent<
+    typeof eventCodes.MCP_SESSION_END,
+    {
+      sid: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_END_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_END_FAILURE,
+    {
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
+    typeof eventCodes.MCP_SESSION_REQUEST,
+    {
+      app_name: string;
+      message: {
+        method: string;
+        params?: {
+          name?: string;
+        };
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_REQUEST_FAILURE,
+    {
+      app_name: string;
+      message: {
+        method: string;
+        params?: {
+          name?: string;
+        };
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_NOTIFICATION]: RawEvent<
+    typeof eventCodes.MCP_SESSION_NOTIFICATION,
+    {
+      app_name: string;
+      message: {
+        method: string;
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_NOTIFICATION_FAILURE,
+    {
+      app_name: string;
+      message: {
+        method: string;
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: RawEvent<
+    typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM,
+    {
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE,
+    {
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: RawEvent<
+    typeof eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST,
+    {
+      app_name: string;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_RECOVERY,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+      recovery_count: number;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_ROTATION,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
+    }
+  >;
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: RawEvent<
+    typeof eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED,
+    {
+      token_name: string;
+      bot_name: string;
+      success: boolean;
+      error: string;
     }
   >;
 };

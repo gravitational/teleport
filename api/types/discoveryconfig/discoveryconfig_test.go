@@ -246,6 +246,84 @@ func TestNewDiscoveryConfig(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name: "tag aws sync with cloudtrail logs",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Integration: "1234",
+							AssumeRole: &types.AssumeRole{
+								RoleARN: "arn:aws:iam::123456789012:role/teleport",
+							},
+							Regions: []string{"us-west-2"},
+							CloudTrailLogs: &types.AccessGraphAWSSyncCloudTrailLogs{
+								SQSQueue: "sqs-queue",
+								Region:   "us-west-2",
+							},
+						},
+					},
+				},
+			},
+			expected: &DiscoveryConfig{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindDiscoveryConfig,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: "my-first-dc",
+					},
+				},
+				Spec: Spec{
+					DiscoveryGroup: "dg1",
+					AWS:            make([]types.AWSMatcher, 0),
+					Azure:          make([]types.AzureMatcher, 0),
+					GCP:            make([]types.GCPMatcher, 0),
+					Kube:           []types.KubernetesMatcher{},
+					AccessGraph: &types.AccessGraphSync{
+						AWS: []*types.AccessGraphAWSSync{
+							{
+								Integration: "1234",
+								AssumeRole: &types.AssumeRole{
+									RoleARN: "arn:aws:iam::123456789012:role/teleport",
+								},
+								Regions: []string{"us-west-2"},
+								CloudTrailLogs: &types.AccessGraphAWSSyncCloudTrailLogs{
+									SQSQueue: "sqs-queue",
+									Region:   "us-west-2",
+								},
+							},
+						},
+					},
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "tag aws sync with missing cloudtrail logs fields",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Integration: "1234",
+							AssumeRole: &types.AssumeRole{
+								RoleARN: "arn:aws:iam::123456789012:role/teleport",
+							},
+							Regions:        []string{"us-west-2"},
+							CloudTrailLogs: &types.AccessGraphAWSSyncCloudTrailLogs{},
+						},
+					},
+				},
+			},
+			errCheck: require.Error,
+		},
+		{
 			name: "tag aws sync with invalid region",
 			inMetadata: header.Metadata{
 				Name: "my-first-dc",

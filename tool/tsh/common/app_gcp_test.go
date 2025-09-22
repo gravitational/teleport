@@ -51,7 +51,7 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 			name:                    "no flag, multiple possible service accounts",
 			requestedServiceAccount: "",
 			profileAccounts:         []string{"id1", "id2"},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "multiple GCP service accounts available, choose one with --gcp-service-account flag")
 			},
 		},
@@ -59,7 +59,7 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 			name:                    "no flag, no service accounts",
 			requestedServiceAccount: "",
 			profileAccounts:         []string{},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "no GCP service accounts available, check your permissions")
 			},
 		},
@@ -81,7 +81,7 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 			name:                    "no match, multiple options",
 			requestedServiceAccount: "id3@example-123456.iam.gserviceaccount.com",
 			profileAccounts:         []string{"id1@example-123456.iam.gserviceaccount.com", "id2@example-123456.iam.gserviceaccount.com"},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "failed to find the service account matching \"id3@example-123456.iam.gserviceaccount.com\"")
 			},
 		},
@@ -109,7 +109,7 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 				"id1@example-123456.iam.gserviceaccount.com",
 				"id1@example-777777.iam.gserviceaccount.com",
 			},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "provided service account \"id1\" is ambiguous, please specify full service account name")
 			},
 		},
@@ -121,7 +121,7 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 				"id2@example-123456.iam.gserviceaccount.com",
 				"idX@example-777777.iam.gserviceaccount.com",
 			},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "failed to find the service account matching \"id3@example-123456.iam.gserviceaccount.com\"")
 			},
 		},
@@ -129,7 +129,7 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 			name:                    "service account name is validated",
 			requestedServiceAccount: "",
 			profileAccounts:         []string{"default"},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "chosen GCP service account \"default\" is invalid")
 			},
 		},

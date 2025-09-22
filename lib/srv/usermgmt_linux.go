@@ -101,9 +101,9 @@ func (*HostUsersProvisioningBackend) LookupGroupByID(gid string) (*user.Group, e
 	return user.LookupGroupId(gid)
 }
 
-// SetUserGroups sets a user's groups, replacing their existing groups.
-func (*HostUsersProvisioningBackend) SetUserGroups(name string, groups []string) error {
-	_, err := host.SetUserGroups(name, groups)
+// UpdateUser sets a user's groups and default shell, replacing their existing groups.
+func (*HostUsersProvisioningBackend) UpdateUser(name string, groups []string, defaultShell string) error {
+	_, err := host.UserUpdate(name, groups, defaultShell)
 	return trace.Wrap(err)
 }
 
@@ -111,6 +111,21 @@ func (*HostUsersProvisioningBackend) SetUserGroups(name string, groups []string)
 func (*HostUsersProvisioningBackend) GetAllUsers() ([]string, error) {
 	users, _, err := host.GetAllUsers()
 	return users, err
+}
+
+// IsUsingShell returns whether or not the given user is already using the given shell.
+func (*HostUsersProvisioningBackend) IsUsingShell(username, shell string) (bool, error) {
+	currentShell, err := host.UserShell(username)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	shellPath, err := exec.LookPath(shell)
+	if err != nil {
+		return false, trace.WrapWithMessage(err, "could not find path for shell %q", shell)
+	}
+
+	return shellPath == currentShell, nil
 }
 
 // CreateGroup creates a group on a host

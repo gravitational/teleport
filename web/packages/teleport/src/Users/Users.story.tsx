@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { StoryObj } from '@storybook/react';
+import type { StoryObj } from '@storybook/react-vite';
 import { delay } from 'msw';
 
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -138,8 +138,6 @@ export const Failed: StoryObj = {
   },
 };
 
-const roles = ['admin', 'testrole'];
-
 const sample = {
   attempt: {
     isProcessing: false,
@@ -148,7 +146,11 @@ const sample = {
     message: '',
   },
   users: users,
-  fetchRoles: async (input: string) => roles.filter(r => r.includes(input)),
+  fetch: async () =>
+    Promise.resolve({
+      items: users,
+      startKey: '',
+    }),
   operation: {
     type: 'none',
     user: null,

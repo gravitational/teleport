@@ -64,7 +64,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
 
     // check if a bot with that name already exist
     run(async () => {
-      const bot = await getBot(createBotRequest.botName);
+      const bot = await getBot({ botName: createBotRequest.botName });
       if (bot === null) {
         nextStep();
         return;

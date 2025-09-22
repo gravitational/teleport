@@ -124,6 +124,12 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 			want: true,
 		},
 		{
+			desc: "both empty",
+			a:    &healthCheckConfig{},
+			b:    &healthCheckConfig{},
+			want: true,
+		},
+		{
 			desc: "one nil, one non-nil",
 			a:    &healthCheckConfig{},
 			b:    nil,
@@ -135,6 +141,7 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 				name:               "test",
 				protocol:           "http",
 				interval:           time.Second,
+				timeout:            500 * time.Millisecond,
 				healthyThreshold:   3,
 				unhealthyThreshold: 5,
 			},
@@ -142,6 +149,7 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 				name:               "test",
 				protocol:           "http",
 				interval:           time.Second,
+				timeout:            500 * time.Millisecond,
 				healthyThreshold:   3,
 				unhealthyThreshold: 5,
 			},
@@ -153,6 +161,7 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 				name:                  "test",
 				protocol:              "http",
 				interval:              time.Second,
+				timeout:               500 * time.Millisecond,
 				healthyThreshold:      3,
 				unhealthyThreshold:    5,
 				databaseLabelMatchers: types.LabelMatchers{Expression: "a", Labels: types.Labels{"a": {"a"}}},
@@ -161,6 +170,7 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 				name:                  "test",
 				protocol:              "http",
 				interval:              time.Second,
+				timeout:               500 * time.Millisecond,
 				healthyThreshold:      3,
 				unhealthyThreshold:    5,
 				databaseLabelMatchers: types.LabelMatchers{Expression: "b", Labels: types.Labels{"b": {"b"}}},
@@ -194,6 +204,16 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 			},
 			b: &healthCheckConfig{
 				interval: 2 * time.Second,
+			},
+			want: false,
+		},
+		{
+			desc: "different timeout",
+			a: &healthCheckConfig{
+				timeout: time.Second,
+			},
+			b: &healthCheckConfig{
+				timeout: 2 * time.Second,
 			},
 			want: false,
 		},

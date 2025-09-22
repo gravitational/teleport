@@ -2,13 +2,24 @@
 title: Visual Studio Code
 description: How to use Visual Studio Code's Remote Development plugin with Teleport
 h1: Remote Development With Visual Studio Code
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 This guide explains how to use Teleport and Visual Studio Code's remote SSH extension.
 
+## How it works
+
+The Visual Studio Code Remote - SSH extension uses the local SSH client to
+access a remote server. You can use Teleport to generate a configuration for
+your local SSH client that instructs the client to connect to a
+Teleport-protected Linux server using a Teleport-issued OpenSSH certificate. 
+
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs-not-admin.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx clients="\`tsh\` client"!)
 
 - OpenSSH client.
 - Visual Studio Code with the [Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh#_system-requirements)

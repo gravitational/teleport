@@ -20,8 +20,8 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"math/rand/v2"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Getter returns a list of registered apps and the local cluster name.
@@ -96,7 +97,7 @@ func MatchName(name string) Matcher {
 // MatchHealthy tries to establish a connection with the server using the
 // `dialAppServer` function. The app server is matched if the function call
 // doesn't return any error.
-func MatchHealthy(proxyClient reversetunnelclient.Tunnel, clusterName string) Matcher {
+func MatchHealthy(clusterGetter reversetunnelclient.ClusterGetter, clusterName string) Matcher {
 	return func(ctx context.Context, appServer types.AppServer) bool {
 		// Redirected apps don't need to be dialed, as the proxy will redirect to them.
 		if redirectInsteadOfForward(appServer) {
@@ -109,7 +110,7 @@ func MatchHealthy(proxyClient reversetunnelclient.Tunnel, clusterName string) Ma
 			return true
 		}
 
-		conn, err := dialAppServer(ctx, proxyClient, clusterName, appServer)
+		conn, err := dialAppServer(ctx, clusterGetter, clusterName, appServer)
 		if err != nil {
 			return false
 		}
@@ -132,6 +133,12 @@ func MatchAll(matchers ...Matcher) Matcher {
 	}
 }
 
+// ClusterGetter provides a means to retrieve all connected
+// Teleport clusters - either local or remote.
+type ClusterGetter interface {
+	Clusters(context.Context) ([]reversetunnelclient.Cluster, error)
+}
+
 // ResolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running a root or leaf cluster.
 //
@@ -140,7 +147,7 @@ func MatchAll(matchers ...Matcher) Matcher {
 // cluster, this method will always return "acme" running within the root
 // cluster. Always supply public address and cluster name to deterministically
 // resolve an application.
-func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tunnel, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
+func ResolveFQDN(ctx context.Context, clt Getter, clusterGetter ClusterGetter, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
 	// Try and match FQDN to public address of application within cluster.
 	servers, err := MatchUnshuffled(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {
@@ -151,21 +158,15 @@ func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tun
 		return servers[rand.N(len(servers))], clusterName.GetClusterName(), nil
 	}
 
-	// Extract the first subdomain from the FQDN and attempt to use this as the
-	// application name. The rest of the FQDN must match one of the local
-	// cluster's proxy DNS names.
-	fqdnParts := strings.SplitN(fqdn, ".", 2)
-	if len(fqdnParts) != 2 {
-		return nil, "", trace.BadParameter("invalid FQDN: %v", fqdn)
-	}
-	if !slices.Contains(proxyDNSNames, fqdnParts[1]) {
+	proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames)
+	if !strings.HasSuffix(fqdn, proxyPublicAddr) {
 		return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 	}
-	appName := fqdnParts[0]
+	appName := strings.TrimSuffix(fqdn, fmt.Sprintf(".%s", proxyPublicAddr))
 
 	// Loop over all clusters and try and match application name to an
 	// application within the cluster. This also includes the local cluster.
-	clusterClients, err := tunnel.GetSites()
+	clusterClients, err := clusterGetter.Clusters(ctx)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

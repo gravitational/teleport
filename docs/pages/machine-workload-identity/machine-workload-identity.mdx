@@ -1,0 +1,48 @@
+---
+title: "Teleport Machine & Workload Identity"
+description: "Provides information on Zero Trust Access & Flexible Workload Identity."
+tags:
+ - mwi
+ - infrastructure-identity
+---
+
+Teleport Machine & Workload Identity offers two complementary sets of capabilities for non-human entities in your infrastructure:
+
+- **Zero Trust Access for machines**: 
+Enables machines (like CI/CD pipelines) to securely authenticate with your Teleport cluster to access protected resources and configure the cluster itself.
+- **Flexible Workload Identities**: 
+Issues short-lived cryptographic identities to workloads, compatible with the SPIFFE standard, enabling secure workload-to-workload communication and third-party API authentication.
+
+## Secure service-to-service authentication
+
+Establish a root certificate authority within your Teleport cluster that issues short-lived JWTs and X509 certificates to workloads. These identities ([SPIFFE](../machine-workload-identity/workload-identity/spiffe.mdx) Verifiable Identity Documents or SVIDs) contain the workload's identity encoded as a URI (SPIFFE ID).
+
+Key benefits:
+
+- Eliminates long-lived shared secrets
+- Establishes a universal form of identity for workloads
+- Simplifies infrastructure by reducing authentication methods
+
+The tbot agent manages identity requests and renewals, authenticating to the Teleport cluster using supported join methods. Workloads receive identities either through filesystem/Kubernetes secrets or via the SPIFFE Workload API.
+
+## Zero Trust Access for machines
+
+Teleport provides machines with an identity ("bot") that can authenticate to the Teleport cluster. Bots are similar to human users with access controlled by roles and activities recorded in audit logs.
+
+Bots authenticate using join tokens that specify which bot user they grant access to and what proof (join method) is needed. Each tbot client connection creates a server-side Bot Instance to track installations over time.
+
+## Key differences
+
+**Flexible Workload Identities**: Issues SPIFFE-compatible identities for various authentication purposes; doesn't use Teleport Proxy for workload-to-workload communication
+
+**Zero Trust Access for machines**: Issues Teleport-specific credentials for accessing resources secured by Teleport; requires using the Teleport Proxy
+
+| Feature | Flexible Workload Identities | Zero Trust Access for machines |
+|---------|------------------------------|--------------------------------|
+| Purpose | Authenticate workloads to other workloads or third-party APIs | Authenticate bots to Teleport to access infrastructure |
+| Standards | SPIFFE (SVIDs, Workload API, mTLS, JWT) | Teleport-native X.509 credentials |
+| Proxy Usage | No Teleport Proxy involved | Access goes through the Teleport Proxy |
+| Use Case Focus | Service-to-service authentication | Infrastructure and configuration access |
+| Credential Delivery | Filesystem or SPIFFE API via tbot | Artifacts written to disk via tbot |
+
+<DocCardList />

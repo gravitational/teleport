@@ -17,6 +17,8 @@
 package handler
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 
@@ -61,6 +63,19 @@ func (s *Handler) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectTo
 		return trace.Wrap(err)
 	}
 
-	err = s.DaemonService.ConnectToDesktop(stream, parsed.GetClusterURI(), parsed.GetWindowsDesktopName(), login)
+	err = s.DaemonService.ConnectToDesktop(stream, parsed, login)
 	return trace.Wrap(err)
+}
+
+// SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+// If there is no active desktop session associated with the specified desktop_uri and login,
+// an error is returned.
+func (s *Handler) SetSharedDirectoryForDesktopSession(ctx context.Context, in *api.SetSharedDirectoryForDesktopSessionRequest) (*api.SetSharedDirectoryForDesktopSessionResponse, error) {
+	parsed, err := uri.Parse(in.GetDesktopUri())
+	if err != nil {
+		return &api.SetSharedDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
+	}
+
+	err = s.DaemonService.SetSharedDirectoryForDesktopSession(ctx, parsed, in.GetLogin(), in.GetPath())
+	return &api.SetSharedDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
 }

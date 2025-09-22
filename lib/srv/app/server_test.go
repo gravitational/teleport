@@ -56,34 +56,41 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/inventory"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	cryptosuites.PrecomputeRSATestKeys(m)
+	logtest.InitLogger(testing.Verbose)
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 type Suite struct {
 	clock        *clockwork.FakeClock
 	dataDir      string
-	authServer   *auth.TestAuthServer
-	tlsServer    *auth.TestTLSServer
+	authServer   *authtest.AuthServer
+	tlsServer    *authtest.TLSServer
 	authClient   *authclient.Client
 	appServer    *Server
 	hostCertPool *x509.CertPool
@@ -165,6 +172,7 @@ func SetUpSuite(t *testing.T) *Suite {
 
 func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s := &Suite{}
+	s.closeContext, s.closeFunc = context.WithCancel(t.Context())
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
@@ -173,7 +181,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	var err error
 	// Create Auth Server.
-	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	s.authServer, err = authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "root.example.com",
 		Dir:         s.dataDir,
 		Clock:       s.clock,
@@ -182,12 +190,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	t.Cleanup(func() { s.authServer.Close() })
 
+	recordingMode := types.RecordOff
 	if config.ServerStreamer != nil {
-		_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
-			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
-		})
-		require.NoError(t, err)
+		recordingMode = types.RecordAtNodeSync
 	}
+
+	_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		Spec: types.SessionRecordingConfigSpecV2{Mode: recordingMode},
+	})
+	require.NoError(t, err)
 
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -226,10 +237,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	}
 	// Create user for regular tests.
-	s.user, err = auth.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
+	s.user, err = authtest.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
-
-	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
@@ -308,14 +317,14 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	// Create a client with a machine role of RoleApp.
-	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
+	s.authClient, err = s.tlsServer.NewClient(authtest.TestServerID(types.RoleApp, s.hostUUID))
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		s.authClient.Close()
 	})
 
-	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
+	serverIdentity, err := authtest.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -375,11 +384,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream,
-		func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
-			return proto.UpstreamInventoryHello{
+		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+			return &proto.UpstreamInventoryHello{
 				ServerID: s.hostUUID,
 				Version:  teleport.Version,
-				Services: []types.SystemRole{types.RoleApp},
+				Services: types.SystemRoles{types.RoleApp}.StringSlice(),
 				Hostname: "test",
 			}, nil
 		})
@@ -387,19 +396,20 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:              s.clock,
-		AccessPoint:        s.authClient,
-		AuthClient:         s.authClient,
-		HostID:             s.hostUUID,
-		Hostname:           "test",
-		GetRotation:        testRotationGetter,
-		Apps:               apps,
-		OnHeartbeat:        func(err error) {},
-		ResourceMatchers:   config.ResourceMatchers,
-		OnReconcile:        config.OnReconcile,
-		CloudLabels:        config.CloudImporter,
-		ConnectionsHandler: connectionsHandler,
-		InventoryHandle:    inventoryHandle,
+		Clock:                s.clock,
+		AccessPoint:          s.authClient,
+		AuthClient:           s.authClient,
+		HostID:               s.hostUUID,
+		Hostname:             "test",
+		GetRotation:          testRotationGetter,
+		Apps:                 apps,
+		OnHeartbeat:          func(err error) {},
+		ResourceMatchers:     config.ResourceMatchers,
+		OnReconcile:          config.OnReconcile,
+		CloudLabels:          config.CloudImporter,
+		ConnectionsHandler:   connectionsHandler,
+		InventoryHandle:      inventoryHandle,
+		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 
@@ -412,7 +422,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		case sender := <-inventoryHandle.Sender():
 			appServer, err := s.appServer.getServerInfo(app)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
+			require.NoError(t, sender.Send(s.closeContext, &proto.InventoryHeartbeat{
 				AppServer: appServer,
 			}))
 		case <-time.After(20 * time.Second):
@@ -465,15 +475,10 @@ func TestStart(t *testing.T) {
 
 	// Fetch the services.App that the service heartbeat.
 	var servers []types.AppServer
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		apps, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, defaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		if !assert.Len(t, apps, 3) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, apps, 3)
 		servers = apps
 	}, 10*time.Second, 100*time.Millisecond)
 
@@ -551,7 +556,6 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -914,6 +918,7 @@ func TestAuthorize(t *testing.T) {
 		roleAppLabels        types.Labels
 		appLabels            map[string]string
 		requireTrustedDevice bool // assigns user to a role that requires trusted devices
+		requireMFADevice     bool // assigns user to a role that requires an enrolled MFA device
 		wantStatus           int
 		assertBody           func(t *testing.T, gotBody string) bool // optional, matched against s.message if nil
 	}{
@@ -957,7 +962,16 @@ func TestAuthorize(t *testing.T) {
 			requireTrustedDevice: true,
 			wantStatus:           http.StatusForbidden,
 			assertBody: func(t *testing.T, gotBody string) bool {
-				const want = "app requires a trusted device"
+				const want = "trusted device is required to access this resource"
+				return assert.Contains(t, gotBody, want, "response body mismatch")
+			},
+		},
+		{
+			name:             "enrolled MFA device required",
+			requireMFADevice: true,
+			wantStatus:       http.StatusForbidden,
+			assertBody: func(t *testing.T, gotBody string) bool {
+				const want = "Multi-factor authentication (MFA) is required to access this resource"
 				return assert.Contains(t, gotBody, want, "response body mismatch")
 			},
 		},
@@ -972,11 +986,24 @@ func TestAuthorize(t *testing.T) {
 				RoleAppLabels: test.roleAppLabels,
 			})
 
-			if test.requireTrustedDevice {
+			// Helper to create and assign a role to the user, then refresh certificate.
+			assignRoleAndRefreshCert := func(roleName string, roleSpec types.RoleSpecV6) {
 				authServer := s.authServer.AuthServer
+				role, err := types.NewRole(roleName, roleSpec)
+				require.NoError(t, err, "NewRole")
+				role, err = authServer.CreateRole(ctx, role)
+				require.NoError(t, err, "CreateRole")
 
-				// Create a role that requires a trusted device.
-				requiredDevRole, err := types.NewRole("require-trusted-devices-app", types.RoleSpecV6{
+				user := s.user
+				user.AddRole(role.GetName())
+				user, err = authServer.Services.UpdateUser(ctx, user)
+				require.NoError(t, err, "UpdateUser")
+
+				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */)
+			}
+
+			if test.requireTrustedDevice {
+				assignRoleAndRefreshCert("require-trusted-devices-app", types.RoleSpecV6{
 					Options: types.RoleOptions{
 						DeviceTrustMode: constants.DeviceTrustModeRequired,
 					},
@@ -984,18 +1011,17 @@ func TestAuthorize(t *testing.T) {
 						AppLabels: types.Labels{"*": []string{"*"}},
 					},
 				})
-				require.NoError(t, err, "NewRole")
-				requiredDevRole, err = authServer.CreateRole(ctx, requiredDevRole)
-				require.NoError(t, err, "CreateRole")
+			}
 
-				// Add role to test user.
-				user := s.user
-				user.AddRole(requiredDevRole.GetName())
-				user, err = authServer.Services.UpdateUser(ctx, user)
-				require.NoError(t, err, "UpdateUser")
-
-				// Refresh user certificate.
-				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */)
+			if test.requireMFADevice {
+				assignRoleAndRefreshCert("require-mfa-app", types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequireMFAType: types.RequireMFAType_SESSION,
+					},
+					Allow: types.RoleConditions{
+						AppLabels: types.Labels{"*": []string{"*"}},
+					},
+				})
 			}
 
 			if test.cloudLabels != nil {

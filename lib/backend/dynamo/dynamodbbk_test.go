@@ -20,6 +20,7 @@ package dynamo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -40,14 +41,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -70,7 +72,7 @@ func dynamoDBTestTable() string {
 func TestDynamoDB(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	dynamoCfg := map[string]interface{}{
+	dynamoCfg := map[string]any{
 		"table_name":         dynamoDBTestTable(),
 		"poll_stream_period": 300 * time.Millisecond,
 	}
@@ -241,8 +243,7 @@ func TestCreateTable(t *testing.T) {
 func TestContinuousBackups(t *testing.T) {
 	ensureTestsEnabled(t)
 
-	// Create new backend with continuous backups enabled.
-	b, err := New(context.Background(), map[string]interface{}{
+	b, err := New(t.Context(), map[string]any{
 		"table_name":         uuid.NewString() + "-test",
 		"continuous_backups": true,
 	})
@@ -250,7 +251,26 @@ func TestContinuousBackups(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		require.NoError(t, deleteTable(context.Background(), b.svc, b.Config.TableName))
+		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+			Driver: retryutils.NewExponentialDriver(500 * time.Millisecond),
+			First:  500 * time.Millisecond,
+			Max:    20 * time.Second,
+			Jitter: retryutils.HalfJitter,
+		})
+		require.NoError(t, err)
+
+		for {
+			err := deleteTable(context.Background(), b.svc, b.Config.TableName)
+			if err == nil {
+				return
+			}
+			inUse := &types.ResourceInUseException{}
+			if errors.As(err, &inUse) {
+				<-retry.After()
+			} else {
+				assert.FailNow(t, "error deleting table", err)
+			}
+		}
 	})
 
 	// Check status of continuous backups.
@@ -264,7 +284,7 @@ func TestAutoScaling(t *testing.T) {
 	ensureTestsEnabled(t)
 
 	// Create new backend with auto scaling enabled.
-	b, err := New(context.Background(), map[string]interface{}{
+	b, err := New(context.Background(), map[string]any{
 		"table_name":         uuid.NewString() + "-test",
 		"auto_scaling":       true,
 		"read_min_capacity":  10,
@@ -295,11 +315,12 @@ func TestAutoScaling(t *testing.T) {
 		WriteMaxCapacity: 20,
 		WriteTargetValue: 50.0,
 	}
+
 	// Check auto scaling values match.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := getAutoScaling(context.Background(), applicationautoscaling.NewFromConfig(awsConfig), b.Config.TableName)
-		assert.NoError(t, err)
-		assert.Equal(t, expected, resp)
+		require.NoError(t, err)
+		require.Equal(t, expected, resp)
 	}, 10*time.Second, 500*time.Millisecond)
 }
 
@@ -341,10 +362,12 @@ type AutoScalingParams struct {
 // getAutoScaling gets the state of auto scaling.
 func getAutoScaling(ctx context.Context, svc *applicationautoscaling.Client, tableName string) (*AutoScalingParams, error) {
 	var resp AutoScalingParams
+	tableResourceID := "table/" + tableName
 
 	// Get scaling targets.
 	targetResponse, err := svc.DescribeScalableTargets(ctx, &applicationautoscaling.DescribeScalableTargetsInput{
 		ServiceNamespace: autoscalingtypes.ServiceNamespaceDynamodb,
+		ResourceIds:      []string{tableResourceID},
 	})
 	if err != nil {
 		return nil, convertError(err)
@@ -363,11 +386,12 @@ func getAutoScaling(ctx context.Context, svc *applicationautoscaling.Client, tab
 	// Get scaling policies.
 	policyResponse, err := svc.DescribeScalingPolicies(ctx, &applicationautoscaling.DescribeScalingPoliciesInput{
 		ServiceNamespace: autoscalingtypes.ServiceNamespaceDynamodb,
+		ResourceId:       aws.String(tableResourceID),
 	})
 	if err != nil {
 		return nil, convertError(err)
 	}
-	for i := 0; i < len(policyResponse.ScalingPolicies); i++ {
+	for i := range policyResponse.ScalingPolicies {
 		policy := policyResponse.ScalingPolicies[i]
 		switch aws.ToString(policy.PolicyName) {
 		case fmt.Sprintf("%v-%v", tableName, readScalingPolicySuffix):

@@ -135,7 +135,7 @@ func TestMakeGitHubSigner(t *testing.T) {
 				IdentityExpires: clock.Now().Add(time.Minute),
 				Clock:           clock,
 			},
-			checkError: func(t require.TestingT, err error, i ...interface{}) {
+			checkError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), i...)
 			},
 		},

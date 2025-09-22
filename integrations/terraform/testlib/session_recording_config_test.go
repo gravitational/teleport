@@ -24,6 +24,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -80,7 +81,9 @@ func (s *TerraformSuiteOSS) TestImportSessionRecordingConfig() {
 	recordingConfigBefore, err := s.client.GetSessionRecordingConfig(ctx)
 	require.NoError(s.T(), err)
 
-	err = s.client.SetSessionRecordingConfig(ctx, sessionrRecordingConfig)
+	_, err = s.client.ClusterConfigClient().UpsertSessionRecordingConfig(ctx, &clusterconfigv1.UpsertSessionRecordingConfigRequest{
+		SessionRecordingConfig: sessionrRecordingConfig,
+	})
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {

@@ -70,23 +70,16 @@ func NewHostKeyCallback(conf HostKeyCallbackConfig) (ssh.HostKeyCallback, error)
 	return checker.CheckHostKey, nil
 }
 
-func makeIsHostAuthorityFunc(getCheckers CheckersGetter) func(key ssh.PublicKey, host string) bool {
-	return func(key ssh.PublicKey, host string) bool {
+func makeIsHostAuthorityFunc(getCheckers CheckersGetter) func(authority ssh.PublicKey, host string) bool {
+	return func(authority ssh.PublicKey, host string) bool {
 		checkers, err := getCheckers()
 		if err != nil {
 			slog.ErrorContext(context.Background(), "Failed to get checkers.", "host", host, "error", err)
 			return false
 		}
 		for _, checker := range checkers {
-			switch v := key.(type) {
-			case *ssh.Certificate:
-				if KeysEqual(v.SignatureKey, checker) {
-					return true
-				}
-			default:
-				if KeysEqual(key, checker) {
-					return true
-				}
+			if KeysEqual(authority, checker) {
+				return true
 			}
 		}
 		slog.DebugContext(context.Background(), "No CA found for target host.", "host", host)

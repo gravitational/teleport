@@ -2,6 +2,10 @@
 title: JetBrains SFTP
 description: How to use a JetBrains IDE to manipulate files on a remote host with Teleport
 h1: SFTP with JetBrains IDE
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 JetBrain's IDEs, like PyCharm, GoLand, and IntelliJ, allow browsing, copying, and editing files on a remote server
@@ -10,9 +14,16 @@ machine without using a third-party client.
 
 This guide explains how to use Teleport and a JetBrains IDE to access files with SFTP.
 
+## How it works
+
+JetBrains IDEs can use the local SSH client to access a remote server. You can
+use Teleport to generate a configuration for your local SSH client that
+instructs the client to connect to a Teleport-protected Linux server using a
+Teleport-issued OpenSSH certificate. 
+
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs-not-admin.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx clients="\`tsh\` client"!)
 
 - JetBrains IDE like PyCharm, IntelliJ, GoLand etc. See [Products](https://www.jetbrains.com/products/#type=ide) for a full list of JetBrains IDEs.
 - One or more Teleport SSH Service instances. If you have not yet done this,

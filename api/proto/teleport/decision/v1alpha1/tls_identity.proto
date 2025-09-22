@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.decision.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
+import "teleport/scopes/v1/scopes.proto";
 import "teleport/trait/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpb";
@@ -149,6 +150,15 @@ message TLSIdentity {
 
   // UserType indicates if the User was created by an SSO Provider or locally.
   string user_type = 35;
+
+  // JoinToken is the name of the join token used when a bot joins; it does not
+  // apply to other identity types, or to bots using the traditional `token`
+  // join method.
+  string join_token = 36;
+
+  // ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+  // set, the Roles field must not be set.
+  teleport.scopes.v1.Pin scope_pin = 37;
 }
 
 // RouteToApp holds routing information for applications.
@@ -187,6 +197,11 @@ message RouteToApp {
   // app spec, since the URI from RouteToApp is not used as the source of truth
   // for routing.
   int32 target_port = 9;
+
+  // AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
+  // This is a JSON string that conforms with
+  // https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+  string aws_credentialprocess_credentials = 10;
 }
 
 // RouteToDatabase contains routing information for databases.

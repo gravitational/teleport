@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -75,13 +76,13 @@ func TestConfiguratorIsUsed(t *testing.T) {
 	draftConfig := testDraftExternalAuditStorage(t)
 	tests := []struct {
 		name              string
-		modules           *modules.TestModules
+		modules           modulestest.Modules
 		resourceServiceFn func(t *testing.T, s *local.ExternalAuditStorageService)
 		wantIsUsed        bool
 	}{
 		{
 			name: "not cloud",
-			modules: &modules.TestModules{
+			modules: modulestest.Modules{
 				TestFeatures: modules.Features{
 					Cloud: false,
 				},
@@ -90,7 +91,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 		},
 		{
 			name: "cloud team",
-			modules: &modules.TestModules{
+			modules: modulestest.Modules{
 				TestFeatures: modules.Features{
 					Cloud:               true,
 					IsUsageBasedBilling: true,
@@ -100,7 +101,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 		},
 		{
 			name: "cloud enterprise without config",
-			modules: &modules.TestModules{
+			modules: modulestest.Modules{
 				TestFeatures: modules.Features{
 					Cloud: true,
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -112,7 +113,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 		},
 		{
 			name: "cloud enterprise with only draft",
-			modules: &modules.TestModules{
+			modules: modulestest.Modules{
 				TestFeatures: modules.Features{
 					Cloud: true,
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -131,7 +132,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 		},
 		{
 			name: "cloud enterprise with cluster config",
-			modules: &modules.TestModules{
+			modules: modulestest.Modules{
 				TestFeatures: modules.Features{
 					Cloud: true,
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -164,7 +165,7 @@ func TestConfiguratorIsUsed(t *testing.T) {
 				tt.resourceServiceFn(t, ecaSvc)
 			}
 
-			modules.SetTestModules(t, tt.modules)
+			modulestest.SetTestModules(t, tt.modules)
 
 			c, err := NewConfigurator(ctx, ecaSvc, integrationSvc, nil /*alertService*/)
 			require.NoError(t, err)
@@ -178,10 +179,9 @@ func TestConfiguratorIsUsed(t *testing.T) {
 }
 
 func TestCredentialsCache(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -318,8 +318,8 @@ func TestCredentialsCache(t *testing.T) {
 				expectedExpiry := clock.Now().Add(TokenLifetime)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					creds, err := provider.Retrieve(ctx)
-					assert.NoError(t, err)
-					assert.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
+					require.NoError(t, err)
+					require.WithinDuration(t, expectedExpiry, creds.Expires, 2*time.Minute)
 				}, waitFor, tick)
 				credentialsUpdated = true
 			}
@@ -335,10 +335,9 @@ func TestCredentialsCache(t *testing.T) {
 // configurator to synchronously get credentials for the current draft
 // ExternalAuditStorageSpec.
 func TestDraftConfigurator(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

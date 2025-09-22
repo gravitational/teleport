@@ -1,0 +1,325 @@
+Teleport MySQL interactive shell (v19.0.0-dev)
+Connected to instance "mysql-test-container" as user "root".
+Type 'help' or '\h' for help.
+
+(none)> -- temporarily disable note warnings for test consistency
+(none)> set session sql_notes = 0;
+
+0 warnings, 0 rows affected
+
+(none)> create database if not exists test_commands;
+
+0 warnings, 1 rows affected
+
+(none)> create database if not exists foo;
+
+0 warnings, 1 rows affected
+
+(none)> create database if not exists bar;
+
+0 warnings, 1 rows affected
+
+(none)> set session sql_notes = 1;
+
+0 warnings, 0 rows affected
+
+(none)> use test_commands;
+
+Default database changed to "test_commands"
+
+test_commands> 
+test_commands> -- leading spaces/comments before commands
+test_commands> /* just a comment */
+test_commands> use foo;
+
+Default database changed to "foo"
+
+foo> use foo
+
+Default database changed to "foo"
+
+foo>      /*
+ /*> llama
+ /*>  */
+foo> use foo;
+
+Default database changed to "foo"
+
+foo>      /*
+ /*> llama
+ /*>  */
+foo> use foo
+
+Default database changed to "foo"
+
+foo> -- llama
+foo> use foo;
+
+Default database changed to "foo"
+
+foo> -- llama
+foo> use foo
+
+Default database changed to "foo"
+
+foo>   -- llama
+foo>     use foo;
+
+Default database changed to "foo"
+
+foo>   -- llama
+foo>     use foo
+
+Default database changed to "foo"
+
+foo> /* llama */use foo;
+
+Default database changed to "foo"
+
+foo> /* llama */use foo
+
+Default database changed to "foo"
+
+foo> /* llama */  use foo;
+
+Default database changed to "foo"
+
+foo> /* llama */  use foo
+
+Default database changed to "foo"
+
+foo> /* llama */
+foo>   use foo;
+
+Default database changed to "foo"
+
+foo> /* llama */
+foo>   use foo
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> */use foo;
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> */use foo
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> */  use foo;
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> */  use foo
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> -- llama
+ /*> */use foo;
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> -- llama
+ /*> */use foo
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> -- llama
+ /*> */  use foo;
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> -- llama
+ /*> */  use foo
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> -- */use foo;
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> -- */use foo
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> -- */  use foo;
+
+Default database changed to "foo"
+
+foo> /* llama
+ /*> -- */  use foo
+
+Default database changed to "foo"
+
+foo> /* llama */
+foo> 
+foo> use foo;use bar; use foo
+
+Default database changed to "foo"
+
+
+Default database changed to "bar"
+
+
+Default database changed to "foo"
+
+foo> -- this isn't a command, but that should just print an error message and he
+lp info.
+foo> \xyz select 1
+
+Unknown command.
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
+use       \u   Use another database.
+
+foo> \xyz;select 1;
+
+Unknown command.
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
+use       \u   Use another database.
+
+
+1    
+-    
+1    
+
+1 row in set
+
+foo> delimiter $$
+foo> help$$
+
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
+use       \u   Use another database.
+
+foo> \d //
+foo> \h
+
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
+use       \u   Use another database.
+
+foo> help
+
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
+use       \u   Use another database.
+
+foo> status
+
+Teleport database: mysql-test-container 
+Current database:  foo                  
+Current user:      root                 
+Server version:    8.4.6                
+Using delimiter:   //
+
+foo> \s
+
+Teleport database: mysql-test-container 
+Current database:  foo                  
+Current user:      root                 
+Server version:    8.4.6                
+Using delimiter:   //
+
+foo> teleport
+
+Teleport MySQL interactive shell (v19.0.0-dev)
+
+Limitations: 
+- Query cancellation is not supported. Once a query is sent, its execution
+  can only be canceled by killing it from another session.
+  You can identify the query process ID with "SHOW PROCESSLIST" and then kill the
+  query with "KILL QUERY <pid>".
+  
+- Pressing CTRL-C will have no effect in this shell.
+
+foo> \t
+
+Teleport MySQL interactive shell (v19.0.0-dev)
+
+Limitations: 
+- Query cancellation is not supported. Once a query is sent, its execution
+  can only be canceled by killing it from another session.
+  You can identify the query process ID with "SHOW PROCESSLIST" and then kill the
+  query with "KILL QUERY <pid>".
+  
+- Pressing CTRL-C will have no effect in this shell.
+
+foo> use foo
+
+Default database changed to "foo"
+
+foo> \u mysql//
+
+Default database changed to "mysql"
+
+mysql> -- reset the delimiter to default ;
+mysql> \d
+mysql> teleport;\s;\h
+
+Teleport MySQL interactive shell (v19.0.0-dev)
+
+Limitations: 
+- Query cancellation is not supported. Once a query is sent, its execution
+  can only be canceled by killing it from another session.
+  You can identify the query process ID with "SHOW PROCESSLIST" and then kill the
+  query with "KILL QUERY <pid>".
+  
+- Pressing CTRL-C will have no effect in this shell.
+
+
+Teleport database: mysql-test-container 
+Current database:  mysql                
+Current user:      root                 
+Server version:    8.4.6                
+Using delimiter:   ;
+
+
+delimiter \d   Set statement delimiter. With no argument the delimiter resets to the default. 
+help      \h   Show the list of supported commands.                                           
+quit      \q   Terminates the session.                                                        
+status    \s   Get status information.                                                        
+teleport  \t   Show Teleport interactive shell information, such as execution limitations.    
+use       \u   Use another database.
+
+mysql> use `bar`;drop database foo;drop database bar;drop database test_commands
+;quit
+
+Default database changed to "bar"
+
+
+0 warnings, 0 rows affected
+
+
+0 warnings, 0 rows affected
+
+
+0 warnings, 0 rows affected
+

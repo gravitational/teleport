@@ -1380,7 +1380,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no more users exist")
 	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users, cmpopts.IgnoreFields(types.UserSpecV2{}, "LocalAuth")), "not all users returned from listing operation")
 
-	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{})
+	rsp, err = identity.ListUsers(ctx, &userspb.ListUsersRequest{WithSecrets: true})
 	assert.NoError(t, err, "no error returned when no users exist")
 	assert.Empty(t, rsp.NextPageToken, "next page token returned from listing when no users exist")
 	assert.Empty(t, cmp.Diff(expectedUsers, rsp.Users), "not all users returned from listing operation")
@@ -1401,7 +1401,7 @@ func TestIdentityService_ListUsers(t *testing.T) {
 			devices = nil
 		case i == 1:
 			devices = append(devices, dev2)
-			for j := 0; j < 20; j++ {
+			for range 20 {
 				dev, err := services.NewTOTPDevice(uuid.NewString(), base32.StdEncoding.EncodeToString([]byte("abc123")), time.Now())
 				require.NoError(t, err, "creating otp device failed")
 				devices = append(devices, dev)

@@ -1,5 +1,5 @@
 .PHONY: test
-test: test-access test-lib test-event-handler test-terraform-provider
+test: test-access test-lib test-event-handler test-terraform-provider test-terraform-provider-mwi
 
 .PHONY: test-access
 test-access:
@@ -16,3 +16,7 @@ test-event-handler:
 .PHONY: test-terraform-provider
 test-terraform-provider:
 	make -C terraform test
+
+.PHONY: test-terraform-provider-mwi
+test-terraform-provider-mwi:
+	make -C terraform-mwi test

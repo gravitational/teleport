@@ -38,7 +38,6 @@ jobs:
           echo NODE_VERSION=$(make -s -C build.assets print-node-version) >> $GITHUB_ENV
           echo GOLANG_VERSION=$(make -s -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
           echo RUST_VERSION=$(make -s -C build.assets print-rust-version) >> $GITHUB_ENV
-          echo WASM_PACK_VERSION=$(make -s -C build.assets print-wasm-pack-version) >> $GITHUB_ENV
           echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
 
       - name: Print versions
@@ -47,7 +46,6 @@ jobs:
           echo "node: ${NODE_VERSION}"
           echo "go: ${GOLANG_VERSION}"
           echo "rust: ${RUST_VERSION}"
-          echo "wasm-pack: ${WASM_PACK_VERSION}"
 
       - name: Install Node Toolchain
         uses: actions/setup-node@v4
@@ -67,21 +65,10 @@ jobs:
       - name: Configure Rust Toolchain
         run: |
           rustup override set ${{ env.RUST_VERSION }}
+          rustup target add wasm32-unknown-unknown
 
-      - name: Install wasm-pack
-        run: |
-          BINDGEN_VERSION=$(\
-            cargo metadata --locked --format-version=1 | \
-            jq -r '[.packages[] | select(.name == "wasm-bindgen") | .version] | if length == 1 then .[0] else "NO VERSION" end' \
-          )
-          if [ "${BINDGEN_VERSION}" = 'NO VERSION' ]; then
-            echo 'Unknown bindgen version. Is it in Cargo.lock?'
-            exit 1
-          fi
-          # Install wasm-bindgen-cli so wasm-pack does not try to compile it itself.
-          # We have more control this way.
-          cargo install wasm-bindgen-cli --locked --version "${BINDGEN_VERSION}"
-          cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
+      - name: Install wasm-deps
+        run: make ensure-wasm-deps
 
       - name: Build
         run: make binaries

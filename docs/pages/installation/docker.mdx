@@ -1,0 +1,327 @@
+---
+title: Installing Teleport on Docker
+description: How to install and run Teleport on Docker using our pre-built images from Amazon ECR Public, with details on configuration, data persistence, and networking.
+tags:
+- reference
+- platform-wide
+---
+
+Docker provides a convenient way to deploy Teleport in containerized environments, offering consistent deployment across platforms and simplified dependency management. Teleport's pre-built Docker images are optimized for different use cases, from production deployments to development and troubleshooting scenarios. 
+
+In this installation guide, you'll learn how to choose the right image, configure your containers, and run Teleport services with Docker.
+
+## Images
+
+We provide a pre-built Docker image for every version of Teleport. This section
+describes the available Docker images.
+
+These images are hosted on [Amazon ECR
+Public](https://gallery.ecr.aws/gravitational).
+
+### Image suffixes
+
+For each of the image names listed in this section, you can specify attributes
+of the image by appending a suffix to the repository name or tag.
+
+Images with the `-distroless` suffix within the repository name include only the
+`teleport` binary and its runtime dependencies, with no shell or utility
+applications. An example is `public.ecr.aws/gravitational/teleport-distroless`
+for Teleport Community Edition.
+
+Images with the `*-distroless-debug` suffix within the repository name include a
+Busybox shell and tool suite in addition to Teleport, and are intended for
+troubleshooting deployments only. They are not intended for production use. An
+example is `public.ecr.aws/gravitational/teleport-distroless-debug`.
+
+`*-distroless` and `*-distroless-debug` images support multiple architectures
+natively, and do not require (or support) image suffixes. You can specify an
+architecture using the `--platform` flag of `docker pull` to pull the `arm`,
+`arm64` or `amd64` version of an image.
+
+### Version tags
+
+Images point to a static version of Teleport. Use the image's tag to specify
+either:
+
+- The major, minor, and patch version (e.g., `(=teleport.version=)` for the
+  latest version of Teleport Community Edition).
+- The major version only, which implies the latest minor and patch numbers for
+  that major version. For example, `(=teleport.major_version=)` implies
+  `(=teleport.version=)`.
+
+<Tabs>
+<TabItem label="Teleport Enterprise (Managed)" scope={["team", "cloud"]}>
+
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
+| `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-distroless-debug:(=cloud.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+
+For testing, we always recommend that you use the latest Cloud release version of
+Teleport Enterprise, which is currently `public.ecr.aws/gravitational/teleport-ent-distroless:(=cloud.version=)`.
+
+</TabItem>
+<TabItem label="Teleport Enterprise (Self-Hosted)" scope={["enterprise"]}>
+
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
+| `(=teleport.latest_ent_docker_image=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `(=teleport.latest_ent_debug_docker_image=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+
+We also provide the following images for FIPS builds of Teleport Enterprise:
+
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
+| `public.ecr.aws/gravitational/teleport-ent-fips-distroless:(=teleport.version=)` | No | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-fips-distroless-debug:(=teleport.version=)` | Yes | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+
+For testing, we always recommend that you use the latest release version of
+Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
+
+</TabItem>
+<TabItem label="Teleport Community Edition" scope={["oss"]}>
+
+|Image name|Troubleshooting Tools?|Image base|
+|-|-|-|
+|`(=teleport.latest_oss_docker_image=)`|No|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
+|`(=teleport.latest_oss_debug_docker_image=)`|Yes|[Distroless Debian 12](https://github.com/GoogleContainerTools/distroless)|
+
+For testing, we always recommend that you use the latest release version of
+Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
+
+</TabItem>
+</Tabs>
+
+### Interacting with distroless images
+
+Since version 15, Teleport images are based on Google's [Distroless](https://github.com/GoogleContainerTools/distroless) images.
+Those images don't contain any shell.
+
+To execute Teleport commands on containers based on these images, run commands similar to the following:
+
+```code
+# in docker
+$ docker run -i my-container tctl status
+
+# in Kubernetes
+$ kubectl exec -i my-pod -- tctl status
+
+# sending local files via stdin
+$ kubectl exec -i my-pod -- tctl create -f < my-local-file.yaml
+
+# retrieving the teleport service config file from the configmap
+$ kubectl get configmap teleport-cluster-auth -o jsonpath="{.data['teleport\.yaml']}"
+
+# retrieving output via stdout and tar
+$ kubectl exec -i my-pod -- tctl auth sign --user admin --format tls --ttl 10m --tar -o admin| tar xv -C local
+$ ls -l local
+total 24
+-rw-------  1 trent  staff  1318 Jul 24 15:52 admin.cas
+-rw-------  1 trent  staff  1895 Jul 24 15:52 admin.crt
+-rw-------  1 trent  staff  1679 Jul 24 15:52 admin.key
+```
+
+Alternatively, you can use the debug variant of the image, which contains [busybox](https://www.busybox.net/about.html) and a minimal shell invocable via `busybox sh`:
+
+```code
+$ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busybox sh
+```
+
+### Machine ID (tbot)
+
+We also provide a slimmed down distroless image that only contains the `tbot`
+binary for use with Teleport Machine ID.
+
+| Image name                                                               | FIPS Support | Image base                                                                 |
+|--------------------------------------------------------------------------|--------------|----------------------------------------------------------------------------|
+| `public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)`      | No           | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/tbot-fips-distroless:(=teleport.version=)` | Yes          | [Distroless Debian 12](https://github.com/GoogleContainerTools/distroless) |
+
+The version tagging follows the same pattern as the main `teleport-distroless`
+image.
+
+Whilst the `teleport-distroless` image also includes `tbot`, using the `tbot`
+specific image should be preferred for Machine ID deployments. This image is
+smaller, improving pull times, and has a smaller attack surface. In addition,
+the image is customized in order to improve the experience of running `tbot` in a
+container environment.
+
+To learn more, read the
+[Deploying Machine ID on Kubernetes](../machine-workload-identity/machine-id/deployment/kubernetes.mdx)
+guide.
+
+## Running Teleport on Docker
+
+When running a container from one of the images listed above, consider the
+container equivalent to running the `teleport` binary. The Teleport container
+requires access to a file system and network ports.
+
+### Configuration
+
+Teleport processes read their configuration from a local file path, which is
+`/etc/teleport.yaml` by default. Make sure this file path is mounted to your
+Teleport container.
+
+### Data directory
+
+All Teleport processes read from and write to a data directory, which by default
+is `/var/lib/teleport`. Make sure the data directory is mounted to your Teleport
+container.
+
+### License file
+
+If your Teleport Enterprise container runs the Auth Service, you will need to
+give it access to a license file at the path named in the configuration, which
+is `/var/lib/teleport/license.pem` by default. Make sure a license exists at
+this location in the Teleport container's data directory.
+
+### Other file paths
+
+Depending on the configuration settings you assign on your Teleport container,
+you will need to make sure that any file paths you name are mounted on the
+container.
+
+For example, if you are running the Teleport Proxy Service on a container, you
+need to mount the directory containing TLS credentials to your Teleport
+container, then assign the following fields in the container's configuration
+file to the appropriate paths:
+
+```yaml
+proxy_service:
+  https_keypairs:
+  - key_file: /my/path/key.pem
+    cert_file: /my/path/cert.pem
+```
+
+See the Teleport [Configuration Reference](../reference/deployment/config.mdx) for whether a
+field you would like to assign requires a file path.
+
+### Ports
+
+A single Teleport process can run multiple services, each of which listens on a
+specific set of ports depending on your configuration. See our [Networking
+Reference](../reference/deployment/networking.mdx#ports) for the ports on your Teleport
+container to expose.
+
+### Extracting certificates from distroless images
+
+Extracting certificates created with `tctl auth sign` from a container running
+a distroless image can be tricky due to the absence of a shell and other OS tools.
+
+Where possible you should log into the Teleport cluster using `tsh` and use
+`tctl auth sign` locally to generate certificates. This way the action will be
+logged against your Teleport user and be subject to all of the usual Teleport
+RBAC policies in your cluster.
+
+If this is not possible, use `tctl auth sign --tar` to collect all the files
+generated by `tctl auth sign` into a `tar` archive, which is streamed directly
+to `stdout`. The resulting certificates are never stored on the container
+filesystem. You can either pipe this output directly to `tar`, or redirect it
+to a local file for later use.
+
+For example:
+
+```code
+$ docker exec ${TELEPORT_CONTAINER} \
+  tctl auth sign --user alice --format tls -o alice.local --tar | tar xv
+x alice.local.crt
+x alice.local.key
+x alice.local.cas
+```
+
+## Example of running a Teleport container
+
+In this example, we will show you how to run the Teleport Auth Service and Proxy
+Service on a local Docker container using Teleport Community Edition.
+
+Since this container uses a self-signed certificate, we do not recommend using
+this configuration to protect any infrastructure outside your workstation. You
+can, however, join other local Docker containers to it using the [token
+method](../enroll-resources/agents/join-token.mdx).
+
+First, create directories in your home directory to mount to the container. The
+Teleport container will write its configuration and data to these directories:
+
+```code
+$ mkdir -p ~/teleport/config ~/teleport/data
+```
+
+Run `teleport configure` from the Teleport container to generate a configuration
+file. This sets the container's name to `localhost` so your browser can trust
+the Proxy Service's self-signed TLS certificate:
+
+```code
+$ docker run --hostname localhost --rm \
+  --entrypoint=/usr/local/bin/teleport \
+  <Var name="(=teleport.latest_oss_docker_image=)" /> configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
+```
+
+Start Teleport on your container:
+
+```code
+$ docker run --hostname localhost --name teleport \
+  -v ~/teleport/config:/etc/teleport \
+  -v ~/teleport/data:/var/lib/teleport \
+  -p 3025:3025 -p 3080:3080 \
+  <Var name="(=teleport.latest_oss_docker_image=)" />
+```
+
+From there, open another terminal and make sure your Teleport container's web
+API is functioning as intended:
+
+```code
+$ curl --insecure https://localhost:3080/webapi/ping
+```
+
+You should see JSON output similar to the following:
+
+```json
+{
+  "auth": {
+    "type": "local",
+    "second_factor": "otp",
+    "preferred_local_mfa": "otp",
+    "local": {
+      "name": ""
+    },
+    "private_key_policy": "none",
+    "device_trust_disabled": true,
+    "has_motd": false
+  },
+  "proxy": {
+    "kube": {
+      "enabled": true,
+      "listen_addr": "0.0.0.0:3080"
+    },
+    "ssh": {
+      "listen_addr": "0.0.0.0:3080",
+      "tunnel_listen_addr": "0.0.0.0:3080",
+      "web_listen_addr": "0.0.0.0:3080"
+    },
+    "db": {
+      "postgres_listen_addr": "0.0.0.0:3080",
+      "mysql_listen_addr": "0.0.0.0:3080"
+    },
+    "tls_routing_enabled": true
+  },
+  "server_version": "12.1.5",
+  "min_client_version": "11.0.0",
+  "cluster_name": "localhost",
+  "automatic_upgrades": false
+}
+```
+
+We are using the `--insecure` flag to trust Teleport's self-signed certificate.
+In production, you will want to provision TLS credentials to the Proxy Service
+from a trusted CA, e.g., Let's Encrypt.
+
+## Upgrading Teleport on Docker
+
+To upgrade a Teleport container running on Docker:
+
+1. Leave the container's data directory in place.
+1. Stop the container.
+1. Run a new container with an image based on a newer Teleport version, mounting
+   the data directory as you did while running the container initially. As long
+   as the data directory contains the same content as before the upgrade, the
+   Teleport container does not need to re-join the cluster.

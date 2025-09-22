@@ -26,12 +26,24 @@ interface BadRequest {
   };
 }
 
+interface UsersV2Response {
+  items: User[];
+  startKey?: string;
+}
+
 const usersPath = '/v1/webapi/users';
+const usersPathV2 = '/v2/webapi/users';
 
 export function handleGetUsers(
   resolver: HttpResponseResolver<never, never, User[] | BadRequest>
 ) {
   return http.get(usersPath, resolver);
+}
+
+export function handleGetUsersV2(
+  resolver: HttpResponseResolver<never, never, UsersV2Response | BadRequest>
+) {
+  return http.get(usersPathV2, resolver);
 }
 
 export function handleUpdateUser(
@@ -48,6 +60,9 @@ export function handleDeleteUser(
 
 export const successGetUsers = (users: User[]) =>
   handleGetUsers(() => HttpResponse.json(users));
+
+export const successGetUsersV2 = (users: User[], startKey?: string) =>
+  handleGetUsersV2(() => HttpResponse.json({ items: users, startKey }));
 
 export const errorGetUsers = (message: string) =>
   handleGetUsers(() =>

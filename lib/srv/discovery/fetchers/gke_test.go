@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestGKEFetcher(t *testing.T) {
@@ -136,7 +136,7 @@ func TestGKEFetcher(t *testing.T) {
 				FilterLabels:  tt.args.filterLabels,
 				Location:      tt.args.location,
 				ProjectID:     tt.args.projectID,
-				Logger:        utils.NewSlogLoggerForTests(),
+				Logger:        logtest.NewLogger(),
 			}
 			fetcher, err := NewGKEFetcher(context.Background(), cfg)
 			require.NoError(t, err)

@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, dialog, globalShortcut, nativeTheme, shell } from 'electron';
+import { app, dialog, nativeTheme, shell } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
+import { ensureError } from 'shared/utils/error';
 
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
@@ -31,14 +31,13 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import {
-  createConfigService,
-  runConfigFileMigration,
-} from 'teleterm/services/config';
+import { createConfigService } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 import * as types from 'teleterm/types';
 import { assertUnreachable } from 'teleterm/ui/utils';
+
+import { setTray } from './tray';
 
 if (!app.isPackaged) {
   // Sets app name and data directories to Electron.
@@ -51,6 +50,10 @@ if (!process.defaultApp) {
   app.setAsDefaultProtocolClient(CUSTOM_PROTOCOL);
 }
 
+// Fix a bug introduced in Electron 36.
+// https://github.com/electron/electron/issues/46538#issuecomment-2808806722
+app.commandLine.appendSwitch('gtk-version', '3');
+
 if (app.requestSingleInstanceLock()) {
   initializeApp();
 } else {
@@ -62,7 +65,6 @@ if (app.requestSingleInstanceLock()) {
 
 async function initializeApp(): Promise<void> {
   updateSessionDataPath();
-  let devRelaunchScheduled = false;
   const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
@@ -72,7 +74,6 @@ async function initializeApp(): Promise<void> {
     configJsonSchemaFileStorage,
   } = createFileStorages(settings.userDataDir);
 
-  runConfigFileMigration(configFileStorage);
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
@@ -80,41 +81,37 @@ async function initializeApp(): Promise<void> {
   });
 
   nativeTheme.themeSource = configService.get('theme').value;
-  const windowsManager = new WindowsManager(appStateFileStorage, settings);
+  const windowsManager = new WindowsManager(
+    appStateFileStorage,
+    settings,
+    configService
+  );
 
   process.on('uncaughtException', (error, origin) => {
-    logger.error(origin, error);
-    app.quit();
+    logger.error('Uncaught exception', origin, error);
+    showDialogWithError(`Uncaught exception (${origin} origin)`, error);
+    app.exit(1);
   });
 
-  // init main process
-  const mainProcess = MainProcess.create({
-    settings,
-    logger,
-    configService,
-    appStateFileStorage,
-    configFileStorage,
-    windowsManager,
-  });
-
-  //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
-  app.on(
-    'certificate-error',
-    (event, webContents, url, error, certificate, callback) => {
-      // allow certs errors for localhost:8080
-      if (
-        settings.dev &&
-        new URL(url).host === 'localhost:8080' &&
-        error === 'net::ERR_CERT_AUTHORITY_INVALID'
-      ) {
-        event.preventDefault();
-        callback(true);
-      } else {
-        callback(false);
-        console.error(error);
-      }
-    }
-  );
+  let mainProcess: MainProcess;
+  try {
+    mainProcess = MainProcess.create({
+      settings,
+      logger,
+      configService,
+      appStateFileStorage,
+      configFileStorage,
+      windowsManager,
+    });
+  } catch (error) {
+    const message = 'Could not initialize the main process';
+    logger.error(message, error);
+    showDialogWithError(message, error);
+    // app.exit(1) isn't equivalent to throwing an error, use an explicit return to stop further
+    // execution. See https://github.com/gravitational/teleport/issues/56272.
+    app.exit(1);
+    return;
+  }
 
   app.on('will-quit', async event => {
     event.preventDefault();
@@ -126,24 +123,21 @@ async function initializeApp(): Promise<void> {
       }
     };
 
-    globalShortcut.unregisterAll();
     await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
     app.exit();
   });
 
-  app.on('quit', () => {
-    if (devRelaunchScheduled) {
-      const [bin, ...args] = process.argv;
-      const child = spawn(bin, args, {
-        env: process.env,
-        detached: true,
-        stdio: 'inherit',
-      });
-      child.unref();
-    }
-  });
-
+  // On Windows/Linux: Re-launching the app while it's already running
+  // triggers 'second-instance' (because of app.requestSingleInstanceLock()).
+  //
+  // On macOS: Re-launching the app (from places like Finder, Spotlight, or Dock)
+  // does not trigger 'second-instance'. Instead, the system emits 'activate'.
+  // However, launching the app outside the desktop manager (e.g., from the command
+  // line) does trigger 'second-instance'.
   app.on('second-instance', () => {
+    windowsManager.focusWindow();
+  });
+  app.on('activate', () => {
     windowsManager.focusWindow();
   });
 
@@ -155,47 +149,36 @@ async function initializeApp(): Promise<void> {
   const rootClusterProxyHostAllowList = new Set<string>();
 
   (async () => {
-    const tshdClient = await mainProcess.initTshdClient();
+    const { terminalService } = await mainProcess.getTshdClients();
 
     manageRootClusterProxyHostAllowList({
-      tshdClient,
+      tshdClient: terminalService,
       logger,
       allowList: rootClusterProxyHostAllowList,
     });
   })().catch(error => {
-    const message =
-      'Could not initialize tsh daemon client in the main process';
+    const message = 'Could not initialize the tshd client in the main process';
     logger.error(message, error);
-    dialog.showErrorBox(
-      'Error during main process startup',
-      `${message}: ${error}`
-    );
-    app.quit();
+    showDialogWithError(message, error);
+    app.exit(1);
   });
 
   app
     .whenReady()
     .then(() => {
-      if (mainProcess.settings.dev) {
-        // allow restarts on F6
-        globalShortcut.register('F6', () => {
-          devRelaunchScheduled = true;
-          app.quit();
-        });
-      }
-
       enableWebHandlersProtection();
 
       windowsManager.createWindow();
+
+      if (configService.get('runInBackground').value) {
+        setTray(settings, { show: () => windowsManager.showWindow() });
+      }
     })
     .catch(error => {
-      const message = 'Could not initialize the app';
+      const message = 'Could not create the main app window';
       logger.error(message, error);
-      dialog.showErrorBox(
-        'Error during app initialization',
-        `${message}: ${error}`
-      );
-      app.quit();
+      showDialogWithError(message, error);
+      app.exit(1);
     });
 
   // Limit navigation capabilities to reduce the attack surface.
@@ -417,4 +400,11 @@ function launchDeepLink(
   // Always pass the result to the frontend app so that the error can be shown to the user.
   // Otherwise the app would receive focus but nothing would be visible in the UI.
   windowsManager.launchDeepLink(result);
+}
+
+function showDialogWithError(title: string, unknownError: unknown) {
+  const error = ensureError(unknownError);
+  // V8 includes the error message in the stack, so there's no need to append stack to message.
+  const content = error.stack || error.message;
+  dialog.showErrorBox(title, content);
 }

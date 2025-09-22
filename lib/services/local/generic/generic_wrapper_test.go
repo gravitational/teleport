@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -91,12 +92,6 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 func TestGenericWrapperCRUD(t *testing.T) {
 	ctx := context.Background()
 
-	ignoreUnexported := cmp.Options{
-		cmpopts.IgnoreUnexported(testResource153{}),
-		cmpopts.IgnoreUnexported(headerv1.Metadata{}),
-		cmpopts.IgnoreUnexported(timestamppb.Timestamp{}),
-	}
-
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
@@ -161,14 +156,45 @@ func TestGenericWrapperCRUD(t *testing.T) {
 			break
 		}
 	}
-
 	require.Equal(t, 2, numPages)
 	require.Equal(t, []*testResource153{r1, r2}, paginatedOut)
+
+	// Retrieve all resources from the stream
+	var streamedResources []*testResource153
+	for r, err := range service.Resources(ctx, "", "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
+
+	// Retrieve all resources from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r1.GetMetadata().GetName(), r2.GetMetadata().GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
+
+	// Retrieve a single resource from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r2.GetMetadata().GetName(), "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource153{r2}, streamedResources, protocmp.Transform()))
+
+	// Retrieve a single resource from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, "", r1.GetMetadata().GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource153{r1}, streamedResources, protocmp.Transform()))
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Equal(t, r2, r)
+	require.Empty(t, cmp.Diff(r2, r, protocmp.Transform()))
 
 	// Try to fetch a resource that doesn't exist.
 	_, err = service.GetResource(ctx, "doesnotexist")
@@ -184,7 +210,10 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"), ignoreUnexported))
+	require.Empty(t, cmp.Diff(r1, r,
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.Transform(),
+	))
 
 	// Conditionally updating a resource fails if revisions do not match
 	r.Metadata.Revision = "fake"
@@ -207,7 +236,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
-	require.Equal(t, []*testResource153{r2}, out)
+	require.Empty(t, cmp.Diff([]*testResource153{r2}, out, protocmp.Transform()))
 
 	// Upsert a resource (create).
 	r1, err = service.UpsertResource(ctx, r1)
@@ -217,7 +246,8 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
 		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		ignoreUnexported))
+		protocmp.Transform(),
+	))
 
 	// Upsert a resource (update).
 	r1.Metadata.Labels = map[string]string{"newerlabel": "newervalue"}
@@ -228,7 +258,8 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
 		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		ignoreUnexported))
+		protocmp.Transform(),
+	))
 
 	// Try to delete a resource that doesn't exist.
 	err = service.DeleteResource(ctx, "doesnotexist")

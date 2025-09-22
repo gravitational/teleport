@@ -41,6 +41,8 @@ func TestCreateSignedSTSIdentityRequest(t *testing.T) {
 	// If the user has an AWS config file that sets a region, it conflicts with
 	// the test cases. Disable loading a config file by setting a nonexistent path.
 	t.Setenv("AWS_CONFIG_FILE", "fake-file-this-must-not-exist")
+	// Ensure we don't try to use the user's profile.
+	t.Setenv("AWS_PROFILE", "")
 
 	const challenge = "asdf12345"
 

@@ -21,10 +21,11 @@ syntax = "proto3";
 package teleport.lib.teleterm.v1;
 
 import "teleport/lib/teleterm/v1/label.proto";
+import "teleport/lib/teleterm/v1/target_health.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
-// Database describes a database
+// Database describes a database (resource kind "db")
 message Database {
   // uri is the cluster resource URI
   string uri = 1;
@@ -42,4 +43,16 @@ message Database {
   string addr = 7;
   // labels is a list of labels for this database
   repeated Label labels = 8;
+  // target_health of the "db_server" that is serving this database.
+  TargetHealth target_health = 9;
+}
+
+// DatabaseServer (db_server) describes a database heartbeat signal
+// reported from an agent (db_service) that is proxying
+// the database.
+message DatabaseServer {
+  string uri = 1;
+  string hostname = 2;
+  string host_id = 3;
+  TargetHealth target_health = 4;
 }

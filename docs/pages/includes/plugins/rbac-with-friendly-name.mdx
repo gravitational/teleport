@@ -19,7 +19,11 @@ spec:
       - resources: ['access_plugin_data']
         verbs: ['update']
 
-      # In order to provide access list review reminders, permissions to list and read access lists
+      # Optional: Required to use access monitoring rules.
+      - resources: ['access_monitoring_rule']
+        verbs: ['list', 'read']
+
+      # Optional: In order to provide access list review reminders, permissions to list and read access lists
       # are necessary. This is currently only supported for a subset of plugins.
       - resources: ['access_list']
         verbs: ['list', 'read']
@@ -27,6 +31,10 @@ spec:
       # Optional: To display logins permitted by roles, the plugin also needs
       # permission to read the role resource.
       - resources: ['role']
+        verbs: ['read']
+      # Optional: To have the users traits apply when evaluating the roles,
+      # the plugin also needs permission to read users.
+      - resources: ['user']
         verbs: ['read']
 
     # Optional: To display user-friendly names in resource-based Access

@@ -29,9 +29,9 @@ import (
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	awslibutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
@@ -112,7 +112,7 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 	}
 
 	if len(r.ResourceCreationTags) == 0 {
-		r.ResourceCreationTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
+		r.ResourceCreationTags = defaultResourceCreationTags(r.Cluster, r.IntegrationName)
 	}
 
 	r.partitionID = awsapiutils.GetPartitionFromRegion(r.Region)

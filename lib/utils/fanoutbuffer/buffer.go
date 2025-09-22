@@ -200,7 +200,7 @@ func (b *Buffer[T]) cleanupSlots() {
 	// trim items from overflow that have been seen by all cursors or are past their expiry
 	now := b.cfg.Clock.Now()
 	var clearOverflowTo int
-	for i := 0; i < len(b.overflow); i++ {
+	for i := range b.overflow {
 		clearOverflowTo = i
 		if b.overflow[i].wait.Load() > 0 && b.overflow[i].expires.After(now) {
 			break

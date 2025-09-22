@@ -2,6 +2,10 @@
 title: Enroll a Kubernetes Cluster
 description: Demonstrates how to enroll a Kubernetes cluster as a resource protected by Teleport.
 videoBanner: 3AUGrOZ5me0
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 This guide demonstrates how to enroll a Kubernetes cluster as a Teleport
@@ -22,21 +26,7 @@ For information about other ways to enroll and discover Kubernetes clusters, see
 
 ## Prerequisites
 
-- Access to a running Teleport cluster, `tctl` admin tool, and `tsh` client tool, 
-  version >= (=teleport.version=). 
-
-  You can verify the tools you have installed by running the following commands:
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-  
-  You can download these tools by following the appropriate [Installation 
-  instructions](../../installation.mdx#linux) for your environment.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 

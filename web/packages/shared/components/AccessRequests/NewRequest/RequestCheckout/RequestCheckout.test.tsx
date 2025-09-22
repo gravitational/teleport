@@ -149,6 +149,7 @@ const props: RequestCheckoutWithSliderProps = {
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
   requireReason: true,
+  reasonPrompts: [],
   selectedReviewers: [],
   setSelectedReviewers: () => null,
   createRequest: () => null,

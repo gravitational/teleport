@@ -467,7 +467,6 @@ func TestParser(t *testing.T) {
 			},
 		},
 	} {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			expr, err := parser.Parse(tc.expr)
@@ -566,7 +565,7 @@ func TestUnknownIdentifier(t *testing.T) {
 			name:               "unknown variable",
 			expression:         "unknown",
 			knownVariablesOnly: true,
-			parseAssertion: func(t require.TestingT, err error, i ...interface{}) {
+			parseAssertion: func(t require.TestingT, err error, i ...any) {
 				var u typical.UnknownIdentifierError
 				require.ErrorAs(t, err, &u, i...)
 				require.ErrorAs(t, trace.Wrap(err), &u, i...)
@@ -584,7 +583,6 @@ func TestUnknownIdentifier(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			spec := typical.ParserSpec[resource]{
 				Functions: map[string]typical.Function{

@@ -21,10 +21,23 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
+
+func TestRoleNotFound(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForNode)
+	t.Cleanup(p.Close)
+
+	_, err := p.cache.GetRole(t.Context(), "test-role")
+	assert.Error(t, err)
+	assert.True(t, trace.IsNotFound(err))
+	assert.Equal(t, "role test-role is not found", err.Error())
+}
 
 // TestRoles tests caching of roles
 func TestRoles(t *testing.T) {
@@ -36,7 +49,7 @@ func TestRoles(t *testing.T) {
 	t.Run("GetRoles", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.Role]{
 			newResource: func(name string) (types.Role, error) {
-				return types.NewRole("role1", types.RoleSpecV6{
+				return types.NewRole(name, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
@@ -51,23 +64,21 @@ func TestRoles(t *testing.T) {
 				_, err := p.accessS.UpsertRole(ctx, role)
 				return err
 			},
-			list:      p.accessS.GetRoles,
+			list:      getAllAdapter(p.accessS.GetRoles),
 			cacheGet:  p.cache.GetRole,
-			cacheList: p.cache.GetRoles,
+			cacheList: getAllAdapter(p.cache.GetRoles),
 			update: func(ctx context.Context, role types.Role) error {
 				_, err := p.accessS.UpsertRole(ctx, role)
 				return err
 			},
-			deleteAll: func(ctx context.Context) error {
-				return p.accessS.DeleteAllRoles(ctx)
-			},
-		})
+			deleteAll: p.accessS.DeleteAllRoles,
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListRoles", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.Role]{
 			newResource: func(name string) (types.Role, error) {
-				return types.NewRole("role1", types.RoleSpecV6{
+				return types.NewRole(name, types.RoleSpecV6{
 					Options: types.RoleOptions{
 						MaxSessionTTL: types.Duration(time.Hour),
 					},
@@ -82,56 +93,46 @@ func TestRoles(t *testing.T) {
 				_, err := p.accessS.UpsertRole(ctx, role)
 				return err
 			},
-			list: func(ctx context.Context) ([]types.Role, error) {
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.Role, string, error) {
 				var out []types.Role
-				req := &proto.ListRolesRequest{}
-				for {
-					resp, err := p.accessS.ListRoles(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, r := range resp.Roles {
-						out = append(out, r)
-					}
-
-					req.StartKey = resp.NextKey
-					if resp.NextKey == "" {
-						break
-					}
+				req := &proto.ListRolesRequest{
+					Limit:    int32(pageSize),
+					StartKey: pageToken,
+				}
+				resp, err := p.accessS.ListRoles(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
 
-				return out, nil
+				for _, r := range resp.Roles {
+					out = append(out, r)
+				}
+
+				return out, resp.NextKey, nil
 			},
 			cacheGet: p.cache.GetRole,
-			cacheList: func(ctx context.Context) ([]types.Role, error) {
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.Role, string, error) {
 				var out []types.Role
-				req := &proto.ListRolesRequest{}
-				for {
-					resp, err := p.cache.ListRoles(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, r := range resp.Roles {
-						out = append(out, r)
-					}
-
-					req.StartKey = resp.NextKey
-					if resp.NextKey == "" {
-						break
-					}
+				req := &proto.ListRolesRequest{
+					Limit:    int32(pageSize),
+					StartKey: pageToken,
+				}
+				resp, err := p.cache.ListRoles(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
 
-				return out, nil
+				for _, r := range resp.Roles {
+					out = append(out, r)
+				}
+
+				return out, resp.NextKey, nil
 			},
 			update: func(ctx context.Context, role types.Role) error {
 				_, err := p.accessS.UpsertRole(ctx, role)
 				return err
 			},
-			deleteAll: func(ctx context.Context) error {
-				return p.accessS.DeleteAllRoles(ctx)
-			},
+			deleteAll: p.accessS.DeleteAllRoles,
 		})
 	})
 

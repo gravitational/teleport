@@ -1,20 +1,26 @@
 ---
 title: Database Access GUI Clients
 description: How to configure graphical database clients for Teleport database access.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 This guide describes how to configure popular graphical database clients to
 work with Teleport.
 
-## Setting up your Teleport environment
+If you are using Teleport Connect to access your database, you can follow the
+instructions in the app to connect your GUI client. See [Using Teleport
+Connect](./teleport-connect.mdx#connecting-to-a-database).
 
-### Prerequisites
+## Prerequisites
 
 - A running Teleport cluster. If you want to get started with Teleport, [sign
   up](https://goteleport.com/signup) for a free trial or [set up a demo
-  environment](../admin-guides/deploy-a-cluster/linux-demo.mdx).
+  environment](../linux-demo.mdx).
 
-- The `tsh` client tool. Visit [Installation](../installation.mdx) for instructions on downloading
+- The `tsh` client tool. Visit [Installation](../installation/installation.mdx) for instructions on downloading
   `tsh`. See the [Using Teleport Connect](./teleport-connect.mdx) guide for a graphical desktop client
   that includes `tsh`.
 
@@ -28,27 +34,86 @@ work with Teleport.
   [guides](../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport
   Database Service for your database.
 
-### Get connection information
+## How GUI clients access Teleport-protected databases
 
-Get information about the host and port where your database is available so you
-can configure your GUI client to access the database.
+In a typical setup, clients accessing a database protected by Teleport send
+traffic to the Teleport Proxy Service in the database's native protocol, and the
+Proxy Service forwards the traffic to and from the protected database. End users
+use TLS certificates to authenticate with Teleport-protected databases. 
 
-#### Using a local proxy server
+GUI clients need to present a certificate to the Teleport Database Service and
+check the database server certificate issued by a Teleport-protected database.
+There are three ways to do this:
+
+- **Authenticated tunnel (recommended):** `tsh` or Teleport Connect starts a
+  local proxy. A database GUI client establishes an unauthenticated connection
+  with the local proxy. Before forwarding the connection to the
+  Teleport-protected database, the local proxy automatically secures the
+  connection with the Teleport user's client certificate.
+- **Unauthenticated local proxy:** `tsh` starts a local proxy that routes
+  connections to the Teleport-protected database, but the proxy itself doesn't
+  handle authentication. The user configures a database GUI client to provide
+  the user certificate, private key, and CA certificate at paths printed by
+  `tsh`. (Teleport Connect can start an authenticated tunnel but not an
+  unauthenticated local proxy.)
+- **Using a remote host and port:** For self-hosted clusters with TLS
+  multiplexing disabled on the Teleport Proxy Service, you can configure GUI
+  clients to communicate with a port on the Proxy Service reserved for traffic
+  in the protected database's protocol. We recommend TLS multiplexing for a
+  typical Teleport cluster, and it is enabled by default on Teleport Cloud.
+
+To access a Teleport-protected database with a GUI client, you will need to
+retrieve connection information to pass to your client.
+
+Determine the database to access by listing databases you can connect to:
+
+```code
+$ tsh db ls
+# Name
+# -------------------
+# database-name
+```
+
+Replace <Var name="database-name" /> with the name of the database you want to
+connect to.
+
+### Authenticated tunnel
+
+To start the local authenticated tunnel, run the following command, 
+
+```code
+$ tsh proxy db --tunnel <Var name="database-name" />
+Started authenticated tunnel for the <engine> database "<Var name="database-name" />" in cluster "<cluster-name>" on 127.0.0.1:62652.
+```
+
+Starting the local database proxy with the `--tunnel` flag will create an
+authenticated tunnel that you can use to connect to your database instances.
+
+You can optionally specify the database name and the user to use by default
+when connecting to the database:
+
+```code
+$ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <Var name="database-name" />
+```
+
+Now, you can connect to the address the proxy command returns. In our example it
+is `127.0.0.1:62652`.
+
+
+### Local proxy server
 
 Use the `tsh proxy db` command to start a local TLS proxy your GUI database
-client will be connecting to. This command requires that you use Teleport
-Enterprise (Cloud) or, if self-hosting Teleport, have enabled [TLS
-routing](../admin-guides/management/operations/tls-routing.mdx) mode.
+client will be connecting to.
 
 Run a command similar to the following::
 
 ```code
-$ tsh proxy db <database-name>
+$ tsh proxy db <Var name="database-name" />
 Started DB proxy on 127.0.0.1:61740
 
-Use following credentials to connect to the <database-name> proxy:
+Use following credentials to connect to the <Var name="database-name" /> proxy:
   ca_file=/Users/r0mant/.tsh/keys/root.gravitational.io/certs.pem
-  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
+  cert_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice-db/root/<Var name="database-name" />-x509.pem
   key_file=/Users/r0mant/.tsh/keys/root.gravitational.io/alice
 ```
 
@@ -56,32 +121,10 @@ Use the displayed local proxy host/port and credentials paths when configuring
 your GUI client below. When entering the hostname, use `localhost` rather than
 `127.0.0.1`.
 
-Starting the local database proxy with the `--tunnel` flag will create an
-authenticated tunnel that you can use to connect to your database instances.
-You won't need to configure any credentials when connecting to this tunnel.
-
-Here is an example on how to start the proxy:
-
-```code
-# Start the local proxy.
-$ tsh proxy db --tunnel <database-name>
-Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.
-```
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database:
-
-```code
-$ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <database-name>
-```
-
-Now, you can connect to the address the proxy command returns. In our example it
-is `127.0.0.1:62652`.
-
-#### Using a remote host and port
+### Remote host and port
 
 If you are self-hosting Teleport and not using [TLS
-routing](../admin-guides/management/operations/tls-routing.mdx), run the
+routing](../zero-trust-access/management/operations/tls-routing.mdx), run the
 following command to see the database connection information:
 
 ```code
@@ -119,7 +162,7 @@ On the "New Connection" panel, click on "Fill in connection fields individually"
 
 On the "Hostname" tab, enter the hostname and port of the proxy you will use to
 access the database (see
-[Get connection information](./gui-clients.mdx#get-connection-information)).
+[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)).
 Leave "Authentication" as None.
 
 ![MongoDB Compass hostname](../../img/database-access/compass-hostname@2x.png)
@@ -184,7 +227,7 @@ Parameters](../../img/database-access/workbench-parameters@2x.png)
 
 In the "SSL" tab, set "Use SSL" to `Require and Verify Identity` and enter the
 paths to your CA, certificate, and private key files (see
-[Get connection information](./gui-clients.mdx#get-connection-information)):
+[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)):
 
 ![MySQL Workbench SSL](../../img/database-access/workbench-ssl@2x.png)
 
@@ -209,7 +252,7 @@ From the NoSQL Workbench launch screen, click **Launch** next to **Amazon Dynamo
 From the left-side menu select **Operation builder**, then **+ Add connection**.
 Choose the **DynamoDB local** tab, and point to your proxy's endpoint. This is
 `localhost:62652` in the example above. (See
-[Get connection information](./gui-clients.mdx#get-connection-information) for
+[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
 more information.)
 
 ![DynamoDB local connection in NoSQL Workbench](../../img/database-access/nosql-workbench-connection.png)
@@ -219,7 +262,7 @@ more information.)
 In Azure Data Studio create a connection using your proxy's endpoint. This is
 `localhost,62652` in the example above. On a Windows machine, using an address in
  the format `127.0.0.1,62652` could be required instead of `localhost`. (See
-[Get connection information](./gui-clients.mdx#get-connection-information) for
+[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
 more information.)
 
 Create a connection with Microsoft SQL Server with these settings:
@@ -240,7 +283,7 @@ Click **Connect** to connect.
 
 To connect to your PostgreSQL instance, use the authenticated proxy address.
 This is `127.0.0.1:62652` in the example above (see the “Authenticated Proxy”
-section on [Get connection information](./gui-clients.mdx#get-connection-information)
+section on [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)
 for more information).
 
 Use the "Database native" authentication with an empty password:
@@ -292,7 +335,7 @@ for password, leave the password field empty and click OK.
 In Microsoft SQL Server Management Studio connect to a database engine using
 your proxy's endpoint. This is `localhost,62652` in the example above. Using
 the IP `127.0.0.1,62652` connection could be required on a Windows machine
-instead of `localhost`. (See [Get connection information](./gui-clients.mdx#get-connection-information) for
+instead of `localhost`. (See [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
 more information.)
 
 Create a connection with Microsoft SQL Server with these settings:
@@ -325,7 +368,7 @@ Now start a local proxy to your Redis instance:
 `tsh proxy db --db-user=alice redis-db-name`.
 
 Click `Add Database Manually`. Use `127.0.0.1` as the `Host`. Use the port printed by
-the `tsh` command you ran in [Get connection information](#get-connection-information).
+the `tsh` command you ran in [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases).
 
 Provide your Redis username as `Username` and password as `Password`.
 
@@ -421,7 +464,7 @@ Congratulations! You have just connected to your Snowflake instance.
 
 In the DataGrip connection configuration menu, use your proxy's endpoint. This
 is `localhost:4242` in the example below. (See
-[Get connection information](./gui-clients.mdx#get-connection-information) for
+[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
 more information.)
 
 Select the "User & Password" authentication option and keep the "Password" field
@@ -435,7 +478,7 @@ Click "OK" to connect.
 
 In the DBeaver connection configuration menu, use your proxy's endpoint. This is
 `localhost:62652` in the example above. (See
-[Get connection information](./gui-clients.mdx#get-connection-information) for
+[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
 more information.)
 
 Use the SQL Server Authentication option and keep the Password field empty:

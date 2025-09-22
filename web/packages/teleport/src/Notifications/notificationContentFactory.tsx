@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { type JSX } from 'react';
 
 import * as Icons from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';

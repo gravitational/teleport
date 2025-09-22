@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -30,6 +32,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -90,7 +94,7 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			subject, issuer := getSnowflakeJWTParams(context.Background(), tt.args.accountName, tt.args.userName, tt.args.publicKey)
+			subject, issuer := auth.GetSnowflakeJWTParams(context.Background(), tt.args.accountName, tt.args.userName, tt.args.publicKey)
 
 			require.Equal(t, tt.wantSubject, subject)
 			require.Equal(t, tt.wantIssuer, issuer)
@@ -100,7 +104,7 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 
 func TestDBCertSigning(t *testing.T) {
 	t.Parallel()
-	authServer, err := NewTestAuthServer(TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
 		ClusterName: "local.me",
 		Dir:         t.TempDir(),
@@ -154,9 +158,11 @@ func TestDBCertSigning(t *testing.T) {
 		name           string
 		requester      proto.DatabaseCertRequest_Requester
 		extensions     proto.DatabaseCertRequest_Extensions
+		crlDomain      string
 		wantCertSigner []byte
 		wantCACerts    [][]byte
 		wantKeyUsage   []x509.ExtKeyUsage
+		wantCDP        []string
 	}{
 		{
 			name:           "DB service request is signed by active db client CA and trusts db CAs",
@@ -186,9 +192,18 @@ func TestDBCertSigning(t *testing.T) {
 			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
 			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		},
+		{
+			name:           "tctl request for SQL Server database with CDPs",
+			requester:      proto.DatabaseCertRequest_TCTL,
+			extensions:     proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
+			crlDomain:      "example.com",
+			wantCertSigner: newDBCACert,
+			wantCACerts:    [][]byte{activeDBClientCACert, newDBClientCACert},
+			wantKeyUsage:   []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			wantCDP:        []string{"ldap:///CN=local.me,CN=TeleportDB,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint"},
+		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			certResp, err := authServer.AuthServer.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
@@ -197,25 +212,30 @@ func TestDBCertSigning(t *testing.T) {
 				TTL:                   proto.Duration(time.Hour),
 				RequesterName:         tt.requester,
 				CertificateExtensions: tt.extensions,
+				CRLDomain:             tt.crlDomain,
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantCACerts, certResp.CACerts)
 
 			// verify that the response cert is a DB CA cert.
-			mustVerifyCert(t, tt.wantCertSigner, certResp.Cert, tt.wantKeyUsage...)
+			mustVerifyCert(t, tt.wantCertSigner, certResp.Cert, tt.wantCDP, tt.wantKeyUsage...)
 		})
 	}
 }
 
 // mustVerifyCert is a helper func that verifies leaf cert with root cert.
-func mustVerifyCert(t *testing.T, rootPEM, leafPEM []byte, keyUsages ...x509.ExtKeyUsage) {
+func mustVerifyCert(t *testing.T, rootPEM, leafPEM []byte, cdps []string, keyUsages ...x509.ExtKeyUsage) {
 	t.Helper()
+
 	leafCert, err := tlsca.ParseCertificatePEM(leafPEM)
 	require.NoError(t, err)
 
 	certPool := x509.NewCertPool()
 	ok := certPool.AppendCertsFromPEM(rootPEM)
 	require.True(t, ok)
+
+	require.Equal(t, cdps, leafCert.CRLDistributionPoints)
+
 	opts := x509.VerifyOptions{
 		Roots:     certPool,
 		KeyUsages: keyUsages,
@@ -223,4 +243,44 @@ func mustVerifyCert(t *testing.T, rootPEM, leafPEM []byte, keyUsages ...x509.Ext
 	// Verify if the generated certificate can be verified with the correct CA.
 	_, err = leafCert.Verify(opts)
 	require.NoError(t, err)
+}
+
+func TestFilterExtensions(t *testing.T) {
+	oidA := asn1.ObjectIdentifier{1, 2, 3, 4}
+	oidB := asn1.ObjectIdentifier{1, 2, 3, 5}
+	extA := pkix.Extension{Id: oidA, Value: []byte("a")}
+	extB := pkix.Extension{Id: oidB, Value: []byte("b")}
+
+	tests := []struct {
+		name        string
+		input       []pkix.Extension
+		allowedOIDs []asn1.ObjectIdentifier
+		expected    []pkix.Extension
+	}{
+		{
+			name:        "keeps allowed extension",
+			input:       []pkix.Extension{extA},
+			allowedOIDs: []asn1.ObjectIdentifier{oidA},
+			expected:    []pkix.Extension{extA},
+		},
+		{
+			name:        "filters disallowed extension",
+			input:       []pkix.Extension{extA},
+			allowedOIDs: []asn1.ObjectIdentifier{oidB},
+			expected:    []pkix.Extension{},
+		},
+		{
+			name:        "keeps only allowed extension",
+			input:       []pkix.Extension{extA, extB},
+			allowedOIDs: []asn1.ObjectIdentifier{oidA},
+			expected:    []pkix.Extension{extA},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := auth.FilterExtensions(context.Background(), slog.Default(), tt.input, tt.allowedOIDs...)
+			require.Equal(t, tt.expected, got)
+		})
+	}
 }

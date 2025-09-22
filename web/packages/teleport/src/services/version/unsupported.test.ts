@@ -94,16 +94,16 @@ describe('withGenericUnsupportedError', () => {
         minor: 2,
         patch: 3,
         preRelease: 'dev',
-        string: 'v1.2.3-dev',
+        string: '1.2.3-dev',
       },
     });
 
     expect(() =>
-      withGenericUnsupportedError(pathNotFoundError, 'v2.0.0')
+      withGenericUnsupportedError(pathNotFoundError, '2.0.0')
     ).toThrow('Your proxy (v1.2.3-dev) may be behind');
 
     expect(() =>
-      withGenericUnsupportedError(pathNotFoundError, 'v2.0.0')
+      withGenericUnsupportedError(pathNotFoundError, '2.0.0')
     ).toThrow('minimum required version (v2.0.0)');
   });
 

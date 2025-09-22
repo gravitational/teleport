@@ -37,10 +37,10 @@ func init() {
 // TeleportLoginRule holds the kubernetes custom resources for login rules.
 type TeleportLoginRule struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportLoginRuleSpec `json:"spec,omitempty"`
-	Status resources.Status      `json:"status,omitempty"`
+	Spec   TeleportLoginRuleSpec `json:"spec"`
+	Status resources.Status      `json:"status"`
 }
 
 // TeleportLoginRuleSpec matches the JSON of generated CRD spec
@@ -56,7 +56,7 @@ type TeleportLoginRuleSpec struct {
 // TeleportLoginRuleList contains a list of TeleportLoginRule
 type TeleportLoginRuleList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportLoginRule `json:"items"`
 }
 

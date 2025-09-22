@@ -22,8 +22,12 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -520,6 +524,26 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case SigstorePolicyDeleteEvent:
 		e = &events.SigstorePolicyDelete{}
 
+	case MCPSessionStartEvent:
+		e = &events.MCPSessionStart{}
+	case MCPSessionEndEvent:
+		e = &events.MCPSessionEnd{}
+	case MCPSessionRequestEvent:
+		e = &events.MCPSessionRequest{}
+	case MCPSessionNotificationEvent:
+		e = &events.MCPSessionNotification{}
+	case MCPSessionListenSSEStream:
+		e = &events.MCPSessionListenSSEStream{}
+	case MCPSessionInvalidHTTPRequest:
+		e = &events.MCPSessionInvalidHTTPRequest{}
+
+	case BoundKeypairRecovery:
+		e = &events.BoundKeypairRecovery{}
+	case BoundKeypairRotation:
+		e = &events.BoundKeypairRotation{}
+	case BoundKeypairJoinStateVerificationFailed:
+		e = &events.BoundKeypairJoinStateVerificationFailed{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}
@@ -576,4 +600,59 @@ func ToEventFields(event events.AuditEvent) (EventFields, error) {
 	}
 
 	return fields, nil
+}
+
+// FromEventFieldsSlice converts an array of EventFields to an array of AuditEvent.
+func FromEventFieldsSlice(fieldsArray []EventFields) ([]events.AuditEvent, error) {
+	events := make([]events.AuditEvent, 0, len(fieldsArray))
+	for _, fields := range fieldsArray {
+		event, err := FromEventFields(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+// EventFieldsToUnstructured converts an EventFields to an EventUnstructured.
+func FromEventFieldsSliceToUnstructured(fieldsArray []EventFields) ([]*auditlogpb.EventUnstructured, error) {
+	events := make([]*auditlogpb.EventUnstructured, 0, len(fieldsArray))
+	for _, fields := range fieldsArray {
+		event, err := EventFieldsToUnstructured(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+// EventFieldsToUnstructured converts the raw event fields stored to unstructured.
+func EventFieldsToUnstructured(evt EventFields) (*auditlogpb.EventUnstructured, error) {
+	str, err := structpb.NewStruct(evt)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to convert event fields to structpb.Struct")
+	}
+
+	id := getOrComputeEventID(evt)
+
+	return &auditlogpb.EventUnstructured{
+		Type:         evt.GetType(),
+		Index:        int64(evt.GetInt(EventIndex)),
+		Time:         timestamppb.New(evt.GetTime(EventTime)),
+		Id:           id,
+		Unstructured: str,
+	}, nil
+}
+
+// getOrComputeEventID computes the ID of the event. If the event already has an ID, it is returned.
+// Otherwise, the event is marshaled to JSON and the SHA256 hash of the JSON is returned.
+func getOrComputeEventID(evt EventFields) string {
+	id := evt.GetID()
+	if id != "" {
+		return id
+	}
+
+	return uuid.NewString()
 }

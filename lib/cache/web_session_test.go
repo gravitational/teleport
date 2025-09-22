@@ -35,7 +35,7 @@ func TestAppSessions(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	for i := 0; i < 31; i++ {
+	for i := range 31 {
 		err := p.appSessionS.UpsertAppSession(t.Context(), &types.WebSessionV2{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindAppSession,
@@ -50,7 +50,7 @@ func TestAppSessions(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		err := p.appSessionS.UpsertAppSession(t.Context(), &types.WebSessionV2{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindAppSession,
@@ -67,14 +67,14 @@ func TestAppSessions(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		expected, next, err := p.appSessionS.ListAppSessions(ctx, 0, "", "")
-		assert.NoError(t, err)
-		assert.Empty(t, next)
-		assert.Len(t, expected, 34)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, expected, 34)
 
 		cached, next, err := p.cache.ListAppSessions(ctx, 0, "", "")
-		assert.NoError(t, err)
-		assert.Empty(t, next)
-		assert.Len(t, cached, 34)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, cached, 34)
 	}, 15*time.Second, 100*time.Millisecond)
 
 	session, err := p.cache.GetAppSession(ctx, types.GetAppSessionRequest{
@@ -123,9 +123,9 @@ func TestAppSessions(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cached, next, err := p.cache.ListAppSessions(ctx, 0, "", "")
-		assert.NoError(t, err)
-		assert.Empty(t, next)
-		assert.Empty(t, cached)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, cached)
 	}, 15*time.Second, 100*time.Millisecond)
 }
 
@@ -136,7 +136,7 @@ func TestWebSessions(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	for i := 0; i < 31; i++ {
+	for i := range 31 {
 		err := p.webSessionS.Upsert(t.Context(), &types.WebSessionV2{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindWebSession,
@@ -153,23 +153,23 @@ func TestWebSessions(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		expected, err := p.webSessionS.List(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, expected, 31)
+		require.NoError(t, err)
+		require.Len(t, expected, 31)
 
 		for _, session := range expected {
 			cached, err := p.cache.GetWebSession(ctx, types.GetWebSessionRequest{SessionID: session.GetName()})
-			assert.NoError(t, err)
-			assert.Empty(t, cmp.Diff(session, cached))
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(session, cached))
 		}
 	}, 15*time.Second, 100*time.Millisecond)
 
 	require.NoError(t, p.webSessionS.DeleteAll(ctx))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		for i := 0; i < 31; i++ {
+		for i := range 31 {
 			session, err := p.cache.GetWebSession(ctx, types.GetWebSessionRequest{SessionID: "web-session" + strconv.Itoa(i+1)})
-			assert.Error(t, err)
-			assert.Nil(t, session)
+			require.Error(t, err)
+			require.Nil(t, session)
 		}
 	}, 15*time.Second, 100*time.Millisecond)
 }
@@ -181,7 +181,7 @@ func TestSnowflakeSessions(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	for i := 0; i < 31; i++ {
+	for i := range 31 {
 		err := p.snowflakeSessionS.UpsertSnowflakeSession(t.Context(), &types.WebSessionV2{
 			Kind:    types.KindWebSession,
 			SubKind: types.KindSnowflakeSession,
@@ -198,23 +198,23 @@ func TestSnowflakeSessions(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		expected, err := p.snowflakeSessionS.GetSnowflakeSessions(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, expected, 31)
 
 		for _, session := range expected {
 			cached, err := p.cache.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: session.GetName()})
-			assert.NoError(t, err)
-			assert.Empty(t, cmp.Diff(session, cached))
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(session, cached))
 		}
 	}, 15*time.Second, 100*time.Millisecond)
 
 	require.NoError(t, p.snowflakeSessionS.DeleteAllSnowflakeSessions(ctx))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		for i := 0; i < 31; i++ {
+		for i := range 31 {
 			session, err := p.cache.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: "snow-session" + strconv.Itoa(i+1)})
-			assert.Error(t, err)
-			assert.Nil(t, session)
+			require.Error(t, err)
+			require.Nil(t, session)
 		}
 	}, 15*time.Second, 100*time.Millisecond)
 }

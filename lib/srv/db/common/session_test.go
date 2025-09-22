@@ -80,6 +80,19 @@ func TestSession_GetAccessState(t *testing.T) {
 				EnableDeviceVerification: true,
 			},
 		},
+		{
+			name: "bot",
+			session: common.Session{
+				Identity: tlsca.Identity{
+					BotName: "wall-e",
+				},
+				Checker: checker,
+			},
+			want: services.AccessState{
+				EnableDeviceVerification: true,
+				IsBot:                    true,
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

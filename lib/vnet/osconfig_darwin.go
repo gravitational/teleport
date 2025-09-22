@@ -18,10 +18,12 @@ package vnet
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
 
+	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 )
 
@@ -69,7 +71,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, _ *platformOSConfig
 		}
 	}
 
-	if err := configureDNS(ctx, cfg.dnsAddr, cfg.dnsZones); err != nil {
+	if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
 		return trace.Wrap(err, "configuring DNS")
 	}
 
@@ -80,12 +82,14 @@ const resolverFileComment = "# automatically installed by Teleport VNet"
 
 var resolverPath = filepath.Join("/", "etc", "resolver")
 
-func configureDNS(ctx context.Context, nameserver string, zones []string) error {
-	if len(nameserver) == 0 && len(zones) > 0 {
-		return trace.BadParameter("empty nameserver with non-empty zones")
+func configureDNS(ctx context.Context, nameservers []string, zones []string) error {
+	if len(nameservers) == 0 {
+		// There are no nameservers so VNet can't handle any DNS zones. Continue
+		// so that any VNet-managed resolver files can be deleted.
+		zones = nil
 	}
 
-	log.DebugContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
+	log.DebugContext(ctx, "Configuring DNS.", "nameservers", nameservers, "zones", zones)
 	if err := os.MkdirAll(resolverPath, os.FileMode(0755)); err != nil {
 		return trace.Wrap(err, "creating %s", resolverPath)
 	}
@@ -95,14 +99,22 @@ func configureDNS(ctx context.Context, nameserver string, zones []string) error 
 		return trace.Wrap(err, "finding VNet managed files in /etc/resolver")
 	}
 
-	// Always attempt to write or clean up all files below, even if encountering errors with one or more of
-	// them.
+	// Always attempt to write or clean up all files below, even if encountering
+	// errors with one or more of them.
 	var allErrors []error
+
+	var fileContents bytes.Buffer
+	fileContents.WriteString(resolverFileComment)
+	fileContents.WriteByte('\n')
+	for _, nameserver := range nameservers {
+		fileContents.WriteString("nameserver ")
+		fileContents.WriteString(nameserver)
+		fileContents.WriteByte('\n')
+	}
 
 	for _, zone := range zones {
 		fileName := filepath.Join(resolverPath, zone)
-		contents := resolverFileComment + "\nnameserver " + nameserver
-		if err := os.WriteFile(fileName, []byte(contents), 0644); err != nil {
+		if err := renameio.WriteFile(fileName, fileContents.Bytes(), 0644); err != nil {
 			allErrors = append(allErrors, trace.Wrap(err, "writing DNS configuration file %s", fileName))
 		} else {
 			// Successfully wrote this file, don't clean it up below.

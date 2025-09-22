@@ -1,6 +1,11 @@
 ---
 title: Database Access with Snowflake
+sidebar_label: Snowflake
 description: How to configure Teleport database access with Snowflake.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Snowflake" dbConfigure="with key pair authentication"!)
@@ -33,7 +38,7 @@ forwards the user's requests to Snowflake as Teleport-authenticated messages.
 
 - A host where you will run the Teleport Database Service.
 
-  See [Installation](../../../installation.mdx) for details.
+  See [Installation](../../../installation/installation.mdx) for details.
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -146,4 +151,3 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
-

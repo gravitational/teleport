@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type JSX } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
@@ -33,6 +33,7 @@ import {
   UnifiedResourcesPinning,
   useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
+import { buildPredicateExpression } from 'shared/components/UnifiedResources/shared/predicateExpression';
 import {
   getResourceId,
   openStatusInfoPanel,
@@ -113,6 +114,10 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
       kind: 'git_server',
       disabled: !flags.gitServers,
     },
+    {
+      kind: 'mcp',
+      disabled: !flags.applications,
+    },
   ];
 };
 
@@ -187,7 +192,7 @@ export function ClusterResources({
           clusterId,
           {
             search: params.search,
-            query: params.query,
+            query: buildPredicateExpression(params.statuses, params.query),
             pinnedOnly: params.pinnedOnly,
             sort: params.sort,
             kinds: params.kinds,
@@ -213,6 +218,7 @@ export function ClusterResources({
         params.search,
         params.sort,
         params.includedResourceMode,
+        params.statuses,
         teleCtx.resourceService,
       ]
     ),

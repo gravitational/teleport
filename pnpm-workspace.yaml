@@ -8,6 +8,10 @@ onlyBuiltDependencies:
   - msw
   - node-pty
   - protobufjs
+  - unrs-resolver
+ignoredBuiltDependencies:
+  # Imported by jsdom-testing-mocks but not needed by us.
+  - puppeteer
 # Without this, electron-builder will pull in electron-builder-squirrel-windows (which we don't need)
 # and that dep will in turn pull electron-winstaller (which we also don't need). pnpm will then
 # start complaining that electron-winstaller is not in onlyBuiltDependencies.
@@ -26,3 +30,16 @@ peerDependencyRules:
     # This dep is needed only when using Squirrel.Windows as an installer in electron-build which we
     # don't use. https://www.electron.build/squirrel-windows.html
     - electron-builder-squirrel-windows
+# shellEmulator enables cross-platform scripting, allowing POSIX-style shell variables to work on Windows.
+shellEmulator: true
+# packageImportMethod avoids an issue building the web UI in docker on mac. It does not seem to
+# affect performance outside of docker.
+# https://github.com/gravitational/teleport/issues/46019
+packageImportMethod: clone-or-copy
+patchedDependencies:
+  # Needed after the upgrade to TypeScript 5.9.2.
+  '@types/wicg-file-system-access@2023.10.6': web/patches/@types__wicg-file-system-access@2023.10.6.patch
+  # Needed for roundRect support which was merged to jest-canvas-mock but not released.
+  jest-canvas-mock@2.5.2: web/patches/jest-canvas-mock@2.5.2.patch
+# Do not install packages released less than 2 days (2880 minutes) ago
+minimumReleaseAge: 2880

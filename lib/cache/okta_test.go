@@ -69,15 +69,9 @@ func TestOktaImportRules(t *testing.T) {
 			_, err := p.okta.CreateOktaImportRule(ctx, resource)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]types.OktaImportRule, error) {
-			results, _, err := p.okta.ListOktaImportRules(ctx, 0, "")
-			return results, err
-		},
-		cacheGet: p.cache.GetOktaImportRule,
-		cacheList: func(ctx context.Context) ([]types.OktaImportRule, error) {
-			results, _, err := p.cache.ListOktaImportRules(ctx, 0, "")
-			return results, err
-		},
+		list:      p.okta.ListOktaImportRules,
+		cacheGet:  p.cache.GetOktaImportRule,
+		cacheList: p.cache.ListOktaImportRules,
 		update: func(ctx context.Context, resource types.OktaImportRule) error {
 			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
 			return trace.Wrap(err)
@@ -119,15 +113,9 @@ func TestOktaAssignments(t *testing.T) {
 			_, err := p.okta.CreateOktaAssignment(ctx, resource)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]types.OktaAssignment, error) {
-			results, _, err := p.okta.ListOktaAssignments(ctx, 0, "")
-			return results, err
-		},
-		cacheGet: p.cache.GetOktaAssignment,
-		cacheList: func(ctx context.Context) ([]types.OktaAssignment, error) {
-			results, _, err := p.cache.ListOktaAssignments(ctx, 0, "")
-			return results, err
-		},
+		list:      p.okta.ListOktaAssignments,
+		cacheGet:  p.cache.GetOktaAssignment,
+		cacheList: p.cache.ListOktaAssignments,
 		update: func(ctx context.Context, resource types.OktaAssignment) error {
 			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
 			return trace.Wrap(err)

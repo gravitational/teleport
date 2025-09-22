@@ -38,7 +38,7 @@ const defaultChannelTimeout = 5 * time.Second
 // automaticUpgrades109 implements a version server in the Teleport Proxy following the RFD 109 spec.
 // It is configured through the Teleport Proxy configuration and tells agent updaters
 // which version they should install.
-func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	if h.cfg.AutomaticUpgradesChannels == nil {
 		return nil, trace.AccessDenied("This proxy is not configured to serve automatic upgrades channels.")
 	}
@@ -73,7 +73,7 @@ func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p
 }
 
 // automaticUpgradesVersion109 handles version requests from upgraders
-func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Request, channelName string) (interface{}, error) {
+func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Request, channelName string) (any, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 
@@ -97,7 +97,7 @@ func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Req
 }
 
 // automaticUpgradesCritical109 handles criticality requests from upgraders
-func (h *Handler) automaticUpgradesCritical109(w http.ResponseWriter, r *http.Request, channelName string) (interface{}, error) {
+func (h *Handler) automaticUpgradesCritical109(w http.ResponseWriter, r *http.Request, channelName string) (any, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 

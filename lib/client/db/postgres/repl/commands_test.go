@@ -95,7 +95,7 @@ func TestCommandExecution(t *testing.T) {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					var buf []byte
 					_, err := tc.conn.Read(buf[0:])
-					assert.ErrorIs(t, err, io.EOF)
+					require.ErrorIs(t, err, io.EOF)
 				}, 5*time.Second, time.Millisecond)
 
 				select {
@@ -132,13 +132,13 @@ func TestCommands(t *testing.T) {
 	}{
 		"q": {expectExit: true},
 		"teleport": {
-			assertCommandReply: func(t require.TestingT, val interface{}, _ ...interface{}) {
+			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
 				require.Contains(t, val, teleport.Version, "expected \\teleport command to include current Teleport version")
 			},
 		},
 		"?": {
 			repl: &REPL{commands: availableCmds},
-			assertCommandReply: func(t require.TestingT, val interface{}, _ ...interface{}) {
+			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
 				for cmd := range availableCmds {
 					require.Contains(t, val, cmd, "expected \\? command to include information about \\%s", cmd)
 				}
@@ -150,7 +150,7 @@ func TestCommands(t *testing.T) {
 				Username:    "username",
 				Database:    "database",
 			}},
-			assertCommandReply: func(t require.TestingT, val interface{}, _ ...interface{}) {
+			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
 				require.Contains(t, val, "service", "expected \\session command to contain service name")
 				require.Contains(t, val, "username", "expected \\session command to contain username")
 				require.Contains(t, val, "database", "expected \\session command to contain database name")

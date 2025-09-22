@@ -27,12 +27,13 @@ import (
 
 	"github.com/gravitational/trace"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -67,7 +68,7 @@ func getWebAddrAndKubeSNI(proxyAddr string) (string, string, error) {
 
 // buildKubeClient creates a new Kubernetes client that is used to communicate
 // with the Kubernetes API server.
-func (s *Server) buildKubeClient() (kubernetes.Interface, error) {
+func (s *Server) buildKubeClient() error {
 	const idleConnsPerHost = 25
 
 	tlsConfig := utils.TLSConfig(s.cfg.ConnTLSCipherSuites)
@@ -94,10 +95,21 @@ func (s *Server) buildKubeClient() (kubernetes.Interface, error) {
 
 	cfg := &rest.Config{
 		Host:      s.proxyAddress,
-		Transport: auth.NewImpersonatorRoundTripper(transport),
+		Transport: internal.NewImpersonatorRoundTripper(transport),
 	}
+
 	kubeClient, err := kubernetes.NewForConfig(cfg)
-	return kubeClient, trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.kubeClient = kubeClient
+	dynamicClient, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.kubeDynamicClient = dynamicClient
+
+	return nil
 }
 
 // decideLimit returns the number of items we should request for. If respectLimit

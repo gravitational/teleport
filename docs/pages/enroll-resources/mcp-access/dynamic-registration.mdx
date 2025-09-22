@@ -1,0 +1,80 @@
+---
+title: Dynamic MCP Server Registration
+sidebar_position: 4
+description: Register/unregister MCP servers without restarting Teleport.
+tags:
+- how-to
+- zero-trust
+- mcp
+---
+
+Dynamic MCP server registration allows Teleport administrators to register new
+MCP servers (or update/unregister existing ones) without having to update the
+static configuration files read by Teleport Application Service instances.
+
+The MCP server resources are registered as `app` resources in the Teleport
+backend. Application Service instances periodically query the Teleport Auth
+Service for `app` resources, each of which includes the information that the
+Application Service needs to proxy an application.
+
+## Required permissions
+
+(!docs/pages/includes/application-access/dynamic-app-permissions.mdx!)
+
+## Enabling dynamic registration
+
+(!docs/pages/includes/application-access/dynamic-app-config.mdx!)
+
+## Creating a MCP server
+
+The following example configures Teleport to proxy the "Everything" MCP server
+by launching it through docker:
+```yaml
+kind: app
+version: v3
+metadata:
+  name: everything
+  description: The Everything MCP server
+  labels:
+    env: dev
+spec:
+  mcp:
+    # Command to launch stdio-based MCP servers.
+    command: "docker"
+    # Args to execute with the command.
+    args: ["run", "-i", "--rm", "mcp/everything"]
+    # Name of the host user account under which the command will be
+    # executed. Required for stdio-based MCP servers.
+    run_as_host_user: "docker"
+```
+
+See the full resource spec [reference](../../reference/agent-services/mcp-access.mdx).
+
+To create the resource, run:
+
+```code
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --proxy=teleport.example.com --user=myuser
+$ tctl create mcp_server.yaml
+```
+
+After the resource has been created, it will appear among the list of available
+MCP servers (in `tsh mcp ls` or UI) as long as at least one Application Service
+instance picks it up according to its label selectors.
+
+To update an existing application resource, run:
+
+```code
+$ tctl create -f mcp_server.yaml
+```
+
+If the updated resource's labels no longer match a particular app agent, it
+will unregister and stop proxying it.
+
+To delete the resource, run:
+
+```code
+$ tctl rm app/everything
+```

@@ -20,11 +20,13 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -38,29 +40,17 @@ func newStaticHostUserCollection(upstream services.StaticHostUser, w types.Watch
 	}
 
 	return &collection[*userprovisioningv2.StaticHostUser, staticHostUserIndex]{
-		store: newStore(map[staticHostUserIndex]func(*userprovisioningv2.StaticHostUser) string{
-			staticHostUserNameIndex: func(shu *userprovisioningv2.StaticHostUser) string {
-				return shu.GetMetadata().GetName()
-			},
-		}),
+		store: newStore(
+			types.KindStaticHostUser,
+			proto.CloneOf[*userprovisioningv2.StaticHostUser],
+			map[staticHostUserIndex]func(*userprovisioningv2.StaticHostUser) string{
+				staticHostUserNameIndex: func(shu *userprovisioningv2.StaticHostUser) string {
+					return shu.GetMetadata().GetName()
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*userprovisioningv2.StaticHostUser, error) {
-			var startKey string
-			var allUsers []*userprovisioningv2.StaticHostUser
-
-			for {
-				users, nextKey, err := upstream.ListStaticHostUsers(ctx, 0, startKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				allUsers = append(allUsers, users...)
-
-				if nextKey == "" {
-					break
-				}
-				startKey = nextKey
-			}
-			return allUsers, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListStaticHostUsers))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *userprovisioningv2.StaticHostUser {
 			return &userprovisioningv2.StaticHostUser{
@@ -88,7 +78,6 @@ func (c *Cache) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken
 		nextToken: func(t *userprovisioningv2.StaticHostUser) string {
 			return t.GetMetadata().GetName()
 		},
-		clone: utils.CloneProtoMsg[*userprovisioningv2.StaticHostUser],
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
@@ -104,7 +93,6 @@ func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovis
 		collection:  c.collections.staticHostUsers,
 		index:       staticHostUserNameIndex,
 		upstreamGet: c.Config.StaticHostUsers.GetStaticHostUser,
-		clone:       utils.CloneProtoMsg[*userprovisioningv2.StaticHostUser],
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

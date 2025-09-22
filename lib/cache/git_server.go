@@ -24,8 +24,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/gitserver"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -39,25 +40,15 @@ func newGitServerCollection(upstream services.GitServerGetter, w types.WatchKind
 	}
 
 	return &collection[types.Server, gitServerIndex]{
-		store: newStore(map[gitServerIndex]func(types.Server) string{
-			gitServerNameIndex: func(u types.Server) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindGitServer,
+			types.Server.DeepCopy,
+			map[gitServerIndex]func(types.Server) string{
+				gitServerNameIndex: types.Server.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
-			var all []types.Server
-			var nextToken string
-			for {
-				page, nextToken, err := upstream.ListGitServers(ctx, apidefaults.DefaultChunkSize, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				all = append(all, page...)
-				if nextToken == "" {
-					break
-				}
-			}
-			return all, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListGitServers))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Server {
 			return &types.ServerV2{
@@ -90,7 +81,6 @@ func (c *Cache) GetGitServer(ctx context.Context, name string) (types.Server, er
 		collection:  c.collections.gitServers,
 		index:       gitServerNameIndex,
 		upstreamGet: c.Config.GitServers.GetGitServer,
-		clone:       types.Server.DeepCopy,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
@@ -108,7 +98,6 @@ func (c *Cache) ListGitServers(ctx context.Context, pageSize int, pageToken stri
 		nextToken: func(t types.Server) string {
 			return t.GetMetadata().Name
 		},
-		clone: types.Server.DeepCopy,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)

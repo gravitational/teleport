@@ -16,15 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export const isAbortError = (err: any): boolean => {
-  // handles Web UI abort error
-  if (
-    (err instanceof DOMException && err.name === 'AbortError') ||
-    (err.cause && isAbortError(err.cause))
-  ) {
-    return true;
-  }
-
-  // handles Connect abort error (specifically gRPC cancel error), see TshdRpcError
-  return err?.code === 'CANCELLED';
-};
+export {
+  /** @deprecated Import `isAbortError` from 'shared/utils/error.ts' */
+  isAbortError,
+} from './error';

@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/crewjam/saml"
@@ -350,7 +351,7 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 			return nil
 		} else {
 			// delete Teleport SPSSODescriptor
-			ed.SPSSODescriptors = append(ed.SPSSODescriptors[:teleportSPSSODescriptorIndex], ed.SPSSODescriptors[teleportSPSSODescriptorIndex+1:]...)
+			ed.SPSSODescriptors = slices.Delete(ed.SPSSODescriptors, teleportSPSSODescriptorIndex, teleportSPSSODescriptorIndex+1)
 		}
 	case attrMapLen > 0:
 		if teleportSPSSODescriptorIndex == 0 {

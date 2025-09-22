@@ -75,6 +75,8 @@ const (
 	attributeTerraformIdentityFile = "identity_file"
 	// attributeTerraformIdentityFileBase64 is the attribute containing the base64-encoded identity file used by the Terraform provider.
 	attributeTerraformIdentityFileBase64 = "identity_file_base64"
+	// attributeTerraformInsecure is the attribute used to control whether the Terraform provider will skip verifying the proxy server's TLS certificate.
+	attributeTerraformInsecure = "insecure"
 	// attributeTerraformRetryBaseDuration is the attribute configuring the base duration between two Terraform provider retries.
 	attributeTerraformRetryBaseDuration = "retry_base_duration"
 	// attributeTerraformRetryCapDuration is the attribute configuring the maximum duration between two Terraform provider retries.
@@ -135,6 +137,8 @@ type providerData struct {
 	IdentityFile types.String `tfsdk:"identity_file"`
 	// IdentityFile identity file content encoded in base64
 	IdentityFileBase64 types.String `tfsdk:"identity_file_base64"`
+	// Insecure means the provider will skip verifying the proxy server's TLS certificate.
+	Insecure types.Bool `tfsdk:"insecure"`
 	// RetryBaseDuration is used to setup the retry algorithm when the API returns 'not found'
 	RetryBaseDuration types.String `tfsdk:"retry_base_duration"`
 	// RetryCapDuration is used to setup the retry algorithm when the API returns 'not found'
@@ -228,6 +232,11 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Optional:    true,
 				Description: fmt.Sprintf("Teleport identity file content base64 encoded. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformIdentityFileBase64),
 			},
+			attributeTerraformInsecure: {
+				Type:        types.BoolType,
+				Optional:    true,
+				Description: fmt.Sprintf("Skip proxy certificate verification when joining the Teleport cluster. This is not recommended for production use. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformInsecure),
+			},
 			attributeTerraformRetryBaseDuration: {
 				Type:        types.StringType,
 				Sensitive:   false,
@@ -256,13 +265,13 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../join-methods.mdx) for possible values. You must use [a delegated join method](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
+				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../../deployment/join-methods.mdx) for possible values. You must use [a delegated join method](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
 			},
 			attributeTerraformJoinToken: {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
+				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
 			},
 			attributeTerraformJoinAudienceTag: {
 				Type:        types.StringType,
@@ -315,6 +324,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 	retryCapDurationStr := stringFromConfigOrEnv(config.RetryCapDuration, constants.EnvVarTerraformRetryCapDuration, "5s")
 	maxTriesStr := stringFromConfigOrEnv(config.RetryMaxTries, constants.EnvVarTerraformRetryMaxTries, "10")
 	dialTimeoutDurationStr := stringFromConfigOrEnv(config.DialTimeoutDuration, constants.EnvVarTerraformDialTimeoutDuration, "30s")
+	insecure := boolFromConfigOrEnv(config.Insecure, constants.EnvVarTerraformInsecure)
 
 	if !p.validateAddr(addr, resp) {
 		return
@@ -349,6 +359,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 				grpc.WaitForReady(true),
 			),
 		},
+		InsecureAddressDiscovery: insecure,
 	}
 
 	clt, diags := activeSources.BuildClient(ctx, clientConfig, config)
@@ -449,6 +460,16 @@ func stringFromConfigOrEnv(value types.String, env string, def string) string {
 	return configValue
 }
 
+func boolFromConfigOrEnv(value types.Bool, env string) bool {
+	envVar := os.Getenv(env)
+	if envVar != "" && (value.Unknown || value.Null) {
+		if b, err := strconv.ParseBool(envVar); err == nil {
+			return b
+		}
+	}
+	return value.Value
+}
+
 // validateAddr validates passed addr
 func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderResponse) bool {
 	if addr == "" {
@@ -527,6 +548,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                resourceTeleportAccessListType{},
+		"teleport_access_list_member":         resourceTeleportMemberType{},
 		"teleport_server":                     resourceTeleportServerType{},
 		"teleport_installer":                  resourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
@@ -559,6 +581,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                dataSourceTeleportAccessListType{},
+		"teleport_access_list_member":         dataSourceTeleportMemberType{},
 		"teleport_installer":                  dataSourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},

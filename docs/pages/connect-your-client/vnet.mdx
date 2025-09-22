@@ -1,26 +1,59 @@
 ---
 title: Using VNet
 description: Using VNet
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
-This guide explains how to use VNet to connect to TCP applications available through Teleport.
+This guide explains how to use VNet to connect to TCP applications and SSH
+servers available through Teleport.
 
 ## How it works
 
-VNet automatically proxies connections from your computer to TCP apps available
-through Teleport.
-A program on your device can securely connect to internal applications protected
+VNet automatically proxies connections from your computer to TCP apps and SSH
+servers available through Teleport.
+A program on your device can securely connect to resources protected
 by Teleport without having to know about Teleport authentication details.
 Underneath, VNet authenticates the connection with your Teleport credentials and
-securely tunnels the TCP connection to your application.
+securely tunnels the connection.
 This is all done client-side – VNet sets up a local DNS name server that
-intercepts DNS requests for your internal apps and responds with a virtual IP
-address managed by VNet that will forward the connection to your application.
+intercepts DNS requests for your Teleport resources and responds with a virtual IP
+address managed by VNet that will handle the connection.
+
+VNet's SSH support enables third-party SSH clients to connect to Teleport SSH
+servers with minimal configuration required, while still offering Teleport
+access controls and features like [Per-session MFA](../zero-trust-access/authentication/per-session-mfa.mdx)
+and [Hardware Key Support](../zero-trust-access/authentication/hardware-key-support.mdx).
 
 ![Diagram showing VNet architecture](../../img/vnet/how-it-works.svg)
 
+VNet delivers an experience like a VPN through this local virtual network,
+while maintaining all of Teleport's identity verification and zero trust
+features that traditional VPNs cannot provide.
+
 VNet is available on macOS and Windows in Teleport Connect and tsh, with plans
 for Linux support in a future version.
+
+<Admonition type="warning">
+VNet's VPN-like experience for app access means that any software running on
+the client machine can access Teleport apps at local DNS or IP addresses.
+
+**Avoid running VNet on shared or multi-user machines.**
+If multiple OS users share the same machine, any user could access Teleport TCP
+apps at their local VNet DNS or IP address.
+
+**Protect HTTP services behind VNet.**
+Untrusted websites can potentially use DNS rebinding attacks to bypass the
+browser’s Same-Origin Policy and issue plain HTTP requests to VNet IP addresses.
+If your Teleport cluster contains TCP apps serving plain HTTP APIs, it is
+strongly recommended to either avoid VNet or implement one or more of the
+following mitigations for DNS rebinding attacks:
+- upgrade these APIs to HTTPS or another protocol
+- enforce a Host header allowlist at the HTTP server
+- block browser access to HTTP websites
+</Admonition>
 
 ## Prerequisites
 
@@ -35,17 +68,21 @@ for Linux support in a future version.
 </TabItem>
 </Tabs>
 
-## Step 1/3. Start Teleport Connect
+## Step 1/3. Start VNet
 
-Open Teleport Connect and log in to the cluster. Find the TCP app you want to connect to. TCP apps
-have `tcp://` as the protocol in their addresses.
+Open Teleport Connect and log in to your cluster.
+See [Using Teleport Connect](./teleport-connect.mdx) if you haven't used the
+Teleport Connect app before.
 
-![Resource list in Teleport Connect with a TCP hovered over](../../img/use-teleport/vnet-resources-list@2x.png)
+Open the **connection list** in the top left and click the icon to start VNet.
+Or, skip this step and VNet will start automatically when you click "Connect"
+on a TCP app or "Connect with VNet" on an SSH server.
 
-## Step 2/3. Start VNet
+![VNet shown in connection list](../../img/vnet/start-vnet.png)
 
-Click "Connect" next to the TCP app. This starts VNet if it's not already running. Alternatively,
-you can start VNet through the connection list in the top left.
+After VNet has been started once it will automatically start every time
+Teleport Connect is opened, unless you stop VNet before closing Teleport
+Connect.
 
 <details>
 <summary>First launch on macOS</summary>
@@ -57,14 +94,27 @@ tsh.app under "Allow in the Background".
 ![VNet starting up](../../img/use-teleport/vnet-starting@2x.png)
 </details>
 
-## Step 3/3. Connect
+## Step 2/3. Connect to a TCP app
 
-Once VNet is running, you can connect to the application using the application client you would
+Find the TCP app you want to connect to.
+TCP apps have `tcp://` as the protocol in their address.
+
+![Resource list in Teleport Connect with a TCP app hovered over](../../img/use-teleport/vnet-resources-list@2x.png)
+
+Click "Connect" next to the TCP app.
+This will start VNet if it's not already running, and then copy the app's
+address to your clipboard.
+You can now connect to the application using the application client you would
 normally use to connect to it.
 
 ```code
 $ psql postgres://postgres@tcp-app.teleport.example.com/postgres
 ```
+
+As long as VNet is running in the background, clicking "Connect" next to each
+app is not necessary.
+You can directly connect to all of your TCP apps without any actions in
+Teleport Connect.
 
 <Admonition type="note" title="Support for multiple ports">
 Unless the application specifies [multiple
@@ -73,22 +123,55 @@ VNet proxies connections over any port used by the application client. For multi
 number must match one of the target ports of the app. To see a list of target ports, click the
 three dot menu next to an application in Teleport Connect or execute `tsh apps ls`.
 
-If [per-session MFA](../admin-guides/access-controls/guides/per-session-mfa.mdx) is enabled, the
+If [per-session MFA](../zero-trust-access/authentication/per-session-mfa.mdx) is enabled, the
 first connection over each port triggers an MFA check.
 </Admonition>
 
-VNet is going to automatically start on the next Teleport Connect launch, unless you stop VNet
-before closing Teleport Connect.
+## Step 3/3. Connect to an SSH server
+
+Find the SSH server you want to connect to, open the menu next to the "Connect"
+dropdown, and click "Connect with VNet".
+This will start VNet if it's not already running, and then copy the VNet
+address for the server to your clipboard.
+
+![SSH server in Teleport Connect with "Connect with VNet" menu open](../../img/vnet/ssh-connect.png)
+
+There is a one-time configuration step required before SSH clients will be able
+to connect to Teleport SSH servers through VNet.
+When you click "Connect with VNet" on an SSH server, Teleport Connect will
+automatically check if this configuration is present and walk you through it if
+necessary.
+
+![SSH client configuration modal in Teleport Connect](../../img/vnet/configure-ssh-clients.png)
+
+Once the configuration step is complete, any OpenSSH-compatible client that
+reads configuration options from `~/.ssh/config` should be able to connect to
+Teleport SSH servers.
+Try connecting with the standard `ssh` client or the Remote Development feature
+in editors like Visual Studio Code or Zed.
+
+```code
+$ ssh <username>@<hostname>.<clustername>
+```
+
+As long as VNet is running in the background, clicking "Connect with VNet" next
+to each SSH server is not necessary, you can directly connect to all of your
+Teleport SSH servers without any actions in Teleport Connect.
 
 ## `tsh` support
 
-VNet is available in `tsh` as well. Using it involves logging into the cluster and executing the
-command `tsh vnet`.
+VNet is also available in `tsh` without running Teleport Connect.
+To use it, log in and then run `tsh vnet`.
 
 ```code
 $ tsh login --proxy=teleport.example.com
 $ tsh vnet
 ```
+
+While `tsh` support is available, Teleport Connect is the preferred application
+for running VNet.
+Teleport Connect offers better visibility for MFA prompts and cluster logins, and
+automatically runs diagnostics that are useful for troubleshooting.
 
 ## Troubleshooting
 
@@ -125,19 +208,14 @@ manually.
 
 ### Verifying that VNet receives DNS queries
 
-Start VNet with `tsh vnet -d`. Look at `/var/log/vnet.log` and note the IPv6 and IPv4 CIDR range used by VNet.
-
-```code
-From tsh vnet -d:
-INFO [VNET]      Running Teleport VNet. ipv6_prefix:fd60:67ec:4325:: vnet/vnet.go:317
-
-From /var/log/vnet.log:
-INFO  Setting an IP route for the VNet. netmask:100.64.0.0/10 vnet/osconfig_darwin.go:47
-```
+Open Teleport Connect. From the Connections panel in the top left, select VNet. Make sure VNet is
+running, then select "Open Diag Report". Note the IPv6 prefix and the IPv4 CIDR range used by VNet.
 
 Send a query for a TCP app available in your cluster, replacing <Var
 name="tcp-app.teleport.example.com" /> with the name of your app:
 
+<Tabs>
+<TabItem label="macOS">
 ```code
 $ dscacheutil -q host -a name <Var name="tcp-app.teleport.example.com" />
 name: tcp-app.teleport.example.com
@@ -146,11 +224,24 @@ ipv6_address: fd60:67ec:4325::647a:547d
 name: tcp-app.teleport.example.com
 ip_address: 100.68.51.151
 ```
+</TabItem>
+<TabItem label="Windows">
+```code
+# In PowerShell.
+$ Resolve-DnsName <Var name="tcp-app.teleport.example.com" />
 
-The addresses reported by `dscacheutil` should belong to ranges reported by VNet above.
+Name                                           Type   TTL   Section    IPAddress
+----                                           ----   ---   -------    ---------
+tcp-app.teleport.example.com                   AAAA   10    Answer     fd60:67ec:4325::647a:547d
+tcp-app.teleport.example.com                   A      10    Answer     100.68.51.151
+```
+</TabItem>
+</Tabs>
+
+The returned addresses should belong to ranges listed in the VNet diag report.
 
 Querying for anything other than an address of a TCP app should return the address belonging to the
-Proxy Service.
+Proxy Service. Using macOS as an example:
 
 ```code
 $ dscacheutil -q host -a name dashboard.teleport.example.com
@@ -161,18 +252,109 @@ name: dashboard.teleport.example.com
 ip_address: 93.184.215.14
 ```
 
-Querying for both addresses should result in some output being emitted by `tsh vnet -d`.
+Querying for any of those hostnames should result in some output being emitted in the debug logs of
+VNet (see [Submitting an issue](#submitting-an-issue) on how to enable debug logs).
 
 ### Submitting an issue
 
 When [submitting an
 issue](https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug,vnet&template=bug_report.md),
-make sure to include logs from `/var/log/vnet.log`, as well as [Teleport Connect
-logs](teleport-connect.mdx#submitting-an-issue) or the output of `tsh vnet -d`, depending on which
-client you use.
+make sure to include a VNet diag report and debug logs from VNet and Teleport Connect.
+
+To save a diag report to a file, open Teleport Connect. From the Connections panel in the top left
+select VNet, then "Open Diag Report". In the new tab with the report that was opened click the "Save
+Report to File" icon.
+
+To collect VNet and Teleport Connect logs use the instructions below:
+
+<Tabs>
+<TabItem label="macOS">
+To enable debug logs in VNet, first stop Teleport Connect and then run the following command. It
+enables debug logs just for the next invocation of VNet:
+
+```code
+$ sudo launchctl debug system/com.gravitational.teleport.tsh.vnetd --environment TELEPORT_DEBUG=1
+```
+
+Next, start capturing logs from VNet into a file:
+
+```code
+$ log stream --predicate 'subsystem ENDSWITH ".vnetd"' --style syslog --level debug > vnet.log
+```
+
+Then start Teleport Connect using the following command to enable debug logs for Teleport Connect:
+
+```code
+$ open -a "Teleport Connect" --args --connect-debug
+```
+
+Next, attempt to reproduce the issue with VNet.
+
+To gather logs from Teleport Connect, from the app menu select Help → Open Logs Directory which
+opens `~/Library/Application Support/Teleport Connect/logs` in Finder. Attach all files together
+with `vnet.log` produced in the earlier step.
+
+{/* TODO: DELETE IN 21.0.0 */}
+Before version 18.0.0, VNet logs were saved in `/var/log/vnet.log`.
+
+If the error is related to Teleport Connect not being able to start VNet or issues with code
+signing, searching through `/var/log/com.apple.xpc.launchd/launchd.log` for `tsh` soon after
+attempting to start VNet might also bring up relevant information:
+
+```code
+$ grep tsh /var/log/com.apple.xpc.launchd/launchd.log
+```
+</TabItem>
+<TabItem label="Windows">
+To enable debug logs in VNet, first stop Teleport Connect. Then in the Start menu look for Command
+Prompt and from the right click menu select Run as administrator. The following command enables
+debug logs in VNet and immediately closes the admin command prompt to prevent you from starting
+Teleport Connect as an admin by mistake.
+
+```code
+$ reg.exe ADD HKLM\SYSTEM\CurrentControlSet\Services\TeleportVNet /v Environment /t REG_MULTI_SZ /d TELEPORT_DEBUG=1 /f && exit
+```
+
+Next, from the Start menu open the Run app. Execute the following to start Teleport Connect with
+debug logs enabled:
+
+```code
+$ "%PROGRAMFILES%\Teleport Connect\Teleport Connect.exe" --connect-debug
+```
+
+Next, attempt to reproduce the issue with VNet.
+
+Once that's done, execute the following command from the administrator Command Prompt to disable
+debug logs in VNet:
+
+```code
+$ reg.exe DELETE HKLM\SYSTEM\CurrentControlSet\Services\TeleportVNet /v Environment /f
+```
+
+The last step is collecting the logs. Let's start with the VNet logs. From the Start menu, open Event Viewer.
+From the sidebar on the left, select Event Viewer (Local) → Applications and Services Logs →
+Teleport. From the sidebar on the right, select "Save All Events As…". Save the logs as .evtx file.
+If Event Viewer asks about Display Information, choose "No display information".
+
+To gather logs from Teleport Connect, press `Alt` while in the app, then select Help → Open Logs
+Directory. This opens `C:\Users\%UserName%\AppData\Roaming\Teleport Connect\logs`. Attach all files
+together with the .evtx file from the previous step.
+
+Outside of submitting an issue, VNet logs can be quickly saved to a file with the following
+PowerShell command. However, when submitting an issue please attach the .evtx file instead.
+
+```code
+$ Get-WinEvent -LogName Teleport -FilterXPath "*[System[Provider[@Name='vnet']]]" -Oldest | Format-Table -Property TimeCreated,LevelDisplayName,Message -Wrap | Out-File vnet.log
+```
+
+{/* TODO: DELETE IN 21.0.0 */}
+Before version 18.0.0, VNet logs were saved in `C:\Program Files\Teleport Connect\resources\bin\logs.txt`.
+</TabItem>
+</Tabs>
 
 ## Next steps
 
 - Read our VNet configuration [guide](../enroll-resources/application-access/guides/vnet.mdx)
   to learn how to configure VNet access to your applications.
 - Read [RFD 163](https://github.com/gravitational/teleport/blob/master/rfd/0163-vnet.md) to learn how VNet works on a technical level.
+- Read [RFD 207](https://github.com/gravitational/teleport/blob/master/rfd/0207-vnet-ssh.md) to learn how VNet SSH access works.

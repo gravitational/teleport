@@ -88,6 +88,7 @@ func New(cfg Config) (*Service, error) {
 		closeContext:           closeContext,
 		cancel:                 cancel,
 		gateways:               make(map[string]gateway.Gateway),
+		desktopSessions:        make(map[string]*desktop.Session),
 		usageReporter:          connectUsageReporter,
 		headlessWatcherClosers: make(map[string]context.CancelFunc),
 		headlessAuthSemaphore:  newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton),
@@ -209,10 +210,10 @@ func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clus
 }
 
 // ConnectToDesktop establishes a desktop connection.
-func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], uri uri.ResourceURI, desktopName, login string) error {
+func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], desktopURI uri.ResourceURI, login string) error {
 	ctx := stream.Context()
 
-	cluster, clusterClient, err := s.ResolveClusterURI(uri)
+	cluster, clusterClient, err := s.ResolveClusterURI(desktopURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -222,10 +223,48 @@ func (s *Service) ConnectToDesktop(stream grpc.BidiStreamingServer[api.ConnectTo
 		return trace.Wrap(err)
 	}
 
+	session, cleanup, err := s.newDesktopSession(desktopURI, login)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer cleanup()
+
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		return trace.Wrap(desktop.Connect(ctx, stream, clusterClient, cachedClient.ProxyClient, desktopName, login))
+		return trace.Wrap(session.Start(ctx, stream, clusterClient, cachedClient.ProxyClient))
 	})
 	return trace.Wrap(err)
+}
+
+// newDesktopSession creates a new desktop session for the specified desktop URI and login.
+//
+// If a session already exists for the given desktop URI and login, it returns an error.
+// On success, it returns the created session and a cleanup function that should be called to remove
+// the session from the service when it is no longer used.
+func (s *Service) newDesktopSession(desktopURI uri.ResourceURI, login string) (*desktop.Session, func(), error) {
+	s.desktopSessionsMu.Lock()
+	defer s.desktopSessionsMu.Unlock()
+
+	key := desktopSessionKey(desktopURI, login)
+
+	if _, ok := s.desktopSessions[key]; ok {
+		return nil, nil, trace.AlreadyExists("session for desktop %q and login %q already exists", desktopURI, login)
+	}
+
+	session, err := desktop.NewSession(desktopURI, login)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	s.desktopSessions[key] = session
+
+	cleanup := func() {
+		s.desktopSessionsMu.Lock()
+		defer s.desktopSessionsMu.Unlock()
+
+		delete(s.desktopSessions, key)
+	}
+
+	return session, cleanup, nil
 }
 
 // RemoveCluster removes cluster
@@ -633,26 +672,6 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 	return newGateway, nil
 }
 
-// GetServers accepts parameterized input to enable searching, sorting, and pagination.
-func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.GetServers(ctx, req, proxyClient.CurrentCluster())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
-}
-
 func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
 	cluster, _, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
@@ -856,12 +875,12 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	defer s.gatewaysMu.RUnlock()
 	for _, gw := range s.gateways {
 		targetURI := gw.TargetURI()
-		if !targetURI.IsKube() && targetURI.GetRootClusterURI() != cluster.URI {
+		if !targetURI.IsKube() || targetURI.GetRootClusterURI() != cluster.URI {
 			continue
 		}
 		kubeGw, err := gateway.AsKube(gw)
 		if err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Could not clear certs for kube when assuming request", "error", err, "target_uri", targetURI)
+			return trace.Wrap(err)
 		}
 		kubeGw.ClearCerts()
 	}
@@ -903,6 +922,27 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 	})
 
 	return resources, trace.Wrap(err)
+}
+
+// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
+func (s *Service) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*clusters.GetDatabaseServersResponse, error) {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, _, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.ListDatabaseServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
+	return response, trace.Wrap(err)
 }
 
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
@@ -1234,6 +1274,26 @@ func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
+// SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+// If there is no active desktop session associated with the specified desktop_uri and login,
+// an error is returned.
+func (s *Service) SetSharedDirectoryForDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string) error {
+	s.desktopSessionsMu.Lock()
+	defer s.desktopSessionsMu.Unlock()
+
+	session, ok := s.desktopSessions[desktopSessionKey(desktopURI, login)]
+	if !ok {
+		return trace.BadParameter("there is no desktop session for desktop %s and login %q", desktopURI, login)
+	}
+
+	err := session.SetSharedDirectory(path)
+	return trace.Wrap(err)
+}
+
+func desktopSessionKey(desktopURI uri.ResourceURI, login string) string {
+	return desktopURI.String() + "-" + login
+}
+
 // Service is the daemon service
 type Service struct {
 	cfg *Config
@@ -1248,6 +1308,13 @@ type Service struct {
 	gateways map[string]gateway.Gateway
 	// gatewaysMu guards gateways.
 	gatewaysMu sync.RWMutex
+
+	// desktopSessions maps a desktop key (derived from desktop URI and login) to desktop sessions.
+	//
+	// Each session is created by the ConnectToDesktop RPC and later used by the SetSharedDirectoryForDesktopSession RPC
+	// to share a directory within the session.
+	desktopSessions   map[string]*desktop.Session
+	desktopSessionsMu sync.Mutex
 
 	// The Electron App can display multiple important modals by showing the latest one and hiding the others.
 	// However, we should be careful with it, and generally try to limit the number of prompts on the tshd side,

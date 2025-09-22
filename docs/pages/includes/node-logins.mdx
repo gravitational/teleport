@@ -1,14 +1,16 @@
-When Teleport's Auth Service receives a request to list Teleport Nodes (e.g., to
-display Nodes in the Web UI or via `tsh ls`), it only returns the Nodes that the
-current user is authorized to view.
+When the Teleport Auth Service receives a request to list Teleport-connected
+resources (e.g., to display resources in the Web UI or via `tsh ls`), it only
+returns the resources that the current user is authorized to view.
 
-For each Node in the user's Teleport cluster, the Auth Service applies the
-following checks in order and, if one check fails, hides the Node from the user:
+For each resource in the user's Teleport cluster, the Auth Service applies the
+following checks in order and, if one check fails, hides the resource from the
+user:
 
-- None of the user's roles contain a `deny` rule that matches the Node's labels.
+- None of the user's roles contain a `deny` rule that matches the resource's
+  labels.
 - At least one of the user's roles contains an `allow` rule that matches the
-  Node's labels.
+  resource's labels.
 
-If you are not seeing Nodes when expected, make sure that your user's roles
-include the appropriate `allow` and `deny` rules as documented in the
-[Access Controls Reference](../reference/access-controls/roles.mdx).
+If you are not seeing resources when expected, make sure that your user's roles
+include the appropriate `allow` and `deny` rules as documented in the [Access
+Controls Reference](../reference/access-controls/roles.mdx).

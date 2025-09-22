@@ -51,10 +51,11 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -204,12 +205,10 @@ func TestForwardServer(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			mockEmitter := &eventstest.MockRecorderEmitter{}
 			mockGitService := newMockGitHostingService(t, caSigner)
@@ -271,7 +270,7 @@ func TestForwardServer(t *testing.T) {
 			if test.verifyEvent != nil {
 				// Server emits exec event after sending result to client.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					assert.NotNil(t, mockEmitter.LastEvent())
+					require.NotNil(t, mockEmitter.LastEvent())
 				}, time.Second*2, time.Millisecond*100, "Timeout waiting for audit event.")
 				test.verifyEvent(t, mockEmitter.LastEvent())
 			}

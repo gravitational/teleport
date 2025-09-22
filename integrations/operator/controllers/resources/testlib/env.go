@@ -55,8 +55,9 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
@@ -97,7 +98,7 @@ func ValidRandomResourceName(prefix string) string {
 }
 
 func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -128,7 +129,9 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 		Allow: types.RoleConditions{
 			// the operator has wildcard noe labs to be able to see them
 			// but has no login allowed, so it cannot SSH into them
-			NodeLabels: types.Labels{"*": []string{"*"}},
+			NodeLabels:     types.Labels{"*": []string{"*"}},
+			AppLabels:      types.Labels{"*": []string{"*"}},
+			DatabaseLabels: types.Labels{"*": []string{"*"}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, unrestricted),
 				types.NewRule(types.KindUser, unrestricted),
@@ -141,6 +144,10 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule(types.KindTrustedCluster, unrestricted),
 				types.NewRule(types.KindBot, unrestricted),
 				types.NewRule(types.KindWorkloadIdentity, unrestricted),
+				types.NewRule(types.KindAutoUpdateConfig, unrestricted),
+				types.NewRule(types.KindAutoUpdateVersion, unrestricted),
+				types.NewRule(types.KindApp, unrestricted),
+				types.NewRule(types.KindDatabase, unrestricted),
 			},
 		},
 	})
@@ -211,7 +218,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 
 	slogLogger := s.log
 	if slogLogger == nil {
-		slogLogger = utils.NewSlogLoggerForTests()
+		slogLogger = logtest.NewLogger()
 	}
 
 	logger := logr.FromSlogHandler(slogLogger.Handler())

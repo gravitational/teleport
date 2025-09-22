@@ -17,7 +17,8 @@
  */
 
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
+import { ProfilesFilterOption } from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
 
@@ -38,6 +39,7 @@ import {
   AwsOidcPingRequest,
   AwsOidcPingResponse,
   AwsRdsDatabase,
+  AwsRolesAnywherePingResponse,
   CreateAwsAppAccessRequest,
   EnrollEksClustersRequest,
   EnrollEksClustersResponse,
@@ -61,8 +63,10 @@ import {
   ListAwsSubnetsResponse,
   ListEksClustersRequest,
   ListEksClustersResponse,
+  ListRolesAnywhereProfilesResponse,
   RdsEngineIdentifier,
   Regions,
+  RolesAnywhereProfile,
   SecurityGroup,
   SecurityGroupRule,
   Subnet,
@@ -101,6 +105,12 @@ export const integrationService = {
     return api
       .post(cfg.getIntegrationsUrl(), req)
       .then(resp => makeIntegration(resp) as IntegrationCreateResult<T>);
+  },
+
+  validateAWSRolesAnywhereIntegration<T>(integrationName: string): Promise<T> {
+    return api.post(
+      cfg.getValidateAWSRolesAnywhereIntegrationUrl(integrationName)
+    );
   },
 
   pingAwsOidcIntegration(
@@ -514,13 +524,13 @@ export const integrationService = {
           installer_script: resp.discoverEc2?.installer_script,
         },
         discoverEks: {
-          clusters: resp.discoverEks?.instances,
+          clusters: resp.discoverEks?.clusters,
           account_id: resp.discoverEks?.account_id,
           region: resp.discoverEks?.region,
           app_auto_discover: resp.discoverEks?.app_auto_discover,
         },
         discoverRds: {
-          databases: resp.discoverRds?.instances,
+          databases: resp.discoverRds?.databases,
           account_id: resp.discoverRds?.account_id,
           region: resp.discoverRds?.region,
         },
@@ -545,6 +555,56 @@ export const integrationService = {
         };
       });
   },
+
+  awsRolesAnywherePing({
+    integrationName,
+    trustAnchorArn,
+    syncRoleArn,
+    syncProfileArn,
+  }: {
+    integrationName: string;
+    trustAnchorArn: string;
+    syncRoleArn: string;
+    syncProfileArn: string;
+  }): Promise<AwsRolesAnywherePingResponse> {
+    return api
+      .post(cfg.getAwsRolesAnywherePingUrl(integrationName), {
+        trustAnchorArn,
+        syncRoleArn,
+        syncProfileArn,
+      })
+      .then(json => {
+        return {
+          profileCount: json?.profileCount,
+          accountId: json?.accountID,
+          arn: json?.arn,
+          userId: json?.userId,
+        };
+      });
+  },
+
+  awsRolesAnywhereProfiles(
+    variables: {
+      integrationName: string;
+      filters?: ProfilesFilterOption[];
+    },
+    signal?: AbortSignal
+  ): Promise<ListRolesAnywhereProfilesResponse> {
+    const { integrationName, filters } = variables;
+    const path = cfg.getAwsRolesAnywhereProfilesUrl(integrationName);
+
+    return api
+      .post(
+        path,
+        {
+          filters: filters?.length > 0 ? filters.map(f => f.value) : ['*'],
+        },
+        signal
+      )
+      .then(data => ({
+        profiles: data?.profiles?.map(profile => makeProfile(profile)) ?? [],
+      }));
+  },
 };
 
 function makeDatabaseServices(json: any): AWSOIDCDeployedDatabaseService[] {
@@ -566,7 +626,7 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc, github } = json;
+  const { name, subKind, awsoidc, github, awsra } = json;
 
   const commonFields = {
     name,
@@ -590,6 +650,23 @@ function makeIntegration(json: any): Integration {
         issuerS3Bucket: awsoidc?.issuerS3Bucket,
         issuerS3Prefix: awsoidc?.issuerS3Prefix,
         audience: awsoidc?.audience,
+      },
+    };
+  }
+
+  if (subKind === IntegrationKind.AwsRa) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details: 'Sync AWS IAM Roles Anywhere Profiles with Teleport',
+      spec: {
+        trustAnchorARN: awsra?.trustAnchorARN,
+        profileSyncConfig: {
+          enabled: awsra.profileSyncConfig.enabled,
+          profileArn: awsra.profileSyncConfig.profileArn,
+          roleArn: awsra.profileSyncConfig.roleArn,
+          filters: awsra.profileSyncConfig.filters,
+        },
       },
     };
   }
@@ -667,5 +744,27 @@ function makeAwsSubnets(json: any): Subnet {
     name,
     id,
     availabilityZone: availability_zone,
+  };
+}
+
+function makeProfile(json: any): RolesAnywhereProfile {
+  json = json ?? {};
+
+  const { arn, enabled, name, acceptRoleSessionName, tags, roles } = json;
+
+  let arr: string[] = [];
+  if (tags != undefined) {
+    new Map(Object.entries(tags)).forEach((v, k) => {
+      arr.push(`${k}:${v}`);
+    });
+  }
+
+  return {
+    arn,
+    enabled,
+    name,
+    acceptRoleSessionName,
+    tags: arr,
+    roles,
   };
 }

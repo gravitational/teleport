@@ -83,18 +83,6 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"namespace": {
-					Computed:      true,
-					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Description: "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "",
@@ -117,6 +105,11 @@ func GenSchemaAutoUpdateConfig(ctx context.Context) (github_com_hashicorp_terraf
 						"schedules": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"regular": {
 								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+									"canary_count": {
+										Description: "canary_count is the number of canary agents that will be updated before the whole group is updated. when set to 0, the group does not enter the canary phase. This number is capped to 5. This number must always be lower than the total number of agents in the group, else the rollout will be stuck.",
+										Optional:    true,
+										Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+									},
 									"days": {
 										Description: "days when the update can run. Supported values are \"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\", \"Sun\" and \"*\"",
 										Optional:    true,
@@ -219,18 +212,6 @@ func GenSchemaAutoUpdateVersion(ctx context.Context) (github_com_hashicorp_terra
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"namespace": {
-					Computed:      true,
-					Description:   "namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Description: "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Computed:      true,
@@ -378,23 +359,6 @@ func CopyAutoUpdateConfigFromTerraform(_ context.Context, tf github_com_hashicor
 						}
 					}
 					{
-						a, ok := tf.Attrs["namespace"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AutoUpdateConfig.metadata.namespace"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AutoUpdateConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Namespace = t
-							}
-						}
-					}
-					{
 						a, ok := tf.Attrs["description"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AutoUpdateConfig.metadata.description"})
@@ -444,23 +408,6 @@ func CopyAutoUpdateConfigFromTerraform(_ context.Context, tf github_com_hashicor
 							diags.Append(attrReadMissingDiag{"AutoUpdateConfig.metadata.expires"})
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AutoUpdateConfig.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AutoUpdateConfig.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
 					}
 				}
 			}
@@ -683,6 +630,23 @@ func CopyAutoUpdateConfigFromTerraform(_ context.Context, tf github_com_hashicor
 																						}
 																					}
 																				}
+																				{
+																					a, ok := tf.Attrs["canary_count"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																						} else {
+																							var t int32
+																							if !v.Null && !v.Unknown {
+																								t = int32(v.Value)
+																							}
+																							obj.CanaryCount = t
+																						}
+																					}
+																				}
 																			}
 																			obj.Regular[k] = t
 																		}
@@ -829,28 +793,6 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 						}
 					}
 					{
-						t, ok := tf.AttrTypes["namespace"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.metadata.namespace"})
-						} else {
-							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AutoUpdateConfig.metadata.namespace", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Namespace) == ""
-							}
-							v.Value = string(obj.Namespace)
-							v.Unknown = false
-							tf.Attrs["namespace"] = v
-						}
-					}
-					{
 						t, ok := tf.AttrTypes["description"]
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.metadata.description"})
@@ -929,28 +871,6 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 						} else {
 							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AutoUpdateConfig.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -1308,6 +1228,28 @@ func CopyAutoUpdateConfigToTerraform(ctx context.Context, obj *github_com_gravit
 																					tf.Attrs["wait_hours"] = v
 																				}
 																			}
+																			{
+																				t, ok := tf.AttrTypes["canary_count"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count"})
+																				} else {
+																					v, ok := tf.Attrs["canary_count"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"AutoUpdateConfig.spec.agents.schedules.regular.canary_count", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																						}
+																						v.Null = int64(obj.CanaryCount) == 0
+																					}
+																					v.Value = int64(obj.CanaryCount)
+																					v.Unknown = false
+																					tf.Attrs["canary_count"] = v
+																				}
+																			}
 																		}
 																		v.Unknown = false
 																		c.Elems[k] = v
@@ -1428,23 +1370,6 @@ func CopyAutoUpdateVersionFromTerraform(_ context.Context, tf github_com_hashico
 						}
 					}
 					{
-						a, ok := tf.Attrs["namespace"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AutoUpdateVersion.metadata.namespace"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AutoUpdateVersion.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Namespace = t
-							}
-						}
-					}
-					{
 						a, ok := tf.Attrs["description"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AutoUpdateVersion.metadata.description"})
@@ -1494,23 +1419,6 @@ func CopyAutoUpdateVersionFromTerraform(_ context.Context, tf github_com_hashico
 							diags.Append(attrReadMissingDiag{"AutoUpdateVersion.metadata.expires"})
 						}
 						CopyFromTimestamp(diags, a, &obj.Expires)
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AutoUpdateVersion.metadata.revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AutoUpdateVersion.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
 					}
 				}
 			}
@@ -1781,28 +1689,6 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 						}
 					}
 					{
-						t, ok := tf.AttrTypes["namespace"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AutoUpdateVersion.metadata.namespace"})
-						} else {
-							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AutoUpdateVersion.metadata.namespace", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Namespace) == ""
-							}
-							v.Value = string(obj.Namespace)
-							v.Unknown = false
-							tf.Attrs["namespace"] = v
-						}
-					}
-					{
 						t, ok := tf.AttrTypes["description"]
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AutoUpdateVersion.metadata.description"})
@@ -1881,28 +1767,6 @@ func CopyAutoUpdateVersionToTerraform(ctx context.Context, obj *github_com_gravi
 						} else {
 							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AutoUpdateVersion.metadata.revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AutoUpdateVersion.metadata.revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AutoUpdateVersion.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Revision) == ""
-							}
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}

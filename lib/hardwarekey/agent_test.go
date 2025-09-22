@@ -34,9 +34,15 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 	ctx := context.Background()
 	agentDir := t.TempDir()
 
-	// Prepare the agent server
 	mockService := hardwarekey.NewMockHardwareKeyService(nil /*prompt*/)
-	server, err := libhwk.NewAgentServer(ctx, mockService, agentDir)
+
+	// treat all keys as unknown (agent) keys.
+	knownKeyFn := func(_ *hardwarekey.PrivateKeyRef, _ hardwarekey.ContextualKeyInfo) (bool, error) {
+		return false, nil
+	}
+
+	// Prepare the agent server
+	server, err := libhwk.NewAgentServer(ctx, mockService, agentDir, knownKeyFn)
 	require.NoError(t, err)
 	t.Cleanup(server.Stop)
 
@@ -46,7 +52,7 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 	}()
 
 	// Should fail to open a new server in the same directory.
-	_, err = libhwk.NewAgentServer(ctx, mockService, agentDir)
+	_, err = libhwk.NewAgentServer(ctx, mockService, agentDir, knownKeyFn)
 	require.Error(t, err)
 
 	// Existing server should be unaffected.
@@ -61,7 +67,7 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 		_, err := os.Stat(agentDir)
 		return errors.Is(err, os.ErrNotExist)
 	}, 5*time.Second, 100*time.Millisecond)
-	server, err = libhwk.NewAgentServer(ctx, mockService, agentDir)
+	server, err = libhwk.NewAgentServer(ctx, mockService, agentDir, knownKeyFn)
 	require.NoError(t, err)
 	t.Cleanup(server.Stop)
 
@@ -69,7 +75,7 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 	// Use a timeoutCtx so that the failed Ping request fails quickly.
 	timeoutCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
-	server, err = libhwk.NewAgentServer(timeoutCtx, mockService, agentDir)
+	server, err = libhwk.NewAgentServer(timeoutCtx, mockService, agentDir, knownKeyFn)
 	require.NoError(t, err)
 	t.Cleanup(server.Stop)
 }

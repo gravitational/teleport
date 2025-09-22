@@ -24,3 +24,8 @@ test('renders time since date', () => {
   render(<SyncStamp date={new Date()} />);
   expect(screen.getByText('Last Sync: 0 seconds ago')).toBeInTheDocument();
 });
+
+test('renders empty state text', () => {
+  render(<SyncStamp />);
+  expect(screen.getByText('Last Sync: N/A')).toBeInTheDocument();
+});

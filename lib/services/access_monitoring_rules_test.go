@@ -90,6 +90,40 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 			},
 			assertErr: require.NoError,
 		},
+		{
+			description: "invalid automatic_review decision",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.Spec.AutomaticReview.Decision = "invalid-decision"
+			},
+			assertErr: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, `accessMonitoringRule automatic_review decision "invalid-decision" is not supported`)
+			},
+		},
+		{
+			description: "invalid desired_state",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.Spec.DesiredState = "invalid-desired-state"
+			},
+			assertErr: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, `accessMonitoringRule desired_state "invalid-desired-state" is not supported`)
+			},
+		},
+		{
+			description: "invalid condition",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.Spec.Condition = "invalid-condition"
+			},
+			assertErr: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "accessMonitoringRule condition is invalid")
+			},
+		},
+		{
+			description: "allow desired_state to be empty",
+			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
+				amr.Spec.DesiredState = ""
+			},
+			assertErr: require.NoError,
+		},
 	}
 
 	validAMR := &accessmonitoringrulesv1.AccessMonitoringRule{
@@ -97,8 +131,9 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 		Metadata: &headerv1.Metadata{},
 		Version:  types.V1,
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
-			Subjects:  []string{types.KindAccessRequest},
-			Condition: "true",
+			Subjects:     []string{types.KindAccessRequest},
+			Condition:    "true",
+			DesiredState: types.AccessMonitoringRuleStateReviewed,
 			Notification: &accessmonitoringrulesv1.Notification{
 				Name: "fakePlugin",
 			},

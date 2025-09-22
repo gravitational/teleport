@@ -28,7 +28,12 @@ service AccessListService {
   // GetAccessLists returns a list of all access lists.
   rpc GetAccessLists(GetAccessListsRequest) returns (GetAccessListsResponse);
   // ListAccessLists returns a paginated list of all access lists.
-  rpc ListAccessLists(ListAccessListsRequest) returns (ListAccessListsResponse);
+  // Deprecated: Use ListAccessListsV2 instead.
+  rpc ListAccessLists(ListAccessListsRequest) returns (ListAccessListsResponse) {
+    option deprecated = true;
+  }
+  // ListAccessListsV2 returns a paginated, filtered, and sorted list of all access lists.
+  rpc ListAccessListsV2(ListAccessListsV2Request) returns (ListAccessListsV2Response);
   // GetAccessList returns the specified access list resource.
   rpc GetAccessList(GetAccessListRequest) returns (AccessList);
   // UpsertAccessList creates or updates an access list resource.
@@ -53,16 +58,28 @@ service AccessListService {
   rpc ListAllAccessListMembers(ListAllAccessListMembersRequest) returns (ListAllAccessListMembersResponse);
   // GetAccessListMember returns the specified access list member resource.
   rpc GetAccessListMember(GetAccessListMemberRequest) returns (Member);
+  // GetStaticAccessListMember returns the specified access_list_member resource. If returns error
+  // if the target access_list is not of type static.  This API is there for the IaC tools to
+  // prevent them from making changes to members of dynamic access lists.
+  rpc GetStaticAccessListMember(GetStaticAccessListMemberRequest) returns (GetStaticAccessListMemberResponse);
   // GetAccessListOwners returns a list of all owners in an Access List,
   // including those inherited from nested Access Lists.
   rpc GetAccessListOwners(GetAccessListOwnersRequest) returns (GetAccessListOwnersResponse);
   // UpsertAccessListMember creates or updates an access list member resource.
   rpc UpsertAccessListMember(UpsertAccessListMemberRequest) returns (Member);
+  // UpsertStaticAccessListMember creates or updates an access_list_member resource. It returns
+  // error and does nothing if the target access_list is not of type static. This API is there for
+  // the IaC tools to prevent them from making changes to members of dynamic access lists.
+  rpc UpsertStaticAccessListMember(UpsertStaticAccessListMemberRequest) returns (UpsertStaticAccessListMemberResponse);
   // UpdateAccessListMember conditionally updates an access list member resource.
   rpc UpdateAccessListMember(UpdateAccessListMemberRequest) returns (Member);
   // DeleteAccessListMember hard deletes the specified access list member
   // resource.
   rpc DeleteAccessListMember(DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
+  // DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error
+  // and does nothing if the target access_list is not of static type. This API is there for the
+  // IaC tools to prevent them from making changes to members of dynamic access lists.
+  rpc DeleteStaticAccessListMember(DeleteStaticAccessListMemberRequest) returns (DeleteStaticAccessListMemberResponse);
   // DeleteAllAccessListMembers hard deletes all access list members for an
   // access list.
   rpc DeleteAllAccessListMembersForAccessList(DeleteAllAccessListMembersForAccessListRequest) returns (google.protobuf.Empty);
@@ -110,7 +127,6 @@ message GetAccessListsResponse {
 message ListAccessListsRequest {
   // page_size is the size of the page to request.
   int32 page_size = 1;
-
   // next_token is the page token.
   string next_token = 2;
 }
@@ -121,6 +137,38 @@ message ListAccessListsResponse {
   repeated AccessList access_lists = 1;
   // next_token is the next page token.
   string next_token = 2;
+}
+
+// ListAccessListsV2Request is the request for getting filtered and sorted paginated access lists.
+message ListAccessListsV2Request {
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+  // page_token is the token to begin the next page with.
+  string page_token = 2;
+  // sort_by specifies the sort order for the results.
+  types.SortBy sort_by = 3;
+  // filter is a collection of fields to filter access lists.
+  AccessListsFilter filter = 4;
+}
+
+// AccessListsFilter is used to collect filter options for listing access lists.
+message AccessListsFilter {
+  // search is a search term to filter access lists by name.
+  string search = 1;
+  // owners indicates returned access lists should be owned by one of the provider owners
+  repeated string owners = 2;
+  // roles indicates returned access lists should great one of the provider roles
+  repeated string roles = 3;
+  // origin is origin of the resource
+  string origin = 4;
+}
+
+// ListAccessListsV2Response is the response for getting paginated access lists.
+message ListAccessListsV2Response {
+  // access_lists is the list of access lists.
+  repeated AccessList access_lists = 1;
+  // next_page_token is the next page token.
+  string next_page_token = 2;
 }
 
 // GetInheritedGrantsRequest is the request for getting inherited grants.
@@ -247,14 +295,28 @@ message UpsertAccessListWithMembersResponse {
   repeated Member members = 2;
 }
 
-// GetAccessListMemberRequest is the request for retrieving an access list
-// member.
+// GetAccessListMemberRequest is the request for retrieving an access_list_member.
 message GetAccessListMemberRequest {
   // access_list is the name of the access list that the member belongs to.
   string access_list = 1;
-
   // member_name is the name of the user that belongs to the access list.
   string member_name = 2;
+}
+
+// GetStaticAccessListMemberRequest is the request for retrieving an access_list_member of a static
+// type access_list.
+message GetStaticAccessListMemberRequest {
+  // access_list is the name of the access_list that the member belongs to.
+  string access_list = 1;
+  // member_name is the name of the user that belongs to the access_list.
+  string member_name = 2;
+}
+
+// GetStaticAccessListMemberResponse is the response containing the access_list_member of the
+// target access_list of static type.
+message GetStaticAccessListMemberResponse {
+  // member of the target static access_list.
+  Member member = 1;
 }
 
 // GetAccessListOwnersRequest is the request for getting a list of all owners
@@ -282,6 +344,20 @@ message UpsertAccessListMemberRequest {
   Member member = 4;
 }
 
+// UpsertStaticAccessListMemberRequest is the request for upserting an access_list_member to an
+// access_list of type static.
+message UpsertStaticAccessListMemberRequest {
+  // member is the access_list_member to upsert.
+  Member member = 1;
+}
+
+// UpsertStaticAccessListMemberResponse is the response of upserting an access_list_member to an
+// static_access of type static.
+message UpsertStaticAccessListMemberResponse {
+  // member is the upserted access_list_member.
+  Member member = 1;
+}
+
 // UpdateAccessListMemberRequest is the request for updating an access list
 // member.
 message UpdateAccessListMemberRequest {
@@ -300,6 +376,19 @@ message DeleteAccessListMemberRequest {
   // member_name is the name of the user to delete.
   string member_name = 3;
 }
+
+// DeleteStaticAccessListMemberRequest is the request for deleting an access_list_member from an
+// access_list of type static.
+message DeleteStaticAccessListMemberRequest {
+  // access_list is the name of access list.
+  string access_list = 1;
+  // member_name is the name of the user to delete.
+  string member_name = 2;
+}
+
+// DeleteStaticAccessListMemberResponse is the response of deleting an access_list_member from an
+// access_list of type static.
+message DeleteStaticAccessListMemberResponse {}
 
 // DeleteAllAccessListMembersForAccessListRequest is the request for deleting
 // all members from an access list.

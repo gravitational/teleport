@@ -51,7 +51,8 @@ func (p *playFromFileStreamer) StreamSessionEvents(
 		}
 		defer f.Close()
 
-		pr := events.NewProtoReader(f)
+		pr := events.NewProtoReader(f, nil)
+
 		for i := int64(0); ; i++ {
 			evt, err := pr.Read(ctx)
 			if err != nil {

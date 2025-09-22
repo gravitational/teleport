@@ -111,7 +111,7 @@ func TestHandler_getToken(t *testing.T) {
 					}),
 				}
 			},
-			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
@@ -125,7 +125,7 @@ func TestHandler_getToken(t *testing.T) {
 					},
 				}),
 			}),
-			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "bad param foo")
 				require.True(t, trace.IsBadParameter(err))
 			},

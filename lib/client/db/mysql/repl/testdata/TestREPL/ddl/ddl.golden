@@ -1,0 +1,221 @@
+Teleport MySQL interactive shell (v19.0.0-dev)
+Connected to instance "mysql-test-container" as user "root".
+Type 'help' or '\h' for help.
+
+(none)> -- temporarily disable note warnings for test consistency
+(none)> set session sql_notes = 0;
+
+0 warnings, 0 rows affected
+
+(none)> DROP DATABASE IF EXISTS test_ddl_db;
+
+0 warnings, 0 rows affected
+
+(none)> CREATE DATABASE test_ddl_db;
+
+0 warnings, 1 rows affected
+
+(none)> set session sql_notes = 1;
+
+0 warnings, 0 rows affected
+
+(none)> -- this should produce a note level warning because it does exist
+(none)> CREATE DATABASE if not exists test_ddl_db;
+
+1 warnings, 1 rows affected
+
+(none)> -- we clear the warning by selecting the warning count
+(none)> select @@warning_count;
+
+@@warning_count 
+--------------- 
+1               
+
+1 row in set
+
+(none)> USE test_ddl_db;
+
+Default database changed to "test_ddl_db"
+
+test_ddl_db> 
+test_ddl_db> CREATE TABLE test_table (
+          ->   id INT PRIMARY KEY AUTO_INCREMENT,
+          ->   value VARCHAR(50) NOT NULL,
+          ->   note VARCHAR(100) DEFAULT NULL
+          -> ) ENGINE=InnoDB;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> 
+test_ddl_db> CREATE VIEW test_view AS (
+          ->     SELECT id, value
+          ->     FROM test_table
+          -> );
+
+0 warnings, 0 rows affected
+
+test_ddl_db> 
+test_ddl_db> DELIMITER $$
+test_ddl_db> CREATE FUNCTION test_func(x INT) RETURNS INT DETERMINISTIC
+          -> BEGIN
+          ->   RETURN x * 2;
+          -> END $$
+
+0 warnings, 0 rows affected
+
+test_ddl_db> DELIMITER ;
+test_ddl_db> 
+test_ddl_db> DELIMITER $$
+test_ddl_db> CREATE PROCEDURE test_proc()
+          -> BEGIN
+          ->   INSERT INTO test_table(value) VALUES ('from proc');
+          -> END $$
+
+0 warnings, 0 rows affected
+
+test_ddl_db> DELIMITER ;
+test_ddl_db> 
+test_ddl_db> CALL test_proc();
+
+0 warnings, 1 rows affected
+
+test_ddl_db> 
+test_ddl_db> DELIMITER $$
+test_ddl_db> CREATE TRIGGER test_trigger_before_insert
+          -> BEFORE INSERT ON test_table
+          -> FOR EACH ROW
+          -> BEGIN
+          ->   SET NEW.value = UPPER(NEW.value);
+          -> END $$
+
+0 warnings, 0 rows affected
+
+test_ddl_db> DELIMITER ;
+test_ddl_db> 
+test_ddl_db> CALL test_proc();
+
+0 warnings, 1 rows affected
+
+test_ddl_db> 
+test_ddl_db> CREATE EVENT test_event
+          ->   ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR
+          ->   DO INSERT INTO test_table(value) VALUES ('from event');
+
+0 warnings, 0 rows affected
+
+test_ddl_db> 
+test_ddl_db> set session sql_notes = 0;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> -- roles are not database scoped, let's disable note warnings in ca
+se some other
+test_ddl_db> -- test has already created the role or user.
+test_ddl_db> CREATE ROLE IF NOT EXISTS test_role;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> DROP ROLE test_role;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> 
+test_ddl_db> CREATE USER IF NOT EXISTS test_user@'localhost'
+          ->   IDENTIFIED BY 'some password'
+          ->   ACCOUNT LOCK;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> ALTER USER test_user@'localhost' PASSWORD EXPIRE;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> DROP USER test_user@'localhost';
+
+0 warnings, 0 rows affected
+
+test_ddl_db> set session sql_notes = 1;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> 
+test_ddl_db> ALTER DATABASE test_ddl_db CHARACTER SET utf8mb4;
+
+0 warnings, 1 rows affected
+
+test_ddl_db> ALTER TABLE test_table ADD COLUMN note2 VARCHAR(100) DEFAULT NULL;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> ALTER EVENT test_event DISABLE;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> ALTER FUNCTION test_func COMMENT 'Test function';
+
+0 warnings, 0 rows affected
+
+test_ddl_db> ALTER PROCEDURE test_proc COMMENT 'Test procedure';
+
+0 warnings, 0 rows affected
+
+test_ddl_db> 
+test_ddl_db> RENAME TABLE test_table
+          ->        TO test_table_renamed;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> SELECT * from test_table_renamed;
+
+id   value       note note2 
+--   ----------- ---- ----- 
+1    'from proc' NULL NULL  
+2    'FROM PROC' NULL NULL  
+
+2 rows in set
+
+test_ddl_db> 
+test_ddl_db> RENAME
+          ->   TABLE test_table_renamed
+          ->   TO test_table;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> 
+test_ddl_db> SELECT * from test_table;
+
+id   value       note note2 
+--   ----------- ---- ----- 
+1    'from proc' NULL NULL  
+2    'FROM PROC' NULL NULL  
+
+2 rows in set
+
+test_ddl_db> 
+test_ddl_db> -- there is no "test_server", this should make an error.
+test_ddl_db> ALTER SERVER test_server OPTIONS (HOST '127.0.0.1');
+
+ERR ERROR 1477 (HY000): The foreign server name you are trying to reference does not exist. Data source error:  test_server
+
+test_ddl_db> 
+test_ddl_db> DROP TRIGGER test_trigger_before_insert;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> 
+test_ddl_db> TRUNCATE TABLE test_table    ;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> DROP TABLE test_table;
+
+0 warnings, 0 rows affected
+
+test_ddl_db> 
+test_ddl_db> DROP DATABASE test_ddl_db
+          -> ;
+
+0 warnings, 1 rows affected
+
+test_ddl_db> 
+test_ddl_db> 

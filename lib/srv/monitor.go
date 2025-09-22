@@ -60,11 +60,16 @@ type TrackingConn interface {
 	Close() error
 }
 
+type ConnectionMonitorAccessPoint interface {
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+}
+
 // ConnectionMonitorConfig contains dependencies required by
 // the ConnectionMonitor.
 type ConnectionMonitorConfig struct {
 	// AccessPoint is used to retrieve cluster configuration.
-	AccessPoint AccessPoint
+	AccessPoint ConnectionMonitorAccessPoint
 	// LockWatcher ensures lock information is up to date.
 	LockWatcher *services.LockWatcher
 	// Clock is a clock, realtime or fixed in tests.
@@ -189,6 +194,7 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 		Clock:                 c.cfg.Clock,
 		ServerID:              c.cfg.ServerID,
 		TeleportUser:          identity.Username,
+		UserOriginClusterName: identity.OriginClusterName,
 		Emitter:               c.cfg.Emitter,
 		EmitterContext:        c.cfg.EmitterContext,
 		Logger:                c.cfg.Logger,
@@ -228,6 +234,8 @@ type MonitorConfig struct {
 	Login string
 	// TeleportUser is a teleport user name
 	TeleportUser string
+	// UserOriginClusterName is the Teleport Cluster name the user belongs to.
+	UserOriginClusterName string
 	// ServerID is a session server ID
 	ServerID string
 	// Emitter is events emitter
@@ -288,15 +296,19 @@ func StartMonitor(cfg MonitorConfig) error {
 	w := &Monitor{
 		MonitorConfig: cfg,
 	}
-	// If an applicable lock is already in force, close the connection immediately.
-	if lockErr := w.LockWatcher.CheckLockInForce(w.LockingMode, w.LockTargets...); lockErr != nil {
-		w.handleLockInForce(lockErr)
-		return nil
-	}
+	// If an applicable lock is already in force, close the connection immediately. The subscription is
+	// created first to prevent any races with CheckLockInForce and new locks being created.
 	lockWatch, err := w.LockWatcher.Subscribe(w.Context, w.LockTargets...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if lockErr := w.LockWatcher.CheckLockInForce(w.LockingMode, w.LockTargets...); lockErr != nil {
+		w.handleLockInForce(lockErr)
+		_ = lockWatch.Close()
+		return nil
+	}
+
 	go func() {
 		w.start(lockWatch)
 		if w.MonitorCloseChannel != nil {
@@ -461,8 +473,9 @@ func (w *Monitor) emitDisconnectEvent(reason string) error {
 			Code: events.ClientDisconnectCode,
 		},
 		UserMetadata: apievents.UserMetadata{
-			Login: w.Login,
-			User:  w.TeleportUser,
+			Login:           w.Login,
+			User:            w.TeleportUser,
+			UserClusterName: w.UserOriginClusterName,
 		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  w.Conn.LocalAddr().String(),

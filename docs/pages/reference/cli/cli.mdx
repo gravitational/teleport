@@ -2,11 +2,15 @@
 title: Command-Line Tools
 h1: CLI References
 description: Detailed guide and reference documentation for Teleport's command line interface (CLI) tools.
+tags:
+ - reference
+ - platform-wide
 ---
 
-Teleport is made up of five CLI tools.
+Teleport is made up of six CLI tools.
 
 - [teleport](teleport.mdx): Supports the Teleport Infrastructure Identity Platform by starting and configuring various Teleport services.
+- [teleport-update](teleport-update.mdx): Installs and updates Teleport binaries.
 - [tsh](tsh.mdx): Allows end users to authenticate to Teleport and access resources in a cluster.
 - [tctl](tctl.mdx): Used to configure the Teleport Auth Service.
 - [tbot](tbot.mdx): Supports Machine ID, which provides short lived credentials to service accounts (e.g, a CI/CD server).
@@ -54,7 +58,7 @@ desktops, and Kubernetes clusters using the `--search` and `--query` flags.
 
 The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
 
-The `--query` flag allows you to perform more sophisticated searches using a [predicate language](../predicate-language.mdx).
+The `--query` flag allows you to perform more sophisticated searches using a [predicate language](../access-controls/predicate-language.mdx).
 
 In both cases, you can further refine the results by appending a list of comma-separated labels to the command. For example:
 
@@ -78,4 +82,3 @@ $ tsh ls --search=staging,mac
 # with key `env` equal to `staging` and key `os` equal to `mac`.
 $ tsh ls --query='labels["env"] == "staging" && equals(labels["os"], "mac")'
 ```
-

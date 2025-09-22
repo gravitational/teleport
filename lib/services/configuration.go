@@ -26,6 +26,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // ClusterNameGetter is a service that gets the cluster name from the backend.
@@ -41,7 +42,7 @@ type ClusterConfiguration interface {
 	ClusterNameGetter
 
 	// GetStaticTokens gets services.StaticTokens from the backend.
-	GetStaticTokens() (types.StaticTokens, error)
+	GetStaticTokens(context.Context) (types.StaticTokens, error)
 	// SetStaticTokens sets services.StaticTokens on the backend.
 	SetStaticTokens(types.StaticTokens) error
 	// DeleteStaticTokens deletes static tokens resource
@@ -157,6 +158,9 @@ type ClusterConfigurationInternal interface {
 func ValidateAuthPreference(ap types.AuthPreference) error {
 	// TODO(espadolini): the checks that are duplicated in
 	// {Set,Create,Update,Upsert}AuthPreference should be moved here
+	if err := modules.ValidateResource(ap); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if err := ValidateStableUNIXUserConfig(ap.GetStableUNIXUserConfig()); err != nil {
 		return trace.Wrap(err)

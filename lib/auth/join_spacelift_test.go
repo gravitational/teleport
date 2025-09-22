@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -28,8 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/spacelift"
 )
 
@@ -67,8 +70,8 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			},
 		},
 	}
-	var withTokenValidator ServerOption = func(server *Server) error {
-		server.spaceliftIDTokenValidator = idTokenValidator
+	var withTokenValidator auth.ServerOption = func(server *auth.Server) error {
+		server.SetSpaceliftIDTokenValidator(idTokenValidator)
 		return nil
 	}
 	ctx := context.Background()
@@ -79,7 +82,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 	// helper for creating RegisterUsingTokenRequest
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 	newRequest := func(idToken string) *types.RegisterUsingTokenRequest {
 		return &types.RegisterUsingTokenRequest{
@@ -104,7 +107,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -132,6 +135,65 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			name:          "success with glob",
+			setEnterprise: true,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodSpacelift,
+				Roles:      []types.SystemRole{types.RoleNode},
+				Spacelift: &types.ProvisionTokenSpecV2Spacelift{
+					Hostname:           "example.app.spacelift.io",
+					EnableGlobMatching: true,
+					Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2Spacelift_Rule) {
+							rule.SpaceID = "ro??"
+							rule.CallerID = "machineid-spacelift-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: require.NoError,
+		},
+		{
+			name:          "fail with glob",
+			setEnterprise: true,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodSpacelift,
+				Roles:      []types.SystemRole{types.RoleNode},
+				Spacelift: &types.ProvisionTokenSpecV2Spacelift{
+					Hostname:           "example.app.spacelift.io",
+					EnableGlobMatching: true,
+					Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2Spacelift_Rule) {
+							rule.CallerID = "wahoo-spacelift-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
+			name:          "fail with disabled glob",
+			setEnterprise: true,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodSpacelift,
+				Roles:      []types.SystemRole{types.RoleNode},
+				Spacelift: &types.ProvisionTokenSpecV2Spacelift{
+					Hostname:           "example.app.spacelift.io",
+					EnableGlobMatching: false,
+					Allow: []*types.ProvisionTokenSpecV2Spacelift_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2Spacelift_Rule) {
+							rule.SpaceID = "ro??"
+							rule.CallerID = "machineid-spacelift-*"
+						}),
+					},
+				},
+			},
+			request:     newRequest(validIDToken),
+			assertError: allowRulesNotMatched,
+		},
+		{
 			name:          "missing enterprise",
 			setEnterprise: false,
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -145,7 +207,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 				},
 			},
 			request: newRequest(validIDToken),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "requires Teleport Enterprise")
 			},
 		},
@@ -254,7 +316,7 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 				},
 			},
 			request: newRequest("some other token"),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
+			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorIs(t, err, errMockInvalidToken)
 			},
 		},
@@ -262,9 +324,9 @@ func TestAuth_RegisterUsingToken_Spacelift(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.setEnterprise {
-				modules.SetTestModules(
+				modulestest.SetTestModules(
 					t,
-					&modules.TestModules{TestBuildType: modules.BuildEnterprise},
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
 				)
 			}
 

@@ -121,7 +121,7 @@ func (c *gitConfigCommand) doUpdate(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, url := range strings.Split(urls, "\n") {
+	for url := range strings.SplitSeq(urls, "\n") {
 		u, err := parseGitSSHURL(url)
 		if err != nil {
 			logger.DebugContext(cf.Context, "Skipping URL", "error", err, "url", url)

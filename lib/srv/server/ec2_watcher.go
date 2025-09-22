@@ -67,6 +67,10 @@ type EC2Instances struct {
 	// Integration is the integration used to fetch the Instance and should be used to access it.
 	// Might be empty for instances that didn't use an Integration.
 	Integration string
+	// AssumeRoleARN is the ARN of the role to assume while installing.
+	AssumeRoleARN string
+	// ExternalID is the external ID to use when assuming a role.
+	ExternalID string
 
 	// DiscoveryConfigName is the DiscoveryConfig name which originated this Run Request.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
@@ -195,13 +199,25 @@ type EC2ClientGetter func(ctx context.Context, region string, opts ...awsconfig.
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
 func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, getEC2Client EC2ClientGetter, discoveryConfigName string) ([]Fetcher, error) {
+	return matchersToEC2InstanceFetchers(ctx, matchers, func(ctx context.Context, region string, assumeRole *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+		if assumeRole != nil {
+			opts = append(opts, awsconfig.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+		}
+		return getEC2Client(ctx, region, opts...)
+	}, discoveryConfigName)
+}
+
+// innerEC2ClientGetter is an EC2 client getter that exposes assumeRole for tests.
+type innerEC2ClientGetter func(ctx context.Context, region string, assumeRole *types.AssumeRole, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
+
+func matchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, getEC2Client innerEC2ClientGetter, discoveryConfigName string) ([]Fetcher, error) {
 	ret := []Fetcher{}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
-			// TODO(gavin): support assume_role_arn for ec2.
-			ec2Client, err := getEC2Client(ctx, region,
-				awsconfig.WithCredentialsMaybeIntegration(matcher.Integration),
-			)
+			opts := []awsconfig.OptionsFn{
+				awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: matcher.Integration}),
+			}
+			ec2Client, err := getEC2Client(ctx, region, matcher.AssumeRole, opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -242,6 +258,8 @@ type ec2InstanceFetcher struct {
 	Integration         string
 	DiscoveryConfigName string
 	EnrollMode          types.InstallParamEnrollMode
+	AssumeRoleARN       string
+	ExternalID          string
 
 	// cachedInstances keeps all of the ec2 instances that were matched
 	// in the last run of GetInstances for use as a cache with
@@ -326,7 +344,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		}
 	}
 
-	fetcherConfig := ec2InstanceFetcher{
+	fetcher := ec2InstanceFetcher{
 		EC2:                 cfg.EC2Client,
 		Filters:             tagFilters,
 		Region:              cfg.Region,
@@ -339,7 +357,11 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 			instances: map[cachedInstanceKey]struct{}{},
 		},
 	}
-	return &fetcherConfig
+	if ar := cfg.Matcher.AssumeRole; ar != nil {
+		fetcher.AssumeRoleARN = ar.RoleARN
+		fetcher.ExternalID = ar.ExternalID
+	}
+	return &fetcher
 }
 
 // GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
@@ -393,10 +415,7 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(nodes []types.Server, rotation
 func chunkInstances(insts EC2Instances) []Instances {
 	var instColl []Instances
 	for i := 0; i < len(insts.Instances); i += awsEC2APIChunkSize {
-		end := i + awsEC2APIChunkSize
-		if end > len(insts.Instances) {
-			end = len(insts.Instances)
-		}
+		end := min(i+awsEC2APIChunkSize, len(insts.Instances))
 		inst := EC2Instances{
 			AccountID:           insts.AccountID,
 			Region:              insts.Region,
@@ -428,10 +447,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 
 		for _, res := range page.Reservations {
 			for i := 0; i < len(res.Instances); i += awsEC2APIChunkSize {
-				end := i + awsEC2APIChunkSize
-				if end > len(res.Instances) {
-					end = len(res.Instances)
-				}
+				end := min(i+awsEC2APIChunkSize, len(res.Instances))
 				ownerID := aws.ToString(res.OwnerId)
 				inst := EC2Instances{
 					AccountID:           ownerID,
@@ -441,6 +457,8 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					Parameters:          f.Parameters,
 					Rotation:            rotation,
 					Integration:         f.Integration,
+					AssumeRoleARN:       f.AssumeRoleARN,
+					ExternalID:          f.ExternalID,
 					DiscoveryConfigName: f.DiscoveryConfigName,
 					EnrollMode:          f.EnrollMode,
 				}

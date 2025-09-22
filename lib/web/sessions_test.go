@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -44,9 +45,9 @@ func TestRemoteClientCache(t *testing.T) {
 	var openCount atomic.Int32
 	cache := remoteClientCache{}
 
-	sa1 := newMockRemoteSite("a")
-	sa2 := newMockRemoteSite("a")
-	sb := newMockRemoteSite("b")
+	sa1 := newMockCluster("a")
+	sa2 := newMockCluster("a")
+	sb := newMockCluster("b")
 
 	err1 := errors.New("c1")
 	err2 := errors.New("c2")
@@ -67,16 +68,16 @@ func TestRemoteClientCache(t *testing.T) {
 	require.Zero(t, openCount.Load())
 }
 
-func newMockRemoteSite(name string) reversetunnelclient.RemoteSite {
-	return &mockRemoteSite{name: name}
+func newMockCluster(name string) reversetunnelclient.Cluster {
+	return &mockCluster{name: name}
 }
 
-type mockRemoteSite struct {
-	reversetunnelclient.RemoteSite
+type mockCluster struct {
+	reversetunnelclient.Cluster
 	name string
 }
 
-func (m *mockRemoteSite) GetName() string {
+func (m *mockCluster) GetName() string {
 	return m.name
 }
 
@@ -108,14 +109,14 @@ func TestGetUserClient(t *testing.T) {
 	sctx := SessionContext{
 		cfg: SessionContextConfig{
 			RootClusterName: "local",
-			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
+			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
 				return newMockClientI(&openCount, nil), nil
 			},
 		},
 	}
 
-	localSite := &mockRemoteSite{name: "local"}
-	remoteSite := &mockRemoteSite{name: "remote"}
+	localSite := &mockCluster{name: "local"}
+	remoteSite := &mockCluster{name: "remote"}
 
 	// getting a client for the local site should return
 	// the RootClient from SessionContextConfig
@@ -165,7 +166,7 @@ func TestGetUserClient(t *testing.T) {
 
 	timeout := time.After(10 * time.Second)
 	clients := make([]authclient.ClientI, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		select {
 		case res := <-resultCh:
 			require.NoError(t, res.err)
@@ -179,7 +180,7 @@ func TestGetUserClient(t *testing.T) {
 	// ensure that only one client was created and that
 	// both clients returned are functional
 	require.Equal(t, int32(1), openCount.Load())
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		domain, err := clients[i].GetDomainName(ctx)
 		require.NoError(t, err)
 		require.Equal(t, "test", domain)
@@ -190,7 +191,7 @@ func TestSessionCache_watcher(t *testing.T) {
 	// Can't t.Parallel because of modules.SetTestModules.
 
 	// Requires Enterprise to work.
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 	})
 
@@ -200,8 +201,7 @@ func TestSessionCache_watcher(t *testing.T) {
 	clock := webSuite.clock
 
 	// cancel is used to make sure the sessionCache stops cleanly.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	processedC := make(chan struct{})
 	sessionCache, err := newSessionCache(ctx, sessionCacheOptions{

@@ -56,7 +56,9 @@ export enum MessageType {
   SHARED_DIRECTORY_TRUNCATE_REQUEST = 33,
   SHARED_DIRECTORY_TRUNCATE_RESPONSE = 34,
   LATENCY_STATS = 35,
-  X11_FRAME = 37,
+  // MessageType 36 is a server-side only Ping message
+  CLIENT_KEYBOARD_LAYOUT = 37,
+  X11_FRAME = 38,
   __LAST, // utility value
 }
 
@@ -477,6 +479,20 @@ export default class Codec {
     return this._encodeStringMessage(MessageType.CLIENT_USERNAME, username);
   }
 
+  // encodeClientKeyboardLayout encodes a keyboard layout to use on the remote desktop.
+  // | messsage type (37) | length uint32 | keyboard_layout uint32 |
+  encodeClientKeyboardLayout(keyboardLayout: number): Message {
+    const buffer = new ArrayBuffer(BYTE_LEN + UINT_32_LEN + UINT_32_LEN);
+    const view = new DataView(buffer);
+    let offset = 0;
+    view.setUint8(offset, MessageType.CLIENT_KEYBOARD_LAYOUT);
+    offset += BYTE_LEN;
+    view.setUint32(offset, 4); // length of uint32 keyboard layout
+    offset += UINT_32_LEN;
+    view.setUint32(offset, keyboardLayout);
+    return buffer;
+  }
+
   // encodeMouseWheelScroll encodes a mouse wheel scroll event.
   // on vertical axis, positive delta is up, negative delta is down
   // on horizontal axis, positive delta is left, negative delta is right
@@ -732,7 +748,7 @@ export default class Codec {
   }
 
   // | message type (30) | data_length uint32 | data []byte |
-  encodeRdpResponsePDU(responseFrame: ArrayBufferLike): Message {
+  encodeRdpResponsePdu(responseFrame: ArrayBufferLike): Message {
     const bufLen = BYTE_LEN + UINT_32_LEN + responseFrame.byteLength;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
@@ -891,7 +907,7 @@ export default class Codec {
   }
 
   // | message type (29) | data_length uint32 | data []byte |
-  decodeRdpFastPathPDU(buffer: ArrayBufferLike): RdpFastPathPdu {
+  decodeRdpFastPathPdu(buffer: ArrayBufferLike): RdpFastPathPdu {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type

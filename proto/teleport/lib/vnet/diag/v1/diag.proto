@@ -107,6 +107,8 @@ message CheckReport {
     // route_conflict reports whether there are routes that might conflict with routes set up by
     // VNet.
     RouteConflictReport route_conflict_report = 2;
+    // ssh_configuration_report reports the status of the system's SSH configuration.
+    SSHConfigurationReport ssh_configuration_report = 3;
   }
 }
 
@@ -157,4 +159,23 @@ message RouteConflict {
   // the output of `ifconfig -v <interface name>`. Not all VPN applications use this framework, so
   // it's likely to be empty.
   string interface_app = 4;
+}
+
+// SSHConfigurationReport describes the state of the system's SSH configuration.
+message SSHConfigurationReport {
+  // user_openssh_config_path is the full path to the user's default OpenSSH
+  // config file (~/.ssh/config).
+  string user_openssh_config_path = 1;
+  // vnet_ssh_config_path is the path to VNet's generated OpenSSH-compatible
+  // config file.
+  string vnet_ssh_config_path = 2;
+  // user_openssh_config_includes_vnet_ssh_config is true if the default
+  // OpenSSH user configuration file includes VNet's SSH config file.
+  bool user_openssh_config_includes_vnet_ssh_config = 3;
+  // user_openssh_config_exists is true if a file exists at
+  // user_openssh_config_path (~/.ssh/config).
+  bool user_openssh_config_exists = 4;
+  // user_openssh_config_contents contains the contents of the file at
+  // user_openssh_config_path if it exists.
+  string user_openssh_config_contents = 5;
 }

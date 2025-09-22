@@ -1,6 +1,11 @@
 ---
 title: Database Access with Self-Hosted PostgreSQL
+sidebar_label: PostgreSQL
 description: How to configure Teleport database access with self-hosted PostgreSQL.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 (!docs/pages/includes/database-access/self-hosted-introduction.mdx dbType="PostgreSQL"!)
@@ -142,7 +147,7 @@ To retrieve credentials for a database and connect to it:
 $ tsh db connect --db-user=postgres --db-name=postgres example-postgres
 ```
 
-(!docs/pages/includes/database-access/pg-access-webui.mdx!)
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
 
 To log out of the database and remove credentials:
 

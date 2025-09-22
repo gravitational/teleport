@@ -152,7 +152,7 @@ describe('location state', () => {
     // we assert three databases for servers because the naming convention includes "server"
     expect(
       screen.queryAllByTestId(getGuideTileId({ kind: ResourceKind.Database }))
-    ).toHaveLength(4);
+    ).toHaveLength(5);
 
     expect(
       screen.queryByTestId(getGuideTileId({ kind: ResourceKind.Desktop }))

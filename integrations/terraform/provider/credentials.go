@@ -34,7 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
-	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 var supportedCredentialSources = CredentialSources{
@@ -488,12 +489,13 @@ func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config pr
 	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
 	caPath := stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
 	gitlabIDTokenEnvVar := stringFromConfigOrEnv(config.GitlabIDTokenEnvVar, constants.EnvVarGitlabIDTokenEnvVar, "")
+	insecure := boolFromConfigOrEnv(config.Insecure, constants.EnvVarTerraformInsecure)
 
 	if joinMethod == "" {
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
 	}
 	if joinToken == "" {
-		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinToken, constants.EnvVarTerraformJoinToken)
 	}
 	if addr == "" {
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformAddress, constants.EnvVarTerraformAddress)
@@ -515,21 +517,22 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 	}
 	botConfig := &embeddedtbot.BotConfig{
 		AuthServer: addr,
-		Onboarding: tbotconfig.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			TokenValue: joinToken,
 			CAPath:     caPath,
 			JoinMethod: apitypes.JoinMethod(joinMethod),
-			Terraform: tbotconfig.TerraformOnboardingConfig{
+			Terraform: onboarding.TerraformOnboardingConfig{
 				AudienceTag: audienceTag,
 			},
-			Gitlab: tbotconfig.GitlabOnboardingConfig{
+			Gitlab: onboarding.GitlabOnboardingConfig{
 				TokenEnvVarName: gitlabIDTokenEnvVar,
 			},
 		},
-		CredentialLifetime: tbotconfig.CredentialLifetime{
+		CredentialLifetime: bot.CredentialLifetime{
 			TTL:             time.Hour,
 			RenewalInterval: 20 * time.Minute,
 		},
+		Insecure: insecure,
 	}
 	// slog default logger has been configured during the provider init.
 	bot, err := embeddedtbot.New(botConfig, slog.Default())

@@ -80,7 +80,7 @@ const SampleMenu = ({
   loginItems: LoginItem[];
   open?: boolean;
 }) => {
-  const menuRef = useRef<MenuLoginHandle>();
+  const menuRef = useRef<MenuLoginHandle>(undefined);
 
   useEffect(() => {
     if (open) {

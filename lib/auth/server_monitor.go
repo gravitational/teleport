@@ -94,9 +94,9 @@ func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 					)
 					if counter < systemClockMessagesLimit {
 						messages = append(messages, fmt.Sprintf(
-							"%s[%s] is %s",
+							"%v[%v] is %v",
 							hello.GetServerID(),
-							types.SystemRoles(hello.GetServices()).String(),
+							strings.Join(hello.GetServices(), ","),
 							durationText(diff),
 						))
 					}

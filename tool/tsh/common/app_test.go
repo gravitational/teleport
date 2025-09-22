@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -85,7 +86,15 @@ func testDummyAppConn(addr string, tlsCerts ...tls.Certificate) (*http.Response,
 func TestAppCommands(t *testing.T) {
 	ctx := context.Background()
 
-	testserver.WithResyncInterval(t, 0)
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = 100 * time.Millisecond
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
 
 	accessUser, err := types.NewUser("access")
 	require.NoError(t, err)
@@ -96,15 +105,23 @@ func TestAppCommands(t *testing.T) {
 	accessUser.SetLogins([]string{user.Name})
 	connector := mockConnector(t)
 
+	rootApp := testserver.StartDummyHTTPServer("rootapp")
+	t.Cleanup(rootApp.Close)
+
 	rootServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(connector, accessUser),
-		testserver.WithClusterName(t, "root"),
-		testserver.WithTestApp(t, "rootapp"),
+		testserver.WithClusterName("root"),
+		testserver.WithTestApp("rootapp", rootApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	rootServer := testserver.MakeTestServer(t, rootServerOpts...)
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
 	rootAuthServer := rootServer.GetAuthServer()
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
@@ -115,16 +132,24 @@ func TestAppCommands(t *testing.T) {
 	_, err = rootAuthServer.UpdateAuthPreference(ctx, cap)
 	require.NoError(t, err)
 
+	leafApp := testserver.StartDummyHTTPServer("leafapp")
+	t.Cleanup(leafApp.Close)
+
 	leafServerOpts := []testserver.TestServerOptFunc{
 		testserver.WithBootstrap(accessUser),
-		testserver.WithClusterName(t, "leaf"),
-		testserver.WithTestApp(t, "leafapp"),
+		testserver.WithClusterName("leaf"),
+		testserver.WithTestApp("leafapp", leafApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	}
-	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
-	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+	leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, leafServer.Close())
+		require.NoError(t, leafServer.Wait())
+	})
+	SetupTrustedCluster(ctx, t, rootServer, leafServer)
 
 	// Set up user with MFA device for per session MFA tests below.
 	origin := "https://127.0.0.1"
@@ -247,11 +272,15 @@ func TestAppCommands(t *testing.T) {
 								clientCert, err := tls.LoadX509KeyPair(info.Cert, info.Key)
 								require.NoError(t, err)
 
-								resp, err := testDummyAppConn(fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
-								require.NoError(t, err)
-								resp.Body.Close()
-								assert.Equal(t, http.StatusOK, resp.StatusCode)
-								assert.Equal(t, app.name, resp.Header.Get("Server"))
+								// Wrap with eventually in case the app has not made it into the
+								// proxy cache yet, this was a previous source of test flakes.
+								require.EventuallyWithT(t, func(t *assert.CollectT) {
+									resp, err := testDummyAppConn(fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
+									require.NoError(t, err)
+									resp.Body.Close()
+									require.Equal(t, http.StatusOK, resp.StatusCode)
+									require.Equal(t, app.name, resp.Header.Get("Server"))
+								}, 5*time.Second, 50*time.Millisecond)
 
 								// Verify that the app.session.start event was emitted.
 								if app.cluster == "root" {
@@ -264,10 +293,10 @@ func TestAppCommands(t *testing.T) {
 											Order:      types.EventOrderDescending,
 											EventTypes: []string{events.AppSessionStartEvent},
 										})
-										assert.NoError(t, err)
+										require.NoError(t, err)
 
 										for _, e := range es {
-											assert.Equal(t, e.(*apievents.AppSessionStart).AppName, app.name)
+											require.Equal(t, e.(*apievents.AppSessionStart).AppName, app.name)
 											return
 										}
 										t.Errorf("failed to find AppSessionStartCode event (0/%d events matched)", len(es))

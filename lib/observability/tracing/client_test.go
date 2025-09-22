@@ -105,7 +105,7 @@ func TestRotatingFileClient(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt // capture range variable
+		// capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
@@ -119,7 +119,7 @@ func TestRotatingFileClient(t *testing.T) {
 			require.Len(t, entries, 1)
 
 			// upload spans a bunch of spans
-			for i := 0; i < uploadCount; i++ {
+			for range uploadCount {
 				require.NoError(t, client.UploadTraces(context.Background(), testSpans))
 			}
 

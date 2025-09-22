@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AppUri, DatabaseUri, KubeUri, ServerUri } from 'teleterm/ui/uri';
+import {
+  AppUri,
+  DatabaseUri,
+  DesktopUri,
+  KubeUri,
+  ServerUri,
+} from 'teleterm/ui/uri';
 
 type TrackedConnectionBase = {
   connected: boolean;
@@ -42,17 +48,20 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
 
 export interface TrackedKubeConnection extends TrackedConnectionBase {
   kind: 'connection.kube';
-  /**
-   * @deprecated Used only by connections created by doc.terminal_tsh_kube.
-   */
-  kubeConfigRelativePath?: string;
   kubeUri: KubeUri;
+}
+
+export interface TrackedDesktopConnection extends TrackedConnectionBase {
+  kind: 'connection.desktop';
+  desktopUri: DesktopUri;
+  login: string;
 }
 
 export type TrackedConnection =
   | TrackedServerConnection
   | TrackedGatewayConnection
-  | TrackedKubeConnection;
+  | TrackedKubeConnection
+  | TrackedDesktopConnection;
 
 export type ExtendedTrackedConnection = TrackedConnection & {
   clusterName: string;

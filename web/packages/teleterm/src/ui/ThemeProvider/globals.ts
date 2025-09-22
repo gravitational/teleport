@@ -18,7 +18,7 @@
 
 import { createGlobalStyle, css } from 'styled-components';
 
-import { getPlatformType } from 'design/platform';
+import { getPlatform, Platform } from 'design/platform';
 
 const GlobalStyle = createGlobalStyle`
 
@@ -51,7 +51,17 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
-  ${() => !getPlatformType().isMac && customScrollbar}
+  b, strong {
+    // Overrides the default font-weight: bolder which results in the bold font not being bold
+    // enough. That's because if the regular font-weight is set to 300, "bolder" means it'll go to
+    // just 400.
+    // https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#meaning_of_relative_weights
+    //
+    // The Web UI uses <Text bold> to render bold text, whereas Connect mostly uses <strong>.
+    font-weight: ${props => props.theme.fontWeights.bold};
+  }
+
+  ${() => getPlatform() !== Platform.macOS && customScrollbar}
 `;
 
 const customScrollbar = css`

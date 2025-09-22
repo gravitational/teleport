@@ -26,9 +26,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/netip"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
@@ -153,7 +151,12 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	// checked, as they will point the browser away from the IdP or the web UI
 	// after the authentication is done
 	if !req.CreateWebSession {
-		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
+		ceremonyType := sso.CeremonyTypeLogin
+		if req.SSOTestFlow {
+			ceremonyType = sso.CeremonyTypeTest
+		}
+
+		if err := sso.ValidateClientRedirect(req.ClientRedirectURL, ceremonyType, connector.GetClientRedirectSettings()); err != nil {
 			return nil, trace.Wrap(err, InvalidClientRedirectErrorMessage)
 		}
 	}
@@ -338,7 +341,7 @@ func orgUsesExternalSSO(ctx context.Context, endpointURL, org string, client htt
 
 	const retries = 3
 	var resp *http.Response
-	for i := 0; i < retries; i++ {
+	for i := range retries {
 		var err error
 		var urlErr *url.Error
 
@@ -415,7 +418,6 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
 	return authclient.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey, //nolint:staticcheck // SA1019. Setting deprecated field for older proxy clients.
 		SSHPubKey:         req.SshPublicKey,
 		TLSPubKey:         req.TlsPublicKey,
 		CSRFToken:         req.CSRFToken,
@@ -425,7 +427,7 @@ func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubA
 }
 
 type githubManager interface {
-	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
+	ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
@@ -443,7 +445,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}
 
-	auth, err := m.validateGithubAuthCallback(ctx, diagCtx, q)
+	auth, err := m.ValidateGithubAuthRedirect(ctx, diagCtx, q)
 	diagCtx.Info.Error = trace.UserMessage(err)
 	event.AppliedLoginRules = diagCtx.Info.AppliedLoginRules
 
@@ -533,8 +535,8 @@ func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
 	}
 }
 
-// ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+// ValidateGithubAuthRedirect validates Github auth callback redirect
+func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 	logger := a.logger.With(teleport.ComponentKey, "github")
 
 	if errParam := q.Get("error"); errParam != "" {
@@ -690,27 +692,14 @@ func (a *Server) makeGithubAuthResponse(
 	}
 
 	// If a public key was provided, sign it and return a certificate.
-	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
-		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		req.SshPublicKey,
-		req.TlsPublicKey,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		hardwarekey.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
-		hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
-	)
-	if len(sshPublicKey)+len(tlsPublicKey) > 0 {
+	if len(req.SshPublicKey) != 0 || len(req.TlsPublicKey) != 0 {
 		sshCert, tlsCert, err := a.CreateSessionCerts(ctx, &SessionCertsRequest{
 			UserState:               userState,
 			SessionTTL:              sessionTTL,
-			SSHPubKey:               sshPublicKey,
-			TLSPubKey:               tlsPublicKey,
-			SSHAttestationStatement: sshAttestationStatement,
-			TLSAttestationStatement: tlsAttestationStatement,
+			SSHPubKey:               req.SshPublicKey,
+			TLSPubKey:               req.TlsPublicKey,
+			SSHAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
+			TLSAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
 			Compatibility:           req.Compatibility,
 			RouteToCluster:          req.RouteToCluster,
 			KubernetesCluster:       req.KubernetesCluster,
@@ -737,6 +726,12 @@ func (a *Server) makeGithubAuthResponse(
 			return nil, trace.Wrap(err, "Failed to obtain cluster's host CA.")
 		}
 		auth.HostSigners = append(auth.HostSigners, authority)
+	}
+
+	if o, err := a.ClientOptionsForLogin(userState); err == nil {
+		auth.ClientOptions = o
+	} else {
+		logger.WarnContext(ctx, "Failed to calculate client options for GitHub login", "username", userState.GetName(), "error", err)
 	}
 
 	return &auth, nil
@@ -1017,109 +1012,6 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	}
 
 	return user, nil
-}
-
-const unknownRedirectHostnameErrMsg = "unknown custom client redirect URL hostname"
-
-// ValidateClientRedirect checks a desktop client redirect URL for SSO logins
-// against some (potentially nil) settings from an auth connector; in the
-// current implementation, that means either "http" schema with a hostname of
-// "localhost", "127.0.0.1", or "::1" and a path of "/callback" (with any port),
-// or "https" schema with a hostname that matches one in the https_hostname
-// list, a path of "/callback" and either an empty port or explicitly 443. The
-// settings are ignored and only localhost URLs are allowed if we're using an
-// ephemeral connector (in the SSO testing flow). If the insecure_allowed_cidr_ranges
-// list is non-empty URLs in both the "http" and "https" schema are allowed
-// if the hostname is an IP address that is contained in a specified CIDR
-// range on any port.
-func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *types.SSOClientRedirectSettings) error {
-	if clientRedirect == "" {
-		// empty redirects are non-functional and harmless, so we allow them as
-		// they're used a lot in test code
-		return nil
-	}
-	u, err := url.Parse(clientRedirect)
-	if err != nil {
-		return trace.Wrap(err, "parsing client redirect URL")
-	}
-	if u.Path == sso.WebMFARedirect {
-		// If this is a SSO redirect in the WebUI, allow.
-		return nil
-	}
-	if u.Opaque != "" {
-		return trace.BadParameter("unexpected opaque client redirect URL")
-	}
-	if u.User != nil {
-		return trace.BadParameter("unexpected userinfo in client redirect URL")
-	}
-	if u.EscapedPath() != "/callback" {
-		return trace.BadParameter("invalid path in client redirect URL")
-	}
-	if q, err := url.ParseQuery(u.RawQuery); err != nil {
-		return trace.Wrap(err, "parsing query in client redirect URL")
-	} else if len(q) != 1 || len(q["secret_key"]) != 1 {
-		return trace.BadParameter("malformed query parameters in client redirect URL")
-	}
-	if u.Fragment != "" || u.RawFragment != "" {
-		return trace.BadParameter("unexpected fragment in client redirect URL")
-	}
-
-	// we checked everything but u.Scheme and u.Host now
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return trace.BadParameter("invalid scheme in client redirect URL")
-	}
-
-	// allow HTTP redirects to local addresses
-	allowedHTTPLocalAddrs := []string{"localhost", "127.0.0.1", "::1"}
-	if u.Scheme == "http" && slices.Contains(allowedHTTPLocalAddrs, u.Hostname()) {
-		return nil
-	}
-
-	if ssoTestFlow {
-		return trace.AccessDenied("custom client redirect URLs are not allowed in SSO test")
-	}
-
-	if settings == nil {
-		return trace.AccessDenied("%s", unknownRedirectHostnameErrMsg)
-	}
-
-	// allow HTTP or HTTPS redirects from IPs in specified CIDR ranges
-	hostIP, err := netip.ParseAddr(u.Hostname())
-	if err == nil {
-		hostIP = hostIP.Unmap()
-
-		for _, cidrStr := range settings.InsecureAllowedCidrRanges {
-			cidr, err := netip.ParsePrefix(cidrStr)
-			if err != nil {
-				slog.WarnContext(context.Background(), "error parsing OIDC connector CIDR prefix", "cidr", cidrStr, "err", err)
-				continue
-			}
-			if cidr.Contains(hostIP) {
-				return nil
-			}
-		}
-	}
-
-	if u.Scheme == "https" {
-		switch u.Port() {
-		default:
-			return trace.BadParameter("invalid port in client redirect URL")
-		case "", "443":
-		}
-
-		for _, expression := range settings.AllowedHttpsHostnames {
-			ok, err := utils.MatchString(u.Hostname(), expression)
-			if err != nil {
-				slog.WarnContext(context.Background(), "error compiling OIDC connector allowed HTTPS hostname regex", "regex", expression, "err", err)
-				continue
-			}
-			if ok {
-				return nil
-			}
-		}
-	}
-
-	return trace.AccessDenied("%s", unknownRedirectHostnameErrMsg)
 }
 
 // populateGithubClaims builds a GithubClaims using queried

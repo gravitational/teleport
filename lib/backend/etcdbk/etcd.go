@@ -479,7 +479,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	}
 
 	clients := make([]*clientv3.Client, 0, b.cfg.ClientPoolSize)
-	for i := 0; i < b.cfg.ClientPoolSize; i++ {
+	for range b.cfg.ClientPoolSize {
 		clt, err := clientv3.New(clientv3.Config{
 			Context:            ctx,
 			Endpoints:          b.nodes,

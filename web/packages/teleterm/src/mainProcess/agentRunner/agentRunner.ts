@@ -280,7 +280,7 @@ export class AgentRunner {
   ): void {
     let loggedState = state;
     if (state.status === 'exited') {
-      const { logs, ...rest } = state; // eslint-disable-line @typescript-eslint/no-unused-vars
+      const { logs, ...rest } = state; // eslint-disable-line unused-imports/no-unused-vars
       loggedState = rest;
     }
     this.logger.info(

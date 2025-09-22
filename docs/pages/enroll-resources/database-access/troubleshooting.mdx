@@ -1,11 +1,21 @@
 ---
 title: Troubleshooting Database Access
-description: Common issues and resolutions for Teleport's Database Access
+description: Common issues and resolutions for protecting databases with Teleport.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 Common issues and resolution steps.
 
 ## Connection attempts fail
+
+### Timeout errors
+
+Attempts to connect to the database fail with a message similar to **"dial tcp ... i/o timeout"**.
+
+(!docs/pages/includes/database-access/connection-timeout-troubleshooting.mdx!)
 
 ### Certificate expired or is not yet valid
 
@@ -44,7 +54,7 @@ details and examples:
 
 After the new certificate is issued, update your database to make it take effect.
 
-## Access to db denied
+### Access to db denied
 
 Attempts to connect to the database fail with an error message
 similar to: **"access to db denied"**.
@@ -146,17 +156,17 @@ This example is intentionally simple; we could have configured Alice's permissio
 For more detailed information about database access controls and how to restrict
 access see the [RBAC](../database-access/rbac.mdx) documentation.
 
-## Connection to MySQL database results in "Unknown system variable 'query_cache_size'" error
+### Connection to MySQL database results in "Unknown system variable 'query_cache_size'" error
 
 When TLS Routing is disable by default, the Teleport Proxy Service returns `8.0.0-Teleport` as the MySQL server version. In some cases, like connecting with a GUI Client, this can result in obtaining an `Unknown system variable 'query_cache_size'` error that indicates that MySQL capabilities were not properly negotiated between the MySQL client and server.
 
 One way to solve this issue is to [use the TLS Routing
-feature](../../admin-guides/management/operations/tls-routing.mdx), where the Teleport Proxy
+feature](../../zero-trust-access/management/operations/tls-routing.mdx), where the Teleport Proxy
 Service propagates the correct MySQL server version via TLS Routing extensions.
 
 If migration to TLS Routing is not possible, another way to bypass this error is
 to use the [Teleport local proxy
-command](../../connect-your-client/gui-clients.mdx#get-connection-information),
+command](../../connect-your-client/gui-clients.mdx#how-gui-clients-access-teleport-protected-databases),
 which allows you to establish a TLS Routing connection to the Teleport Proxy
 Service even if TLS Routing was not enabled on the Teleport cluster.
 

@@ -61,10 +61,7 @@ func (c *PingConn) Read(p []byte) (int, error) {
 	}
 
 	// Check if the current size is larger than the provided buffer.
-	readSize := c.currentSize
-	if c.currentSize > uint32(len(p)) {
-		readSize = uint32(len(p))
-	}
+	readSize := min(c.currentSize, uint32(len(p)))
 
 	n, err := c.Conn.Read(p[:readSize])
 	c.currentSize -= uint32(n)

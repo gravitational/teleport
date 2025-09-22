@@ -1,0 +1,91 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.recordingencryption.v1;
+
+import "teleport/header/v1/metadata.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1";
+
+// The possible states a KeyPair can be in.
+enum KeyPairState {
+  // Unspecified value
+  KEY_PAIR_STATE_UNSPECIFIED = 0;
+  // Represents an active key.
+  KEY_PAIR_STATE_ACTIVE = 1;
+  // Represents a key in the process of being rotated.
+  KEY_PAIR_STATE_ROTATING = 2;
+  // Represents a key being rotated in that is inaccessible to at least one
+  // auth server.
+  KEY_PAIR_STATE_INACCESSIBLE = 3;
+}
+
+// A key pair used with age to wrap and unwrap file keys for session recording encryption.
+message KeyPair {
+  // A key pair used with age to wrap and unwrap file keys for session recording encryption.
+  types.EncryptionKeyPair key_pair = 1;
+  // The current state of the key pair.
+  KeyPairState state = 2;
+}
+
+// RecordingEncryptionSpec contains the active key set for encrypted session recording.
+message RecordingEncryptionSpec {
+  reserved 1; // active_keys
+  reserved "active_keys";
+
+  // A list of active key pairs used for session recording encryption. The unique set of
+  // active public keys are used as recipients during age encryption. This allows any
+  // active private key to be used during decryption which guards against recordings being
+  // inaccessible to auth servers waiting for key rotation.
+  repeated KeyPair active_key_pairs = 2;
+}
+
+// RecordingEncryptionStatus contains the status of the RecordingEncryption resource.
+message RecordingEncryptionStatus {}
+
+// RecordingEncryption contains cluster state for encrypted session recordings.
+message RecordingEncryption {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  RecordingEncryptionSpec spec = 5;
+  RecordingEncryptionStatus status = 6;
+}
+
+// A rotated key pair previously used with age to wrap and unwrap file keys for session recording
+// encryption.
+message RotatedKeySpec {
+  // The rotated key pair previously used with age to wrap and unwrap file keys for session recording
+  // encryption.
+  types.EncryptionKeyPair encryption_key_pair = 2;
+}
+
+// The empty status of a RotatedKey.
+message RotatedKeyStatus {}
+
+// A previously rotated encryption key for session recordings kept for future replay. The metadata.name
+// is expected to be the fingerprint of the public key contained in the spec, which is a hex encoded
+// SHA256 hash of its PKIX form.
+message RotatedKey {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  RotatedKeySpec spec = 5;
+  RotatedKeyStatus status = 6;
+}

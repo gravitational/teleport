@@ -59,7 +59,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+			assertVM: func(t require.TestingT, val any, _ ...any) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -82,7 +82,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+			assertVM: func(t require.TestingT, val any, _ ...any) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -107,7 +107,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+			assertVM: func(t require.TestingT, val any, _ ...any) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -175,7 +175,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+			assertVM: func(t require.TestingT, val any, _ ...any) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -198,7 +198,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+			assertVM: func(t require.TestingT, val any, _ ...any) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
@@ -223,7 +223,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 				},
 			},
 			assertError: require.NoError,
-			assertVM: func(t require.TestingT, val interface{}, _ ...interface{}) {
+			assertVM: func(t require.TestingT, val any, _ ...any) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)

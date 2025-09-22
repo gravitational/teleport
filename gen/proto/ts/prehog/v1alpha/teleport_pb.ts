@@ -1379,6 +1379,37 @@ export interface UICreateNewRoleSaveClickEvent {
      * @generated from protobuf field: string user_name = 1;
      */
     userName: string;
+    /**
+     * StandardUsed indicates if the user interacted with the standard editor
+     * tab.
+     *
+     * @generated from protobuf field: bool standard_used = 2;
+     */
+    standardUsed: boolean;
+    /**
+     * YamlUsed indicates if the user interacted with the YAML editor tab.
+     *
+     * @generated from protobuf field: bool yaml_used = 3;
+     */
+    yamlUsed: boolean;
+    /**
+     * ModeWhenSaved indicates which editor tab was active when the Save button
+     * was clicked ("standard" or "yaml"). Note that it's inherently different
+     * from what `StandardUsed` or `YamlUsed` describe; the user can interact
+     * with one kind of editor, then verify the results in another, and
+     * ultimately click Save on any of them.
+     *
+     * @generated from protobuf field: string mode_when_saved = 4;
+     */
+    modeWhenSaved: string;
+    /**
+     * A list of field paths that prevented the standard editor from being
+     * operational, if any. Looking at these may provide insight into which
+     * missing features should be implemented first.
+     *
+     * @generated from protobuf field: repeated string fields_with_conversion_errors = 5;
+     */
+    fieldsWithConversionErrors: string[];
 }
 /**
  * UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
@@ -3645,7 +3676,15 @@ export enum UserKind {
      *
      * @generated from protobuf enum value: USER_KIND_BOT = 2;
      */
-    BOT = 2
+    BOT = 2,
+    /**
+     * Indicates that the user associated with this event is a system component e.g. Okta service.
+     *
+     * PostHog property value: "system"
+     *
+     * @generated from protobuf enum value: USER_KIND_SYSTEM = 3;
+     */
+    SYSTEM = 3
 }
 /**
  * DiscoverResource represents a resource type.
@@ -7316,12 +7355,20 @@ export const UICreateNewRoleClickEvent = new UICreateNewRoleClickEvent$Type();
 class UICreateNewRoleSaveClickEvent$Type extends MessageType<UICreateNewRoleSaveClickEvent> {
     constructor() {
         super("prehog.v1alpha.UICreateNewRoleSaveClickEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "standard_used", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "yaml_used", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "mode_when_saved", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "fields_with_conversion_errors", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<UICreateNewRoleSaveClickEvent>): UICreateNewRoleSaveClickEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
+        message.standardUsed = false;
+        message.yamlUsed = false;
+        message.modeWhenSaved = "";
+        message.fieldsWithConversionErrors = [];
         if (value !== undefined)
             reflectionMergePartial<UICreateNewRoleSaveClickEvent>(this, message, value);
         return message;
@@ -7333,6 +7380,18 @@ class UICreateNewRoleSaveClickEvent$Type extends MessageType<UICreateNewRoleSave
             switch (fieldNo) {
                 case /* string user_name */ 1:
                     message.userName = reader.string();
+                    break;
+                case /* bool standard_used */ 2:
+                    message.standardUsed = reader.bool();
+                    break;
+                case /* bool yaml_used */ 3:
+                    message.yamlUsed = reader.bool();
+                    break;
+                case /* string mode_when_saved */ 4:
+                    message.modeWhenSaved = reader.string();
+                    break;
+                case /* repeated string fields_with_conversion_errors */ 5:
+                    message.fieldsWithConversionErrors.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -7349,6 +7408,18 @@ class UICreateNewRoleSaveClickEvent$Type extends MessageType<UICreateNewRoleSave
         /* string user_name = 1; */
         if (message.userName !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* bool standard_used = 2; */
+        if (message.standardUsed !== false)
+            writer.tag(2, WireType.Varint).bool(message.standardUsed);
+        /* bool yaml_used = 3; */
+        if (message.yamlUsed !== false)
+            writer.tag(3, WireType.Varint).bool(message.yamlUsed);
+        /* string mode_when_saved = 4; */
+        if (message.modeWhenSaved !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.modeWhenSaved);
+        /* repeated string fields_with_conversion_errors = 5; */
+        for (let i = 0; i < message.fieldsWithConversionErrors.length; i++)
+            writer.tag(5, WireType.LengthDelimited).string(message.fieldsWithConversionErrors[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

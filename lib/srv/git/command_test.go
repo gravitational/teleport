@@ -132,7 +132,7 @@ func Test_checkSSHCommand(t *testing.T) {
 			name:       "org does not match",
 			server:     server,
 			sshCommand: "git-upload-pack 'some-other-org/my-repo.git'",
-			checkError: func(t require.TestingT, err error, i ...interface{}) {
+			checkError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err), i...)
 			},
 		},

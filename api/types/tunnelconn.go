@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // TunnelConnection is SSH reverse tunnel connection
@@ -97,8 +98,7 @@ func (r *TunnelConnectionV2) SetRevision(rev string) {
 
 // Clone returns a copy of this tunnel connection
 func (r *TunnelConnectionV2) Clone() TunnelConnection {
-	out := *r
-	return &out
+	return utils.CloneProtoMsg(r)
 }
 
 // String returns user-friendly description of this connection

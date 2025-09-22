@@ -157,7 +157,6 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		errors     []error
 	)
 	for _, cluster := range clusters {
-		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -1005,12 +1004,16 @@ func (d *databaseInfo) getChecker(ctx context.Context, tc *client.TeleportClient
 	}
 	defer clusterClient.Close()
 
+	return makeAccessChecker(ctx, tc, clusterClient.AuthClient)
+}
+
+func makeAccessChecker(ctx context.Context, tc *client.TeleportClient, auth services.CurrentUserRoleGetter) (services.AccessChecker, error) {
 	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	checker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+	checker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), tc.SiteName, auth)
 	return checker, trace.Wrap(err)
 }
 
@@ -1309,8 +1312,8 @@ func isDatabaseNameRequired(protocol string) bool {
 		return true
 	}
 	switch protocol {
-	case defaults.ProtocolOracle:
-		// Always require database name for the Oracle protocol.
+	// Always require database name for these protocols.
+	case defaults.ProtocolOracle, defaults.ProtocolSQLServer:
 		return true
 	}
 	return false

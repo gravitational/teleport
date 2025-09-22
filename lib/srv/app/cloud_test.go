@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/tlsca"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
@@ -85,25 +84,16 @@ func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
 			},
 			expectBool: true,
 		},
-		{
-			name:        "bad config",
-			credentials: nil,
-			expectError: trace.IsNotFound,
-		},
-		{
-			name: "failed to get credentials",
-			credentials: &mockCredentialsProvider{
-				retrieveError: trace.AccessDenied(""),
-			},
-			expectError: trace.IsAccessDenied,
-		},
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
+		// capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			isTemporary, err := isSessionUsingTemporaryCredentials(ctx, aws.Config{Credentials: test.credentials})
+			awsCredentials, err := test.credentials.Retrieve(ctx)
+			require.NoError(t, err)
+
+			isTemporary, err := isSessionUsingTemporaryCredentials(awsCredentials)
 
 			if test.expectError != nil {
 				require.True(t, test.expectError(err))
@@ -149,7 +139,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
+		// capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			c, err := NewCloud(CloudConfig{
@@ -159,7 +149,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 					}),
 				},
 				Clock:  clockwork.NewFakeClockAt(now),
-				Logger: slog.New(logutils.DiscardHandler{}),
+				Logger: slog.New(slog.DiscardHandler),
 			})
 			require.NoError(t, err)
 
@@ -242,7 +232,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test // capture range variable
+		// capture range variable
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			mockFederationServer := httptest.NewServer(test.federationServerHandler)
@@ -256,7 +246,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 						mocks.NewAssumeRoleClientProviderFunc(&mocks.STSClient{}),
 					),
 				},
-				Logger: slog.New(logutils.DiscardHandler{}),
+				Logger: slog.New(slog.DiscardHandler),
 			})
 			require.NoError(t, err)
 

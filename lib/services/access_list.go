@@ -20,9 +20,14 @@ package services
 
 import (
 	"context"
+	"encoding/base32"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
+	"golang.org/x/text/cases"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -40,6 +45,8 @@ type AccessListsGetter interface {
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// ListAccessLists returns a paginated list of access lists.
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
+	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 	// GetAccessListsToReview returns access lists that the user needs to review.
@@ -67,8 +74,6 @@ type AccessLists interface {
 	UpdateAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
-	// DeleteAllAccessLists removes all access lists.
-	DeleteAllAccessLists(context.Context) error
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
@@ -134,9 +139,6 @@ func (ImplicitAccessListError) Error() string {
 // AccessListMemberGetter defines an interface that can retrieve access list members.
 type AccessListMemberGetter interface {
 	// GetAccessListMember returns the specified access list member resource.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member record.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
@@ -151,9 +153,6 @@ type AccessListMembersGetter interface {
 	// CountAccessListMembers will count all access list members.
 	CountAccessListMembers(ctx context.Context, accessListName string) (membersCount uint32, listCount uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member list.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
@@ -174,8 +173,6 @@ type AccessListMembers interface {
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
 	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
-	// DeleteAllAccessListMembers hard deletes all access list members.
-	DeleteAllAccessListMembers(ctx context.Context) error
 }
 
 // MarshalAccessListMember marshals the access list member resource to JSON.
@@ -235,9 +232,6 @@ type AccessListReviews interface {
 
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
-
-	// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
-	DeleteAllAccessListReviews(ctx context.Context) error
 }
 
 // MarshalAccessListReview marshals the access list review resource to JSON.
@@ -282,4 +276,153 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 		review.SetExpiry(cfg.Expires)
 	}
 	return &review, nil
+}
+
+// CreateAccessListNextKey creates a pagination token based on the requested sort index name
+func CreateAccessListNextKey(al *accesslist.AccessList, indexName string) (string, error) {
+	switch indexName {
+	case "name":
+		return AccessListNameIndexKey(al), nil
+	case "auditNextDate":
+		return AccessListAuditDateIndexKey(al), nil
+	case "title":
+		return AccessListTitleIndexKey(al), nil
+	default:
+		return "", trace.BadParameter("unsupported sort %s but expected name, title or auditNextDate", indexName)
+	}
+}
+
+// AccessListNameIndexKey returns the resource name returned from GetName().
+func AccessListNameIndexKey(al *accesslist.AccessList) string {
+	return al.GetName()
+}
+
+// AccessListAuditDateIndexKey returns the DateOnly formatted next audit date
+// followed by the resource name for disambiguation.
+func AccessListAuditDateIndexKey(al *accesslist.AccessList) string {
+	if !al.IsReviewable() || al.Spec.Audit.NextAuditDate.IsZero() {
+		// Use last lexical character to ensure that ACLs without an audit date
+		// appear at the end when sorted. Otherwise we would compare against
+		// `0001-01-01 00:00:00` which would sort first, but actually means
+		// the access list is not eligible for review.
+		return "z/" + al.GetName()
+	}
+	return al.Spec.Audit.NextAuditDate.Format(time.DateOnly) + "/" + al.GetName()
+}
+
+// AccessListTitleIndexKey returns the access list title base32hex encoded
+// followed by the resource name for disambiguation.
+func AccessListTitleIndexKey(al *accesslist.AccessList) string {
+	title := cases.Fold().String(al.Spec.Title)
+	title = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(title))
+	return title + "/" + al.GetName()
+}
+
+// MatchAccessList returns true if the access list matches the given filter criteria.
+// The function applies filters in sequence: owners, then roles, then search.
+// All provided filters must match for the access list to be included.
+//
+//   - If owners filter is provided, the access list must have at least one matching owner
+//   - If roles filter is provided, the access list must grant at least one matching role
+//   - If search filter is provided, all search terms must be found across the access list's
+//     title, name, owner names, description, granted roles, and origin fields
+//
+// All matching is case-insensitive and supports partial matches.
+func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFilter) bool {
+	if req == nil {
+		return true
+	}
+	search := req.GetSearch()
+	owners := req.GetOwners()
+	roles := req.GetRoles()
+	origin := req.GetOrigin()
+
+	if search == "" && len(owners) == 0 && len(roles) == 0 && origin == "" {
+		return true
+	}
+
+	// Step 1: Check owner filter if provided
+	if len(owners) > 0 {
+		ownerMatched := slices.ContainsFunc(owners, func(filterOwner string) bool {
+			return slices.ContainsFunc(al.Spec.Owners, func(alOwner accesslist.Owner) bool {
+				return strcase.Contains(alOwner.Name, filterOwner)
+			})
+		})
+		if !ownerMatched {
+			return false
+		}
+	}
+
+	// Step 2: Check role filter if provided
+	if len(roles) > 0 {
+		roleMatched := slices.ContainsFunc(roles, func(filterRole string) bool {
+			return slices.ContainsFunc(al.Spec.Grants.Roles, func(alRole string) bool {
+				return strcase.Contains(alRole, filterRole)
+			})
+		})
+		if !roleMatched {
+			return false
+		}
+	}
+
+	// Step 3: check the origin
+	if origin != "" && !strcase.Contains(al.Origin(), origin) {
+		return false
+	}
+
+	// Step 4: Check search filter if provided
+	if searchTerms := strings.Fields(search); len(searchTerms) > 0 {
+		// Check if all search terms are found across the access list fields
+		// without creating an intermediate slice
+		for _, term := range searchTerms {
+			termFound := false
+
+			// Check title
+			if strcase.Contains(al.Spec.Title, term) {
+				termFound = true
+			}
+
+			// Check name
+			if !termFound && strcase.Contains(al.GetName(), term) {
+				termFound = true
+			}
+
+			// Check description
+			if !termFound && strcase.Contains(al.Spec.Description, term) {
+				termFound = true
+			}
+
+			// Check origin
+			if !termFound && strcase.Contains(al.Origin(), term) {
+				termFound = true
+			}
+
+			// Check owner names
+			if !termFound {
+				for _, owner := range al.Spec.Owners {
+					if strcase.Contains(owner.Name, term) {
+						termFound = true
+						break
+					}
+				}
+			}
+
+			// Check roles
+			if !termFound {
+				for _, role := range al.Spec.Grants.Roles {
+					if strcase.Contains(role, term) {
+						termFound = true
+						break
+					}
+				}
+			}
+
+			// If this term wasn't found in any field, the search fails
+			if !termFound {
+				return false
+			}
+		}
+	}
+
+	return true
 }

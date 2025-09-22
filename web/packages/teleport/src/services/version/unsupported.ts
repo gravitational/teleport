@@ -36,7 +36,7 @@ export const ProxyRequiresUpgrade = 'Ensure all proxies are upgraded';
  * Determines if error 404 is a result of an endpoint path not found
  * (not resource not found).
  */
-export function isPathNotFoundError(err: unknown) {
+export function isPathNotFoundError(err: unknown): err is ApiError {
   if (err instanceof ApiError && err.response.status === 404) {
     if (err.proxyVersion) {
       return true;
@@ -60,34 +60,50 @@ export function isPathNotFoundError(err: unknown) {
  * Else, rethrows the same error.
  *
  * @param supportedVersion the minimum version required for this
- * request to succeed eg: v17.3.0
+ * request to succeed eg: 17.3.0
  */
 export function withGenericUnsupportedError(
   err: unknown,
   supportedVersion: string
 ): never {
-  if (err instanceof ApiError && err.response.status === 404) {
+  if (isPathNotFoundError(err)) {
     if (err.proxyVersion) {
-      throw new Error(
-        'We could not complete your request. ' +
-          `Your proxy (${err.proxyVersion.string}) may be behind the ` +
-          `minimum required version (${supportedVersion}) to support ` +
-          `this request. ${ProxyRequiresUpgrade} and try again.`
-      );
+      throw new Error(makeUnsupportedErrorMessage(err, supportedVersion));
     }
     // DELETE IN 19.0
     // pre v17 this is the legacy error message crafted as a result
     // of no path found.
     if (err.message == `${err.response.status} - ${err.response.url}`) {
-      throw new Error(
-        'We could not complete your request. ' +
-          'Your proxy may be behind the minimum required version ' +
-          `(${supportedVersion}) to support this request. ` +
-          `${ProxyRequiresUpgrade} and try again.`
-      );
+      throw new Error(makeUnsupportedErrorMessage(err, supportedVersion));
     }
   }
   throw err;
+}
+
+/**
+ * `makeUnsupportedErrorMessage` creates a message to the user to explain a
+ * version mismatch.
+ *
+ * @param err the ApiError received
+ * @param supportedVersion the minimum version required for this request to
+ * succeed eg: 17.3.0
+ * @returns the error message to display to the user
+ */
+export function makeUnsupportedErrorMessage(
+  err: ApiError,
+  supportedVersion?: string
+) {
+  const formattedProxyVersion = err.proxyVersion
+    ? `(v${err.proxyVersion.string}) `
+    : '';
+  const formattedSupportedVersion = supportedVersion
+    ? `(v${supportedVersion}) `
+    : '';
+  return (
+    `We could not complete your request. Your proxy ${formattedProxyVersion}` +
+    `may be behind the minimum required version ${formattedSupportedVersion}` +
+    `to support this request. ${ProxyRequiresUpgrade} and try again.`
+  );
 }
 
 export function withUnsupportedLabelFeatureErrorConversion(

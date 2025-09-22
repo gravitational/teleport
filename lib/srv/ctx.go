@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,15 +43,15 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -168,7 +169,7 @@ type Server interface {
 	Context() context.Context
 
 	// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
-	GetUserAccountingPaths() (utmp, wtmp, btmp string)
+	GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string)
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
@@ -184,6 +185,10 @@ type Server interface {
 	// GetHostSudoers returns the HostSudoers instance being used to manage
 	// sudoer file provisioning
 	GetHostSudoers() HostSudoers
+
+	// GetSELinuxEnabled returns whether the node should enable SELinux
+	// support or not.
+	GetSELinuxEnabled() bool
 
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
@@ -213,6 +218,9 @@ type IdentityContext struct {
 	// TeleportUser is the Teleport user associated with the connection.
 	TeleportUser string
 
+	// ClusterName is the name of the cluster the user authenticated with.
+	OriginClusterName string
+
 	// Impersonator is a user acting on behalf of other user
 	Impersonator string
 
@@ -233,6 +241,13 @@ type IdentityContext struct {
 	// UnmappedRoles lists the original roles of this Teleport user without
 	// trusted-cluster-related role mapping being applied.
 	UnmappedRoles []string
+
+	// MappedRoles lists the final roles of this Teleport user after
+	// trusted-cluster-related role mapping has been applied.
+	MappedRoles []string
+
+	// Traits are the identity traits derived from the certificate.
+	Traits wrappers.Traits
 
 	// CertValidBefore is set to the expiry time of a certificate, or
 	// empty, if cert does not expire
@@ -258,6 +273,11 @@ type IdentityContext struct {
 	// BotInstanceID is the unique identifier of the Machine ID bot instance
 	// this identity is associated with, if any.
 	BotInstanceID string
+
+	// JoinToken is the name of the join token used to join this bot identity,
+	// if any, and will not be set for bot instances that joined using the
+	// `token` join method.
+	JoinToken string
 
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this
 	// identity/cert was derived from. It is used to determine a session's hard
@@ -293,10 +313,6 @@ type ServerContext struct {
 
 	// term holds PTY if it was requested by the session.
 	term Terminal
-
-	// sessionID holds the session ID that will be used when a new
-	// session is created.
-	sessionID rsession.ID
 
 	// session holds the active session (if there's an active one).
 	session *session
@@ -505,6 +521,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		Conn:                  child.ServerConn,
 		Context:               cancelContext,
 		TeleportUser:          child.Identity.TeleportUser,
+		UserOriginClusterName: child.Identity.OriginClusterName,
 		Login:                 child.Identity.Login,
 		ServerID:              child.srv.ID(),
 		Logger:                child.Logger,
@@ -572,12 +589,7 @@ func (c *ServerContext) ID() int {
 
 // SessionID returns the ID of the session in the context.
 func (c *ServerContext) SessionID() rsession.ID {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	if c.session == nil {
-		return c.sessionID
-	}
-	return c.session.id
+	return c.ConnectionContext.GetSessionID()
 }
 
 // GetServer returns the underlying server which this context was created in.
@@ -594,32 +606,29 @@ func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionReg
 	// its ID will be added to the environment
 	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
 	if !found {
-		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Will create new session for SSH connection")
 		return nil
 	}
 
 	// make sure whatever session is requested is a valid session
 	id, err := rsession.ParseID(ssid)
 	if err != nil {
-		return trace.BadParameter("invalid session ID")
+		return trace.BadParameter("invalid session ID %s", ssid)
 	}
 
 	// update ctx with the session if it exists
 	if sess, found := reg.findSession(*id); found {
-		c.sessionID = *id
 		c.session = sess
+		c.ConnectionContext.SetSessionID(*id)
 		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
 	} else {
-		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
+		// TODO(capnspacehook): DELETE IN 19.0.0 - by then all supported
 		// clients should only set TELEPORT_SESSION when they want to
 		// join a session. Always return an error instead of using a
 		// new ID.
 		//
-		// to prevent the user from controlling the session ID, generate
-		// a new one
-		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Creating new SSH session")
+		// The session ID the client sent was not found, ignore it; the
+		// connection's ID will be used as the session ID later.
+		c.Logger.DebugContext(ctx, "Sent session ID not found, using connection ID")
 	}
 
 	return nil
@@ -730,6 +739,11 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 		return nil
 	}
 
+	// check if proxying permit is defined and authorizes file copying
+	if permit := c.Identity.ProxyingPermit; permit != nil && permit.SSHFileCopy {
+		return nil
+	}
+
 	return trace.Wrap(errRoleFileCopyingNotPermitted)
 }
 
@@ -743,7 +757,7 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 
 	// ensure moderated session policies allow starting an unattended session
 	policySets := c.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
-	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
+	checker := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
 	canStart, _, err := checker.FulfilledFor(nil)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1091,6 +1105,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
+		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
 	}, nil
 }
 
@@ -1101,14 +1116,17 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	}
 
 	return apievents.UserMetadata{
-		Login:          id.Login,
-		User:           id.TeleportUser,
-		Impersonator:   id.Impersonator,
-		AccessRequests: id.ActiveRequests,
-		TrustedDevice:  id.UnmappedIdentity.GetDeviceMetadata(),
-		UserKind:       userKind,
-		BotName:        id.BotName,
-		BotInstanceID:  id.BotInstanceID,
+		Login:           id.Login,
+		User:            id.TeleportUser,
+		Impersonator:    id.Impersonator,
+		AccessRequests:  id.ActiveRequests,
+		TrustedDevice:   id.UnmappedIdentity.GetDeviceMetadata(),
+		UserKind:        userKind,
+		BotName:         id.BotName,
+		BotInstanceID:   id.BotInstanceID,
+		UserClusterName: id.OriginClusterName,
+		UserRoles:       slices.Clone(id.MappedRoles),
+		UserTraits:      id.Traits.Clone(),
 	}
 }
 
@@ -1141,6 +1159,7 @@ func buildEnvironment(ctx *ServerContext) []string {
 		}
 		if session.id != "" {
 			env.AddTrusted(teleport.SSHSessionID, string(session.id))
+			env.AddTrusted(sshutils.SessionEnvVar, string(session.id))
 		}
 	}
 
@@ -1176,23 +1195,13 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	addr := c.ConnectionContext.ServerConn.RemoteAddr()
-	hostname, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	preparedAddr, err := uacc.PrepareAddr(addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	utmpPath, wtmpPath, btmpPath := c.srv.GetUserAccountingPaths()
-
+	utmpPath, wtmpPath, btmpPath, wtmpdbPath := c.srv.GetUserAccountingPaths()
 	return &UaccMetadata{
-		Hostname:   hostname,
-		RemoteAddr: preparedAddr,
+		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 		BtmpPath:   btmpPath,
+		WtmpdbPath: wtmpdbPath,
 	}, nil
 }
 

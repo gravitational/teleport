@@ -35,19 +35,20 @@ func newProxyServerCollection(p services.Presence, w types.WatchKind) (*collecti
 	}
 
 	return &collection[types.Server, proxyServerIndex]{
-		store: newStore(map[proxyServerIndex]func(types.Server) string{
-			proxyServerNameIndex: func(u types.Server) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindProxy,
+			types.Server.DeepCopy,
+			map[proxyServerIndex]func(types.Server) string{
+				proxyServerNameIndex: types.Server.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
 			servers, err := p.GetProxies()
 			return servers, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Server {
 			return &types.ServerV2{
-				Kind:    types.KindProxy,
-				Version: types.V2,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.GetName(),
 				},

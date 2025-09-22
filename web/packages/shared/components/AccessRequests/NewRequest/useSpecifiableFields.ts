@@ -23,7 +23,7 @@ import {
   ReviewerOption,
 } from 'shared/components/AccessRequests/NewRequest';
 import { Option } from 'shared/components/Select';
-import { AccessRequest } from 'shared/services/accessRequests';
+import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
 
 import {
   getDurationOptionIndexClosestToOneWeek,
@@ -87,6 +87,10 @@ export function useSpecifiableFields() {
    */
   let maxDurationOptions: Option<number>[] = [];
 
+  const [requestKind, setRequestKind] = useState<RequestKind>(
+    RequestKind.ShortTerm
+  );
+
   if (dryRunResponse) {
     pendingRequestTtlOptions = getPendingRequestDurationOptions(
       dryRunResponse.created,
@@ -106,6 +110,7 @@ export function useSpecifiableFields() {
     setStartTime(null);
     setMaxDuration(null);
     setPendingRequestTtl(null);
+    setRequestKind(RequestKind.ShortTerm);
   }
 
   function preselectPendingRequestTtlOption(
@@ -198,8 +203,12 @@ export function useSpecifiableFields() {
     pendingRequestTtlOptions,
     dryRunResponse,
     startTime,
+    requestKind,
+    setRequestKind,
     onStartTimeChange,
     onDryRunChange,
     reset,
+    reasonMode: dryRunResponse?.reasonMode,
+    reasonPrompts: dryRunResponse?.reasonPrompts,
   };
 }

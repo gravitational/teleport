@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
@@ -254,7 +254,11 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		Renewable:                           unmappedIdentity.Renewable,
 		BotName:                             unmappedIdentity.BotName,
 		BotInstanceID:                       unmappedIdentity.BotInstanceID,
+		JoinToken:                           unmappedIdentity.JoinToken,
 		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
+		OriginClusterName:                   certAuthority.GetClusterName(),
+		MappedRoles:                         accessInfo.Roles,
+		Traits:                              accessInfo.Traits,
 	}, nil
 }
 
@@ -289,14 +293,6 @@ func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
 	}
 
 	return trace.AccessDenied("x11 forwarding not permitted")
-}
-
-func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
-	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.SshFileCopy {
-		return nil
-	}
-
-	return trace.Wrap(errRoleFileCopyingNotPermitted)
 }
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
@@ -712,21 +708,21 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 	return nil
 }
 
-// IsUserAuthority is called during checking the client key, to see if the
-// key used to sign the certificate was a Teleport CA.
-func (h *AuthHandlers) IsUserAuthority(cert ssh.PublicKey) bool {
-	if _, err := h.authorityForCert(types.UserCA, cert); err != nil {
+// IsUserAuthority is called during checking the issuer of a client certificate,
+// to see if it was a Teleport CA.
+func (h *AuthHandlers) IsUserAuthority(authority ssh.PublicKey) bool {
+	if _, err := h.authorityForCert(types.UserCA, authority); err != nil {
 		return false
 	}
 
 	return true
 }
 
-// IsHostAuthority is called when checking the host certificate a server
-// presents. It make sure that the key used to sign the host certificate was a
-// Teleport CA.
-func (h *AuthHandlers) IsHostAuthority(cert ssh.PublicKey, address string) bool {
-	if _, err := h.authorityForCert(types.HostCA, cert); err != nil {
+// IsHostAuthority is called when checking the issuer of a host certificate a
+// server presents. It make sure that the key used to sign the host certificate
+// was a Teleport CA.
+func (h *AuthHandlers) IsHostAuthority(authority ssh.PublicKey, address string) bool {
+	if _, err := h.authorityForCert(types.HostCA, authority); err != nil {
 		h.log.DebugContext(h.c.Server.Context(), "Unable to find SSH host CA", "error", err)
 		return false
 	}
@@ -777,8 +773,10 @@ type proxyingPermit struct {
 	PrivateKeyPolicy      keys.PrivateKeyPolicy
 	LockTargets           []types.LockTarget
 	MaxConnections        int64
+	SSHFileCopy           bool
 	DisconnectExpiredCert time.Time
 	MappedRoles           []string
+	SessionRecordingMode  constants.SessionRecordingMode
 }
 
 func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string) (*proxyingPermit, error) {
@@ -821,8 +819,10 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		PrivateKeyPolicy:      privateKeyPolicy,
 		LockTargets:           lockTargets,
 		MaxConnections:        accessChecker.MaxConnections(),
+		SSHFileCopy:           accessChecker.CanCopyFiles(),
 		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
 		MappedRoles:           accessInfo.Roles,
+		SessionRecordingMode:  accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH),
 	}, nil
 }
 
@@ -904,7 +904,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 	var isModeratedSessionJoin bool
 	// custom moderated session join permissions allow bypass of the standard node access checks
 	if osUser == teleport.SSHSessionJoinPrincipal &&
-		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
+		moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
 		// bypass of standard node access checks can only proceed if MFA is not required and/or
 		// the MFA ceremony was already completed.
@@ -999,9 +999,9 @@ func fetchAccessInfo(ident *sshca.Identity, ca types.CertAuthority, clusterName 
 	return accessInfo, trace.Wrap(err)
 }
 
-// authorityForCert checks if the certificate was signed by a Teleport
-// Certificate Authority and returns it.
-func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.PublicKey) (types.CertAuthority, error) {
+// authorityForCert searches for the Teleport Certificate Authority that
+// contains the issuer of a certificate and returns it.
+func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, authority ssh.PublicKey) (types.CertAuthority, error) {
 	// get all certificate authorities for given type
 	cas, err := h.c.AccessPoint.GetCertAuthorities(h.c.Server.Context(), caType, false)
 	if err != nil {
@@ -1018,21 +1018,9 @@ func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, key ssh.Publi
 			return nil, trace.Wrap(err)
 		}
 		for _, checker := range checkers {
-			// if we have a certificate, compare the certificate signing key against
-			// the ca key. otherwise check the public key that was passed in. this is
-			// due to the differences in how this function is called by the user and
-			// host checkers.
-			switch v := key.(type) {
-			case *ssh.Certificate:
-				if apisshutils.KeysEqual(v.SignatureKey, checker) {
-					ca = cas[i]
-					break
-				}
-			default:
-				if apisshutils.KeysEqual(key, checker) {
-					ca = cas[i]
-					break
-				}
+			if apisshutils.KeysEqual(authority, checker) {
+				ca = cas[i]
+				break
 			}
 		}
 	}

@@ -96,6 +96,7 @@ teleport:
   log:
     output: stderr
     severity: INFO
+  shutdown_delay: "7m35s"
   connection_limits:
     max_connections: 90
     max_users: 91
@@ -125,7 +126,7 @@ auth_service:
       slot_number: 1
       pin: "example_pin"
   authentication:
-    second_factor: "optional"
+    second_factor: "webauthn"
     webauthn:
       rp_id: "goteleport.com"
       attestation_allowed_cas:
@@ -346,7 +347,7 @@ auth_service:
   - "auth:yyy"
   authentication:
     type: local
-    second_factor: off
+    second_factors: [otp]
 
 ssh_service:
   enabled: no

@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 )
 
 func TestNewWorkloadIdentityAPICommand(t *testing.T) {
@@ -41,7 +42,7 @@ func TestNewWorkloadIdentityAPICommand(t *testing.T) {
 				require.Len(t, cfg.Services, 1)
 
 				svc := cfg.Services[0]
-				wis, ok := svc.(*config.WorkloadIdentityAPIService)
+				wis, ok := svc.(*workloadidentity.WorkloadAPIConfig)
 				require.True(t, ok)
 				require.Equal(t, "tcp://0.0.0.0:8080", wis.Listen)
 				require.Equal(t, map[string][]string{
@@ -65,7 +66,7 @@ func TestNewWorkloadIdentityAPICommand(t *testing.T) {
 				require.Len(t, cfg.Services, 1)
 
 				svc := cfg.Services[0]
-				wis, ok := svc.(*config.WorkloadIdentityAPIService)
+				wis, ok := svc.(*workloadidentity.WorkloadAPIConfig)
 				require.True(t, ok)
 				require.Equal(t, "unix:///opt/workload.sock", wis.Listen)
 				require.Equal(t, "jim", wis.Selector.Name)

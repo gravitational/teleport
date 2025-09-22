@@ -66,6 +66,12 @@ func ProxyingLockTargets(localClusterName, serverID string, accessInfo *AccessIn
 	if trustedDevice := unmappedIdentity.DeviceID; trustedDevice != "" {
 		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
 	}
+	if joinToken := unmappedIdentity.JoinToken; joinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: joinToken})
+	}
+	if botInstanceID := unmappedIdentity.BotInstanceID; botInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: botInstanceID})
+	}
 	roles := apiutils.Deduplicate(append(accessInfo.Roles, unmappedIdentity.Roles...))
 	lockTargets = append(lockTargets, RolesToLockTargets(roles)...)
 	lockTargets = append(lockTargets, AccessRequestsToLockTargets(unmappedIdentity.ActiveRequests)...)
@@ -86,6 +92,12 @@ func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {
 	}
 	if id.DeviceExtensions.DeviceID != "" {
 		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
+	}
+	if id.JoinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: id.JoinToken})
+	}
+	if id.BotInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
 	}
 	lockTargets = append(lockTargets, AccessRequestsToLockTargets(id.ActiveRequests)...)
 	return lockTargets

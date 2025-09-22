@@ -1,6 +1,12 @@
 ---
 title: Database Access with Amazon Redshift Serverless
+sidebar_label: Amazon Redshift Serverless
 description: How to configure Teleport database access with Amazon Redshift Serverless.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon Redshift Serverless" dbConfigure="with IAM authentication"!)
@@ -203,9 +209,9 @@ Service or cloud tenant:
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
-Name        Description                    Labels
------------ ------------------------------ --------
-my-redshift                                ...
+Name        Description Labels
+----------- ----------- ------
+my-redshift             ...
 ```
 
 To connect to the Redshift Serverless instance:
@@ -221,7 +227,7 @@ Type "help" for help.
 dev=>
 ```
 
-(!docs/pages/includes/database-access/pg-access-webui.mdx!)
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
 
 To log out of the database and remove credentials:
 

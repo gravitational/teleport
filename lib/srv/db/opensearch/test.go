@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestServerOption allows setting test server options.
@@ -72,7 +72,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		listener:  config.Listener,
 		port:      port,
 		tlsConfig: tlsConfig,
-		log: utils.NewSlogLoggerForTests().With(
+		log: logtest.With(
 			teleport.ComponentKey, defaults.ProtocolOpenSearch,
 			"name", config.Name,
 		),

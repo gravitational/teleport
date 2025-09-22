@@ -104,6 +104,8 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
     suggestedReviewers: request.suggestedReviewers,
     thresholdNames: request.thresholdNames,
     resources: request.resources,
+    reasonMode: request.reasonMode || 'optional',
+    reasonPrompts: request.reasonPrompts,
   });
 }
 

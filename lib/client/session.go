@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"os/signal"
@@ -35,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -150,20 +151,9 @@ func newSession(ctx context.Context,
 			}
 
 		}
-		// new session!
-	} else {
-		// TODO(capnspacehook): DELETE IN 17.0.0
-		// clients shouldn't set TELEPORT_SESSION when they aren't joining
-		// a session, and won't need to once all supported Proxy/Node
-		// versions set the session ID for new sessions
-		sid, ok := ns.env[sshutils.SessionEnvVar]
-		if !ok {
-			sid = string(session.NewID())
-		}
-		ns.id = session.ID(sid)
-	}
 
-	ns.env[sshutils.SessionEnvVar] = string(ns.id)
+		ns.env[sshutils.SessionEnvVar] = string(ns.id)
+	}
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
@@ -237,9 +227,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 		}
 	}
 	// pass environment variables set by client
-	for key, val := range ns.env {
-		envs[key] = val
-	}
+	maps.Copy(envs, ns.env)
 
 	if err := sess.SetEnvs(ctx, envs); err != nil {
 		log.WarnContext(ctx, "Failed to set environment variables", "error", err)
@@ -248,15 +236,15 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 	// if agent forwarding was requested (and we have a agent to forward),
 	// forward the agent to endpoint.
 	tc := ns.nodeClient.TC
-	targetAgent := selectKeyAgent(tc)
+	targetAgent := selectKeyAgent(ctx, tc)
 
 	if targetAgent != nil {
 		log.DebugContext(ctx, "Forwarding Selected Key Agent")
-		err = agent.ForwardToAgent(ns.nodeClient.Client.Client, targetAgent)
+		err = sshagent.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, targetAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = agent.RequestAgentForwarding(sess.Session)
+		err = sshagent.RequestAgentForwarding(ctx, sess)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -267,16 +255,16 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 
 // selectKeyAgent picks the appropriate key agent for forwarding to the
 // server, if any.
-func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
+func selectKeyAgent(ctx context.Context, tc *TeleportClient) sshagent.ClientGetter {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
-		log.DebugContext(context.Background(), "Selecting system key agent")
-		return connectToSSHAgent()
+		log.DebugContext(ctx, "Selecting system key agent")
+		return sshagent.NewSystemAgentClient
 	case ForwardAgentLocal:
-		log.DebugContext(context.Background(), "Selecting local Teleport key agent")
-		return tc.localAgent.ExtendedAgent
+		log.DebugContext(ctx, "Selecting local Teleport key agent")
+		return sshagent.NewStaticClientGetter(tc.localAgent.ExtendedAgent)
 	default:
-		log.DebugContext(context.Background(), "No Key Agent selected")
+		log.DebugContext(ctx, "No Key Agent selected")
 		return nil
 	}
 }

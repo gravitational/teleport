@@ -170,7 +170,7 @@ export const ReAuthenticate: FC<{
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <Text color="text.slightlyMuted">
+                <Text>
                   {req.reason}
                   {isLeafCluster && ` from trusted cluster "${clusterName}"`}
                 </Text>
@@ -209,7 +209,9 @@ export const ReAuthenticate: FC<{
                   </>
                 )}
 
-                {selectedMfaType.value === 'sso' && <PromptSsoStatus />}
+                {selectedMfaType.value === 'sso' && (
+                  <PromptSsoStatus ssoPrompt="follow-browser-steps" />
+                )}
               </Flex>
             </DialogContent>
 

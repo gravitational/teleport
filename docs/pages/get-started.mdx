@@ -2,6 +2,9 @@
 title: "Get Started with Teleport"
 description: "Shows you how to set up a Teleport Enterprise (Cloud) account and protect your first resource with Teleport."
 tocDepth: 3
+tags:
+ - platform-wide
+ - get-started
 ---
 
 Teleport Enterprise helps organizations provide secure access to their
@@ -15,6 +18,14 @@ This guide explains how to register a local server with a Teleport Enterprise
 (Cloud) account. After you register the server, you can access it through the
 Teleport Web UI in a browser or using the terminal. You can also record your
 sessions, so you can review them later.
+
+<Admonition type="tip">
+
+You can also set up a Teleport cluster on a self-hosted virtual machine with
+Teleport Community Edition. For instructions, read [Run a Self-Hosted Demo
+Cluster](linux-demo.mdx).
+
+</Admonition>
 
 ## How it works
 
@@ -47,7 +58,7 @@ access for private and public networks across the globe.
   [server access](enroll-resources/server-access/getting-started.mdx).
 
 - The `tsh` client tool. `tsh` is included in the same packages and archives as
-  the `teleport` binary. See the [Installation Guide](installation.mdx) for how
+  the `teleport` binary. See the [Installation Guide](installation/installation.mdx) for how
   to install Teleport on your operating system.
   
   This guide only requires the `tsh` client tool to access a server from a
@@ -247,4 +258,4 @@ Role-based access control ensures that only authorized users are allowed access
 to those resources.
 
 To learn more information about deploying agents, see [Deploy Teleport Agents 
-with Terraform](admin-guides/infrastructure-as-code/terraform-starter/enroll-resources.mdx).
+with Terraform](zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started.mdx).

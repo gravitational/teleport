@@ -30,6 +30,7 @@ export const makeTestUserContext = (
         onboard: {
           preferredResources: [],
         },
+        keyboardLayout: 0,
       },
       clusterPreferences: {
         pinnedResources: [],

@@ -20,13 +20,14 @@ package okta
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	oktaplugin "github.com/gravitational/teleport/lib/okta/plugin"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // Okta-origin resources have some special access rules that are implemented in
@@ -99,7 +100,7 @@ func CheckAccess(authzCtx *authz.Context, existingResource types.ResourceWithLab
 
 // BidirectionalSyncEnabled checks if the bidirectional sync is enabled on the Okta plugin.  If the
 // Okta plugin does not exist the result is false.
-func BidirectionalSyncEnabled(ctx context.Context, plugins services.Plugins) (bool, error) {
+func BidirectionalSyncEnabled(ctx context.Context, plugins PluginGetter) (bool, error) {
 	plugin, err := oktaplugin.Get(ctx, plugins, false /* withSecrets */)
 	if trace.IsNotFound(err) {
 		return false, nil
@@ -107,12 +108,6 @@ func BidirectionalSyncEnabled(ctx context.Context, plugins services.Plugins) (bo
 		return false, trace.Wrap(err, "getting Okta plugin")
 	}
 	return plugin.Spec.GetOkta().GetSyncSettings().GetEnableBidirectionalSync(), nil
-}
-
-// AccessPoint provides services required by [CheckResourcesRequestable].
-type AccessPoint struct {
-	Plugins              services.Plugins
-	UnifiedResourceCache *services.UnifiedResourceCache
 }
 
 var (
@@ -130,8 +125,12 @@ var (
 //
 // If any resource is not requestable, [OktaResourceNotRequestableError] will be returned. Any
 // other error can be returned.
-func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, ap AccessPoint) error {
-	bidirectionalSyncEnabled, err := BidirectionalSyncEnabled(ctx, ap.Plugins)
+func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, auth AuthServer) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	bidirectionalSyncEnabled, err := BidirectionalSyncEnabled(ctx, auth)
 	if err != nil {
 		return trace.Wrap(err, "getting bidirectional sync")
 	}
@@ -140,19 +139,30 @@ func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, ap A
 	}
 
 	var denied []types.ResourceID
-	for app, err := range ap.UnifiedResourceCache.AppServers(ctx, services.UnifiedResourcesIterateParams{}) {
-		if err != nil {
-			return trace.Wrap(err, "iterating cached AppServers")
-		}
-		for _, id := range ids {
-			switch id.Kind {
-			case types.KindApp, types.KindAppServer:
+
+	for _, id := range ids {
+		switch id.Kind {
+		case types.KindAppServer, types.KindApp:
+			_, err := getOktaAppServer(ctx, auth, id.Name)
+			switch {
+			case trace.IsNotFound(err):
 				// ok
+			case err != nil:
+				return trace.Wrap(err, "getting app_server %q", id.Name)
 			default:
+				denied = append(denied, id)
 				continue
 			}
-			if app.GetName() == id.Name && app.Origin() == types.OriginOkta {
+		case types.KindUserGroup:
+			userGroup, err := auth.GetUserGroup(ctx, id.Name)
+			switch {
+			case trace.IsNotFound(err):
+				// ok
+			case err != nil:
+				return trace.Wrap(err, "getting user_group %q", id.Name)
+			case userGroup.Origin() == types.OriginOkta:
 				denied = append(denied, id)
+				continue
 			}
 		}
 	}
@@ -167,4 +177,30 @@ func CheckResourcesRequestable(ctx context.Context, ids []types.ResourceID, ap A
 	}
 
 	return trace.Wrap(OktaResourceNotRequestableError, "requested Okta resources: %s", resourcesStr)
+}
+
+func getOktaAppServer(ctx context.Context, auth AuthServer, name string) (types.AppServer, error) {
+	req := proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        1,
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginOkta,
+		},
+		PredicateExpression: fmt.Sprintf(`name == %q`, name),
+	}
+
+	resp, err := auth.ListResources(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(resp.Resources) != 1 {
+		return nil, trace.NotFound("found %d resources when getting Okta-originated app_server %q", len(resp.Resources), name)
+	}
+
+	appServer, ok := resp.Resources[0].(types.AppServer)
+	if !ok {
+		return nil, trace.BadParameter("expected %T, found %T", appServer, resp.Resources[0])
+	}
+	return appServer, nil
 }

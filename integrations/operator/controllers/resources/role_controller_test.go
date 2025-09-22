@@ -188,11 +188,11 @@ allow:
 	}
 
 	for _, tc := range tests {
-		tc := tc // capture range variable
+		// capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
-			roleManifest := map[string]interface{}{}
+			roleManifest := map[string]any{}
 			err := yaml.Unmarshal([]byte(tc.roleSpecYAML), &roleManifest)
 			require.NoError(t, err)
 
@@ -232,7 +232,7 @@ allow:
 				require.Equal(t, roleName, tRole.GetName())
 				require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
 				require.Equal(t, types.OriginKubernetes, tRole.GetMetadata().Labels[types.OriginLabel])
-				expectedRole, _ := types.NewRole(roleName, *tc.expectedSpec)
+				expectedRole, _ := types.NewRoleWithVersion(roleName, types.V7, *tc.expectedSpec)
 				compareRoleSpecs(t, expectedRole, tRole)
 			}
 			// Teardown
@@ -338,14 +338,14 @@ func TestRoleUpdate(t *testing.T) {
 	k8sCreateRole(ctx, t, setup.K8sClient, &k8sRole)
 
 	// The role is updated in Teleport
-	fastEventuallyWithT(t, func(c *assert.CollectT) {
+	fastEventuallyWithT(t, func(t *assert.CollectT) {
 		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		// TeleportRole updated with new logins
 		logins := tRole.GetLogins(types.Allow)
 		sort.Strings(logins)
-		assert.ElementsMatch(c, logins, []string{"x", "z"})
+		assert.ElementsMatch(t, logins, []string{"x", "z"})
 	})
 
 	// Updating the role in K8S
@@ -366,14 +366,14 @@ func TestRoleUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Updates the role in Teleport
-	fastEventuallyWithT(t, func(c *assert.CollectT) {
+	fastEventuallyWithT(t, func(t *assert.CollectT) {
 		tRole, err := setup.TeleportClient.GetRole(ctx, roleName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		// TeleportRole updated with new logins
 		logins := tRole.GetLogins(types.Allow)
 		sort.Strings(logins)
-		assert.ElementsMatch(c, logins, []string{"admin", "root", "x", "z"})
+		assert.ElementsMatch(t, logins, []string{"admin", "root", "x", "z"})
 	})
 }
 
@@ -408,7 +408,7 @@ func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *r
 	require.NoError(t, err)
 }
 
-func getRoleStatusConditionError(object map[string]interface{}) []metav1.Condition {
+func getRoleStatusConditionError(object map[string]any) []metav1.Condition {
 	var conditionsWithError []metav1.Condition
 	var status apiresources.Status
 	_ = mapstructure.Decode(object["status"], &status)

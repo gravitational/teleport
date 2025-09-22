@@ -175,7 +175,7 @@ func (l *SemaphoreLock) keepAlive() {
 			defer cancel()
 			err = l.cfg.Service.CancelSemaphoreLease(cancelContext, lease)
 			if err != nil {
-				slog.WarnContext(cancelContext, "Failed to cancel semaphore lease %s/%s: %v",
+				slog.WarnContext(cancelContext, "Failed to cancel semaphore lease",
 					"semaphore_kind", lease.SemaphoreKind,
 					"semaphore_name", lease.SemaphoreName,
 					"error", err,
@@ -255,6 +255,11 @@ type AcquireSemaphoreWithRetryConfig struct {
 	Service types.Semaphores
 	Request types.AcquireSemaphoreRequest
 	Retry   retryutils.LinearConfig
+	// TTL, if set, will be used to set the expiry of the request.
+	TTL time.Duration
+	// Now, if set, will be used instead of time.Now when calculating the expiry
+	// of the request.
+	Now func() time.Time
 }
 
 // AcquireSemaphoreWithRetry tries to acquire the semaphore according to the
@@ -264,9 +269,16 @@ func AcquireSemaphoreWithRetry(ctx context.Context, req AcquireSemaphoreWithRetr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if req.Now == nil {
+		req.Now = time.Now
+	}
 	var lease *types.SemaphoreLease
 	err = retry.For(ctx, func() (err error) {
-		lease, err = req.Service.AcquireSemaphore(ctx, req.Request)
+		r := req.Request
+		if req.TTL > 0 {
+			r.Expires = req.Now().Add(req.TTL)
+		}
+		lease, err = req.Service.AcquireSemaphore(ctx, r)
 		return trace.Wrap(err)
 	})
 	if err != nil {

@@ -30,7 +30,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -236,7 +236,7 @@ func (s *sftpSubsys) Wait() error {
 	})
 
 	errs := []error{waitErr}
-	for i := 0; i < copyingGoroutines; i++ {
+	for range copyingGoroutines {
 		err := <-s.errCh
 		if err != nil && !utils.IsOKNetworkError(err) {
 			s.logger.WarnContext(ctx, "Connection problem", "error", err)

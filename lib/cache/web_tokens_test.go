@@ -32,13 +32,13 @@ func TestWebTokens(t *testing.T) {
 	testResources(t, p, testFuncs[types.WebToken]{
 		newResource: func(name string) (types.WebToken, error) {
 			return types.NewWebToken(time.Now().Add(time.Hour), types.WebTokenSpecV3{
-				Token: "test",
+				Token: name,
 				User:  "llama",
 			})
 		},
 		create:    p.webTokenS.Upsert,
-		list:      p.webTokenS.List,
-		cacheList: p.cache.GetWebTokens,
+		list:      getAllAdapter(p.webTokenS.List),
+		cacheList: getAllAdapter(p.cache.GetWebTokens),
 		deleteAll: p.webTokenS.DeleteAll,
-	})
+	}, withSkipPaginationTest())
 }

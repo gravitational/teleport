@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
-	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -73,6 +72,10 @@ type Config struct {
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
 
+	// RelayServer is the optional address of the relay server that this agent
+	// should be opening tunnels to for supported services.
+	RelayServer string
+
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
 	Identities []*state.Identity
@@ -85,12 +88,19 @@ type Config struct {
 	// in case if they lose connection to auth servers
 	CachePolicy CachePolicy
 
+	// ShutdownDelay is a fixed delay between receiving a termination signal and
+	// the beginning of the shutdown procedures.
+	ShutdownDelay time.Duration
+
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
 
 	// Proxy service configuration. Manages incoming and outbound
 	// connections to the cluster.
 	Proxy ProxyConfig
+
+	// Relay contains the configuration for the Relay service.
+	Relay RelayConfig
 
 	// SSH service configuration. Manages SSH servers running within the cluster.
 	SSH SSHConfig
@@ -128,10 +138,6 @@ type Config struct {
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
-	// HostUUID is a unique UUID of this host (it will be known via this UUID within
-	// a teleport cluster). It's automatically generated on 1st start
-	HostUUID string
-
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
 	ReverseTunnels []types.ReverseTunnel
@@ -160,8 +166,6 @@ type Config struct {
 	// Access is a service that controls access
 	Access services.Access
 
-	// UsageReporter is a service that reports usage events.
-	UsageReporter usagereporter.UsageReporter
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfigurationInternal
 
@@ -314,6 +318,14 @@ type ConfigTesting struct {
 	// HTTPTransport is an optional HTTP round tripper to used in tests
 	// to mock HTTP requests to the third party services like Okta integration
 	HTTPTransport http.RoundTripper
+
+	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
+	// a locking operation for backend objects.
+	// This setting is particularly useful in test environments,
+	// as it can help accelerate operations such as updating the access list,
+	// especially when the list is also being modified concurrently by the background
+	// eligibility handler.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 // AccessGraphConfig represents TAG server config
@@ -329,6 +341,17 @@ type AccessGraphConfig struct {
 
 	// Insecure is true if the connection to the Access Graph service should be insecure
 	Insecure bool
+
+	// AuditLog contains audit log export details.
+	AuditLog AuditLogConfig
+}
+
+// AuditLogConfig specifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
@@ -344,6 +367,7 @@ type RoleAndIdentityEvent struct {
 func DisableLongRunningServices(cfg *Config) {
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
+	cfg.Relay.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
@@ -381,6 +405,33 @@ func (c CachePolicy) String() string {
 		return "no cache"
 	}
 	return "in-memory cache"
+}
+
+// CheckServicesForSELinux returns false if any services that don't
+// support SELinux enforcement are enabled.
+func (cfg *Config) CheckServicesForSELinux() bool {
+	switch {
+	case cfg.AccessGraph.Enabled:
+		fallthrough
+	case cfg.Apps.Enabled:
+		fallthrough
+	case cfg.Auth.Enabled:
+		fallthrough
+	case cfg.Databases.Enabled:
+		fallthrough
+	case cfg.Jamf.Enabled():
+		fallthrough
+	case cfg.Kube.Enabled:
+		fallthrough
+	case cfg.Okta.Enabled:
+		fallthrough
+	case cfg.Proxy.Enabled:
+		fallthrough
+	case cfg.WindowsDesktop.Enabled:
+		return false
+
+	}
+	return true
 }
 
 // AuthServerAddresses returns the value of authServers for config versions v1 and v2 and
@@ -758,6 +809,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Auth.Enabled,
 		cfg.SSH.Enabled,
 		cfg.Proxy.Enabled,
+		cfg.Relay.Enabled,
 		cfg.Kube.Enabled,
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
@@ -775,7 +827,8 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service")
+		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service",
+	)
 }
 
 // SetLogLevel changes the loggers log level.

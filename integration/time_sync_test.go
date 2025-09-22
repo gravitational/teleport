@@ -19,7 +19,6 @@
 package integration
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -40,8 +39,7 @@ func TestTimeReconciliation(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 	helpers.SetTestTimeouts(2 * time.Second)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Start Teleport Auth and Proxy services
 	authProcess, proxyProcess, provisionToken := helpers.MakeTestServers(t)

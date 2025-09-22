@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -124,4 +125,40 @@ func TestGetResourceDetails(t *testing.T) {
 
 	// This Okta sourced user group should have a friendly name.
 	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(resourceIDs[4])].FriendlyName)
+}
+
+func TestGetResourceNames(t *testing.T) {
+	clusterName := "cluster"
+
+	presence := &mockResourceLister{
+		resources: []types.ResourceWithLabels{
+			newNode(t, "node1", "hostname 1"),
+			newApp(t, "app1", "friendly app 1", types.OriginDynamic),
+			newApp(t, "app2", "friendly app 2", types.OriginDynamic),
+			newApp(t, "app3", "friendly app 3", types.OriginOkta),
+			newUserGroup(t, "group1", "friendly group 1", types.OriginOkta),
+		},
+	}
+	resourceIDs := []types.ResourceID{
+		newResourceID(clusterName, types.KindNode, "node1"),
+		newResourceID(clusterName, types.KindApp, "app1"),
+		newResourceID(clusterName, types.KindApp, "app2"),
+		newResourceID(clusterName, types.KindApp, "app3"),
+		newResourceID(clusterName, types.KindUserGroup, "group1"),
+	}
+
+	ctx := context.Background()
+
+	req, err := types.NewAccessRequestWithResources(uuid.New().String(), "some-user", []string{}, resourceIDs)
+	require.NoError(t, err)
+	names, err := GetResourceNames(ctx, presence, req)
+	require.NoError(t, err)
+	expected := []string{
+		"/node/hostname 1",
+		"/cluster/app/app1",
+		"/cluster/app/app2",
+		"/app/friendly app 3",
+		"/user_group/friendly group 1",
+	}
+	require.Equal(t, expected, names)
 }

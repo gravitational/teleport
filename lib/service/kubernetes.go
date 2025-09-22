@@ -210,21 +210,20 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:         apidefaults.Namespace,
-			Keygen:            cfg.Keygen,
-			ClusterName:       teleportClusterName,
-			Authz:             authorizer,
-			AuthClient:        conn.Client,
-			Emitter:           asyncEmitter,
-			DataDir:           cfg.DataDir,
-			CachingAuthClient: accessPoint,
-			HostID:            cfg.HostUUID,
-			Context:           process.ExitContext(),
-			KubeconfigPath:    cfg.Kube.KubeconfigPath,
-			KubeClusterName:   cfg.Kube.KubeClusterName,
-			KubeServiceType:   kubeproxy.KubeService,
-			Component:         teleport.ComponentKube,
-
+			Namespace:                     apidefaults.Namespace,
+			Keygen:                        cfg.Keygen,
+			ClusterName:                   teleportClusterName,
+			Authz:                         authorizer,
+			AuthClient:                    conn.Client,
+			Emitter:                       asyncEmitter,
+			DataDir:                       cfg.DataDir,
+			CachingAuthClient:             accessPoint,
+			HostID:                        conn.HostUUID(),
+			Context:                       process.ExitContext(),
+			KubeconfigPath:                cfg.Kube.KubeconfigPath,
+			KubeClusterName:               cfg.Kube.KubeClusterName,
+			KubeServiceType:               kubeproxy.KubeService,
+			Component:                     teleport.ComponentKube,
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
@@ -270,7 +269,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	})
 
 	// Cleanup, when process is exiting.
-	process.OnExit("kube.shutdown", func(payload interface{}) {
+	process.OnExit("kube.shutdown", func(payload any) {
 		// Clean up items in reverse order from their initialization.
 		if payload != nil {
 			// Graceful shutdown.

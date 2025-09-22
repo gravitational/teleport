@@ -20,11 +20,13 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -38,28 +40,17 @@ func newAccessMonitoringRuleCollection(upstream services.AccessMonitoringRules, 
 	}
 
 	return &collection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]{
-		store: newStore(map[accessMonitoringRuleIndex]func(*accessmonitoringrulesv1.AccessMonitoringRule) string{
-			accessMonitoringRuleNameIndex: func(r *accessmonitoringrulesv1.AccessMonitoringRule) string {
-				return r.GetMetadata().Name
-			},
-		}),
+		store: newStore(
+			types.KindAccessMonitoringRule,
+			proto.CloneOf[*accessmonitoringrulesv1.AccessMonitoringRule],
+			map[accessMonitoringRuleIndex]func(*accessmonitoringrulesv1.AccessMonitoringRule) string{
+				accessMonitoringRuleNameIndex: func(r *accessmonitoringrulesv1.AccessMonitoringRule) string {
+					return r.GetMetadata().Name
+				},
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-			var resources []*accessmonitoringrulesv1.AccessMonitoringRule
-			var nextToken string
-			for {
-				var page []*accessmonitoringrulesv1.AccessMonitoringRule
-				var err error
-				page, nextToken, err = upstream.ListAccessMonitoringRules(ctx, 0 /* page size */, nextToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				resources = append(resources, page...)
-
-				if nextToken == "" {
-					break
-				}
-			}
-			return resources, nil
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListAccessMonitoringRules))
+			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *accessmonitoringrulesv1.AccessMonitoringRule {
 			return &accessmonitoringrulesv1.AccessMonitoringRule{
@@ -87,7 +78,6 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, pag
 		nextToken: func(t *accessmonitoringrulesv1.AccessMonitoringRule) string {
 			return t.GetMetadata().Name
 		},
-		clone: utils.CloneProtoMsg[*accessmonitoringrulesv1.AccessMonitoringRule],
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
@@ -106,7 +96,6 @@ func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *ac
 		nextToken: func(t *accessmonitoringrulesv1.AccessMonitoringRule) string {
 			return t.GetMetadata().Name
 		},
-		clone: utils.CloneProtoMsg[*accessmonitoringrulesv1.AccessMonitoringRule],
 		filter: func(rule *accessmonitoringrulesv1.AccessMonitoringRule) bool {
 			return services.MatchAccessMonitoringRule(rule, req.GetSubjects(), req.GetNotificationName(), req.GetAutomaticReviewName())
 		},
@@ -125,7 +114,6 @@ func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*acce
 		collection:  c.collections.accessMonitoringRules,
 		index:       accessMonitoringRuleNameIndex,
 		upstreamGet: c.Config.AccessMonitoringRules.GetAccessMonitoringRule,
-		clone:       utils.CloneProtoMsg[*accessmonitoringrulesv1.AccessMonitoringRule],
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)

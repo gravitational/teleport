@@ -68,6 +68,7 @@ func (h *healthCheckConfig) equivalent(other *healthCheckConfig) bool {
 			h.name == other.name &&
 			h.protocol == other.protocol &&
 			h.interval == other.interval &&
+			h.timeout == other.timeout &&
 			h.healthyThreshold == other.healthyThreshold &&
 			h.unhealthyThreshold == other.unhealthyThreshold
 }

@@ -80,7 +80,7 @@ func ProxyConn(ctx context.Context, client, server io.ReadWriteCloser) error {
 	}()
 
 	var errors []error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case err := <-errCh:
 			if err != nil && !IsOKNetworkError(err) {

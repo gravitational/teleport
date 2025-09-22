@@ -127,11 +127,6 @@ func (c *Client) DeleteGitServer(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// DeleteAllGitServers removes all Git server resources.
-func (c *Client) DeleteAllGitServers(ctx context.Context) error {
-	return trace.NotImplemented("DeleteAllGitServers servers not implemented")
-}
-
 // CreateGitHubAuthRequest starts GitHub OAuth flow for authenticated user.
 func (c *Client) CreateGitHubAuthRequest(ctx context.Context, req *types.GithubAuthRequest, org string) (*types.GithubAuthRequest, error) {
 	resp, err := c.grpcClient.CreateGitHubAuthRequest(ctx, &gitserverv1.CreateGitHubAuthRequestRequest{

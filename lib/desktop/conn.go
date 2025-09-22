@@ -34,9 +34,8 @@ type ConnectionConfig struct {
 	Log *slog.Logger
 	// DesktopsGetter is responsible for getting desktops and desktop services.
 	DesktopsGetter DesktopsGetter
-	// Site represents a remote teleport site that can be accessed via
-	// a teleport tunnel or directly by proxy.
-	Site reversetunnelclient.RemoteSite
+	// Cluster represents a Teleport cluster that the desktop is connected to.
+	Cluster reversetunnelclient.Cluster
 	// ClientSrcAddr is the original observed client address.
 	ClientSrcAddr net.Addr
 	// ClientDstAddr is the original client's destination address.
@@ -104,7 +103,7 @@ func tryConnect(ctx context.Context, desktopServiceID string, config *Connection
 		return nil, "", trace.NotFound("could not find windows desktop service %s: %v", desktopServiceID, err)
 	}
 
-	conn, err = config.Site.DialTCP(reversetunnelclient.DialParams{
+	conn, err = config.Cluster.DialTCP(reversetunnelclient.DialParams{
 		From:                  config.ClientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType:              types.WindowsDesktopTunnel,

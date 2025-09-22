@@ -12,7 +12,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
-getrandom = { version = "0.2", features = ["js"] }
+getrandom = { version = "0.3.3", features = ["wasm_js"] }
+getrandom1 = { package = "getrandom", version = "0.2", features = ["js"] }
 ironrdp-session.workspace = true
 ironrdp-pdu.workspace = true
 ironrdp-core.workspace = true
@@ -21,7 +22,7 @@ js-sys = "0.3.76"
 log = "0.4.27"
 time = { version = "0.3", features = ["wasm-bindgen"] }
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["time"] }
+tracing-subscriber = { version = "0.3.20", features = ["time"] }
 tracing-web = "0.1.2"
 uuid = { version = "1.16.0", features = ["js"] }
 wasm-bindgen = "0.2.93"

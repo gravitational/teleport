@@ -1,4 +1,4 @@
-{{ cloud="foo" matcher="bar" matchTypes="baz" }}
+{{ matcher="bar" }}
 To customize an installer, your user must have a role that allows `list`, `create`, `read` and `update` verbs on the `installer` resource.
 
 Create a file called `installer-manager.yaml` with the following content:
@@ -40,19 +40,7 @@ Multiple `installer` resources can exist and be specified in the
 `teleport.yaml`:
 
 ```yaml
-discovery_service:
-  # ...
-  {{ matcher }}:
-    - types: {{ matchTypes }}
-      tags:
-       - "env": "prod"
-      install: # optional section when default-installer is used.
-        script_name: "default-installer"
-    - types: {{ matchTypes }}
-      tags:
-       - "env": "devel"
-      install:
-        script_name: "devel-installer"
+(!docs/pages/includes/server-access/custom-installer-{{ matcher }}.yaml!)
 ```
 
 ---
@@ -64,7 +52,7 @@ The `installer` resource has the following templating options:
 - `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to
 connect to.
 - `{{ .RepoChannel }}`: Optional package repository (apt/yum) channel name.
-Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation.mdx#linux) for more details.
+Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation/linux.mdx) for more details.
 - `{{ .AutomaticUpgrades }}`: indicates whether Automatic Updates are enabled or disabled.
   Its value is either `true` or `false`. See
   [Automatic Agent Updates](../../upgrading/agent-managed-updates.mdx)

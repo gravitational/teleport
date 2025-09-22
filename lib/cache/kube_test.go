@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -43,12 +42,12 @@ func TestKubernetes(t *testing.T) {
 			}, types.KubernetesClusterSpecV3{})
 		},
 		create:    p.kubernetes.CreateKubernetesCluster,
-		list:      p.kubernetes.GetKubernetesClusters,
+		list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
 		cacheGet:  p.cache.GetKubernetesCluster,
-		cacheList: p.cache.GetKubernetesClusters,
+		cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
 		update:    p.kubernetes.UpdateKubernetesCluster,
 		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestKubernetesServers tests that CRUD operations on kube servers are
@@ -66,18 +65,14 @@ func TestKubernetesServers(t *testing.T) {
 				require.NoError(t, err)
 				return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
 			},
-			create: withKeepalive(p.presenceS.UpsertKubernetesServer),
-			list: func(ctx context.Context) ([]types.KubeServer, error) {
-				return p.presenceS.GetKubernetesServers(ctx)
-			},
-			cacheList: func(ctx context.Context) ([]types.KubeServer, error) {
-				return p.cache.GetKubernetesServers(ctx)
-			},
-			update: withKeepalive(p.presenceS.UpsertKubernetesServer),
+			create:    withKeepalive(p.presenceS.UpsertKubernetesServer),
+			list:      getAllAdapter(p.presenceS.GetKubernetesServers),
+			cacheList: getAllAdapter(p.cache.GetKubernetesServers),
+			update:    withKeepalive(p.presenceS.UpsertKubernetesServer),
 			deleteAll: func(ctx context.Context) error {
 				return p.presenceS.DeleteAllKubernetesServers(ctx)
 			},
-		})
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListResources", func(t *testing.T) {
@@ -88,55 +83,27 @@ func TestKubernetesServers(t *testing.T) {
 				return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
 			},
 			create: withKeepalive(p.presenceS.UpsertKubernetesServer),
-			list: func(ctx context.Context) ([]types.KubeServer, error) {
-				req := proto.ListResourcesRequest{
-					ResourceType: types.KindKubeServer,
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeServer, string, error) {
+				resources, next, err := listResource(ctx, p.presenceS, types.KindKubeServer, pageSize, pageToken)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
-
-				var out []types.KubeServer
-				for {
-					resp, err := p.presenceS.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.KubeServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
+				out, err := types.ResourcesWithLabels(resources).AsKubeServers()
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
-
-				return out, nil
+				return out, next, nil
 			},
-			cacheList: func(ctx context.Context) ([]types.KubeServer, error) {
-				req := proto.ListResourcesRequest{
-					ResourceType: types.KindKubeServer,
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeServer, string, error) {
+				resources, next, err := listResource(ctx, p.cache, types.KindKubeServer, pageSize, pageToken)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
-
-				var out []types.KubeServer
-				for {
-					resp, err := p.cache.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.KubeServer))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
+				out, err := types.ResourcesWithLabels(resources).AsKubeServers()
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
-
-				return out, nil
+				return out, next, nil
 			},
 			update: withKeepalive(p.presenceS.UpsertKubernetesServer),
 			deleteAll: func(ctx context.Context) error {

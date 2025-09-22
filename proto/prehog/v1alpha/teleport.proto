@@ -201,6 +201,11 @@ enum UserKind {
   //
   // PostHog property value: "bot"
   USER_KIND_BOT = 2;
+
+  // Indicates that the user associated with this event is a system component e.g. Okta service.
+  //
+  // PostHog property value: "system"
+  USER_KIND_SYSTEM = 3;
 }
 
 // an event representing one of several audit events: session.start, port,
@@ -801,6 +806,21 @@ message UICreateNewRoleClickEvent {
 message UICreateNewRoleSaveClickEvent {
   //anonymized
   string user_name = 1;
+  // StandardUsed indicates if the user interacted with the standard editor
+  // tab.
+  bool standard_used = 2;
+  // YamlUsed indicates if the user interacted with the YAML editor tab.
+  bool yaml_used = 3;
+  // ModeWhenSaved indicates which editor tab was active when the Save button
+  // was clicked ("standard" or "yaml"). Note that it's inherently different
+  // from what `StandardUsed` or `YamlUsed` describe; the user can interact
+  // with one kind of editor, then verify the results in another, and
+  // ultimately click Save on any of them.
+  string mode_when_saved = 4;
+  // A list of field paths that prevented the standard editor from being
+  // operational, if any. Looking at these may provide insight into which
+  // missing features should be implemented first.
+  repeated string fields_with_conversion_errors = 5;
 }
 
 // UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation

@@ -116,6 +116,22 @@ func (c *Client) ListSecurityReports(ctx context.Context, pageSize int, token st
 	return reports, resp.GetNextPageToken(), nil
 }
 
+func (c *Client) ListSecurityReportsStates(ctx context.Context, pageSize int, token string) ([]*secreports.ReportState, string, error) {
+	resp, err := c.grpcClient.ListReportStates(ctx, &pb.ListReportStatesRequest{
+		PageSize:  int32(pageSize),
+		PageToken: token,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	states, err := v1.FromProtoReportStates(resp.ReportStates)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return states, resp.GetNextPageToken(), nil
+}
+
 // GetSecurityReportExecutionState returns the execution state of the report.
 func (c *Client) GetSecurityReportExecutionState(ctx context.Context, name string, days int32) (*secreports.ReportState, error) {
 	resp, err := c.grpcClient.GetReportState(ctx, &pb.GetReportStateRequest{

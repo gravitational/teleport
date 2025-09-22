@@ -36,14 +36,28 @@ let sesstionCheckerTimerId = null;
 
 const session = {
   logout(rememberLocation = false) {
-    api.delete(cfg.api.webSessionPath).then(response => {
-      this.clear();
-      if (response.samlSloUrl) {
-        window.open(response.samlSloUrl, '_self');
-      } else {
-        history.goToLogin({ rememberLocation });
-      }
-    });
+    let samlSloUrl = '';
+
+    api
+      .delete(cfg.api.webSessionPath)
+      .then(response => {
+        samlSloUrl = response?.samlSloUrl;
+      })
+      .catch(err => {
+        // This request can fail if the session is already expired, which isn't an issue, but we should still catch the error.
+        logger.error(
+          'Failed to delete session. This can happen if the session has already expired.',
+          err
+        );
+      })
+      .finally(() => {
+        this.clear();
+        if (samlSloUrl) {
+          window.open(samlSloUrl, '_self');
+        } else {
+          history.goToLogin({ rememberLocation });
+        }
+      });
   },
 
   logoutWithoutSlo({

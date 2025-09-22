@@ -37,18 +37,19 @@ func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[type
 	}
 
 	return &collection[types.Server, nodeIndex]{
-		store: newStore(map[nodeIndex]func(types.Server) string{
-			nodeNameIndex: func(u types.Server) string {
-				return u.GetName()
-			},
-		}),
+		store: newStore(
+			types.KindNode,
+			types.Server.DeepCopy,
+			map[nodeIndex]func(types.Server) string{
+				nodeNameIndex: types.Server.GetName,
+			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Server, error) {
 			return p.GetNodes(ctx, defaults.Namespace)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Server {
 			return &types.ServerV2{
-				Kind:    types.KindNode,
-				Version: types.V2,
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
 				Metadata: types.Metadata{
 					Name: hdr.Metadata.Name,
 				},

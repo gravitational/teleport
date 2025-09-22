@@ -15,7 +15,7 @@ on:
 
 jobs:
   terraform-lint:
-    uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@main
+    uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
     with:
       # TODO: Fix Terraform linting issues and stop using force to pass the job.
       tflint_force: true

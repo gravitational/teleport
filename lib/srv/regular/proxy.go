@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -172,13 +173,13 @@ func newProxySubsys(ctx context.Context, serverContext *srv.ServerContext, srv *
 		)
 		req.clusterName = serverContext.Identity.RouteToCluster
 	}
-	if req.clusterName != "" && srv.proxyTun != nil {
-		checker, err := srv.tunnelWithAccessChecker(serverContext)
+	if req.clusterName != "" && srv.proxyClusterGetter != nil {
+		checker, err := srv.clusterGetterWithAccessChecker(serverContext)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if _, err := checker.GetSite(req.clusterName); err != nil {
+		if _, err := checker.Cluster(ctx, req.clusterName); err != nil {
 			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q", req.clusterName)
 		}
 	}
@@ -251,7 +252,9 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 
 	signer := agentless.SignerFromSSHIdentity(identity.UnmappedIdentity, authClient, t.clusterName, identity.TeleportUser)
 
-	aGetter := t.ctx.StartAgentChannel
+	aGetter := func() (sshagent.Client, error) {
+		return t.ctx.StartAgentChannel()
+	}
 	conn, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.UnstableClusterAccessChecker, aGetter, signer)
 	if err != nil {
 		return trace.Wrap(err)
