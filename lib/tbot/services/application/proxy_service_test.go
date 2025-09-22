@@ -52,7 +52,7 @@ type proxyReqRes struct {
 
 func TestE2E_ApplicationProxyService(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	log := logtest.NewLogger()
 
 	// Spin up a test HTTP server
