@@ -238,7 +238,7 @@ If `template_config.allow` was once defined, but becomes undefined, Teleport wil
 
 All roles created by Teleport will be labeled with
 
-- `teleport.internal/resource-type: system`: Tags this role as Teleport managed. Teleport also supports filtering out system managed roles when [listing roles](https://github.com/gravitational/teleport/blob/a4eb5edab6f91a9373857f2449d1bcaf1a2a9d18/api/proto/teleport/legacy/types/types.proto#L3436).
+- `teleport.internal/resource-type: system`: Tags this role as Teleport managed. Teleport also supports filtering out system managed roles when [listing roles](https://github.com/gravitational/teleport/blob/a4eb5edab6f91a9373857f2449d1bcaf1a2a9d18/api/proto/teleport/legacy/types/types.proto#L3436) (e.g web UI). This does not prevent listing roles with `tctl get roles`.
 - `teleport.internal/access-list-name: <UID of access list>`: Tags this role as belonging to an access list. This label will be used to prevent users from updating this role. Teleport currently does not prevent users from modifying system marked roles with `tctl`. This presents a problem where the `access` definition on a templated access list is not in sync with the actual role resource. Rejecting updates will handle this issue.
 
 ##### System-managed roles for short-term template
@@ -255,7 +255,7 @@ All roles created by Teleport will be labeled with
 
 ##### Naming format for the system-managed roles
 
-In order to ensure uniqueness, the naming convention takes the following format:
+In order to ensure uniqueness (and ease of querying for roles related to an access list), the naming convention takes the following format:
 
 `templated-acl-<purpose>-role-<UID of access list>`
 
@@ -280,15 +280,13 @@ Only the `template_config.allow` is modifiable.
 
 Any updates made on a templated access list will upsert roles regardless if access has actually changed. This is in part to keep the roles in sync. When updating roles, the previous version of the role will be maintained to prevent unintended role behavioral changes with different role verisons. If a user wants to upgrade to a newer role version, user must create a new access list, which will use the latest role version.
 
-When modifying, Teleport will also delete orphaned roles if present. A role can become orphaned if a user changes access in a way it changes grants. E.g: if a user removes access for AWS IC, the role created specifically for AWS IC access becomes unused.
+With each modification on a templated access list, Teleport will also delete orphaned roles if present. A role can become orphaned if a user changes access in a way it changes grants. E.g: if a user removes access for AWS IC, the role created specifically for AWS IC access becomes unused.
 
 #### Delete
 
-In the backend, after an access list is successfully deleted, all roles tied to that deleted access list will also be deleted. Note that the access list must be deleted first as roles assigned to access list cannot be deleted.
+All roles tied to the access list will be deleted first before attempting to delete the access list. This is to ensure all related roles are deleted and users can retry to delete an access list if deleting any role fails.
 
-##### Reconciler that cleans up orphaned roles
-
-If deleting roles fail for some reason, it leaves behind orphaned roles. A delete reconciler will be created where periodically the reconciler will iterate through all the roles, and if a role belonged to an access list and that access list no longer exists, reconciler will delete the role.
+Since you can't delete a role tied to an access list, the access list `grants` will be unset and updated before starting the deletion of roles.
 
 ### Backwards compatibility
 
@@ -302,8 +300,8 @@ If a templated access list is created in a cluster that supports this feature, a
 
 Upon upgrading again to a cluster that supports this feature:
 
-- If the access list still exists, it should work as before. There is a chance a user could've modified this role (tctl). The best we can do here is to document that system roles should not be modified. Also, any updates made will upsert the roles again which will bring it back in sync.
-- If the access list does not exist, the reconciler will delete the orphaned roles.
+- If the access list still exists, it should work as before. There is a chance a user could've modified this role (tctl). The best we can do here is to document that system roles should not be modified. Also, any updates made to a templated access list will upsert the roles again which will bring it back in sync.
+- If the access list was deleted in the older cluster, the system-manged roles will remain behind.
 
 ### Feature extension
 
