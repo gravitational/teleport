@@ -180,7 +180,7 @@ Note: these are best understood by opening https://goteleport.com/docs and follo
 - "Installation -> Installing Teleport Agents" contains a link to "Enrolling Resources" with separate "Custom Agent Installation" instructions
 - "Introduction -> Installation" moves to "Platform -> Installation"
 - "Introduction -> Upgrading" moves to "Platform -> Upgrading"
-- "Introduction -> Migrate Teleport Plans" moves to "User Guides"
+- "Introduction -> Migrate Teleport Plans" moves to "Platform -> Cloud" (tentative)
 - "Zero Trust Access -> Exporting Teleport Audit Events" contains links to "Platform -> Installation -> Installing Teleport Plugins & Integrations -> Event Exporter", and vice-versa
 - "Zero Trust Access -> Infrastructure as Code -> Teleport Kubernetes Operator" moves to "Platform -> Installation -> Installing Teleport Plugins & Integrations -> Teleport Kubernetes Operator" (install guides only, with cross-linking)
 - "Zero Trust Access -> Cluster management -> Cluster Administration guides -> Uninstall Teleport" moves to "Platform -> Installation" (subsections as appropriate)
@@ -188,7 +188,8 @@ Note: these are best understood by opening https://goteleport.com/docs and follo
 - "Zero Trust Access -> Cluster management" moves to "Platform -> Operations -> Operating Self-Hosted Teleport Clouds"
 - "Zero Trust Access -> Self-Hosting Teleport -> Guides for running Teleport using Helm" moves to "Platform -> Installation -> Installing Self-Hosted Clusters -> Kubernetes" (many subsections)
 - "Zero Trust Access -> Self-Hosting Teleport" moves to "Platform -> Operations -> Operating Self-Hosted Teleport Clusters" (remaining sections)
-- "Machine & Workload Identity" -> Machine ID -> Deploy tbot" links to "Installation -> Installing Teleport Client Tools -> tbot" (instead of including agent install instructions)
+- "Machine & Workload Identity" -> Machine ID -> Deploy tbot" links to "Installation -> Installing Teleport Client Tools -> tbot" (instead of including agent install instructions, which are not necessary for MWI)
 - "Identity Security -> Self-Hosting Teleport Access Graph" moves to "Installation -> Installing Self-Hosted Teleport Clusters -> Access Graph"
+- "Enroll Resources -> Joining Teleport Agents" moves to "Platform -> Installation -> Installing Teleport Agents" (such that Enroll Resources is always use-case driven, and links to Platform -> Installation for Azure, GCP, etc, instructions.)
 
 Marketing-branded sections may link to Installation, Upgrading, or Operations sections where relevant, and vice-versa.
