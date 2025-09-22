@@ -25,6 +25,7 @@ make_non_relocatable_plist() {
 
   pkgbuild --analyze --root "$root" "$component_plist"
   plutil -replace BundleIsRelocatable -bool NO "$component_plist"
+  plutil -replace BundleIsVersionChecked -bool NO "$component_plist"
 }
 
 main() {
