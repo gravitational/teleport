@@ -111,34 +111,38 @@ const (
 
 // Run runs the reconciliation loop.
 func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
-	drainAndResetTimer := func(t clockwork.Timer, timeout time.Duration) {
-		if !t.Stop() {
-			// drain the channel if it's not empty
-			// draining an already fired timer results in a deadlock
-			// so we need to wrap it in a select
-			select {
-			case <-t.Chan():
-			default:
-			}
+	// reconcileC is used to trigger a reconciliation
+	// or queue one if a reconciliation is already in progress
+	// to make sure that reconsider will react to the latest events
+	// without skipping any action.
+	reconcileC := make(chan struct{}, 1)
+	// add initial one minute  then set the expiration based on the next member expiration
+	// or forceReconcileDuration, whichever is sooner.
+	wakeTimer := r.clock.NewTimer(time.Minute)
+
+	queueReconcileFn := func() {
+		select {
+		case <-ctx.Done():
+			return
+		case reconcileC <- struct{}{}:
+			// Trigger or Queue a reconciliation.
+		default:
+			// Reconciliation already running with one queued, no need to queue more.
 		}
-		t.Reset(timeout)
 	}
 
-	t := r.clock.NewTimer(neverDuration)
-	// forceReconcile is a timer that will force a reconciliation to happen
-	// after a certain amount of time has passed.
-	forceReconcile := r.clock.NewTimer(forceReconcileDuration)
-	// reconcile is a blocking channel that will be used to signal that
-	// a reconciliation must happen.
-	// It must be unbuffered to ensure that we don't re-reconcile if we
-	// receive multiple signals to reconcile during the same reconciliation.
-	// The reconciliation loop will wait for a signal to reconcile, and then
-	// reconcile, and then wait for the next signal.
-	reconcile := make(chan struct{})
-	go r.informReconciliationMustHappen(reconcile)
+	go r.runTriggerLoop(ctx, queueReconcileFn)
 	for {
-		now := r.clock.Now()
-		nextExpirationTime, err := r.reconciliationLoop(ctx, now)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-r.watcher.Done():
+			return trace.Wrap(r.watcher.Error())
+		case <-wakeTimer.Chan():
+		case <-reconcileC:
+		}
+
+		nextExpiration, err := r.reconciliationLoop(ctx)
 		if trace.IsCompareFailed(err) {
 			// retry on compare failed errors
 			// this means that the membership was updated while we were processing
@@ -146,32 +150,41 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 			// we sleep for a bit to avoid spinning too much
 			// when we get a lot of these errors because of a lot of updates.
 			const waitTime = 15 * time.Second
-			select {
-			case <-r.clock.After(waitTime):
-				continue
-			case <-r.watcher.Done():
-				return nil
-			}
+			drainAndResetTimer(wakeTimer, waitTime)
+			continue
 		} else if err != nil {
 			r.logger.WarnContext(ctx, "Failed to reconcile memberships", "error", err)
 		}
+		// The reconciliationLoop returns the earliest expiration time across all access list members
+		drainAndResetTimer(wakeTimer, min(max(nextExpiration, time.Second), forceReconcileDuration))
+	}
+}
 
-		if nextExpirationTime <= 0 {
-			nextExpirationTime = 1 * time.Second
-		}
-		drainAndResetTimer(t, nextExpirationTime)
-		drainAndResetTimer(forceReconcile, forceReconcileDuration)
+func (r *IneligibleStatusReconciler) runTriggerLoop(ctx context.Context, queueReconcile func()) {
+	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case <-r.watcher.Done():
-			return trace.Wrap(r.watcher.Error())
-		case <-reconcile:
-		case <-t.Chan():
-		case <-forceReconcile.Chan():
+			return
+		case <-r.watcher.Events():
+			// Got an Access List/Membership/User event.
 		}
-
+		queueReconcile()
 	}
+}
+
+func drainAndResetTimer(t clockwork.Timer, timeout time.Duration) {
+	if !t.Stop() {
+		// drain the channel if it's not empty
+		// draining an already fired timer results in a deadlock
+		// so we need to wrap it in a select
+		select {
+		case <-t.Chan():
+		default:
+		}
+	}
+	t.Reset(timeout)
 }
 
 // Close closes the reconciler.
@@ -179,7 +192,7 @@ func (r *IneligibleStatusReconciler) Close() error {
 	return r.watcher.Close()
 }
 
-func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now time.Time) (nextExpirationTime time.Duration, err error) {
+func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context) (nextExpirationTime time.Duration, err error) {
 	select {
 	case <-ctx.Done():
 		return 0, trace.Wrap(ctx.Err())
@@ -215,7 +228,7 @@ func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context, now
 		return 0, trace.Wrap(err, "unable to reconcile access list ownership")
 	}
 
-	nextExpirationTime, err = r.reconcileMemberships(ctx, now, accessLists, usersMap)
+	nextExpirationTime, err = r.reconcileMemberships(ctx, r.clock.Now(), accessLists, usersMap)
 	return nextExpirationTime, trace.Wrap(err, "unable to reconcile memberships")
 }
 
@@ -393,34 +406,4 @@ func nextExpirationTime(now time.Time, accessListMembers []*accesslist.AccessLis
 		}
 	}
 	return expires.Sub(now)
-}
-
-func (r *IneligibleStatusReconciler) informReconciliationMustHappen(reconcile chan<- struct{}) {
-	for {
-		select {
-		case <-r.watcher.Events():
-			// if we receive an event from the watcher, we should reconcile.
-			// Often, when we reconcile several resources, we may not have
-			// the reconciliation loop is still running, so we might batch
-			// the reconciliation requests to avoid unnecessary work.
-			// This is a signal to the reconciliation loop that it should
-			// reconcile.
-		innerLoop:
-			for {
-				select {
-				// if we receive an event from the watcher, but the reconcile isn't ready,
-				// we should wait for the reconcile to be ready and discard the events
-				// that we received in the meantime if we ensure that we will send the signal
-				// to reconcile once the reconcile is ready.
-				case <-r.watcher.Events():
-				case reconcile <- struct{}{}:
-					break innerLoop
-				case <-r.watcher.Done():
-					return
-				}
-			}
-		case <-r.watcher.Done():
-			return
-		}
-	}
 }
