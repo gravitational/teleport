@@ -707,6 +707,7 @@
     "mtls",
     "multiaccount",
     "multistep",
+    "mvcc",
     "myapp",
     "myauth",
     "mybot",
@@ -1117,8 +1118,8 @@
     "hte"
   ],
   "ignorePaths": [
-    "**/reference/terraform-provider/**",
-    "**/reference/operator-resources/**",
+    "**/reference/infrastructure-as-code/terraform-provider/**",
+    "**/reference/infrastructure-as-code/operator-resources/**",
     "**/includes/reference/code-blocks-no-cspell/**"
   ]
 }

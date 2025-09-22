@@ -186,11 +186,11 @@ To create the required configuration resources:
    ```
 
 For full description of the inference configuration resources, see appropriate
-sections of [Teleport Resources Reference](../reference/resources.mdx):
+sections of [Teleport Resources Reference](../reference/infrastructure-as-code/resources.mdx):
 
-- [`inference_model`](../reference/resources.mdx#inference-model)
-- [`inference_secret`](../reference/resources.mdx#inference-secret)
-- [`inference_policy`](../reference/resources.mdx#inference-policy)
+- [`inference_model`](../reference/infrastructure-as-code/resources.mdx#inference-model)
+- [`inference_secret`](../reference/infrastructure-as-code/resources.mdx#inference-secret)
+- [`inference_policy`](../reference/infrastructure-as-code/resources.mdx#inference-policy)
 
 ## Step 3/4: Configure access to session summaries
 
@@ -418,5 +418,5 @@ Teleport exposes a couple of useful Prometheus metrics that can be used to
 monitor the session summarizer. Metrics are labeled by inference model name,
 and in case of OpenAI errors — additionally with the OpenAI API error code. See
 the [Teleport Metrics
-reference](../reference/monitoring/metrics.mdx#session-recording-summarizer)
+reference](../reference/deployment/monitoring/metrics.mdx#session-recording-summarizer)
 for details.

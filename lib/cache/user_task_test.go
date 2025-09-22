@@ -41,13 +41,11 @@ func TestUserTasks(t *testing.T) {
 			_, err := p.userTasks.CreateUserTask(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
-			return items, trace.Wrap(err)
+		list: func(ctx context.Context, pageLimit int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
+			return p.userTasks.ListUserTasks(ctx, int64(pageLimit), pageToken, &usertasksv1.ListUserTasksFilters{})
 		},
-		cacheList: func(ctx context.Context, _ int) ([]*usertasksv1.UserTask, error) {
-			items, _, err := p.cache.ListUserTasks(ctx, 0, "", &usertasksv1.ListUserTasksFilters{})
-			return items, trace.Wrap(err)
+		cacheList: func(ctx context.Context, pageLimit int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
+			return p.cache.ListUserTasks(ctx, int64(pageLimit), pageToken, &usertasksv1.ListUserTasksFilters{})
 		},
 		deleteAll: p.userTasks.DeleteAllUserTasks,
 	}, withSkipPaginationTest())
