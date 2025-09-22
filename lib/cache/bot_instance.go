@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"encoding/base32"
 	"fmt"
 	"time"
 
@@ -187,5 +188,8 @@ func keyForHostnameIndex(botInstance *machineidv1.BotInstance) string {
 	if heartbeat != nil {
 		hostname = heartbeat.GetHostname()
 	}
-	return hostname + "/" + botInstance.GetMetadata().GetName()
+	hostname = hostname + "/" + botInstance.GetMetadata().GetName()
+	return unpaddedBase32hex.EncodeToString([]byte(hostname))
 }
+
+var unpaddedBase32hex = base32.HexEncoding.WithPadding(base32.NoPadding)
