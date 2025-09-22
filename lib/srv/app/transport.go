@@ -167,7 +167,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		}
 
 		if t.hostID != "" {
-			message = message + "\n\nhostID: " + t.hostID
+			message = message + "\n\nThe ID of the Teleport Application Service instance that generated this error is " + t.hostID + "."
 		}
 
 		code := trace.ErrorToCode(err)
