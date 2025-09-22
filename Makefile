@@ -1874,7 +1874,7 @@ WASM_BINDGEN_VERSION = $(shell awk ' \
 print-wasm-bindgen-version:
 	@echo $(WASM_BINDGEN_VERSION)
 
-RUST_TOOLCHAIN_VERSION = $(shell awk '$$1 == "channel", $$2 = "=" { gsub(/"/, "", $$3); print $$3 }' rust-toolchain.toml )
+RUST_TOOLCHAIN_VERSION = $(shell awk '$$1 == "channel" && $$2 == "=" { gsub(/"/, "", $$3); print $$3 }' rust-toolchain.toml )
 
 .PHONY: print-rust-toolchain-version
 print-rust-toolchain-version:
