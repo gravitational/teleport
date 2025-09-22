@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
+// ProxyServiceType is the type string for the ProxyService, used within the
+// service header to indicate the service type.
 const ProxyServiceType = "application-proxy"
 
 // ProxyServiceConfig is the configuration for the ProxyService.
@@ -54,7 +56,7 @@ func (c *ProxyServiceConfig) GetName() string {
 	return c.Name
 }
 
-// Type returns the type of the service[
+// Type returns the type of the service.
 func (c *ProxyServiceConfig) Type() string {
 	return ProxyServiceType
 }
