@@ -54,13 +54,13 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 			proto.CloneOf[*machineidv1.BotInstance],
 			map[botInstanceIndex]func(*machineidv1.BotInstance) string{
 				// Index on a combination of bot name and instance name
-				botInstanceNameIndex: keyForNameIndex,
+				botInstanceNameIndex: keyForBotInstanceNameIndex,
 				// Index on a combination of most recent heartbeat time and instance name
-				botInstanceActiveAtIndex: keyForActiveAtIndex,
+				botInstanceActiveAtIndex: keyForBotInstanceActiveAtIndex,
 				// Index on a combination of most recent heartbeat version and instance name
-				botInstanceVersionIndex: keyForVersionIndex,
+				botInstanceVersionIndex: keyForBotInstanceVersionIndex,
 				// Index on a combination of most recent heartbeat hostname and instance name
-				botInstanceHostnameIndex: keyForHostnameIndex,
+				botInstanceHostnameIndex: keyForBotInstanceHostnameIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
@@ -88,7 +88,7 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 		},
 	}
 
-	out, err := getter.get(ctx, makeNameIndexKey(botName, instanceID))
+	out, err := getter.get(ctx, makeBotInstanceNameIndexKey(botName, instanceID))
 	return out, trace.Wrap(err)
 }
 
@@ -99,21 +99,21 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 	defer span.End()
 
 	index := botInstanceNameIndex
-	keyFn := keyForNameIndex
+	keyFn := keyForBotInstanceNameIndex
 	isDesc := options.GetSortDesc()
 	switch options.GetSortField() {
 	case "bot_name":
 		index = botInstanceNameIndex
-		keyFn = keyForNameIndex
+		keyFn = keyForBotInstanceNameIndex
 	case "active_at_latest":
 		index = botInstanceActiveAtIndex
-		keyFn = keyForActiveAtIndex
+		keyFn = keyForBotInstanceActiveAtIndex
 	case "version_latest":
 		index = botInstanceVersionIndex
-		keyFn = keyForVersionIndex
+		keyFn = keyForBotInstanceVersionIndex
 	case "host_name_latest":
 		index = botInstanceHostnameIndex
-		keyFn = keyForHostnameIndex
+		keyFn = keyForBotInstanceHostnameIndex
 	case "":
 		// default ordering as defined above
 	default:
@@ -143,27 +143,27 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 	return out, next, trace.Wrap(err)
 }
 
-func keyForNameIndex(botInstance *machineidv1.BotInstance) string {
-	return makeNameIndexKey(
+func keyForBotInstanceNameIndex(botInstance *machineidv1.BotInstance) string {
+	return makeBotInstanceNameIndexKey(
 		botInstance.GetSpec().GetBotName(),
 		botInstance.GetMetadata().GetName(),
 	)
 }
 
-func makeNameIndexKey(botName string, instanceID string) string {
+func makeBotInstanceNameIndexKey(botName string, instanceID string) string {
 	return botName + "/" + instanceID
 }
 
-func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
+func keyForBotInstanceActiveAtIndex(botInstance *machineidv1.BotInstance) string {
 	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	recordedAt := heartbeat.GetRecordedAt().AsTime()
 	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
 }
 
-// keyForVersionIndex produces a zero-padded version string for sorting. Pre-
+// keyForBotInstanceVersionIndex produces a zero-padded version string for sorting. Pre-
 // releases are sorted naively - 1.0.0-rc is correctly less than 1.0.0, but
 // 1.0.0-rc.2 is more than 1.0.0-rc.11
-func keyForVersionIndex(botInstance *machineidv1.BotInstance) string {
+func keyForBotInstanceVersionIndex(botInstance *machineidv1.BotInstance) string {
 	version := "000000.000000.000000"
 	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	if heartbeat == nil {
@@ -184,7 +184,7 @@ func keyForVersionIndex(botInstance *machineidv1.BotInstance) string {
 	return version + "/" + botInstance.GetMetadata().GetName()
 }
 
-func keyForHostnameIndex(botInstance *machineidv1.BotInstance) string {
+func keyForBotInstanceHostnameIndex(botInstance *machineidv1.BotInstance) string {
 	hostname := "~"
 	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	if heartbeat != nil {

@@ -526,7 +526,7 @@ func TestKeyForVersionIndex(t *testing.T) {
 			}
 			tc.mutatorFn(instance)
 
-			versionKey := keyForVersionIndex(instance)
+			versionKey := keyForBotInstanceVersionIndex(instance)
 
 			assert.Equal(t, tc.key, versionKey)
 		})
