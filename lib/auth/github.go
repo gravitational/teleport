@@ -934,7 +934,6 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
 	p.SessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
-
 	return &p, nil
 }
 

@@ -27,12 +27,15 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
 
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -277,10 +280,101 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *SSODiagC
 
 	logger.DebugContext(ctx, "OIDC token received", "token", token)
 
-	// Simplified user creation - just use a basic username
+	// Create user
 	username := "oidc-user"
+	user, err := a.createOIDCUser(ctx, username, connector.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return &authclient.OIDCAuthResponse{
+	userState, err := a.GetUserOrLoginState(ctx, user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Generate CSRF token if empty
+	csrfToken := req.CSRFToken
+	if csrfToken == "" {
+		csrfToken, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	auth := &authclient.OIDCAuthResponse{
 		Username: username,
-	}, nil
+		Req: authclient.OIDCAuthRequest{
+			ConnectorID:       connector.GetName(),
+			CreateWebSession:  req.CreateWebSession,
+			ClientRedirectURL: req.ClientRedirectURL,
+			CSRFToken:         csrfToken,
+		},
+	}
+
+	// Calculate session TTL from roles (like GitHub does)
+	roles, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
+	sessionTTL := utils.MinTTL(roleTTL, req.CertTTL)
+
+	// If the request is coming from a browser, create a web session.
+	if req.CreateWebSession {
+		session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
+			User:                 userState.GetName(),
+			Roles:                userState.GetRoles(),
+			Traits:               userState.GetTraits(),
+			SessionTTL:           sessionTTL,
+			LoginTime:            a.clock.Now().UTC(),
+			LoginIP:              req.ClientLoginIP,
+			LoginUserAgent:       req.ClientUserAgent,
+			AttestWebSession:     true,
+			CreateDeviceWebToken: true,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to create web session.")
+		}
+
+		auth.Session = session
+	}
+
+	return auth, nil
+}
+func (a *Server) createOIDCUser(ctx context.Context, username, connectorName string) (types.User, error) {
+	expires := a.GetClock().Now().UTC().Add(defaults.ActiveSessionTTL)
+
+	user := &types.UserV2{
+		Kind:    types.KindUser,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      username,
+			Namespace: apidefaults.Namespace,
+			Expires:   &expires,
+		},
+		Spec: types.UserSpecV2{
+			Roles: []string{"access"},
+			Traits: map[string][]string{
+				constants.TraitLogins: {"vscode", "root"},
+			},
+		},
+	}
+
+	existingUser, err := a.Services.GetUser(ctx, username, false)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if existingUser != nil {
+		user.SetRevision(existingUser.GetRevision())
+		if _, err := a.UpdateUser(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if _, err := a.CreateUser(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return user, nil
 }
