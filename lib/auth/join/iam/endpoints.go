@@ -95,4 +95,28 @@ var (
 			"us-gov-west-1",
 		}
 	})
+
+	// ValidOrganizationsEndpoints returns a sorted list of all known valid public endpoints for
+	// the AWS Organizations service.
+	// https://docs.aws.amazon.com/general/latest/gr/ao.html
+	ValidOrganizationsEndpoints = sync.OnceValue(func() []string {
+		return []string{
+			"organizations.us-east-1.amazonaws.com",
+			"organizations-fips.us-east-1.amazonaws.com",
+		}
+	})
+
+	// FIPSOrganizationsEndpoints returns the set of known valid FIPS AWS Organizations endpoints.
+	FIPSOrganizationsEndpoints = sync.OnceValue(func() []string {
+		return []string{
+			"organizations-fips.us-east-1.amazonaws.com",
+		}
+	})
+
+	// FIPSOrganizationsRegions returns the set of known AWS regions with FIPS Organizations endpoints.
+	FIPSOrganizationsRegions = sync.OnceValue(func() []string {
+		return []string{
+			"us-east-1",
+		}
+	})
 )

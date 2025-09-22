@@ -31,6 +31,10 @@ message RegisterUsingIAMMethodRequest {
   // sts:GetCallerIdentity API endpoint used to prove the AWS identity of a
   // joining node. It must include the challenge string as a signed header.
   bytes sts_identity_request = 2;
+  // OrgDescribeOrganization is a signed HTTP request to the AWS
+  // organizations:DescribeOrganization API endpoint used to prove the AWS organization of a
+  // joining node. It must include the challenge string as a signed header.
+  bytes org_describe_organization = 3;
 }
 
 // RegisterUsingIAMMethodResponse is a stream response and will contain either a

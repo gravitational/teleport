@@ -27,6 +27,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	smithyendpoints "github.com/aws/smithy-go/endpoints"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
@@ -43,24 +44,24 @@ const (
 	challengeHeaderKey = "x-teleport-challenge"
 )
 
-type stsIdentityRequestOptions struct {
+type identityRequestOptions struct {
 	useFIPS    bool
 	imdsClient imdsClient
 }
 
-type stsIdentityRequestOption func(cfg *stsIdentityRequestOptions)
+type identityRequestOption func(cfg *identityRequestOptions)
 
 // WithFIPSEndpoint is a functional option to use a FIPS STS endpoint. In non-US
 // regions, this will use the us-east-1 FIPS endpoint.
-func WithFIPSEndpoint(useFIPS bool) stsIdentityRequestOption {
-	return func(opts *stsIdentityRequestOptions) {
+func WithFIPSEndpoint(useFIPS bool) identityRequestOption {
+	return func(opts *identityRequestOptions) {
 		opts.useFIPS = useFIPS
 	}
 }
 
 // WithIMDSClient is a functional option to use a custom IMDS client.
-func WithIMDSClient(clt imdsClient) stsIdentityRequestOption {
-	return func(opts *stsIdentityRequestOptions) {
+func WithIMDSClient(clt imdsClient) identityRequestOption {
+	return func(opts *identityRequestOptions) {
 		opts.imdsClient = clt
 	}
 }
@@ -75,8 +76,8 @@ type imdsClient interface {
 
 // CreateSignedSTSIdentityRequest is called on the client side and returns an
 // sts:GetCallerIdentity request signed with the local AWS credentials
-func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts ...stsIdentityRequestOption) ([]byte, error) {
-	var options stsIdentityRequestOptions
+func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts ...identityRequestOption) ([]byte, error) {
+	var options identityRequestOptions
 	for _, opt := range opts {
 		opt(&options)
 	}
@@ -129,9 +130,75 @@ func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 	return signedRequest.Bytes(), nil
 }
 
+// CreateSignedOrgDescribeRequest is called on the client side and returns an
+// organizations:DescribeOrganization request signed with the local AWS credentials
+func CreateSignedOrgDescribeRequest(ctx context.Context, challenge string, opts ...identityRequestOption) ([]byte, error) {
+	var options identityRequestOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	awsConfig, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "loading default AWS config")
+	}
+
+	if awsConfig.Region == "" {
+		// We can try to get the local region from IMDSv2 if running on EC2.
+		region, err := getEC2LocalRegion(ctx, &options)
+		if err != nil {
+			slog.InfoContext(ctx, "Failed to resolve local AWS region from environment or IMDS. Using us-east-1 by default. This will fail in non-default AWS partitions. Consider setting AWS_REGION or enabling IMDSv2.",
+				slog.Any("error", err))
+			region = "us-east-1"
+		}
+		awsConfig.Region = region
+	}
+
+	if options.useFIPS && !slices.Contains(FIPSOrganizationsRegions(), awsConfig.Region) {
+		slog.InfoContext(ctx, "AWS region does not have a FIPS Organizations endpoint, attempting to use us-east-1 instead. This will fail in non-default AWS partitions.",
+			slog.String("region", awsConfig.Region))
+
+		// https://docs.aws.amazon.com/general/latest/gr/ao.html
+		awsConfig.Region = "us-east-1"
+	}
+
+	var signedRequest bytes.Buffer
+
+	// 	// append so it overrides any preceding settings.
+	// 	optFns = append(optFns, func(opts *sts.Options) {
+	// 		opts.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateDisabled
+	// 	})
+	// }
+	// return sts.NewFromConfig(cfg, optFns...)
+	orgsClient := organizations.NewFromConfig(awsConfig,
+		organizations.WithEndpointResolverV2(newOrganizationsCustomResolver(challenge)),
+		func(orgsOptions *organizations.Options) {
+			if options.useFIPS {
+				orgsOptions.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+			}
+			// Use a fake HTTP client to record the request.
+			orgsOptions.HTTPClient = &httpRequestRecorder{&signedRequest}
+			// httpRequestRecorder intentionally records the request and returns
+			// an error, don't retry.
+			orgsOptions.RetryMaxAttempts = 1
+
+			orgsOptions.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	)
+
+	if _, err = orgsClient.DescribeOrganization(ctx, &organizations.DescribeOrganizationInput{}); !errors.Is(err, errRequestRecorded) {
+		if err == nil {
+			return nil, trace.Errorf("expected to get errRequestedRecorded, got <nil> (this is a bug)")
+		}
+		return nil, trace.Wrap(err, "building signed organizations:DescribeOrganization request")
+	}
+
+	return signedRequest.Bytes(), nil
+}
+
 // getEC2LocalRegion returns the AWS region this EC2 instance is running in, or
 // a NotFound error if the EC2 IMDS is unavailable.
-func getEC2LocalRegion(ctx context.Context, opts *stsIdentityRequestOptions) (string, error) {
+func getEC2LocalRegion(ctx context.Context, opts *identityRequestOptions) (string, error) {
 	imdsClient := opts.imdsClient
 	if imdsClient == nil {
 		var err error
@@ -163,6 +230,31 @@ func newCustomResolver(challenge string) *customResolver {
 
 // ResolveEndpoint implements [sts.EndpointResolverV2].
 func (r customResolver) ResolveEndpoint(ctx context.Context, params sts.EndpointParameters) (smithyendpoints.Endpoint, error) {
+	endpoint, err := r.defaultResolver.ResolveEndpoint(ctx, params)
+	if err != nil {
+		return endpoint, trace.Wrap(err)
+	}
+	// Add challenge as a header to be signed.
+	endpoint.Headers.Add(challengeHeaderKey, r.challenge)
+	// Request JSON for simpler parsing.
+	endpoint.Headers.Add("Accept", "application/json")
+	return endpoint, nil
+}
+
+type organizationsCustomResolver struct {
+	defaultResolver organizations.EndpointResolverV2
+	challenge       string
+}
+
+func newOrganizationsCustomResolver(challenge string) *organizationsCustomResolver {
+	return &organizationsCustomResolver{
+		defaultResolver: organizations.NewDefaultEndpointResolverV2(),
+		challenge:       challenge,
+	}
+}
+
+// ResolveEndpoint implements [organizations.EndpointResolverV2].
+func (r organizationsCustomResolver) ResolveEndpoint(ctx context.Context, params organizations.EndpointParameters) (smithyendpoints.Endpoint, error) {
 	endpoint, err := r.defaultResolver.ResolveEndpoint(ctx, params)
 	if err != nil {
 		return endpoint, trace.Wrap(err)

@@ -167,10 +167,156 @@ func parseSTSRequest(req []byte) (*http.Request, error) {
 	return httpReq, nil
 }
 
+func validateOrgsHost(orgsHost string, cfg *iamRegisterConfig) error {
+	valid := slices.Contains(iam.ValidOrganizationsEndpoints(), orgsHost)
+	if !valid {
+		return trace.AccessDenied("IAM join request uses unknown Organizations API host %q. "+
+			"This could mean that the Teleport Node attempting to join the cluster is "+
+			"running in a new AWS region which is unknown to this Teleport auth server. "+
+			"Alternatively, if this URL looks suspicious, an attacker may be attempting to "+
+			"join your Teleport cluster. "+
+			"Following is the list of valid Organizations API endpoints known to this auth server. "+
+			"If a legitimate Organizations API endpoint is not included, please file an issue at "+
+			"https://github.com/gravitational/teleport. %v",
+			orgsHost, iam.ValidOrganizationsEndpoints())
+	}
+
+	if cfg.fips && !slices.Contains(iam.FIPSOrganizationsEndpoints(), orgsHost) {
+		return trace.AccessDenied("node selected non-FIPS Organizations endpoint (%s) for the IAM join method", orgsHost)
+	}
+
+	return nil
+}
+
+func parseOrgRequest(req []byte) (*http.Request, error) {
+	httpReq, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(req)))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Unset RequestURI and set req.URL instead (necessary quirk of sending a
+	// request parsed by http.ReadRequest). Also, force https here.
+	if httpReq.RequestURI != "/" {
+		return nil, trace.AccessDenied("unexpected orgs:DescribeOrganization request URI: %q", httpReq.RequestURI)
+	}
+	httpReq.RequestURI = ""
+	httpReq.URL = &url.URL{
+		Scheme: "https",
+		Host:   httpReq.Host,
+	}
+	return httpReq, nil
+}
+
+func validateDescribeOrgRequest(req *http.Request, challenge string, cfg *iamRegisterConfig) (err error) {
+	defer func() {
+		// Always log a warning on the Auth server if the function detects an
+		// invalid orgs:DescribeOrganization request, it's either going to be caused
+		// by a node in a unknown region or an attacker.
+		if err != nil {
+			logger.WarnContext(req.Context(), "Detected an invalid orgs:DescribeOrganization used by a client attempting to use the IAM join method", "error", err)
+		}
+	}()
+
+	if err := validateOrgsHost(req.Host, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if req.Method != http.MethodPost {
+		return trace.AccessDenied("sts identity request method %q does not match expected method %q", req.RequestURI, http.MethodPost)
+	}
+
+	if req.Header.Get(challengeHeaderKey) != challenge {
+		return trace.AccessDenied("sts identity request does not include challenge header or it does not match")
+	}
+
+	authHeader := req.Header.Get(aws.AuthorizationHeader)
+
+	sigV4, err := aws.ParseSigV4(authHeader)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !slices.Contains(sigV4.SignedHeaders, challengeHeaderKey) {
+		return trace.AccessDenied("orgs describe request auth header %q does not include "+
+			challengeHeaderKey+" as a signed header", authHeader)
+	}
+
+	body, err := utils.GetAndReplaceRequestBody(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !bytes.Equal([]byte("{}"), body) {
+		return trace.BadParameter("sts request body %q does not equal expected %q", string(body), "{}")
+	}
+
+	return nil
+}
+
+// awsIdentity holds aws Account and Arn, used for JSON parsing
+type awsOrgIdentity struct {
+	Organization struct {
+		Arn              string `json:"Arn"`
+		ID               string `json:"Id"`
+		MasterAccountArn string `json:"MasterAccountArn"`
+		MasterAccountID  string `json:"MasterAccountId"`
+	} `json:"Organization"`
+}
+
+/*
+// 123456789012 is the master AWS Account ID
+{
+    "Organization": {
+        "Arn": "arn:aws:organizations::123456789012:organization/o-orgid123",
+        "Id": "o-orgid123",
+        "MasterAccountArn": "arn:aws:organizations::123456789012:account/o-orgid123/123456789012",
+        "MasterAccountEmail": "email@example.com",
+        "MasterAccountId": "123456789012"
+    }
+}
+*/
+
+// executeAWSOrgIdentityRequest sends the organizations:DescribeOrganization HTTP request to the
+// AWS API, parses the response, and returns the awsOrgIdentity
+func executeAWSOrgIdentityRequest(ctx context.Context, client utils.HTTPDoClient, req *http.Request) (*awsOrgIdentity, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	// set the http request context so it can be canceled
+	req = req.WithContext(ctx)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		// TODO(marco): improve error message: organizations:DescribeOrganization API action must be allowed to use this IAM Token.
+		return nil, trace.AccessDenied("aws organizations api returned status: %q body: %q",
+			resp.Status, body)
+	}
+
+	var identityResponse awsOrgIdentity
+	if err := json.Unmarshal(body, &identityResponse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if identityResponse.Organization.Arn == "" {
+		return nil, trace.BadParameter("received empty AWS organization ARN from organizations API")
+	}
+
+	return &identityResponse, nil
+}
+
 // awsIdentity holds aws Account and Arn, used for JSON parsing
 type awsIdentity struct {
-	Account string `json:"Account"`
-	Arn     string `json:"Arn"`
+	Account        string `json:"Account"`
+	Arn            string `json:"Arn"`
+	OrganizationID string
 }
 
 // JoinAttrs returns the protobuf representation of the attested identity.
@@ -247,6 +393,15 @@ func arnMatches(pattern, arn string) (bool, error) {
 // allowRules.
 func checkIAMAllowRules(identity *awsIdentity, token string, allowRules []*types.TokenRule) error {
 	for _, rule := range allowRules {
+		if rule.AWSOrganizationID != "" {
+			// lazy fetch the organization id if the rule requires it
+			// If unauthorized, keep trying other rules
+			if rule.AWSOrganizationID != identity.OrganizationID {
+				// organization ID doesn't match, continue to check the next rule
+				continue
+			}
+		}
+
 		// if this rule specifies an AWS account, the identity must match
 		if len(rule.AWSAccount) > 0 {
 			if rule.AWSAccount != identity.Account {
@@ -287,6 +442,18 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 		return nil, trace.AccessDenied("this token does not support the IAM join method")
 	}
 
+	// TODO(marco)
+	// We might need only STS api call or only Organizations api call
+	// depending on the allow rules in the token.
+	// Before issuing the API calls, check which one is needed and only issue those.
+	// ie:
+	// - only Organization: only call Organizations API
+	// - only account id or arn: only call STS API
+	// - any other combination: call both
+	//
+	// This not only avoids unnecessary API calls, but also avoids requesting the Organizations API
+	// when the node does not have permissions to call it.
+
 	// parse the incoming http request to the sts:GetCallerIdentity endpoint
 	identityRequest, err := parseSTSRequest(req.StsIdentityRequest)
 	if err != nil {
@@ -304,6 +471,31 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 	identity, err := executeSTSIdentityRequest(ctx, a.httpClientForAWSSTS, identityRequest)
 	if err != nil {
 		return nil, trace.Wrap(err, "executing STS request")
+	}
+
+	// Older versions of Teleport did not include the OrgDescribeOrganization.
+	// TODO(marco): DELETE IN v21.0.0
+	if len(req.OrgDescribeOrganization) != 0 {
+		// parse the incoming http request to the organizations:DescribeOrganization endpoint
+		identityRequest, err := parseOrgRequest(req.OrgDescribeOrganization)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing Org request")
+		}
+
+		// validate that the host, method, and headers are correct and the expected
+		// challenge is included in the signed portion of the request
+		if err := validateDescribeOrgRequest(identityRequest, challenge, cfg); err != nil {
+			return nil, trace.Wrap(err, "validating Org Request")
+		}
+
+		// send the signed request to the public AWS API and get the node identity
+		// from the response
+		orgIdentity, err := executeAWSOrgIdentityRequest(ctx, a.httpClientForAWSSTS, identityRequest)
+		if err != nil {
+			return nil, trace.Wrap(err, "executing Org request")
+		}
+
+		identity.OrganizationID = orgIdentity.Organization.ID
 	}
 
 	// check that the node identity matches an allow rule for this token

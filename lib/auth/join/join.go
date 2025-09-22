@@ -793,10 +793,18 @@ func registerUsingIAMMethod(
 			return nil, trace.Wrap(err, "creating signed sts:GetCallerIdentity request")
 		}
 
+		orgSignedRequest, err := iam.CreateSignedOrgDescribeRequest(ctx, challenge,
+			iam.WithFIPSEndpoint(params.FIPS),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating signed organizations:DescribeOrganization request")
+		}
+
 		// send the register request including the challenge response
 		return &proto.RegisterUsingIAMMethodRequest{
 			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
 			StsIdentityRequest:        signedRequest,
+			OrgDescribeOrganization:   orgSignedRequest,
 		}, nil
 	})
 	if err != nil {
