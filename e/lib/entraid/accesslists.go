@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -384,19 +386,49 @@ func listEntraGroups(ctx context.Context, graphClient GraphClient, filterMatches
 }
 
 func listEntraGroupsMembers(ctx context.Context, graphClient GraphClient, groups map[string]*msgraph.Group) (map[string][]msgraph.GroupMember, error) {
-	result := map[string][]msgraph.GroupMember{}
+	// membersPageSize is the maximum number of members to fetch per page.
+	// https://learn.microsoft.com/en-us/graph/api/group-list-members?view=graph-rest-1.0&tabs=http#http-request
+	// We don't want to send 9 requests to fetch 900 members where 999 is max page size supported by API
+	const membersPageSize = 300
+
+	result := make(map[string][]msgraph.GroupMember, len(groups))
+	var mu sync.Mutex
+
+	// TODO(smallinsky) move to static goroutine workers to not allocate space for each goroutine.
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(getParallelReqCount(len(groups)))
 	for id, group := range groups {
-		var members []msgraph.GroupMember
-		err := graphClient.IterateGroupMembers(ctx, *group.ID, func(member msgraph.GroupMember) bool {
-			members = append(members, member)
-			return true
+		id, gid := id, *group.ID
+		g.Go(func() error {
+			var members []msgraph.GroupMember
+			if err := graphClient.IterateGroupMembers(ctx, gid, func(m msgraph.GroupMember) bool {
+				members = append(members, m)
+				return true
+			}, msgraph.WithTop(membersPageSize)); err != nil {
+				return trace.Wrap(err)
+			}
+
+			mu.Lock()
+			result[id] = members
+			mu.Unlock()
+			return nil
 		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		result[id] = members
+	}
+	if err := g.Wait(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return result, nil
+}
+
+// getParallelReqCount returns the number of parallel requests to use based on the number of groups.
+// We want to balance and not run 80 parallel request for 90 groups.
+// But with large dataset like 10k we want to have enough parallelism to not take hours to fetch all members.
+func getParallelReqCount(numGroups int) int {
+	if numGroups < 1000 {
+		return 10
+	}
+	// With 30k groups and 100 members assigned per group it takes around 3-4 minutes to fetch all members with 70 parallel requests.
+	return 70
 }
 
 func unwindGroupMembership(groups map[string]*msgraph.Group, groupMembers map[string][]msgraph.GroupMember) map[string][]string {
