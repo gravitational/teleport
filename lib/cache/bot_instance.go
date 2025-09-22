@@ -160,24 +160,26 @@ func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
 	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
 }
 
+// keyForVersionIndex produces a zero-padded version string for sorting. Pre-
+// releases are sorted naively - 1.0.0-rc is correctly less than 1.0.0, but
+// 1.0.0-rc.2 is more than 1.0.0-rc.11
 func keyForVersionIndex(botInstance *machineidv1.BotInstance) string {
 	version := "000000.000000.000000"
 	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	if heartbeat == nil {
-		return version + "/" + botInstance.GetMetadata().GetName()
+		return version + "-~/" + botInstance.GetMetadata().GetName()
 	}
 
 	sv, err := semver.NewVersion(heartbeat.GetVersion())
 	if err != nil {
-		return version + "/" + botInstance.GetMetadata().GetName()
+		return version + "-~/" + botInstance.GetMetadata().GetName()
 	}
 
 	version = fmt.Sprintf("%06d.%06d.%06d", sv.Major, sv.Minor, sv.Patch)
 	if sv.PreRelease != "" {
 		version = version + "-" + string(sv.PreRelease)
-	}
-	if sv.Metadata != "" {
-		version = version + "+" + sv.Metadata
+	} else {
+		version = version + "-~"
 	}
 	return version + "/" + botInstance.GetMetadata().GetName()
 }

@@ -242,8 +242,8 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 		version           string
 		hostname          string
 	}{
-		{"bot-1", "instance-1", 2, "3.0.0", "hostname-2"},
-		{"bot-1", "instance-3", 1, "2.0.0", "hostname-3"},
+		{"bot-1", "instance-1", 2, "2.0.0", "hostname-2"},
+		{"bot-1", "instance-3", 1, "2.0.0-rc1", "hostname-3"},
 		{"bot-2", "instance-2", 3, "1.0.0", "hostname-1"},
 	}
 
@@ -441,7 +441,7 @@ func TestKeyForVersionIndex(t *testing.T) {
 		{
 			name:      "zero heartbeats",
 			mutatorFn: func(b *machineidv1.BotInstance) {},
-			key:       "000000.000000.000000/bot-instance-1",
+			key:       "000000.000000.000000-~/bot-instance-1",
 		},
 		{
 			name: "invalid version",
@@ -452,7 +452,7 @@ func TestKeyForVersionIndex(t *testing.T) {
 					},
 				}
 			},
-			key: "000000.000000.000000/bot-instance-1",
+			key: "000000.000000.000000-~/bot-instance-1",
 		},
 		{
 			name: "initial heartbeat",
@@ -463,7 +463,7 @@ func TestKeyForVersionIndex(t *testing.T) {
 					},
 				}
 			},
-			key: "000001.000000.000000/bot-instance-1",
+			key: "000001.000000.000000-~/bot-instance-1",
 		},
 		{
 			name: "latest heartbeat",
@@ -476,7 +476,7 @@ func TestKeyForVersionIndex(t *testing.T) {
 					},
 				}
 			},
-			key: "000001.000000.000000/bot-instance-1",
+			key: "000001.000000.000000-~/bot-instance-1",
 		},
 		{
 			name: "with release",
@@ -498,7 +498,7 @@ func TestKeyForVersionIndex(t *testing.T) {
 					},
 				}
 			},
-			key: "000001.000000.000000+build1/bot-instance-1",
+			key: "000001.000000.000000-~/bot-instance-1",
 		},
 		{
 			name: "with release and build",
@@ -509,7 +509,7 @@ func TestKeyForVersionIndex(t *testing.T) {
 					},
 				}
 			},
-			key: "000001.000000.000000-dev+build1/bot-instance-1",
+			key: "000001.000000.000000-dev/bot-instance-1",
 		},
 	}
 
