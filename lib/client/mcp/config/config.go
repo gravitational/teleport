@@ -225,7 +225,7 @@ func ConfigFormatFromPath(configPath string) ConfigFormat {
 	switch {
 	case pathContains(configPath, vsCodeProjectDir):
 		return ConfigFormatVSCode
-	case pathContains(configPath, cursorProjectDir):
+	case pathContains(configPath, cursorProjectDir), pathContains(configPath, claudeCodeFileName):
 		// Works for both, global and projects settings.
 		return ConfigFormatClaude // Cursor uses the same format as Claude.
 	default:

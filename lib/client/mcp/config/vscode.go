@@ -27,4 +27,8 @@ const (
 	//
 	// https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_manage-mcp-servers
 	vsCodeProjectDir = ".vscode"
+	// claudeCodeFileName defines the Claude Code MCP servers file.
+	//
+	// https://docs.claude.com/en/docs/claude-code/mcp#project-scope
+	claudeCodeFileName = ".mcp.json"
 )
