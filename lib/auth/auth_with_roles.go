@@ -2539,6 +2539,12 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
+	// bound_keypair tokens have special creation/update logic and are handled
+	// separately
+	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
+		return trace.Wrap(a.authServer.UpsertBoundKeypairToken(ctx, token))
+	}
+
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2562,6 +2568,12 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 
 	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// bound_keypair tokens have special creation/update logic and are handled
+	// separately
+	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
+		return trace.Wrap(a.authServer.CreateBoundKeypairToken(ctx, token))
 	}
 
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
@@ -2985,6 +2997,75 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 	}
 
 	return a.authServer.GetAccessCapabilities(ctx, req)
+}
+
+// GetRemoteAccessCapabilities computes and returns what remote roles the user
+// needs to assume in order access resources in this cluster. In order to do so,
+// the method will:
+//   - maps the supplied remote search_as roles into local roles,
+//   - computes which subset of the local search_as roles are required to access
+//     the target resources, and finally
+//   - maps the required local roles *back* onto a subset of the supplied remote
+//     roles
+func (a *ServerWithRoles) GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	if !authz.IsRemoteUser(a.context) {
+		return nil, trace.AccessDenied("only remote users can invoke GetRemoteAccessCapabilities")
+	}
+
+	localIdentity := a.context.Identity.GetIdentity()
+	remoteIdentity := a.context.UnmappedIdentity.GetIdentity()
+
+	if req.User == "" {
+		req.User = remoteIdentity.Username
+	}
+	if req.User != remoteIdentity.Username {
+		return nil, trace.AccessDenied("users may only query their own access")
+	}
+
+	remoteCluster, err := a.authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: localIdentity.RouteToCluster,
+	}, false /* do not load keys */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	localSearchAsRoles, err := services.MapRoles(remoteCluster.GetRoleMap(), req.SearchAsRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(localSearchAsRoles) == 0 {
+		return &types.RemoteAccessCapabilities{ApplicableRolesForResources: []string{}}, nil
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Mapped search_as roles",
+		"remote_roles", req.SearchAsRoles,
+		"local_roles", localSearchAsRoles)
+
+	localAccessRoles, err := services.PruneMappedSearchAsRoles(ctx, a.authServer.clock, a.authServer, a.context.User, localSearchAsRoles, req.ResourceIDs, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Pruned search_as roles",
+		"remote_roles", req.SearchAsRoles,
+		"local_roles", localSearchAsRoles,
+		"local_access_roles", localAccessRoles)
+
+	remoteAccessRoles, err := services.UnmapRoles(remoteCluster.GetRoleMap(), req.SearchAsRoles, localAccessRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Mapped local access roles to remote access roles",
+		"local_access_roles", localAccessRoles,
+		"remote_access_roles", remoteAccessRoles)
+
+	caps := &types.RemoteAccessCapabilities{
+		ApplicableRolesForResources: remoteAccessRoles,
+	}
+	return caps, nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -3554,6 +3635,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// `updateBotInstance()` is called below, and this (empty) value will be
 		// overridden.
 		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+		joinToken:     a.context.Identity.GetIdentity().JoinToken,
 		// Propagate any join attributes from the current identity to the new
 		// identity.
 		joinAttributes: a.context.Identity.GetIdentity().JoinAttributes,
@@ -3663,7 +3745,7 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsR
 	}
 
 	identity := a.context.Identity.GetIdentity()
-	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
+	return trace.Wrap(dtauthz.VerifyTLSUser(context.TODO(), dt, identity))
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
@@ -4549,6 +4631,78 @@ func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesReq
 		Roles:   roles,
 		NextKey: nextKey,
 	}, nil
+}
+
+// ListRequestableRoles is a paginated requestable role getter. Unlike ListRoles, this only returns a list of roles that the user can request in an access request.
+// This does not use the resource verbs for RBAC, and all users are allowed to call this endpoint. The requestable roles returned here are only the ones that the user
+// has been granted permission to request. If a user has not been granted permission to request any roles, this will return an empty list.
+func (a *ServerWithRoles) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	if req.PageSize == 0 || req.PageSize > apidefaults.DefaultChunkSize {
+		req.PageSize = apidefaults.DefaultChunkSize
+	}
+
+	requestValidator, err := services.NewRequestValidator(ctx, a.authServer.clock, a.authServer, a.context.GetUserMetadata().User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert ListRequestableRolesRequest to ListRolesRequest for compatibility with `IterateRoles`
+	listReq := &proto.ListRolesRequest{
+		Limit:    req.PageSize,
+		StartKey: req.PageToken,
+	}
+
+	var roleFilter *types.RoleFilter
+	if req.Filter != nil {
+		roleFilter = &types.RoleFilter{
+			SearchKeywords:  req.Filter.SearchKeywords,
+			SkipSystemRoles: true,
+		}
+	}
+	// matchFunc is the function that will be run on each retrieved role to verify that it is requestable and matches the provided filters (if any).
+	matchFunc := func(role *types.RoleV6) (bool, error) {
+		roleName := role.GetName()
+
+		// Users can't request their own roles
+		if slices.Contains(a.context.User.GetRoles(), roleName) {
+			return false, nil
+		}
+
+		// Apply any RoleFilters if defined.
+		if req.Filter != nil && !roleFilter.Match(role) {
+			return false, nil
+		}
+
+		if requestValidator.CanRequestRole(roleName) {
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	out, nextKey, err := a.authServer.IterateRoles(ctx, listReq, matchFunc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.ListRequestableRolesResponse{
+		Roles:         convertRolesToRequestableRoles(out),
+		NextPageToken: nextKey,
+	}, nil
+}
+
+// convertRolesToRequestableRoles turns a slice of Roles into RequestableRoles, stripping all data except the name and description.
+func convertRolesToRequestableRoles(roles []*types.RoleV6) []*proto.ListRequestableRolesResponse_RequestableRole {
+	items := make([]*proto.ListRequestableRolesResponse_RequestableRole, 0, len(roles))
+	for _, role := range roles {
+		item := &proto.ListRequestableRolesResponse_RequestableRole{
+			Name:        role.GetName(),
+			Description: role.GetMetadata().Description,
+		}
+		items = append(items, item)
+	}
+
+	return items
 }
 
 func (a *ServerWithRoles) validateRole(role types.Role) error {
@@ -6234,7 +6388,7 @@ func (a *ServerWithRoles) GetLocks(ctx context.Context, inForceOnly bool, target
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetLocks(ctx, inForceOnly, targets...)
+	return a.authServer.Cache.GetLocks(ctx, inForceOnly, targets...)
 }
 
 // UpsertLock upserts a lock.
@@ -6725,6 +6879,62 @@ func (a *ServerWithRoles) GetDatabases(ctx context.Context) (result []types.Data
 	return result, nil
 }
 
+// ListDatabases returns a page of database resources.
+func (a *ServerWithRoles) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var nextKey string
+	var count int
+	var done bool
+	results, err := stream.Collect(
+		stream.FilterMap(
+			stream.PageFunc(func() ([]types.Database, error) {
+				if done {
+					return nil, io.EOF
+				}
+				items, next, err := a.authServer.ListDatabases(ctx, limit, startKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				startKey = next
+				if next == "" {
+					done = true
+				}
+				return items, nil
+			}),
+			func(db types.Database) (types.Database, bool) {
+				if nextKey != "" {
+					return nil, false
+				}
+
+				if err := a.checkAccessToDatabase(db); err != nil {
+					return nil, false
+				}
+
+				if count >= limit {
+					done = true
+					nextKey = db.GetName()
+					return nil, false
+				}
+
+				count++
+				return db, true
+			}),
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return results, nextKey, nil
+}
+
 // DeleteDatabase removes the specified database resource.
 func (a *ServerWithRoles) DeleteDatabase(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbDelete); err != nil {
@@ -7184,7 +7394,7 @@ func (a *ServerWithRoles) enforceGlobalModeTrustedDevice(ctx context.Context) er
 		return trace.Wrap(err)
 	}
 
-	err = dtauthz.VerifyTLSUser(readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
+	err = dtauthz.VerifyTLSUser(ctx, readOnlyAuthPref.GetDeviceTrust(), a.context.Identity.GetIdentity())
 	return trace.Wrap(err)
 }
 
@@ -7911,22 +8121,22 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 	target := lock.Target()
 	switch {
 	case !target.Equals(types.LockTarget{User: target.User}):
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 
 	case target.User == "":
-		return trace.BadParameter(errorMsg)
+		return trace.BadParameter("%s", errorMsg)
 	}
 
 	targetUser, err := users.GetUser(ctx, target.User, false /* withSecrets */)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.AccessDenied(errorMsg)
+			return trace.AccessDenied("%s", errorMsg)
 		}
 		return trace.Wrap(err)
 	}
 
 	if targetUser.Origin() != types.OriginOkta {
-		return trace.AccessDenied(errorMsg)
+		return trace.AccessDenied("%s", errorMsg)
 	}
 
 	return nil

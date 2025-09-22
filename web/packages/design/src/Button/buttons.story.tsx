@@ -26,6 +26,7 @@ import {
   ButtonBorder,
   ButtonFill,
   ButtonPrimary,
+  ButtonPrimaryBorder,
   ButtonProps,
   ButtonSecondary,
   ButtonText,
@@ -87,6 +88,7 @@ export const Buttons = () => {
       </Table>{' '}
       <Flex gap={3}>
         <ButtonPrimary>Primary</ButtonPrimary>
+        <ButtonPrimaryBorder>Primary (border)</ButtonPrimaryBorder>
         <ButtonSecondary>Secondary</ButtonSecondary>
         <ButtonBorder>Border</ButtonBorder>
         <ButtonWarning>Warning</ButtonWarning>

@@ -21,6 +21,7 @@ package token
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -29,6 +30,11 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
+	"github.com/gregjones/httpcache"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	zoidc "github.com/zitadel/oidc/v3/pkg/oidc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
@@ -277,6 +283,13 @@ type ServiceAccountClaims struct {
 	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
 }
 
+// OIDCServiceAccountClaims is a variant of `ServiceAccountClaims` intended for
+// use with the OIDC validator rather than plain JWKS.
+type OIDCServiceAccountClaims struct {
+	zoidc.TokenClaims
+	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
+}
+
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using a
 // configured JWKS.
 func ValidateTokenWithJWKS(
@@ -341,6 +354,129 @@ func ValidateTokenWithJWKS(
 		Username: claims.Subject,
 		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 			Subject: claims.Subject,
+			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+				Name: claims.Kubernetes.Pod.Name,
+			},
+			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+				Name:      claims.Kubernetes.ServiceAccount.Name,
+				Namespace: claims.Kubernetes.Namespace,
+			},
+		},
+	}, nil
+}
+
+// providerTimeout is the maximum time allowed to fetch provider metadata before
+// giving up.
+const providerTimeout = 15 * time.Second
+
+// zoidcValidateToken validates an OIDC token against a generic claim type.
+func zoidcValidateToken[C zoidc.Claims](
+	ctx context.Context,
+	issuerURL string,
+	audience string,
+	token string,
+	opts ...rp.VerifierOption,
+) (C, error) {
+	// Backport note: This function has been extracted and lightly modified from
+	// https://github.com/gravitational/teleport/commit/5bc9e5482bb037cf4c697871a9c9b8022f9b08e3.
+	//
+	// We aren't backporting the entire change, so the necessary functions have
+	// been extracted here. If we ever do backport the broader change, we should
+	// consider removing these duplicates. This particular implementation omits
+	// some functionality (authorized party check, etc)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
+	defer cancel()
+
+	var nilClaims C
+
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(timeoutCtx, issuerURL, otelhttp.DefaultClient)
+	if err != nil {
+		return nilClaims, trace.Wrap(err, "discovering oidc document")
+	}
+
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuerURL, audience, ks, opts...)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
+
+	claims, err := rp.VerifyIDToken[C](timeoutCtx, token, verifier)
+	if err != nil {
+		return nilClaims, trace.Wrap(err, "verifying token")
+	}
+
+	return claims, nil
+}
+
+// newCachingHTTPClient constructs and returns a caching HTTP client. Similar to
+// the default client used in `ValidateToken()`, this uses an underlying
+// `otelhttp` transport.
+// Note that this client should be retained and reused to benefit from caching.
+func newCachingHTTPClient() *http.Client {
+	// Backport note: This is derived from
+	// https://github.com/gravitational/teleport/pull/57789 and copied here for
+	// the v17 backport, as the OIDC library it requires was not broadly
+	// backported to v17.
+	transport := httpcache.NewMemoryCacheTransport()
+	transport.Transport = otelhttp.NewTransport(http.DefaultTransport)
+
+	return transport.Client()
+}
+
+// KubernetesOIDCTokenValidator is a utility struct to retain a caching HTTP
+// client for use during OIDC validation.
+type KubernetesOIDCTokenValidator struct {
+	client *http.Client
+}
+
+// NewKubernetesOIDCTokenValidator returns a token validator populated with a
+// caching HTTP client.
+func NewKubernetesOIDCTokenValidator() *KubernetesOIDCTokenValidator {
+	return &KubernetesOIDCTokenValidator{
+		client: newCachingHTTPClient(),
+	}
+}
+
+// ValidateTokenWithOIDC validates a Kubernetes Service Account JWT using an
+// OIDC endpoint.
+func ValidateTokenWithOIDC(
+	ctx context.Context,
+	issuerURL string,
+	clusterName string,
+	token string,
+) (*ValidationResult, error) {
+	claims, err := zoidcValidateToken[*OIDCServiceAccountClaims](
+		ctx,
+		issuerURL,
+		clusterName,
+		token,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating OIDC token")
+	}
+
+	// Ensure this is a pod-bound service account token
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+		return nil, trace.BadParameter("oidc joining requires the use of a projected pod bound service account token")
+	}
+
+	// Note: OIDC library requires valid exp and iat.
+	maxAllowedTTL := time.Minute * 30
+	if claims.GetExpiration().Sub(claims.GetIssuedAt()) > maxAllowedTTL {
+		return nil, trace.BadParameter("oidc joining requires the use of a service account token with a TTL of less than %s", maxAllowedTTL)
+	}
+
+	return &ValidationResult{
+		Raw:      claims,
+		Type:     types.KubernetesJoinTypeOIDC,
+		Username: claims.GetSubject(),
+		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+			Subject: claims.GetSubject(),
 			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
 				Name: claims.Kubernetes.Pod.Name,
 			},

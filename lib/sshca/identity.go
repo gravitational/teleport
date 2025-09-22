@@ -116,6 +116,8 @@ type Identity struct {
 	// BotInstanceID is the unique identifier for the bot instance, if this is a
 	// Machine ID bot. It is empty for human users.
 	BotInstanceID string
+	// JoinToken is the name of the join token used by the bot to join, if any.
+	JoinToken string
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs []types.ResourceID
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
@@ -215,6 +217,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if i.BotInstanceID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionBotInstanceID] = i.BotInstanceID
+	}
+	if i.JoinToken != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionJoinToken] = i.JoinToken
 	}
 	if len(i.AllowedResourceIDs) != 0 {
 		requestedResourcesStr, err := types.ResourceIDsToString(i.AllowedResourceIDs)
@@ -323,6 +328,11 @@ func (i *Identity) GetDeviceMetadata() *apievents.DeviceMetadata {
 	}
 }
 
+// IsBot returns whether this identity belongs to a bot.
+func (id *Identity) IsBot() bool {
+	return id.BotName != ""
+}
+
 // DecodeIdentity decodes an ssh certificate into an identity.
 func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident := &Identity{
@@ -397,6 +407,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 
 	ident.BotName = takeValue(teleport.CertExtensionBotName)
 	ident.BotInstanceID = takeValue(teleport.CertExtensionBotInstanceID)
+	ident.JoinToken = takeValue(teleport.CertExtensionJoinToken)
 
 	if v, ok := takeExtension(teleport.CertExtensionAllowedResources); ok {
 		resourceIDs, err := types.ResourceIDsFromString(v)

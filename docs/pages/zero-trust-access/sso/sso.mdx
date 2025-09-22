@@ -1,7 +1,7 @@
 ---
 title: Configure Single Sign-On
-description: How to set up single sign-on (SSO) for SSH using Teleport
-labels:
+description: How to set up single sign-on (SSO) using Teleport
+tags:
  - conceptual
  - zero-trust
 ---
@@ -416,9 +416,9 @@ SSO provider as an alternative to registering MFA devices directly with the Tele
 This allows Teleport users to use MFA devices and custom flows configured in the SSO provider
 to carry out privileged actions in Teleport, such as:
 
-- [Per-session MFA](../../admin-guides/access-controls/guides/per-session-mfa.mdx)
-- [Moderated sessions](../../admin-guides/access-controls/guides/joining-sessions.mdx)
-- [Admin actions](../../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx)
+- [Per-session MFA](../access-controls/guides/per-session-mfa.mdx)
+- [Moderated sessions](../access-controls/guides/joining-sessions.mdx)
+- [Admin actions](../access-controls/guides/mfa-for-admin-actions.mdx)
 
 Administrators may want to consider enabling this feature in order to:
 
@@ -585,12 +585,12 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 ```
 
 Refer to the following guides to configure authentication connectors of both
-SAML and OIDC types:
+SAML and OIDC types for your IdP:
 
-- [SSH Authentication with Okta](okta.mdx)
-- [SSH Authentication with OneLogin](one-login.mdx)
-- [SSH Authentication with ADFS](adfs.mdx)
-- [SSH Authentication with OAuth2 / OpenID Connect](oidc.mdx)
+- [Okta](okta.mdx)
+- [OneLogin](one-login.mdx)
+- [ADFS](adfs.mdx)
+- [OAuth2 / OpenID Connect](oidc.mdx)
 
 ## SSO customization
 

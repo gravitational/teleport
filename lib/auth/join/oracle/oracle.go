@@ -307,7 +307,11 @@ func FetchOraclePrincipalClaims(ctx context.Context, req *http.Request) (Claims,
 		if msg == "" {
 			msg = authResp.Status
 		}
-		return Claims{}, trace.AccessDenied("%v", msg)
+		if authResp.StatusCode == http.StatusNotFound {
+			msg += "\nThis may mean that the joining instance has insufficient permissions for authentication. " +
+				"For help with configuring permissions, see https://goteleport.com/docs/enroll-resources/agents/oracle/#step-25-configure-permissions."
+		}
+		return Claims{}, trace.AccessDenied("oci api error: %s", msg)
 	}
 	if unmarshalErr != nil {
 		return Claims{}, trace.Wrap(unmarshalErr)

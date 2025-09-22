@@ -97,6 +97,7 @@ import (
 	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bitbucket"
+	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -681,6 +682,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if as.k8sJWKSValidator == nil {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
+	if as.k8sOIDCValidator == nil {
+		as.k8sOIDCValidator = kubetoken.ValidateTokenWithOIDC
+	}
 
 	if as.gcpIDTokenValidator == nil {
 		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
@@ -698,6 +702,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	if as.bitbucketIDTokenValidator == nil {
 		as.bitbucketIDTokenValidator = bitbucket.NewIDTokenValidator(as.clock)
+	}
+
+	if as.createBoundKeypairValidator == nil {
+		as.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+			return boundkeypair.NewChallengeValidator(subject, clusterName, publicKey)
+		}
 	}
 
 	// Add in a login hook for generating state during user login.
@@ -1120,6 +1130,9 @@ type Server struct {
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
 	k8sJWKSValidator k8sJWKSValidator
+	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
+	// auth server using a known OIDC endpoint. It can be overridden in tests.
+	k8sOIDCValidator k8sOIDCValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
@@ -1131,6 +1144,10 @@ type Server struct {
 	terraformIDTokenValidator terraformCloudIDTokenValidator
 
 	bitbucketIDTokenValidator bitbucketIDTokenValidator
+
+	// createBoundKeypairValidator is a helper to create new bound keypair
+	// challenge validators. Used to override the implementation used in tests.
+	createBoundKeypairValidator createBoundKeypairValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -2368,6 +2385,10 @@ type certRequest struct {
 	// botInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any
 	botInstanceID string
+	// joinToken is the name of the join token used to join, set only for bot
+	// identities. It is unset for token-joined bots, whose token names are
+	// secret values.
+	joinToken string
 	// joinAttributes holds attributes derived from attested metadata from the
 	// join process, should any exist.
 	joinAttributes *workloadidentityv1pb.JoinAttrs
@@ -2544,7 +2565,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		return nil, nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateUserCert(ctx, certRequest{
+	certReq := certRequest{
 		user:                             userState,
 		ttl:                              req.TTL,
 		compatibility:                    req.Compatibility,
@@ -2566,7 +2587,14 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 		activeRequests:                   req.ActiveRequests,
 		kubernetesCluster:                req.KubernetesCluster,
 		usage:                            req.Usage,
-	})
+	}
+
+	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
+		certReq.botName = botName
+		certReq.botInstanceID = uuid.NewString()
+	}
+
+	certs, err := a.generateUserCert(ctx, certReq)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -3175,6 +3203,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests,
 		deviceID:             req.deviceExtensions.DeviceID,
+		botInstanceID:        req.botInstanceID,
+		joinToken:            req.joinToken,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3358,6 +3388,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 				Generation:              req.generation,
 				BotName:                 req.botName,
 				BotInstanceID:           req.botInstanceID,
+				JoinToken:               req.joinToken,
 				CertificateExtensions:   req.checker.CertificateExtensions(),
 				AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 				ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3471,6 +3502,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Generation:              req.generation,
 		BotName:                 req.botName,
 		BotInstanceID:           req.botInstanceID,
+		JoinToken:               req.joinToken,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3634,6 +3666,10 @@ type verifyLocksForUserCertsReq struct {
 	// deviceID is the trusted device ID.
 	// Eg: tlsca.Identity.DeviceExtensions.DeviceID
 	deviceID string
+	// botInstanceID is the bot instance UUID, set only for bots.
+	botInstanceID string
+	// joinMethod is the join token name, set only for non-token bots.
+	joinToken string
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -3653,6 +3689,12 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	lockTargets = append(lockTargets,
 		services.AccessRequestsToLockTargets(req.activeAccessRequests)...,
 	)
+	if req.botInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: req.botInstanceID})
+	}
+	if req.joinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: req.joinToken})
+	}
 
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))
 }
@@ -3738,7 +3780,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 
-			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+			err := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
@@ -3782,7 +3824,7 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 		return trace.Wrap(fnErr)
 	}
 
-	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
+	retErr := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
@@ -5095,12 +5137,12 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 	tok, err := a.GetToken(ctx, token)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+			return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 		}
 		return nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, trace.AccessDenied(TokenExpiredOrNotFound)
+		return nil, trace.AccessDenied("%s", TokenExpiredOrNotFound)
 	}
 
 	return tok, nil
@@ -5471,8 +5513,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
 		// be able to see their assigned permission sets.
-		assignmentID := services.IdentityCenterAccountAssignmentID(resource.Name)
-		asmt, err := a.Services.IdentityCenter.GetAccountAssignment(ctx, assignmentID)
+		asmt, err := a.GetIdentityCenterAccountAssignment(ctx, resource.Name)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching identity center account assignment")
 		}
@@ -6538,6 +6579,9 @@ func (a *Server) createAccessListReminderNotification(ctx context.Context, owner
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
+//
+// WARNING: This is not safe for use in clusters using HSMs or KMS for private key material.
+// Instead, you should prefer using the CRLs that are already present in the certificate_authority resource.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
 	clusterName, err := a.GetClusterName()
@@ -6552,10 +6596,8 @@ func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.Cert
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(awly): this will only create a CRL for an active signer.
-	// If there are multiple signers (multiple HSMs), we won't have the full CRL coverage.
-	// Generate a CRL per signer and return all of them separately.
-
+	// Note: this will only create a CRL for a single active signer.
+	// If there are multiple signers (HSMs), we won't have the full CRL coverage.
 	cert, signer, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if trace.IsNotFound(err) {
 		// If there is no local TLS signer found in the host CA ActiveKeys, this
@@ -7708,7 +7750,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add JWT keys if necessary.
 	switch caID.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -7759,6 +7801,8 @@ func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SPIFFECAJWT
 	case types.OktaCA:
 		return cryptosuites.OktaCAJWT
+	case types.BoundKeypairCA:
+		return cryptosuites.BoundKeypairCAJWT
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }
@@ -7867,7 +7911,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if usage >= int(monthlyLimit) {
-		return trace.AccessDenied(limitReachedMessage)
+		return trace.AccessDenied("%s", limitReachedMessage)
 	}
 
 	return nil

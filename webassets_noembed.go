@@ -30,5 +30,5 @@ const webAssetsMissingError = "the teleport binary was built without web assets,
 
 // NewWebAssetsFilesystem is a no-op in this build mode.
 func NewWebAssetsFilesystem() (http.FileSystem, error) { //nolint:staticcheck // suppress 'never returns nil' as this is value is platform dependent
-	return nil, trace.NotFound(webAssetsMissingError)
+	return nil, trace.NotFound("%s", webAssetsMissingError)
 }

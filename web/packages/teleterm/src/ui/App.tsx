@@ -21,6 +21,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 
 import { AppInitializer } from 'teleterm/ui/AppInitializer';
+import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
 
 import AppContext from './appContext';
 import AppContextProvider from './appContextProvider';
@@ -41,17 +42,19 @@ export const App: React.FC<{
       <StyledApp>
         <DndProvider backend={HTML5Backend}>
           <AppContextProvider value={ctx}>
-            <ResourcesContextProvider>
-              <ConnectionsContextProvider>
-                <VnetContextProvider>
-                  <ThemeProvider>
-                    <DeepLinks launchDeepLink={launchDeepLink} />
+            <AppUpdaterContextProvider>
+              <ResourcesContextProvider>
+                <ConnectionsContextProvider>
+                  <VnetContextProvider>
+                    <ThemeProvider>
+                      <DeepLinks launchDeepLink={launchDeepLink} />
 
-                    <AppInitializer />
-                  </ThemeProvider>
-                </VnetContextProvider>
-              </ConnectionsContextProvider>
-            </ResourcesContextProvider>
+                      <AppInitializer />
+                    </ThemeProvider>
+                  </VnetContextProvider>
+                </ConnectionsContextProvider>
+              </ResourcesContextProvider>
+            </AppUpdaterContextProvider>
           </AppContextProvider>
         </DndProvider>
       </StyledApp>

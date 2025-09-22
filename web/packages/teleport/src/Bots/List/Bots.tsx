@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useHistory } from 'react-router-dom';
 
 import { Alert, Box, Button, Indicator } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
@@ -31,12 +31,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import {
-  deleteBot,
-  editBot,
-  fetchBots,
-  fetchRoles,
-} from 'teleport/services/bot/bot';
+import { fetchBots } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
@@ -45,14 +40,13 @@ import { EmptyState } from './EmptyState/EmptyState';
 
 export function Bots() {
   const ctx = useTeleport();
+  const history = useHistory();
   const flags = ctx.getFeatureFlags();
   const hasAddBotPermissions = flags.addBots;
   const canListBots = flags.listBots;
 
   const [bots, setBots] = useState<FlatBot[]>([]);
   const [selectedBot, setSelectedBot] = useState<FlatBot | null>();
-  const [selectedRoles, setSelectedRoles] = useState<string[] | null>();
-  const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
   const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext(
     canListBots ? 'processing' : 'success'
   );
@@ -77,44 +71,36 @@ export function Bots() {
     };
   }, [ctx, fetchRun, canListBots]);
 
-  async function fetchRoleNames(search: string): Promise<string[]> {
-    const flags = ctx.getFeatureFlags();
-    const roles = await fetchRoles({ search, flags });
-    return roles.items.map(r => r.name);
-  }
-
   function onDelete() {
-    crudRun(() => deleteBot(flags, selectedBot.name)).then(() => {
-      setBots(bots.filter(bot => bot.name !== selectedBot.name));
-      onClose();
-    });
+    setBots(bots.filter(bot => bot.name !== selectedBot.name));
+    onClose();
   }
 
-  function onEdit() {
-    crudRun(() =>
-      editBot(flags, selectedBot.name, { roles: selectedRoles }).then(
-        (updated: FlatBot) => {
-          const updatedList: FlatBot[] = bots.map((item: FlatBot): FlatBot => {
-            if (item.name !== selectedBot.name) {
-              return item;
-            }
-            return {
-              ...item,
-              ...updated,
-            };
-          });
+  function onEdit(updated: FlatBot) {
+    const updatedList = bots.map((item: FlatBot): FlatBot => {
+      if (item.name !== selectedBot?.name) {
+        return item;
+      }
+      return {
+        ...item,
+        ...updated,
+      };
+    });
 
-          setBots(updatedList);
-          onClose();
-        }
-      )
-    );
+    setBots(updatedList);
+    onClose();
   }
 
   function onClose() {
     setSelectedBot(null);
-    setSelectedRoles(null);
   }
+
+  const handleSelect = useCallback(
+    (item: FlatBot) => {
+      history.push(cfg.getBotDetailsRoute(item.name));
+    },
+    [history]
+  );
 
   if (fetchAttempt.status === 'processing') {
     return (
@@ -174,22 +160,19 @@ export function Bots() {
         </Box>
       </FeatureHeader>
       {fetchAttempt.status == 'failed' && (
-        <Alert kind="danger" children={fetchAttempt.statusText} />
+        <Alert kind="danger">{fetchAttempt.statusText}</Alert>
       )}
       {fetchAttempt.status == 'success' && (
         <BotList
-          attempt={crudAttempt}
           bots={bots}
           disabledEdit={!flags.roles || !flags.editBots}
           disabledDelete={!flags.removeBots}
-          fetchRoles={fetchRoleNames}
           onClose={onClose}
           onDelete={onDelete}
           onEdit={onEdit}
+          onSelect={handleSelect}
           selectedBot={selectedBot}
           setSelectedBot={setSelectedBot}
-          selectedRoles={selectedRoles}
-          setSelectedRoles={setSelectedRoles}
         />
       )}
     </FeatureBox>

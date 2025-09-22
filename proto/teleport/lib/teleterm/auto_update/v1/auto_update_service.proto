@@ -1,0 +1,68 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.lib.teleterm.auto_update.v1;
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1;auto_updatev1";
+
+// AutoUpdateService provides access to information about client tools updates.
+service AutoUpdateService {
+  // GetClusterVersions returns client tools versions for all clusters.
+  rpc GetClusterVersions(GetClusterVersionsRequest) returns (GetClusterVersionsResponse);
+  // GetDownloadBaseUrl returns a base URL (e.g. cdn.teleport.dev) for downloading packages.
+  // Can be overridden with TELEPORT_CDN_BASE_URL env var.
+  // OSS builds require this env var to be set, otherwise an error is returned.
+  rpc GetDownloadBaseUrl(GetDownloadBaseUrlRequest) returns (GetDownloadBaseUrlResponse);
+}
+
+// Request for GetClusterVersions.
+message GetClusterVersionsRequest {}
+
+// Response for GetClusterVersions.
+message GetClusterVersionsResponse {
+  repeated ClusterVersionInfo reachable_clusters = 1;
+  repeated UnreachableCluster unreachable_clusters = 2;
+}
+
+// ClusterVersionInfo contains tool version information for a reachable cluster.
+message ClusterVersionInfo {
+  // URI of the cluster.
+  string cluster_uri = 1;
+  // Whether the client should automatically update the tools version.
+  bool tools_auto_update = 2;
+  // Tools version required by this cluster.
+  string tools_version = 3;
+  // Minimum tools version allowed by this cluster.
+  string min_tools_version = 4;
+}
+
+// UnreachableCluster represents a cluster from which version information could not be retrieved.
+message UnreachableCluster {
+  // URI of the cluster.
+  string cluster_uri = 1;
+  // Error that occurred while retrieving version information.
+  string error_message = 2;
+}
+
+// Request for GetDownloadBaseUrl.
+message GetDownloadBaseUrlRequest {}
+
+// Response for GetDownloadBaseUrl.
+message GetDownloadBaseUrlResponse {
+  string base_url = 1;
+}

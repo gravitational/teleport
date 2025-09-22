@@ -391,6 +391,9 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 		AssetTag:     "assettag1",
 		CredentialID: "credentialid1",
 	}
+	botUser := userWithoutExtensions
+	botUser.Identity.BotName = "wall-e"
+	botUser.Identity.BotInstanceID = uuid.NewString()
 
 	// Enterprise is necessary for mode=optional and mode=required to work.
 	modulestest.SetTestModules(t, modulestest.Modules{
@@ -415,6 +418,17 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			deviceMode: constants.DeviceTrustModeRequired,
 			user:       userWithoutExtensions,
 			wantErr:    "access denied",
+		},
+		{
+			name:       "nok: bot user and mode=required",
+			deviceMode: constants.DeviceTrustModeRequired,
+			user:       botUser,
+			wantErr:    "access denied",
+		},
+		{
+			name:       "ok: bot user and mode=required-for-humans",
+			deviceMode: constants.DeviceTrustModeRequiredForHumans,
+			user:       botUser,
 		},
 		{
 			name:       "global mode disabled only",
@@ -869,6 +883,20 @@ func TestContext_GetAccessState(t *testing.T) {
 			want: services.AccessState{
 				EnableDeviceVerification: false, // copied from Context
 				DeviceVerified:           true,  // Identity extensions
+			},
+		},
+		{
+			name: "bot user",
+			createAuthCtx: func() *authz.Context {
+				ctx := localCtx
+				localUser := ctx.Identity.(authz.LocalUser)
+				localUser.Identity.BotName = "wall-e"
+				ctx.Identity = localUser
+				return &ctx
+			},
+			want: services.AccessState{
+				EnableDeviceVerification: true,
+				IsBot:                    true,
 			},
 		},
 	}

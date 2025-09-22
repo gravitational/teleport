@@ -106,5 +106,5 @@ func getLatest(ctx context.Context, versionSpec string, gh github.GitHub) (strin
 		}
 	}
 
-	return "", trace.NotFound("no releases matched " + versionSpec)
+	return "", trace.NotFound("no releases matched %q", versionSpec)
 }

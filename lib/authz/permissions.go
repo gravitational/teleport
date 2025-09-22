@@ -359,6 +359,7 @@ func (c *Context) GetAccessState(authPref readonly.AuthPreference) services.Acce
 
 	state.EnableDeviceVerification = !c.disableDeviceRoleMode
 	state.DeviceVerified = isService || dtauthz.IsTLSDeviceVerified(&identity.DeviceExtensions)
+	state.IsBot = identity.IsBot()
 
 	return state
 }
@@ -437,7 +438,7 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 
 	// Device Trust: authorize device extensions.
 	if !a.disableGlobalDeviceMode {
-		if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
+		if err := dtauthz.VerifyTLSUser(ctx, authPref.GetDeviceTrust(), authContext.Identity.GetIdentity()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

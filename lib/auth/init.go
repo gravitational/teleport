@@ -734,19 +734,37 @@ func initializeAuthority(ctx context.Context, asrv *Server, caID types.CertAuthI
 
 	// Add [empty] CRLs to any issuers that are missing them.
 	// These are valid for 10 years and regenerated on CA rotation.
+	// DELETE IN v20(probakowski, zmb3): by v20 all auths will have
+	// at least been on v19, and all versions of 19 backfill missing CRLs.
 	updated := false
 	for _, kp := range ca.GetActiveKeys().TLS {
-		if kp.CRL != nil {
-			continue
-		}
-		certBytes, signer, err := asrv.keyStore.GetTLSCertAndSigner(ctx, ca)
-		if err != nil {
-			asrv.logger.WarnContext(ctx, "Couldn't get CA certificate", "ca_type", caID.Type, "error", err)
-			continue
-		}
-		cert, err := tlsca.ParseCertificatePEM(certBytes)
+		cert, err := tlsca.ParseCertificatePEM(kp.Cert)
 		if err != nil {
 			asrv.logger.WarnContext(ctx, "Couldn't parse CA certificate", "ca_type", caID.Type, "error", err)
+			continue
+		}
+
+		needsNewCRL := len(kp.CRL) == 0
+		if !needsNewCRL {
+			// An earlier version of this code generated CRLs that may have been signed with the wrong keypair.
+			// To fix this, we must also validate the signature of existing CRLs.
+			if crl, err := x509.ParseRevocationList(kp.CRL); err != nil {
+				needsNewCRL = true
+			} else if err := crl.CheckSignatureFrom(cert); err != nil {
+				asrv.logger.WarnContext(ctx, "Detected CRL with invalid signature, regenerating", "ca_type", caID.Type, "ca", ca.GetName(), "error", err)
+				needsNewCRL = true
+			}
+		}
+
+		if !needsNewCRL {
+			continue
+		}
+
+		signer, err := asrv.keyStore.TLSSigner(ctx, kp)
+		if err != nil {
+			if !errors.Is(err, keystore.ErrUnusableKey) {
+				asrv.logger.WarnContext(ctx, "Couldn't get TLS signer for CA", "ca", ca.GetName(), "ca_type", caID.Type, "error", err)
+			}
 			continue
 		}
 
@@ -1428,7 +1446,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
+			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)

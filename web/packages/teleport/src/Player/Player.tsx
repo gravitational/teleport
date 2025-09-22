@@ -64,8 +64,9 @@ export function Player() {
 
   const validRecordingType = validRecordingTypes.includes(recordingType);
   const durationMs = Number(getUrlParameter('durationMs', search));
-  const shouldFetchSessionDuration =
-    validRecordingType && (!Number.isInteger(durationMs) || durationMs <= 0);
+  const validDuration = Number.isInteger(durationMs) && durationMs > 0;
+
+  const shouldFetchSessionDuration = !validRecordingType || !validDuration;
 
   useEffect(() => {
     if (shouldFetchSessionDuration) {
@@ -75,23 +76,10 @@ export function Player() {
 
   const combinedAttempt = shouldFetchSessionDuration
     ? fetchDurationAttempt
-    : makeSuccessAttempt({ durationMs });
+    : makeSuccessAttempt({ durationMs, recordingType });
 
   function onLogout() {
     session.logout();
-  }
-
-  if (!validRecordingType) {
-    return (
-      <StyledPlayer>
-        <Box textAlign="center" mx={10} mt={5}>
-          <Danger mb={0}>
-            Invalid query parameter recordingType: {recordingType}, should be
-            one of {validRecordingTypes.join(', ')}.
-          </Danger>
-        </Box>
-      </StyledPlayer>
-    );
   }
 
   if (
@@ -119,6 +107,20 @@ export function Player() {
     );
   }
 
+  if (!validRecordingTypes.includes(combinedAttempt.data.recordingType)) {
+    return (
+      <StyledPlayer>
+        <Box textAlign="center" mx={10} mt={5}>
+          <Danger mb={0}>
+            Invalid query parameter recordingType:{' '}
+            {combinedAttempt.data.recordingType}, should be one of{' '}
+            {validRecordingTypes.join(', ')}.
+          </Danger>
+        </Box>
+      </StyledPlayer>
+    );
+  }
+
   return (
     <StyledPlayer>
       <Flex bg="levels.surface" height="38px">
@@ -134,7 +136,7 @@ export function Player() {
           position: 'relative',
         }}
       >
-        {recordingType === 'desktop' ? (
+        {combinedAttempt.data.recordingType === 'desktop' ? (
           <DesktopPlayer
             sid={sid}
             clusterId={clusterId}

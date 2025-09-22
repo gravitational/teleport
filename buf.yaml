@@ -17,6 +17,7 @@ lint:
     - COMMENT_RPC
     - COMMENT_SERVICE
     - PACKAGE_NO_IMPORT_CYCLE
+    - PAGINATION_REQUIRED
     - UNARY_RPC
   except:
     - FIELD_NOT_REQUIRED
@@ -27,6 +28,7 @@ lint:
     - api/proto/teleport/legacy/client/proto/certs.proto
     - api/proto/teleport/legacy/client/proto/event.proto
     - api/proto/teleport/legacy/client/proto/proxyservice.proto
+    - api/proto/teleport/legacy/client/proto/requestable_roles.proto
     - api/proto/teleport/legacy/types/events/athena.proto
     - api/proto/teleport/legacy/types/events/events.proto
     - api/proto/teleport/legacy/types/types.proto
@@ -83,3 +85,13 @@ breaking:
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
+
+plugins:
+  - plugin:
+      - env
+      - GOWORK=off
+      - go
+      - -C
+      - ./build.assets/tooling
+      - run
+      - ./cmd/buf-plugin-linters

@@ -24,10 +24,10 @@ import { ViewBotProps } from './types';
 import { ViewBot } from './ViewBot';
 
 export default {
-  title: 'Teleport/Bots/Add/ViewBot',
+  title: 'Teleport/Bots/Github Actions',
 };
 
-export const GitHubActionsSsh = () => {
+export const GithubActionsSsh = () => {
   const ctx = createTeleportContext();
 
   return (
@@ -43,7 +43,7 @@ const props: ViewBotProps = {
     type: BotUiFlow.GitHubActionsSsh,
     namespace: '',
     description: '',
-    labels: null,
+    labels: new Map(),
     revision: '',
     traits: [],
     status: '',

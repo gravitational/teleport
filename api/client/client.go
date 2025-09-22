@@ -109,6 +109,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -499,22 +500,23 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
-			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
 			interceptors.WithMFAUnaryInterceptor(c.PerformMFACeremony),
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelStreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			interceptors.GRPCClientStreamErrorInterceptor,
 			breaker.StreamClientInterceptor(cb),
+		),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(grpcutils.MaxClientRecvMsgSize()),
 		),
 	)
 	// Only set transportCredentials if tlsConfig is set. This makes it possible
@@ -542,25 +544,6 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	return nil
 }
-
-// We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
-// because each time this is called, they create a new underlying metric. If
-// something (e.g tbot) is repeatedly creating new clients and closing them,
-// then this leads to a memory leak since the underlying metric is not cleaned
-// up.
-// See https://github.com/gravitational/teleport/issues/30759
-// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
-var otelStreamClientInterceptor = sync.OnceValue(func() grpc.StreamClientInterceptor {
-	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-	return otelgrpc.StreamClientInterceptor()
-})
-
-var otelUnaryClientInterceptor = sync.OnceValue(func() grpc.UnaryClientInterceptor {
-	//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-	// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-	return otelgrpc.UnaryClientInterceptor()
-})
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
@@ -1359,6 +1342,15 @@ func (c *Client) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 	return caps, nil
 }
 
+// GetRemoteAccessCapabilities requests the access capabilities of a user.
+func (c *Client) GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	caps, err := c.grpc.GetRemoteAccessCapabilities(ctx, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (c *Client) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	seq, err := c.grpc.GetPluginData(ctx, &filter)
@@ -1873,6 +1865,16 @@ func (c *Client) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*p
 		}
 	}
 	rsp.Roles = filtered
+
+	return rsp, nil
+}
+
+// ListRequestableRoles is a paginated requestable role getter.
+func (c *Client) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	rsp, err := c.grpc.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return rsp, nil
 }
@@ -2782,6 +2784,14 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 
 func (c *Client) DynamicDesktopClient() *dynamicwindows.Client {
 	return dynamicwindows.NewClient(dynamicwindowsv1.NewDynamicWindowsServiceClient(c.conn))
+}
+
+func (c *Client) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
+	return c.DynamicDesktopClient().ListDynamicWindowsDesktops(ctx, pageSize, pageToken)
+}
+
+func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	return c.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, name)
 }
 
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
@@ -3703,6 +3713,29 @@ func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	return databases, nil
 }
 
+// ListDatabases returns a page of database resources.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]types.Database, string, error) {
+	resp, err := c.grpc.ListDatabases(ctx, &proto.ListDatabasesRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	databases := make([]types.Database, len(resp.Databases))
+	for i := range resp.Databases {
+		databases[i] = resp.Databases[i]
+	}
+	return databases, resp.NextPageToken, nil
+}
+
 // DeleteDatabase deletes specified database resource.
 func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteDatabase(ctx, &types.ResourceRequest{Name: name})
@@ -4378,7 +4411,7 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetSAMLIdPServiceProvider()
 			default:
 				out.Resources = nil
-				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+				return out, trace.NotImplemented("resource type %q does not support pagination", req.ResourceType)
 			}
 
 			t, ok := resource.(T)

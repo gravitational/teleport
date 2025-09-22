@@ -102,7 +102,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	_ "github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/firestore"
-	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	_ "github.com/gravitational/teleport/lib/backend/lite"
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -169,7 +168,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/cert"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -672,6 +670,8 @@ type TeleportProcess struct {
 
 	// state is the process state machine tracking if the process is healthy or not.
 	state *processState
+
+	tsrv reversetunnelclient.Server
 }
 
 // processIndex is an internal process index
@@ -681,6 +681,17 @@ var processID int32
 
 func nextProcessID() int32 {
 	return atomic.AddInt32(&processID, 1)
+}
+
+// GetReverseTunnelServer returns the process's reverse tunnel server
+// or an error if it is not configured.
+// Reverse tunnel server is used by proxies to accept incoming
+// reverse tunnels from nodes/clusters.
+func (process *TeleportProcess) GetReverseTunnelServer() (reversetunnelclient.Server, error) {
+	if process.tsrv != nil {
+		return process.tsrv, nil
+	}
+	return nil, trace.BadParameter("reverse tunnel server not configured")
 }
 
 // GetAuthServer returns the process' auth server
@@ -1074,18 +1085,9 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	}
 
 	supervisor := NewSupervisor(processID, cfg.Log)
-	storage, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	store, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	var kubeBackend kubernetesBackend
-	// If running in a Kubernetes Pod we must init the backend storage for `host_uuid` storage/retrieval.
-	if kubernetes.InKubeCluster() {
-		kubeBackend, err = kubernetes.New()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
@@ -1093,12 +1095,12 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	// key is empty or if not running in a Kubernetes Cluster, it will read the
 	// `host_uuid` from local data directory.
 	// If no host id is available, it will generate a new host id and persist it to available storages.
-	if err := readOrGenerateHostID(supervisor.ExitContext(), cfg, kubeBackend); err != nil {
+	// If we fail with an already exists failure, retry.
+	if err := store.ReadOrGenerateHostID(supervisor.ExitContext(), cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = uuid.Parse(cfg.HostUUID)
-	if err != nil && !aws.IsEC2NodeID(cfg.HostUUID) {
+	if _, err := uuid.Parse(cfg.HostUUID); err != nil && !aws.IsEC2NodeID(cfg.HostUUID) {
 		cfg.Logger.WarnContext(supervisor.ExitContext(), "Host UUID is not a true UUID (not eligible for UUID-based proxying)", "host_uuid", cfg.HostUUID)
 	}
 
@@ -1219,7 +1221,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		hostedPluginRoles:      make(map[types.SystemRole]string),
 		connectors:             make(map[types.SystemRole]*Connector),
 		importedDescriptors:    cfg.FileDescriptors,
-		storage:                storage,
+		storage:                store,
 		rotationCache:          rotationCache,
 		id:                     processID,
 		log:                    cfg.Log,
@@ -1606,7 +1608,7 @@ func (process *TeleportProcess) detectUpgrader() (kind, externalName string, ver
 
 // configureUpgraderExporter configures the window exporter for upgraders that export windows.
 func (process *TeleportProcess) configureUpgraderExporter(kind string) error {
-	driver, err := uw.NewDriver(kind)
+	driver, err := uw.NewDriver(process.ExitContext(), kind)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2643,9 +2645,30 @@ func payloadContext(payload any) context.Context {
 	return context.TODO()
 }
 
-// OnExit allows individual services to register a callback function which will be
-// called when Teleport Process is asked to exit. Usually services terminate themselves
-// when the callback is called
+// OnExit registers a callback to be executed when the Teleport process
+// is asked to exit. Typically, services use this to gracefully shut down.
+//
+// WARNING: Do not register OnExit callbacks from within flows that may
+// themselves be triggered during shutdown. Doing so can lead to races.
+//
+// ✅ Correct usage:
+//
+//	process.RegisterFunc("service.init", func() error { ... })
+//	process.OnExit("service.exit", func(any) { ... })
+//
+// Or
+//
+//	process.OnExit("service.exit", func(any) { ... })
+//	process.RegisterFunc("service.init", func() error { ... })
+//
+// ❌ Incorrect usage:
+//
+//	defer process.OnExit("service.exit", func(any) { ... })
+//	process.RegisterFunc("service.init", func() error { ... })
+//
+// These patterns cause the callback to be registered too late,
+// during shutdown itself, which may trigger races in
+// Supervisor.Wg.Add / Supervisor.Wg.Done.
 func (process *TeleportProcess) OnExit(serviceName string, callback func(interface{})) {
 	process.RegisterFunc(serviceName, func() error {
 		event, _ := process.WaitForEvent(context.TODO(), TeleportExitEvent)
@@ -3118,12 +3141,6 @@ func (process *TeleportProcess) initSSH() error {
 
 		storagePresence := local.NewPresenceService(process.storage.BackendStorage)
 
-		// read the host UUID:
-		serverID, err := hostid.ReadOrCreateFile(cfg.DataDir)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
 			Semaphores:     authClient,
 			AccessPoint:    authClient,
@@ -3132,7 +3149,7 @@ func (process *TeleportProcess) initSSH() error {
 			Component:      teleport.ComponentNode,
 			Logger:         process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentNode, process.id)).WithField(teleport.ComponentKey, "sessionctrl"),
 			TracerProvider: process.TracingProvider,
-			ServerID:       serverID,
+			ServerID:       cfg.HostUUID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3148,6 +3165,7 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.AdvertiseIP,
 			process.proxyPublicAddr(),
 			conn.Client,
+			regular.SetUUID(cfg.HostUUID),
 			regular.SetLimiter(limiter),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),
@@ -3200,7 +3218,7 @@ func (process *TeleportProcess) initSSH() error {
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
 			resumableServer = resumption.NewSSHServerWrapper(resumption.SSHServerWrapperConfig{
 				SSHServer: s.HandleConnection,
-				HostID:    serverID,
+				HostID:    cfg.HostUUID,
 				DataDir:   cfg.DataDir,
 			})
 
@@ -4527,11 +4545,181 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	// We register the shutdown function before starting the services because we want to run it even if we encounter an
+	// error and return early. Some of the registered services don't watch if the context is Done (e.g. proxy.web).
+	// In case of error, if we don't run "proxy.shutdown", those registered services will run ad vitam aeternam and
+	// Supervisor.Wait() won't return.
+	var (
+		tsrv                     reversetunnelclient.Server
+		peerClient               *peer.Client
+		peerQUICTransport        *quic.Transport
+		rcWatcher                *reversetunnel.RemoteClusterTunnelManager
+		peerServer               *peer.Server
+		peerQUICServer           *peerquic.Server
+		webServer                *web.Server
+		minimalWebServer         *web.Server
+		sshProxy                 *regular.Server
+		sshGRPCServer            *grpc.Server
+		kubeServer               *kubeproxy.TLSServer
+		grpcServerPublic         *grpc.Server
+		grpcServerMTLS           *grpc.Server
+		alpnServer               *alpnproxy.Proxy
+		reverseTunnelALPNServer  *alpnproxy.Proxy
+		clientTLSConfigGenerator *auth.ClientTLSConfigGenerator
+
+		// initShutdownMtx ensures that shutdown only occurs after the full
+		// setup has been completed.
+		//
+		// Consider the case where the process is terminated during startup:
+		// the server and listeners may not yet have been assigned to their
+		// variables. Without protection, the shutdown flow could be called
+		// on this partially initialized state.
+		//
+		// This mutex is primarily used in test flows to handle such corner
+		// cases and prevent shutdown from running prematurely.
+		initShutdownMtx sync.Mutex
+	)
+
+	initShutdownMtx.Lock()
+	defer initShutdownMtx.Unlock()
+
+	// execute this when process is asked to exit:
+	process.OnExit("proxy.shutdown", func(payload interface{}) {
+		// If we're still phase interrupted by service shutdown, this Lock() will block until the
+		// deferred Unlock() to make sure that this shutdown function is not executed
+		// on partial state.
+		initShutdownMtx.Lock()
+		defer initShutdownMtx.Unlock()
+
+		// Close the listeners at the beginning of shutdown, because we are not
+		// really guaranteed to be capable to serve new requests if we're
+		// halfway through a shutdown, and double closing a listener is fine.
+		listeners.Close()
+		if payload == nil {
+			logger.InfoContext(process.ExitContext(), "Shutting down immediately")
+			if tsrv != nil {
+				warnOnErr(process.ExitContext(), tsrv.Close(), logger)
+			}
+			if rcWatcher != nil {
+				warnOnErr(process.ExitContext(), rcWatcher.Close(), logger)
+			}
+			if peerServer != nil {
+				warnOnErr(process.ExitContext(), peerServer.Close(), logger)
+			}
+			if peerQUICServer != nil {
+				warnOnErr(process.ExitContext(), peerQUICServer.Close(), logger)
+			}
+			if webServer != nil {
+				warnOnErr(process.ExitContext(), webServer.Close(), logger)
+			}
+			if minimalWebServer != nil {
+				warnOnErr(process.ExitContext(), minimalWebServer.Close(), logger)
+			}
+			if peerClient != nil {
+				warnOnErr(process.ExitContext(), peerClient.Stop(), logger)
+			}
+			if sshProxy != nil {
+				warnOnErr(process.ExitContext(), sshProxy.Close(), logger)
+			}
+			if sshGRPCServer != nil {
+				sshGRPCServer.Stop()
+			}
+			if kubeServer != nil {
+				warnOnErr(process.ExitContext(), kubeServer.Close(), logger)
+			}
+			if grpcServerPublic != nil {
+				grpcServerPublic.Stop()
+			}
+			if grpcServerMTLS != nil {
+				grpcServerMTLS.Stop()
+			}
+			if alpnServer != nil {
+				warnOnErr(process.ExitContext(), alpnServer.Close(), logger)
+			}
+			if reverseTunnelALPNServer != nil {
+				warnOnErr(process.ExitContext(), reverseTunnelALPNServer.Close(), logger)
+			}
+
+			if clientTLSConfigGenerator != nil {
+				clientTLSConfigGenerator.Close()
+			}
+		} else {
+			logger.InfoContext(process.ExitContext(), "Shutting down gracefully")
+			ctx := payloadContext(payload)
+			if tsrv != nil {
+				warnOnErr(ctx, tsrv.DrainConnections(ctx), logger)
+			}
+			if sshProxy != nil {
+				warnOnErr(ctx, sshProxy.Shutdown(ctx), logger)
+			}
+			if sshGRPCServer != nil {
+				sshGRPCServer.GracefulStop()
+			}
+			if webServer != nil {
+				warnOnErr(ctx, webServer.Shutdown(ctx), logger)
+			}
+			if minimalWebServer != nil {
+				warnOnErr(ctx, minimalWebServer.Shutdown(ctx), logger)
+			}
+			if tsrv != nil {
+				warnOnErr(ctx, tsrv.Shutdown(ctx), logger)
+			}
+			if rcWatcher != nil {
+				warnOnErr(ctx, rcWatcher.Close(), logger)
+			}
+			if peerServer != nil {
+				warnOnErr(ctx, peerServer.Shutdown(), logger)
+			}
+			if peerQUICServer != nil {
+				warnOnErr(ctx, peerQUICServer.Shutdown(ctx), logger)
+			}
+			if peerClient != nil {
+				peerClient.Shutdown(ctx)
+			}
+			if kubeServer != nil {
+				warnOnErr(ctx, kubeServer.Shutdown(ctx), logger)
+			}
+			if grpcServerPublic != nil {
+				grpcServerPublic.GracefulStop()
+			}
+			if grpcServerMTLS != nil {
+				grpcServerMTLS.GracefulStop()
+			}
+			if alpnServer != nil {
+				warnOnErr(ctx, alpnServer.Close(), logger)
+			}
+			if reverseTunnelALPNServer != nil {
+				warnOnErr(ctx, reverseTunnelALPNServer.Close(), logger)
+			}
+
+			// Explicitly deleting proxy heartbeats helps the behavior of
+			// reverse tunnel agents during rollouts, as otherwise they'll keep
+			// trying to reach proxies until the heartbeats expire.
+			if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+				if err := conn.Client.DeleteProxy(ctx, process.Config.HostUUID); err != nil {
+					if !trace.IsNotFound(err) {
+						logger.WarnContext(ctx, "Failed to delete heartbeat", "error", err)
+					} else {
+						logger.DebugContext(ctx, "Failed to delete heartbeat", "error", err)
+					}
+				}
+			}
+
+			if clientTLSConfigGenerator != nil {
+				clientTLSConfigGenerator.Close()
+			}
+		}
+		if peerQUICTransport != nil {
+			_ = peerQUICTransport.Close()
+			_ = peerQUICTransport.Conn.Close()
+		}
+		warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+		warnOnErr(process.ExitContext(), conn.Close(), logger)
+		logger.InfoContext(process.ExitContext(), "Exited")
+	})
+
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
-	var tsrv reversetunnelclient.Server
-	var peerClient *peer.Client
-	var peerQUICTransport *quic.Transport
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxyPeer != nil {
 			if process.Config.Proxy.QUICProxyPeering {
@@ -4615,6 +4803,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		process.tsrv = tsrv
 		process.RegisterCriticalFunc("proxy.reversetunnel.server", func() error {
 			logger.InfoContext(process.ExitContext(), "Starting reverse tunnel server", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", cfg.Proxy.ReverseTunnelListenAddr.Addr, "cache_policy", process.Config.CachePolicy)
 			if err := tsrv.Start(); err != nil {
@@ -4652,12 +4841,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		proxyRouter = router
 	}
 
-	// read the host UUID:
-	serverID, err := hostid.ReadOrCreateFile(cfg.DataDir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
 		Semaphores:     accessPoint,
 		AccessPoint:    accessPoint,
@@ -4666,7 +4849,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Component:      teleport.ComponentProxy,
 		Logger:         process.log.WithField(teleport.ComponentKey, "sessionctrl"),
 		TracerProvider: process.TracingProvider,
-		ServerID:       serverID,
+		ServerID:       cfg.HostUUID,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4674,8 +4857,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// Register web proxy server
 	alpnHandlerForWeb := &alpnproxy.ConnectionHandlerWrapper{}
-	var webServer *web.Server
-	var minimalWebServer *web.Server
 
 	if !process.Config.Proxy.DisableWebService {
 		var fs http.FileSystem
@@ -4841,7 +5022,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 			DatabaseREPLRegistry:      cfg.DatabaseREPLRegistry,
 		}
-		webHandler, err := web.NewHandler(webConfig)
+		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -4920,8 +5101,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var peerAddrString string
-	var peerServer *peer.Server
-	var peerQUICServer *peerquic.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.PublicPeerAddr()
 		if err != nil {
@@ -5014,7 +5193,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		logger.InfoContext(process.ExitContext(), "advertising proxy peering QUIC support")
 	}
 
-	sshProxy, err := regular.New(
+	sshProxy, err = regular.New(
 		process.ExitContext(),
 		cfg.SSH.Addr,
 		cfg.Hostname,
@@ -5024,6 +5203,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		"",
 		process.proxyPublicAddr(),
 		conn.Client,
+		regular.SetUUID(cfg.HostUUID),
 		regular.SetLimiter(proxyLimiter),
 		regular.SetProxyMode(peerAddrString, tsrv, accessPoint, proxyRouter),
 		regular.SetCiphers(cfg.Ciphers),
@@ -5077,7 +5257,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// clientTLSConfigGenerator pre-generates specialized per-cluster client TLS config values
-	clientTLSConfigGenerator, err := auth.NewClientTLSConfigGenerator(auth.ClientTLSConfigGeneratorConfig{
+	clientTLSConfigGenerator, err = auth.NewClientTLSConfigGenerator(auth.ClientTLSConfigGeneratorConfig{
 		TLS:                  sshGRPCTLSConfig,
 		ClusterName:          clusterName,
 		PermitRemoteClusters: true,
@@ -5102,18 +5282,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	sshGRPCServer := grpc.NewServer(
+	sshGRPCServer = grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			interceptors.GRPCServerUnaryErrorInterceptor,
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.UnaryServerInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
 			interceptors.GRPCServerStreamErrorInterceptor,
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.StreamServerInterceptor(),
 		),
 		grpc.Creds(sshGRPCCreds),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
@@ -5123,7 +5298,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		AccessPoint:    accessPoint,
 		LockWatcher:    lockWatcher,
 		Clock:          process.Clock,
-		ServerID:       serverID,
+		ServerID:       cfg.HostUUID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
 		Logger:         process.log,
@@ -5188,7 +5363,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	})
 
 	// Create and register reverse tunnel AgentPool.
-	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
+	rcWatcher, err = reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
 		HostUUID:            conn.HostID(),
 		AuthClient:          conn.Client,
 		AccessPoint:         accessPoint,
@@ -5217,7 +5392,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return nil
 	})
 
-	var kubeServer *kubeproxy.TLSServer
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 			ClusterName:   clusterName,
@@ -5435,10 +5609,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
-	var (
-		grpcServerPublic *grpc.Server
-		grpcServerMTLS   *grpc.Server
-	)
 	if alpnRouter != nil {
 		grpcServerPublic, err = process.initPublicGRPCServer(proxyLimiter, conn, listeners.grpcPublic)
 		if err != nil {
@@ -5465,8 +5635,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
-	var alpnServer *alpnproxy.Proxy
-	var reverseTunnelALPNServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(
 			tsrv,
@@ -5529,123 +5697,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			})
 		}
 	}
-
-	// execute this when process is asked to exit:
-	process.OnExit("proxy.shutdown", func(payload interface{}) {
-		// Close the listeners at the beginning of shutdown, because we are not
-		// really guaranteed to be capable to serve new requests if we're
-		// halfway through a shutdown, and double closing a listener is fine.
-		listeners.Close()
-		if payload == nil {
-			logger.InfoContext(process.ExitContext(), "Shutting down immediately.")
-			if tsrv != nil {
-				warnOnErr(process.ExitContext(), tsrv.Close(), logger)
-			}
-			warnOnErr(process.ExitContext(), rcWatcher.Close(), logger)
-			if peerServer != nil {
-				warnOnErr(process.ExitContext(), peerServer.Close(), logger)
-			}
-			if peerQUICServer != nil {
-				warnOnErr(process.ExitContext(), peerQUICServer.Close(), logger)
-			}
-			if webServer != nil {
-				warnOnErr(process.ExitContext(), webServer.Close(), logger)
-			}
-			if minimalWebServer != nil {
-				warnOnErr(process.ExitContext(), minimalWebServer.Close(), logger)
-			}
-			if peerClient != nil {
-				warnOnErr(process.ExitContext(), peerClient.Stop(), logger)
-			}
-			warnOnErr(process.ExitContext(), sshProxy.Close(), logger)
-			sshGRPCServer.Stop()
-			if kubeServer != nil {
-				warnOnErr(process.ExitContext(), kubeServer.Close(), logger)
-			}
-			if grpcServerPublic != nil {
-				grpcServerPublic.Stop()
-			}
-			if grpcServerMTLS != nil {
-				grpcServerMTLS.Stop()
-			}
-			if alpnServer != nil {
-				warnOnErr(process.ExitContext(), alpnServer.Close(), logger)
-			}
-			if reverseTunnelALPNServer != nil {
-				warnOnErr(process.ExitContext(), reverseTunnelALPNServer.Close(), logger)
-			}
-
-			if clientTLSConfigGenerator != nil {
-				clientTLSConfigGenerator.Close()
-			}
-		} else {
-			logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
-			ctx := payloadContext(payload)
-			if tsrv != nil {
-				warnOnErr(ctx, tsrv.DrainConnections(ctx), logger)
-			}
-			warnOnErr(ctx, sshProxy.Shutdown(ctx), logger)
-			sshGRPCServer.GracefulStop()
-			if webServer != nil {
-				warnOnErr(ctx, webServer.Shutdown(ctx), logger)
-			}
-			if minimalWebServer != nil {
-				warnOnErr(ctx, minimalWebServer.Shutdown(ctx), logger)
-			}
-			if tsrv != nil {
-				warnOnErr(ctx, tsrv.Shutdown(ctx), logger)
-			}
-			warnOnErr(ctx, rcWatcher.Close(), logger)
-			if peerServer != nil {
-				warnOnErr(ctx, peerServer.Shutdown(), logger)
-			}
-			if peerQUICServer != nil {
-				warnOnErr(ctx, peerQUICServer.Shutdown(ctx), logger)
-			}
-			if peerClient != nil {
-				peerClient.Shutdown(ctx)
-			}
-			if kubeServer != nil {
-				warnOnErr(ctx, kubeServer.Shutdown(ctx), logger)
-			}
-			if grpcServerPublic != nil {
-				grpcServerPublic.GracefulStop()
-			}
-			if grpcServerMTLS != nil {
-				grpcServerMTLS.GracefulStop()
-			}
-			if alpnServer != nil {
-				warnOnErr(ctx, alpnServer.Close(), logger)
-			}
-			if reverseTunnelALPNServer != nil {
-				warnOnErr(ctx, reverseTunnelALPNServer.Close(), logger)
-			}
-
-			// Explicitly deleting proxy heartbeats helps the behavior of
-			// reverse tunnel agents during rollouts, as otherwise they'll keep
-			// trying to reach proxies until the heartbeats expire.
-			if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
-				if err := conn.Client.DeleteProxy(ctx, process.Config.HostUUID); err != nil {
-					if !trace.IsNotFound(err) {
-						logger.WarnContext(ctx, "Failed to delete heartbeat.", "error", err)
-					} else {
-						logger.DebugContext(ctx, "Failed to delete heartbeat.", "error", err)
-					}
-				}
-			}
-
-			if clientTLSConfigGenerator != nil {
-				clientTLSConfigGenerator.Close()
-			}
-		}
-		if peerQUICTransport != nil {
-			_ = peerQUICTransport.Close()
-			_ = peerQUICTransport.Conn.Close()
-		}
-		warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-		warnOnErr(process.ExitContext(), conn.Close(), logger)
-		logger.InfoContext(process.ExitContext(), "Exited.")
-	})
 
 	return nil
 }
@@ -6175,6 +6226,10 @@ func (process *TeleportProcess) initApps() {
 				return trace.Wrap(err)
 			}
 
+			if err := services.ValidateApp(a, accessPoint); err != nil {
+				return trace.Wrap(err)
+			}
+
 			applications = append(applications, a)
 		}
 
@@ -6635,7 +6690,6 @@ func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) 
 		select {
 		case <-ticker.C:
 			publicAddr, err := app.FindPublicAddr(authClient, a.PublicAddr, a.Name)
-
 			if err == nil {
 				return publicAddr, nil
 			}
@@ -6655,146 +6709,6 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 	return fs, nil
 }
 
-// readOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.
-// If the read operation returns no `host_uuid`, this function tries to pick it from the first static identity provided.
-// If no static identities were defined for the process, a new id is generated depending on the joining process:
-// - types.JoinMethodEC2: we will use the EC2 NodeID: {accountID}-{nodeID}
-// - Any other valid Joining method: a new UUID is generated.
-// Finally, if a new id is generated, this function writes it into local storage and Kubernetes storage (if available).
-// If kubeBackend is nil, the agent is not running in a Kubernetes Cluster.
-func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) (err error) {
-	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
-	// readHostUUIDFromStorages will try to read the `host_uuid` from the Kubernetes Secret. If the
-	// key is empty or if not running in a Kubernetes Cluster, it will read the
-	// `host_uuid` from local data directory.
-	cfg.HostUUID, err = readHostIDFromStorages(ctx, cfg.DataDir, kubeBackend)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			if errors.Is(err, fs.ErrPermission) {
-				cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
-			}
-			return trace.Wrap(err)
-		}
-		// if there's no host uuid initialized yet, try to read one from the
-		// one of the identities
-		if len(cfg.Identities) != 0 {
-			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
-			cfg.Logger.InfoContext(ctx, "Taking host UUID from first identity.", "host_uuid", cfg.HostUUID)
-		} else {
-			switch cfg.JoinMethod {
-			case types.JoinMethodToken,
-				types.JoinMethodUnspecified,
-				types.JoinMethodAzureDevops,
-				types.JoinMethodIAM,
-				types.JoinMethodCircleCI,
-				types.JoinMethodKubernetes,
-				types.JoinMethodGitHub,
-				types.JoinMethodGitLab,
-				types.JoinMethodAzure,
-				types.JoinMethodGCP,
-				types.JoinMethodTPM,
-				types.JoinMethodTerraformCloud,
-				types.JoinMethodOracle:
-				// Checking error instead of the usual uuid.New() in case uuid generation
-				// fails due to not enough randomness. It's been known to happen happen when
-				// Teleport starts very early in the node initialization cycle and /dev/urandom
-				// isn't ready yet.
-				rawID, err := uuid.NewRandom()
-				if err != nil {
-					return trace.BadParameter("" +
-						"Teleport failed to generate host UUID. " +
-						"This may happen if randomness source is not fully initialized when the node is starting up. " +
-						"Please try restarting Teleport again.")
-				}
-				cfg.HostUUID = rawID.String()
-			case types.JoinMethodEC2:
-				cfg.HostUUID, err = utils.GetEC2NodeID(ctx)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			default:
-				return trace.BadParameter("unknown join method %q", cfg.JoinMethod)
-			}
-			cfg.Logger.InfoContext(ctx, "Generating new host UUID", "host_uuid", cfg.HostUUID)
-		}
-		// persistHostUUIDToStorages will persist the host_uuid to the local storage
-		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
-		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-// kubernetesBackend interface for kube storage backend.
-type kubernetesBackend interface {
-	// Put puts value into backend (creates if it does not
-	// exists, updates it otherwise)
-	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
-	// Get returns a single item or not found error
-	Get(ctx context.Context, key backend.Key) (*backend.Item, error)
-}
-
-// readHostIDFromStorages tries to read the `host_uuid` value from different storages,
-// depending on where the process is running.
-// If the process is running in a Kubernetes Cluster, this function will attempt
-// to read the `host_uuid` from the Kubernetes Secret. If it does not exist or
-// if it is not running on a Kubernetes cluster the read is done from the local
-// storage: `dataDir/host_uuid`.
-func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kubernetesBackend) (string, error) {
-	if kubeBackend != nil {
-		if hostID, err := loadHostIDFromKubeSecret(ctx, kubeBackend); err == nil && len(hostID) > 0 {
-			return hostID, nil
-		}
-	}
-	// Even if running in Kubernetes fallback to local storage if `host_uuid` was
-	// not found in secret.
-	hostID, err := hostid.ReadFile(dataDir)
-	return hostID, trace.Wrap(err)
-}
-
-// persistHostIDToStorages writes the cfg.HostUUID to local data and to
-// Kubernetes Secret if this process is running on a Kubernetes Cluster.
-func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) error {
-	if err := hostid.WriteFile(cfg.DataDir, cfg.HostUUID); err != nil {
-		if errors.Is(err, fs.ErrPermission) {
-			cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
-		}
-		return trace.Wrap(err)
-	}
-
-	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
-	// This is required because `host_uuid` is part of the client secret
-	// and Auth connection will fail if we present a different `host_uuid`.
-	if kubeBackend != nil {
-		return trace.Wrap(writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID))
-	}
-	return nil
-}
-
-// loadHostIDFromKubeSecret reads the host_uuid from the Kubernetes secret with
-// the expected key: `/host_uuid`.
-func loadHostIDFromKubeSecret(ctx context.Context, kubeBackend kubernetesBackend) (string, error) {
-	item, err := kubeBackend.Get(ctx, backend.NewKey(hostid.FileName))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return string(item.Value), nil
-}
-
-// writeHostIDToKubeSecret writes the `host_uuid` into the Kubernetes secret under
-// the key `/host_uuid`.
-func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend, id string) error {
-	_, err := kubeBackend.Put(
-		ctx,
-		backend.Item{
-			Key:   backend.NewKey(hostid.FileName),
-			Value: []byte(id),
-		},
-	)
-	return trace.Wrap(err)
-}
-
 // initPublicGRPCServer creates and registers a gRPC server that does not use client
 // certificates for authentication. This is used by the join service, which nodes
 // use to receive a signed certificate from the auth server.
@@ -6804,6 +6718,7 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	listener net.Listener,
 ) (*grpc.Server, error) {
 	server := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			interceptors.GRPCServerUnaryErrorInterceptor,
 			limiter.UnaryServerInterceptor(),
@@ -6902,6 +6817,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	}
 
 	server := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
 		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(creds),

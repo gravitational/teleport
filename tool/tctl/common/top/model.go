@@ -27,11 +27,13 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"github.com/guptarohit/asciigraph"
+	dto "github.com/prometheus/client_model/go"
 
 	"github.com/gravitational/teleport/api/constants"
 )
@@ -44,84 +46,168 @@ type topModel struct {
 	height          int
 	selected        int
 	help            help.Model
+	keys            *keyMap
 	refreshInterval time.Duration
 	clt             MetricsClient
+	metricsList     list.Model
 	report          *Report
 	reportError     error
 	addr            string
 }
 
 func newTopModel(refreshInterval time.Duration, clt MetricsClient, addr string) *topModel {
+	// A delegate is used to implement custom styling for list items.
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.NormalDesc = lipgloss.NewStyle().Faint(true)
+	delegate.Styles.NormalTitle = lipgloss.NewStyle().Faint(true)
+	delegate.Styles.SelectedTitle = lipgloss.NewStyle().Faint(false).Foreground(selectedColor)
+	delegate.Styles.SelectedDesc = lipgloss.NewStyle().Faint(false)
+
+	metricsList := list.New(nil, delegate, 0, 0)
+	metricsList.SetShowTitle(false)
+	metricsList.SetShowFilter(true)
+	metricsList.SetShowStatusBar(true)
+	metricsList.SetShowHelp(false)
+
 	return &topModel{
 		help:            help.New(),
 		clt:             clt,
 		refreshInterval: refreshInterval,
 		addr:            addr,
+		keys:            newDefaultKeymap(),
+		metricsList:     metricsList,
 	}
 }
 
-// refresh pulls metrics from Teleport and builds
-// a [Report] according to the configured refresh
-// interval.
-func (m *topModel) refresh() tea.Cmd {
-	return func() tea.Msg {
-		if m.report != nil {
-			<-time.After(m.refreshInterval)
-		}
+// tickMsg is dispached when the refresh period expires.
+type tickMsg time.Time
 
+// metricsMsg contains new prometheus metrics.
+type metricsMsg map[string]*dto.MetricFamily
+
+// tick provides a ticker at a specified interval.
+func (m *topModel) tick() tea.Cmd {
+	return tea.Tick(m.refreshInterval, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+// fetchMetricsCmd fetches metrics from target and returns [metricsMsg].
+func (m *topModel) fetchMetricsCmd() tea.Cmd {
+	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		report, err := fetchAndGenerateReport(ctx, m.clt, m.report, m.refreshInterval)
+		metrics, err := m.clt.GetMetrics(ctx)
 		if err != nil {
 			return err
 		}
 
+		return metricsMsg(metrics)
+	}
+}
+
+// generateReportCmd returns a command to generate a [Report] from given [metricsMsg]
+func (m *topModel) generateReportCmd(metrics metricsMsg) tea.Cmd {
+	return func() tea.Msg {
+		report, err := generateReport(metrics, m.report, m.refreshInterval)
+		if err != nil {
+			return err
+		}
 		return report
 	}
 }
 
-// Init is a noop but required to implement [tea.Model].
+// Init kickstarts the ticker to begin polling.
 func (m *topModel) Init() tea.Cmd {
-	return m.refresh()
+	return func() tea.Msg {
+		return tickMsg(time.Now())
+	}
+}
+
+// isMetricFilterFocused checks if the user is currently on the metric pane and filtering is in progress.
+func (m *topModel) isMetricFilterFocused() bool {
+	return m.selected == 5 && m.metricsList.FilterState() == list.Filtering
 }
 
 // Update processes messages in order to updated the
 // view based on user input and new metrics data.
 func (m *topModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h, v := lipgloss.NewStyle().GetFrameSize()
 		m.height = msg.Height - v
 		m.width = msg.Width - h
+		m.metricsList.SetSize(m.width, m.height-6 /* account for UI height */)
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		case "1":
-			m.selected = 0
-		case "2":
-			m.selected = 1
-		case "3":
-			m.selected = 2
-		case "4":
-			m.selected = 3
-		case "5":
-			m.selected = 4
-		case "right":
-			m.selected = min(m.selected+1, len(tabs)-1)
-		case "left":
-			m.selected = max(m.selected-1, 0)
+		if m.isMetricFilterFocused() {
+			// Redirect all keybinds to the list until the user is done.
+			var cmd tea.Cmd
+			m.metricsList, cmd = m.metricsList.Update(msg)
+			cmds = append(cmds, cmd)
+		} else {
+			switch {
+			case key.Matches(msg, m.keys.Quit):
+				return m, tea.Quit
+			case key.Matches(msg, m.keys.Common):
+				m.selected = 0
+			case key.Matches(msg, m.keys.Backend):
+				m.selected = 1
+			case key.Matches(msg, m.keys.Cache):
+				m.selected = 2
+			case key.Matches(msg, m.keys.Watcher):
+				m.selected = 3
+			case key.Matches(msg, m.keys.Audit):
+				m.selected = 4
+			case key.Matches(msg, m.keys.Raw):
+				m.selected = 5
+			case key.Matches(msg, m.keys.Right):
+				m.selected = (m.selected + 1) % len(tabs)
+			case key.Matches(msg, m.keys.Left):
+				m.selected = (m.selected - 1 + len(tabs)) % len(tabs)
+			case key.Matches(msg, m.keys.Filter),
+				key.Matches(msg, m.keys.Up),
+				key.Matches(msg, m.keys.Down):
+				// Only a subset of keybinds are forwarded to the list view.
+				var cmd tea.Cmd
+				m.metricsList, cmd = m.metricsList.Update(msg)
+				cmds = append(cmds, cmd)
+			}
 		}
+	case tickMsg:
+		cmds = append(cmds, m.tick(), m.fetchMetricsCmd())
+	case metricsMsg:
+		cmds = append(cmds, m.generateReportCmd(msg))
+
+		filterValue := m.metricsList.FilterInput.Value()
+		selected := m.metricsList.Index()
+
+		var cmd tea.Cmd
+		cmd = m.metricsList.SetItems(convertMetricsToItems(msg))
+		cmds = append(cmds, cmd)
+
+		// There is a glitch in the list.Model view when a filter has been applied
+		// the pagination status is broken after replacing all items. Workaround this by
+		// manually resetting the filter and updating the selection.
+		if m.metricsList.FilterState() == list.FilterApplied {
+			m.metricsList.SetFilterText(filterValue)
+			m.metricsList.Select(selected)
+		}
+
 	case *Report:
 		m.report = msg
 		m.reportError = nil
-		return m, m.refresh()
 	case error:
 		m.reportError = msg
-		return m, m.refresh()
+	default:
+		// Forward internal messages to the metrics list.
+		var cmd tea.Cmd
+		m.metricsList, cmd = m.metricsList.Update(msg)
+		cmds = append(cmds, cmd)
 	}
-	return m, nil
+
+	return m, tea.Batch(cmds...)
 }
 
 // View formats the metrics and draws them to
@@ -194,7 +280,7 @@ func (m *topModel) footerView() string {
 		Inline(true).
 		Width(35).
 		Align(lipgloss.Center).
-		Render(m.help.View(helpKeys))
+		Render(m.help.View(m.keys))
 
 	center := lipgloss.NewStyle().
 		Inline(true).
@@ -226,6 +312,8 @@ func (m *topModel) contentView() string {
 		return renderWatcher(m.report, m.height, m.width)
 	case 4:
 		return renderAudit(m.report, m.height, m.width)
+	case 5:
+		return boxedViewWithStyle("Prometheus Metrics", m.metricsList.View(), m.width, lipgloss.NewStyle())
 	default:
 		return ""
 	}
@@ -558,41 +646,7 @@ func tabView(selectedTab int) string {
 	return output
 }
 
-// keyMap is used to display the help text at
-// the bottom of the screen.
-type keyMap struct {
-	quit  key.Binding
-	right key.Binding
-	left  key.Binding
-}
-
-func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.left, k.right, k.quit}
-}
-
-func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{
-		{k.left, k.right},
-		{k.quit},
-	}
-}
-
 var (
-	helpKeys = keyMap{
-		quit: key.NewBinding(
-			key.WithKeys("q", "esc", "ctrl+c"),
-			key.WithHelp("q", "quit"),
-		),
-		left: key.NewBinding(
-			key.WithKeys("left", "esc"),
-			key.WithHelp("left", "previous"),
-		),
-		right: key.NewBinding(
-			key.WithKeys("right"),
-			key.WithHelp("right", "next"),
-		),
-	}
-
 	statusBarStyle = lipgloss.NewStyle()
 
 	separator = lipgloss.NewStyle().
@@ -604,5 +658,5 @@ var (
 	failedEventStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", asciigraph.Red)))
 	trimmedEventStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(fmt.Sprintf("%d", asciigraph.Goldenrod)))
 
-	tabs = []string{"Common", "Backend", "Cache", "Watcher", "Audit"}
+	tabs = []string{"Common", "Backend", "Cache", "Watcher", "Audit", "Raw Metrics"}
 )

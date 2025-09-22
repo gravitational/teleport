@@ -64,6 +64,9 @@ const (
 	// OktaCA identifies the certificate authority that will be used by the
 	// integration with Okta.
 	OktaCA CertAuthType = "okta"
+	// BoundKeypairCA identifies the CA used to sign bound keypair client state
+	// documents.
+	BoundKeypairCA CertAuthType = "bound_keypair"
 )
 
 // CertAuthTypes lists all certificate authority types.
@@ -78,6 +81,7 @@ var CertAuthTypes = []CertAuthType{
 	OIDCIdPCA,
 	SPIFFECA,
 	OktaCA,
+	BoundKeypairCA,
 }
 
 // NewlyAdded should return true for CA types that were added in the current
@@ -101,6 +105,8 @@ func (c CertAuthType) addedInMajorVer() int64 {
 	case SPIFFECA:
 		return 15
 	case OktaCA:
+		return 17
+	case BoundKeypairCA:
 		return 17
 	default:
 		// We don't care about other CAs added before v4.0.0

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -45,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -284,6 +284,9 @@ type ReadProxyAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -643,6 +646,9 @@ type ReadDatabaseAccessPoint interface {
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 }
@@ -704,14 +710,20 @@ type ReadWindowsDesktopAccessPoint interface {
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*types.Namespace, error)
 
-	// GetWindowsDesktops returns windows desktop hosts.
-	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	// ListWindowsDesktops returns Windows desktop hosts.
+	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 
-	// GetWindowsDesktopServices returns windows desktop hosts.
-	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
+	// ListWindowsDesktopServices returns Windows desktop services.
+	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
 
-	// GetWindowsDesktopService returns a windows desktop host by name.
+	// GetWindowsDesktopService returns a Windows desktop service by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+
+	// GetDynamicWindowsDesktop gets a dynamic Windows desktop by name.
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+
+	// ListDynamicWindowsDesktops returns dynamic Windows desktops.
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 }
 
 // WindowsDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -761,6 +773,10 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
 	// GetDatabase returns a database resource with the given name if it exists.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
@@ -1117,6 +1133,9 @@ type Cache interface {
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
+	// ListDatabases returns a page of database resources.
+	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
+
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
 
@@ -1287,10 +1306,16 @@ type Cache interface {
 	GetProvisioningState(context.Context, services.DownstreamID, services.ProvisioningStateID) (*provisioningv1.PrincipalState, error)
 
 	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
-	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
+	GetIdentityCenterAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
 
+	// ListIdentityCenterAccounts fetches a paginated list of IdentityCenter Accounts.
+	ListIdentityCenterAccounts(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.Account, string, error)
 	// ListAccountAssignments fetches a paginated list of IdentityCenter Account Assignments
-	ListAccountAssignments(context.Context, int, *pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+	ListIdentityCenterAccountAssignments(context.Context, int, string) ([]*identitycenterv1.AccountAssignment, string, error)
+	// ListPrincipalAssignments fetches a paginated list of IdentityCenter Principal Assignments.
+	ListPrincipalAssignments(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.PrincipalAssignment, string, error)
+	// ListProvisioningStatesForAllDownstreams fetches a paginated list of ProvisioningStates.
+	ListProvisioningStatesForAllDownstreams(ctx context.Context, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error)
 
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)

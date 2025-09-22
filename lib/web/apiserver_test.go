@@ -44,6 +44,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -204,6 +205,8 @@ type webSuiteConfig struct {
 
 	disableDiskBasedRecording bool
 
+	onSessionRecordEvent func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error
+
 	uiConfig webclient.UIConfig
 
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
@@ -267,6 +270,17 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	if cfg.disableDiskBasedRecording {
 		authCfg.Auth.AuditLog = events.NewDiscardAuditLog()
+		if cfg.onSessionRecordEvent != nil {
+			streamer, err := events.NewCallbackStreamer(
+				events.CallbackStreamerConfig{
+					// Inner emits events to the underlying store
+					Inner:         events.NewDiscardStreamer(),
+					OnRecordEvent: cfg.onSessionRecordEvent,
+				},
+			)
+			require.NoError(t, err)
+			authCfg.Auth.Streamer = streamer
+		}
 	}
 
 	s.server, err = authtest.NewTestServer(authCfg)
@@ -279,6 +293,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		recConfig.SetMode(types.RecordAtNodeSync)
 		_, err := s.server.AuthServer.AuthServer.UpsertSessionRecordingConfig(context.Background(), recConfig)
 		require.NoError(t, err)
+
 	}
 
 	// Register the auth server, since test auth server doesn't start its own
@@ -1867,7 +1882,53 @@ func TestUIConfig(t *testing.T) {
 
 func TestResizeTerminal(t *testing.T) {
 	t.Parallel()
-	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+	const fooUser = "foo"
+
+	eventsChan := make(chan apievents.AuditEvent, 10)
+	isInitialResizeComplete := make(chan struct{})
+	go func() {
+		var once sync.Once
+		for {
+			select {
+			case <-t.Context().Done():
+				return
+			case evt, ok := <-eventsChan:
+				if !ok {
+					return
+				}
+				// we are only interested in resize events
+				if evt.GetType() != events.ResizeEvent {
+					continue
+				}
+				resize, ok := evt.(*apievents.Resize)
+				assert.True(t, ok)
+
+				// we are only interested in resize events from foo user with 100x100 terminal size
+				// which is the initial size the client connects with.
+				if resize.GetUser() != fooUser || resize.TerminalSize != "100:100" {
+					continue
+				}
+
+				// signal that the initial resize events have been processed
+				// by the server
+				once.Do(func() {
+					close(isInitialResizeComplete)
+				})
+
+			}
+		}
+	}()
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		disableDiskBasedRecording: true,
+		onSessionRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
+			select {
+			case eventsChan <- pe.GetAuditEvent():
+			case <-ctx.Done():
+			}
+			return nil
+		},
+	})
 	sid := session.NewID()
 
 	ctx, cancel := context.WithCancel(s.ctx)
@@ -1878,7 +1939,7 @@ func TestResizeTerminal(t *testing.T) {
 	ws2Messages := make(chan *terminal.Envelope)
 	// Create a new user "foo", open a terminal to a new session
 	term, err := connectToHost(ctx, connectConfig{
-		pack:  s.authPack(t, "foo"),
+		pack:  s.authPack(t, fooUser),
 		host:  s.node.ID(),
 		proxy: s.webServer.Listener.Addr().String(),
 		handlers: map[string]terminal.WSHandlerFunc{
@@ -1889,6 +1950,22 @@ func TestResizeTerminal(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, term.Close()) })
+
+	// The client connects to the server with an initial terminal size of 100x100.
+	// We must ensure the server processes this initial resize event before proceeding
+	// with bar joining the session and sending a new resize event.
+	// This is done by waiting for the resize event to be recorded
+	// by the onSessionRecordEvent callback above.
+	// If this does not happen within 10 seconds, the test fails.
+	// This ensures that the bar user joining never receives any possible
+	// pending resize events from foo creating the session.
+	select {
+	case <-isInitialResizeComplete:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "", "timeout waiting for initial resize events")
+	case <-t.Context().Done():
+		require.FailNow(t, "", "test context done: %v", t.Context().Err())
+	}
 
 	sess := term.GetSession()
 	// Wait for session to have started
@@ -10409,7 +10486,7 @@ func (pc *proxyClientMock) GetToken(_ context.Context, token string) (types.Prov
 		return tok, nil
 	}
 
-	return nil, trace.NotFound(token)
+	return nil, trace.NotFound("%s", token)
 }
 
 func (pc *proxyClientMock) DeleteToken(_ context.Context, token string) error {
@@ -10418,7 +10495,7 @@ func (pc *proxyClientMock) DeleteToken(_ context.Context, token string) error {
 		delete(pc.tokens, token)
 		return nil
 	}
-	return trace.NotFound(token)
+	return trace.NotFound("%s", token)
 }
 
 func Test_consumeTokenForAPICall(t *testing.T) {
@@ -10805,53 +10882,6 @@ func TestGithubConnector(t *testing.T) {
 
 	assert.Empty(t, authConnectorsResp.Connectors)
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
-}
-
-func TestCalculateSSHLogins(t *testing.T) {
-	cases := []struct {
-		name              string
-		allowedLogins     []string
-		grantedPrincipals []string
-		expectedLogins    []string
-	}{
-		{
-			name:              "no matching logins",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"fish"},
-		},
-		{
-			name:              "identical logins",
-			allowedLogins:     []string{"llama", "shark", "goose"},
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"goose", "shark", "llama"},
-		},
-		{
-			name:              "subset of logins",
-			allowedLogins:     []string{"llama"},
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-			expectedLogins:    []string{"llama"},
-		},
-		{
-			name:              "no allowed logins",
-			grantedPrincipals: []string{"shark", "goose", "llama"},
-		},
-		{
-			name:          "no granted logins",
-			allowedLogins: []string{"shark", "goose", "llama"},
-		},
-	}
-
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			identity := &tlsca.Identity{Principals: test.grantedPrincipals}
-
-			logins, err := calculateSSHLogins(identity, test.allowedLogins)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
-				return strings.Compare(a, b) < 0
-			})))
-		})
-	}
 }
 
 func TestCalculateAppLogins(t *testing.T) {
@@ -11605,4 +11635,79 @@ func TestPingWithSAMLURL(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+func TestGetLocksV2(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	clusterName := env.server.ClusterName()
+	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+	endpoint := pack.clt.Endpoint("v2", "webapi", "sites", clusterName, "locks")
+
+	locks := []types.Lock{
+		newLock(t, "test-lock-1", false, types.LockTarget{User: "test-user-1"}),
+		newLock(t, "test-lock-2", false, types.LockTarget{Role: "test-role-1"}),
+		newLock(t, "test-lock-3", false, types.LockTarget{Login: "test-login-1"}),
+		newLock(t, "test-lock-4", false, types.LockTarget{MFADevice: "test-mfa-1"}),
+		newLock(t, "test-lock-5", false, types.LockTarget{WindowsDesktop: "test-win-1"}),
+		newLock(t, "test-lock-6", false, types.LockTarget{Device: "test-device-1"}),
+		newLock(t, "test-lock-7", false, types.LockTarget{ServerID: "test-server-1"}),
+
+		newLock(t, "test-lock-10", true, types.LockTarget{
+			User: "test-user-1",
+			Role: "test-role-1",
+		}),
+	}
+
+	for _, l := range locks {
+		err := env.server.Auth().UpsertLock(ctx, l)
+		require.NoError(t, err)
+	}
+
+	// Without filters - returns all items
+	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	resp := GetClusterLocksV2Response{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Locks, len(locks))
+
+	// With target filter - returns partial matching items also
+	re, err = pack.clt.Get(ctx, endpoint, url.Values{
+		"target": []string{"user|test-user-1", "login|test-login-1"},
+	})
+	require.NoError(t, err)
+	resp = GetClusterLocksV2Response{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Locks, 3)
+
+	// With target filter and in_force_only - returns only non-expired items
+	re, err = pack.clt.Get(ctx, endpoint, url.Values{
+		"target":        []string{"user|test-user-1"},
+		"in_force_only": []string{"true"},
+	})
+	require.NoError(t, err)
+	resp = GetClusterLocksV2Response{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Locks, 1)
+}
+
+func newLock(t *testing.T, name string, expired bool, target types.LockTarget) types.Lock {
+	t.Helper()
+
+	expires := time.Now()
+	if expired {
+		expires = expires.Add(-time.Hour)
+	} else {
+		expires = expires.Add(time.Hour)
+	}
+
+	lock, err := types.NewLock(name, types.LockSpecV2{
+		Target:  target,
+		Expires: &expires,
+	})
+	require.NoError(t, err)
+
+	return lock
 }

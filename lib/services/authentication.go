@@ -81,7 +81,7 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (types.AuthPre
 	}
 
 	if err := utils.FastUnmarshal(bytes, &authPreference); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := authPreference.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

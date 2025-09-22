@@ -432,18 +432,11 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	// TODO(bernardjkim) consider using UpsertTrustedClusterV2 in VX.0.0
 	out, err := client.UpsertTrustedCluster(ctx, tc)
 	if err != nil {
-		// If force is used and UpsertTrustedCluster returns trace.AlreadyExists,
-		// this means the user tried to upsert a cluster whose exact match already
-		// exists in the backend, nothing needs to occur other than happy message
-		// that the trusted cluster has been created.
-		if rc.force && trace.IsAlreadyExists(err) {
-			out = tc
-		} else {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
+
 	if out.GetName() != tc.GetName() {
-		fmt.Printf("WARNING: trusted cluster %q resource has been renamed to match remote cluster name %q\n", name, out.GetName())
+		fmt.Printf("WARNING: trusted cluster resource %q has been renamed to match root cluster name %q. this will become an error in future teleport versions, please update your configuration to use the correct name.\n", name, out.GetName())
 	}
 	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, rc.force))
 	return nil
@@ -519,7 +512,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client *authclient.Cl
 	}
 	err = services.CheckDynamicLabelsInDenyRules(role)
 	if trace.IsBadParameter(err) {
-		return trace.BadParameter(dynamicLabelWarningMessage(role))
+		return trace.BadParameter("%s", dynamicLabelWarningMessage(role))
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1900,9 +1893,17 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabase:
-		databases, err := client.GetDatabases(ctx)
+		databases, err := stream.Collect(clientutils.Resources(ctx, client.ListDatabases))
 		if err != nil {
-			return trace.Wrap(err)
+			// TODO(okraport) DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				databases, err = client.GetDatabases(ctx)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			} else {
+				return trace.Wrap(err)
+			}
 		}
 		resDesc := "database"
 		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
@@ -2238,7 +2239,7 @@ func resetAuthPreference(ctx context.Context, client *authclient.Client) error {
 
 	managedByStaticConfig := storedAuthPref.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetAuthPreference(ctx))
@@ -2252,7 +2253,7 @@ func resetClusterNetworkingConfig(ctx context.Context, client *authclient.Client
 
 	managedByStaticConfig := storedNetConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetClusterNetworkingConfig(ctx))
@@ -2266,7 +2267,7 @@ func resetSessionRecordingConfig(ctx context.Context, client *authclient.Client)
 
 	managedByStaticConfig := storedRecConfig.Origin() == types.OriginConfigFile
 	if managedByStaticConfig {
-		return trace.BadParameter(managedByStaticDeleteMsg)
+		return trace.BadParameter("%s", managedByStaticDeleteMsg)
 	}
 
 	return trace.Wrap(client.ResetSessionRecordingConfig(ctx))
@@ -2716,10 +2717,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
-		databases, err := client.GetDatabases(ctx)
+		databases, err := stream.Collect(clientutils.Resources(ctx, client.ListDatabases))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			// TODO(okraport) DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				databases, err = client.GetDatabases(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else {
+				return nil, trace.Wrap(err)
+			}
 		}
+
 		if rc.ref.Name == "" {
 			return &databaseCollection{databases: databases}, nil
 		}
@@ -3709,7 +3719,7 @@ func getOneResourceNameToDelete[T types.ResourceWithLabels](rs []T, ref services
 			names = append(names, r.GetName())
 		}
 		msg := formatAmbiguousDeleteMessage(ref, resDesc, names)
-		return "", trace.BadParameter(msg)
+		return "", trace.BadParameter("%s", msg)
 	}
 }
 

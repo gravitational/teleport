@@ -173,11 +173,10 @@ type Server struct {
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
 
+	// TODO(Joerger): Remove in favor of targetServer, which has more accurate values.
 	targetID, targetAddr, targetHostname string
 
 	// targetServer is the host that the connection is being established for.
-	// It **MUST** only be populated when the target is a teleport ssh server
-	// or an agentless server.
 	targetServer types.Server
 }
 
@@ -247,16 +246,11 @@ type ServerConfig struct {
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
 
+	// TODO(Joerger): Remove in favor of TargetServer, which has more accurate values.
 	TargetID, TargetAddr, TargetHostname string
 
 	// TargetServer is the host that the connection is being established for.
-	// It **MUST** only be populated when the target is a teleport ssh server
-	// or an agentless server.
 	TargetServer types.Server
-
-	// IsAgentlessNode indicates whether the targetServer is a Node with an OpenSSH server (no teleport agent).
-	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEphemeralKey.
-	IsAgentlessNode bool
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -270,18 +264,17 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
-	if s.IsAgentlessNode {
-		if s.TargetServer == nil {
-			return trace.BadParameter("target server is required for agentless nodes")
-		}
-
-		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHNode && s.AgentlessSigner == nil {
+	if s.TargetServer == nil {
+		return trace.BadParameter("target server is required")
+	}
+	if s.TargetServer.IsOpenSSHNode() {
+		if s.AgentlessSigner == nil {
 			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
 		}
-	}
-
-	if s.UserAgent == nil && !s.IsAgentlessNode {
-		return trace.BadParameter("user agent required for teleport nodes (agentless)")
+	} else {
+		if s.UserAgent == nil {
+			return trace.BadParameter("user agent required for teleport nodes")
+		}
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -405,11 +398,6 @@ func New(c ServerConfig) (*Server, error) {
 
 // TargetMetadata returns metadata about the forwarding target.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
-	var subKind string
-	if s.targetServer != nil {
-		subKind = s.targetServer.GetSubKind()
-	}
-
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
 		ServerNamespace: s.GetNamespace(),
@@ -417,7 +405,7 @@ func (s *Server) TargetMetadata() apievents.ServerMetadata {
 		ServerAddr:      s.targetAddr,
 		ServerHostname:  s.targetHostname,
 		ForwardedBy:     s.hostUUID,
-		ServerSubKind:   subKind,
+		ServerSubKind:   s.targetServer.GetSubKind(),
 	}
 }
 
@@ -603,7 +591,7 @@ func (s *Server) Serve() {
 		return
 	}
 
-	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+	if s.targetServer.IsOpenSSHNode() {
 		// OpenSSH nodes don't support moderated sessions, send an error to
 		// the user and gracefully fail if the user is attempting to create one.
 		policySets := s.identityContext.AccessChecker.SessionPolicySets()
@@ -1019,7 +1007,7 @@ func (s *Server) checkTCPIPForwardRequest(r *ssh.Request) error {
 	}
 
 	// RBAC checks are only necessary when connecting to an agentless node
-	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+	if s.targetServer.IsOpenSSHNode() {
 		_, scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
 		if err != nil {
 			return err
@@ -1102,7 +1090,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	ch = scx.TrackActivity(ch)
 
 	// RBAC checks are only necessary when connecting to an agentless node
-	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+	if s.targetServer.IsOpenSSHNode() {
 		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeLocal)
 		if err != nil {
 			s.stderrWrite(ch, err.Error())
@@ -1287,7 +1275,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// to maintain interoperability with OpenSSH, agent forwarding requests
 			// should never fail, all errors should be logged and we should continue
 			// processing requests.
-			err := s.handleAgentForward(ch, req, scx)
+			err := s.handleAgentForward(ctx, ch, req, scx)
 			if err != nil {
 				s.log.Debug(err)
 			}
@@ -1322,7 +1310,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
 		// processing requests.
-		err := s.handleAgentForward(ch, req, scx)
+		err := s.handleAgentForward(ctx, ch, req, scx)
 		if err != nil {
 			s.log.Debug(err)
 		}
@@ -1340,9 +1328,9 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 }
 
-func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleAgentForward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	// Check if the user's RBAC role allows agent forwarding.
-	err := s.authHandlers.CheckAgentForward(ctx)
+	err := s.authHandlers.CheckAgentForward(scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1351,21 +1339,21 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 	// If no agent was forwarded to the proxy, create one now.
 	userAgent := s.userAgent
 	if userAgent == nil {
-		ctx.ConnectionContext.SetForwardAgent(true)
-		userAgent, err = ctx.StartAgentChannel()
+		scx.ConnectionContext.SetForwardAgent(true)
+		userAgent, err = scx.StartAgentChannel()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		ctx.AddCloser(userAgent)
+		scx.AddCloser(userAgent)
 	}
 
-	err = agent.ForwardToAgent(ctx.RemoteClient.Client, userAgent)
+	err = agent.ForwardToAgent(scx.RemoteClient.Client, userAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Make an "auth-agent-req@openssh.com" request on the remote host.
-	err = agent.RequestAgentForwarding(ctx.RemoteSession.Session)
+	err = sshagent.RequestAgentForwarding(ctx, scx.RemoteSession)
 	if err != nil {
 		return trace.Wrap(err)
 	}

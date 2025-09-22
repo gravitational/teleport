@@ -168,7 +168,6 @@ const cfg = {
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
-    manageCluster: '/web/clusters/:clusterId/manage',
 
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
@@ -305,7 +304,10 @@ const cfg = {
     kubernetesResourcesPath:
       '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
 
+    // TODO(rudream): DELETE IN V21.0.0
     usersPath: '/v1/webapi/users',
+    usersPathV2:
+      '/v2/webapi/users?startKey=:startKey?&search=:search?&limit=:limit?',
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
@@ -313,6 +315,8 @@ const cfg = {
       '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
     rolePath: '/v1/webapi/roles/:name?',
     presetRolesPath: '/v1/webapi/presetroles',
+    listRequestableRolesPath:
+      '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
@@ -357,8 +361,13 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
-    locksPath: '/v1/webapi/sites/:clusterId/locks',
-    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
+    locks: {
+      create: '/v1/webapi/sites/:clusterId/locks',
+      delete: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      read: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      update: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      listV2: '/v2/webapi/sites/:clusterId/locks',
+    },
 
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
@@ -677,10 +686,6 @@ const cfg = {
     return generatePath(cfg.routes.nodes, { clusterId });
   },
 
-  getManageClusterRoute(clusterId: string) {
-    return generatePath(cfg.routes.manageCluster, { clusterId });
-  },
-
   getUnifiedResourcesRoute(clusterId: string) {
     return generatePath(cfg.routes.unifiedResources, { clusterId });
   },
@@ -757,8 +762,8 @@ const cfg = {
     return generatePath(cfg.routes.bots);
   },
 
-  getBotDetailsRoute(name: string) {
-    return generatePath(cfg.routes.bot, { name });
+  getBotDetailsRoute(botName: string) {
+    return generatePath(cfg.routes.bot, { botName });
   },
 
   getBotInstancesRoute() {
@@ -924,8 +929,17 @@ const cfg = {
     return generatePath(cfg.routes.ssoConnector.create, { connectorType });
   },
 
+  // TODO(rudream): DELETE IN V21.0.0
   getUsersUrl() {
     return cfg.api.usersPath;
+  },
+
+  getUsersUrlV2(params?: UrlListUsersParams) {
+    return generatePath(cfg.api.usersPathV2, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getUserWithUsernameUrl(username: string) {
@@ -1015,16 +1029,41 @@ const cfg = {
     return cfg.routes.newLock;
   },
 
-  getLocksUrl() {
-    // Currently only support get/create locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPath, { clusterId });
-  },
-
-  getLocksUrlWithUuid(uuid: string) {
-    // Currently only support delete/lookup locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
+  getLockUrl(
+    req: (
+      | { action: 'list-v2' | 'create' }
+      | { action: 'read' | 'delete' | 'update'; uuid: string }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list-v2':
+        return generatePath(cfg.api.locks.listV2, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.locks.read, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'create':
+        return generatePath(cfg.api.locks.create, {
+          clusterId,
+        });
+      case 'update':
+        return generatePath(cfg.api.locks.update, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'delete':
+        return generatePath(cfg.api.locks.delete, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
   getDatabaseSignUrl(clusterId: string) {
@@ -1112,6 +1151,14 @@ const cfg = {
 
   getRoleUrl(name?: string) {
     return generatePath(cfg.api.rolePath, { name });
+  },
+
+  getListRequestableRolesUrl(params?: UrlListRolesParams) {
+    return generatePath(cfg.api.listRequestableRolesPath, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getDiscoveryConfigUrl(clusterId: string) {
@@ -1669,6 +1716,12 @@ export interface UrlDesktopParams {
 }
 
 export interface UrlListRolesParams {
+  search?: string;
+  limit?: number;
+  startKey?: string;
+}
+
+export interface UrlListUsersParams {
   search?: string;
   limit?: number;
   startKey?: string;

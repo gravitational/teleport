@@ -72,7 +72,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -738,25 +737,19 @@ func New(
 	auth authclient.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
-	// read the host UUID:
-	uuid, err := hostid.ReadOrCreateFile(dataDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
 		addr:               addr,
 		authService:        authService,
 		hostname:           hostname,
 		proxyPublicAddr:    proxyPublicAddr,
-		uuid:               uuid,
 		cancel:             cancel,
 		ctx:                ctx,
 		clock:              clockwork.NewRealClock(),
 		dataDir:            dataDir,
 		allowTCPForwarding: true,
 	}
+	var err error
 	s.limiter, err = limiter.NewLimiter(limiter.Config{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -772,6 +765,10 @@ func New(
 		if err := o(s); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if s.uuid == "" {
+		return nil, trace.BadParameter("server UUID must be set using SetUUID")
 	}
 
 	// TODO(klizhentas): replace function arguments with struct
@@ -1529,7 +1526,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 
 	conn, err := s.dialTCPIP(scx, scx.DstAddr)
 	if err != nil {
-		if errors.Is(err, trace.NotFound(user.UnknownUserError(scx.Identity.Login).Error())) || errors.Is(err, trace.BadParameter("unknown user")) {
+		if errors.Is(err, trace.NotFound("%s", user.UnknownUserError(scx.Identity.Login))) || errors.Is(err, trace.BadParameter("unknown user")) {
 			// user does not exist for the provided login. Terminate the connection.
 			s.Logger.Warnf("Forwarding data via direct-tcpip channel failed. Terminating connection because user %q does not exist", scx.Identity.Login)
 			if err := ccx.ServerConn.Close(); err != nil {

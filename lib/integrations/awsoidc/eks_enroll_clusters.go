@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net/url"
 	"slices"
 	"strings"
@@ -392,7 +391,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 	if req.IsCloud && !eksCluster.ResourcesVpcConfig.EndpointPublicAccess {
 		return "",
 			usertasks.AutoDiscoverEKSIssueMissingEndpoingPublicAccess,
-			trace.AccessDenied(`can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`, clusterName)
+			trace.AccessDenied("can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.", clusterName)
 	}
 
 	// When clusters are using CONFIG_MAP, API is not acessible and thus Teleport can't install the Teleport's Helm chart.
@@ -740,10 +739,19 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	return nil
 }
 
-func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]string {
-	labels := make(map[string]string)
-	maps.Copy(labels, extraLabels)
-	maps.Copy(labels, kubeCluster.GetStaticLabels())
+func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]any {
+	// Labels property in the `teleport-kube-agent` chart is defined as object.
+	// Object values are of map[string]any type, so we need to use `any`.
+	labels := make(map[string]any)
+
+	for k, v := range extraLabels {
+		labels[k] = v
+	}
+
+	for k, v := range kubeCluster.GetStaticLabels() {
+		labels[k] = v
+	}
+
 	labels[types.InternalResourceIDLabel] = resourceID
 
 	return labels

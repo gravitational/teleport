@@ -475,7 +475,7 @@ export class FeatureNewLock implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.newLocks;
+    return flags.addLocks;
   }
 
   // getRoute allows child class extending this
@@ -645,7 +645,7 @@ export class FeatureClusters implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return cfg.isDashboard || flags.trustedClusters;
+    return flags.trustedClusters && !cfg.isCloud && !cfg.isDashboard;
   }
 
   showInDashboard = true;

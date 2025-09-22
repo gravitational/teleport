@@ -24,7 +24,7 @@ import { BotList } from 'teleport/Bots/List/BotList';
 import { EmptyState } from './EmptyState/EmptyState';
 
 export default {
-  title: 'Teleport/Bots',
+  title: 'Teleport/Bots/List',
 };
 
 export const Empty = () => {
@@ -38,18 +38,15 @@ export const Empty = () => {
 export const List = () => {
   return (
     <BotList
-      attempt={{ status: '' }}
       bots={botsFixture}
       disabledEdit={false}
       disabledDelete={false}
       onClose={() => {}}
       onDelete={() => {}}
       onEdit={() => {}}
-      fetchRoles={async () => []}
+      onSelect={() => {}}
       selectedBot={null}
-      selectedRoles={[]}
       setSelectedBot={() => {}}
-      setSelectedRoles={() => {}}
     />
   );
 };

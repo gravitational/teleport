@@ -19,6 +19,7 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -199,8 +200,13 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := utils.ProxyConn(h.context, p.errorStream, targetErrorStream); err != nil {
-			h.WithError(err).Debugf("Unable to proxy portforward error-stream.")
+		// Close the target error stream to indicate no more writes.
+		if err := targetErrorStream.Close(); err != nil {
+			h.WithError(err).Debug("Unable to close target error stream")
+		}
+		// Enables error propagation from Kube API server to kubectl client.
+		if _, err := io.Copy(p.errorStream, targetErrorStream); err != nil {
+			h.WithError(err).Debug("Unable to proxy portforward error-stream")
 		}
 	}()
 
@@ -296,7 +302,9 @@ func (h *portForwardProxy) requestID(stream httpstream.Stream) (string, error) {
 // streams, invoking portForward for each complete stream pair. The loop exits
 // when the httpstream.Connection is closed.
 func (h *portForwardProxy) run() {
-	h.Debugf("Waiting for port forward streams.")
+	h.Debugf("Waiting for port forward streams")
+	var wg sync.WaitGroup
+	defer wg.Wait()
 	for {
 		select {
 		case <-h.context.Done():
@@ -304,6 +312,9 @@ func (h *portForwardProxy) run() {
 			return
 		case <-h.sourceConn.CloseChan():
 			h.Debugf("Upgraded connection closed.")
+			return
+		case <-h.targetConn.CloseChan():
+			h.Debugf("Target connection closed")
 			return
 		case stream := <-h.streamChan:
 			requestID, err := h.requestID(stream)
@@ -322,7 +333,11 @@ func (h *portForwardProxy) run() {
 				err := trace.BadParameter("error processing stream for request %s: %v", requestID, err)
 				p.sendErr(err)
 			} else if complete {
-				go h.portForward(p)
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					h.portForward(p)
+				}()
 			}
 		}
 	}

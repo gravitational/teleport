@@ -26,6 +26,7 @@ import (
 )
 
 func TestResourceStore(t *testing.T) {
+	t.Parallel()
 	store := newStore(
 		"int",
 		func(i int) int { return i },

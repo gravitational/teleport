@@ -22,13 +22,18 @@ import api from 'teleport/services/api';
 import { ResourcesResponse, UnifiedResource } from '../agents';
 import auth, { MfaChallengeScope } from '../auth/auth';
 import { MfaChallengeResponse } from '../mfa';
+import { isPathNotFoundError } from '../version/unsupported';
+import { yamlService } from '../yaml';
+import { YamlSupportedResourceKind } from '../yaml/types';
 import {
   CreateOrOverwriteGitServer,
   DefaultAuthConnector,
   GitServer,
   makeResource,
   makeResourceList,
+  RequestableRole,
   Resource,
+  Role,
   RoleResource,
 } from './';
 import { makeUnifiedResource } from './makeUnifiedResource';
@@ -91,7 +96,10 @@ class ResourceService {
       }));
   }
 
-  async setDefaultAuthConnector(req: DefaultAuthConnector | { type: 'local' }) {
+  async setDefaultAuthConnector(
+    req: DefaultAuthConnector | { type: 'local' },
+    abortSignal?: AbortSignal
+  ) {
     // This is an admin action that needs an mfa challenge with reuse allowed.
     const challenge = await auth.getMfaChallenge({
       scope: MfaChallengeScope.ADMIN_ACTION,
@@ -103,7 +111,12 @@ class ResourceService {
 
     const challengeResponse = await auth.getMfaChallengeResponse(challenge);
 
-    return api.put(cfg.api.defaultConnectorPath, req, challengeResponse);
+    return api.put(
+      cfg.api.defaultConnectorPath,
+      req,
+      abortSignal,
+      challengeResponse
+    );
   }
 
   async fetchRoles(
@@ -114,6 +127,27 @@ class ResourceService {
     startKey: string;
   }> {
     return await api.get(cfg.getListRolesUrl(params), signal);
+  }
+
+  async fetchRequestableRoles(
+    params: UrlListRolesParams,
+    // TODO(rudream): DELETE IN v21.0. This is here now to maintain backwards compatibility with an older auth version
+    // that may not have the requestable roles endpoint.
+    allRequestableRoles: string[]
+  ): Promise<{
+    items: RequestableRole[];
+    startKey: string;
+  }> {
+    return await api.get(cfg.getListRequestableRolesUrl(params)).catch(err => {
+      // If the endpoint isn't found due to it being in an older version than the client, fallback to using the full list of requestable roles
+      // to maintain compatibility with the paginated table component which expects a paginated response.
+      // TODO(rudream): DELETE IN v21.0
+      if (isPathNotFoundError(err)) {
+        return makeRequestableRolesPageLocally(params, allRequestableRoles);
+      } else {
+        throw err;
+      }
+    });
   }
 
   fetchPresetRoles() {
@@ -191,3 +225,81 @@ class ResourceService {
 }
 
 export default ResourceService;
+
+export async function fetchRole(
+  name: string,
+  signal?: AbortSignal
+): Promise<RoleResource> {
+  return makeResource<'role'>(
+    await api.get(cfg.getRoleUrl(name), signal, undefined, {
+      allowRoleNotFound: true,
+    })
+  );
+}
+
+export async function fetchRoleWithYamlParse(name: string): Promise<Role> {
+  const { content } = await fetchRole(name);
+  return yamlService.parse<Role>(YamlSupportedResourceKind.Role, {
+    yaml: content,
+  });
+}
+
+export async function updateRoleWithYamlConversion({
+  name,
+  role,
+}: {
+  name: string;
+  role: Role;
+}) {
+  const content = await yamlService.stringify(YamlSupportedResourceKind.Role, {
+    resource: role,
+  });
+  return updateRole({ name, content });
+}
+
+export async function updateRole({
+  name,
+  content,
+}: {
+  name: string;
+  content: string;
+}): Promise<RoleResource> {
+  return api
+    .put(cfg.getRoleUrl(name), { content })
+    .then(res => makeResource<'role'>(res));
+}
+
+/**
+ * makeRequestableRolesPageLocally mocks a paginated response for requestable roles so that a list of all requestable roles
+ * can be handled by the serverside paginated table component.
+ */
+// TODO(rudream): DELETE IN v21.0
+function makeRequestableRolesPageLocally(
+  params: UrlListRolesParams,
+  allRequestableRoles: string[]
+): {
+  items: RequestableRole[];
+  startKey: string;
+} {
+  if (params.search) {
+    allRequestableRoles = allRequestableRoles.filter(r =>
+      r.toLowerCase().includes(params.search.toLowerCase())
+    );
+  }
+
+  if (params.startKey) {
+    const startIndex = allRequestableRoles.findIndex(
+      r => r === params.startKey
+    );
+    allRequestableRoles = allRequestableRoles.slice(startIndex);
+  }
+
+  const limit = params.limit || 200;
+  const nextKey = allRequestableRoles.at(limit) || '';
+  allRequestableRoles = allRequestableRoles.slice(0, limit);
+
+  return {
+    items: allRequestableRoles.map(r => ({ name: r, description: '' })),
+    startKey: nextKey,
+  };
+}

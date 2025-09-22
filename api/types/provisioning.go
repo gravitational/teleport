@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -83,6 +84,9 @@ const (
 	// JoinMethodAzureDevops indicates that the node will join using the Azure
 	// Devops join method.
 	JoinMethodAzureDevops JoinMethod = "azure_devops"
+	// JoinMethodBoundKeypair indicates the node will join using the Bound
+	// Keypair join method. See lib/boundkeypair for more.
+	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
 )
 
 var JoinMethods = []JoinMethod{
@@ -101,6 +105,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTPM,
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
+	JoinMethodBoundKeypair,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -118,6 +123,7 @@ var (
 	KubernetesJoinTypeUnspecified KubernetesJoinType = ""
 	KubernetesJoinTypeInCluster   KubernetesJoinType = "in_cluster"
 	KubernetesJoinTypeStaticJWKS  KubernetesJoinType = "static_jwks"
+	KubernetesJoinTypeOIDC        KubernetesJoinType = "oidc"
 )
 
 // ProvisionToken is a provisioning token
@@ -184,6 +190,26 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 			Expires: &expires,
 		},
 		Spec: spec,
+	}
+	if err := t.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t, nil
+}
+
+// NewProvisionTokenFromSpecAndStatus returns a new provision token with the given spec.
+func NewProvisionTokenFromSpecAndStatus(
+	token string, expires time.Time,
+	spec ProvisionTokenSpecV2,
+	status *ProvisionTokenStatusV2,
+) (ProvisionToken, error) {
+	t := &ProvisionTokenV2{
+		Metadata: Metadata{
+			Name:    token,
+			Expires: &expires,
+		},
+		Spec:   spec,
+		Status: status,
 	}
 	if err := t.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -409,6 +435,14 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.azure_devops: failed validation")
+		}
+	case JoinMethodBoundKeypair:
+		if p.Spec.BoundKeypair == nil {
+			p.Spec.BoundKeypair = &ProvisionTokenSpecV2BoundKeypair{}
+		}
+
+		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -745,10 +779,34 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 		if a.StaticJWKS.JWKS == "" {
 			return trace.BadParameter("static_jwks.jwks: must be set when type is %q", KubernetesJoinTypeStaticJWKS)
 		}
+	case KubernetesJoinTypeOIDC:
+		if a.OIDC == nil {
+			return trace.BadParameter("oidc: must be set when types is %q", KubernetesJoinTypeOIDC)
+		}
+		if a.OIDC.Issuer == "" {
+			return trace.BadParameter("oidc.issuer: must be set when type is %q", KubernetesJoinTypeOIDC)
+		}
+
+		parsed, err := url.Parse(a.OIDC.Issuer)
+		if err != nil {
+			return trace.BadParameter("oidc.issuer: must be a valid URL")
+		}
+
+		if parsed.Scheme == "http" {
+			if !a.OIDC.InsecureAllowHTTPIssuer {
+				return trace.BadParameter("oidc.issuer: must be https:// unless insecure_allow_http_issuer is set")
+			}
+		} else if parsed.Scheme != "https" {
+			return trace.BadParameter("oidc.issuer: invalid URL scheme, must be https://")
+		}
 	default:
 		return trace.BadParameter(
 			"type: must be one of (%s), got %q",
-			utils.JoinStrings(JoinMethods, ", "),
+			utils.JoinStrings([]string{
+				string(KubernetesJoinTypeInCluster),
+				string(KubernetesJoinTypeStaticJWKS),
+				string(KubernetesJoinTypeOIDC),
+			}, ", "),
 			a.Type,
 		)
 	}
@@ -986,5 +1044,26 @@ func (a *ProvisionTokenSpecV2AzureDevops) checkAndSetDefaults() error {
 			)
 		}
 	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
+	if a.Onboarding == nil {
+		a.Onboarding = &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{}
+	}
+
+	if a.Recovery == nil {
+		a.Recovery = &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{}
+	}
+
+	// Limit must be >= 1 for the token to be useful. If zero, assume it's unset
+	// and provide a sane default.
+	if a.Recovery.Limit == 0 {
+		a.Recovery.Limit = 1
+	}
+
+	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
+	// ("") is mapped to RecoveryModeStandard.
+
 	return nil
 }

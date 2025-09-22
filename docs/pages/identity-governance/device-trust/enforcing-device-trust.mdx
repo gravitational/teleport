@@ -2,7 +2,7 @@
 title: Enforce Device Trust
 description: Learn how to enforce trusted devices with Teleport
 videoBanner: gBQyj_X1LVw
-labels:
+tags:
  - conceptual
  - identity-governance
 ---
@@ -32,6 +32,9 @@ by the `device_trust_mode` authentication setting:
 - `required` - enables device authentication and device-aware audit.
   Additionally, it requires a trusted device for all SSH, Database and
   Kubernetes connections.
+- `required-for-humans` - enables device authentication and device-aware audit.
+  Additionally, it requires a trusted device for all SSH, Database and
+  Kubernetes connections, for human users only (bots are exempt).
 
 ### Prerequisites
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
@@ -48,12 +51,12 @@ instructions.
 Role-based configuration enforces trusted device access at the role level. It
 can be configured with the `spec.options.device_trust_mode` option and
 applies to the resources in its `allow` rules. It
-works similarly to [`require_session_mfa`](../../admin-guides/access-controls/guides/per-session-mfa.mdx).
+works similarly to [`require_session_mfa`](../../zero-trust-access/access-controls/guides/per-session-mfa.mdx).
 
 To enforce authenticated device checks for a specific role when a user accesses
 databases, Kubernetes clusters, and servers with Teleport, update the role with
-the `device_trust_mode` field assigned to `"required"`. The following example
-updates the preset `require-trusted-device` role:
+the `device_trust_mode` field assigned to `"required"` or `"required-for-humans"`.
+The following example updates the preset `require-trusted-device` role:
 
 ```yaml
 kind: role
@@ -135,7 +138,7 @@ ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
 <Admonition type="tip" title="Trusted Clusters">
 It is possible to use [trusted
-clusters](../../admin-guides/management/admin/trustedclusters.mdx) to limit the impact of
+clusters](../../zero-trust-access/management/admin/trustedclusters.mdx) to limit the impact of
 device mode `required`. A leaf cluster in mode `required` will enforce access to
 all of its resources, without imposing the same restrictions to the root
 cluster. Likewise, a root cluster will not enforce Device Trust on resources in

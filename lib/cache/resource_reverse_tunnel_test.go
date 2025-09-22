@@ -17,7 +17,6 @@
 package cache
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,13 +36,9 @@ func TestReverseTunnels(t *testing.T) {
 		newResource: func(name string) (types.ReverseTunnel, error) {
 			return types.NewReverseTunnel(name, []string{"example.com:2023"})
 		},
-		create: p.presenceS.UpsertReverseTunnel,
-		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.presenceS.GetReverseTunnels(ctx)
-		},
-		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.cache.GetReverseTunnels(ctx)
-		},
+		create:    p.presenceS.UpsertReverseTunnel,
+		list:      p.presenceS.ListReverseTunnels,
+		cacheList: p.cache.ListReverseTunnels,
 		update:    p.presenceS.UpsertReverseTunnel,
 		deleteAll: p.presenceS.DeleteAllReverseTunnels,
 	})

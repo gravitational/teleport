@@ -398,6 +398,11 @@ func IsAccessListMember(
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
 func UserMeetsRequirements(identity types.User, requires accesslist.Requires) bool {
+	if requires.IsEmpty() {
+		// No requirements to meet return early to avoid unnecessary work
+		return true
+	}
+
 	// Assemble the user's roles for easy look up.
 	userRolesMap := map[string]struct{}{}
 	for _, role := range identity.GetRoles() {

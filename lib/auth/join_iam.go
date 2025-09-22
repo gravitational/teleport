@@ -407,7 +407,7 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, err := a.generateCertsBot(
+		certs, _, err := a.generateCertsBot(
 			ctx,
 			provisionToken,
 			req.RegisterUsingTokenRequest,

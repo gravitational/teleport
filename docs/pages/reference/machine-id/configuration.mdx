@@ -2,7 +2,7 @@
 title: Machine ID Configuration Reference
 description: Configuration reference for Teleport Machine ID.
 tocDepth: 4
-labels:
+tags:
  - reference
  - mwi
 ---
@@ -122,6 +122,11 @@ onboarding:
     # multiple Teleport clusters from a single GitLab CI job.
     token_env_var_name: "MY_GITLAB_ID_TOKEN"
 
+  # bound_keypair holds parameters specific to the "bound_keypair" join method
+  bound_keypair:
+    # registration_secret is an optional secret to use on first join in lieu of
+    # a preregistered keypair.
+    registration_secret: "secret"
 
 # storage specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
@@ -338,6 +343,14 @@ selectors:
   # name includes an exact match by name. Note that wildcards are not currently
   # supported. Multiple name selectors can be specified if desired.
   - name: foo
+    # default_namespace is the namespace that should be configured for the
+    # context within the kubeconfig. This will be the namespace used by
+    # `kubectl`/SDK if the user has not explicitly provided one.
+    #
+    # If unspecified, no default namespace is set within the kubeconfig and
+    # `kubectl`/SDKs will use default based on their own logic - which is often
+    # to select the `default` namespace.
+    default_namespace: my-namespace
   # labels include all clusters matching all of these labels. Multiple label
   # selectors can be provided if needed.
   - labels:
@@ -1336,8 +1349,19 @@ Configuration:
 # destination, this will always be `kubernetes_secret`.
 type: kubernetes_secret
 # name specifies the name of the Kubernetes Secret to write the artifacts to.
-# This must be in the same namespace that `tbot` is running in.
 name: my-secret
+# namespace specifies the Kubernetes namespace that the secret should be written
+# to. If unspecified, this defaults to the value of the `POD_NAMESPACE`
+# environment variable.
+#
+# When using the Helm chart, and specifying a namespace other than the one that
+# `tbot` is running in, you must manually grant the `tbot` service account
+# privileges to read and write to secrets in that namespace.
+namespace:
+# labels specifies the labels to apply to the Kubernetes Secret. This field is
+# optional.
+tags:
+  example: "foo"
 ```
 
 ## Bot resource

@@ -49,7 +49,7 @@ import {
 } from 'shared/libs/tdp';
 import { TdpError } from 'shared/libs/tdp/client';
 
-import { KeyboardHandler } from './KeyboardHandler';
+import { InputHandler } from './InputHandler';
 import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
@@ -103,9 +103,9 @@ export function DesktopSession({
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
 
-  const keyboardHandler = useRef(new KeyboardHandler());
+  const inputHandler = useRef(new InputHandler());
   useEffect(() => {
-    return () => keyboardHandler.current.dispose();
+    return () => inputHandler.current.dispose();
   }, []);
 
   const [
@@ -234,7 +234,7 @@ export function DesktopSession({
   }, [client, shouldConnect]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    keyboardHandler.current.handleKeyboardEvent({
+    inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
       state: ButtonState.DOWN,
@@ -253,7 +253,7 @@ export function DesktopSession({
   }
 
   function handleKeyUp(e: React.KeyboardEvent) {
-    keyboardHandler.current.handleKeyboardEvent({
+    inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
       state: ButtonState.UP,
@@ -261,7 +261,7 @@ export function DesktopSession({
   }
 
   function handleBlur() {
-    keyboardHandler.current.onFocusOut();
+    inputHandler.current.onFocusOut();
   }
 
   function handleMouseMove(e: React.MouseEvent) {
@@ -272,9 +272,11 @@ export function DesktopSession({
   }
 
   function handleMouseDown(e: React.MouseEvent) {
-    if (e.button === 0 || e.button === 1 || e.button === 2) {
-      client.sendMouseButton(e.button, ButtonState.DOWN);
-    }
+    inputHandler.current.handleInputEvent({
+      cli: client,
+      e: e.nativeEvent,
+      state: ButtonState.DOWN,
+    });
 
     // Opportunistically sync local clipboard to remote while
     // transient user activation is in effect.
@@ -283,13 +285,17 @@ export function DesktopSession({
   }
 
   function handleMouseUp(e: React.MouseEvent) {
-    if (e.button === 0 || e.button === 1 || e.button === 2) {
-      client.sendMouseButton(e.button, ButtonState.UP);
-    }
+    inputHandler.current.handleInputEvent({
+      cli: client,
+      e: e.nativeEvent,
+      state: ButtonState.UP,
+    });
   }
 
   function handleMouseWheel(e: WheelEvent) {
     e.preventDefault();
+    // Check modifier states are correct to avoid unintentional zooming whilst scrolling.
+    inputHandler.current.synchronizeModifierState(client, e);
     // We only support pixel scroll events, not line or page events.
     // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
     if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {

@@ -42,14 +42,17 @@ import (
 )
 
 type mockJoinServiceClient struct {
-	sendChallenge             string
-	returnCerts               *proto.Certs
-	returnError               error
-	gotIAMChallengeResponse   *proto.RegisterUsingIAMMethodRequest
-	gotAzureChallengeResponse *proto.RegisterUsingAzureMethodRequest
-	gotTPMChallengeResponse   *proto.RegisterUsingTPMMethodChallengeResponse
-	gotTPMInitReq             *proto.RegisterUsingTPMMethodInitialRequest
-	gotRegisterUsingTokenReq  *types.RegisterUsingTokenRequest
+	sendChallenge                    string
+	boundKeypairPublicKey            string
+	returnCerts                      *proto.Certs
+	returnError                      error
+	gotIAMChallengeResponse          *proto.RegisterUsingIAMMethodRequest
+	gotAzureChallengeResponse        *proto.RegisterUsingAzureMethodRequest
+	gotTPMChallengeResponse          *proto.RegisterUsingTPMMethodChallengeResponse
+	gotTPMInitReq                    *proto.RegisterUsingTPMMethodInitialRequest
+	gotBoundKeypairInitReq           *proto.RegisterUsingBoundKeypairInitialRequest
+	gotBoundKeypairChallengeResponse *proto.RegisterUsingBoundKeypairMethodRequest
+	gotRegisterUsingTokenReq         *types.RegisterUsingTokenRequest
 }
 
 func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
@@ -84,6 +87,36 @@ func (c *mockJoinServiceClient) RegisterUsingTPMMethod(
 	}
 	c.gotTPMChallengeResponse = resp
 	return c.returnCerts, c.returnError
+}
+
+func (c *mockJoinServiceClient) RegisterUsingBoundKeypairMethod(
+	ctx context.Context,
+	req *proto.RegisterUsingBoundKeypairInitialRequest,
+	challengeResponse client.RegisterUsingBoundKeypairChallengeResponseFunc,
+) (*client.BoundKeypairRegistrationResponse, error) {
+	c.gotBoundKeypairInitReq = req
+	resp, err := challengeResponse(&proto.RegisterUsingBoundKeypairMethodResponse{
+		Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
+			Challenge: &proto.RegisterUsingBoundKeypairChallenge{
+				PublicKey: c.boundKeypairPublicKey,
+				Challenge: c.sendChallenge,
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.gotBoundKeypairChallengeResponse = resp
+
+	if c.returnError != nil {
+		return nil, c.returnError
+	}
+
+	return &client.BoundKeypairRegistrationResponse{
+		Certs:          c.returnCerts,
+		BoundPublicKey: c.boundKeypairPublicKey,
+	}, nil
 }
 
 func (c *mockJoinServiceClient) RegisterUsingOracleMethod(
@@ -534,6 +567,118 @@ func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 						expectedInitReq,
 						testPack.mockAuthServer.gotTPMInitReq,
 					)
+				})
+			}
+		})
+	}
+}
+
+// TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple tests the
+// simplest bound keypair joining path, with no keypair registration or
+// rotation.
+func TestJoinServiceGRPCServer_RegisterUsingBoundKeypairMethodSimple(t *testing.T) {
+	t.Parallel()
+	testPack := newTestPack(t)
+
+	standardResponse := &proto.RegisterUsingBoundKeypairMethodRequest{
+		Payload: &proto.RegisterUsingBoundKeypairMethodRequest_ChallengeResponse{
+			ChallengeResponse: &proto.RegisterUsingBoundKeypairChallengeResponse{
+				Solution: []byte("header.payload.signature"),
+			},
+		},
+	}
+
+	testCases := []struct {
+		desc                 string
+		publicKey            string
+		challenge            string
+		req                  *proto.RegisterUsingBoundKeypairInitialRequest
+		challengeResponse    *proto.RegisterUsingBoundKeypairMethodRequest
+		challengeResponseErr error
+		authErr              error
+		certs                *proto.Certs
+	}{
+		{
+			desc:      "success case",
+			challenge: "foo",
+			req: &proto.RegisterUsingBoundKeypairInitialRequest{
+				JoinRequest: &types.RegisterUsingTokenRequest{},
+			},
+			challengeResponse: standardResponse,
+			certs:             &proto.Certs{SSH: []byte("qux")},
+		},
+		{
+			desc:      "auth error",
+			challenge: "foo",
+			req: &proto.RegisterUsingBoundKeypairInitialRequest{
+				JoinRequest: &types.RegisterUsingTokenRequest{},
+			},
+			challengeResponse: standardResponse,
+			authErr:           trace.AccessDenied("not allowed"),
+		},
+		{
+			desc:      "challenge response error",
+			challenge: "foo",
+			req: &proto.RegisterUsingBoundKeypairInitialRequest{
+				JoinRequest: &types.RegisterUsingTokenRequest{},
+			},
+			challengeResponse:    nil,
+			challengeResponseErr: trace.BadParameter("testing error"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			testPack.mockAuthServer.sendChallenge = tc.challenge
+			testPack.mockAuthServer.returnCerts = tc.certs
+			testPack.mockAuthServer.returnError = tc.authErr
+
+			challengeResponder := func(
+				challenge *proto.RegisterUsingBoundKeypairMethodResponse,
+			) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
+				assert.Equal(t, &proto.RegisterUsingBoundKeypairMethodResponse{
+					Response: &proto.RegisterUsingBoundKeypairMethodResponse_Challenge{
+						Challenge: &proto.RegisterUsingBoundKeypairChallenge{
+							PublicKey: tc.publicKey,
+							Challenge: tc.challenge,
+						},
+					},
+				}, challenge)
+
+				return tc.challengeResponse, tc.challengeResponseErr
+			}
+
+			for suffix, clt := range map[string]*client.JoinServiceClient{
+				"_auth":  testPack.authClient,
+				"_proxy": testPack.proxyClient,
+			} {
+				t.Run(tc.desc+suffix, func(t *testing.T) {
+					response, err := clt.RegisterUsingBoundKeypairMethod(
+						context.Background(), tc.req, challengeResponder,
+					)
+					if tc.challengeResponseErr != nil {
+						require.ErrorIs(t, err, tc.challengeResponseErr)
+						return
+					}
+					if tc.authErr != nil {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), tc.authErr.Error())
+						return
+					}
+					require.NoError(t, err)
+					require.Equal(t, tc.certs, response.Certs)
+
+					expectedInitReq := tc.req
+					expectedInitReq.JoinRequest.RemoteAddr = "bufconn"
+					assert.Equal(t, expectedInitReq, testPack.mockAuthServer.gotBoundKeypairInitReq)
+
+					assert.Equal(
+						t,
+						tc.challengeResponse,
+						testPack.mockAuthServer.gotBoundKeypairChallengeResponse,
+					)
+
+					require.Equal(t, tc.publicKey, response.BoundPublicKey)
 				})
 			}
 		})

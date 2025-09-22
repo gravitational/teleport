@@ -41,6 +41,8 @@ import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 import * as types from 'teleterm/types';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
+import { setTray } from './tray';
+
 if (!app.isPackaged) {
   // Sets app name and data directories to Electron.
   // Allows running packaged and non-packaged Connect at the same time.
@@ -85,7 +87,11 @@ async function initializeApp(): Promise<void> {
   });
 
   nativeTheme.themeSource = configService.get('theme').value;
-  const windowsManager = new WindowsManager(appStateFileStorage, settings);
+  const windowsManager = new WindowsManager(
+    appStateFileStorage,
+    settings,
+    configService
+  );
 
   process.on('uncaughtException', (error, origin) => {
     logger.error('Uncaught exception', origin, error);
@@ -159,7 +165,17 @@ async function initializeApp(): Promise<void> {
     }
   });
 
+  // On Windows/Linux: Re-launching the app while it's already running
+  // triggers 'second-instance' (because of app.requestSingleInstanceLock()).
+  //
+  // On macOS: Re-launching the app (from places like Finder, Spotlight, or Dock)
+  // does not trigger 'second-instance'. Instead, the system emits 'activate'.
+  // However, launching the app outside the desktop manager (e.g., from the command
+  // line) does trigger 'second-instance'.
   app.on('second-instance', () => {
+    windowsManager.focusWindow();
+  });
+  app.on('activate', () => {
     windowsManager.focusWindow();
   });
 
@@ -171,10 +187,10 @@ async function initializeApp(): Promise<void> {
   const rootClusterProxyHostAllowList = new Set<string>();
 
   (async () => {
-    const tshdClient = await mainProcess.getTshdClient();
+    const { terminalService } = await mainProcess.getTshdClients();
 
     manageRootClusterProxyHostAllowList({
-      tshdClient,
+      tshdClient: terminalService,
       logger,
       allowList: rootClusterProxyHostAllowList,
     });
@@ -199,6 +215,10 @@ async function initializeApp(): Promise<void> {
       enableWebHandlersProtection();
 
       windowsManager.createWindow();
+
+      if (configService.get('runInBackground').value) {
+        setTray(settings, { show: () => windowsManager.showWindow() });
+      }
     })
     .catch(error => {
       const message = 'Could not create the main app window';

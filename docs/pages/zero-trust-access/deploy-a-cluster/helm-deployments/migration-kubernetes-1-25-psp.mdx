@@ -1,0 +1,40 @@
+---
+title: Kubernetes 1.25 and PSP removal
+description: How to prepare for the PodSecurityPolicy removal happening in Kubernetes 1.25
+tags:
+ - conceptual
+ - platform-wide
+---
+
+PodSecurityPolicies (PSPs) were deprecated in Kubernetes 1.22 and are removed
+in Kubernetes 1.25. This page explains the security implications of such changes
+for Teleport users, and what actions are required.
+
+The two Teleport charts `teleport-cluster` and `teleport-kube-agent` were relying
+on PodSecurityPolicies to provide an additional security level for Teleport pods.
+Their removal has two main consequences:
+
+- After upgrading to 1.25, Helm can end up with a corrupted state referencing
+  PSP objects. In this case, the Helm release state has to be manually fixed.
+- Security policy enforcement is managed by PodSecurityAdmission (PSA) since 1.23.
+  PSA security level is configured on the `namespace` resource, which Helm doesn't manage.
+  You now have to set the security enforcement level as the chart can't do it.
+
+To prepare for the 1.25 upgrade:
+
+- Make sure you are running at least Kubernetes 1.23 (run `kubectl version`)
+
+- Label the namespace you are deploying the chart in with the PSA enforcement level:
+
+  ```code
+  $ kubectl label namespace my-teleport-namespace 'pod-security.kubernetes.io/enforce=baseline'
+  
+  namespace/my-teleport-namespace labeled
+  ```
+
+- Explicitly disable PSP deployment from the chart by setting
+  `podSecurityPolicy.enabled: false` and upgrading the Helm release.
+
+Once all the Teleport namespaces are labeled with the adequate PodSecurityStandard,
+and all Helm releases have been upgraded at least once with PSP disabled, you
+can safely upgrade to 1.25.

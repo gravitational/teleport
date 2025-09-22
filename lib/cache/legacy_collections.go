@@ -743,7 +743,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing upstream IdentityCenter collection")
 			}
 			collections.identityCenterAccounts = &genericCollection[
-				services.IdentityCenterAccount,
+				*identitycenterv1.Account,
 				identityCenterAccountGetter,
 				identityCenterAccountExecutor,
 			]{
@@ -771,7 +771,7 @@ func setupLegacyCollections(c *Cache, watches []types.WatchKind) (*legacyCollect
 				return nil, trace.BadParameter("missing parameter IdentityCenter")
 			}
 			collections.identityCenterAccountAssignments = &genericCollection[
-				services.IdentityCenterAccountAssignment,
+				*identitycenterv1.AccountAssignment,
 				identityCenterAccountAssignmentGetter,
 				identityCenterAccountAssignmentExecutor,
 			]{
@@ -1363,7 +1363,27 @@ var _ executor[*autoupdate.AutoUpdateAgentRollout, autoUpdateAgentRolloutGetter]
 type userExecutor struct{}
 
 func (userExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.User, error) {
-	return cache.Users.GetUsers(ctx, loadSecrets)
+	fn := func(ctx context.Context, pageSize int, token string) ([]types.User, string, error) {
+		rsp, err := cache.Users.ListUsers(ctx, &userspb.ListUsersRequest{
+			WithSecrets: loadSecrets,
+			PageSize:    int32(pageSize),
+			PageToken:   token,
+		})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		out := make([]types.User, 0, len(rsp.Users))
+		for _, user := range rsp.Users {
+			out = append(out, user)
+		}
+
+		return out, rsp.NextPageToken, nil
+	}
+
+	// Use clientutils for auto pagesize backoff.
+	out, err := stream.Collect(clientutils.Resources(ctx, fn))
+	return out, trace.Wrap(err)
 }
 
 func (userExecutor) upsert(ctx context.Context, cache *Cache, resource types.User) error {
@@ -1513,7 +1533,13 @@ var _ executor[types.DatabaseService, noReader] = databaseServiceExecutor{}
 type databaseExecutor struct{}
 
 func (databaseExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Database, error) {
-	return cache.Databases.GetDatabases(ctx)
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.Databases.ListDatabases))
+	// TODO(lokraszewski): DELETE IN v21.0.0
+	if trace.IsNotImplemented(err) {
+		out, err := cache.Databases.GetDatabases(ctx)
+		return out, trace.Wrap(err)
+	}
+	return out, trace.Wrap(err)
 }
 
 func (databaseExecutor) upsert(ctx context.Context, cache *Cache, resource types.Database) error {

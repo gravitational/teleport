@@ -136,6 +136,7 @@ helm repo update
   --set roles="{{.set_roles}}" \
   --set proxyAddr={{.auth_server}} \
   --set authToken={{.token}} \
+  --set updater.enabled=true \
   --create-namespace \
   --namespace=teleport-agent \
   --version={{.version}}

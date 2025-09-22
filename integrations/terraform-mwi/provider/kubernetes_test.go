@@ -93,33 +93,36 @@ func setupKubernetesHarness(
 	kubeMock := startKubeAPIMock(t)
 	kubeConfigPath := mustCreateKubeConfigFile(t, k8ClientConfig(kubeMock.URL))
 
-	return testenv.MakeTestServer(
-		t,
-		func(o *testenv.TestServersOpts) {
-			testenv.WithClusterName(t, teleClusterName)(o)
-			testenv.WithConfig(func(cfg *servicecfg.Config) {
-				cfg.Logger = log
-				cfg.Proxy.PublicAddrs = []utils.NetAddr{
-					{
-						AddrNetwork: "tcp",
-						Addr: net.JoinHostPort(
-							"localhost",
-							strconv.Itoa(cfg.Proxy.WebAddr.Port(0)),
-						),
-					},
-				}
-				cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
-					cfg.Proxy.ReverseTunnelListenAddr,
-				}
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		testenv.WithClusterName(teleClusterName),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Logger = log
+			cfg.Proxy.PublicAddrs = []utils.NetAddr{
+				{
+					AddrNetwork: "tcp",
+					Addr: net.JoinHostPort(
+						"localhost",
+						strconv.Itoa(cfg.Proxy.WebAddr.Port(0)),
+					),
+				},
+			}
+			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+				cfg.Proxy.ReverseTunnelListenAddr,
+			}
 
-				cfg.Kube.Enabled = true
-				cfg.Kube.KubeconfigPath = kubeConfigPath
-				cfg.Kube.ListenAddr = utils.MustParseAddr(
-					helpers.NewListener(t, service.ListenerKube, &cfg.FileDescriptors))
-			})(o)
-		},
-		testenv.WithProxyKube(t),
-	), kubeMock
+			cfg.Kube.Enabled = true
+			cfg.Kube.KubeconfigPath = kubeConfigPath
+			cfg.Kube.ListenAddr = utils.MustParseAddr(
+				helpers.NewListener(t, service.ListenerKube, &cfg.FileDescriptors))
+		}),
+		testenv.WithProxyKube(),
+	)
+	if err != nil {
+		t.Fatalf("failed to create Teleport process: %v", err)
+	}
+
+	return process, kubeMock
 }
 
 func setupKubernetesAccessBot(

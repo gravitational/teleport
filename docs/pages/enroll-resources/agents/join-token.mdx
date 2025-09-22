@@ -1,10 +1,12 @@
 ---
 title: Join Services with a Secure Token
 description: This guide shows you how to join a Teleport instance to your cluster using a join token in order to proxy access to resources in your infrastructure.
-labels:
+tags:
  - how-to
  - zero-trust
 ---
+
+{/* lint disable page-structure remark-lint */}
 
 In this guide, we will show you how to register a Teleport process running one
 or more services to your cluster by presenting a **join token**.
@@ -27,8 +29,7 @@ relationship with the Teleport cluster.
   accessing resources in your infrastructure.
 
   <details>
-  <summary>tip" title="Running multiple Proxy Service instances behind</summary>
-  load balancer" >
+  <summary>Running multiple Proxy Service instances behind a load balancer</summary>
 
   The join token method works if a cluster includes a single Proxy Service
   instance as well as multiple Proxy Service instances behind a load balancer
@@ -103,7 +104,7 @@ the `tctl tokens add` output.
 
 Here are all the values we support for `--type` flag when creating a join token:
 
-(!docs/pages/includes/token-types.mdx)
+(!docs/pages/includes/token-types.mdx!)
 
 </details>
 
@@ -332,4 +333,4 @@ $ tctl tokens rm <Var name="token-to-delete"/>
 ## Next steps
 
 - If you have workloads split across different networks or clouds, we recommend
-  setting up trusted clusters. Read how to get started in [Configure Trusted Clusters](../../admin-guides/management/admin/trustedclusters.mdx).
+  setting up trusted clusters. Read how to get started in [Configure Trusted Clusters](../../zero-trust-access/management/admin/trustedclusters.mdx).

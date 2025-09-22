@@ -94,41 +94,62 @@ const api = {
     throw new Error('data for body is not a type of FormData');
   },
 
-  delete(url, data?, mfaResponse?: MfaChallengeResponse) {
-    return api.fetchJsonWithMfaAuthnRetry(
-      url,
-      {
-        body: JSON.stringify(data),
-        method: 'DELETE',
-      },
-      mfaResponse
-    );
+  /** @deprecated Use `deleteWithOptions` instead. */
+  delete(url: string, data?: unknown, mfaResponse?: MfaChallengeResponse) {
+    return api.deleteWithOptions(url, {
+      data,
+      mfaResponse,
+    });
   },
 
+  /** @deprecated Use `deleteWithOptions` instead. */
   deleteWithHeaders(
-    url,
+    url: string,
     headers?: Record<string, string>,
-    signal?,
+    signal?: AbortSignal,
     mfaResponse?: MfaChallengeResponse
   ) {
+    return api.deleteWithOptions(url, {
+      headers,
+      signal,
+      mfaResponse,
+    });
+  },
+
+  deleteWithOptions(
+    url: string,
+    options?: Partial<{
+      headers: Record<string, string>;
+      data: unknown;
+      mfaResponse: MfaChallengeResponse;
+      signal: AbortSignal;
+    }>
+  ) {
+    const { headers, data, signal, mfaResponse } = options ?? {};
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         method: 'DELETE',
         headers,
+        body: JSON.stringify(data),
         signal,
       },
       mfaResponse
     );
   },
 
-  // TODO (avatus) add abort signal to this
-  put(url, data, mfaResponse?: MfaChallengeResponse) {
+  put(
+    url: string,
+    data: any,
+    abortSignal?: AbortSignal,
+    mfaResponse?: MfaChallengeResponse
+  ) {
     return api.fetchJsonWithMfaAuthnRetry(
       url,
       {
         body: JSON.stringify(data),
         method: 'PUT',
+        signal: abortSignal,
       },
       mfaResponse
     );

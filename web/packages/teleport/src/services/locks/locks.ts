@@ -19,29 +19,82 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import { CreateLockRequest, Lock } from './types';
+import { withGenericUnsupportedError } from '../version/unsupported';
+import { ApiLock, CreateLockRequest, Lock, LockKind } from './types';
 
 export const lockService = {
-  fetchLocks(): Promise<Lock[]> {
-    return api.get(cfg.getLocksUrl()).then(makeLocks);
+  async fetchLocks() {
+    return api.get(cfg.getLockUrl({ action: 'list-v2' })).then(makeLocks);
   },
 
-  createLock(req: CreateLockRequest): Promise<Lock> {
-    return api.put(cfg.getLocksUrl(), req).then(makeLock);
+  async createLock(req: CreateLockRequest) {
+    return api.put(cfg.getLockUrl({ action: 'create' }), req).then(makeLock);
   },
 
-  deleteLock(id: string): Promise<void> {
-    return api.delete(cfg.getLocksUrlWithUuid(id));
+  async deleteLock(id: string) {
+    return api.delete(cfg.getLockUrl({ action: 'delete', uuid: id }));
   },
 };
 
-export function makeLocks(json: any): Lock[] {
-  json = json || [];
-  return json.map(makeLock);
+export async function listLocks(
+  variables: {
+    inForceOnly?: boolean;
+    targets?: { kind: string; name: string }[];
+  },
+  signal?: AbortSignal
+): Promise<readonly Lock[]> {
+  const path = cfg.getLockUrl({ action: 'list-v2' });
+
+  const qs = new URLSearchParams();
+  if (variables.targets) {
+    for (const target of variables.targets) {
+      qs.append('target', `${target.kind}|${target.name}`);
+    }
+  }
+
+  if (variables.inForceOnly !== undefined) {
+    qs.set('in_force_only', variables.inForceOnly ? 'true' : 'false');
+  }
+
+  try {
+    const json = await api.get(`${path}?${qs.toString()}`, signal);
+    return makeLocks(json);
+  } catch (err) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '19.0.0');
+  }
 }
 
-function makeLock(json: any): Lock {
-  json = json || {};
+export async function createLock(
+  variables: CreateLockRequest,
+  signal?: AbortSignal
+) {
+  const json = await api.put(
+    cfg.getLockUrl({ action: 'create' }),
+    variables,
+    signal
+  );
+  return makeLock(json);
+}
+
+export async function deleteLock(
+  variables: { uuid: string },
+  signal?: AbortSignal
+) {
+  return api.deleteWithOptions(
+    cfg.getLockUrl({ action: 'delete', uuid: variables.uuid }),
+    {
+      signal,
+    }
+  );
+}
+
+export function makeLocks(json: { items: ApiLock[] }): Lock[] {
+  const { items = [] } = json ?? {};
+  return items.map(makeLock);
+}
+
+function makeLock(json: ApiLock): Lock {
   const {
     name,
     message,
@@ -51,10 +104,10 @@ function makeLock(json: any): Lock {
     targets: targetLookup,
   } = json;
 
-  let targets = [];
-  if (targets) {
-    targets = Object.entries(targetLookup).map(([key, value]) => ({
-      kind: key,
+  let targets: Lock['targets'] = [];
+  if (targetLookup) {
+    targets = Object.entries<string>(targetLookup).map(([key, value]) => ({
+      kind: key as LockKind,
       name: value,
     }));
   }

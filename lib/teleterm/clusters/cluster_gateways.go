@@ -239,7 +239,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 		if g.TargetSubresourceName() != "" {
 			targetPort, err := parseTargetPort(g.TargetSubresourceName())
 			if err != nil {
-				return tls.Certificate{}, trace.BadParameter(err.Error())
+				return tls.Certificate{}, trace.BadParameter("%s", err)
 			}
 			routeToApp.TargetPort = targetPort
 		}
@@ -255,7 +255,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 func parseTargetPort(rawTargetPort string) (uint32, error) {
 	targetPort, err := strconv.ParseUint(rawTargetPort, 10, 32)
 	if err != nil {
-		return 0, trace.BadParameter(err.Error())
+		return 0, trace.BadParameter("%s", err)
 	}
 	return uint32(targetPort), nil
 }

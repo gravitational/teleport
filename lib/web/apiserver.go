@@ -102,7 +102,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -832,7 +831,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewWebSession))
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
+	// TODO(rudream): DELETE IN V21.0.0
+	// MUST delete with related code found in web/packages/teleport/src/services/user/user.ts(fetchUsers)
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
+	// The v2 version of this endpoint is paginated.
+	h.GET("/v2/webapi/users", h.WithAuth(h.listUsersHandle))
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	// We have an overlap route here, please see godoc of handleGetUserOrResetToken
@@ -876,7 +879,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 
 	// lock interactions
+	// TODO(nicholasmarais1158): DELETE IN 20.0.0 - Replaced by /v2/webapi/sites/:site/locks endpoint
 	h.GET("/webapi/sites/:site/locks", h.WithClusterAuth(h.getClusterLocks))
+	h.GET("/v2/webapi/sites/:site/locks", h.WithClusterAuth(h.getClusterLocksV2))
 	h.PUT("/webapi/sites/:site/locks", h.WithClusterAuth(h.createClusterLock))
 	h.DELETE("/webapi/sites/:site/locks/:uuid", h.WithClusterAuth(h.deleteClusterLock))
 
@@ -1001,6 +1006,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
+	h.GET("/webapi/requestableroles", h.WithAuth(h.listRequestableRolesHandle))
 	h.GET("/webapi/presetroles", h.WithUnauthenticatedHighLimiter(h.getPresetRoles))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
@@ -2132,18 +2138,18 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadResourceJSON(r, req); err != nil {
 		logger.WithError(err).Error("Error reading json.")
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		logger.WithError(err).Error("Missing request parameters.")
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.WithError(err).Error("Failed to parse request remote address.")
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -2162,9 +2168,9 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		logger.WithError(err).Error("Failed to create GitHub auth request.")
 		if strings.Contains(err.Error(), auth.InvalidClientRedirectErrorMessage) {
-			return nil, trace.AccessDenied(SSOLoginFailureInvalidRedirect)
+			return nil, trace.AccessDenied("%s", SSOLoginFailureInvalidRedirect)
 		}
-		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+		return nil, trace.AccessDenied("%s", SSOLoginFailureMessage)
 	}
 
 	return &client.SSOLoginConsoleResponse{
@@ -3108,29 +3114,6 @@ type loginGetter interface {
 	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
 }
 
-// calculateSSHLogins returns the subset of the allowedLogins that exist in
-// the principals of the identity. This is required because SSH authorization
-// only allows using a login that exists in the certificates valid principals.
-// When connecting to servers in a leaf cluster, the root certificate is used,
-// so we need to ensure that we only present the allowed logins that would
-// result in a successful connection, if any exists.
-func calculateSSHLogins(identity *tlsca.Identity, allowedLogins []string) ([]string, error) {
-	allowed := make(map[string]struct{})
-	for _, login := range allowedLogins {
-		allowed[login] = struct{}{}
-	}
-
-	var logins []string
-	for _, local := range identity.Principals {
-		if _, ok := allowed[local]; ok {
-			logins = append(logins, local)
-		}
-	}
-
-	slices.Sort(logins)
-	return logins, nil
-}
-
 // calculateAppLogins determines the app logins allowed for the provided
 // resource.
 //
@@ -3211,7 +3194,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.Server:
 			switch enriched.GetKind() {
 			case types.KindNode:
-				logins, err := calculateSSHLogins(identity, enriched.Logins)
+				logins, err := client.CalculateSSHLogins(identity.Principals, enriched.Logins)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -3339,7 +3322,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			continue
 		}
 
-		logins, err := calculateSSHLogins(identity, resource.Logins)
+		logins, err := client.CalculateSSHLogins(identity.Principals, resource.Logins)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3521,6 +3504,71 @@ func (h *Handler) getClusterLocks(
 	}
 
 	return ui.MakeLocks(locks), nil
+}
+
+type GetClusterLocksV2Response struct {
+	Locks []ui.Lock `json:"items"`
+}
+
+func (h *Handler) getClusterLocksV2(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sessionCtx *SessionContext,
+	site reversetunnelclient.RemoteSite,
+) (any, error) {
+	ctx := r.Context()
+	clt, err := sessionCtx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var targets []types.LockTarget
+	if r.URL.Query().Has("target") {
+		ts := r.URL.Query()["target"]
+		for _, ts := range ts {
+			parts := strings.Split(ts, "|")
+			if len(parts) != 2 {
+				return nil, trace.BadParameter("invalid target %q", ts)
+			}
+			var target types.LockTarget
+			switch parts[0] {
+			case "user":
+				target.User = parts[1]
+			case "role":
+				target.Role = parts[1]
+			case "login":
+				target.Login = parts[1]
+			case "mfa_device":
+				target.MFADevice = parts[1]
+			case "windows_desktop":
+				target.WindowsDesktop = parts[1]
+			case "access_request":
+				target.AccessRequest = parts[1]
+			case "device":
+				target.Device = parts[1]
+			case "server_id":
+				target.ServerID = parts[1]
+			default:
+				return nil, trace.BadParameter("invalid target type %q", parts[0])
+			}
+			targets = append(targets, target)
+		}
+	}
+
+	inForceOnly := false
+	if r.URL.Query().Has("in_force_only") {
+		inForceOnly = r.URL.Query().Get("in_force_only") == "true"
+	}
+
+	locks, err := clt.GetLocks(ctx, inForceOnly, targets...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &GetClusterLocksV2Response{
+		Locks: ui.MakeLocks(locks),
+	}, nil
 }
 
 type createLockReq struct {
@@ -4975,7 +5023,7 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 	const missingCookieMsg = "missing session cookie"
 	cookie, err := r.Cookie(websession.CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
-		return nil, trace.AccessDenied(missingCookieMsg)
+		return nil, trace.AccessDenied("%s", missingCookieMsg)
 	}
 	decodedCookie, err := websession.DecodeCookie(cookie.Value)
 	if err != nil {

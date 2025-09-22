@@ -1,7 +1,7 @@
 ---
 title: Teleport Kubernetes Access Controls
 description: How the Teleport Kubernetes Service applies RBAC to manage access to Kubernetes
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
@@ -85,7 +85,7 @@ or more label *values* (i.e., either a string or a list).
 
 If both the key and the value of a label are wildcards, `*`, the Teleport
 Kubernetes Service allows the user to access Kubernetes clusters with all
-labels:
+tags:
 
 ```yaml
 spec:
@@ -313,8 +313,8 @@ determines this from the `kubernetes_users` and `kubernetes_groups` fields in a
 user's roles.
 
 If a user has exactly one value in `kubernetes_users`, the Teleport Kubernetes
-Service impersonates that user. If there are no values in `kubernetes_users`,
-the Kubernetes Service uses the user's Teleport username.
+Service impersonates that user. If there are no values or a wildcard (`*`) in
+`kubernetes_users`, the Kubernetes Service uses the user's Teleport username.
 
 The Kubernetes Service will deny a request if a user has multiple
 `kubernetes_users` and has not specified one when authenticating to a cluster
@@ -322,6 +322,16 @@ The Kubernetes Service will deny a request if a user has multiple
 
 If the user has not specified a Kubernetes group to impersonate, the Kubernetes
 Service uses all values within `kubernetes_groups`.
+
+<Admonition type="warning">
+    When impersonating a less privileged user, remember that unless you're
+    also manually impersonating specific groups (e.g. using `--as-groups` flag),
+    the Kubernetes Service will automatically impersonate any groups within
+    `kubernetes_groups`.
+
+    This can be confusing because you will have the combined permissions of both
+    the user and any automatically-impersonated groups.
+</Admonition>
 
 With the `kube-access` role above, after you authenticate to Teleport, the
 Kubernetes Service uses impersonation headers to forward requests to the API

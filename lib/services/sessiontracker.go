@@ -61,7 +61,7 @@ func UnmarshalSessionTracker(bytes []byte) (types.SessionTracker, error) {
 
 	var session types.SessionTrackerV1
 	if err := utils.FastUnmarshal(bytes, &session); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	if err := session.CheckAndSetDefaults(); err != nil {

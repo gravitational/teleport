@@ -1093,6 +1093,21 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 		}))
 	require.NoError(t, err, "NewClient failed")
 
+	// Create bot user for testing.
+	botUser, _, err := authtest.CreateUserAndRole(testServer.Auth(), "wall-e", []string{"wall-e-role"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	botMeta := botUser.GetMetadata()
+	botMeta.Labels = map[string]string{
+		types.BotLabel: "wall-e",
+	}
+	botUser.SetMetadata(botMeta)
+	botUser, err = testServer.Auth().UpsertUser(ctx, botUser)
+	require.NoError(t, err)
+
+	botClient, err := testServer.NewClient(authtest.TestUser(botUser.GetName()))
+	require.NoError(t, err)
+
 	// updateAuthPref is a helper used throughout the test.
 	updateAuthPref := func(t *testing.T, modify func(ap types.AuthPreference)) {
 		authPref, err := authServer.GetAuthPreference(ctx)
@@ -1161,6 +1176,15 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			WindowsDesktop: "mydesktop",
 			Login:          username,
 		},
+	}
+	botSSHReq := proto.UserCertsRequest{
+		SSHPublicKey:   sshPub,
+		Username:       botUser.GetName(),
+		Expires:        expires,
+		RouteToCluster: clusterName,
+		NodeName:       "mynode",
+		Usage:          proto.UserCertsRequest_SSH,
+		SSHLogin:       "llama",
 	}
 
 	assertSuccess := func(t *testing.T, err error) {
@@ -1253,6 +1277,22 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 			client:            clientWithoutDevice,
 			req:               winReq,
 			assertErr:         assertSuccess,
+		},
+		{
+			name:               "nok: mode=required with bot",
+			clusterDeviceMode:  constants.DeviceTrustModeRequired,
+			client:             botClient,
+			req:                botSSHReq,
+			skipSingleUseCerts: true,
+			assertErr:          assertAccessDenied,
+		},
+		{
+			name:               "ok: mode=required-for-humans with bot",
+			clusterDeviceMode:  constants.DeviceTrustModeRequiredForHumans,
+			client:             botClient,
+			req:                botSSHReq,
+			skipSingleUseCerts: true,
+			assertErr:          assertSuccess,
 		},
 	}
 	for _, test := range tests {
@@ -3509,6 +3549,45 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 	require.Empty(t, next)
+
+	err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+		Kind: types.KindProxy,
+		Metadata: types.Metadata{
+			Name: "proxy",
+		},
+		Spec: types.ServerSpecV2{
+			PublicAddrs: []string{"proxy.example.com:443"},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("Creating an app with a public address matching a proxy address should fail", func(t *testing.T) {
+		misconfiguredApp, err := types.NewAppV3(types.Metadata{
+			Name:   "misconfigured-app",
+			Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		}, types.AppSpecV3{
+			URI:        "localhost1",
+			PublicAddr: "proxy.example.com",
+		})
+		require.NoError(t, err)
+
+		err = clt.CreateApp(ctx, misconfiguredApp)
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+	})
+
+	t.Run("Updating an app with a public address matching a proxy address should fail", func(t *testing.T) {
+		misconfiguredApp, err := types.NewAppV3(types.Metadata{
+			Name:   "misconfigured-app",
+			Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		}, types.AppSpecV3{
+			URI:        "localhost1",
+			PublicAddr: "proxy.example.com",
+		})
+		require.NoError(t, err)
+
+		err = clt.UpdateApp(ctx, misconfiguredApp)
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+	})
 }
 
 // TestAppServersCRUD tests application server resource operations.
@@ -3607,6 +3686,34 @@ func TestAppServersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, resources.Resources)
+
+	t.Run("App server with an app that has a public address matching a proxy address should fail", func(t *testing.T) {
+		err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+			Kind: types.KindProxy,
+			Metadata: types.Metadata{
+				Name: "proxy",
+			},
+			Spec: types.ServerSpecV2{
+				PublicAddrs: []string{"proxy.example.com:443"},
+			},
+		})
+		require.NoError(t, err)
+
+		misconfiguredApp, err := types.NewAppV3(types.Metadata{
+			Name:   "misconfigured-app",
+			Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		}, types.AppSpecV3{
+			URI:        "localhost1",
+			PublicAddr: "proxy.example.com",
+		})
+		require.NoError(t, err)
+
+		appServer, err := types.NewAppServerV3FromApp(misconfiguredApp, "misconfigured-app", "hostID")
+		require.NoError(t, err)
+
+		_, err = clt.UpsertApplicationServer(ctx, appServer)
+		require.ErrorIs(t, err, trace.BadParameter(`Application "misconfigured-app" public address "proxy.example.com" conflicts with the Teleport Proxy public address. Configure the application to use a unique public address that does not match the proxy's public addresses. Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.`))
+	})
 }
 
 // TestDatabasesCRUD tests database resource operations.
@@ -3641,6 +3748,11 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 
+	out, next, err := clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
 	// Create both databases.
 	err = clt.CreateDatabase(ctx, db1)
 	require.NoError(t, err)
@@ -3650,6 +3762,13 @@ func TestDatabasesCRUD(t *testing.T) {
 	// Fetch all databases.
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
 	require.Empty(t, cmp.Diff([]types.Database{db1, db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
@@ -3687,6 +3806,12 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
+	out, next, err = clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{db2}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 
 	// Try to delete a database that doesn't exist.
 	err = clt.DeleteDatabase(ctx, "doesnotexist")
@@ -3697,6 +3822,10 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = clt.GetDatabases(ctx)
 	require.NoError(t, err)
+	require.Empty(t, out)
+	out, next, err = clt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
 	require.Empty(t, out)
 }
 

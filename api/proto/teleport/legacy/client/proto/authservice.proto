@@ -22,6 +22,7 @@ import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/client/proto/event.proto";
+import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
@@ -1619,6 +1620,22 @@ message ListAppsResponse {
   string next_key = 2;
 }
 
+message ListDatabasesRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+message ListDatabasesResponse {
+  // a list of databases.
+  repeated types.DatabaseV3 databases = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // GetWindowsDesktopServicesResponse contains all registered Windows desktop services.
 message GetWindowsDesktopServicesResponse {
   // Services is a list of Windows desktop services.
@@ -3058,6 +3075,8 @@ service AuthService {
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
   // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+  // GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+  rpc GetRemoteAccessCapabilities(types.RemoteAccessCapabilitiesRequest) returns (types.RemoteAccessCapabilities);
 
   // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
   rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);
@@ -3261,6 +3280,8 @@ service AuthService {
   rpc GetRole(GetRoleRequest) returns (types.RoleV6);
   // ListRoles is a paginated role getter.
   rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+  // ListRequestableRoles is a paginated requestable role getter.
+  rpc ListRequestableRoles(ListRequestableRolesRequest) returns (ListRequestableRolesResponse);
   // CreateRole creates a new role.
   rpc CreateRole(CreateRoleRequest) returns (types.RoleV6);
   // UpdateRole updates an existing role.
@@ -3542,6 +3563,8 @@ service AuthService {
 
   // GetDatabases returns all registered databases.
   rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
+  // ListDatabases returns a page of registered databases.
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
   // GetDatabase returns a database by name.
   rpc GetDatabase(types.ResourceRequest) returns (types.DatabaseV3);
   // CreateDatabase creates a new database resource.

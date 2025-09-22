@@ -32,6 +32,7 @@ const meta: Meta<StoryProps> = {
   argTypes: compatibilityArgType,
   args: {
     compatibility: 'compatible',
+    showUpdate: true,
   },
 };
 export default meta;
@@ -130,7 +131,18 @@ export const SsoOnly = (storyProps: StoryProps) => {
 export const SsoPrompt = (storyProps: StoryProps) => {
   const props = makeProps(storyProps);
   props.loginAttempt.status = 'processing';
-  props.shouldPromptSsoStatus = true;
+  props.ssoPrompt = 'follow-browser-steps';
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const SsoPromptWaitForSync = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.loginAttempt.status = 'processing';
+  props.ssoPrompt = 'wait-for-sync';
   return (
     <TestContainer>
       <ClusterLoginPresentation {...props} />
@@ -154,15 +166,19 @@ export const SsoError = (storyProps: StoryProps) => {
 };
 
 export const LocalWithPasswordless = (storyProps: StoryProps) => {
+  const props = makeProps(storyProps);
+  props.initAttempt.data.allowPasswordless = true;
+
   return (
     <TestContainer>
-      <ClusterLoginPresentation {...makeProps(storyProps)} />
+      <ClusterLoginPresentation {...props} />
     </TestContainer>
   );
 };
 
 export const LocalLoggedInUserWithPasswordless = (storyProps: StoryProps) => {
   const props = makeProps(storyProps);
+  props.initAttempt.data.allowPasswordless = true;
   props.loggedInUserName = 'llama';
 
   return (

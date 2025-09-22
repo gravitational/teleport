@@ -549,6 +549,10 @@ on the remote host. Note that the `--callback` URL must be able to resolve to th
 [Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/gcp/)
 - [ ] Join a Teleport node running in a GCP VM.
 
+### Oracle Node Joining
+[Docs](https://goteleport.com/docs/enroll-resources/agents/oracle/)
+- [ ] Join a Teleport node running in an OCI VM.
+
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
 and with tag `foo`: `bar`. Verify that a node running on the instance has label
@@ -719,6 +723,8 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access NOT enforced in global mode
     - [ ] Desktop Access NOT enforced in global mode
+  - [ ] device_trust.mode="required-for-humans" enforces enrolled devices for
+        humans, but bots (e.g. `tbot`) function on any device
   - [ ] Role-based authz enforces enrolled devices
         (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
     - [ ] SSH

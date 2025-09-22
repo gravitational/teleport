@@ -191,6 +191,7 @@ func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Clus
 		clusterClient: clusterClient,
 		clock:         s.Clock,
 		Log:           clusterLog,
+		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}, clusterClient, nil
 }
 
@@ -228,6 +229,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		clock:         s.Clock,
 		statusError:   err,
 		Log:           s.Log.WithField("cluster", clusterURI),
+		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}
 	if status != nil {
 		cluster.status = *status

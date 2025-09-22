@@ -35,12 +35,14 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/otel"
 
+	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
@@ -202,6 +204,62 @@ type TrustBundleCacheConfig struct {
 	Logger             *slog.Logger
 	BotIdentityReadyCh <-chan struct{}
 	StatusReporter     readyz.Reporter
+}
+
+// TrustBundleCacheFacade wraps a TrustBundleCache to provide lazy initialization
+// using its BuildService method. It allows you to create a cache and pass it to
+// service builders before it has been initialized by running the bot.
+type TrustBundleCacheFacade struct {
+	mu          sync.Mutex
+	ready       chan struct{}
+	bundleCache *TrustBundleCache
+}
+
+// NewTrustBundleCacheFacade creates a new TrustBundleCacheFacade.
+func NewTrustBundleCacheFacade() *TrustBundleCacheFacade {
+	return &TrustBundleCacheFacade{ready: make(chan struct{})}
+}
+
+// BuildService implements bot.ServiceBuilder to build the TrustBundleCache once
+// when the bot starts up.
+func (f *TrustBundleCacheFacade) BuildService(deps bot.ServiceDependencies) (bot.Service, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.bundleCache == nil {
+		var err error
+		f.bundleCache, err = NewTrustBundleCache(TrustBundleCacheConfig{
+			FederationClient:   deps.Client.SPIFFEFederationServiceClient(),
+			TrustClient:        deps.Client.TrustClient(),
+			EventsClient:       deps.Client,
+			ClusterName:        deps.BotIdentity().ClusterName,
+			BotIdentityReadyCh: deps.BotIdentityReadyCh,
+			Logger: deps.Logger.With(
+				teleport.ComponentKey,
+				teleport.Component(teleport.ComponentTBot, "spiffe-trust-bundle-cache"),
+			),
+			StatusReporter: deps.StatusRegistry.AddService("spiffe-trust-bundle-cache"),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		close(f.ready)
+	}
+
+	return f.bundleCache, nil
+}
+
+func (f *TrustBundleCacheFacade) GetBundleSet(ctx context.Context) (*BundleSet, error) {
+	select {
+	case <-f.ready:
+		f.mu.Lock()
+		cache := f.bundleCache
+		f.mu.Unlock()
+
+		return cache.GetBundleSet(ctx)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // NewTrustBundleCache creates a new TrustBundleCache.

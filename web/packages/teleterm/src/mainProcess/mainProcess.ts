@@ -48,6 +48,11 @@ import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
+import {
+  AppUpdater,
+  AppUpdaterStorage,
+  TELEPORT_TOOLS_VERSION_ENV_VAR,
+} from 'teleterm/services/appUpdater';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import * as grpcCreds from 'teleterm/services/grpcCredentials';
 import {
@@ -55,7 +60,12 @@ import {
   KeepLastChunks,
   LoggerColor,
 } from 'teleterm/services/logger';
-import { createTshdClient, TshdClient } from 'teleterm/services/tshd';
+import {
+  AutoUpdateClient,
+  createAutoUpdateClient,
+  createTshdClient,
+  TshdClient,
+} from 'teleterm/services/tshd';
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
@@ -77,6 +87,7 @@ import {
   removeAgentDirectory,
   type CreateAgentConfigFileArgs,
 } from './createAgentConfigFile';
+import { serializeError } from './ipcSerializer';
 import { ResolveError, resolveNetworkAddress } from './resolveNetworkAddress';
 import { terminateWithTimeout } from './terminateWithTimeout';
 import { WindowsManager } from './windowsManager';
@@ -111,7 +122,11 @@ export default class MainProcess {
     )
   );
   private readonly agentRunner: AgentRunner;
-  private tshdClient: Promise<TshdClient>;
+  private tshdClients: Promise<{
+    terminalService: TshdClient;
+    autoUpdateService: AutoUpdateClient;
+  }>;
+  private readonly appUpdater: AppUpdater;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
@@ -135,6 +150,33 @@ export default class MainProcess {
         );
       }
     );
+
+    const getClusterVersions = async () => {
+      const { autoUpdateService } = await this.getTshdClients();
+      const { response } = await autoUpdateService.getClusterVersions({});
+      return response;
+    };
+    const getDownloadBaseUrl = async () => {
+      const { autoUpdateService } = await this.getTshdClients();
+      const {
+        response: { baseUrl },
+      } = await autoUpdateService.getDownloadBaseUrl({});
+      return baseUrl;
+    };
+    this.appUpdater = new AppUpdater(
+      makeAppUpdaterStorage(this.appStateFileStorage),
+      getClusterVersions,
+      getDownloadBaseUrl,
+      event => {
+        if (event.kind === 'error') {
+          event.error = serializeError(event.error);
+        }
+        this.windowsManager
+          .getWindow()
+          .webContents.send(RendererIpc.AppUpdateEvent, event);
+      },
+      process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
+    );
   }
 
   /**
@@ -153,6 +195,7 @@ export default class MainProcess {
   async dispose(): Promise<void> {
     this.windowsManager.dispose();
     await Promise.all([
+      this.appUpdater.dispose(),
       // sending usage events on tshd shutdown has 10-seconds timeout
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
         this.gracefullyKillTshdProcess();
@@ -175,18 +218,21 @@ export default class MainProcess {
     this.initIpc();
   }
 
-  async getTshdClient(): Promise<TshdClient> {
-    if (!this.tshdClient) {
-      this.tshdClient = this.resolvedChildProcessAddresses.then(
+  async getTshdClients(): Promise<{
+    terminalService: TshdClient;
+    autoUpdateService: AutoUpdateClient;
+  }> {
+    if (!this.tshdClients) {
+      this.tshdClients = this.resolvedChildProcessAddresses.then(
         ({ tsh: tshdAddress }) =>
-          setUpTshdClient({
+          setUpTshdClients({
             runtimeSettings: this.settings,
             tshdAddress,
           })
       );
     }
 
-    return this.tshdClient;
+    return this.tshdClients;
   }
 
   private initTshd() {
@@ -596,8 +642,8 @@ export default class MainProcess {
         }
 
         const [dirPath] = value.filePaths;
-        const tshClient = await this.getTshdClient();
-        await tshClient.setSharedDirectoryForDesktopSession({
+        const { terminalService } = await this.getTshdClients();
+        await terminalService.setSharedDirectoryForDesktopSession({
           desktopUri: args.desktopUri,
           login: args.login,
           path: dirPath,
@@ -605,6 +651,46 @@ export default class MainProcess {
 
         return path.basename(dirPath);
       }
+    );
+
+    ipcMain.on(MainProcessIpc.SupportsAppUpdates, event => {
+      event.returnValue = this.appUpdater.supportsUpdates();
+    });
+
+    ipcMain.handle(MainProcessIpc.CheckForAppUpdates, () =>
+      this.appUpdater.checkForUpdates()
+    );
+
+    ipcMain.handle(
+      MainProcessIpc.ChangeAppUpdatesManagingCluster,
+      (
+        event,
+        args: {
+          clusterUri: RootClusterUri | undefined;
+        }
+      ) => this.appUpdater.changeManagingCluster(args.clusterUri)
+    );
+
+    ipcMain.handle(
+      MainProcessIpc.MaybeRemoveAppUpdatesManagingCluster,
+      (
+        event,
+        args: {
+          clusterUri: RootClusterUri;
+        }
+      ) => this.appUpdater.maybeRemoveManagingCluster(args.clusterUri)
+    );
+
+    ipcMain.handle(MainProcessIpc.DownloadAppUpdate, () =>
+      this.appUpdater.download()
+    );
+
+    ipcMain.handle(MainProcessIpc.CancelAppUpdateDownload, () =>
+      this.appUpdater.cancelDownload()
+    );
+
+    ipcMain.handle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
+      this.appUpdater.quitAndInstall()
     );
 
     subscribeToTerminalContextMenuEvent(this.configService);
@@ -641,7 +727,28 @@ export default class MainProcess {
         };
 
     const macTemplate: MenuItemConstructorOptions[] = [
-      { role: 'appMenu' },
+      {
+        role: 'appMenu',
+        submenu: [
+          { role: 'about' },
+          {
+            label: 'Check for Updates…',
+            click: () => {
+              this.windowsManager
+                .getWindow()
+                .webContents.send(RendererIpc.OpenAppUpdateDialog);
+            },
+          },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
       { role: 'editMenu' },
       viewMenuTemplate,
       {
@@ -706,13 +813,17 @@ export default class MainProcess {
       {
         windowsHide: true,
         timeout: 2_000,
+        env: {
+          ...process.env,
+          [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+        },
       }
     );
     daemonStop.on('error', error => {
       logger.error('daemon stop process failed to start', error);
     });
     daemonStop.stderr.setEncoding('utf-8');
-    daemonStop.stderr.on('data', logger.error);
+    daemonStop.stderr.on('data', data => logger.error(data));
   }
 
   private logProcessExitAndError(
@@ -766,22 +877,28 @@ function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
 }
 
 /**
- * Sets up the gRPC client for tsh daemon used in the main process.
+ * Sets up the gRPC clients for tsh daemon used in the main process.
  */
-async function setUpTshdClient({
+async function setUpTshdClients({
   runtimeSettings,
   tshdAddress,
 }: {
   runtimeSettings: RuntimeSettings;
   tshdAddress: string;
-}): Promise<TshdClient> {
+}): Promise<{
+  terminalService: TshdClient;
+  autoUpdateService: AutoUpdateClient;
+}> {
   const creds = await createGrpcCredentials(runtimeSettings);
   const transport = new GrpcTransport({
     host: tshdAddress,
     channelCredentials: creds,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
   });
-  return createTshdClient(transport);
+  return {
+    terminalService: createTshdClient(transport),
+    autoUpdateService: createAutoUpdateClient(transport),
+  };
 }
 
 async function createGrpcCredentials(
@@ -841,5 +958,19 @@ function rewrapResolveError(
       `Could not communicate with ${processName}.\n\n` +
         `Last logs from ${logPath}:\n${lastLogs}`
     );
+  };
+}
+
+const APP_UPDATER_STATE_KEY = 'appUpdater';
+function makeAppUpdaterStorage(fs: FileStorage): AppUpdaterStorage {
+  return {
+    get: () => {
+      const state = fs.get(APP_UPDATER_STATE_KEY) as object;
+      return { managingClusterUri: '', ...state };
+    },
+    put: value => {
+      const state = fs.get(APP_UPDATER_STATE_KEY) as object;
+      fs.put(APP_UPDATER_STATE_KEY, { ...state, ...value });
+    },
   };
 }

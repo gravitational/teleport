@@ -1,8 +1,7 @@
 {{ edition="Teleport" clients="`tctl` and `tsh` clients" }}
 
-- A running {{ edition }} cluster. If you want to get started with Teleport,
-  [sign up](https://goteleport.com/signup) for a free trial or [set up a demo
-  environment](../linux-demo.mdx).
+- A running {{ edition }} cluster. If you do not have one, read [Getting
+  Started](../get-started.mdx).
 
 - The {{ clients }}.
 
@@ -12,10 +11,11 @@
   1. Determine the version of your Teleport cluster. The {{ clients }} must be
      at most one major version behind your Teleport cluster version. Send a GET
      request to the Proxy Service at `/v1/webapi/find` and use a JSON query tool
-     to obtain your cluster version:
+     to obtain your cluster version. Replace <Var name="teleport.example.com:443" />
+     with the web address of your Teleport Proxy Service:
   
      ```code
-     $ TELEPORT_DOMAIN=<Var name="example.teleport.com:443" />
+     $ TELEPORT_DOMAIN=<Var name="teleport.example.com:443" />
      $ TELEPORT_VERSION="$(curl -s https://$TELEPORT_DOMAIN/v1/webapi/find | jq -r '.server_version')"
      ```
 

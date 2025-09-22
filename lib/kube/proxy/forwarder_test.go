@@ -29,6 +29,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -786,6 +787,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 		desc          string
 		kubeUsers     []string
 		kubeGroups    []string
+		username      string
 		remoteCluster bool
 		isProxy       bool
 		inHeaders     http.Header
@@ -930,6 +932,33 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
+		{
+			desc:       "kubernetes_users wildcard, no impersonation headers",
+			username:   "ted-lasso",
+			kubeUsers:  []string{types.Wildcard},
+			kubeGroups: []string{"kube-group-a"},
+			inHeaders:  http.Header{},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"ted-lasso"},
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			desc:       "kubernetes_users wildcard, impersonation headers given",
+			username:   "ted-lasso",
+			kubeUsers:  []string{types.Wildcard},
+			kubeGroups: []string{"kube-group-a"},
+			inHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"kube-user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-a"},
+			},
+			errAssertion: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -942,6 +971,11 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				&clusterSession{
 					kubeAPICreds: kubeCreds,
 					authContext: authContext{
+						Context: authz.Context{
+							User: &types.UserV2{
+								Metadata: types.Metadata{Name: tt.username},
+							},
+						},
 						kubeUsers:       utils.StringsSet(tt.kubeUsers),
 						kubeGroups:      utils.StringsSet(tt.kubeGroups),
 						teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
@@ -1560,6 +1594,11 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 	kubeClusterLabels := map[string]string{
 		"label": "value",
 	}
+	baseAuthCtx := authz.Context{
+		User: &types.UserV2{
+			Metadata: types.Metadata{Name: "ted-lasso"},
+		},
+	}
 	type args struct {
 		req *http.Request
 		ctx *authContext
@@ -1576,6 +1615,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
+					Context:           baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}},
@@ -1599,6 +1639,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					},
 				},
 				ctx: &authContext{
+					Context:           baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
@@ -1619,6 +1660,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 					Header: http.Header{},
 				},
 				ctx: &authContext{
+					Context:           baseAuthCtx,
 					kubeClusterName:   "clusterName",
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
@@ -1636,8 +1678,8 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.args.ctx.eventClusterMeta(tt.args.req)
-			sort.Strings(got.KubernetesGroups)
-			sort.Strings(got.KubernetesGroups)
+			slices.Sort(got.KubernetesUsers)
+			slices.Sort(got.KubernetesGroups)
 			require.Equal(t, tt.want, got)
 		})
 	}

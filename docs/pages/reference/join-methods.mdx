@@ -4,7 +4,7 @@ h1: Join Methods and Token Reference
 description: Describes the different ways to configure a Teleport to join a cluster.
 keywords: [join, joining, token]
 tocDepth: 3
-labels:
+tags:
  - conceptual
  - reference
  - zero-trust
@@ -121,6 +121,7 @@ Delegated join methods are:
 - [`iam`](#aws-iam-role-iam)
 - [`azure`](#azure-managed-identity-azure)
 - [`azure_devops`](#azure-devops-azure_devops)
+- [`bound_keypair`](#bound-keypair-bound_keypair)
 - [`gcp`](#gcp-service-account-gcp)
 - [`ec2`](#aws-ec2-identity-document-ec2)
 - [`github`](#github-actions-github)
@@ -144,6 +145,7 @@ Renewable join-methods are:
 - [ephemeral `token`](#ephemeral-tokens)
 - [static `token`](#static-tokens)
 - [`ec2`](#aws-ec2-identity-document-ec2)
+- [`bound_keypair`](#bound-keypair-bound_keypair)
 
 Nodes with non-renewable certificates must join again in order to get a new
 certificate before expiry. The instance will have to prove again that it is legitimate.
@@ -258,11 +260,38 @@ Or as Teleport resources:
 
 (!docs/pages/includes/provision-token/ephemeral-spec.mdx!)
 
-When a MachineID bot uses an ephemeral join token, the token is deleted.
+When a Machine ID bot uses an ephemeral join token, the token is deleted.
+
+<Admonition type="tip" title="Upgrade to Bound Keypair">
+New Machine & Workload Identity bot deployments should consider upgrading to the
+[`bound_keypair` join method](#bound-keypair-bound_keypair).
+</Admonition>
 
 <Admonition type="note" title="See Also">
 - How to [Join Services with a Secure Token](../enroll-resources/agents/join-token.mdx).
 - [Deploying Machine ID on Linux](../machine-workload-identity/machine-id/deployment/linux.mdx)
+</Admonition>
+
+### Bound Keypair: `bound_keypair`
+
+Bound Keypair tokens are an alternative to
+[secret-based join methods](#secret-based-join-methods) for Machine and Workload
+ID bots that improve security and flexibility. They are best used on platforms
+with persistent storage, but can be configured for use in nearly any
+environment.
+
+This join method is recommended for on-prem environments
+[without TPMs](#trusted-platform-module-tpm) or cloud platforms
+without a specialized [delegated join method](#delegated-join-methods).
+
+At this time, `bound_keypair` can only be used to join Machine and Workload ID
+bots, and cannot be used to join other Teleport agent types.
+
+(!docs/pages/includes/provision-token/bound-keypair-spec.mdx!)
+
+<Admonition type="note" title="See Also">
+- [Deploying Machine ID with Bound Keypair joining](./machine-id/bound-keypair/getting-started.mdx)
+- [Bound Keypair Reference](./machine-id/bound-keypair/bound-keypair.mdx)
 </Admonition>
 
 ### AWS IAM role: `iam`

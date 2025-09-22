@@ -174,7 +174,9 @@ export const ReAuthenticate: FC<{
                   </>
                 )}
 
-                {selectedMfaType.value === 'sso' && <PromptSsoStatus />}
+                {selectedMfaType.value === 'sso' && (
+                  <PromptSsoStatus ssoPrompt="follow-browser-steps" />
+                )}
               </Flex>
             </DialogContent>
 

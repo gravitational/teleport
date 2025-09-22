@@ -452,11 +452,11 @@ func onDatabaseEnv(cf *CLIConf) error {
 	}
 
 	if !dbprofile.IsSupported(*database) {
-		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, *database))
+		return trace.BadParameter("%s", formatDbCmdUnsupportedDBProtocol(cf, *database))
 	}
 	requires := getDBLocalProxyRequirement(tc, *database)
 	if requires.localProxy {
-		return trace.BadParameter(formatDbCmdUnsupported(cf, *database, requires.localProxyReasons...))
+		return trace.BadParameter("%s", formatDbCmdUnsupported(cf, *database, requires.localProxyReasons...))
 	}
 
 	env, err := dbprofile.Env(tc, *database)
@@ -519,7 +519,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	// does NOT work (e.g. when ALPN local proxy is required).
 	if requires.localProxy {
 		msg := formatDbCmdUnsupported(cf, *database, requires.localProxyReasons...)
-		return trace.BadParameter(msg)
+		return trace.BadParameter("%s", msg)
 	}
 
 	host, port := tc.DatabaseProxyHostPort(*database)
@@ -760,7 +760,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 
 	switch dbInfo.Protocol {
 	case defaults.ProtocolDynamoDB, defaults.ProtocolClickHouseHTTP:
-		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, dbInfo.RouteToDatabase))
+		return trace.BadParameter("%s", formatDbCmdUnsupportedDBProtocol(cf, dbInfo.RouteToDatabase))
 	}
 
 	requires := getDBConnectLocalProxyRequirement(cf.Context, tc, dbInfo.RouteToDatabase, cf.LocalProxyTunnel)
@@ -1082,7 +1082,7 @@ func chooseOneDatabase(cf *CLIConf, databases types.Databases) (types.Database, 
 			formatDatabaseListCommand(cf.SiteName))
 	}
 	errMsg := formatAmbiguousDB(cf, selectors, databases)
-	return nil, trace.BadParameter(errMsg)
+	return nil, trace.BadParameter("%s", errMsg)
 }
 
 // findDatabasesByDiscoveredName returns all databases that have a discovered
@@ -1285,7 +1285,7 @@ func getDefaultDBUser(db types.Database, checker services.AccessChecker) (string
 			errMsg += fmt.Sprintf(" except %v", denied)
 		}
 	}
-	return "", trace.BadParameter(errMsg)
+	return "", trace.BadParameter("%s", errMsg)
 }
 
 // isDatabaseUserRequired returns whether the --db-user flag is required for
@@ -1334,7 +1334,7 @@ func getDefaultDBName(db types.Database, checker services.AccessChecker) (string
 			errMsg += fmt.Sprintf(" except %v", denied)
 		}
 	}
-	return "", trace.BadParameter(errMsg)
+	return "", trace.BadParameter("%s", errMsg)
 }
 
 func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteToDatabase, profile *client.ProfileStatus, requires *dbLocalProxyRequirement) (bool, error) {
@@ -1471,7 +1471,7 @@ func pickActiveDatabase(cf *CLIConf, tc *client.TeleportClient, activeRoutes []t
 	selectors := newDatabaseResourceSelectors(cf)
 	if routes := filterRoutesByPrefix(activeRoutes, selectors.name); len(routes) == 0 {
 		// no match is possible.
-		return nil, trace.NotFound(formatDBNotLoggedIn(cf.SiteName, selectors))
+		return nil, trace.NotFound("%s", formatDBNotLoggedIn(cf.SiteName, selectors))
 	}
 
 	db, err := getDatabaseByNameOrDiscoveredName(cf, tc, activeRoutes)
@@ -1481,7 +1481,7 @@ func pickActiveDatabase(cf *CLIConf, tc *client.TeleportClient, activeRoutes []t
 	if route, ok := findActiveDatabase(db.GetName(), activeRoutes); ok {
 		return &route, nil
 	}
-	return nil, trace.NotFound(formatDBNotLoggedIn(cf.SiteName, selectors))
+	return nil, trace.NotFound("%s", formatDBNotLoggedIn(cf.SiteName, selectors))
 }
 
 // maybePickActiveDatabase tries to pick a database automatically when selectors
@@ -1495,12 +1495,12 @@ func maybePickActiveDatabase(cf *CLIConf, activeRoutes []tlsca.RouteToDatabase) 
 		if selectors.name == "" {
 			switch len(activeRoutes) {
 			case 0:
-				return nil, trace.NotFound(formatDBNotLoggedIn(cf.SiteName, selectors))
+				return nil, trace.NotFound("%s", formatDBNotLoggedIn(cf.SiteName, selectors))
 			case 1:
 				log.Debugf("Auto-selecting the only active database %q", activeRoutes[0].ServiceName)
 				return &activeRoutes[0], nil
 			default:
-				return nil, trace.BadParameter(formatChooseActiveDB(activeRoutes))
+				return nil, trace.BadParameter("%s", formatChooseActiveDB(activeRoutes))
 			}
 		}
 		if route, ok := findActiveDatabase(selectors.name, activeRoutes); ok {

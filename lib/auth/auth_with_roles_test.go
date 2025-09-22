@@ -42,6 +42,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -84,7 +86,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -2670,10 +2671,32 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	dbs, next, err := devClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
 	// Admin should see both.
 	dbs, err = adminClt.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	dbs, next, err = adminClt.ListDatabases(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase, devDatabase}, dbs,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// With limit, next should be dev
+	dbs, next, err = adminClt.ListDatabases(ctx, 1, "")
+	require.NoError(t, err)
+	require.Equal(t, devDatabase.GetName(), next)
+	require.Empty(t, cmp.Diff([]types.Database{adminDatabase}, dbs,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -2766,6 +2789,15 @@ func mustGetDatabases(t *testing.T, client *authclient.Client, wantDatabases []t
 
 	actualDatabases, err := client.GetDatabases(context.Background())
 	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
+	))
+
+	actualDatabases, next, err := client.ListDatabases(context.Background(), 0, "")
+	require.NoError(t, err)
+	require.Empty(t, next)
 
 	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
@@ -6357,21 +6389,19 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 			name: "account",
 			kind: types.KindIdentityCenterAccount,
 			init: func(subtestT *testing.T) {
-				acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-					Account: &identitycenterv1.Account{
-						Kind:    types.KindIdentityCenterAccount,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: "test-account",
-							Labels: map[string]string{
-								types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-							},
+				acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+					Kind:    types.KindIdentityCenterAccount,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "test-account",
+						Labels: map[string]string{
+							types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 						},
-						Spec: &identitycenterv1.AccountSpec{
-							Id:   validAccountID,
-							Arn:  "some:account:arn",
-							Name: "Test Account",
-						},
+					},
+					Spec: &identitycenterv1.AccountSpec{
+						Id:   validAccountID,
+						Arn:  "some:account:arn",
+						Name: "Test Account",
 					},
 				})
 				require.NoError(subtestT, err)
@@ -6382,8 +6412,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 
 				inlineEventually(subtestT,
 					func() bool {
-						accounts, _, err := srv.Auth().ListIdentityCenterAccounts(
-							ctx, 100, &pagination.PageRequestToken{})
+						accounts, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 						require.NoError(t, err)
 						return len(accounts) == 1
 					},
@@ -6395,24 +6424,22 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 			name: "account assignment",
 			kind: types.KindIdentityCenterAccountAssignment,
 			init: func(subtestT *testing.T) {
-				asmt, err := srv.Auth().CreateAccountAssignment(ctx, services.IdentityCenterAccountAssignment{
-					AccountAssignment: &identitycenterv1.AccountAssignment{
-						Kind:    types.KindIdentityCenterAccountAssignment,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: "test-account",
-							Labels: map[string]string{
-								types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-							},
+				asmt, err := srv.Auth().CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+					Kind:    types.KindIdentityCenterAccountAssignment,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "test-account",
+						Labels: map[string]string{
+							types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 						},
-						Spec: &identitycenterv1.AccountAssignmentSpec{
-							AccountId: validAccountID,
-							Display:   "Test Account Assignment",
-							PermissionSet: &identitycenterv1.PermissionSetInfo{
-								Arn:          validPermissionSetARN,
-								Name:         "Test permission set",
-								AssignmentId: "Test Assignment on Test Account",
-							},
+					},
+					Spec: &identitycenterv1.AccountAssignmentSpec{
+						AccountId: validAccountID,
+						Display:   "Test Account Assignment",
+						PermissionSet: &identitycenterv1.PermissionSetInfo{
+							Arn:          validPermissionSetARN,
+							Name:         "Test permission set",
+							AssignmentId: "Test Assignment on Test Account",
 						},
 					},
 				})
@@ -6424,8 +6451,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 
 				inlineEventually(subtestT,
 					func() bool {
-						testAssignments, _, err := srv.Auth().ListAccountAssignments(
-							ctx, 100, &pagination.PageRequestToken{})
+						testAssignments, _, err := srv.Auth().ListIdentityCenterAccountAssignments(ctx, 100, "")
 						require.NoError(t, err)
 						return len(testAssignments) == 1
 					},
@@ -8424,7 +8450,13 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 
 	assertTimeout := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
-		require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
+		s, ok := status.FromError(err)
+		require.True(t, ok)
+		if s.Code() == codes.Unknown {
+			require.ErrorContains(t, err, context.DeadlineExceeded.Error())
+			return
+		}
+		require.Equal(t, codes.DeadlineExceeded.String(), s.Code().String())
 	}
 
 	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
@@ -10438,26 +10470,23 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		},
 	}
 
-	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx,
-		services.IdentityCenterAccount{
-			Account: &identitycenterv1.Account{
-				Kind:    types.KindIdentityCenterAccount,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: accountID,
-					Labels: map[string]string{
-						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-					},
-				},
-				Spec: &identitycenterv1.AccountSpec{
-					Id:                accountID,
-					Arn:               "aws:arn:test:account",
-					Name:              "Test Account",
-					Description:       "An account for testing",
-					PermissionSetInfo: permissionSets,
-				},
+	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: accountID,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-		})
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:                accountID,
+			Arn:               "aws:arn:test:account",
+			Name:              "Test Account",
+			Description:       "An account for testing",
+			PermissionSetInfo: permissionSets,
+		},
+	})
 	require.NoError(t, err)
 
 	// GIVEN a role that allows access to all permission sets on the target
@@ -10486,8 +10515,7 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 	// EXPECT that the IC Account has made it to the cache
 	inlineEventually(t,
 		func() bool {
-			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(testAssignments) == 1
 		},

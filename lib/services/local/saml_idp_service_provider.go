@@ -127,7 +127,7 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 			errMsg := fmt.Errorf("failed to configure entity descriptor with the given entity_id %q and acs_url %q: %w",
 				sp.GetEntityID(), sp.GetACSURL(), err)
 			s.log.Errorf(errMsg.Error())
-			return trace.BadParameter(errMsg.Error())
+			return trace.BadParameter("%s", errMsg)
 		}
 	}
 

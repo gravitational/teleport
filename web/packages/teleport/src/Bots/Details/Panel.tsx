@@ -22,7 +22,6 @@ import styled from 'styled-components';
 import { ButtonText } from 'design/Button/Button';
 import Flex from 'design/Flex/Flex';
 import Text from 'design/Text/Text';
-import { fontWeights } from 'design/theme/typography';
 
 export function Panel(
   props: PropsWithChildren & {
@@ -43,13 +42,7 @@ export function Panel(
     <section>
       <Container data-testid={testId}>
         <TitleContainer>
-          <Text
-            as={isSubPanel ? 'h3' : 'h2'}
-            typography={isSubPanel ? 'body2' : 'h2'}
-            fontWeight={fontWeights.bold}
-          >
-            {title}
-          </Text>
+          <PanelTitleText $isSubPanel={isSubPanel}>{title}</PanelTitleText>
           {action ? (
             <ActionButton onClick={action.onClick} disabled={action.disabled}>
               {action.iconLeft}
@@ -74,6 +67,13 @@ const TitleContainer = styled(Flex)`
   padding: ${p => p.theme.space[3]}px;
   gap: 8px;
 `;
+
+export const PanelTitleText = styled(Text).attrs<{ $isSubPanel?: boolean }>(
+  ({ $isSubPanel = false }) => ({
+    as: $isSubPanel ? 'h3' : 'h2',
+    typography: $isSubPanel ? 'h3' : 'h2',
+  })
+)``;
 
 const ActionButton = styled(ButtonText)`
   padding-left: 8px;

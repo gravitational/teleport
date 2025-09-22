@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -1072,6 +1073,18 @@ func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.Acces
 	return caps, nil
 }
 
+func (g *GRPCServer) GetRemoteAccessCapabilities(ctx context.Context, req *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caps, err := auth.ServerWithRoles.GetRemoteAccessCapabilities(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1393,6 +1406,10 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		if hasOktaOrigin {
 			return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
 		}
+	}
+
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
@@ -2125,6 +2142,21 @@ func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest
 		downgradedRoles = append(downgradedRoles, downgraded)
 	}
 	rsp.Roles = downgradedRoles
+
+	return rsp, nil
+}
+
+// ListRequestableRoles is a paginated requestable role getter.
+func (g *GRPCServer) ListRequestableRoles(ctx context.Context, req *authpb.ListRequestableRolesRequest) (*authpb.ListRequestableRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return rsp, nil
 }
@@ -3643,6 +3675,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3657,6 +3692,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	}
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
+	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
@@ -3828,6 +3866,34 @@ func (g *GRPCServer) GetDatabases(ctx context.Context, _ *emptypb.Empty) (*types
 	return &types.DatabaseV3List{
 		Databases: databasesV3,
 	}, nil
+}
+
+// ListDatabases returns a page of database resources.
+func (g *GRPCServer) ListDatabases(ctx context.Context, req *authpb.ListDatabasesRequest) (*authpb.ListDatabasesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databases, next, err := auth.ListDatabases(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListDatabasesResponse{
+		Databases:     make([]*types.DatabaseV3, 0, len(databases)),
+		NextPageToken: next,
+	}
+
+	for _, database := range databases {
+		databaseV3, ok := database.(*types.DatabaseV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported database type %T", database)
+		}
+		resp.Databases = append(resp.Databases, databaseV3)
+	}
+
+	return resp, nil
 }
 
 // DeleteDatabase removes the specified database.
@@ -5222,6 +5288,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
 		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
