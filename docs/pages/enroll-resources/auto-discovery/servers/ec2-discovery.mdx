@@ -226,6 +226,10 @@ parameters:
   scriptName:
     type: String
     description: "(Required) The Teleport installer script to use when joining the cluster."
+  env:
+    type: String
+    description: "Environment variables exported to the script. Format 'ENV=var FOO=bar'"
+    default: "X=$X"
 mainSteps:
 - action: aws:downloadContent
   name: downloadContent
