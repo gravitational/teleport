@@ -292,18 +292,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     await this.syncRootCluster(rootClusterUri);
   }
 
-  async getAccessRequest(
-    rootClusterUri: uri.RootClusterUri,
-    requestId: string
-  ) {
-    const { response } = await this.client.getAccessRequest({
-      clusterUri: rootClusterUri,
-      accessRequestId: requestId,
-    });
-
-    return response.request;
-  }
-
   async reviewAccessRequest(params: ReviewAccessRequestRequest) {
     const { response } = await this.client.reviewAccessRequest(params);
     this.usageService.captureAccessRequestReview(params.rootClusterUri);

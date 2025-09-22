@@ -57,13 +57,13 @@ export function useReviewAccessRequest({
     useCallback(
       () =>
         retry(async () => {
-          const request = await ctx.clustersService.getAccessRequest(
-            rootClusterUri,
-            requestId
-          );
-          return makeUiAccessRequest(request);
+          const { response } = await ctx.tshd.getAccessRequest({
+            clusterUri: rootClusterUri,
+            accessRequestId: requestId,
+          });
+          return makeUiAccessRequest(response.request);
         }),
-      [ctx.clustersService, requestId, retry, rootClusterUri]
+      [ctx.tshd, requestId, retry, rootClusterUri]
     )
   );
   const [deleteRequestAttempt, runDeleteRequest] = useAsync(() =>
