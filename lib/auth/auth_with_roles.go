@@ -5380,6 +5380,7 @@ func (a *ServerWithRoles) DeleteAllServerInfos(ctx context.Context) error {
 	return trace.Wrap(a.authServer.DeleteAllServerInfos(ctx))
 }
 
+// Deprecated: Prefer paginated variant such as [teleport.trust.v1.ListTrustedClusters]
 func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	if err := a.authorizeAction(types.KindTrustedCluster, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
