@@ -63,7 +63,7 @@ that the user is guided to the correct page regardless of their starting point.
 
 ## Details
 
-### Overview of All Components with Customer-Managed Operational Lifecycles
+### Overview of All Components with Customer-Managed Operational Lifecycle
 
 Teleport includes a large number of independently installable components that require dedicated installation
 instructions for an even larger number of target platforms:
@@ -151,7 +151,7 @@ The following organization is proposed, nested under a top-level Platform sectio
    2. Upgrading Teleport Client Tools
    3. Upgrading Self-Hosted Teleport Clusters
    4. Upgrading Teleport Plugins & Integrations
-3. Operations - New page, explains what it means to operate Teleport (backups, troubleshooting, speciality config like KMS, multi-region, etc.)
+3. Operations - New page, explains what it means to operate Teleport (backups, troubleshooting, specialty config like KMS, multi-region, etc.)
    1. Operating Teleport Agents
    2. Operating Teleport Client Tools
    3. Operating Self-Hosted Teleport Clusters
