@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -11,13 +11,13 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-func emailInstanceFactory(_ context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+func Email(_ context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	emailSpec := plugin.Spec.GetEmail()
 	if emailSpec == nil {
 		return nil, trace.BadParameter("field Spec.Email must be present")
 	}
 
-	if len(deps.staticCredentials) == 0 {
+	if len(deps.StaticCredentials) == 0 {
 		return nil, trace.BadParameter("missing Email plugin static credentials")
 	}
 
@@ -28,15 +28,15 @@ func emailInstanceFactory(_ context.Context, plugin *types.PluginV1, deps instan
 		RoleToRecipients: common.RawRecipientsMap{
 			types.Wildcard: []string{emailSpec.FallbackRecipient},
 		},
-		StatusSink: deps.statusSink,
-		Client:     deps.client,
+		StatusSink: deps.StatusSink,
+		Client:     deps.Client,
 	}
 
 	switch spec := emailSpec.GetSpec().(type) {
 	case *types.PluginEmailSettings_MailgunSpec:
 		cfg.Mailgun = &email.MailgunConfig{
 			Domain:     emailSpec.GetMailgunSpec().Domain,
-			PrivateKey: deps.staticCredentials[0].GetAPIToken(),
+			PrivateKey: deps.StaticCredentials[0].GetAPIToken(),
 		}
 	case *types.PluginEmailSettings_SmtpSpec:
 		smtpSpec := emailSpec.GetSmtpSpec()
@@ -45,7 +45,7 @@ func emailInstanceFactory(_ context.Context, plugin *types.PluginV1, deps instan
 			Port:           int(smtpSpec.Port),
 			StartTLSPolicy: smtpSpec.StartTlsPolicy,
 		}
-		cfg.SMTP.Username, cfg.SMTP.Password = deps.staticCredentials[0].GetBasicAuth()
+		cfg.SMTP.Username, cfg.SMTP.Password = deps.StaticCredentials[0].GetBasicAuth()
 	default:
 		return nil, trace.BadParameter("unknown email spec: %T", spec)
 	}
@@ -57,8 +57,9 @@ func emailInstanceFactory(_ context.Context, plugin *types.PluginV1, deps instan
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	appCtx := logger.WithLogger(deps.lifetime, nil)
-	return func() error {
+
+	return func(ctx context.Context) error {
+		appCtx := logger.WithLogger(ctx, nil)
 		return trace.Wrap(app.Run(appCtx))
 	}, nil
 }

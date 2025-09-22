@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/plugins/factory"
 )
 
 func TestWithLeaderLock(t *testing.T) {
@@ -20,8 +21,8 @@ func TestWithLeaderLock(t *testing.T) {
 	var pluginStartCount int32
 	var pluginExitCount int32
 
-	pluginHandler := func(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
-		return func() error {
+	pluginFactory := func(ctx context.Context, plugin *types.PluginV1, deps factory.Dependencies) (factory.Delegate, error) {
+		return func(instanceCtx context.Context) error {
 			atomic.AddInt32(&pluginStartCount, 1)
 			defer func() {
 				atomic.AddInt32(&pluginExitCount, 1)
@@ -29,8 +30,8 @@ func TestWithLeaderLock(t *testing.T) {
 			select {
 			case <-ctx.Done():
 				return trace.Wrap(ctx.Err())
-			case <-deps.lifetime.Done():
-				return trace.Wrap(deps.lifetime.Err())
+			case <-instanceCtx.Done():
+				return trace.Wrap(instanceCtx.Err())
 			}
 		}, nil
 	}
@@ -42,21 +43,20 @@ func TestWithLeaderLock(t *testing.T) {
 		require.NoError(t, process.Wait())
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	pluginCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	deps := instanceDependencies{
-		lifetime:      ctx,
-		parentProcess: process,
-		logger:        slog.Default(),
+	deps := factory.Dependencies{
+		ParentProcess: process,
+		Logger:        slog.Default(),
 	}
-	call := withLeaderLock(pluginHandler)
+	call := withLeaderLock(pluginFactory)
 
 	plugin := &types.PluginV1{Metadata: types.Metadata{Name: "test-plugin"}}
-	runFunc, err := call(deps.lifetime, plugin, deps)
+	runFunc, err := call(pluginCtx, plugin, deps)
 	require.NoError(t, err)
 	go func() {
-		assert.NoError(t, runFunc())
+		assert.NoError(t, runFunc(pluginCtx))
 	}()
 
 	require.Eventually(t, func() bool {

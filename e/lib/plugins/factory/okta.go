@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -17,8 +17,8 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 )
 
-// oktaInstanceFactory will create Okta services based on the plugin specification.
-func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+// Okta will create Okta services based on the plugin specification.
+func Okta(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	oktaSpec := plugin.Spec.GetOkta()
 	if oktaSpec == nil {
 		return nil, trace.BadParameter("field Spec.Okta must be present")
@@ -26,7 +26,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 
 	syncEnabled := oktaSpec.GetSyncSettings().GetEnableUserSync()
 
-	_, scimEnabled, err := oktaplugin.SelectSCIMTokenHash(deps.staticCredentials)
+	_, scimEnabled, err := oktaplugin.SelectSCIMTokenHash(deps.StaticCredentials)
 	if err != nil {
 		return nil, trace.Wrap(err, "checking if SCIM support is enabled")
 	}
@@ -35,7 +35,7 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	ssoConnectorId := oktaSpec.GetSyncSettings().SsoConnectorId
 
 	if ssoConnectorId != "" {
-		authServer := deps.parentProcess.GetAuthServer()
+		authServer := deps.ParentProcess.GetAuthServer()
 		connectorInfo, err = authServer.GetSAMLConnector(ctx, ssoConnectorId, false)
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching auth connector")
@@ -43,13 +43,13 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	}
 
 	// If sync is not enabled (SSO-only/SCIM-only integration) then only report the plugin's
-	// status and for the done channel.
+	// status and wait for the context to be canceled.
 	if !syncEnabled {
-		return func() error {
+		return func(ctx context.Context) error {
 			if scimEnabled {
-				deps.logger.InfoContext(ctx, "SCIM-only integration. Updating plugin status, without starting the plugin")
+				deps.Logger.InfoContext(ctx, "SCIM-only integration. Updating plugin status, without starting the plugin")
 			} else {
-				deps.logger.InfoContext(ctx, "SSO-only integration. Updating plugin status, without starting the plugin")
+				deps.Logger.InfoContext(ctx, "SSO-only integration. Updating plugin status, without starting the plugin")
 			}
 
 			status := okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
@@ -57,18 +57,18 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 				SyncSettings: *oktaSpec.GetSyncSettings(),
 				ScimEnabled:  scimEnabled,
 			})
-			okta.ReportPluginStatus(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_RUNNING, status)
+			okta.ReportPluginStatus(ctx, deps.Logger, deps.StatusSink, types.PluginStatusCode_RUNNING, status)
 
-			broadcastOktaEvent(deps.parentProcess, plugin, services.OktaReady)
-			defer broadcastOktaEvent(deps.parentProcess, plugin, services.OktaStopped)
+			broadcastOktaEvent(deps.ParentProcess, plugin, services.OktaReady)
+			defer broadcastOktaEvent(deps.ParentProcess, plugin, services.OktaStopped)
 
-			<-deps.lifetime.Done()
+			<-ctx.Done()
 			return nil
 		}, nil
 	}
 
 	var oktaAuthProvider oktaapi.AuthProvider
-	selectedOktaCreds, err := oktaplugin.SelectOktaCredentials(deps.staticCredentials)
+	selectedOktaCreds, err := oktaplugin.SelectOktaCredentials(deps.StaticCredentials)
 	if err != nil {
 		return nil, trace.Wrap(err, "looking up for Okta credentials")
 	}
@@ -76,15 +76,15 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	case selectedOktaCreds.OauthClientId != "":
 		oktaAuthProvider = oktaapi.NewOauthProviderWithOktaCASigner(ctx, oktaapi.OauthOktaCACredentialsConfig{
 			OAuthClientID: selectedOktaCreds.OauthClientId,
-			AuthService:   deps.parentProcess.GetAuthServer().Cache,
-			CAKeyStore:    deps.parentProcess.GetAuthServer().GetKeyStore(),
-			Clock:         deps.parentProcess.Clock,
+			AuthService:   deps.ParentProcess.GetAuthServer().Cache,
+			CAKeyStore:    deps.ParentProcess.GetAuthServer().GetKeyStore(),
+			Clock:         deps.ParentProcess.Clock,
 		})
 	case selectedOktaCreds.ApiToken != "":
 		oktaAuthProvider = oktaapi.NewSSWSAuthProvider(selectedOktaCreds.ApiToken)
 	default:
-		return func() error {
-			deps.logger.ErrorContext(ctx, "Okta sync is enabled but credentials not found. Updating plugin status, without starting the plugin")
+		return func(ctx context.Context) error {
+			deps.Logger.ErrorContext(ctx, "Okta sync is enabled but credentials not found. Updating plugin status, without starting the plugin")
 
 			status := okta.NewPluginOktaStatus(okta.PluginOktaStatusParams{
 				SsoConnector: connectorInfo,
@@ -92,9 +92,9 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 				ScimEnabled:  scimEnabled,
 				SyncErr:      trace.BadParameter("Okta API credentials not found"),
 			})
-			okta.ReportPluginStatusError(ctx, deps.logger, deps.statusSink, types.PluginStatusCode_OKTA_CONFIG_ERROR, status, "Sync is enabled, but Okta credentials are missing.")
+			okta.ReportPluginStatusError(ctx, deps.Logger, deps.StatusSink, types.PluginStatusCode_OKTA_CONFIG_ERROR, status, "Sync is enabled, but Okta credentials are missing.")
 
-			<-deps.lifetime.Done()
+			<-ctx.Done()
 			return nil
 		}, nil
 	}
@@ -104,11 +104,11 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	// running with stale settings (unless it was restarted).
 	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && modules.GetModules().Features().GetEntitlement(entitlements.OktaUserSync).Enabled
 	oktaSpec.SyncSettings.DisableSyncAppGroups = oktaSpec.SyncSettings.DisableSyncAppGroups || selectedOktaCreds.ApiTokenForSCIMOnly
-	return func() error {
-		closeEvent := services.InitOktaPlugin(deps.lifetime,
+	return func(ctx context.Context) error {
+		closeEvent := services.InitOktaPlugin(ctx,
 			services.OktaPluginPrams{
-				Process:          deps.parentProcess,
-				PluginStatusSink: deps.statusSink,
+				Process:          deps.ParentProcess,
+				PluginStatusSink: deps.StatusSink,
 				PluginName:       plugin.GetName(),
 				OrgUrl:           oktaSpec.OrgUrl,
 				AuthProvider:     oktaAuthProvider,
@@ -117,18 +117,18 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 			},
 		)
 		// wait for the calling context to finish before doing anything else.
-		<-deps.lifetime.Done()
+		<-ctx.Done()
 
 		// Wait 5 seconds for the close event.
 		eventCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, err := deps.parentProcess.WaitForEvent(eventCtx, closeEvent)
+		_, err := deps.ParentProcess.WaitForEvent(eventCtx, closeEvent)
 
 		if err != nil {
-			deps.logger.DebugContext(ctx, "Error waiting for OktaStopped event", "error", err)
+			deps.Logger.DebugContext(ctx, "Error waiting for OktaStopped event", "error", err)
 			return trace.Wrap(err)
 		}
-		deps.logger.InfoContext(ctx, "Okta plugin has stopped")
+		deps.Logger.InfoContext(ctx, "Okta plugin has stopped")
 		return nil
 	}, nil
 }

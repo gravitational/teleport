@@ -19,6 +19,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	intunetestenv "github.com/gravitational/teleport/e/lib/intune/testenv"
 	jamftestenv "github.com/gravitational/teleport/e/lib/jamf/testenv"
+	"github.com/gravitational/teleport/e/lib/plugins/factory"
 	"github.com/gravitational/teleport/e/lib/services"
 	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
@@ -170,10 +171,10 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 	}
 
 	var instanceStarted, instanceStopped int64
-	makeInstanceDelegate := func(deps instanceDependencies) func() error {
-		return func() error {
+	makeInstanceDelegate := func(deps factory.Dependencies) factory.Delegate {
+		return func(ctx context.Context) error {
 			atomic.AddInt64(&instanceStarted, 1)
-			<-deps.lifetime.Done()
+			<-ctx.Done()
 			atomic.AddInt64(&instanceStopped, 1)
 			return nil
 		}
@@ -206,9 +207,9 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 		Plugins:                 pluginService,
 		PluginStaticCredentials: pluginStaticCredentialsService,
 		Events:                  events,
-		Factories: map[types.PluginType]instanceFactory{
-			plugin.GetType(): func(_ context.Context, _ *types.PluginV1, deps instanceDependencies) (func() error, error) {
-				for _, cred := range deps.staticCredentials {
+		Factories: map[types.PluginType]factory.Factory{
+			plugin.GetType(): func(ctx context.Context, plugin *types.PluginV1, deps factory.Dependencies) (factory.Delegate, error) {
+				for _, cred := range deps.StaticCredentials {
 					staticCredentialsSuppliedToPlugin[cred.GetName()] = cred.GetStaticLabels()
 				}
 				return makeInstanceDelegate(deps), nil
@@ -477,17 +478,16 @@ func TestInstanceFactory(t *testing.T) {
 		factoryCtx, factoryCancel := context.WithCancel(context.Background())
 		pluginLifetime, pluginCancel := context.WithCancel(context.Background())
 		t.Run(tc.name, func(t *testing.T) {
-			var factoryFunc func() error
+			var pluginDelegateFn factory.Delegate
 
 			switch tc.pluginType {
 			case types.PluginTypeOkta:
 				var err error
 				// Run plugin
-				factoryFunc, err = oktaInstanceFactory(factoryCtx, tc.plugin, instanceDependencies{
-					lifetime:      pluginLifetime,
-					logger:        slog.Default(),
-					parentProcess: process,
-					staticCredentials: []types.PluginStaticCredentials{
+				pluginDelegateFn, err = factory.Okta(factoryCtx, tc.plugin, factory.Dependencies{
+					Logger:        slog.Default(),
+					ParentProcess: process,
+					StaticCredentials: []types.PluginStaticCredentials{
 						&types.PluginStaticCredentialsV1{
 							ResourceHeader: types.ResourceHeader{
 								Metadata: types.Metadata{
@@ -506,12 +506,11 @@ func TestInstanceFactory(t *testing.T) {
 			case types.PluginTypeJamf:
 				var err error
 				// Run plugin
-				factoryFunc, err = jamfInstanceFactory(factoryCtx, tc.plugin, instanceDependencies{
-					lifetime:      pluginLifetime,
-					logger:        slog.Default(),
+				pluginDelegateFn, err = factory.Jamf(factoryCtx, tc.plugin, factory.Dependencies{
+					Logger:        slog.Default(),
 					HTTPClient:    jamfEnv.HTTPClient,
-					parentProcess: process,
-					staticCredentials: []types.PluginStaticCredentials{
+					ParentProcess: process,
+					StaticCredentials: []types.PluginStaticCredentials{
 						&types.PluginStaticCredentialsV1{
 							ResourceHeader: types.ResourceHeader{
 								Metadata: types.Metadata{
@@ -532,13 +531,12 @@ func TestInstanceFactory(t *testing.T) {
 				require.NoError(t, err)
 			case types.PluginTypeIntune:
 				var err error
-				factoryFunc, err = intuneInstanceFactory(factoryCtx, tc.plugin, instanceDependencies{
-					lifetime:      pluginLifetime,
-					logger:        slog.Default(),
+				pluginDelegateFn, err = factory.Intune(factoryCtx, tc.plugin, factory.Dependencies{
+					Logger:        slog.Default(),
 					HTTPClient:    intuneEnv.HTTPClient,
-					parentProcess: process,
-					statusSink:    &integration.FakeStatusSink{},
-					staticCredentials: []types.PluginStaticCredentials{
+					ParentProcess: process,
+					StatusSink:    &integration.FakeStatusSink{},
+					StaticCredentials: []types.PluginStaticCredentials{
 						&types.PluginStaticCredentialsV1{
 							ResourceHeader: types.ResourceHeader{
 								Metadata: types.Metadata{
@@ -567,7 +565,7 @@ func TestInstanceFactory(t *testing.T) {
 
 			factoryErr := make(chan error, 1)
 			go func() {
-				factoryErr <- factoryFunc()
+				factoryErr <- pluginDelegateFn(pluginLifetime)
 			}()
 
 			// EXPECT that the plugin process emits a `ready` event

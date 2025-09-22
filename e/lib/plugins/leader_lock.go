@@ -8,6 +8,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/plugins/factory"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -29,8 +30,8 @@ var LeaderLockRetryInterval time.Duration = time.Minute
 // for plugin lifecycle management. While this function will block the plugin execution on a single
 // Auth instance, the plugin manager is responsible for canceling deps.lifetime context to
 // due to plugin update or removal or Auth instance shutdown.
-func withLeaderLock(handler instanceFactory) instanceFactory {
-	return func(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+func withLeaderLock(handler factory.Factory) factory.Factory {
+	return func(ctx context.Context, plugin *types.PluginV1, deps factory.Dependencies) (factory.Delegate, error) {
 		pluginFunc, err := handler(ctx, plugin, deps)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -38,21 +39,21 @@ func withLeaderLock(handler instanceFactory) instanceFactory {
 		// Injects deps.lifetime managed by the plugin manager  instead of Teleport Auth
 		// process context to ensure that the plugin manager can cancel the runtime lock
 		// during plugin updates, removals, or Auth instance shutdown
-		return executeWithLeaderLock(deps.lifetime, deps, plugin, pluginFunc), nil
+		return executeWithLeaderLock(deps, plugin, pluginFunc), nil
 	}
 }
 
-func executeWithLeaderLock(ctx context.Context, deps instanceDependencies, plugin *types.PluginV1, pluginFunc func() error) func() error {
+func executeWithLeaderLock(deps factory.Dependencies, plugin *types.PluginV1, pluginFunc factory.Delegate) factory.Delegate {
 	const (
 		retryTime = time.Minute * 2
 	)
 
-	return func() error {
+	return func(ctx context.Context) error {
 		lockName := lockNameForPlugin(plugin)
-		log := deps.logger.With(
+		log := deps.Logger.With(
 			"lock_name", lockName,
-			"auth_server_id", deps.parentProcess.GetAuthServer().ServerID,
-			"auth_server_name", deps.parentProcess.GetAuthServer().AuthServiceName,
+			"auth_server_id", deps.ParentProcess.GetAuthServer().ServerID,
+			"auth_server_name", deps.ParentProcess.GetAuthServer().AuthServiceName,
 			"plugin_name", plugin.GetName(),
 			"integration_type", plugin.GetType(),
 			"retry_time", retryTime,
@@ -66,7 +67,7 @@ func executeWithLeaderLock(ctx context.Context, deps instanceDependencies, plugi
 			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
 					LockNameComponents: []string{lockName},
-					Backend:            deps.parentProcess.GetBackend(),
+					Backend:            deps.ParentProcess.GetBackend(),
 					TTL:                time.Minute * 3,
 					RetryInterval:      LeaderLockRetryInterval,
 				},
@@ -74,7 +75,7 @@ func executeWithLeaderLock(ctx context.Context, deps instanceDependencies, plugi
 			}, func(ctx context.Context) error {
 				log.DebugContext(ctx, "Acquired plugin integration runtime lock.")
 				defer log.DebugContext(ctx, "Released plugin integration runtime lock.")
-				if err := pluginFunc(); err != nil {
+				if err := pluginFunc(ctx); err != nil {
 					log.ErrorContext(ctx, "Plugin execution error. It will be restarted.", "error", err)
 					return trace.Errorf("plugin execution failed, see logs above")
 				}

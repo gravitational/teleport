@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -11,16 +11,16 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 )
 
-// entraIDInstanceFactory will create Entra ID services based on the plugin specification.
-func entraIDInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+// EntraID will create Entra ID services based on the plugin specification.
+func EntraID(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	entraSpec := plugin.Spec.GetEntraId()
 	if entraSpec == nil {
 		return nil, trace.BadParameter("field Spec.EntraId must be present")
 	}
 
-	authServer := deps.parentProcess.GetAuthServer()
+	authServer := deps.ParentProcess.GetAuthServer()
 
-	return func() error {
+	return func(ctx context.Context) error {
 		var azureSpec *types.AzureOIDCIntegrationSpecV1
 		if !usesSystemCredentials(plugin) {
 			var err error
@@ -30,25 +30,25 @@ func entraIDInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 			}
 		}
 
-		closeEvent, err := services.EntraIDPluginInit(deps.lifetime, deps.parentProcess, deps.statusSink, entraSpec, azureSpec)
+		closeEvent, err := services.EntraIDPluginInit(ctx, deps.ParentProcess, deps.StatusSink, entraSpec, azureSpec)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// wait for the calling context to finish before doing anything else.
-		<-deps.lifetime.Done()
+		<-ctx.Done()
 
 		// Wait 5 seconds for the close event.
 		eventCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, err = deps.parentProcess.WaitForEvent(eventCtx, closeEvent)
+		_, err = deps.ParentProcess.WaitForEvent(eventCtx, closeEvent)
 		if err != nil {
-			deps.logger.DebugContext(ctx, "Error waiting for event", "event", closeEvent, "error", err)
+			deps.Logger.DebugContext(ctx, "Error waiting for event", "event", closeEvent, "error", err)
 			return trace.Wrap(err)
 		}
 
-		deps.logger.InfoContext(ctx, "Entra ID plugin has stopped")
+		deps.Logger.InfoContext(ctx, "Entra ID plugin has stopped")
 		return nil
 	}, nil
 }

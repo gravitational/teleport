@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -11,34 +11,34 @@ import (
 	"github.com/gravitational/teleport/integrations/access/slack"
 )
 
-func slackInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+func Slack(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	slackSpec := plugin.Spec.GetSlackAccessPlugin()
 	if slackSpec == nil {
 		return nil, trace.BadParameter("field Spec.SlackAccessPlugin must be present")
 	}
 
 	tokenProvider, err := auth.NewRotatedTokenProvider(ctx, auth.RotatedAccessTokenProviderConfig{
-		Store:     deps.store,
-		Refresher: deps.authorizer,
+		Store:     deps.Store,
+		Refresher: deps.Authorizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	pc := &pluginConfiguration{
-		client:        deps.client,
+		client:        deps.Client,
 		defaultRoutes: []string{slackSpec.FallbackChannel},
 		pluginConfig: &slack.Config{
 			AccessTokenProvider: tokenProvider,
-			StatusSink:          deps.statusSink,
+			StatusSink:          deps.StatusSink,
 		},
 		pluginType: types.PluginTypeSlack,
 	}
 
 	app := common.NewApp(pc, plugin.GetName())
-	return func() error {
-		go tokenProvider.RefreshLoop(deps.lifetime)
-		err := app.Run(deps.lifetime)
+	return func(ctx context.Context) error {
+		go tokenProvider.RefreshLoop(ctx)
+		err := app.Run(ctx)
 		return trace.Wrap(err)
 	}, nil
 }

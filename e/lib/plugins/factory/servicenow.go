@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/servicenow"
 )
 
-func serviceNowInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+func ServiceNow(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	serviceNowSpec := plugin.Spec.GetServiceNow()
 
 	if serviceNowSpec == nil {
@@ -20,12 +20,12 @@ func serviceNowInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps
 		return nil, trace.BadParameter("field Spec.ServiceNowAccessPlugin.APIEndpoint must be present")
 	}
 
-	if len(deps.staticCredentials) == 0 {
+	if len(deps.StaticCredentials) == 0 {
 		return nil, trace.BadParameter("static credentials must be present")
 	}
 
 	// For now, we'll just choose the first static credential until we have a need for rotation or other complexity.
-	username, password := deps.staticCredentials[0].GetBasicAuth()
+	username, password := deps.StaticCredentials[0].GetBasicAuth()
 	if username == "" || password == "" {
 		return nil, trace.BadParameter("username or password empty")
 	}
@@ -40,18 +40,18 @@ func serviceNowInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps
 			Username:    username,
 			APIToken:    password,
 			CloseCode:   serviceNowSpec.CloseCode,
-			StatusSink:  deps.statusSink,
+			StatusSink:  deps.StatusSink,
 		},
 		TeleportUser: teleport.SystemAccessApproverUserName,
-		Client:       deps.client,
+		Client:       deps.Client,
 	}
 
 	app, err := servicenow.NewServiceNowApp(ctx, snc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return func() error {
-		err := app.Run(deps.lifetime)
+	return func(ctx context.Context) error {
+		err := app.Run(ctx)
 		return trace.Wrap(err)
 	}, nil
 }

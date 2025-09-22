@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -23,10 +23,10 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 )
 
-// awsIdentityCenterInstanceFactory creates a new instance of the AWS Identity Center Plugin.
-// It implements [instanceFactory], and so takes config information from the
-// plugin manager amd returns a function that can be invoked to run the service.
-func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps instanceDependencies) (func() error, error) {
+// AWSIC creates a new instance of the AWS Identity Center Plugin. It implements
+// [Factory] for the AWSIC integration, and so takes config information from the
+// plugin manager and returns a function that can be invoked to run the service.
+func AWSIC(ctx context.Context, p *types.PluginV1, deps Dependencies) (Delegate, error) {
 	settings := p.Spec.GetAwsIc()
 	if settings == nil {
 		return nil, trace.BadParameter("plugin must have AWS IC settings")
@@ -37,27 +37,36 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 		return nil, trace.Wrap(err, "malformed IC Instance ARN")
 	}
 
-	if len(deps.staticCredentials) == 0 {
+	switch len(deps.StaticCredentials) {
+	case 0:
 		return nil, trace.BadParameter("plugin dependencies must supply SCIM bearer token as a credential")
+	case 1:
+		// Exactly what we want, fall out to the happy path
+	default:
+		// We have more than one credential. Legal, but unexpected. Worth a warning.
+		deps.Logger.WarnContext(ctx, "Multiple credentials found. Picking first available.",
+			"credential_in_use", deps.StaticCredentials[0].GetName(),
+			"count", len(deps.StaticCredentials))
 	}
-	bearerToken := deps.staticCredentials[0].GetAPIToken()
+
+	bearerToken := deps.StaticCredentials[0].GetAPIToken()
 	if bearerToken == "" {
 		return nil, trace.BadParameter("plugin dependencies must supply SCIM bearer token as an API token")
 	}
 
-	svc := func() error {
-		deps.logger.InfoContext(deps.lifetime, "AWS IC integration starting")
-		defer deps.logger.InfoContext(deps.lifetime, "AWS IC integration stopped")
+	svc := func(ctx context.Context) error {
+		deps.Logger.InfoContext(ctx, "AWS IC integration starting")
+		defer deps.Logger.InfoContext(ctx, "AWS IC integration stopped")
 
 		// set up a context that will automatically cancel itself when this
 		// plugin delegate exits. This is to make sure that everything we start
 		// below gets stopped on exit, *especially* if that exit is early due to
 		// error.
-		ctx, cancel := context.WithCancel(deps.lifetime)
+		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		authServer := deps.parentProcess.GetAuthServer()
-		logger := deps.logger.With(teleport.ComponentKey, eteleport.ComponentAWSIC)
+		authServer := deps.ParentProcess.GetAuthServer()
+		logger := deps.Logger.With(teleport.ComponentKey, eteleport.ComponentAWSIC)
 
 		scimClient, err := scimsdk.New(&scimsdk.Config{
 			Endpoint:        settings.ProvisioningSpec.BaseUrl,
@@ -115,7 +124,7 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 			AccessListsSvc:             authServer.Services,
 			AccessRequestsSvc:          authServer.Services,
 			Clock:                      authServer.GetClock(),
-			EventsClient:               deps.client,
+			EventsClient:               deps.Client,
 			IdentityCenterDataSvc:      authServer.Services,
 			IdentityCenterDataSvcCache: authServer.Cache,
 			Log:                        logger,
@@ -125,25 +134,25 @@ func awsIdentityCenterInstanceFactory(_ context.Context, p *types.PluginV1, deps
 				GroupSyncFilter:         groupsFilters,
 				AccountFilters:          accountFilters,
 			},
-			PluginStatusSink: deps.statusSink,
-			PluginsService:   deps.pluginsService,
+			PluginStatusSink: deps.StatusSink,
+			PluginsService:   deps.PluginsService,
 			UserPredicate:    identitycentercommon.UserPredicateFilter(settings.UserSyncFilters),
-			Emitter:          deps.parentProcess.GetAuthServer().GetEmitter(),
+			Emitter:          deps.ParentProcess.GetAuthServer().GetEmitter(),
 			RolesSyncMode:    rolesSyncMode,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		logger.DebugContext(deps.lifetime, "Running AWS IC service.")
-		if err := svc.Run(deps.lifetime); err != nil {
-			if err := deps.statusSink.Emit(ctx, &types.PluginStatusV1{
+		logger.DebugContext(ctx, "Running AWS IC service.")
+		if err := svc.Run(ctx); err != nil {
+			if err := deps.StatusSink.Emit(ctx, &types.PluginStatusV1{
 				Code:         types.PluginStatusCode_OTHER_ERROR,
 				ErrorMessage: err.Error(),
 			}); err != nil {
 				logger.ErrorContext(ctx, "Failed to emit plugin error status", "error", err)
 			}
-			logger.ErrorContext(deps.lifetime, "Identity Center Service exited with error",
+			logger.ErrorContext(ctx, "Identity Center Service exited with error",
 				"error", err)
 			return trace.Wrap(err)
 		}

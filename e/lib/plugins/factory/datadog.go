@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -12,18 +12,18 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-func datadogInstanceFactory(_ context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+func Datadog(_ context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	datadogSpec := plugin.Spec.GetDatadog()
 	if datadogSpec == nil {
 		return nil, trace.BadParameter("field Spec.Datadog must be present")
 	}
 
-	apiToken, err := selectCredentials(deps.staticCredentials, types.DatadogCredentialLabel, types.DatadogCredentialAPIKey)
+	apiToken, err := selectCredentials(deps.StaticCredentials, types.DatadogCredentialLabel, types.DatadogCredentialAPIKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	applicationToken, err := selectCredentials(deps.staticCredentials, types.DatadogCredentialLabel, types.DatadogCredentialApplicationKey)
+	applicationToken, err := selectCredentials(deps.StaticCredentials, types.DatadogCredentialLabel, types.DatadogCredentialApplicationKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -41,16 +41,17 @@ func datadogInstanceFactory(_ context.Context, plugin *types.PluginV1, deps inst
 			APIKey:         apiToken.GetAPIToken(),
 			ApplicationKey: applicationToken.GetAPIToken(),
 		},
-		StatusSink: deps.statusSink,
-		Client:     deps.client,
+		StatusSink: deps.StatusSink,
+		Client:     deps.Client,
 	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	app := datadog.NewDatadogApp(cfg)
-	appCtx := logger.WithLogger(deps.lifetime, deps.logger)
-	return func() error {
+
+	return func(ctx context.Context) error {
+		appCtx := logger.WithLogger(ctx, deps.Logger)
 		err := app.Run(appCtx)
 		return trace.Wrap(err)
 	}, nil

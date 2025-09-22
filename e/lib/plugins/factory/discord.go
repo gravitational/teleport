@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -11,13 +11,13 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-func discordInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+func Discord(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	discordSpec := plugin.Spec.GetDiscord()
 	if discordSpec == nil {
 		return nil, trace.BadParameter("field Spec.Discord must be present")
 	}
 
-	if len(deps.staticCredentials) == 0 {
+	if len(deps.StaticCredentials) == 0 {
 		return nil, trace.BadParameter("missing plugin static credentials")
 	}
 
@@ -31,10 +31,10 @@ func discordInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 			Recipients: recipients,
 		},
 		Discord: common.GenericAPIConfig{
-			Token: deps.staticCredentials[0].GetAPIToken(),
+			Token: deps.StaticCredentials[0].GetAPIToken(),
 		},
-		Client:     deps.client,
-		StatusSink: deps.statusSink,
+		Client:     deps.Client,
+		StatusSink: deps.StatusSink,
 	}
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -42,8 +42,8 @@ func discordInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 	}
 
 	app := discord.NewApp(cfg)
-	appCtx := logger.WithLogger(deps.lifetime, deps.logger)
-	return func() error {
+	return func(ctx context.Context) error {
+		appCtx := logger.WithLogger(ctx, deps.Logger)
 		err := app.Run(appCtx)
 		return trace.Wrap(err)
 	}, nil

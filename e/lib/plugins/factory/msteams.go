@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -11,18 +11,18 @@ import (
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 )
 
-func msTeamsInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+func MSTeams(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	msTeamsSpec := plugin.Spec.GetMsteams()
 	if msTeamsSpec == nil {
 		return nil, trace.BadParameter("field Spec.MsTeams must be present")
 	}
 
-	if len(deps.staticCredentials) == 0 {
+	if len(deps.StaticCredentials) == 0 {
 		return nil, trace.BadParameter("static credentials must be present")
 	}
 
 	// For now, we'll just choose the first static credential until we have a need for rotation or other complexity.
-	staticToken := deps.staticCredentials[0].GetAPIToken()
+	staticToken := deps.StaticCredentials[0].GetAPIToken()
 	if staticToken == "" {
 		return nil, trace.BadParameter("api token is empty")
 	}
@@ -40,15 +40,15 @@ func msTeamsInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps in
 				"*": []string{msTeamsSpec.DefaultRecipient},
 			},
 		},
-		StatusSink: deps.statusSink,
-		Client:     deps.client,
+		StatusSink: deps.StatusSink,
+		Client:     deps.Client,
 	})
 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return func() error {
-		err := app.Run(deps.lifetime)
+	return func(ctx context.Context) error {
+		err := app.Run(ctx)
 		return trace.Wrap(err)
 	}, nil
 }

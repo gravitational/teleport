@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -11,14 +11,14 @@ import (
 	"github.com/gravitational/teleport/e/lib/services"
 )
 
-// gitlabInstanceFactory creates a Gitlab service based on the plugin specification.
-func gitlabInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
-	if len(deps.staticCredentials) == 0 {
+// GitLab creates a Gitlab service based on the plugin specification.
+func GitLab(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
+	if len(deps.StaticCredentials) == 0 {
 		return nil, trace.BadParameter("static credentials must be present")
 	}
 
 	// For now, we'll just choose the first static credential until we have a need for rotation or other complexity.
-	token := deps.staticCredentials[0].GetAPIToken()
+	token := deps.StaticCredentials[0].GetAPIToken()
 	if token == "" {
 		return nil, trace.BadParameter("token is empty")
 	}
@@ -33,26 +33,26 @@ func gitlabInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps ins
 		Address: gitlabSettings.ApiEndpoint,
 	}
 
-	return func() error {
-		closeEvent, err := services.GitlabPluginInit(deps.lifetime, deps.parentProcess, deps.statusSink, cfg)
+	return func(ctx context.Context) error {
+		closeEvent, err := services.GitlabPluginInit(ctx, deps.ParentProcess, deps.StatusSink, cfg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// wait for the calling context to finish before doing anything else.
-		<-deps.lifetime.Done()
+		<-ctx.Done()
 
 		// Wait 5 seconds for the close event.
 		eventCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, err = deps.parentProcess.WaitForEvent(eventCtx, closeEvent)
+		_, err = deps.ParentProcess.WaitForEvent(eventCtx, closeEvent)
 		if err != nil {
-			deps.logger.DebugContext(ctx, "Error waiting for GitlabStopped event", "error", err)
+			deps.Logger.DebugContext(ctx, "Error waiting for GitlabStopped event", "error", err)
 			return trace.Wrap(err)
 		}
 
-		deps.logger.InfoContext(ctx, "Gitlab plugin has stopped")
+		deps.Logger.InfoContext(ctx, "Gitlab plugin has stopped")
 		return nil
 	}, nil
 }

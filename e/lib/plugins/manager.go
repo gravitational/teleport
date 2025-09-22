@@ -13,6 +13,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/e/lib/plugins/factory"
+	"github.com/gravitational/teleport/e/lib/plugins/instance"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	teleclient "github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -29,7 +31,7 @@ type ManagerConfig struct {
 	Plugins                 services.Plugins
 	PluginStaticCredentials services.PluginStaticCredentials
 	Events                  types.Events
-	Factories               map[types.PluginType]instanceFactory
+	Factories               map[types.PluginType]factory.Factory
 	// TeleportClient is the Teleport API client passed to plugins
 	TeleportClient teleclient.Client
 	// RetryConfig defines the backoff settings for retrying the inner event loop
@@ -63,26 +65,26 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 	}
 
 	if cfg.Factories == nil {
-		cfg.Factories = map[types.PluginType]instanceFactory{
-			types.PluginTypeDiscord:           discordInstanceFactory,
-			types.PluginTypeOkta:              oktaInstanceFactory,
-			types.PluginTypeSlack:             slackInstanceFactory,
-			types.PluginTypeOpsgenie:          opsgenieInstanceFactory,
-			types.PluginTypeServiceNow:        serviceNowInstanceFactory,
-			types.PluginTypePagerDuty:         pagerDutyInstanceFactory,
-			types.PluginTypeJamf:              jamfInstanceFactory,
-			types.PluginTypeIntune:            intuneInstanceFactory,
-			types.PluginTypeJira:              jiraInstanceFactory,
-			types.PluginTypeMattermost:        mattermostInstanceFactory,
-			types.PluginTypeGitlab:            gitlabInstanceFactory,
-			types.PluginTypeEntraID:           entraIDInstanceFactory,
-			types.PluginTypeDatadog:           datadogInstanceFactory,
-			types.PluginTypeAWSIdentityCenter: withLeaderLock(awsIdentityCenterInstanceFactory),
-			types.PluginTypeGithub:            githubInstanceFactory,
-			types.PluginTypeMSTeams:           msTeamsInstanceFactory,
-			types.PluginTypeEmail:             emailInstanceFactory,
-			types.PluginTypeNetIQ:             netIQInstanceFactory,
-			types.PluginTypeSCIM:              newSCIMInstanceFactory,
+		cfg.Factories = map[types.PluginType]factory.Factory{
+			types.PluginTypeDiscord:           factory.Discord,
+			types.PluginTypeOkta:              factory.Okta,
+			types.PluginTypeSlack:             factory.Slack,
+			types.PluginTypeOpsgenie:          factory.OpsGenie,
+			types.PluginTypeServiceNow:        factory.ServiceNow,
+			types.PluginTypePagerDuty:         factory.PagerDuty,
+			types.PluginTypeJamf:              factory.Jamf,
+			types.PluginTypeIntune:            factory.Intune,
+			types.PluginTypeJira:              factory.Jira,
+			types.PluginTypeMattermost:        factory.Mattermost,
+			types.PluginTypeGitlab:            factory.GitLab,
+			types.PluginTypeEntraID:           factory.EntraID,
+			types.PluginTypeDatadog:           factory.Datadog,
+			types.PluginTypeAWSIdentityCenter: withLeaderLock(factory.AWSIC),
+			types.PluginTypeGithub:            factory.GitHub,
+			types.PluginTypeMSTeams:           factory.MSTeams,
+			types.PluginTypeEmail:             factory.Email,
+			types.PluginTypeNetIQ:             factory.NetIQ,
+			types.PluginTypeSCIM:              factory.SCIM,
 		}
 	}
 	if cfg.Clock == nil {
@@ -115,9 +117,9 @@ type Manager struct {
 	plugins                 services.Plugins
 	pluginStaticCredentials services.PluginStaticCredentials
 	events                  types.Events
-	factories               map[types.PluginType]instanceFactory
-	instancesByName         map[string]*instance
-	instancesByCredential   map[string]*instance
+	factories               map[types.PluginType]factory.Factory
+	instancesByName         map[string]*instance.Instance
+	instancesByCredential   map[string]*instance.Instance
 	teleportClient          teleclient.Client
 	watcher                 types.Watcher
 	retryConfig             retryutils.RetryV2Config
@@ -139,8 +141,8 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		pluginStaticCredentials: cfg.PluginStaticCredentials,
 		events:                  cfg.Events,
 		factories:               cfg.Factories,
-		instancesByName:         make(map[string]*instance),
-		instancesByCredential:   make(map[string]*instance),
+		instancesByName:         make(map[string]*instance.Instance),
+		instancesByCredential:   make(map[string]*instance.Instance),
 		teleportClient:          cfg.TeleportClient,
 		retryConfig:             *cfg.RetryConfig,
 		parentProcess:           cfg.ParentProcess,
@@ -149,10 +151,10 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 	return m, nil
 }
 
-func (m *Manager) recordInstance(i *instance) {
-	m.instancesByName[i.plugin.GetName()] = i
+func (m *Manager) recordInstance(i *instance.Instance) {
+	m.instancesByName[i.Plugin.GetName()] = i
 
-	if credRef := i.plugin.GetCredentials().GetStaticCredentialsRef(); credRef != nil {
+	if credRef := i.Plugin.GetCredentials().GetStaticCredentialsRef(); credRef != nil {
 		staticCredentialID := credRef.Labels[eteleport.PluginLabel]
 		m.instancesByCredential[staticCredentialID] = i
 	}
@@ -165,7 +167,7 @@ func (m *Manager) deleteInstance(instanceName string) {
 	}
 
 	delete(m.instancesByName, instanceName)
-	if credRef := instance.plugin.GetCredentials().GetStaticCredentialsRef(); credRef != nil {
+	if credRef := instance.Plugin.GetCredentials().GetStaticCredentialsRef(); credRef != nil {
 		delete(m.instancesByCredential, credRef.Labels[eteleport.PluginLabel])
 	}
 }
@@ -304,7 +306,6 @@ func (m *Manager) dispatchPluginEvent(ctx context.Context, e types.Event) error 
 		if m.instanceUpToDate(name, plugin) {
 			return nil
 		}
-
 		m.shutdownInstance(name)
 		if err := m.startInstance(ctx, plugin); err != nil {
 			return trace.Wrap(err, "starting %v", name)
@@ -340,10 +341,10 @@ func (m *Manager) dispatchPluginStaticCredentialsEvent(ctx context.Context, e ty
 		return nil
 	}
 
-	log = log.With(slog.String("plugin_name", instance.plugin.GetName()))
+	log = log.With(slog.String("plugin_name", instance.Plugin.GetName()))
 	log.InfoContext(ctx, "Looking up in-use credential by name")
 
-	liveCred := instance.findCredentialByName(updatedCredential.GetName())
+	liveCred := instance.FindCredentialByName(updatedCredential.GetName())
 	if liveCred == nil {
 		log.WarnContext(ctx, "No in-use credentials found for plugin")
 		return nil
@@ -359,7 +360,7 @@ func (m *Manager) dispatchPluginStaticCredentialsEvent(ctx context.Context, e ty
 	// credential belongs to a running plugin. Restart it so that it can pick up
 	// the new, updated credentials
 	log.InfoContext(ctx, "Detected credential update. Restarting plugin")
-	return trace.Wrap(m.restartInstance(ctx, instance.plugin.GetName()))
+	return trace.Wrap(m.restartInstance(ctx, instance.GetName()))
 }
 
 func (m *Manager) shutdownInstance(name string) {
@@ -369,7 +370,7 @@ func (m *Manager) shutdownInstance(name string) {
 	}
 
 	m.log.InfoContext(context.Background(), "Stopping plugin", "plugin_name", name)
-	instance.cancel()
+	instance.Cancel()
 	m.deleteInstance(name)
 }
 
@@ -383,7 +384,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 
 	log.InfoContext(ctx, "Starting plugin")
 
-	factory, ok := m.factories[plugin.GetType()]
+	factoryFn, ok := m.factories[plugin.GetType()]
 	if !ok {
 		return trace.BadParameter("unsupported plugin type %q", plugin.GetType())
 	}
@@ -417,16 +418,15 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 	// We rely on cancel() being called correctly in all codepaths.
 	// TODO(justinas): reconsider
 	pluginCtx, cancel := context.WithCancel(context.Background())
-	deps := instanceDependencies{
-		lifetime:          pluginCtx,
-		authorizer:        authorizer,
-		client:            m.teleportClient,
-		store:             store,
-		statusSink:        statusSink,
-		parentProcess:     m.parentProcess,
-		staticCredentials: staticCreds,
-		logger:            log,
-		pluginsService:    m.plugins,
+	deps := factory.Dependencies{
+		Authorizer:        authorizer,
+		Client:            m.teleportClient,
+		Store:             store,
+		StatusSink:        statusSink,
+		ParentProcess:     m.parentProcess,
+		StaticCredentials: staticCreds,
+		Logger:            log,
+		PluginsService:    m.plugins,
 	}
 
 	// Note that we give a copy of the plugin resource to the plugin factory. If
@@ -435,7 +435,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 	// treat that as an update and immediately attempt to restart the plugin,
 	// starting off an infinite sequence of modifications and restarts.
 
-	delegate, err := factory(ctx, apiutils.CloneProtoMsg(plugin), deps)
+	delegate, err := factoryFn(ctx, apiutils.CloneProtoMsg(plugin), deps)
 	if err != nil {
 		cancel()
 		return trace.Wrap(err)
@@ -444,7 +444,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 	// Plugin instances run in independent goroutines,
 	// as they are long-running ("indefinitely") jobs.
 	go func() {
-		if err := delegate(); err != nil {
+		if err := delegate(pluginCtx); err != nil {
 			var accessDenied *trace.AccessDeniedError
 
 			switch {
@@ -476,11 +476,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		}
 	}()
 
-	m.recordInstance(&instance{
-		cancel:            cancel,
-		plugin:            plugin,
-		staticCredentials: credPointers,
-	})
+	m.recordInstance(instance.New(cancel, plugin, credPointers))
 
 	return nil
 }
@@ -490,7 +486,7 @@ func (m *Manager) instanceUpToDate(name string, updated *types.PluginV1) bool {
 	if !ok {
 		return false
 	}
-	return instance.isUpToDate(updated)
+	return instance.IsUpToDate(updated)
 }
 
 // cloneCredentials clones a slice of [types.PluginStaticCredentials]s, returning

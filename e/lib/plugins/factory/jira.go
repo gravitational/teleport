@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -10,19 +10,19 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-func jiraInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+func Jira(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	jiraSpec := plugin.Spec.GetJira()
 	if jiraSpec == nil {
 		return nil, trace.BadParameter("field Spec.Jira must be present")
 	}
 
-	if len(deps.staticCredentials) == 0 {
+	if len(deps.StaticCredentials) == 0 {
 		return nil, trace.BadParameter("missing Jira plugin static credentials")
 	}
 
 	// JIRA API tokens are essentially alternative passwords for a given user,
 	// so we treat jira creds like basic auth.
-	jiraUsername, jiraToken := deps.staticCredentials[0].GetBasicAuth()
+	jiraUsername, jiraToken := deps.StaticCredentials[0].GetBasicAuth()
 
 	cfg := jira.Config{
 		Jira: jira.JiraConfig{
@@ -32,8 +32,8 @@ func jiraInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 			IssueType: jiraSpec.IssueType,
 			Username:  jiraUsername,
 		},
-		Client:         deps.client,
-		StatusSink:     deps.statusSink,
+		Client:         deps.Client,
+		StatusSink:     deps.StatusSink,
 		DisableWebhook: true,
 	}
 
@@ -42,8 +42,8 @@ func jiraInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.Wrap(err)
 	}
 
-	appCtx := logger.WithLogger(deps.lifetime, deps.logger)
-	return func() error {
+	return func(ctx context.Context) error {
+		appCtx := logger.WithLogger(ctx, deps.Logger)
 		err := app.Run(appCtx)
 		return trace.Wrap(err)
 	}, nil

@@ -1,4 +1,4 @@
-package plugins
+package factory
 
 import (
 	"context"
@@ -11,13 +11,13 @@ import (
 	"github.com/gravitational/teleport/integrations/access/mattermost"
 )
 
-func mattermostInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+func Mattermost(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Delegate, error) {
 	mattermostSpec := plugin.Spec.GetMattermost()
 	if mattermostSpec == nil {
 		return nil, trace.BadParameter("field Spec.Mattermost must be present")
 	}
 
-	if len(deps.staticCredentials) == 0 {
+	if len(deps.StaticCredentials) == 0 {
 		return nil, trace.BadParameter("missing Mattermost plugin static credentials")
 	}
 
@@ -32,22 +32,22 @@ func mattermostInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps
 	}
 
 	pc := &pluginConfiguration{
-		client: deps.client,
+		client: deps.Client,
 		pluginConfig: &mattermost.Config{
 			Mattermost: mattermost.MattermostConfig{
 				URL:        mattermostSpec.ServerUrl,
-				Token:      deps.staticCredentials[0].GetAPIToken(),
+				Token:      deps.StaticCredentials[0].GetAPIToken(),
 				Recipients: recipients,
 			},
-			StatusSink: deps.statusSink,
+			StatusSink: deps.StatusSink,
 		},
 		defaultRoutes: recipients,
 		pluginType:    types.PluginTypeMattermost,
 	}
 
 	app := common.NewApp(pc, plugin.GetName())
-	return func() error {
-		err := app.Run(deps.lifetime)
+	return func(ctx context.Context) error {
+		err := app.Run(ctx)
 		return trace.Wrap(err)
 	}, nil
 }
