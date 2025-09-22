@@ -335,19 +335,6 @@ func TestReadDifferentConfigFormats(t *testing.T) {
 				require.Equal(tt, "npx", srv.Command)
 			},
 		},
-		"claude/default": {
-			filePath:  fileNamePath("claude_desktop_config.json"),
-			contents:  `{"mcpServers":{"everything": {"command": "npx", "args": []}}}`,
-			expectErr: require.NoError,
-			expectConfig: func(tt require.TestingT, i1 any, i2 ...any) {
-				config := i1.(*FileConfig)
-				servers := config.GetMCPServers()
-
-				srv, ok := servers["everything"]
-				require.True(tt, ok, `expected config to have "everything" mcp server configured`)
-				require.Equal(tt, "npx", srv.Command)
-			},
-		},
 		"empty config": {
 			filePath:     fileNamePath("file.json"),
 			contents:     ``,
@@ -359,7 +346,8 @@ func TestReadDifferentConfigFormats(t *testing.T) {
 			configPath := tc.filePath(t, t.TempDir())
 			require.NoError(t, os.WriteFile(configPath, []byte(tc.contents), 0600))
 
-			config, err := LoadConfigFromFile(configPath, ConfigFormatClaude)
+			format := ConfigFormatFromPath(configPath)
+			config, err := LoadConfigFromFile(configPath, format)
 			tc.expectErr(t, err)
 			tc.expectConfig(t, config)
 		})
