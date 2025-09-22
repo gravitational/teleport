@@ -108,9 +108,66 @@ func newDefaultConfig() *Config {
 				next:  "next_key",
 			},
 			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers": {
-				next: "next_key",
+				size:  "params", // params encodes the limit
+				token: "params", // params encodes the token
+				next:  "next_key",
 			},
 			"teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources": {
+				size:  "limit",
+				token: "start_key",
+				next:  "next_key",
+			},
+			"proto.AuthService.GetEvents": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "LastKey",
+			},
+			"proto.AuthService.ListApps": {
+				size:  "limit",
+				token: "start_key",
+				next:  "next_key",
+			},
+			"proto.AuthService.GetSessionEvents": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "LastKey",
+			},
+			"proto.AuthService.ListAccessRequests": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListProvisionTokens": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListResources": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListRoles": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListSAMLIdPServiceProviders": {
+				size:  "Limit",
+				token: "NextKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListUnifiedResources": {
+				size:  "Limit",
+				token: "StartKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListUserGroups": {
+				size:  "Limit",
+				token: "NextKey",
+				next:  "NextKey",
+			},
+			"proto.AuthService.ListWindowsDesktops": {
 				size:  "limit",
 				token: "start_key",
 				next:  "next_key",
@@ -124,69 +181,68 @@ func newDefaultConfig() *Config {
 			},
 		},
 		skips: map[protoreflect.FullName]struct{}{
-			// TODO(okraport): review the following and remove the skip:
-			"proto.AuthService.GetAccessCapabilities":                                   {},
+			// Ongoing:
+			"proto.AuthService.GetKubernetesClusters": {},
+			"proto.AuthService.GetSnowflakeSessions":  {},
+
+			// Done but needs to be deprecated:
+			"proto.AuthService.GetWindowsDesktops": {},
+
+			// TODO(okraport): Add paginated RPC alternative and deprecate:
 			"proto.AuthService.GetAccountRecoveryCodes":                                 {},
 			"proto.AuthService.GetAlertAcks":                                            {},
 			"proto.AuthService.GetClusterAlerts":                                        {},
-			"proto.AuthService.GetEvents":                                               {},
-			"proto.AuthService.GetGithubConnectors":                                     {},
 			"proto.AuthService.GetInstallers":                                           {},
-			"proto.AuthService.GetKubernetesClusters":                                   {},
 			"proto.AuthService.GetLocks":                                                {},
 			"proto.AuthService.GetMFADevices":                                           {},
 			"proto.AuthService.GetOIDCConnectors":                                       {},
 			"proto.AuthService.GetPluginData":                                           {},
 			"proto.AuthService.GetSAMLConnectors":                                       {},
 			"proto.AuthService.GetSemaphores":                                           {},
-			"proto.AuthService.GetSessionEvents":                                        {},
-			"proto.AuthService.GetSnowflakeSessions":                                    {},
 			"proto.AuthService.GetSSHTargets":                                           {},
-			"proto.AuthService.GetSSODiagnosticInfo":                                    {},
-			"proto.AuthService.GetTokens":                                               {},
 			"proto.AuthService.GetWebTokens":                                            {},
-			"proto.AuthService.GetWindowsDesktops":                                      {},
-			"proto.AuthService.GetWindowsDesktopServices":                               {},
-			"proto.AuthService.ListAccessRequests":                                      {},
-			"proto.AuthService.ListApps":                                                {},
-			"proto.AuthService.ListProvisionTokens":                                     {},
-			"proto.AuthService.ListReleases":                                            {},
-			"proto.AuthService.ListResources":                                           {},
-			"proto.AuthService.ListRoles":                                               {},
-			"proto.AuthService.ListSAMLIdPServiceProviders":                             {},
-			"proto.AuthService.ListUnifiedResources":                                    {},
-			"proto.AuthService.ListUserGroups":                                          {},
-			"proto.AuthService.ListWindowsDesktops":                                     {},
+			"proto.AuthService.ListReleases":                                            {}, //
 			"teleport.accesslist.v1.AccessListService.GetAccessListOwners":              {},
 			"teleport.accesslist.v1.AccessListService.GetAccessLists":                   {},
 			"teleport.accesslist.v1.AccessListService.GetAccessListsToReview":           {},
 			"teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists":          {},
-			"teleport.integration.v1.AWSOIDCService.ListDatabases":                      {},
-			"teleport.integration.v1.AWSOIDCService.ListDeployedDatabaseServices":       {},
-			"teleport.integration.v1.AWSOIDCService.ListEKSClusters":                    {},
-			"teleport.integration.v1.AWSOIDCService.ListSecurityGroups":                 {},
-			"teleport.integration.v1.AWSOIDCService.ListSubnets":                        {},
-			"teleport.integration.v1.AWSOIDCService.ListVPCs":                           {},
-			"teleport.kube.v1.KubeService.ListKubernetesResources":                      {},
 			"teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists":          {},
 			"teleport.okta.v1.OktaService.GetApps":                                      {},
 			"teleport.okta.v1.OktaService.GetGroups":                                    {},
 			"teleport.plugins.v1.PluginService.GetAvailablePluginTypes":                 {},
-			"teleport.plugins.v1.PluginService.SearchPluginStaticCredentials":           {},
-			"teleport.secreports.v1.SecReportsService.GetSchema":                        {},
 			"teleport.trust.v1.TrustService.GetCertAuthorities":                         {},
 			"teleport.userloginstate.v1.UserLoginStateService.GetUserLoginStates":       {},
 			"teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetClusterVersions": {},
-			"teleport.lib.teleterm.v1.TerminalService.GetAccessRequests":                {},
 			"teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles":              {},
+			"teleport.lib.teleterm.v1.TerminalService.GetAccessRequests":                {},
 			"teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources":          {},
-			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers":              {},
 			"teleport.lib.teleterm.v1.TerminalService.ListGateways":                     {},
 			"teleport.lib.teleterm.v1.TerminalService.ListRootClusters":                 {},
 			"teleport.lib.teleterm.v1.TerminalService.ListLeafClusters":                 {},
 			"teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers":                {},
 			"proto.AuthService.GetInventoryStatus":                                      {},
 
+			// TODO(okraport): Paginated but missing limit field. Fix and remove.
+			"teleport.integration.v1.AWSOIDCService.ListDatabases":                {},
+			"teleport.integration.v1.AWSOIDCService.ListDeployedDatabaseServices": {},
+			"teleport.integration.v1.AWSOIDCService.ListEKSClusters":              {},
+			"teleport.integration.v1.AWSOIDCService.ListSecurityGroups":           {},
+			"teleport.integration.v1.AWSOIDCService.ListSubnets":                  {},
+			"teleport.integration.v1.AWSOIDCService.ListVPCs":                     {},
+
+			// Client side implemented in ListWindowsDesktopServices via ListResources
+			"proto.AuthService.GetWindowsDesktopServices": {},
+
+			// RPCs unlikely to exceed grpc message limits:
+			"proto.AuthService.GetAccessCapabilities": {},
+			"proto.AuthService.GetGithubConnectors":   {},
+
+			// repeated field ViewDesc and ColumnDesc
+			"teleport.secreports.v1.SecReportsService.GetSchema": {},
+			// Returns a map.
+			"teleport.plugins.v1.PluginService.SearchPluginStaticCredentials": {},
+			// repeated AttributeMapping
+			"proto.AuthService.GetSSODiagnosticInfo": {},
 			// repeated field `schemas` in `Resource` does not require pagination.
 			"teleport.scim.v1.SCIMService.GetSCIMResource": {},
 			// `Device` message contains repeated field `DeviceCollectedData` but is not paginated.
