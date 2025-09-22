@@ -413,6 +413,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 		sort = &s
 	}
 
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), &machineidv1.ListBotInstancesRequest{
 		FilterBotName:    r.URL.Query().Get("bot_name"),
 		PageSize:         int32(pageSize),

@@ -554,6 +554,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client *authclient.C
 	}
 
 	for {
+		// TODO(nicholasmarais1158) Use ListBotInstancesV2 instead.
+		//nolint:staticcheck // SA1019
 		resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
