@@ -4,10 +4,11 @@ title: "The Teleport Infrastructure Identity Platform"
 description: Read an overview of the Teleport Access Platform. Learn how to implement Zero Trust Security across all your infrastructure for enhanced protection and streamlined access control.
 tocDepth: 3
 template: "landing-page"
-tags:
- - get-started
- - platform-wide
 ---
+
+import DocsHeader, { DocsHeaderProps } from "@site/src/components/Pages/Homepage/DocsHeader";
+import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/Resources";
+import Integrations, { IntegrationsProps } from "@site/src/components/Pages/Homepage/Integrations";
 
 import applicationSvg from "@site/src/components/Icon/teleport-svg/application.svg";
 import linuxServersSvg from "@site/src/components/Icon/teleport-svg/linux-servers.svg";
@@ -17,8 +18,16 @@ import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-d
 import autoDiscoverySvg from "@site/src/components/Icon/teleport-svg/auto-discovery.svg";
 import cloudProvidersSvg from "@site/src/components/Icon/teleport-svg/cloud-providers.svg";
 import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
-import DocsHeader, { DocsHeaderProps } from "@site/src/components/Pages/Homepage/DocsHeader";
-import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/Resources";
+import awsSvg from "@site/src/components/Icon/teleport-svg/aws.svg";
+import gcpSvg from "@site/src/components/Icon/teleport-svg/gcp.svg";
+import azureSvg from "@site/src/components/Icon/teleport-svg/azure.svg";
+import oktaSvg from "@site/src/components/Icon/teleport-svg/okta.svg";
+import slackSvg from "@site/src/components/Icon/teleport-svg/slack.svg";
+import pagerDutySvg from "@site/src/components/Icon/teleport-svg/pagerduty.svg";
+import jamfProSvg from "@site/src/components/Icon/teleport-svg/jamf-pro.svg";
+import jenkinsSvg from "@site/src/components/Icon/teleport-svg/jenkins.svg";
+import snowflakeSvg from "@site/src/components/Icon/teleport-svg/snowflake.svg";
+import arrowRightSvg from "@site/src/components/Icon/teleport-svg/arrow-right.svg";
 
 <DocsHeader
   quickActions={[
@@ -102,6 +111,70 @@ Started](./get-started.mdx) guide to enroll your first resource with Teleport.
       iconComponent: mcpAndAiSvg,
       href: './enroll-resources/mcp-access/'
     }
+  ]}
+/>
+
+<Integrations 
+  integrations={[
+    {
+      title: 'AWS',
+      href: 'https://goteleport.com/integrations#aws',
+      iconColor: '#FF99001A',
+      iconComponent: awsSvg,
+    },
+    {
+      title: 'GCP',
+      href: 'https://goteleport.com/integrations#google-cloud-platform-(gcp)',
+      iconColor: '#EA43351A',
+      iconComponent: gcpSvg,
+    },
+    {
+      title: 'Azure',
+      href: 'https://goteleport.com/integrations#microsoft-azure',
+      iconColor: '#0078D41A',
+      iconComponent: azureSvg,
+    },
+    {
+      title: 'Okta',
+      href: './identity-governance/okta/',
+      iconColor: '#0000001A',
+      iconComponent: oktaSvg,
+    },
+    {
+      title: 'Slack',
+      href: './identity-governance/access-request-plugins/',
+      iconColor: '#ECB22E1A',
+      iconComponent: slackSvg,
+    },
+    {
+      title: 'PagerDuty',
+      href: './identity-governance/access-request-plugins/',
+      iconColor: '#06AC381A',
+      iconComponent: pagerDutySvg,
+    },
+    {
+      title: 'Jamf Pro',
+      href: './identity-governance/device-trust/jamf-integration/',
+      iconColor: '#788EB11A',
+      iconComponent: jamfProSvg,
+    },
+    {
+      title: 'Jenkins',
+      href: './machine-workload-identity/machine-id/deployment/jenkins/',
+      iconColor: '#D338331A',
+      iconComponent: jenkinsSvg,
+    },
+    {
+      title: 'Snowflake',
+      href: './enroll-resources/database-access/enroll-managed-databases/snowflake/',
+      iconColor: '#29B5E81A',
+      iconComponent: snowflakeSvg,
+    }, 
+    {
+      title: 'View all Integrations',
+      href: 'https://goteleport.com/integrations',
+      iconComponent: arrowRightSvg,
+    },
   ]}
 />
 

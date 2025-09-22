@@ -335,9 +335,14 @@ export const eventCodes = {
   AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK: 'AUAR003I',
   MCP_SESSION_START: 'TMCP001I',
   MCP_SESSION_END: 'TMCP002I',
+  MCP_SESSION_END_FAILURE: 'TMCP002E',
   MCP_SESSION_REQUEST: 'TMCP003I',
   MCP_SESSION_REQUEST_FAILURE: 'TMCP003E',
   MCP_SESSION_NOTIFICATION: 'TMCP004I',
+  MCP_SESSION_NOTIFICATION_FAILURE: 'TMCP004E',
+  MCP_SESSION_LISTEN_SSE_STREAM: 'TMCP005I',
+  MCP_SESSION_LISTEN_SSE_STREAM_FAILURE: 'TMCP005E',
+  MCP_SESSION_INVALID_HTTP_REQUEST: 'TMCP006E',
   BOUND_KEYPAIR_RECOVERY: 'TBK001I',
   BOUND_KEYPAIR_ROTATION: 'TBK002I',
   BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
@@ -1956,6 +1961,12 @@ export type RawEvents = {
       app_name: string;
     }
   >;
+  [eventCodes.MCP_SESSION_END_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_END_FAILURE,
+    {
+      app_name: string;
+    }
+  >;
   [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
     typeof eventCodes.MCP_SESSION_REQUEST,
     {
@@ -1987,6 +1998,33 @@ export type RawEvents = {
       message: {
         method: string;
       };
+    }
+  >;
+  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_NOTIFICATION_FAILURE,
+    {
+      app_name: string;
+      message: {
+        method: string;
+      };
+    }
+  >;
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: RawEvent<
+    typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM,
+    {
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: RawEvent<
+    typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE,
+    {
+      app_name: string;
+    }
+  >;
+  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: RawEvent<
+    typeof eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST,
+    {
+      app_name: string;
     }
   >;
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<

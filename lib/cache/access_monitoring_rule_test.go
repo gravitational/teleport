@@ -39,27 +39,21 @@ func TestAccessMonitoringRules(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*accessmonitoringrulesv1.AccessMonitoringRule]{
 		newResource: func(name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-			return newAccessMonitoringRule(t), nil
+			return newAccessMonitoringRule(t, name), nil
 		},
 		create: func(ctx context.Context, i *accessmonitoringrulesv1.AccessMonitoringRule) error {
 			_, err := p.accessMonitoringRules.CreateAccessMonitoringRule(ctx, i)
 			return err
 		},
-		list: func(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-			results, _, err := p.accessMonitoringRules.ListAccessMonitoringRules(ctx, 0, "")
-			return results, err
-		},
-		cacheGet: p.cache.GetAccessMonitoringRule,
-		cacheList: func(ctx context.Context, _ int) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-			results, _, err := p.cache.ListAccessMonitoringRules(ctx, 0, "")
-			return results, err
-		},
+		list:      p.accessMonitoringRules.ListAccessMonitoringRules,
+		cacheGet:  p.cache.GetAccessMonitoringRule,
+		cacheList: p.cache.ListAccessMonitoringRules,
 		update: func(ctx context.Context, i *accessmonitoringrulesv1.AccessMonitoringRule) error {
 			_, err := p.accessMonitoringRules.UpdateAccessMonitoringRule(ctx, i)
 			return err
 		},
 		deleteAll: p.accessMonitoringRules.DeleteAllAccessMonitoringRules,
-	}, withSkipPaginationTest())
+	})
 }
 
 func TestListAccessMonitoringRulesWithFilter(t *testing.T) {

@@ -171,7 +171,6 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
-    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -191,6 +190,7 @@ const cfg = {
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
+    workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -501,6 +501,10 @@ const cfg = {
     botInstance: {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+    },
+
+    workloadIdentity: {
+      list: '/v1/webapi/sites/:clusterId/workload-identity',
     },
 
     gcpWorkforceConfigurePath:
@@ -839,6 +843,10 @@ const cfg = {
 
   getBotInstancesRoute() {
     return generatePath(cfg.routes.botInstances);
+  },
+
+  getWorkloadIdentitiesRoute() {
+    return generatePath(cfg.routes.workloadIdentities);
   },
 
   getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
@@ -1710,6 +1718,23 @@ const cfg = {
         });
       default:
         req satisfies never;
+        return '';
+    }
+  },
+
+  getWorkloadIdentityUrl(
+    req: {
+      action: 'list';
+    } & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.workloadIdentity.list, {
+          clusterId,
+        });
+      default:
+        req.action satisfies never;
         return '';
     }
   },

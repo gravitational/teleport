@@ -21,8 +21,10 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -86,12 +88,23 @@ type PluginsCommand struct {
 	delete      pluginDeleteArgs
 	edit        pluginEditArgs
 	rotateCreds pluginRotateCredsArgs
+
+	// optional input and output buffer
+	// for tests.
+	stdin  io.Reader
+	stdout io.Writer
 }
 
 // Initialize creates the plugins command and subcommands
 func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	p.config = config
 	p.dryRun = true
+	if p.stdin == nil {
+		p.stdin = os.Stdin
+	}
+	if p.stdout == nil {
+		p.stdout = os.Stdout
+	}
 
 	pluginsCommand := app.Command("plugins", "Manage Teleport plugins.").Hidden()
 
