@@ -41,6 +41,8 @@ message ServerHello {
   string relay_group = 2;
   int32 target_connection_count = 4;
 
+  // previously defined (but unused) in dev builds using the same protobuf
+  // package
   reserved 3;
   reserved "tunnel_public_addr";
 }
@@ -57,6 +59,8 @@ message ServerControl {
   // opening a new connection to maintain its tunnel connection count
   bool terminating = 2;
 
+  // previously defined (but unused) in dev builds using the same protobuf
+  // package
   reserved 1;
   reserved "known_relays";
 }
