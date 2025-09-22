@@ -562,7 +562,8 @@ func (t *TLSServer) stopHealthCheck(kube types.KubeCluster) error {
 // DB uses param types.Database (analgous to types.KubeCluster)
 func (t *TLSServer) getTargetHealth(ctx context.Context, kube types.KubeCluster) types.TargetHealth {
 	health, err := t.healthCheckManager.GetTargetHealth(kube)
-	t.log.DebugContext(ctx, "kube health check: getTargetHealth", "target_health", health.String())
+	// TODO(rana): CHANGE BACK TO DEBUG
+	t.log.InfoContext(ctx, "kube health check: getTargetHealth", "target_health", health.String())
 	if err == nil {
 		return *health
 	}

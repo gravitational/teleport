@@ -277,7 +277,8 @@ func (w *worker) checkHealth(ctx context.Context) {
 	w.lastResultErr = curErr
 
 	if w.lastResultErr != nil {
-		w.log.DebugContext(ctx, "Failed health check",
+		// TODO(rana): CHANGE BACK TO DEBUG
+		w.log.InfoContext(ctx, "Failed health check",
 			"error", w.lastResultErr,
 		)
 	}
@@ -305,7 +306,8 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 		w.setTargetInit(ctx)
 		return
 	}
-	w.log.DebugContext(ctx, "Updated health check config",
+	// TODO(rana): CHANGE BACK TO DEBUG
+	w.log.InfoContext(ctx, "Updated health check config",
 		"health_check_config", w.healthCheckCfg.name,
 		"interval", log.StringerAttr(w.healthCheckCfg.interval),
 		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
@@ -405,7 +407,8 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 		)
 		resourceUnhealthyGauge.WithLabelValues(w.metricType).Inc()
 	case types.TargetHealthStatusUnknown:
-		w.log.DebugContext(ctx, "Target health status is unknown",
+		// TODO(rana): CHANGE BACK TO DEBUG
+		w.log.InfoContext(ctx, "Target health status is unknown",
 			"reason", reason,
 			"message", message,
 		)

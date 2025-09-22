@@ -193,7 +193,8 @@ func (m *manager) RemoveTarget(r types.ResourceWithLabels) error {
 	}
 	delete(m.workers, key)
 	if err := worker.Close(); err != nil {
-		m.logger.DebugContext(context.Background(),
+		// TODO(rana): CHANGE BACK TO DEBUG
+		m.logger.InfoContext(context.Background(),
 			"Health checker failed to close",
 			"error", err,
 		)
@@ -243,12 +244,14 @@ func (m *manager) startConfigWatcher(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	m.logger.DebugContext(ctx, "Started health check config resource watcher")
+	// TODO(rana): CHANGE BACK TO DEBUG
+	m.logger.InfoContext(ctx, "Started health check config resource watcher")
 	var initOnce sync.Once
 	initCh := make(chan struct{})
 	go func() {
 		defer watcher.Close()
-		defer m.logger.DebugContext(ctx, "Stopped health check config resource watcher")
+		// TODO(rana): CHANGE BACK TO DEBUG
+		defer m.logger.InfoContext(ctx, "Stopped health check config resource watcher")
 		for {
 			select {
 			case configs := <-watcher.ResourcesC:
