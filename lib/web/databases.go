@@ -32,10 +32,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
+	apiclient "github.com/gravitational/teleport/api/client"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -486,6 +489,44 @@ func (h *Handler) dbConnect(
 	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
+		Namespace:           apidefaults.Namespace,
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, req.ServiceName),
+		Limit:               1,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var db types.Database
+	if len(databases) > 0 {
+		db = databases[0].GetDatabase()
+	}
+	if db != nil && db.GetProtocol() == req.Protocol {
+		// As a convenience, we will append the `@<project-id>.iam` suffix to a username
+		// when connecting to Postgres GCP databases and the domain is missing.
+		//
+		// Commonly, the service account and the database share the same project ID,
+		// which means we can try to guess the intended suffix.
+		//
+		// This is only applied for Postgres (CloudSQL Postgres or AlloyDB) because:
+		// - CloudSQL MySQL still supports "classical" (one-time password) users;
+		//   otherwise it would have used the `@<project>.iam.gserviceaccount.com` suffix.
+		// - Spanner applies the `@<project>.iam.gserviceaccount.com` suffix directly in the engine.
+		if db.GetProtocol() == defaults.ProtocolPostgres &&
+			req.DatabaseUser != "" && !strings.Contains(req.DatabaseUser, "@") &&
+			db.IsGCPHosted() {
+			projectID, err := db.GetGCPProjectID()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			updated := fmt.Sprintf("%s@%s.iam", strings.TrimSpace(req.DatabaseUser), projectID)
+			log.DebugContext(ctx, "Adding default project suffix for IAM principal", "original", req.DatabaseUser, "updated", updated)
+			req.DatabaseUser = updated
+		}
 	}
 
 	sess, err := newDatabaseInteractiveSession(ctx, databaseInteractiveSessionConfig{
