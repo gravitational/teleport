@@ -56,6 +56,21 @@ func Run[T any](ctx context.Context, events <-chan T, fn func(batch []T) error, 
 	return trace.Wrap(collector.Run(ctx, events, fn))
 }
 
+// RunWithState is like Run but also provides the current State to the processing function.
+// The state is managed by the provided StateMonitor and updated based on the batch size.
+func RunWithState[T any](
+	ctx context.Context,
+	events <-chan T,
+	fn func(batch []T, state State) error,
+	stateManager *StateMonitor,
+	opts ...Option,
+) error {
+	return trace.Wrap(Run(ctx, events, func(batch []T) error {
+		currentState := stateManager.UpdateState(len(batch))
+		return trace.Wrap(fn(batch, currentState))
+	}, opts...))
+}
+
 // Iter allows to iterate over batches of events.
 func Iter[T any](ctx context.Context, events <-chan T, opts ...Option) iter.Seq2[[]T, error] {
 	collector := New[T](opts...)
@@ -82,7 +97,6 @@ func WithWindow(d time.Duration) Option {
 }
 
 // WithThreshold sets the maximum number of events per batch.
-// Default is unlimited (bounded only by window duration).
 func WithThreshold(n int) Option {
 	return func(c *config) {
 		if n > 0 {
