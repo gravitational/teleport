@@ -4733,6 +4733,10 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkForTeleportManagedResourceLabel(RoleActionCreate, role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := a.validateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4762,6 +4766,10 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 	}
 
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkForTeleportManagedResourceLabel(RoleActionUpdate, role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4799,6 +4807,16 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) (type
 	// Support reused MFA for bulk tctl create requests.
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if oldRole != nil {
+		if err := checkForTeleportManagedResourceLabel(RoleActionUpdate, role); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := checkForTeleportManagedResourceLabel(RoleActionCreate, role); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err := a.validateRole(role); err != nil {
@@ -4891,6 +4909,10 @@ func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
 	}
 
 	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkForTeleportManagedResourceLabel(RoleActionDelete, role); err != nil {
 		return trace.Wrap(err)
 	}
 

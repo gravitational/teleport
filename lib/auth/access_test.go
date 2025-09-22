@@ -20,6 +20,7 @@ package auth_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"slices"
 	"testing"
@@ -1166,4 +1167,100 @@ func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	err = p.a.DeleteLock(ctx, lock.GetName())
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, p.mockEmitter.LastEvent())
+}
+
+func TestUpdateRoleWithTeleportManagedResourceLabel(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create an admin user.
+	admin, _, err := authtest.CreateUserAndRole(srv.Auth(), "admin", nil, nil)
+	require.NoError(t, err)
+	client, err := srv.NewClient(authtest.TestUser(admin.GetName()))
+	require.NoError(t, err)
+
+	role, err := types.NewRole("test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	role.SetStaticLabels(map[string]string{types.TeleportManagedResourceLabel: "val-does-not-matter"})
+	require.Empty(t, role.GetAWSRoleARNs(types.Allow))
+
+	// User create with label should fail.
+	_, err = client.CreateRole(ctx, role)
+	require.EqualError(t, err, fmt.Sprintf("label %q is a Teleport reserved label and cannot be used", types.TeleportManagedResourceLabel))
+
+	// System create should not fail.
+	createdRole, err := srv.Auth().CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	// User update should fail.
+	createdRole.SetAWSRoleARNs(types.Allow, []string{"something"})
+	_, err = client.UpdateRole(ctx, createdRole)
+	require.EqualError(t, err, `"test-role" is a Teleport managed role and cannot be modified`)
+
+	// System update should not fail.
+	updatedRole, err := srv.Auth().UpdateRole(ctx, createdRole)
+	require.NoError(t, err)
+	require.ElementsMatch(t, updatedRole.GetAWSRoleARNs(types.Allow), createdRole.GetAWSRoleARNs(types.Allow))
+}
+
+func TestUpsertRoleWithTeleportManagedResourceLabel(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create an admin user.
+	admin, _, err := authtest.CreateUserAndRole(srv.Auth(), "admin", nil, nil)
+	require.NoError(t, err)
+	client, err := srv.NewClient(authtest.TestUser(admin.GetName()))
+	require.NoError(t, err)
+
+	role, err := types.NewRole("test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	role.SetStaticLabels(map[string]string{types.TeleportManagedResourceLabel: "val-does-not-matter"})
+	require.Empty(t, role.GetAWSRoleARNs(types.Allow))
+
+	// User create with label should fail.
+	_, err = client.UpsertRole(ctx, role)
+	require.EqualError(t, err, fmt.Sprintf("label %q is a Teleport reserved label and cannot be used", types.TeleportManagedResourceLabel))
+
+	// System create should not fail.
+	createdRole, err := srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// User update should fail.
+	createdRole.SetAWSRoleARNs(types.Allow, []string{"something"})
+	_, err = client.UpsertRole(ctx, createdRole)
+	require.EqualError(t, err, `"test-role" is a Teleport managed role and cannot be modified`)
+
+	// System update should not fail.
+	updatedRole, err := srv.Auth().UpsertRole(ctx, createdRole)
+	require.NoError(t, err)
+	require.ElementsMatch(t, updatedRole.GetAWSRoleARNs(types.Allow), createdRole.GetAWSRoleARNs(types.Allow))
+}
+
+func TestDeleteRoleWithTeleportManagedResourceLabel(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create an admin user.
+	admin, _, err := authtest.CreateUserAndRole(srv.Auth(), "admin", nil, nil)
+	require.NoError(t, err)
+	client, err := srv.NewClient(authtest.TestUser(admin.GetName()))
+	require.NoError(t, err)
+
+	role, err := types.NewRole("test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	role.SetStaticLabels(map[string]string{types.TeleportManagedResourceLabel: "val-does-not-matter"})
+	require.Empty(t, role.GetAWSRoleARNs(types.Allow))
+
+	createdRole, err := srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// User delete should fail.
+	createdRole.SetAWSRoleARNs(types.Allow, []string{"something"})
+	err = client.DeleteRole(ctx, createdRole.GetName())
+	require.EqualError(t, err, `"test-role" is a Teleport managed role and cannot be deleted`)
+
+	// System delete should not fail.
+	err = srv.Auth().DeleteRole(ctx, createdRole.GetName())
+	require.NoError(t, err)
 }

@@ -33,6 +33,39 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 )
 
+type RoleAction string
+
+const (
+	RoleActionDelete RoleAction = "delete"
+	RoleActionUpdate RoleAction = "update"
+	RoleActionCreate RoleAction = "create"
+)
+
+// checkForTeleportManagedResourceLabel checks for the label
+// types.TeleportManagedResourceLabel which is not allowed
+// to be used or prevent modifications if that label exists.
+func checkForTeleportManagedResourceLabel(action RoleAction, role types.Role) error {
+	if role == nil {
+		return nil
+	}
+
+	_, exists := role.GetLabel(types.TeleportManagedResourceLabel)
+	if !exists {
+		return nil
+	}
+
+	switch action {
+	case RoleActionCreate:
+		return trace.AccessDenied("label %q is a Teleport reserved label and cannot be used", types.TeleportManagedResourceLabel)
+	case RoleActionUpdate:
+		return trace.AccessDenied("%q is a Teleport managed role and cannot be modified", role.GetMetadata().Name)
+	case RoleActionDelete:
+		return trace.AccessDenied("%q is a Teleport managed role and cannot be deleted", role.GetMetadata().Name)
+	}
+
+	return nil
+}
+
 // CreateRole creates a role and emits a related audit event.
 func (a *Server) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
 	created, err := a.Services.CreateRole(ctx, role)

@@ -1173,6 +1173,11 @@ const (
 	// number to aid future migrations. Label value is expected to be a number.
 	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
 
+	// TeleportManagedResourceLabel is a label used to identity a resource that
+	// is managed by other Teleport resource. Roles with this label will not
+	// be modifiable by users even with RBAC.
+	TeleportManagedResourceLabel = TeleportInternalLabelPrefix + "managed-by"
+
 	// SystemResource are resources that will be automatically created and overwritten on startup. Users
 	// should not change these resources.
 	SystemResource = "system"
