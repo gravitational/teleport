@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import {
   Cluster,
-  LoggedInUser,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
@@ -44,17 +42,7 @@ import { ImmutableStore } from '../immutableStore';
 const { routing } = uri;
 
 type ClustersServiceState = {
-  clusters: Map<
-    uri.ClusterUri,
-    Cluster & {
-      // TODO(gzdunek): Remove assumedRequests from loggedInUser.
-      // The AssumedRequest objects are needed only in AssumedRolesBar.
-      // We should be able to move fetching them there.
-      loggedInUser?: LoggedInUser & {
-        assumedRequests?: Record<string, AccessRequest>;
-      };
-    }
-  >;
+  clusters: Map<uri.ClusterUri, Cluster>;
   gateways: Map<uri.GatewayUri, Gateway>;
 };
 
@@ -546,12 +534,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     });
   }
 
-  async removeKubeConfig(kubeConfigRelativePath: string): Promise<void> {
-    return this.mainProcessClient.removeKubeConfig({
-      relativePath: kubeConfigRelativePath,
-    });
-  }
-
   useState() {
     return useStore(this).state;
   }
@@ -561,23 +543,8 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       const { response: cluster } = await this.client.getCluster({
         clusterUri,
       });
-      // TODO: this information should eventually be gathered by getCluster
-      const assumedRequests = cluster.loggedInUser
-        ? await this.fetchClusterAssumedRequests(
-            cluster.loggedInUser.activeRequests,
-            clusterUri
-          )
-        : undefined;
-      const mergeAssumedRequests = (cluster: Cluster) => ({
-        ...cluster,
-        loggedInUser: cluster.loggedInUser && {
-          ...cluster.loggedInUser,
-          assumedRequests,
-        },
-      });
-
       this.setState(draft => {
-        draft.clusters.set(clusterUri, mergeAssumedRequests(cluster));
+        draft.clusters.set(clusterUri, cluster);
       });
     } catch (error) {
       this.setState(draft => {
@@ -594,32 +561,4 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       throw error;
     }
   }
-
-  private async fetchClusterAssumedRequests(
-    activeRequestsList: string[],
-    clusterUri: uri.RootClusterUri
-  ) {
-    return (
-      await Promise.all(
-        activeRequestsList.map(requestId =>
-          this.getAccessRequest(clusterUri, requestId)
-        )
-      )
-    ).reduce((requestsMap, request) => {
-      requestsMap[request.id] = request;
-      return requestsMap;
-    }, {});
-  }
-}
-
-// A workaround to always return the same object so useEffect that relies on it
-// doesn't go into an endless loop.
-const EMPTY_ASSUMED_REQUESTS = {};
-
-export function getAssumedRequests(
-  state: ClustersServiceState,
-  rootClusterUri: uri.RootClusterUri
-): Record<string, AccessRequest> {
-  const cluster = state.clusters.get(rootClusterUri);
-  return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
 }
