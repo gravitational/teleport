@@ -245,7 +245,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			return nil, trace.Wrap(err)
 		}
 		if err := resp.Body.Close(); err != nil {
-			c.logger.WarnContext(req.Context(), "Failed to close http.Responde body", "error", err)
+			c.logger.WarnContext(req.Context(), "Failed to close http.Response body", "error", err)
 		}
 
 		c.logger.DebugContext(req.Context(), "Request failed",
