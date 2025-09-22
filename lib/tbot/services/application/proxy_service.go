@@ -44,6 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// ProxyServiceBuilder returns the service builder used to construct the
+// ProxyService during bot startup.
 func ProxyServiceBuilder(
 	cfg *ProxyServiceConfig,
 	connCfg connection.Config,
@@ -95,6 +97,7 @@ type ProxyService struct {
 	alpnUpgradeRequired bool
 }
 
+// Run runs the service until the context is closed or an error occurs.
 func (s *ProxyService) Run(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "ProxyService/Run")
 	defer span.End()
@@ -193,6 +196,7 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	}
 }
 
+// String returns a human friendly representation of the service.
 func (s *ProxyService) String() string {
 	return cmp.Or(
 		s.cfg.Name,
