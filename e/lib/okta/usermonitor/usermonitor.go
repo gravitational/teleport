@@ -1,4 +1,4 @@
-package auth
+package usermontior
 
 import (
 	"context"
@@ -30,8 +30,8 @@ const (
 	userMonitorReconcile = 10 * time.Minute
 )
 
-// UserMonitorConfig is the configuration for the user monitor.
-type UserMonitorConfig struct {
+// Config is the configuration for the user monitor.
+type Config struct {
 	// Logger is the logger for the user monitor.
 	Logger *slog.Logger
 
@@ -48,7 +48,7 @@ type UserMonitorConfig struct {
 	Backend backend.Backend
 }
 
-func (u *UserMonitorConfig) CheckAndSetDefaults() error {
+func (u *Config) CheckAndSetDefaults() error {
 	if u.Logger == nil {
 		u.Logger = slog.With(teleport.ComponentKey, eteleport.ComponentUserMonitor)
 	}
@@ -96,7 +96,7 @@ type UserMonitor struct {
 	backend        backend.Backend
 }
 
-func NewUserMonitor(cfg UserMonitorConfig) (*UserMonitor, error) {
+func New(cfg Config) (*UserMonitor, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -259,7 +259,7 @@ func (u *UserMonitor) runWatcher(ctx context.Context) {
 			return
 		}
 
-		logger.WarnContext(ctx, "Watcher closed, backing off before creating another watcher", "error", err, "backoff_interval", userMonitorRetryPeriod)
+		u.logger.WarnContext(ctx, "Watcher closed, backing off before creating another watcher", "error", err, "backoff_interval", userMonitorRetryPeriod)
 
 		select {
 		case <-u.clock.After(userMonitorRetryPeriod):

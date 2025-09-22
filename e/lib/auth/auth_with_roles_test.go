@@ -3,13 +3,16 @@ package auth
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudv1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -259,4 +262,73 @@ func TestCreateContact(t *testing.T) {
 		resp, err := suite.cloudWithRoles.CreateContact(ctx, tc.req)
 		tc.assert(t, resp, err, suite.emitter.in)
 	}
+}
+
+func newUser(t *testing.T, name string, userType types.UserType, roles ...string) types.User {
+	t.Helper()
+
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+
+	if userType == types.UserTypeSSO {
+		user.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{
+				Type: "dummy",
+			},
+		})
+	}
+
+	for _, role := range roles {
+		user.AddRole(role)
+	}
+
+	return user
+}
+
+func newAccessList(t *testing.T, name string, roleGrants []string) *accesslist.AccessList {
+	t.Helper()
+
+	accessList, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: name,
+		},
+		accesslist.Spec{
+			Title: "title",
+			Owners: []accesslist.Owner{
+				{
+					Name: "test-user1",
+				},
+			},
+			Audit: accesslist.Audit{
+				NextAuditDate: time.Now().Add(365 * 24 * time.Hour),
+			},
+			MembershipRequires: accesslist.Requires{},
+			OwnershipRequires:  accesslist.Requires{},
+			Grants: accesslist.Grants{
+				Roles: roleGrants,
+			},
+		},
+	)
+	require.NoError(t, err)
+	return accessList
+}
+
+func newAccessListMember(t *testing.T, accessList, name string) *accesslist.AccessListMember {
+	t.Helper()
+
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: name,
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: accessList,
+			Name:       name,
+			Joined:     time.Now(),
+			Expires:    time.Now().Add(time.Hour * 24),
+			Reason:     "a reason",
+			AddedBy:    "dummy",
+		},
+	)
+	require.NoError(t, err)
+	return member
 }

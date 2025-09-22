@@ -1,4 +1,4 @@
-package auth
+package usermontior
 
 import (
 	"context"
@@ -627,7 +627,7 @@ func newUserMonitorService(t *testing.T) *UserMonitor {
 	})
 	require.NoError(t, err)
 
-	svc, err := NewUserMonitor(UserMonitorConfig{
+	svc, err := New(Config{
 		AuthServer: as.AuthServer,
 		Events:     as.AuthServer,
 		Backend:    as.Backend,
