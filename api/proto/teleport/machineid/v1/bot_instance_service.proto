@@ -108,7 +108,10 @@ service BotInstanceService {
   // GetBotInstance returns the specified BotInstance resource.
   rpc GetBotInstance(GetBotInstanceRequest) returns (BotInstance);
   // ListBotInstances returns a page of BotInstance resources.
-  rpc ListBotInstances(ListBotInstancesRequest) returns (ListBotInstancesResponse);
+  // Deprecated: Use ListBotInstancesV2 instead
+  rpc ListBotInstances(ListBotInstancesRequest) returns (ListBotInstancesResponse) {
+    option deprecated = true;
+  }
   // ListBotInstancesV2 returns a page of BotInstance resources.
   rpc ListBotInstancesV2(ListBotInstancesV2Request) returns (ListBotInstancesResponse);
   // DeleteBotInstance hard deletes the specified BotInstance resource.

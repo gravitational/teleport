@@ -508,10 +508,10 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"instanceId\"i\n" +
 	"\x16SubmitHeartbeatRequest\x12O\n" +
 	"\theartbeat\x18\x01 \x01(\v21.teleport.machineid.v1.BotInstanceStatusHeartbeatR\theartbeat\"\x19\n" +
-	"\x17SubmitHeartbeatResponse2\xb6\x04\n" +
+	"\x17SubmitHeartbeatResponse2\xbb\x04\n" +
 	"\x12BotInstanceService\x12b\n" +
-	"\x0eGetBotInstance\x12,.teleport.machineid.v1.GetBotInstanceRequest\x1a\".teleport.machineid.v1.BotInstance\x12s\n" +
-	"\x10ListBotInstances\x12..teleport.machineid.v1.ListBotInstancesRequest\x1a/.teleport.machineid.v1.ListBotInstancesResponse\x12w\n" +
+	"\x0eGetBotInstance\x12,.teleport.machineid.v1.GetBotInstanceRequest\x1a\".teleport.machineid.v1.BotInstance\x12x\n" +
+	"\x10ListBotInstances\x12..teleport.machineid.v1.ListBotInstancesRequest\x1a/.teleport.machineid.v1.ListBotInstancesResponse\"\x03\x88\x02\x01\x12w\n" +
 	"\x12ListBotInstancesV2\x120.teleport.machineid.v1.ListBotInstancesV2Request\x1a/.teleport.machineid.v1.ListBotInstancesResponse\x12\\\n" +
 	"\x11DeleteBotInstance\x12/.teleport.machineid.v1.DeleteBotInstanceRequest\x1a\x16.google.protobuf.Empty\x12p\n" +
 	"\x0fSubmitHeartbeat\x12-.teleport.machineid.v1.SubmitHeartbeatRequest\x1a..teleport.machineid.v1.SubmitHeartbeatResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
