@@ -1035,17 +1035,17 @@
     },
     {
       "source": "/admin-guides/infrastructure-as-code/terraform-starter/enroll-resources/",
-      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
       "permanent": true
     },
     {
       "source": "/admin-guides/infrastructure-as-code/terraform-starter/rbac/",
-      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/rbac/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
       "permanent": true
     },
     {
       "source": "/admin-guides/infrastructure-as-code/terraform-starter/",
-      "destination": "/zero-trust-access/infrastructure-as-code/terraform-starter/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
       "permanent": true
     },
     {
@@ -2281,6 +2281,26 @@
     {
       "source": "/reference/workload-identity/",
       "destination": "/reference/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/aws-console-without-agent/",
+      "destination": "/enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/terraform-starter/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/terraform-starter/enroll-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/infrastructure-as-code/terraform-starter/rbac/",
+      "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
       "permanent": true
     }
   ]
