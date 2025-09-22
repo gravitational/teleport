@@ -111,13 +111,14 @@ func (l *Limiter) withLock(ctx context.Context, call func() error) error {
 			SemaphoreKind: types.SemaphoreKindAccessMonitoringLimiter,
 			SemaphoreName: l.Name,
 			MaxLeases:     1,
-			Expires:       l.Clock.Now().Add(time.Minute),
 		},
 		Retry: retryutils.LinearConfig{
 			Step:  time.Second,
 			Max:   time.Second,
 			Clock: l.Clock,
 		},
+		TTL: time.Minute,
+		Now: l.Clock.Now,
 	})
 	if err != nil {
 		return trace.Wrap(err)

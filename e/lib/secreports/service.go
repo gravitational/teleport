@@ -360,13 +360,14 @@ func (s *Service) acquireRunningPhase(ctx context.Context, executionName string,
 			SemaphoreKind: types.KindSecurityReportState,
 			SemaphoreName: executionName,
 			MaxLeases:     1,
-			Expires:       s.clock.Now().Add(time.Minute),
 		},
 		Retry: retryutils.LinearConfig{
 			Step:  time.Second,
 			Max:   time.Second,
 			Clock: s.clock,
 		},
+		TTL: time.Minute,
+		Now: s.clock.Now,
 	})
 	if err != nil {
 		return false, trace.Wrap(err)
