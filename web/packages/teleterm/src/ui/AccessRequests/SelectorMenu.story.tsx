@@ -197,12 +197,14 @@ function ShowState({
       'connection error: desc = "transport: Error while dialing: failed to dial: unable to establish proxy stream\\n\\trpc error: code = Unavailable desc'
     );
   };
+  appContext.tshd.getAccessRequest = input => {
+    return new MockedUnaryCall({
+      request: assumedRequests.find(a => a.id === input.accessRequestId),
+    });
+  };
   appContext.clustersService.setState(draftState => {
-    draftState.clusters.get(rootCluster.uri).loggedInUser.assumedRequests =
-      assumedRequests.reduce((requestsMap, request) => {
-        requestsMap[request.id] = request;
-        return requestsMap;
-      }, {});
+    draftState.clusters.get(rootCluster.uri).loggedInUser.activeRequests =
+      assumedRequests.map(a => a.id);
   });
 
   useLayoutEffect(() => {

@@ -22,6 +22,7 @@ import { useEffect } from 'react';
 
 import { render } from 'design/utils/testing';
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeAccessRequest,
   makeRootCluster,
@@ -47,10 +48,15 @@ test('assuming or dropping a request refreshes resources', async () => {
   jest.spyOn(appContext.clustersService, 'dropRoles');
   const refreshListener = jest.fn();
   const accessRequest = makeAccessRequest();
+  appContext.tshd.getAccessRequest = () => {
+    return new MockedUnaryCall({
+      request: accessRequest,
+    });
+  };
   appContext.clustersService.setState(draftState => {
-    draftState.clusters.get(cluster.uri).loggedInUser.assumedRequests = {
-      [accessRequest.id]: accessRequest,
-    };
+    draftState.clusters.get(cluster.uri).loggedInUser.activeRequests = [
+      accessRequest.id,
+    ];
   });
 
   render(
@@ -80,6 +86,46 @@ test('assuming or dropping a request refreshes resources', async () => {
     [accessRequest.id]
   );
   expect(refreshListener).toHaveBeenCalledTimes(1);
+});
+
+test('displays the request ID if assumed request details cannot be fetched', async () => {
+  const appContext = new MockAppContext();
+  const cluster = makeRootCluster({
+    features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
+  });
+  appContext.addRootCluster(cluster);
+  jest.spyOn(appContext.clustersService, 'dropRoles');
+  appContext.tshd.getAccessRequest = () => {
+    return new MockedUnaryCall(undefined, new Error('Request does not exist'));
+  };
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.get(cluster.uri).loggedInUser.activeRequests = [
+      'some-id',
+    ];
+  });
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <ResourcesContextProvider>
+        <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
+          <AccessRequestsContextProvider rootClusterUri={cluster.uri}>
+            <SelectorMenu />
+          </AccessRequestsContextProvider>
+        </MockWorkspaceContextProvider>
+      </ResourcesContextProvider>
+    </MockAppContextProvider>
+  );
+
+  const accessRequestsMenu = await screen.findByTitle('Access Requests');
+  await userEvent.click(accessRequestsMenu);
+
+  const item = await screen.findByText('some-id');
+  await userEvent.click(item);
+  expect(appContext.clustersService.dropRoles).toHaveBeenCalledTimes(1);
+  expect(appContext.clustersService.dropRoles).toHaveBeenCalledWith(
+    cluster.uri,
+    ['some-id']
+  );
 });
 
 function RequestRefreshSubscriber(props: {
