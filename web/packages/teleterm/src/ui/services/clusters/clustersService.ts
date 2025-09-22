@@ -277,13 +277,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return response.clusters;
   }
 
-  /** @deprecated Use getAssumedRequests function instead of the method on ClustersService. */
-  getAssumedRequests(
-    rootClusterUri: uri.RootClusterUri
-  ): Record<string, AccessRequest> {
-    return getAssumedRequests(this.state, rootClusterUri);
-  }
-
   /** Assumes roles for the given requests. */
   async assumeRoles(
     rootClusterUri: uri.RootClusterUri,
