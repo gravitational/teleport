@@ -1352,7 +1352,7 @@ func prepareToReceiveSessionID(ctx context.Context, log *slog.Logger, nc *client
 	var gotSessionID atomic.Bool
 	sessionIDFromServer := make(chan session.ID, 1)
 
-	nc.Client.HandleRequests(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+	nc.Client.HandleSessionRequests(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
 		// only handle the first session ID request
 		if gotSessionID.Load() {
 			return
