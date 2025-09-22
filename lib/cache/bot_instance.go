@@ -191,7 +191,5 @@ func keyForBotInstanceHostnameIndex(botInstance *machineidv1.BotInstance) string
 		hostname = heartbeat.GetHostname()
 	}
 	hostname = hostname + "/" + botInstance.GetMetadata().GetName()
-	return unpaddedBase32hex.EncodeToString([]byte(hostname))
+	return base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(hostname))
 }
-
-var unpaddedBase32hex = base32.HexEncoding.WithPadding(base32.NoPadding)

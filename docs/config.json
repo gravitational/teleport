@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.1.8",
+      "version": "18.2.0",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2282,6 +2282,11 @@
     {
       "source": "/reference/workload-identity/",
       "destination": "/reference/machine-workload-identity/workload-identity/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/cloud-apis/aws-console-without-agent/",
+      "destination": "/enroll-resources/application-access/cloud-apis/aws-console-roles-anywhere/",
       "permanent": true
     }
   ]

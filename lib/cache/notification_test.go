@@ -44,7 +44,7 @@ func TestUserNotifications(t *testing.T) {
 		list:      p.notifications.ListUserNotifications,
 		cacheList: p.cache.ListUserNotifications,
 		deleteAll: p.notifications.DeleteAllUserNotifications,
-	}, withSkipPaginationTest())
+	})
 }
 
 // TestGlobalNotifications tests that CRUD operations on global notification resources are
@@ -66,5 +66,5 @@ func TestGlobalNotifications(t *testing.T) {
 		list:      p.notifications.ListGlobalNotifications,
 		cacheList: p.cache.ListGlobalNotifications,
 		deleteAll: p.notifications.DeleteAllGlobalNotifications,
-	}, withSkipPaginationTest())
+	})
 }

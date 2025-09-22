@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -1132,6 +1133,24 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			_, err := os.Stat(filepath.Join(tmpDir, fileName))
 			require.NoError(t, err)
 		}
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// We need to wait for the agent to be fully connected to the Proxy
+	// (e.g. visible in the reverse tunnel server) otherwise dials to it may
+	// result in "direct dialing to nodes not found in inventory is not
+	// supported".
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := process.GetReverseTunnelServer()
+		require.NoError(t, err)
+		cluster, err := rts.Cluster(ctx, "root")
+		require.NoError(t, err)
+		nw, err := cluster.NodeWatcher()
+		require.NoError(t, err)
+		got, err := nw.CurrentResourcesWithFilter(ctx, func(r readonly.Server) bool {
+			return r.GetHostname() == "server01"
+		})
+		require.NoError(t, err)
+		require.Len(t, got, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	targets := []string{

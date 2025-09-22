@@ -23,13 +23,12 @@ import (
 
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	
-	"github.com/gravitational/teleport/integrations/lib/backoff"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/workloadidentity/v1"
 )
@@ -104,14 +103,24 @@ func (r resourceTeleportWorkloadIdentity) Create(ctx context.Context, req tfsdk.
 		var workloadIdentityI *workloadidentityv1.WorkloadIdentity
 	// Try getting the resource until it exists.
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		workloadIdentityI, err = r.p.Client.GetWorkloadIdentity(ctx, id)
 		if trace.IsNotFound(err) {
-			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(err), "workload_identity"))
+		    select {
+			case <-ctx.Done():
+			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(ctx.Err()), "workload_identity"))
 				return
+			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading WorkloadIdentity (tried %d times) - state outdated, please import resource", tries)
@@ -227,7 +236,15 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 		var workloadIdentityI *workloadidentityv1.WorkloadIdentity
 
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		workloadIdentityI, err = r.p.Client.GetWorkloadIdentity(ctx, name)
@@ -239,9 +256,11 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 			break
 		}
 
-		if err := backoff.Do(ctx); err != nil {
-			resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(err), "workload_identity"))
+		select {
+		case <-ctx.Done():
+		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading WorkloadIdentity", trace.Wrap(ctx.Err()), "workload_identity"))
 			return
+		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading WorkloadIdentity (tried %d times) - state outdated, please import resource", tries)

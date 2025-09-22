@@ -83,7 +83,6 @@ export function BotInstancesList({
         serversideSearchPanel: (
           <SearchPanel
             updateSearch={onSearchChange}
-            updateQuery={null}
             hideAdvancedSearch={true}
             filter={{ search: searchTerm }}
             disableSearch={fetchStatus !== ''}

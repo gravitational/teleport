@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { EmptyState } from './EmptyState/EmptyState';
-
-export default {
-  title: 'Teleport/WorkloadIdentity',
+export type ListWorkloadIdentitiesResponse = {
+  items: WorkloadIdentity[] | null;
+  next_page_token: string | null | undefined;
 };
 
-export const Empty = () => {
-  return <EmptyState />;
+export type WorkloadIdentity = {
+  name: string;
+  spiffe_id: string | null | undefined;
+  labels: Record<string, string> | null | undefined;
+  spiffe_hint: string | null | undefined;
 };

@@ -139,7 +139,7 @@ func (p *expectedLeafClusters) GetLastConnected() time.Time {
 }
 
 func (p *expectedLeafClusters) DialAuthServer(reversetunnelclient.DialParams) (net.Conn, error) {
-	return nil, trace.ConnectionProblem(nil, "unable to dial to auth server, this proxy has not been discovered yet, try again later")
+	return nil, trace.ConnectionProblem(nil, "unable to dial auth server in leaf cluster %q, the leaf cluster has not established all tunnels yet, try again later", p.clusterName)
 }
 
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
@@ -150,7 +150,7 @@ func (p *expectedLeafClusters) Dial(params reversetunnelclient.DialParams) (conn
 }
 
 func (p *expectedLeafClusters) DialTCP(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
-	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy has not been discovered yet, try again later")
+	return nil, trace.ConnectionProblem(nil, "unable to dial %s in leaf cluster %q, the leaf cluster has not established all tunnels yet, try again later", params.String(), p.clusterName)
 }
 
 // IsClosed always returns false because expectedLeafCluster is never closed.
@@ -197,20 +197,26 @@ func (s *expectedLeafCluster) setConnInfo(ci types.TunnelConnection) {
 	s.connInfo = ci
 }
 
+func (s *expectedLeafCluster) discoveryError(msg string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return trace.ConnectionProblem(nil, "%s, the leaf cluster %q has not established all tunnels yet, try again later", msg, s.connInfo.GetClusterName())
+}
+
 func (s *expectedLeafCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
-	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
+	return nil, s.discoveryError("unable to fetch access point for leaf cluster")
 }
 
 func (s *expectedLeafCluster) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
+	return nil, s.discoveryError("unable to fetch node watcher for leaf cluster")
 }
 
 func (s *expectedLeafCluster) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	return nil, trace.ConnectionProblem(nil, "unable to fetch git server watcher, this proxy %v has not been discovered yet, try again later", s)
+	return nil, s.discoveryError("unable to fetch git server watcher for leaf cluster")
 }
 
 func (s *expectedLeafCluster) GetClient() (authclient.ClientI, error) {
-	return nil, trace.ConnectionProblem(nil, "unable to fetch client, this proxy %v has not been discovered yet, try again later", s)
+	return nil, s.discoveryError("unable to fetch auth client for leaf cluster")
 }
 
 func (s *expectedLeafCluster) String() string {
@@ -241,7 +247,7 @@ func (s *expectedLeafCluster) GetLastConnected() time.Time {
 // located in a leaf clsuter, the connection goes through the
 // reverse proxy tunnel.
 func (s *expectedLeafCluster) Dial(params reversetunnelclient.DialParams) (conn net.Conn, err error) {
-	return nil, trace.ConnectionProblem(nil, "unable to dial, this proxy %v has not been discovered yet, try again later", s)
+	return nil, s.discoveryError("unable to dial target")
 }
 
 // Close is a noop.

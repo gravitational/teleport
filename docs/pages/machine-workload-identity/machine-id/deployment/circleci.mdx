@@ -134,7 +134,7 @@ Create `tbot.yaml` within your repository:
 
 ```yaml
 version: v2
-proxy_server: example.teleport.sh:443
+proxy_server: <Var name="example.teleport.sh"/>:443
 onboarding:
   join_method: circleci
   token: example-bot
@@ -147,7 +147,7 @@ outputs: []
 
 Replace:
 
-- `example.teleport.sh:443` with the address of your Teleport Proxy or
+- <Var name="example.teleport.sh"/> with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step
 
@@ -172,10 +172,7 @@ jobs:
       - run:
           name: "Install Teleport"
           command: |
-            cd /tmp
-            curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-            tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-            sudo ./teleport/install
+            curl "https://<Var name="example.teleport.sh"/>:443/scripts/install.sh" | sudo bash
       - run:
           name: "Run Machine ID"
           command: |
@@ -188,6 +185,8 @@ workflows:
           context:
             - teleport-access
 ```
+
+Replace <Var name="example.teleport.sh"/> with the address of your Teleport Proxy Service.
 
 `TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
 telemetry. This helps us shape the future development of `tbot`. You can disable
