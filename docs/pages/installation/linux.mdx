@@ -278,7 +278,10 @@ out-of-date, become incompatible with the cluster, and eventually disconnect.
    # Install dnf config-manager
    $ sudo yum install -y yum-utils
    # Use the dnf config manager plugin to add the teleport RPM repo
-   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport.repo")"
+   # Fedora 40 or earlier 
+   # sudo dnf config-manager --add-repo "$(rpm --eval "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport.repo")"
+   # Fedora 41 or later
+   $ sudo dnf config-manager addrepo --overwrite --from-repofile="$(rpm --eval "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${TELEPORT_CHANNEL?}/teleport.repo")"
 
    # Install teleport
    $ sudo dnf install ${TELEPORT_PKG}

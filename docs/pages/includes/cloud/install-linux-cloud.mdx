@@ -57,7 +57,10 @@
   # package version.
   $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   # Use the dnf config manager plugin to add the teleport RPM repo
-  $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
+  # Fedora 40 or earlier 
+  # sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
+  # Fedora 41 or later
+  $ sudo dnf config-manager addrepo --overwrite --from-repofile="$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport-yum.repo")"
 
   # Provide your Teleport domain to query the latest compatible Teleport version
   $ export TELEPORT_DOMAIN=<Var name="teleport.example.com" />
