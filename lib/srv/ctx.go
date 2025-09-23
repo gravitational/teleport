@@ -690,6 +690,7 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 	// env variables sometime between the session channel request and shell request.
 	// TODO(Joerger): DELETE IN v20.0.0 - just return empty params for an old Teleport client / openSSH client session.
 	sessionParams := tracessh.SessionParams{
+		WebProxyAddr:                   c.env[teleport.SSHSessionWebProxyAddr],
 		Reason:                         c.env[teleport.EnvSSHSessionReason],
 		DisplayParticipantRequirements: utils.AsBool(c.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
 		JoinSessionID:                  c.env[sshutils.SessionEnvVar],
@@ -1177,10 +1178,11 @@ func buildEnvironment(ctx *ServerContext) []string {
 	}
 
 	// Set some Teleport specific environment variables: SSH_TELEPORT_USER,
-	// SSH_TELEPORT_HOST_UUID, and SSH_TELEPORT_CLUSTER_NAME.
+	// SSH_TELEPORT_HOST_UUID, SSH_TELEPORT_CLUSTER_NAME, and SSH_SESSION_WEBPROXY_ADDR.
 	env.AddTrusted(teleport.SSHTeleportHostUUID, ctx.srv.ID())
 	env.AddTrusted(teleport.SSHTeleportClusterName, ctx.ClusterName)
 	env.AddTrusted(teleport.SSHTeleportUser, ctx.Identity.TeleportUser)
+	env.AddTrusted(teleport.SSHSessionWebProxyAddr, ctx.GetSessionParams().WebProxyAddr)
 
 	// At the end gather all dynamically defined environment variables
 	ctx.VisitEnv(env.AddUnique)

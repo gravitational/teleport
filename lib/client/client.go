@@ -399,6 +399,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, joinSessionID stri
 	defer span.End()
 
 	sessionParams := &tracessh.SessionParams{
+		WebProxyAddr:                   c.WebProxyAddr(),
 		Reason:                         c.TC.Config.Reason,
 		Invited:                        c.TC.Config.Invited,
 		DisplayParticipantRequirements: c.TC.Config.DisplayParticipantRequirements,
@@ -608,6 +609,7 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 	}
 
 	sessionParams := &tracessh.SessionParams{
+		WebProxyAddr:                   c.WebProxyAddr(),
 		Reason:                         c.TC.Config.Reason,
 		Invited:                        c.TC.Config.Invited,
 		DisplayParticipantRequirements: c.TC.Config.DisplayParticipantRequirements,
@@ -1024,4 +1026,14 @@ func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSiz
 		return sessions[:max], nil
 	}
 	return sessions, nil
+}
+
+// WebProxyAddr is the address of the proxy forwarding the SSH connection to the target server.
+func (c *NodeClient) WebProxyAddr() string {
+	// Prioritize the public addr reported by the proxy. Otherwise, this would
+	// return the localhost addr used for Web UI client connections.
+	if c.ProxyPublicAddr != "" {
+		return c.ProxyPublicAddr
+	}
+	return c.TC.WebProxyAddr
 }
