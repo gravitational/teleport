@@ -141,46 +141,32 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 					Optional:    true,
 				},
 				"schedules": {
-					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"name": {
-							Description: "Name specifies a name for the schedule.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
-						"time": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								"shifts": {
-									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-										"end": {
-											Description: "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-										},
-										"start": {
-											Description: "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-										},
-										"weekday": {
-											Description: "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-										},
-									}),
-									Description: "Shifts contains a set of shifts that make up the schedule.",
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"time": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"shifts": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"end": {
+									Description: "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
 									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
-								"timezone": {
-									Description: "Timzone specifies the schedule timezone.",
+								"start": {
+									Description: "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"weekday": {
+									Description: "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "TimeSchedule specifies an in-line schedule.",
+							Description: "Shifts contains a set of shifts that make up the schedule. Shifts are configured in UTC.",
 							Optional:    true,
-						},
-					}),
-					Description: "schedules specifies a list of schedules that can be used to configure the access monitoring rule conditions.",
+						}}),
+						Description: "TimeSchedule specifies an in-line schedule.",
+						Optional:    true,
+					}}),
+					Description: "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
 					Optional:    true,
 				},
 				"states": {
@@ -605,11 +591,11 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 						if !ok {
 							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules"})
 						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Map)
 							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
 							} else {
-								obj.Schedules = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule, len(v.Elems))
+								obj.Schedules = make(map[string]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule, len(v.Elems))
 								if !v.Null && !v.Unknown {
 									for k, a := range v.Elems {
 										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -621,23 +607,6 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 												tf := v
 												t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule{}
 												obj := t
-												{
-													a, ok := tf.Attrs["name"]
-													if !ok {
-														diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.name"})
-													} else {
-														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-														if !ok {
-															diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														} else {
-															var t string
-															if !v.Null && !v.Unknown {
-																t = string(v.Value)
-															}
-															obj.Name = t
-														}
-													}
-												}
 												{
 													a, ok := tf.Attrs["time"]
 													if !ok {
@@ -652,23 +621,6 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 																tf := v
 																obj.Time = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule{}
 																obj := obj.Time
-																{
-																	a, ok := tf.Attrs["timezone"]
-																	if !ok {
-																		diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.timezone"})
-																	} else {
-																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		} else {
-																			var t string
-																			if !v.Null && !v.Unknown {
-																				t = string(v.Value)
-																			}
-																			obj.Timezone = t
-																		}
-																	}
-																}
 																{
 																	a, ok := tf.Attrs["shifts"]
 																	if !ok {
@@ -1385,28 +1337,25 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules"})
 						} else {
-							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
 							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
 							} else {
-								c, ok := tf.Attrs["schedules"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								c, ok := tf.Attrs["schedules"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
 								if !ok {
-									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
 
 										ElemType: o.ElemType,
-										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules)),
+										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules)),
 										Null:     true,
 									}
 								} else {
 									if c.Elems == nil {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules))
+										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules))
 									}
 								}
 								if obj.Schedules != nil {
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
-									if len(obj.Schedules) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules))
-									}
 									for k, a := range obj.Schedules {
 										v, ok := tf.Attrs["schedules"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
@@ -1425,28 +1374,6 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										} else {
 											obj := a
 											tf := &v
-											{
-												t, ok := tf.AttrTypes["name"]
-												if !ok {
-													diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.name"})
-												} else {
-													v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-													if !ok {
-														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-														if err != nil {
-															diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.name", err})
-														}
-														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-														if !ok {
-															diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-														}
-														v.Null = string(obj.Name) == ""
-													}
-													v.Value = string(obj.Name)
-													v.Unknown = false
-													tf.Attrs["name"] = v
-												}
-											}
 											{
 												a, ok := tf.AttrTypes["time"]
 												if !ok {
@@ -1473,28 +1400,6 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 														} else {
 															obj := obj.Time
 															tf := &v
-															{
-																t, ok := tf.AttrTypes["timezone"]
-																if !ok {
-																	diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.timezone"})
-																} else {
-																	v, ok := tf.Attrs["timezone"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-																	if !ok {
-																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.timezone", err})
-																		}
-																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-																		}
-																		v.Null = string(obj.Timezone) == ""
-																	}
-																	v.Value = string(obj.Timezone)
-																	v.Unknown = false
-																	tf.Attrs["timezone"] = v
-																}
-															}
 															{
 																a, ok := tf.AttrTypes["shifts"]
 																if !ok {
