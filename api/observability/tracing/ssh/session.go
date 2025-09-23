@@ -33,7 +33,7 @@ import (
 // Session is a wrapper around ssh.Session that adds tracing support
 type Session struct {
 	*ssh.Session
-	wrapper *connWrapper
+	wrapper *clientWrapper
 }
 
 // SendRequest sends an out-of-band channel request on the SSH channel
