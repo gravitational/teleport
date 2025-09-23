@@ -391,6 +391,8 @@ func (s *Server) handleYamuxTunnel(c io.ReadWriteCloser, clientID *tlsca.Identit
 	}()
 
 	for {
+		// TODO(espadolini): add a way to reuse buffers and allocated messages
+		// for the control stream messages
 		controlMsg := new(relaytunnelv1alpha.ClientControl)
 		if err := readProto(controlStream, controlMsg); err != nil {
 			if errors.Is(err, io.EOF) {

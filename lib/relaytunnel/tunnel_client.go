@@ -539,6 +539,8 @@ func (c *yamuxClientConn) run(controlStream *yamux.Stream, handleConnection func
 		defer c.session.Close()
 		defer controlStream.Close()
 		for {
+			// TODO(espadolini): add a way to reuse buffers and allocated
+			// messages for the control stream messages
 			controlMsg := new(relaytunnelv1alpha.ServerControl)
 			if err := readProto(controlStream, controlMsg); err != nil {
 				return
