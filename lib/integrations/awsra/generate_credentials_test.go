@@ -193,7 +193,7 @@ func TestEncodeCredentialProcessFormat(t *testing.T) {
 	require.JSONEq(t, expected, encoded)
 }
 
-func TestRoleSessionNameFromSubjec(t *testing.T) {
+func TestRoleSessionNameFromSubject(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		subject  string
