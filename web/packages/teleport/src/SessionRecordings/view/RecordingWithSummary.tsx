@@ -32,12 +32,12 @@ import { VALID_RECORDING_TYPES } from 'teleport/services/recordings/recordings';
 import { KeysEnum } from 'teleport/services/storageService';
 import { getRecordingTypeInfo } from 'teleport/SessionRecordings/list/RecordingItem';
 import { RecordingPlayer } from 'teleport/SessionRecordings/view/RecordingPlayer';
+import type { SummarySlot } from 'teleport/SessionRecordings/view/RecordingWithMetadata';
 import {
   RecordingPlayerError,
   RecordingPlayerLoading,
   RecordingPlayerWithLoadDuration,
 } from 'teleport/SessionRecordings/view/ViewSessionRecordingRoute';
-import type { SummarySlot } from 'teleport/SessionRecordings/view/RecordingWithMetadata';
 
 interface RecordingWithSummaryProps {
   clusterId: string;

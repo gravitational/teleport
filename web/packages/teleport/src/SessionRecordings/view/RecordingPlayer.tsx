@@ -103,7 +103,7 @@ export function RecordingPlayer({
 
   if (!RECORDING_TYPES_WITH_METADATA.includes(recordingType)) {
     // For recording types without metadata (e.g., database), render the legacy SshPlayer directly.
-    return sshPlayer;
+    return <Container>{sshPlayer}</Container>;
   }
 
   return (
