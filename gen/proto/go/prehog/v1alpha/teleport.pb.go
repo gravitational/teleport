@@ -304,6 +304,9 @@ const (
 	DiscoverResource_DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD            DiscoverResource = 39
 	DiscoverResource_DISCOVER_RESOURCE_KUBERNETES_EKS                        DiscoverResource = 40
 	DiscoverResource_DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE               DiscoverResource = 41
+	DiscoverResource_DISCOVER_RESOURCE_MCP_STDIO                             DiscoverResource = 42
+	DiscoverResource_DISCOVER_RESOURCE_MCP_SSE                               DiscoverResource = 43
+	DiscoverResource_DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP                   DiscoverResource = 44
 )
 
 // Enum value maps for DiscoverResource.
@@ -351,6 +354,9 @@ var (
 		39: "DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD",
 		40: "DISCOVER_RESOURCE_KUBERNETES_EKS",
 		41: "DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE",
+		42: "DISCOVER_RESOURCE_MCP_STDIO",
+		43: "DISCOVER_RESOURCE_MCP_SSE",
+		44: "DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP",
 	}
 	DiscoverResource_value = map[string]int32{
 		"DISCOVER_RESOURCE_UNSPECIFIED":                           0,
@@ -395,6 +401,9 @@ var (
 		"DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD":            39,
 		"DISCOVER_RESOURCE_KUBERNETES_EKS":                        40,
 		"DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE":               41,
+		"DISCOVER_RESOURCE_MCP_STDIO":                             42,
+		"DISCOVER_RESOURCE_MCP_SSE":                               43,
+		"DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP":                   44,
 	}
 )
 
@@ -10584,7 +10593,7 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x15USER_KIND_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fUSER_KIND_HUMAN\x10\x01\x12\x11\n" +
 	"\rUSER_KIND_BOT\x10\x02\x12\x14\n" +
-	"\x10USER_KIND_SYSTEM\x10\x03*\xc0\x0f\n" +
+	"\x10USER_KIND_SYSTEM\x10\x03*\xab\x10\n" +
 	"\x10DiscoverResource\x12!\n" +
 	"\x1dDISCOVER_RESOURCE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DISCOVER_RESOURCE_SERVER\x10\x01\x12 \n" +
@@ -10628,7 +10637,10 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x1eDISCOVER_RESOURCE_EC2_INSTANCE\x10&\x120\n" +
 	",DISCOVER_RESOURCE_DOC_WINDOWS_DESKTOP_NON_AD\x10'\x12$\n" +
 	" DISCOVER_RESOURCE_KUBERNETES_EKS\x10(\x12-\n" +
-	")DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE\x10)*\xa3\x01\n" +
+	")DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE\x10)\x12\x1f\n" +
+	"\x1bDISCOVER_RESOURCE_MCP_STDIO\x10*\x12\x1d\n" +
+	"\x19DISCOVER_RESOURCE_MCP_SSE\x10+\x12)\n" +
+	"%DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP\x10,*\xa3\x01\n" +
 	"\x0eDiscoverStatus\x12\x1f\n" +
 	"\x1bDISCOVER_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17DISCOVER_STATUS_SUCCESS\x10\x01\x12\x1b\n" +
