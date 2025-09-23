@@ -10,6 +10,9 @@ tags:
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
+This page describes the supported values of the teleport_database resource of the Teleport Terraform provider.
+
+
 
 
 ## Example Usage
@@ -269,4 +272,3 @@ Optional:
 - `mode` (Number) Mode is a TLS connection mode. 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".
 - `server_name` (String) ServerName allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.
 - `trust_system_cert_pool` (Boolean) TrustSystemCertPool allows Teleport to trust certificate authorities available on the host system. If not set (by default), Teleport only trusts self-signed databases with TLS certificates signed by Teleport's Database Server CA or the ca_cert specified in this TLS setting. For cloud-hosted databases, Teleport downloads the corresponding required CAs for validation.
-
