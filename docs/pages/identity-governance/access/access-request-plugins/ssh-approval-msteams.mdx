@@ -110,7 +110,7 @@ the resource group and the bot pricing tier.
 In the "Microsoft App ID" section choose "Single Tenant" and "Create new
 Microsoft App ID".
 
-![Create Azure Bot](../../../img/enterprise/plugins/msteams/create-azure-bot.png)
+![Create Azure Bot](../../../../img/enterprise/plugins/msteams/create-azure-bot.png)
 
 ### Connect the bot to Microsoft Teams
 
@@ -120,7 +120,7 @@ channel.
 
 The result should be as follows:
 
-![Add Bot Channel](../../../img/enterprise/plugins/msteams/add-bot-channel.png)
+![Add Bot Channel](../.././../img/enterprise/plugins/msteams/add-bot-channel.png)
 
 ### Obtain information about your Microsoft App
 
@@ -130,7 +130,7 @@ plugin configuration.
 
 Click the "Manage" link next to "Microsoft App ID". This will open the app management view.
 
-![Manage Bot App](../../../img/enterprise/plugins/msteams/manage-bot-app.png)
+![Manage Bot App](../../../../img/enterprise/plugins/msteams/manage-bot-app.png)
 
 Then, go to the "Certificates & Secrets" section and choose to create a "New client secret".
 Use the "Copy" icon to copy the newly created secret and keep it with the
@@ -158,12 +158,12 @@ At this point the app declares the required permissions but those have not been 
 If you are an admin, click "Grant admin consent for \<directory name\>". If you are not an admin,
 contact an admin user to grant the permissions.
 
-![Specify App Permissions](../../../img/enterprise/plugins/msteams/specify-app-permissions.png)
+![Specify App Permissions](../../../../img/enterprise/plugins/msteams/specify-app-permissions.png)
 
 Once permissions have been approved, refresh the page and check the approval status.
 The result should be as follows:
 
-![Granted App Permissions](../../../img/enterprise/plugins/msteams/granted-app-permissions.png)
+![Granted App Permissions](../../../../img/enterprise/plugins/msteams/granted-app-permissions.png)
 
 ## Step 6/9. Configure the Teleport Microsoft Teams plugin
 
@@ -319,7 +319,7 @@ the email address of a Microsoft Teams user or a channel URL.
 You can find the URL of a channel by opening the channel and clicking the button
 "Get link to channel":
 
-![Copy Teams Channel](../../../img/enterprise/plugins/msteams/copy-teams-channel.png)
+![Copy Teams Channel](../../../../img/enterprise/plugins/msteams/copy-teams-channel.png)
 
 The `role_to_recipients` map must also include an entry for `"*"`, which the
 plugin looks up if no other entry matches a given role name. In the example
@@ -387,7 +387,7 @@ The final configuration file should resemble the following:
 Open Microsoft Teams and go to "Apps", "Manage your apps", then in the additional
 choices menu choose "Upload an App".
 
-![Upload Teams App](../../../img/enterprise/plugins/msteams/upload-teams-app.png)
+![Upload Teams App](../../../../img/enterprise/plugins/msteams/upload-teams-app.png)
 
 If you're a Teams admin, choose "Upload an app to your org's app catalog".
 This will allow you to skip the approval step.
@@ -404,7 +404,7 @@ They can do so by connecting to the
 [Teams admin dashboard](https://admin.teams.microsoft.com/policies/manage-apps),
 searching "TeleBot", selecting it and choosing "Allow".
 
-![Upload Teams App](../../../img/enterprise/plugins/msteams/allowed-teams-app.png)
+![Upload Teams App](../../../../img/enterprise/plugins/msteams/allowed-teams-app.png)
 
 ### Add the Teams App to a Team
 
@@ -412,7 +412,7 @@ Once the app is approved it should appear in the "Apps built for your org" secti
 Add the newly uploaded app to a team. Open the app, click "Add to a team",
 choose the "General" channel of your team and click "Set up a bot".
 
-![Add Teams App](../../../img/enterprise/plugins/msteams/add-teams-app.png)
+![Add Teams App](../../../../img/enterprise/plugins/msteams/add-teams-app.png)
 
 Note: Once an app is added to a team, it can post on all channels.
 
@@ -448,7 +448,7 @@ Check your MS Teams!
 
 The plugin should exit and you should have received two messages through Microsoft Teams.
 
-![Validate Bot Message](../../../img/enterprise/plugins/msteams/validate-bot-message.png)
+![Validate Bot Message](../../../../img/enterprise/plugins/msteams/validate-bot-message.png)
 
 ### Start the MS Teams Plugin
 
