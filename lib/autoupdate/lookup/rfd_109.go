@@ -19,136 +19,55 @@
 package lookup
 
 import (
+	"context"
+
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	"github.com/gravitational/teleport/api/types/autoupdate"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// getVersionFromRollout returns the version we should serve to the agent based
-// on the RFD184 agent rollout, the agent group name, and its UUID.
-// This logic is pretty complex and described in RFD 184.
-// The spec is summed up in the following table:
-// https://github.com/gravitational/teleport/blob/master/rfd/0184-agent-auto-updates.md#rollout-status-disabled
-func getVersionFromRollout(
-	rollout *autoupdatepb.AutoUpdateAgentRollout,
-	groupName, updaterUUID string,
-) (*semver.Version, error) {
-	switch rollout.GetSpec().GetAutoupdateMode() {
-	case autoupdate.AgentsUpdateModeDisabled:
-		// If AUs are disabled, we always answer the target version
-		return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
-	case autoupdate.AgentsUpdateModeSuspended, autoupdate.AgentsUpdateModeEnabled:
-		// If AUs are enabled or suspended, we modulate the response based on the schedule and agent group state
-	default:
-		return nil, trace.BadParameter("unsupported agent update mode %q", rollout.GetSpec().GetAutoupdateMode())
+// getVersionFromChannel gets the target version from the RFD109 channels.
+func getVersionFromChannel(ctx context.Context, channels automaticupgrades.Channels, groupName string) (version *semver.Version, err error) {
+	if channel, ok := channels[groupName]; ok {
+		return channel.GetVersion(ctx)
 	}
+	return channels.DefaultVersion(ctx)
+}
 
-	// If the schedule is immediate, agents always update to the latest version
-	if rollout.GetSpec().GetSchedule() == autoupdate.AgentsScheduleImmediate {
-		return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
-	}
+// getTriggerFromWindowThenChannel gets the target version from the RFD109 maintenance window and channels.
+func (h *Resolver) getTriggerFromWindowThenChannel(ctx context.Context, groupName string) (bool, error) {
+	// Caching the CMC for 60 seconds because this resource is cached neither by the auth nor the proxy.
+	// And this function can be accessed via unauthenticated endpoints.
+	cmc, err := utils.FnCacheGet(ctx, h.cmcCache, "cmc", func(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+		return h.cfg.Client.GetClusterMaintenanceConfig(ctx)
+	})
 
-	// Else we follow the regular schedule and answer based on the agent group state
-	group, err := getGroup(rollout, groupName)
+	// If there's no CMC or we failed to get it, we fallback directly to the channel
 	if err != nil {
-		return nil, trace.Wrap(err, "getting group %q", groupName)
-	}
-
-	switch group.GetState() {
-	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
-		return version.EnsureSemver(rollout.GetSpec().GetStartVersion())
-	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
-		return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
-	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
-		if updaterIsCanary(group, updaterUUID) {
-			return version.EnsureSemver(rollout.GetSpec().GetTargetVersion())
+		if !trace.IsNotFound(err) {
+			h.cfg.Log.WarnContext(ctx, "Failed to get cluster maintenance config", "error", err)
 		}
-		return version.EnsureSemver(rollout.GetSpec().GetStartVersion())
-	default:
-		return nil, trace.NotImplemented("unsupported group state %q", group.GetState())
-	}
-}
-
-func updaterIsCanary(group *autoupdatepb.AutoUpdateAgentRolloutStatusGroup, updaterUUID string) bool {
-	if updaterUUID == "" {
-		return false
-	}
-	for _, canary := range group.GetCanaries() {
-		if canary.UpdaterId == updaterUUID {
-			return true
-		}
-	}
-	return false
-}
-
-// getTriggerFromRollout returns the version we should serve to the agent based
-// on the RFD184 agent rollout, the agent group name, and its UUID.
-// This logic is pretty complex and described in RFD 184.
-// The spec is summed up in the following table:
-// https://github.com/gravitational/teleport/blob/master/rfd/0184-agent-auto-updates.md#rollout-status-disabled
-func getTriggerFromRollout(rollout *autoupdatepb.AutoUpdateAgentRollout, groupName, updaterUUID string) (bool, error) {
-	// If the mode is "paused" or "disabled", we never tell to update
-	switch rollout.GetSpec().GetAutoupdateMode() {
-	case autoupdate.AgentsUpdateModeDisabled, autoupdate.AgentsUpdateModeSuspended:
-		// If AUs are disabled or suspended, never tell to update
-		return false, nil
-	case autoupdate.AgentsUpdateModeEnabled:
-		// If AUs are enabled, we modulate the response based on the schedule and agent group state
-	default:
-		return false, trace.BadParameter("unsupported agent update mode %q", rollout.GetSpec().GetAutoupdateMode())
+		return getTriggerFromChannel(ctx, h.cfg.Channels, groupName)
 	}
 
-	// If the schedule is immediate, agents always update to the latest version
-	if rollout.GetSpec().GetSchedule() == autoupdate.AgentsScheduleImmediate {
+	// If we have a CMC, we check if the window is active, else we just check if the update is critical.
+	if cmc.WithinUpgradeWindow(h.cfg.Clock.Now()) {
 		return true, nil
 	}
-
-	// Else we follow the regular schedule and answer based on the agent group state
-	group, err := getGroup(rollout, groupName)
-	if err != nil {
-		return false, trace.Wrap(err, "getting group %q", groupName)
-	}
-
-	switch group.GetState() {
-	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:
-		return false, nil
-	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-		autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK:
-		return true, nil
-	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
-		return rollout.GetSpec().GetStrategy() == autoupdate.AgentsStrategyHaltOnError, nil
-	case autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY:
-		return updaterIsCanary(group, updaterUUID), nil
-	default:
-		return false, trace.NotImplemented("Unsupported group state %q", group.GetState())
-	}
+	return getTriggerFromChannel(ctx, h.cfg.Channels, groupName)
 }
 
-// getGroup returns the agent rollout group the requesting agent belongs to.
-// If a group matches the agent-provided group name, this group is returned.
-// Else the default group is returned. The default group currently is the last
-// one. This might change in the future.
-func getGroup(
-	rollout *autoupdatepb.AutoUpdateAgentRollout,
-	groupName string,
-) (*autoupdatepb.AutoUpdateAgentRolloutStatusGroup, error) {
-	groups := rollout.GetStatus().GetGroups()
-	if len(groups) == 0 {
-		return nil, trace.BadParameter("no groups found")
+// getTriggerFromWindowThenChannel gets the target version from the RFD109 channels.
+func getTriggerFromChannel(ctx context.Context, channels automaticupgrades.Channels, groupName string) (bool, error) {
+	if channel, ok := channels[groupName]; ok {
+		return channel.GetCritical(ctx)
 	}
-
-	// Try to find a group with our name
-	for _, group := range groups {
-		if group.Name == groupName {
-			return group, nil
-		}
+	defaultChannel, err := channels.DefaultChannel()
+	if err != nil {
+		return false, trace.Wrap(err, "creating new default channel")
 	}
-
-	// Fallback to the default group (currently the last one but this might change).
-	return groups[len(groups)-1], nil
+	return defaultChannel.GetCritical(ctx)
 }
