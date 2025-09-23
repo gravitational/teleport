@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -216,8 +217,9 @@ func (c *Client) NewSession(ctx context.Context, sessionParams *SessionParams) (
 		contexts:   make(map[string][]context.Context),
 	}
 
+	// If we are connected to a Teleport server, send session params in the session request.
 	var sessionData []byte
-	if sessionParams != nil {
+	if sessionParams != nil && strings.HasPrefix(string(wrapper.ServerVersion()), "SSH-2.0-Teleport") {
 		sessionData = ssh.Marshal(sessionParams)
 	}
 
