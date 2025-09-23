@@ -538,10 +538,11 @@ func (d desktopPinger) Ping(ctx context.Context) error {
 // proxyWebsocketConn does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, log *slog.Logger, version string) error {
-	_ = context.AfterFunc(ctx, func() {
+func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds *tls.Conn, _ *slog.Logger, version string) error {
+	stopFn := context.AfterFunc(ctx, func() {
 		ws.Close()
 	})
+	defer stopFn()
 
 	latencySupported, err := utils.MinVerWithoutPreRelease(version, "17.5.0")
 	if err != nil {
