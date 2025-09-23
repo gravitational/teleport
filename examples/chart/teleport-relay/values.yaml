@@ -15,7 +15,7 @@ publicHostnames: []
 # targetConnectionCount(int) -- the amount of tunnel connections that agents
 # will open to distinct Relay instances. It should not be bigger than the
 # replica count.
-targetConnectionCount: 0
+targetConnectionCount: 2
 
 # proxyAddr(string) -- provides the public-facing Teleport Proxy Service
 # endpoint which should be used to join the cluster. This is the same URL used
@@ -40,7 +40,8 @@ enterprise: false
 # joinParams -- controls how the Teleport Agent joins the Teleport cluster.
 # These sub-values must be configured for the agent to connect to a cluster.
 #
-# The token used must grant the `Relay` role.
+# The token used must grant the `Relay` role, and should be valid for the
+# lifetime of the Helm release.
 joinParams:
   # joinParams.method(string) -- controls which join method will be used by the
   # instance to join the Teleport cluster.
@@ -146,17 +147,17 @@ log:
 # entering the Terminating state and the Teleport instance getting signaled to
 # begin its shutdown advertisement. Useful to allow load balancers to stop
 # routing connections to the terminating pod.
-preStopDelay: ""
+preStopDelay: "30s"
 
 # shutdownDelay(string) -- the optional time that the Teleport instance will
 # wait after advertising its shutdown and before it will stop serving new
 # inbound connections.
-shutdownDelay: ""
+shutdownDelay: "30s"
 
 # terminationGracePeriodSeconds(int) -- the time allotted to a Teleport instance
 # pod for termination. It should be longer than the sum of
 # [`preStopDelay`](#preStopDelay) and [`shutdownDelay`](#shutdownDelay).
-terminationGracePeriodSeconds: 30
+terminationGracePeriodSeconds: 90
 
 # highAvailability -- contains settings controlling the availability of the
 # Teleport Agent deployed by the chart.
@@ -169,24 +170,23 @@ terminationGracePeriodSeconds: 30
 # Even with highAvailability settings Restarting/rolling-out pods can still cause
 # disruption for established long-lived sessions.
 highAvailability:
-  # highAvailability.replicaCount(int) -- is the number of agent replicas deployed by the Chart.
+  # highAvailability.replicaCount(int) -- is the number of agent replicas
+  # deployed by the Chart.
   #
-  # Set to a number higher than `1` for a high availability mode where multiple Teleport pods will be deployed.
+  # Set to a number higher than `1` for a high availability mode where multiple
+  # Teleport pods will be deployed.
   #
   # <Admonition type="tip" title="Sizing guidelines">
+  #
   #   As a rough guide, we recommend configuring one replica per distinct
   #   availability zone where your cluster has worker nodes.
   #
   #   2 replicas/availability zones will be fine for smaller workloads. 3-5
-  #   replicas/availability zones will be more appropriate for bigger
-  #   clusters with more traffic.
-  # </Admonition>
+  #   replicas/availability zones will be more appropriate for bigger clusters
+  #   with more traffic.
   #
-  # When adding new replicas to an existing agent, you must ensure the provided token
-  # (via [`authToken`](#authToken), [`joinParams`](#joinParams), or [`joinTokenSecret`](#joinTokenSecret))
-  # is still valid. Each replica has its own identity and needs to join the Teleport
-  # cluster on its first startup.
-  replicaCount: 1
+  # </Admonition>
+  replicaCount: 2
 
   # highAvailability.podDisruptionBudget -- controls how the chart creates and
   # configures a Kubernetes PodDisruptionBudget to ensure Kubernetes does not
@@ -209,10 +209,11 @@ resources: {}
 # service -- options for the Service that points to the Teleport Relay
 # instances.
 service:
-  # service.type(string) -- the type of the Service. Should probably be set to
-  # LoadBalancer or NodePort.
+  # service.type(string) -- the type of the Service. Unless you have specific
+  # needs, it should probably be set to LoadBalancer.
   type: LoadBalancer
-  # service.spec(object) -- any additional entries here will be added to the service spec.
+  # service.spec(object) -- any additional entries here will be added to the
+  # Service spec.
   #
   # ```
   # spec:
@@ -340,6 +341,10 @@ imagePullPolicy: IfNotPresent
 # ```
 topologySpreadConstraints: []
 
+# disableTopologySpreadConstraints(bool) -- turns off the default topology
+# spread constraints.
+disableTopologySpreadConstraints: false
+
 # affinity(object) -- sets the affinities for any pods created by the chart. See
 # [the Kubernetes
 # documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
@@ -373,40 +378,6 @@ extraArgs: []
 #     value: "http://username:password@my.proxy.host:3128"
 # ```
 extraEnv: []
-
-# extraContainers(list) -- contains extra containers to add in the main Teleport
-# pod.
-#
-# For example:
-# ```yaml
-# extraContainers:
-# - name: debug-sidecar
-#   command:
-#     - busybox
-#     - sh
-#     - -c
-#     - "echo waiting && sleep infinity"
-#   image: busybox:latest
-#   imagePullPolicy: IfNotPresent
-#   securityContext:
-#     privileged: true
-#     runAsNonRoot: false
-# ```
-extraContainers: []
-
-# initContainers(list) -- sets the Teleport Pod's init-containers. See [the
-# Kubernetes init-container
-# documentation](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
-# for more details.
-#
-# For example:
-# ```yaml
-# initContainers:
-# - name: "teleport-init"
-#   image: "alpine"
-#   args: ["echo test"]
-# ```
-initContainers: []
 
 # extraVolumes(list) -- contains extra volumes to mount into the Teleport pods.
 # See [the Kubernetes volume
@@ -553,27 +524,6 @@ securityContext:
 # To unset the security context, set it to `null` or `~`.
 podSecurityContext:
   fsGroup: 65532
-
-# initSecurityContext(object) -- sets the init container security context for
-# any pods created by the chart. See [the Kubernetes
-# documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
-# for more details.
-#
-# The default value is compatible with [the restricted
-# PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
-#
-# To unset the security context, set it to `null` or `~`.
-initSecurityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-  readOnlyRootFilesystem: true
-  runAsNonRoot: true
-  runAsUser: 65532
-  runAsGroup: 65532
-  seccompProfile:
-    type: RuntimeDefault
 
 # priorityClassName(string) -- sets the priority class used by any pods created by the chart.
 # The user is responsible for creating the `PriorityClass` resource before deploying the chart.
