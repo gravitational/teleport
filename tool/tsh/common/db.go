@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -986,27 +987,12 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		}
 	}
 
-	// As a convenience, we will append the `@<project-id>.iam` suffix to a username
-	// when connecting to Postgres GCP databases and the domain is missing.
-	//
-	// Commonly, the service account and the database share the same project ID,
-	// which means we can try to guess the intended suffix.
-	//
-	// This is only applied for Postgres (CloudSQL Postgres or AlloyDB) because:
-	// - CloudSQL MySQL still supports "classical" (one-time password) users;
-	//   otherwise it would have used the `@<project>.iam.gserviceaccount.com` suffix.
-	// - Spanner applies the `@<project>.iam.gserviceaccount.com` suffix directly in the engine.
-	if db.GetProtocol() == defaults.ProtocolPostgres &&
-		d.Username != "" && !strings.Contains(d.Username, "@") &&
-		db.IsGCPHosted() {
-		projectID, err := db.GetGCPProjectID()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		updated := fmt.Sprintf("%s@%s.iam", strings.TrimSpace(d.Username), projectID)
-		logger.DebugContext(cf.Context, "Adding default project suffix for IAM principal", "original", d.Username, "updated", updated)
-		d.Username = updated
+	adjusted, newUsername := gcp.AdjustDatabaseUsername(d.Username, db)
+	if adjusted {
+		logger.DebugContext(cf.Context, "Adding default project suffix for IAM principal", "original", d.Username, "updated", newUsername)
+		d.Username = newUsername
 	}
+	
 	return nil
 }
 
