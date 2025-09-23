@@ -138,7 +138,11 @@ func (m *mcpClientConfigFlags) format() (mcpconfig.ConfigFormat, error) {
 		flagFormat   mcpconfig.ConfigFormat
 	)
 
-	if m.clientConfig != "" {
+	switch m.clientConfig {
+	case mcpClientConfigClaude, mcpClientConfigCursor:
+		configFormat = mcpconfig.ConfigFormatClaude
+	case "":
+	default:
 		configFormat = mcpconfig.ConfigFormatFromPath(m.clientConfig)
 	}
 
