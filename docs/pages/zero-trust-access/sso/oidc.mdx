@@ -300,7 +300,7 @@ spec:
   username_claim: preferred_username
 ```
 
-### Optional: Request Object Mode
+### Optional: Request object mode
 
 Teleport supports the ability to send authorization request parameters in a
 JSON Web Token (JWT), referred to as "request objects", following RFC 9101.
@@ -328,6 +328,26 @@ metadata:
 spec:
   # Use signed request objects when making authorization requests to the IdP.
   request_object_mode: signed
+```
+
+Request objects are also supported for MFA checks. If `request_object_mode` is not
+explicitly set on the MFA client, the login client's request object mode will be used
+by default. If desired, you can explicitly configure the MFA client to use a separate
+request object mode.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  client_id: teleport_login
+  client_secret: abc123...
+  request_object_mode: none
+  mfa:
+    client_id: teleport_mfa
+    client_secret: mfa123...
+    request_object_mode: signed
 ```
 
 ## Enable default OIDC authentication
