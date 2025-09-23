@@ -26,15 +26,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	. "github.com/gravitational/teleport/lib/utils/batcher"
+	"github.com/gravitational/teleport/lib/utils/batcher"
 )
 
 func TestCollectBatch_TimeWindow(t *testing.T) {
 	fakeClock := clockwork.NewFakeClock()
-	collector := New[string](
-		WithWindow(100*time.Millisecond),
-		WithClock(fakeClock),
-		WithThreshold(10),
+	collector := batcher.New[string](
+		batcher.WithWindow(100*time.Millisecond),
+		batcher.WithClock(fakeClock),
+		batcher.WithThreshold(10),
 	)
 
 	events := make(chan string)
@@ -63,7 +63,7 @@ func TestCollectBatch_TimeWindow(t *testing.T) {
 }
 
 func TestCollectBatch_Threshold(t *testing.T) {
-	collector := New[int](WithThreshold(3))
+	collector := batcher.New[int](batcher.WithThreshold(3))
 
 	events := make(chan int, 10)
 	for i := 1; i <= 7; i++ {
@@ -83,7 +83,7 @@ func TestCollectBatch_Threshold(t *testing.T) {
 }
 
 func TestCollectBatch_ChannelClosed(t *testing.T) {
-	collector := New[string]()
+	collector := batcher.New[string]()
 
 	events := make(chan string, 2)
 	events <- "event1"
@@ -99,7 +99,7 @@ func TestCollectBatch_ChannelClosed(t *testing.T) {
 }
 
 func TestCollectBatch_ContextCanceled(t *testing.T) {
-	collector := New[string](WithWindow(1 * time.Hour))
+	collector := batcher.New[string](batcher.WithWindow(1 * time.Hour))
 
 	events := make(chan string, 2)
 	events <- "event1"
@@ -113,9 +113,9 @@ func TestCollectBatch_ContextCanceled(t *testing.T) {
 
 func TestCollectBatch_EmptyChannel(t *testing.T) {
 	fakeClock := clockwork.NewFakeClock()
-	collector := New[string](
-		WithWindow(100*time.Millisecond),
-		WithClock(fakeClock),
+	collector := batcher.New[string](
+		batcher.WithWindow(100*time.Millisecond),
+		batcher.WithClock(fakeClock),
 	)
 
 	events := make(chan string)
