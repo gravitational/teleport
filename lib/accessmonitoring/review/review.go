@@ -241,6 +241,8 @@ func (handler *Handler) getMatchingRule(
 	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
 
 	for _, rule := range handler.rules.Get() {
+		env.Schedules = scheduleDict(rule.GetSpec().GetSchedules())
+
 		conditionMatch, err := accessmonitoring.EvaluateCondition(rule.GetSpec().GetCondition(), env)
 		if err != nil {
 			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",
@@ -317,4 +319,29 @@ func (handler *Handler) newExpressionEnv(ctx context.Context, req types.AccessRe
 		Expiry:             req.Expiry(),
 		UserTraits:         user.GetTraits(),
 	}, nil
+}
+
+// schduleDict converts the list of schedules into a ScheduleDict.
+func scheduleDict(schedules []*accessmonitoringrulesv1.Schedule) accessmonitoring.ScheduleDict {
+	result := make(map[string]accessmonitoring.Schedule)
+	for _, schedule := range schedules {
+		if schedule.GetTime() != nil {
+			inline := schedule.GetTime()
+
+			var shifts []accessmonitoring.Shift
+			for _, shift := range inline.GetShifts() {
+				shifts = append(shifts, accessmonitoring.Shift{
+					Weekday: shift.GetWeekday(),
+					Start:   shift.GetStart(),
+					End:     shift.GetEnd(),
+				})
+			}
+
+			result[schedule.GetName()] = accessmonitoring.Schedule{
+				Timezone: inline.GetTimezone(),
+				Shifts:   shifts,
+			}
+		}
+	}
+	return result
 }
