@@ -92,6 +92,20 @@ func TestAuditCompactor(t *testing.T) {
 
 	})
 
+	t.Run("zero-length-event", func(t *testing.T) {
+		auditEvents = auditEvents[:0]
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 0))
+			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 0))
+
+			compactor.flush(ctx)
+			// events with length zero should be ignored
+			require.Len(t, auditEvents, 2)
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 0))
+		})
+	})
+
 	t.Run("complex", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
 		synctest.Test(t, func(t *testing.T) {
