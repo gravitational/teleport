@@ -142,39 +142,20 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 	return nil
 }
 
-func validateSchedules(schedules []*accessmonitoringrulesv1.Schedule) error {
-	seenSchedules := make(map[string]int, len(schedules))
-	for i, schedule := range schedules {
-		if schedule.GetName() == "" {
-			return trace.BadParameter("spec.schedules[%d].name is required", i)
-		}
-
+func validateSchedules(schedules map[string]*accessmonitoringrulesv1.Schedule) error {
+	for name, schedule := range schedules {
 		if schedule.GetTime() == nil {
-			return trace.BadParameter("spec.schedules[%d].time is required", i)
+			return trace.BadParameter("spec.schedules[%s].time is required", name)
 		}
 
 		if err := validateTimeSchedule(schedule.GetTime()); err != nil {
-			return trace.Wrap(err, "validating spec.schedules[%d].time", i)
+			return trace.Wrap(err, "validating spec.schedules[%s].time", name)
 		}
-
-		if conflictingSchedule, exists := seenSchedules[schedule.GetName()]; exists {
-			return trace.BadParameter("spec.schedules contains schedules with the same name %q at indicies %d and %d",
-				schedule.GetName(), conflictingSchedule, i)
-		}
-		seenSchedules[schedule.GetName()] = i
 	}
 	return nil
 }
 
 func validateTimeSchedule(schedule *accessmonitoringrulesv1.TimeSchedule) error {
-	if schedule.GetTimezone() == "" {
-		return trace.BadParameter("timezone is required")
-	}
-
-	if _, err := time.LoadLocation(schedule.GetTimezone()); err != nil {
-		return trace.Wrap(err, "timezone is invalid")
-	}
-
 	if len(schedule.GetShifts()) == 0 {
 		return trace.BadParameter("at least one shift is required")
 	}

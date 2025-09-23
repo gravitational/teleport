@@ -128,11 +128,9 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 		{
 			description: "valid time schedule",
 			modifyAMR: func(amr *accessmonitoringrulesv1.AccessMonitoringRule) {
-				amr.Spec.Schedules = []*accessmonitoringrulesv1.Schedule{
-					{
-						Name: "default",
+				amr.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
+					"default": {
 						Time: &accessmonitoringrulesv1.TimeSchedule{
-							Timezone: time.UTC.String(),
 							Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 								{
 									Weekday: time.Monday.String(),
@@ -183,16 +181,14 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 func TestValidateSchedules(t *testing.T) {
 	tests := []struct {
 		description string
-		schedules   []*accessmonitoringrulesv1.Schedule
+		schedules   map[string]*accessmonitoringrulesv1.Schedule
 		assertErr   require.ErrorAssertionFunc
 	}{
 		{
 			description: "valid schedules",
-			schedules: []*accessmonitoringrulesv1.Schedule{
-				{
-					Name: "default",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Monday.String(),
@@ -207,11 +203,9 @@ func TestValidateSchedules(t *testing.T) {
 		},
 		{
 			description: "multiple schedules",
-			schedules: []*accessmonitoringrulesv1.Schedule{
-				{
-					Name: "on-call-1",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"on-call-1": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Saturday.String(),
@@ -221,10 +215,8 @@ func TestValidateSchedules(t *testing.T) {
 						},
 					},
 				},
-				{
-					Name: "on-call-2",
+				"on-call-2": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Sunday.String(),
@@ -238,45 +230,9 @@ func TestValidateSchedules(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			description: "conflicting schedule names",
-			schedules: []*accessmonitoringrulesv1.Schedule{
-				{
-					Name: "same-name",
-					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
-						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
-								Weekday: time.Saturday.String(),
-								Start:   "00:00",
-								End:     "23:59",
-							},
-						},
-					},
-				},
-				{
-					Name: "same-name",
-					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
-						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
-								Weekday: time.Sunday.String(),
-								Start:   "00:00",
-								End:     "23:59",
-							},
-						},
-					},
-				},
-			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-				require.ErrorContains(t, err, "spec.schedules contains schedules with the same nam")
-			},
-		},
-		{
 			description: "schedule time not specified",
-			schedules: []*accessmonitoringrulesv1.Schedule{
-				{
-					Name: "default",
-				},
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {},
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.ErrorContains(t, err, "time is required")
@@ -284,12 +240,9 @@ func TestValidateSchedules(t *testing.T) {
 		},
 		{
 			description: "does not contain any shifts",
-			schedules: []*accessmonitoringrulesv1.Schedule{
-				{
-					Name: "default",
-					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
-					},
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{},
 				},
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
@@ -297,33 +250,10 @@ func TestValidateSchedules(t *testing.T) {
 			},
 		},
 		{
-			description: "invalid timezone",
-			schedules: []*accessmonitoringrulesv1.Schedule{
-				{
-					Name: "default",
-					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: "invalid",
-						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
-								Weekday: time.Monday.String(),
-								Start:   "00:00",
-								End:     "23:59",
-							},
-						},
-					},
-				},
-			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
-				require.ErrorContains(t, err, "timezone is invalid")
-			},
-		},
-		{
 			description: "start time is not before end time",
-			schedules: []*accessmonitoringrulesv1.Schedule{
-				{
-					Name: "default",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Monday.String(),

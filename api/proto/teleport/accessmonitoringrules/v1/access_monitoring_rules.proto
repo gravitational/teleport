@@ -68,9 +68,9 @@ message AccessMonitoringRuleSpec {
   // Access Request should be automatically reviewed.
   string desired_state = 7;
 
-  // schedules specifies a list of schedules that can be used to configure the
+  // schedules specifies a map of schedules that can be used to configure the
   // access monitoring rule conditions.
-  repeated Schedule schedules = 8;
+  map<string, Schedule> schedules = 8;
 }
 
 // Notification contains configurations for plugin notification rules.
@@ -93,18 +93,15 @@ message AutomaticReview {
 
 // Schedule specifies a schedule that can be used to configure rule conditions.
 message Schedule {
-  // Name specifies a name for the schedule.
-  string name = 1;
   // TimeSchedule specifies an in-line schedule.
-  TimeSchedule time = 2;
+  TimeSchedule time = 1;
 }
 
 // TimeSchedule specifies an in-line schedule.
 message TimeSchedule {
-  // Timzone specifies the schedule timezone.
-  string timezone = 1;
   // Shifts contains a set of shifts that make up the schedule.
-  repeated Shift shifts = 2;
+  // Shifts are configured in UTC.
+  repeated Shift shifts = 1;
 
   // Shift contains the weekday, start time, and end time of a shift.
   message Shift {

@@ -146,9 +146,9 @@ type AccessMonitoringRuleSpec struct {
 	// subjects, the desired_state may be set to `reviewed` to indicate that the
 	// Access Request should be automatically reviewed.
 	DesiredState string `protobuf:"bytes,7,opt,name=desired_state,json=desiredState,proto3" json:"desired_state,omitempty"`
-	// schedules specifies a list of schedules that can be used to configure the
+	// schedules specifies a map of schedules that can be used to configure the
 	// access monitoring rule conditions.
-	Schedules     []*Schedule `protobuf:"bytes,8,rep,name=schedules,proto3" json:"schedules,omitempty"`
+	Schedules     map[string]*Schedule `protobuf:"bytes,8,rep,name=schedules,proto3" json:"schedules,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -225,7 +225,7 @@ func (x *AccessMonitoringRuleSpec) GetDesiredState() string {
 	return ""
 }
 
-func (x *AccessMonitoringRuleSpec) GetSchedules() []*Schedule {
+func (x *AccessMonitoringRuleSpec) GetSchedules() map[string]*Schedule {
 	if x != nil {
 		return x.Schedules
 	}
@@ -347,10 +347,8 @@ func (x *AutomaticReview) GetDecision() string {
 // Schedule specifies a schedule that can be used to configure rule conditions.
 type Schedule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name specifies a name for the schedule.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// TimeSchedule specifies an in-line schedule.
-	Time          *TimeSchedule `protobuf:"bytes,2,opt,name=time,proto3" json:"time,omitempty"`
+	Time          *TimeSchedule `protobuf:"bytes,1,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -385,13 +383,6 @@ func (*Schedule) Descriptor() ([]byte, []int) {
 	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *Schedule) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
 func (x *Schedule) GetTime() *TimeSchedule {
 	if x != nil {
 		return x.Time
@@ -402,10 +393,9 @@ func (x *Schedule) GetTime() *TimeSchedule {
 // TimeSchedule specifies an in-line schedule.
 type TimeSchedule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Timzone specifies the schedule timezone.
-	Timezone string `protobuf:"bytes,1,opt,name=timezone,proto3" json:"timezone,omitempty"`
 	// Shifts contains a set of shifts that make up the schedule.
-	Shifts        []*TimeSchedule_Shift `protobuf:"bytes,2,rep,name=shifts,proto3" json:"shifts,omitempty"`
+	// Shifts are configured in UTC.
+	Shifts        []*TimeSchedule_Shift `protobuf:"bytes,1,rep,name=shifts,proto3" json:"shifts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -438,13 +428,6 @@ func (x *TimeSchedule) ProtoReflect() protoreflect.Message {
 // Deprecated: Use TimeSchedule.ProtoReflect.Descriptor instead.
 func (*TimeSchedule) Descriptor() ([]byte, []int) {
 	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *TimeSchedule) GetTimezone() string {
-	if x != nil {
-		return x.Timezone
-	}
-	return ""
 }
 
 func (x *TimeSchedule) GetShifts() []*TimeSchedule_Shift {
@@ -951,7 +934,7 @@ type TimeSchedule_Shift struct {
 
 func (x *TimeSchedule_Shift) Reset() {
 	*x = TimeSchedule_Shift{}
-	mi := &file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_msgTypes[15]
+	mi := &file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -963,7 +946,7 @@ func (x *TimeSchedule_Shift) String() string {
 func (*TimeSchedule_Shift) ProtoMessage() {}
 
 func (x *TimeSchedule_Shift) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_msgTypes[15]
+	mi := &file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1010,15 +993,18 @@ const file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDe
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x03 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12O\n" +
-	"\x04spec\x18\x05 \x01(\v2;.teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpecR\x04spec\"\xaa\x03\n" +
+	"\x04spec\x18\x05 \x01(\v2;.teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpecR\x04spec\"\xb4\x04\n" +
 	"\x18AccessMonitoringRuleSpec\x12\x1a\n" +
 	"\bsubjects\x18\x01 \x03(\tR\bsubjects\x12\x16\n" +
 	"\x06states\x18\x02 \x03(\tR\x06states\x12\x1c\n" +
 	"\tcondition\x18\x03 \x01(\tR\tcondition\x12S\n" +
 	"\fnotification\x18\x04 \x01(\v2/.teleport.accessmonitoringrules.v1.NotificationR\fnotification\x12]\n" +
 	"\x10automatic_review\x18\x06 \x01(\v22.teleport.accessmonitoringrules.v1.AutomaticReviewR\x0fautomaticReview\x12#\n" +
-	"\rdesired_state\x18\a \x01(\tR\fdesiredState\x12I\n" +
-	"\tschedules\x18\b \x03(\v2+.teleport.accessmonitoringrules.v1.ScheduleR\tschedulesJ\x04\b\x05\x10\x06R\x12automatic_approval\"B\n" +
+	"\rdesired_state\x18\a \x01(\tR\fdesiredState\x12h\n" +
+	"\tschedules\x18\b \x03(\v2J.teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.SchedulesEntryR\tschedules\x1ai\n" +
+	"\x0eSchedulesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12A\n" +
+	"\x05value\x18\x02 \x01(\v2+.teleport.accessmonitoringrules.v1.ScheduleR\x05value:\x028\x01J\x04\b\x05\x10\x06R\x12automatic_approval\"B\n" +
 	"\fNotification\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\n" +
@@ -1026,13 +1012,11 @@ const file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDe
 	"recipients\"O\n" +
 	"\x0fAutomaticReview\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1a\n" +
-	"\bdecision\x18\x02 \x01(\tR\bdecision\"c\n" +
-	"\bSchedule\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12C\n" +
-	"\x04time\x18\x02 \x01(\v2/.teleport.accessmonitoringrules.v1.TimeScheduleR\x04time\"\xc4\x01\n" +
-	"\fTimeSchedule\x12\x1a\n" +
-	"\btimezone\x18\x01 \x01(\tR\btimezone\x12M\n" +
-	"\x06shifts\x18\x02 \x03(\v25.teleport.accessmonitoringrules.v1.TimeSchedule.ShiftR\x06shifts\x1aI\n" +
+	"\bdecision\x18\x02 \x01(\tR\bdecision\"O\n" +
+	"\bSchedule\x12C\n" +
+	"\x04time\x18\x01 \x01(\v2/.teleport.accessmonitoringrules.v1.TimeScheduleR\x04time\"\xa8\x01\n" +
+	"\fTimeSchedule\x12M\n" +
+	"\x06shifts\x18\x01 \x03(\v25.teleport.accessmonitoringrules.v1.TimeSchedule.ShiftR\x06shifts\x1aI\n" +
 	"\x05Shift\x12\x18\n" +
 	"\aweekday\x18\x01 \x01(\tR\aweekday\x12\x14\n" +
 	"\x05start\x18\x02 \x01(\tR\x05start\x12\x10\n" +
@@ -1077,7 +1061,7 @@ func file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDes
 	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescData
 }
 
-var file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_goTypes = []any{
 	(*AccessMonitoringRule)(nil),                        // 0: teleport.accessmonitoringrules.v1.AccessMonitoringRule
 	(*AccessMonitoringRuleSpec)(nil),                    // 1: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec
@@ -1094,27 +1078,29 @@ var file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_goTypes
 	(*ListAccessMonitoringRulesWithFilterRequest)(nil),  // 12: teleport.accessmonitoringrules.v1.ListAccessMonitoringRulesWithFilterRequest
 	(*ListAccessMonitoringRulesResponse)(nil),           // 13: teleport.accessmonitoringrules.v1.ListAccessMonitoringRulesResponse
 	(*ListAccessMonitoringRulesWithFilterResponse)(nil), // 14: teleport.accessmonitoringrules.v1.ListAccessMonitoringRulesWithFilterResponse
-	(*TimeSchedule_Shift)(nil),                          // 15: teleport.accessmonitoringrules.v1.TimeSchedule.Shift
-	(*v1.Metadata)(nil),                                 // 16: teleport.header.v1.Metadata
+	nil,                        // 15: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.SchedulesEntry
+	(*TimeSchedule_Shift)(nil), // 16: teleport.accessmonitoringrules.v1.TimeSchedule.Shift
+	(*v1.Metadata)(nil),        // 17: teleport.header.v1.Metadata
 }
 var file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_depIdxs = []int32{
-	16, // 0: teleport.accessmonitoringrules.v1.AccessMonitoringRule.metadata:type_name -> teleport.header.v1.Metadata
+	17, // 0: teleport.accessmonitoringrules.v1.AccessMonitoringRule.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.accessmonitoringrules.v1.AccessMonitoringRule.spec:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec
 	2,  // 2: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.notification:type_name -> teleport.accessmonitoringrules.v1.Notification
 	3,  // 3: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.automatic_review:type_name -> teleport.accessmonitoringrules.v1.AutomaticReview
-	4,  // 4: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.schedules:type_name -> teleport.accessmonitoringrules.v1.Schedule
+	15, // 4: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.schedules:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.SchedulesEntry
 	5,  // 5: teleport.accessmonitoringrules.v1.Schedule.time:type_name -> teleport.accessmonitoringrules.v1.TimeSchedule
-	15, // 6: teleport.accessmonitoringrules.v1.TimeSchedule.shifts:type_name -> teleport.accessmonitoringrules.v1.TimeSchedule.Shift
+	16, // 6: teleport.accessmonitoringrules.v1.TimeSchedule.shifts:type_name -> teleport.accessmonitoringrules.v1.TimeSchedule.Shift
 	0,  // 7: teleport.accessmonitoringrules.v1.CreateAccessMonitoringRuleRequest.rule:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRule
 	0,  // 8: teleport.accessmonitoringrules.v1.UpdateAccessMonitoringRuleRequest.rule:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRule
 	0,  // 9: teleport.accessmonitoringrules.v1.UpsertAccessMonitoringRuleRequest.rule:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRule
 	0,  // 10: teleport.accessmonitoringrules.v1.ListAccessMonitoringRulesResponse.rules:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRule
 	0,  // 11: teleport.accessmonitoringrules.v1.ListAccessMonitoringRulesWithFilterResponse.rules:type_name -> teleport.accessmonitoringrules.v1.AccessMonitoringRule
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	4,  // 12: teleport.accessmonitoringrules.v1.AccessMonitoringRuleSpec.SchedulesEntry.value:type_name -> teleport.accessmonitoringrules.v1.Schedule
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_init() }
@@ -1128,7 +1114,7 @@ func file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_init()
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDesc), len(file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
