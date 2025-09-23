@@ -202,7 +202,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	unhandledReqs := c.handleSessionRequests(ctx, reqs)
+	unhandledReqs := c.serveSessionRequests(ctx, reqs)
 	session, err := newCryptoSSHSession(ch, unhandledReqs)
 	if err != nil {
 		_ = ch.Close()
@@ -220,10 +220,10 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 // RequestHandlerFn is an ssh request handler function.
 type RequestHandlerFn func(ctx context.Context, ch *ssh.Request)
 
-// HandleSessionRequests registers a handler for any incoming [ssh.Request] matching the
+// HandleSessionRequest registers a handler for any incoming [ssh.Request] matching the
 // provided type within a session. If the type is already being handled, an error is returned.
 // All registered handlers are consumed by the next call to [Client.NewSession].
-func (c *Client) HandleSessionRequests(ctx context.Context, requestType string, handlerFn RequestHandlerFn) error {
+func (c *Client) HandleSessionRequest(ctx context.Context, requestType string, handlerFn RequestHandlerFn) error {
 	c.requestHandlersMu.Lock()
 	defer c.requestHandlersMu.Unlock()
 
@@ -235,11 +235,11 @@ func (c *Client) HandleSessionRequests(ctx context.Context, requestType string, 
 	return nil
 }
 
-// handleSessionRequests from the remote side with registered handlers.
+// serveSessionRequests from the remote side with registered handlers.
 //
 // This method consumes all registered handlers so that the next call to
 // [Client.NewSession] will not reuse the same handlers.
-func (c *Client) handleSessionRequests(ctx context.Context, in <-chan *ssh.Request) <-chan *ssh.Request {
+func (c *Client) serveSessionRequests(ctx context.Context, in <-chan *ssh.Request) <-chan *ssh.Request {
 	c.requestHandlersMu.Lock()
 	requestHandlers := c.requestHandlers
 	c.requestHandlers = make(map[string]RequestHandlerFn)
