@@ -71,6 +71,7 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 
 	tunnelServer, err := relaytunnel.NewServer(relaytunnel.ServerConfig{
+		Log: sublogger("tunnel_server"),
 		GetCertificate: func(ctx context.Context) (*tls.Certificate, error) {
 			return conn.serverGetCertificate()
 		},
@@ -86,6 +87,7 @@ func (process *TeleportProcess) runRelayService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer tunnelServer.Close()
 
 	tunnelCreds := tunnelServer.GRPCServerCredentials()
 	if process.Config.Relay.TunnelPROXYProtocol {
@@ -166,6 +168,8 @@ func (process *TeleportProcess) runRelayService() error {
 		relayServer.Store(r)
 	}
 
+	tunnelServer.SetTerminating()
+
 	exitEvent, _ := process.WaitForEvent(process.ExitContext(), TeleportExitEvent)
 	ctx, _ := exitEvent.Payload.(context.Context)
 	if ctx == nil {
@@ -184,6 +188,12 @@ func (process *TeleportProcess) runRelayService() error {
 	eg.Go(func() error {
 		defer context.AfterFunc(egCtx, tunnelGRPCServer.Stop)()
 		tunnelGRPCServer.GracefulStop()
+		return nil
+	})
+	eg.Go(func() error {
+		// TODO(espadolini): let connections continue (for a time?) before
+		// abruptly terminating them right after the shutdown delay
+		_ = tunnelServer.Close()
 		return nil
 	})
 	warnOnErr(egCtx, eg.Wait(), log)
