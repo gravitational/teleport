@@ -250,10 +250,7 @@ type readEvent struct {
 }
 
 func toUint32(len uint64) uint32 {
-	if len > math.MaxUint32 {
-		return math.MaxUint32
-	}
-	return uint32(len)
+	return uint32(min(math.MaxUint32, len))
 }
 
 func (r *readEvent) SetLength(len uint64)        { r.Length = toUint32(len) }
