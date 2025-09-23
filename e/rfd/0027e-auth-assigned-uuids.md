@@ -280,39 +280,11 @@ message ClientInit {
   string token_name = 2;
   // SystemRole is the system role requested, e.g. Proxy, Node, Instance, Bot.
   string system_role = 3;
-  // PublicTlsKey is the public key requested for the subject of the x509 certificate.
-  // It must be encoded in PKIX, ASN.1 DER form.
-  bytes public_tls_key = 4;
-  // PublicSshKey is the public key requested for the subject of the SSH certificate.
-  // It must be encoded in SSH wire format.
-  bytes public_ssh_key = 5;
   // ForwardedByProxy will be set to true when the message is forwarded by the
   // Proxy service. When this is set the Auth service must ignore any
   // any credentials authenticating the request, except for the purpose of
   // accepting ProxySuppliedParams.
   bool forwarded_by_proxy = 6;
-
-  // HostParams holds parameters that are specific to host joining and
-  // irrelevant to bot joining.
-  message HostParams {
-    // HostName is the user-friendly node name for the host. This comes from
-    // teleport.nodename in the service configuration and defaults to the
-    // hostname. It is encoded as a valid principal in issued certificates.
-    string host_name = 1;
-    // AdditionalPrincipals is a list of additional principals requested.
-    repeated string additional_principals = 2;
-    // DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
-    repeated string dns_names = 3;
-  }
-  optional HostParams host_params = 7;
-
-  // BotParams holds parameters that are specific to bot joining and irrelevant
-  // to host joining.
-  message BotParams {
-    // Expires is a desired time of the expiry of the returned certificates.
-    optional google.protobuf.Timestamp expires = 9;
-  }
-  optional BotParams bot_params = 8;
 
   // ProxySuppliedParams holds parameters set by the Proxy when nodes join
   // via the proxy address. They must only be trusted if the incoming join
@@ -324,33 +296,96 @@ message ClientInit {
     // ClientVersion is the Teleport version of the client attempting to join.
     string client_version = 2;
   }
-  optional ProxySuppliedParams proxy_supplied_parameters = 9;
+  optional ProxySuppliedParams proxy_supplied_parameters = 7;
 }
 
-// EC2IdentityDocument is sent from the client in response to the
-// ServerInit message for the EC2 join method.
+// PublicKeys holds public keys sent by the client requested subject keys for
+// issued certificates.
+message PublicKeys {
+  // PublicTlsKey is the public key requested for the subject of the x509 certificate.
+  // It must be encoded in PKIX, ASN.1 DER form.
+  bytes public_tls_key = 4;
+  // PublicSshKey is the public key requested for the subject of the SSH certificate.
+  // It must be encoded in SSH wire format.
+  bytes public_ssh_key = 5;
+}
+
+// HostParams holds parameters required for host joining.
+message HostParams {
+  // PublicKeys holds the host public keys.
+  PublicKeys public_keys = 1;
+  // HostName is the user-friendly node name for the host. This comes from
+  // teleport.nodename in the service configuration and defaults to the
+  // hostname. It is encoded as a valid principal in issued certificates.
+  string host_name = 2;
+  // AdditionalPrincipals is a list of additional principals requested.
+  repeated string additional_principals = 3;
+  // DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
+  repeated string dns_names = 4;
+}
+
+// BotParams holds parameters required for bot joining.
+message BotParams {
+  // PublicKeys holds the bot public keys.
+  PublicKeys public_keys = 1;
+  // Expires is a desired time of the expiry of the returned certificates.
+  optional google.protobuf.Timestamp expires = 2;
+}
+
+// ClientParams holds either host or bot join parameters.
+message ClientParams {
+  oneof payload {
+    HostParams host_params = 1;
+    BotParams bot_params = 2;
+  }
+}
+
+// TokenInit is sent by the client in response to the ServerInit message for
+// the Token join method.
+//
+// The Token method join flow is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: TokenInit
+// 4. server->client: Result
+message TokenInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// EC2Init is sent from the client in response to the ServerInit message for
+// the EC2 join method.
 //
 // The EC2 method join flow is:
 // 1. client->server: ClientInit
 // 2. server->client: ServerInit
-// 3. client->server: EC2IdentityDocument
+// 3. client->server: EC2Init
 // 4. server->client: Result
-message EC2IdentityDocument {
+message EC2Init {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
   // Document is a signed EC2 Instance Identity Document used to prove the
   // identity of a joining EC2 instance.
-  bytes document = 1;
+  bytes document = 2;
 }
 
-// IAMChallenge is sent from the server immediately after the ServerInit
-// message for the IAM join method.
-// The client is expected to respond with a IAMChallengeSolution.
+// IAMInit is sent from the client in response to the ServerInit message for
+// the IAM join method.
 //
 // The IAM method join flow is:
 // 1. client->server: ClientInit
 // 2. server->client: ServerInit
-// 3. server->client: IAMChallenge
-// 4. client->server: IAMChallengeSolution
-// 5. server->client: Result
+// 3. client->server: IAMInit
+// 4. server->client: IAMChallenge
+// 5. client->server: IAMChallengeSolution
+// 6. server->client: Result
+message IAMInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// IAMChallenge is from the server in response to the IAMInit message from the client.
+// The client is expected to respond with a IAMChallengeSolution.
 message IAMChallenge {
   // Challenge is a a crypto-random string that should be included by the
   // client in the IAMChallengeSolution message.
@@ -365,16 +400,23 @@ message IAMChallengeSolution {
   bytes sts_identity_request = 1;
 }
 
-// AzureChallenge is sent from the server immediately after the ServerInit
-// message for the Azure join method.
-// The client is expected to respond with a AzureChallengeSolution.
+// AzureInit is sent from the client in response to the ServerInit message for
+// the Azure join method.
 //
 // The Azure method join flow is:
 // 1. client->server: ClientInit
 // 2. server->client: ServerInit
-// 3. server->client: AzureChallenge
-// 4. client->server: AzureChallengeSolution
-// 5. server->client: Result
+// 3. client->server: AzureInit
+// 4. server->client: AzureChallenge
+// 5. client->server: AzureChallengeSolution
+// 6. server->client: Result
+message AzureInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// AzureChallenge is sent from the server in response to the AzureInit message from the client.
+// The client is expected to respond with a AzureChallengeSolution.
 message AzureChallenge {
   // Challenge is a a crypto-random string that should be included by the
   // client in the challenge response message.
@@ -393,16 +435,23 @@ message AzureChallengeSolution {
   string access_token = 2;
 }
 
-// OracleChallenge is the message type sent from the cluster in response to the
-// ClientInit message when the provision token specifies the Oracle join method.
-// The client is expected to respond with an OracleChallengeSolution.
+// OracleInit is sent from the client in response to the ServerInit message for
+// the Oracle join method.
 //
 // The Oracle method join flow is:
 // 1. client->server: ClientInit
 // 2. server->client: ServerInit
+// 3. client->server: OracleInit
 // 3. server->client: OracleChallenge
 // 4. client->server: OracleChallengeSolution
 // 5. server->client: Result
+message OracleInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// OracleChallenge is sent from the server in response to the OracleInit message from the client.
+// The client is expected to respond with an OracleChallengeSolution.
 message OracleChallenge {
   // Challenge is a crypto-random string that should be included in the signed
   // headers.
@@ -420,30 +469,32 @@ message OracleChallengeSolution {
   map<string, string> payload_headers = 2;
 }
 
-// OIDCToken holds the OIDC identity token used for all OIDC-based join methods.
+// OIDCInit holds the OIDC identity token used for all OIDC-based join methods.
 //
 // The join flow for all OIDC-based join methods is:
 // 1. client->server: ClientInit
 // 2. server->client: ServerInit
-// 3. client->server: OIDCToken
+// 3. client->server: OIDCInit
 // 4. server->client: Result
-message OIDCToken {
+message OIDCInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
   // IdToken is the OIDC identity token.
   bytes id_token = 1;
 }
 
-// TPMAttestationParameters is the message sent from the client in response to
+// TPMInit is the message sent from the client in response to
 // the ServerInit message for the TPM join flow.
 // The server is expected to respond with a TPMActiveCredential message.
 //
 // The TPM method join flow is:
 // 1. client->server: ClientInit
 // 2. server->client: ServerInit
-// 3. client->server: TPMAttestationParameters
+// 3. client->server: TPMInit
 // 4. server->client: TPMEncryptedCredential
 // 5. client->server: TPMSolution
 // 6. server->client: Result
-message TPMAttestationParameters {
+message TPMInit {
   // The encoded TPMT_PUBLIC structure containing the attestation public key
   // and signing parameters.
   bytes public = 1;
@@ -467,7 +518,7 @@ message TPMAttestationParameters {
 }
 
 // TPMEncryptedCredential is the message sent from the server in response to the
-// TPMAttestationParameters message.
+// TPMInit message.
 // The client is expected to respond with a TPMSolution message.
 message TPMEncryptedCredential {
   // The `credential_blob` parameter to be used with the `ActivateCredential`
@@ -585,21 +636,25 @@ message ChallengeSolution {
 message JoinRequest {
   oneof payload {
     ClientInit client_init = 1;
-    ChallengeSolution solution = 2;
-    EC2IdentityDocument ec2_identity_document = 3;
-    OIDCToken oidc_token = 4;
-    TPMAttestationParameters tpm_attestation_parameters = 5;
-    BoundKeypairInit bound_keypair_init = 6;
+    TokenInit token_init = 2;
+    EC2Init ec2_init = 3;
+    IAMInit iam_init = 4;
+    OracleInit oracle_init = 5;
+    OIDCInit oidc_token = 6;
+    TPMInit tpm_init = 7;
+    BoundKeypairInit bound_keypair_init = 8;
+    ChallengeSolution solution = 9;
   }
 }
 
 // ServerInit is the first message sent from the server in response to the
-// ClientInit message. It contains the join method name, and it may include a
-// challenge if the join method requires the server to issue a challenge that
-// does not depend on information from the client.
+// ClientInit message.
 message ServerInit {
   // JoinMethod is the name of the selected join method.
   string join_method = 1;
+  // SignatureAlgorithmSuite is the name of the signature algorithm suite
+  // currently configured for the cluster.
+  string signature_algorithm_suite = 2;
 }
 
 // Challenge is a challenge message sent from the server that the client must solve.
@@ -618,20 +673,40 @@ message Challenge {
 // contains the result of the joining process including the assigned host ID
 // and issued certificates.
 message Result {
+  oneof payload {
+    HostResult host_result = 1;
+    BotResult bot_result = 2;
+  }
+}
+
+// Certificates holds issued certificates and cluster CAs.
+message Certificates {
   // TlsCert is an X.509 certificate encoded in ASN.1 DER form.
   bytes tls_cert = 1;
-  // TlsCaCerts is a list of TLS certificate authorities that the agent should trust.
+  // TlsCaCerts is a list of TLS certificate authorities that the client should trust.
   // Each certificate is encoding in ASN.1 DER form.
   repeated bytes tls_ca_certs = 2;
   // SshCert is an SSH certificate encoded in SSH wire format.
   bytes ssh_cert = 3;
-  // SshCaKey is a list of SSH certificate authority public keys that the agent should trust.
+  // SshCaKey is a list of SSH certificate authority public keys that the client should trust.
   // Each CA key is encoded in SSH wire format.
   repeated bytes ssh_ca_keys = 4;
-  // HostId is the unique ID assigned to the host. Unset for bot joining.
-  optional string host_id = 5;
+}
+
+// HostResult holds results for host joining.
+message HostResult {
+  // Certificates holds issued certificates and cluster CAs.
+  Certificates certificates = 1;
+  // HostId is the unique ID assigned to the host.
+  string host_id = 2;
+}
+
+// HostResult holds results for bot joining.
+message BotResult {
+  // Certificates holds issued certificates and cluster CAs.
+  Certificates certificates = 1;
   // BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
-  optional BoundKeypairResult bound_keypair_result = 6;
+  optional BoundKeypairResult bound_keypair_result = 2;
 }
 
 // JoinResponse is the message type sent from the server to the joining client.
@@ -683,8 +758,8 @@ service JoinService {
   // The client must send an ClientInit message on the JoinRequest stream to
   // initiate the join flow.
   //
-  // The server will reply with a JoinResponse where the payload will vary
-  // based on the join method specified in the provision token.
+  // The server will reply with a ServerInit message, and subsequent messages
+  // on the stream will depend on the join method.
   rpc Join(stream JoinRequest) returns (stream JoinResponse);
 }
 ```
