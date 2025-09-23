@@ -133,11 +133,13 @@ func TestAutoUpdateAgentVersion(t *testing.T) {
 			require.NoError(t, tt.channel.CheckAndSetDefaults())
 			h, err := NewResolver(
 				Config{
-					Client: HybridClient{
-						RolloutClient: &fakeRolloutAccessPoint{
-							rollout: tt.rollout,
-							err:     tt.rolloutErr,
-						},
+					RolloutGetter: &fakeRolloutAccessPoint{
+						rollout: tt.rollout,
+						err:     tt.rolloutErr,
+					},
+					CMCGetter: &fakeCMCAuthClient{
+						cmc: nil,
+						err: trace.NotImplemented("cmc should not be called in this test"),
 					},
 					Channels: map[string]*automaticupgrades.Channel{
 						groupName: tt.channel,
@@ -329,15 +331,13 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 			// Advance cache clock to expire cached cmc
 			cacheClock.Advance(2 * cmcCacheTTL)
 			h, err := NewResolver(Config{
-				Client: HybridClient{
-					RolloutClient: &fakeRolloutAccessPoint{
-						rollout: tt.rollout,
-						err:     tt.rolloutErr,
-					},
-					CMCClient: &fakeCMCAuthClient{
-						cmc: cmc,
-						err: tt.cmcErr,
-					},
+				RolloutGetter: &fakeRolloutAccessPoint{
+					rollout: tt.rollout,
+					err:     tt.rolloutErr,
+				},
+				CMCGetter: &fakeCMCAuthClient{
+					cmc: cmc,
+					err: tt.cmcErr,
 				},
 				Channels: map[string]*automaticupgrades.Channel{
 					groupName: tt.channel,

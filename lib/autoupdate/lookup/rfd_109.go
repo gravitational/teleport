@@ -42,7 +42,7 @@ func (h *Resolver) getTriggerFromWindowThenChannel(ctx context.Context, groupNam
 	// Caching the CMC for 60 seconds because this resource is cached neither by the auth nor the proxy.
 	// And this function can be accessed via unauthenticated endpoints.
 	cmc, err := utils.FnCacheGet(ctx, h.cmcCache, "cmc", func(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
-		return h.cfg.Client.GetClusterMaintenanceConfig(ctx)
+		return h.cfg.CMCGetter.GetClusterMaintenanceConfig(ctx)
 	})
 
 	// If there's no CMC or we failed to get it, we fallback directly to the channel

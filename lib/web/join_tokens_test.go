@@ -48,7 +48,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/autoupdate/lookup"
+	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -1339,6 +1339,11 @@ func (a *autoupdateProxyClientMock) GetClusterCACert(ctx context.Context) (*prot
 	return args.Get(0).(*proto.GetClusterCACertResponse), args.Error(1)
 }
 
+func (a *autoupdateProxyClientMock) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	args := a.Called(ctx)
+	return args.Get(0).(types.ClusterMaintenanceConfig), args.Error(1)
+}
+
 type autoupdateTestHandlerConfig struct {
 	testModules *modulestest.Modules
 	hostname    string
@@ -1377,6 +1382,7 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	}
 
 	clt.On("GetClusterCACert", mock.Anything).Return(&proto.GetClusterCACertResponse{TLSCA: []byte(fixtures.SigningCertPEM)}, nil)
+	clt.On("GetClusterMaintenanceConfig", mock.Anything).Return(nil, trace.NotImplemented("Should not be called"))
 
 	if config.testModules == nil {
 		config.testModules = &modulestest.Modules{
@@ -1386,16 +1392,14 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 
 	log := logtest.NewLogger()
 	modulestest.SetTestModules(t, *config.testModules)
-	r, err := lookup.NewResolver(lookup.Config{
-		Client: lookup.HybridClient{
-			RolloutClient: ap,
-			// Those tests don't rely on the CMC, if they did, we'd need to set this.
-			CMCClient: nil,
-		},
-		Channels: config.channels,
-		Log:      log,
-		Context:  t.Context(),
-	})
+	r, err := autoupdatelookup.NewResolver(
+		autoupdatelookup.Config{
+			RolloutGetter: ap,
+			CMCGetter:     clt,
+			Channels:      config.channels,
+			Log:           log,
+			Context:       t.Context(),
+		})
 	require.NoError(t, err)
 	h := &Handler{
 		clusterFeatures: *config.testModules.Features().ToProto(),
