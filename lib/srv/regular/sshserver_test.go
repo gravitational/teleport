@@ -3136,7 +3136,7 @@ func TestTargetMetadata(t *testing.T) {
 		serverOptions...)
 	require.NoError(t, err)
 
-	metadata := sshSrv.TargetMetadata()
+	metadata := sshSrv.EventMetadata()
 	require.Equal(t, nodeID, metadata.ServerID)
 	require.Equal(t, apidefaults.Namespace, metadata.ServerNamespace)
 	require.Empty(t, metadata.ServerAddr)
