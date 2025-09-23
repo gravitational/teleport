@@ -24,13 +24,12 @@ import (
 	"github.com/google/uuid"
 	apitypes "github.com/gravitational/teleport/api/types"
 	
-	"github.com/gravitational/teleport/integrations/lib/backoff"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/devicetrust/v1"
 )
@@ -107,14 +106,24 @@ func (r resourceTeleportDeviceV1) Create(ctx context.Context, req tfsdk.CreateRe
 		var trustedDeviceI *apitypes.DeviceV1
 	// Try getting the resource until it exists.
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		trustedDeviceI, err = r.p.Client.GetDeviceResource(ctx, id)
 		if trace.IsNotFound(err) {
-			if bErr := backoff.Do(ctx); bErr != nil {
-				resp.Diagnostics.Append(diagFromWrappedErr("Error reading DeviceV1", trace.Wrap(err), "device"))
+		    select {
+			case <-ctx.Done():
+			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading DeviceV1", trace.Wrap(ctx.Err()), "device"))
 				return
+			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading DeviceV1 (tried %d times) - state outdated, please import resource", tries)
@@ -230,7 +239,15 @@ func (r resourceTeleportDeviceV1) Update(ctx context.Context, req tfsdk.UpdateRe
 		var trustedDeviceI *apitypes.DeviceV1
 
 	tries := 0
-	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
+		First:  r.p.RetryConfig.Base,
+		Max:    r.p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return
+	}
 	for {
 		tries = tries + 1
 		trustedDeviceI, err = r.p.Client.GetDeviceResource(ctx, name)
@@ -242,9 +259,11 @@ func (r resourceTeleportDeviceV1) Update(ctx context.Context, req tfsdk.UpdateRe
 			break
 		}
 
-		if err := backoff.Do(ctx); err != nil {
-			resp.Diagnostics.Append(diagFromWrappedErr("Error reading DeviceV1", trace.Wrap(err), "device"))
+		select {
+		case <-ctx.Done():
+		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading DeviceV1", trace.Wrap(ctx.Err()), "device"))
 			return
+		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading DeviceV1 (tried %d times) - state outdated, please import resource", tries)

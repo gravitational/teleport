@@ -1,5 +1,5 @@
 ---
-title: Configuring Teleport with Terraform
+title: Teleport Terraform Provider
 description: How to manage dynamic resources using the Teleport Terraform provider.
 videoBanner: YgNHD4SS8dg
 tags:
@@ -9,6 +9,12 @@ tags:
 
 The Teleport Terraform provider allows Teleport administrators to use Terraform to configure Teleport via
 dynamic resources.
+
+## Getting started
+
+For an example of using the Teleport Terraform provider to deploy Teleport
+Agents, configure Single Sign-On, and manage role-based access controls, see
+[Getting Started](./terraform-getting-started.mdx).
 
 ## Setup
 
@@ -20,12 +26,12 @@ is executed. You must pick the correct guide for your setup:
 
 | Guide                                                                                                               | Use-case                                                                                                                                                                                                         | How it works                                                                                                                           |
 |---------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| [Run the Teleport Terraform provider locally](local.mdx)                                       | You are getting started with the Teleport Terraform provider and managing Teleport resources with IaC.                                                                           | You use local credentials to create a temporary bot, obtain short-lived credentials, and store them in environment variables. |
-| [Run the Teleport Terraform provider on Terraform Cloud](terraform-cloud.mdx) | You're running on HCP Terraform (Terraform Cloud) or self-hosted Terraform Enterprise. | Terraform Cloud Workload Identity issues a proof of identity and the Teleport Terraform provider uses it to authenticate. |
-| [Run the Teleport Terraform provider in CI or a cloud VM](ci-or-cloud.mdx)                     | You already have a working Terraform module configuring Teleport and want to run it in CI to benefit from review and audit capabilities from your versioning system (e.g. git).                                  | You're using a proof provided by your runtime (CI engine, cloud provider) to prove your identity and join using MachineID.             |
-| [Run the Teleport Terraform provider on Spacelift](spacelift.mdx)                              | You already have a working Terraform module configuring Teleport and want to run it on the Spacelift platform.                                                                                                   | You're using a proof provided by Spacelift to prove your identity and join using MachineID.                                            |
-| [Run the Teleport Terraform provider from a server](dedicated-server.mdx)                      | You have working Terraform code and want to run it on a dedicated server. The server is long-lived, like a bastion or a task runner.                                                                             | You setup a MachineID daemon (`tbot`) that obtains and refreshes credentials for the Terraform provider.                               |
-| [Run the Teleport Terraform provider with long-lived credentials.](long-lived-credentials.mdx) | This method is discouraged as less secure than the others. This should be used when none of the other methods work in your case (short-lived CI environments that don't have dedicated Teleport join methods). | You sign one long lived certificate allowing the Terraform provider to connect to Teleport.                                            |
+| [Local Demos](local.mdx)                                       | You are getting started with the Teleport Terraform provider and managing Teleport resources with IaC.                                                                           | You use local credentials to create a temporary bot, obtain short-lived credentials, and store them in environment variables. |
+| [Terraform Cloud](terraform-cloud.mdx) | You're running on HCP Terraform (Terraform Cloud) or self-hosted Terraform Enterprise. | Terraform Cloud Workload Identity issues a proof of identity and the Teleport Terraform provider uses it to authenticate. |
+| [CI or a Cloud VM](ci-or-cloud.mdx)                     | You already have a working Terraform module configuring Teleport and want to run it in CI to benefit from review and audit capabilities from your versioning system (e.g. git).                                  | You're using a proof provided by your runtime (CI engine, cloud provider) to prove your identity and join using MachineID.             |
+| [Spacelift](spacelift.mdx)                              | You already have a working Terraform module configuring Teleport and want to run it on the Spacelift platform.                                                                                                   | You're using a proof provided by Spacelift to prove your identity and join using MachineID.                                            |
+| [Dedicated Server](dedicated-server.mdx)                      | You have working Terraform code and want to run it on a dedicated server. The server is long-lived, like a bastion or a task runner.                                                                             | You setup a MachineID daemon (`tbot`) that obtains and refreshes credentials for the Terraform provider.                               |
+| [Long-Lived Credentials](long-lived-credentials.mdx) | This method is discouraged as less secure than the others. This should be used when none of the other methods work in your case (short-lived CI environments that don't have dedicated Teleport join methods). | You sign one long lived certificate allowing the Terraform provider to connect to Teleport.                                            |
 
 ## Resource guides
 

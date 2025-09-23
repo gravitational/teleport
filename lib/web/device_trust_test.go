@@ -40,7 +40,7 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 	wPack := newWebPack(
 		t,
 		1, /* numProxies */
-		withDevicesClientOverride(fakeDevices),
+		withWebPackProxyOptions(withDevicesClientOverride(fakeDevices)),
 	)
 	proxy := wPack.proxies[0]
 

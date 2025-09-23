@@ -60,6 +60,17 @@ type mockGetter struct {
 	clusterName string
 }
 
+func (m *mockGetter) ListUserLoginStates(ctx context.Context, pageSize int, nextToken string) ([]*userloginstate.UserLoginState, string, error) {
+	if pageSize != 0 && pageSize < len(m.userStates) {
+		return nil, "", trace.BadParameter("page size %d exceeds total items %d", pageSize, len(m.userStates))
+	}
+	out := make([]*userloginstate.UserLoginState, 0, len(m.userStates))
+	for _, v := range m.userStates {
+		out = append(out, v)
+	}
+	return out, "", nil
+}
+
 // user inserts a new user with the specified roles and returns the username.
 func (m *mockGetter) user(t *testing.T, roles ...string) string {
 	name := uuid.New().String()

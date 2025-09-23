@@ -77,7 +77,7 @@ func TestBotInstanceCache(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return p.botInstanceService.DeleteAllBotInstances(ctx)
 		},
-	}, withSkipPaginationTest())
+	})
 }
 
 // TestBotInstanceCachePaging tests that items from the cache are paginated.

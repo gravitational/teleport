@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ReactElement, useRef, useState } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  ReactElement,
+  useRef,
+  useState,
+} from 'react';
 
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
 import { ButtonSize } from 'design/Button';
@@ -48,6 +53,7 @@ export const MenuLoginWithActionMenu = ({
   onSelect,
   getLoginItems,
   children,
+  menuWidth,
   width,
   size = 'medium',
   placeholder,
@@ -67,7 +73,14 @@ export const MenuLoginWithActionMenu = ({
   getLoginItems: () => LoginItem[] | Promise<LoginItem[]>;
   /** Action menu items. */
   children: MenuItemComponent | MenuItemComponent[];
-  width?: string;
+  /**
+   * Width of just the MenuLogin part of the component. Ignored if width is set.
+   */
+  menuWidth?: ComponentPropsWithoutRef<typeof MenuLogin>['width'];
+  /**
+   * Width of the whole component (button of MenuLogin + ButtonBorder of action menu). menuWidth is ignored if width is set.
+   */
+  width?: ComponentPropsWithoutRef<typeof Flex>['width'];
   size?: ButtonSize;
   /** Text for action menu search box or static label.  */
   placeholder?: string;
@@ -77,9 +90,9 @@ export const MenuLoginWithActionMenu = ({
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   return (
-    <Flex>
+    <Flex width={width}>
       <MenuLogin
-        width={width}
+        width={width ? '100%' : menuWidth}
         inputType={inputType}
         onSelect={onSelect}
         textTransform="none"

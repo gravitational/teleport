@@ -224,6 +224,10 @@ func (s *Service) CreateUser(ctx context.Context, req *userspb.CreateUserRequest
 		return nil, trace.Wrap(err)
 	}
 
+	if len(req.User.GetName()) > teleport.MaxUsernameLength {
+		return nil, trace.BadParameter("username exceeds maximum length of %d characters", teleport.MaxUsernameLength)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindUser, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
