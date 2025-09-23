@@ -158,9 +158,7 @@ class ResourceService {
 
   async fetchRole(name: string): Promise<RoleResource> {
     return makeResource<'role'>(
-      await api.get(cfg.getRoleUrl(name), undefined, undefined, {
-        allowRoleNotFound: true,
-      })
+      await api.get(cfg.getRoleUrl(name), undefined, undefined)
     );
   }
 
@@ -231,9 +229,7 @@ export async function fetchRole(
   signal?: AbortSignal
 ): Promise<RoleResource> {
   return makeResource<'role'>(
-    await api.get(cfg.getRoleUrl(name), signal, undefined, {
-      allowRoleNotFound: true,
-    })
+    await api.get(cfg.getRoleUrl(name), signal, undefined)
   );
 }
 
