@@ -227,7 +227,7 @@ func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeI
 	}
 }
 
-// WriteMessage passes the message to the write interceptor (if provded)
+// WriteMessage passes the message to the write interceptor (if provided)
 // for omition or modification before writing the message to the underlying
 // writer.
 func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
