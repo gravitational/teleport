@@ -419,7 +419,7 @@ get_download_filename() { echo "${1##*/}"; }
 # gets the pid of any running teleport process (and converts newlines to spaces)
 get_teleport_pid() {
     check_exists_fatal pgrep xargs
-    pgrep teleport | xargs echo
+    pgrep -f "teleport start" | xargs echo
 }
 # returns a command which will start teleport using the config
 get_teleport_start_command() {
