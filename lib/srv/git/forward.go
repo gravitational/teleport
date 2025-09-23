@@ -566,7 +566,7 @@ func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string
 			RemoteAddr: sctx.ServerConn.RemoteAddr().String(),
 			LocalAddr:  sctx.ServerConn.LocalAddr().String(),
 		},
-		ServerMetadata: s.TargetMetadata(),
+		ServerMetadata: s.EventMetadata(),
 	}
 	if err != nil {
 		event.Metadata.Code = events.GitCommandFailureCode
@@ -663,7 +663,7 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 func (s *ForwardServer) Context() context.Context {
 	return s.cfg.ParentContext
 }
-func (s *ForwardServer) TargetMetadata() apievents.ServerMetadata {
+func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
 		ServerNamespace: s.cfg.TargetServer.GetNamespace(),

@@ -94,7 +94,7 @@ func (p *SFTPProxy) Serve() error {
 			Code: events.SFTPSummaryCode,
 			Time: time.Now(),
 		},
-		ServerMetadata:  scx.GetServer().TargetMetadata(),
+		ServerMetadata:  scx.GetServer().EventMetadata(),
 		SessionMetadata: scx.GetSessionMetadata(),
 		UserMetadata:    scx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -224,7 +224,7 @@ func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	} else if reqErr != nil {
 		h.logger.DebugContext(req.Context(), "failed handling SFTP request", "request", req.Method, "error", reqErr)
 	}
-	event.ServerMetadata = h.scx.GetServer().TargetMetadata()
+	event.ServerMetadata = h.scx.GetServer().EventMetadata()
 	event.SessionMetadata = h.scx.GetSessionMetadata()
 	event.UserMetadata = h.scx.Identity.GetUserMetadata()
 	event.ConnectionMetadata = apievents.ConnectionMetadata{

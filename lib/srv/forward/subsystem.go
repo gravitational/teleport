@@ -164,7 +164,7 @@ func (r *remoteSubsystem) emitAuditEvent(ctx context.Context, err error) {
 			RemoteAddr: r.serverContext.RemoteClient.RemoteAddr().String(),
 		},
 		Name:           r.subsystemName,
-		ServerMetadata: r.serverContext.GetServer().TargetMetadata(),
+		ServerMetadata: r.serverContext.GetServer().EventMetadata(),
 	}
 
 	if err != nil {
