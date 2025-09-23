@@ -92,7 +92,7 @@ func (h *Handler) installScriptHandle(w http.ResponseWriter, r *http.Request, pa
 func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScriptOptions, error) {
 	const defaultGroup, defaultUpdater = "", ""
 
-	version, err := h.autoUpdateAgentVersion(ctx, defaultGroup, defaultUpdater)
+	version, err := h.autoUpdateResolver.GetVersion(ctx, defaultGroup, defaultUpdater)
 	if err != nil {
 		h.logger.WarnContext(ctx, "Failed to get intended agent version", "error", err)
 		version = teleport.SemVer()
