@@ -1065,9 +1065,6 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 		})
 	require.NoError(t, err)
 
-	// Force pagination for testing purposes.
-	svc.userPageSize = 1
-
 	memberRoles := []string{"mrole1", "mrole2"}
 	memberTraits := map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},

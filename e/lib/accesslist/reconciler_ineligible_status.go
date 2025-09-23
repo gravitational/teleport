@@ -13,6 +13,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // IneligibleStatusReconcilerConfig is the configuration for the IneligibleStatusReconciler.
@@ -113,7 +115,7 @@ const (
 func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 	// reconcileC is used to trigger a reconciliation
 	// or queue one if a reconciliation is already in progress
-	// to make sure that reconsider will react to the latest events
+	// to make sure that reconciler will react to the latest events
 	// without skipping any action.
 	reconcileC := make(chan struct{}, 1)
 	// add initial one minute  then set the expiration based on the next member expiration
@@ -213,7 +215,7 @@ func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context) (ne
 		r.logger.DebugContext(ctx, "AccessList reconciliation complete")
 	}()
 	// get all users
-	users, err := getAllUsers(ctx, r.cache, 0 /* use the default page size */)
+	users, err := getAllUsers(ctx, r.cache)
 	if err != nil {
 		return 0, trace.Wrap(err, "unable to get users")
 	}
@@ -233,20 +235,8 @@ func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context) (ne
 }
 
 func getAllAccessLists(ctx context.Context, cache Cache) ([]*accesslist.AccessList, error) {
-	var accessLists []*accesslist.AccessList
-	startToken := ""
-	for {
-		batch, nextToken, err := cache.ListAccessLists(ctx, 0 /* default pageSize */, startToken)
-		if err != nil {
-			return nil, trace.Wrap(err, "unable to get access lists")
-		}
-		accessLists = append(accessLists, batch...)
-		if nextToken == "" {
-			break
-		}
-		startToken = nextToken
-	}
-	return accessLists, nil
+	out, err := stream.Collect(clientutils.Resources(ctx, cache.ListAccessLists))
+	return out, trace.Wrap(err)
 }
 
 func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Context, accessLists []*accesslist.AccessList, usersMap map[string]types.User) error {
@@ -299,71 +289,60 @@ func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Co
 func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, now time.Time, accessLists []*accesslist.AccessList, usersMap map[string]types.User) (time.Duration, error) {
 	accessListsMap := sliceToMap(accessLists)
 
-	startKey := ""
 	nextExpiration := neverDuration
-	for {
-		accessListsMembers, nextKey, err := r.cache.ListAllAccessListMembers(ctx, 0 /* default pageSize */, startKey)
+	for member, err := range clientutils.Resources(ctx, r.cache.ListAllAccessListMembers) {
 		if err != nil {
 			return 0, trace.Wrap(err, "unable to get access list members")
 		}
 
-		var toUpdate []*accesslist.AccessListMember
-		for _, member := range accessListsMembers {
-			accessList, ok := accessListsMap[member.Spec.AccessList]
-			if !ok {
-				r.logger.WarnContext(ctx, "Access list not found", "access_list", member.Spec.AccessList)
-				continue
-			}
+		accessList, ok := accessListsMap[member.Spec.AccessList]
+		if !ok {
+			r.logger.WarnContext(ctx, "Access list not found", "access_list", member.Spec.AccessList)
+			continue
+		}
 
-			var ineligibleStatus accesslistv1.IneligibleStatus
-			switch member.Spec.MembershipKind {
-			case accesslist.MembershipKindList:
-				// membership requires are not checked for lists
-				// they are always eligible
+		var ineligibleStatus accesslistv1.IneligibleStatus
+		switch member.Spec.MembershipKind {
+		case accesslist.MembershipKindList:
+			// membership requires are not checked for lists
+			// they are always eligible
+			ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
+		default:
+			if _, ok := usersMap[member.Spec.Name]; ok {
+				ineligibleStatus = checkUserIsStillEligible(StillEligibleFields{
+					userLookup: usersMap,
+					username:   member.Spec.Name,
+					expires:    member.Spec.Expires,
+					clock:      r.clock,
+					requires:   accessList.GetMembershipRequires(),
+				})
+			} else if member.Origin() == common.OriginAWSIdentityCenter {
+				// Identity Center originated members who do not have an account in Teleport
+				// should always be eligible.
 				ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
-			default:
-				if _, ok := usersMap[member.Spec.Name]; ok {
-					ineligibleStatus = checkUserIsStillEligible(StillEligibleFields{
-						userLookup: usersMap,
-						username:   member.Spec.Name,
-						expires:    member.Spec.Expires,
-						clock:      r.clock,
-						requires:   accessList.GetMembershipRequires(),
-					})
-				} else if member.Origin() == common.OriginAWSIdentityCenter {
-					// Identity Center originated members who do not have an account in Teleport
-					// should always eligible.
-					ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
-				}
-			}
-
-			oldIneligibleStatus := member.Spec.IneligibleStatus
-			member.Spec.IneligibleStatus = ineligibleStatus.String()
-			if oldIneligibleStatus != member.Spec.IneligibleStatus {
-				r.logger.DebugContext(ctx, "Updating access list member ineligibility status",
-					"access_list", member.Spec.AccessList,
-					"member_name", member.Spec.Name,
-					"membership_kind", member.Spec.MembershipKind,
-					"old_status", oldIneligibleStatus,
-					"new_status", member.Spec.IneligibleStatus,
-				)
-				toUpdate = append(toUpdate, member)
-			}
-		}
-		for _, member := range toUpdate {
-			if err := r.updateMember(ctx, member); err != nil {
-				return 0, trace.Wrap(err, "unable to update access list member")
+			} else {
+				ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_USER_NOT_EXIST
 			}
 		}
 
-		batchNextExpirationTime := nextExpirationTime(now, accessListsMembers)
-		nextExpiration = min(nextExpiration, batchNextExpirationTime)
-		if nextKey == "" {
-			break
+		oldIneligibleStatus := member.Spec.IneligibleStatus
+		member.Spec.IneligibleStatus = ineligibleStatus.String()
+
+		nextExpiration = min(nextExpiration, nextExpirationTime(now, member))
+		if oldIneligibleStatus == member.Spec.IneligibleStatus {
+			continue
 		}
-		startKey = nextKey
+		r.logger.DebugContext(ctx, "Updating access list member ineligibility status",
+			"access_list", member.Spec.AccessList,
+			"member_name", member.Spec.Name,
+			"membership_kind", member.Spec.MembershipKind,
+			"old_status", oldIneligibleStatus,
+			"new_status", member.Spec.IneligibleStatus,
+		)
+		if err := r.updateMember(ctx, member); err != nil {
+			return 0, trace.Wrap(err, "unable to update access list member")
+		}
 	}
-
 	return nextExpiration, nil
 }
 
@@ -396,14 +375,12 @@ func sliceToMap[T interface{ GetName() string }](slice []T) map[string]T {
 
 // nextExpirationTime returns the time when the next access list member expires across all access lists.
 // If no access list members expire, it returns a duration of 100 years.
-func nextExpirationTime(now time.Time, accessListMembers []*accesslist.AccessListMember) time.Duration {
+func nextExpirationTime(now time.Time, member *accesslist.AccessListMember) time.Duration {
 	expires := now.Add(neverDuration)
-	for _, member := range accessListMembers {
-		if !member.Spec.Expires.IsZero() &&
-			member.Spec.Expires.After(now) &&
-			member.Spec.Expires.Before(expires) {
-			expires = member.Spec.Expires
-		}
+	if !member.Spec.Expires.IsZero() &&
+		member.Spec.Expires.After(now) &&
+		member.Spec.Expires.Before(expires) {
+		expires = member.Spec.Expires
 	}
 	return expires.Sub(now)
 }

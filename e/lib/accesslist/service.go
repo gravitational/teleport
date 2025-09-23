@@ -27,6 +27,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
@@ -224,9 +225,6 @@ type Service struct {
 	authServer        AuthServer
 	backend           backend.Backend
 	lockGetter        services.LockGetter
-
-	// When not set, this will use the default page size for ListUsers.
-	userPageSize int
 }
 
 // NewService creates a new Access List gRPC service.
@@ -531,7 +529,7 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 	s.addMemberCounts(ctx, currentAssignments.IsMember(), result)
 
 	// Get a list of all users, to compute eligibility for owners.
-	users, err := getAllUsers(ctx, s.cache, s.userPageSize)
+	users, err := getAllUsers(ctx, s.cache)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -546,28 +544,27 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 }
 
 // getAllUsers returns all users known to Teleport.
-func getAllUsers(ctx context.Context, cache Cache, pageSize int) ([]types.User, error) {
-	var users []types.User
-	req := userspb.ListUsersRequest{
-		PageSize: int32(pageSize),
+func getAllUsers(ctx context.Context, cache Cache) ([]types.User, error) {
+	iterFn := func(ctx context.Context, pageSize int, nextToken string) ([]*types.UserV2, string, error) {
+		req := &userspb.ListUsersRequest{
+			PageSize:  int32(pageSize),
+			PageToken: nextToken,
+		}
+		resp, err := cache.ListUsers(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return resp.GetUsers(), resp.GetNextPageToken(), nil
 	}
-	for {
-		rsp, err := cache.ListUsers(ctx, &req)
+
+	var out []types.User
+	for item, err := range clientutils.Resources(ctx, iterFn) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		for _, u := range rsp.Users {
-			users = append(users, u)
-		}
-
-		req.PageToken = rsp.NextPageToken
-		if req.PageToken == "" {
-			break
-		}
+		out = append(out, item)
 	}
-
-	return users, nil
+	return out, nil
 }
 
 // GetAccessListsToReview will return access lists that need to be reviewed by the current user.
@@ -950,7 +947,7 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 	}
 
 	// Get a list of all users, to compute eligibility for members.
-	users, err := getAllUsers(ctx, s.cache, s.userPageSize)
+	users, err := getAllUsers(ctx, s.cache)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1725,7 +1722,7 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	modified = getMemberChanges(oldMembers, updatedMembers)
 
 	// Get a list of all users, to compute eligibility's.
-	users, err := getAllUsers(ctx, s.cache, s.userPageSize)
+	users, err := getAllUsers(ctx, s.cache)
 	if err != nil {
 		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}

@@ -51,7 +51,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		for _, member := range members {
 			switch member.Spec.Name {
 			case externalMemberWithoutOrigin.GetName():
-				require.Equal(t, "INELIGIBLE_STATUS_UNSPECIFIED", member.Spec.IneligibleStatus)
+				require.Equal(t, "INELIGIBLE_STATUS_USER_NOT_EXIST", member.Spec.IneligibleStatus)
 			default:
 				require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
 			}
