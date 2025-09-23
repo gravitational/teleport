@@ -8,19 +8,24 @@ labels:
 Teleport Identity Governance helps organizations strengthen security and compliance by centralizing 
 how access is granted, monitored, and enforced across infrastructure and applications. 
 The following use cases highlight practical ways to apply Teleport's governance features, from integrating 
-with device and identity providers, monitoring risky access patterns, and extending controls into external services. 
+with device and identity providers, and extending controls into external services. 
 Each scenario links to detailed guides so you can quickly put these capabilities into practice.
 
 ## Identity integrations
 
 Teleport supports multiple identity options so you can plug into your existing stack or make Teleport your source of truth. 
-Integrate with IdPs like **AWS IAM Identity Center**, **Okta,** or **Microsoft Entra ID** to sync groups to Teleport roles. If you prefer, you can also run **Teleport as an identity provider**, issuing 
-short-lived credentials and federating access to downstream apps and services. These integrations enable centralized onboarding/off-boarding, group-to-role mapping, and consistent policy enforcement across all your resources.
+
+Integrate with IdPs like **AWS IAM Identity Center**, **Okta,** **Microsoft Entra ID**, or **SailPoint** to sync groups to Teleport roles. 
+If you prefer, you can also run **Teleport as an identity provider**, issuing 
+short-lived credentials and federating access to downstream apps and services. 
+
+These integrations enable centralized onboarding/off-boarding, group-to-role mapping, and consistent policy enforcement across all your resources.
 
 - [**AWS IAM Identity Center**](./aws-iam-identity-center/aws-iam-identity-center.mdx)
 - [**Okta Integration**](./okta/okta.mdx)
 - [**Entra ID Integration**](./entra-id/getting-started.mdx)
 - [**Teleport Identity Provider**](./idps/idps.mdx)
+- [**Sailpoint**](../../../zero-trust-access/management/guides/scim/sailpoint.mdx)
 
 ## Just-in-time Access Requests
 
@@ -32,8 +37,8 @@ so access automatically expires without manual cleanup.
 ## Just-in-time Access Request plugins
 
 [Manage requests via third-party tools](./access-request-plugins/access-request-plugins.mdx).
-Review and approve requests where your team already works, such as Slack, Microsoft Teams, PagerDuty, Jira, ServiceNow, and more. 
-Plugins enforce your reviewer policies, post status updates, and keep a complete, auditable trail.
+Plugins enforce your reviewer policies, post status updates, and keep a complete, auditable trail. 
+You can receive access request notifications where your team already works, such as Slack, Microsoft Teams, PagerDuty, Jira, ServiceNow, and more.
 
 ## Access Lists
 
@@ -44,8 +49,7 @@ Access Lists map groups to Teleport roles, require periodic reviews, and provide
 ## Device Trust
 
 [Enforce trusted registered device access](./device-trust/device-trust.mdx).
-Require users to log in from registered, healthy devices before Teleport issues credentials. 
-Device identity and posture checks help block access from unknown or non-compliant laptops by policy.
+Device identity can help block access from unknown or non-compliant workstations by policy.
 
 ## Session and Identity Locking
 
@@ -60,4 +64,4 @@ prevent new certificate issuance, and are fully scoped and time-limited for safe
 - To read more about the architecture of an Access Request plugin, and start writing your own, 
 read our [Access Request plugin development guide](../identity-governance/access-request-plugins/access-plugin.mdx).
 - Learn how [nested Access Lists](../identity-governance/access-lists/nested-access-lists.mdx) grants inheritance work.
-- Learn how [SCIM](./okta/scim-integration.mdx) (System for Cross-domain Identity Management) integration supports automated user management.
+- Learn how [SCIM](../../../zero-trust-access/management/guides/scim/.) (System for Cross-domain Identity Management) integration supports automated user management.
