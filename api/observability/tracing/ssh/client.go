@@ -171,6 +171,8 @@ func (c *Client) OpenChannel(
 // SessionParams are session parameters supported by Teleport to provide additional
 // session context or parameters to the server.
 type SessionParams struct {
+	// WebProxyAddr is the address of the proxy forwarding the SSH connection to the target server.
+	WebProxyAddr string
 	// Reason is a reason attached to started sessions meant to describe their intent.
 	Reason string
 	// Invited is a list of people invited to a session.

@@ -121,19 +121,10 @@ func newSession(ctx context.Context,
 	env := make(map[string]string)
 	maps.Copy(env, client.TC.ExtraEnvs)
 
-	// Set the current web proxy addr as an env var. This is used in `teleport status`
-	// to print a the correct proxy addr in the join link.
-	env[teleport.SSHSessionWebProxyAddr] = client.TC.WebProxyAddr
-
-	// Overwrite "SSH_SESSION_WEBPROXY_ADDR" with the public addr reported by the proxy. Otherwise,
-	// this would be set to the localhost addr (tc.WebProxyAddr) used for Web UI client connections.
-	if client.ProxyPublicAddr != "" && client.TC.WebProxyAddr != client.ProxyPublicAddr {
-		env[teleport.SSHSessionWebProxyAddr] = client.ProxyPublicAddr
-	}
-
 	// TODO(Joerger): DELETE IN v20.0.0 - session params are provided in the session
 	// request as extra data rather than env vars.
 	if sessionParams != nil {
+		env[teleport.SSHSessionWebProxyAddr] = sessionParams.WebProxyAddr
 		env[teleport.EnvSSHJoinMode] = string(sessionParams.JoinMode)
 		env[teleport.EnvSSHSessionReason] = sessionParams.Reason
 		env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(sessionParams.DisplayParticipantRequirements)
