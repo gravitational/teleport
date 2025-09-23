@@ -88,6 +88,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime/cgo"
 	"strconv"
 	"sync"
@@ -261,39 +262,62 @@ func (c *Client) runLocal(ctx context.Context) error {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	displays, err := os.ReadDir("/tmp/.X11-unix")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	xr := regexp.MustCompile("X[0-9]+")
+	displayNumber := 0
+	for _, entry := range displays {
+		if !xr.MatchString(entry.Name()) {
+			continue
+		}
+		v, err := strconv.Atoi(entry.Name()[1:])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if displayNumber < v {
+			displayNumber = v
+		}
+	}
+	display := fmt.Sprintf(":%d", displayNumber+1)
 	xvfb := exec.CommandContext(ctx, "Xvfb",
+		display,
+		"-displayfd", fmt.Sprintf("%d", w.Fd()),
+		"-screen", "0", fmt.Sprintf("%dx%dx16", width, c.requestedHeight),
 		"-dpi", "50",
 		"-nolock",
 		"-dpms",
-		"-displayfd", fmt.Sprintf("%d", w.Fd()),
-		"-screen", "0", fmt.Sprintf("%dx%dx16", width, c.requestedHeight),
-		"-nolisten", "tcp",
+		"-listen", "tcp",
 		"-iglx")
+	xvfb.Stdout = os.Stdout
+	xvfb.Stderr = os.Stderr
 	if err := xvfb.Start(); err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		xvfb.Process.Kill()
+		xvfb.Process.Signal(syscall.SIGTERM)
 		xvfb.Process.Wait()
 	}()
 	if err := w.Close(); err != nil {
 		return trace.Wrap(err)
 	}
 	buf := make([]byte, 64)
-	n, err := r.Read(buf)
+	_, err = r.Read(buf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	display := fmt.Sprintf(":%s", string(buf[:n-1]))
 	c.cfg.Logger.DebugContext(ctx, "Started Xvfb", "display", display)
 
 	cmd := xSessionCommand(display, c.username)
 	xsession := exec.CommandContext(ctx, cmd[0], cmd[1:]...)
+	xsession.Stdout = os.Stdout
+	xsession.Stderr = os.Stderr
 	if err := xsession.Start(); err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		xsession.Process.Kill()
+		xsession.Process.Signal(syscall.SIGTERM)
 		xsession.Process.Wait()
 	}()
 
@@ -464,6 +488,8 @@ func (c *Client) handleInputLocal(ctx context.Context, dial *xgb.Conn, root xpro
 			return trace.Wrap(err)
 		}
 		switch msg := msg.(type) {
+		case tdp.ClipboardData:
+
 		case tdp.MouseMove:
 			if err := xtest.FakeInputChecked(dial, 6, 0, xproto.TimeCurrentTime, root, int16(msg.X), int16(msg.Y), 0).Check(); err != nil {
 				return trace.Wrap(err)

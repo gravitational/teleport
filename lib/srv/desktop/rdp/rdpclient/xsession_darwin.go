@@ -23,5 +23,5 @@ package rdpclient
 import "fmt"
 
 func xSessionCommand(display string, userName string) []string {
-	return []string{"env", fmt.Sprintf("DISPLAY=%s", display), "xcalc"}
+	return []string{"env", fmt.Sprintf("DISPLAY=%s", display), "startxfce4"}
 }

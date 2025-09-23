@@ -29,7 +29,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -403,7 +402,13 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 // RemoveFromSlice makes a copy of the slice and removes the passed in values from the copy.
 func RemoveFromSlice(slice []string, values ...string) []string {
 	remove := set.New(values...)
-	return slices.DeleteFunc(slice, func(s string) bool { return remove.Contains(s) })
+	result := make([]string, 0, len(slice))
+	for _, value := range slice {
+		if !remove.Contains(value) {
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 // ChooseRandomString returns a random string from the given slice.
