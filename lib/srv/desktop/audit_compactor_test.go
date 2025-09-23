@@ -97,13 +97,23 @@ func TestAuditCompactor(t *testing.T) {
 		auditEvents = auditEvents[:0]
 		synctest.Test(t, func(t *testing.T) {
 			ctx := t.Context()
-			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 0))
-			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 0))
+			// Create two read events with zero length, but with differing
+			// error codes. Neither should get compacted, as zero length
+			// events are not eligible for compaction.
+			firstEvent := newReadEvent("foo", 1, 0, 0)
+			firstEvent.Error = "some error"
+
+			secondEvent := newReadEvent("foo", 1, 0, 0)
+			secondEvent.Error = "another error"
+
+			compactor.handleRead(ctx, firstEvent)
+			compactor.handleRead(ctx, secondEvent)
 
 			compactor.flush(ctx)
 			// events with length zero should be ignored
 			require.Len(t, auditEvents, 2)
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 0))
+			assert.Contains(t, auditEvents, firstEvent)
+			assert.Contains(t, auditEvents, secondEvent)
 		})
 	})
 
