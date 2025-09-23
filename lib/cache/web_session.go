@@ -243,7 +243,7 @@ const snowflakeSessionNameIndex snowflakeSessionIndex = "name"
 
 func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.WatchKind) (*collection[types.WebSession, snowflakeSessionIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter AppSession")
+		return nil, trace.BadParameter("missing parameter upstream")
 	}
 
 	return &collection[types.WebSession, snowflakeSessionIndex]{
@@ -254,8 +254,14 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 				snowflakeSessionNameIndex: types.WebSession.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
-			webSessions, err := upstream.GetSnowflakeSessions(ctx)
-			if err != nil {
+			webSessions, err := stream.Collect(clientutils.Resources(ctx, upstream.ListSnowflakeSessions))
+			// TODO(okraport): DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				webSessions, err = upstream.GetSnowflakeSessions(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
