@@ -82,6 +82,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -138,10 +139,6 @@ const (
 	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
 	// cluster configuration changes.
 	findEndpointCacheTTL = 10 * time.Second
-	// cmcCacheTTL is the cache TTL for the clusterMaintenanceConfig resource.
-	// This cache is here to protect against accidental or intentional DDoS, the TTL must be low to quickly reflect
-	// cluster configuration changes.
-	cmcCacheTTL = time.Minute
 	// DefaultAgentUpdateJitterSeconds is the default jitter agents should wait before updating.
 	DefaultAgentUpdateJitterSeconds = 60
 )
@@ -185,8 +182,7 @@ type Handler struct {
 	// caller specified its Automatic Updates UUID or group.
 	findEndpointCache *utils.FnCache
 
-	// clusterMaintenanceConfig is used to cache the cluster maintenance config from the AUth Service.
-	clusterMaintenanceConfigCache *utils.FnCache
+	autoUpdateResolver *autoupdatelookup.Resolver
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -342,6 +338,10 @@ func (c *Config) SetDefaults() {
 		c.PresenceChecker = client.RunPresenceTask
 	}
 
+	if c.AutomaticUpgradesChannels == nil {
+		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
+	}
+
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
 
@@ -492,18 +492,21 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 	h.findEndpointCache = findCache
 
-	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
-	cmcCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         cmcCacheTTL,
-		Clock:       h.clock,
-		Context:     cfg.Context,
-		ReloadOnErr: false,
-	})
+	autoUpdateResolver, err := autoupdatelookup.NewResolver(
+		autoupdatelookup.Config{
+			RolloutGetter: cfg.AccessPoint,
+			CMCGetter:     cfg.ProxyClient,
+			Channels:      h.cfg.AutomaticUpgradesChannels,
+			Log:           h.logger,
+			Clock:         h.clock,
+			Context:       h.cfg.Context,
+		})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating cluster maintenance config cache")
+		return nil, trace.Wrap(err, "creating autoupdate resolver")
 	}
-	h.clusterMaintenanceConfigCache = cmcCache
+	h.autoUpdateResolver = autoUpdateResolver
 
+	// We create the cache after applying the options to make sure we use the fake clock if it was passed.
 	sessionLingeringThreshold := cachedSessionLingeringThreshold
 	if cfg.CachedSessionLingeringThreshold != nil {
 		sessionLingeringThreshold = *cfg.CachedSessionLingeringThreshold
@@ -1913,7 +1916,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	var automaticUpgradesTargetVersion string
 	if automaticUpgradesEnabled {
 		const group, updaterUUID = "", ""
-		agentVersion, err := h.autoUpdateAgentVersion(r.Context(), group, updaterUUID)
+		agentVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, updaterUUID)
 		if err != nil {
 			h.logger.ErrorContext(r.Context(), "Cannot read autoupdate target version", "error", err)
 		} else {
@@ -2453,7 +2456,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	const group, agentUUD = "", ""
-	targetVersion, err := h.autoUpdateAgentVersion(r.Context(), group, agentUUD)
+	targetVersion, err := h.autoUpdateResolver.GetVersion(r.Context(), group, agentUUD)
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Error retrieving the target version", "error", err)
 		targetVersion = teleport.SemVer()
