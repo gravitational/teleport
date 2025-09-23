@@ -19,9 +19,10 @@ package gcp
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAdjustDatabaseUsername(t *testing.T) {
