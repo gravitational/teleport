@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
-	"github.com/gravitational/teleport/lib/client/mcp/claude"
+	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -392,7 +392,7 @@ func TestMCPDBConfigCommand(t *testing.T) {
 			cmd := &mcpDBConfigCommand{
 				clientConfig: mcpClientConfigFlags{
 					clientConfig: configPath,
-					jsonFormat:   string(claude.FormatJSONPretty),
+					jsonFormat:   string(mcpconfig.FormatJSONPretty),
 				},
 				cf:              tc.cf,
 				ctx:             t.Context(),
@@ -407,7 +407,7 @@ func TestMCPDBConfigCommand(t *testing.T) {
 				return
 			}
 
-			jsonConfig, err := claude.LoadConfigFromFile(configPath)
+			jsonConfig, err := mcpconfig.LoadConfigFromFile(configPath, mcpconfig.ConfigFormatClaude)
 			require.NoError(t, err)
 			mcpCmd, ok := jsonConfig.GetMCPServers()[mcpDBConfigName]
 			require.True(t, ok, "expected configuration to include database access server definition, but got nothing")
@@ -433,9 +433,9 @@ func setupMockDBMCPConfig(t *testing.T, cf *CLIConf, databasesURIs []string, add
 	t.Helper()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.json")
-	config, err := claude.LoadConfigFromFile(configPath)
+	config, err := mcpconfig.LoadConfigFromFile(configPath, mcpconfig.ConfigFormatClaude)
 	require.NoError(t, err)
-	require.NoError(t, config.PutMCPServer("local-everything", claude.MCPServer{
+	require.NoError(t, config.PutMCPServer("local-everything", mcpconfig.MCPServer{
 		Command: "npx",
 		Args:    []string{"-y", "@modelcontextprotocol/server-everything"},
 	}))
@@ -446,7 +446,7 @@ func setupMockDBMCPConfig(t *testing.T, cf *CLIConf, databasesURIs []string, add
 		}
 		require.NoError(t, config.PutMCPServer(mcpDBConfigName, srv))
 	}
-	require.NoError(t, config.Save(claude.FormatJSONPretty))
+	require.NoError(t, config.Save(mcpconfig.FormatJSONPretty))
 	return config.Path()
 }
 
