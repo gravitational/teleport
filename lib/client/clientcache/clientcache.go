@@ -45,8 +45,20 @@ type Cache struct {
 type clientWithCert struct {
 	// client is cluster client.
 	client *client.ClusterClient
-	// cert used in TeleportClient.ConnectToCluster to create the client
+	// coreTLSCert is the cert used in TeleportClient.ConnectToCluster to create the client.
 	coreTLSCert []byte
+	// readCoreTLSCert reads a fresh cert from disk.
+	readCoreTLSCert func() ([]byte, error)
+}
+
+func (c *clientWithCert) isCoreTLSCertUnchanged() (bool, error) {
+	tlsCert, err := c.readCoreTLSCert()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	equal := bytes.Equal(c.coreTLSCert, tlsCert)
+	return equal, nil
 }
 
 // NewClientFunc is a function that will return a new [*client.TeleportClient] for a given profile and leaf
@@ -107,17 +119,16 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 	k := key{profile: profileName, leafCluster: leafClusterName}
 	groupClt, err, _ := c.group.Do(k.String(), func() (any, error) {
 		if fromCache := c.getFromCache(k); fromCache != nil {
-			c.cfg.Logger.DebugContext(ctx, "Retrieved client from cache", "cluster", k)
-
-			unchanged, err := c.isCoreTLSCertUnchanged(ctx, k.profile, fromCache.coreTLSCert)
+			unchanged, err := fromCache.isCoreTLSCertUnchanged()
 			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if unchanged {
+				c.cfg.Logger.WarnContext(ctx, "Failed to validate TLS certificate, removing from cache", "cluster", k, "error", err)
+			} else if unchanged {
+				c.cfg.Logger.DebugContext(ctx, "Retrieved client from cache", "cluster", k)
 				return fromCache.client, nil
+			} else {
+				c.cfg.Logger.DebugContext(ctx, "TLS certificate for cached client has changed, removing from cache", "cluster", k)
 			}
 
-			c.cfg.Logger.DebugContext(ctx, "TLS certificate has changed, closing cached client", "cluster", k)
 			if err := c.clearForKey(k); err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -147,8 +158,9 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 
 		// Save the client in the cache, so we don't have to build a new connection next time.
 		c.addToCache(k, &clientWithCert{
-			client:      newClient,
-			coreTLSCert: keyRing.TLSCert,
+			client:          newClient,
+			coreTLSCert:     keyRing.TLSCert,
+			readCoreTLSCert: tc.Profile().TLSCert,
 		})
 
 		c.cfg.Logger.InfoContext(ctx, "Added client to cache", "cluster", k)
@@ -226,7 +238,6 @@ func (c *Cache) clearForKey(k key) error {
 	return nil
 }
 
-
 func (c *Cache) addToCache(k key, cc *clientWithCert) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -240,24 +251,6 @@ func (c *Cache) getFromCache(k key) *clientWithCert {
 
 	clt := c.clients[k]
 	return clt
-}
-
-func (c *Cache) isCoreTLSCertUnchanged(ctx context.Context, profile string, coreTLSCertFromCache []byte) (bool, error) {
-	tc, err := c.cfg.NewClientFunc(ctx, profile, "")
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	keyRing, err := tc.LocalAgent().GetCoreKeyRing()
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	if bytes.Equal(coreTLSCertFromCache, keyRing.TLSCert) {
-		return true, nil
-	}
-
-	return false, nil
 }
 
 // NoCache is a client cache implementation that returns a new client
