@@ -13,8 +13,23 @@ what your users do and estimate legitimacy of their actions before digging
 deeper and reviewing the entire recording.
 
 <Admonition type="note">
-Session Recording Summaries are available only to Teleport Enterprise customers with Teleport Identity Security. 
-[Learn more about the features included in Teleport Identity Security](../feature-matrix.mdx#teleport-identity-security).
+**Session Recording Summaries and AI Usage**
+Session Recording Summaries are available to Teleport Enterprise customers with Teleport Identity Security.
+
+**Important**: AI-powered summarization is **disabled by default** in all Teleport deployments 
+(both self-hosted and cloud). No AI processing occurs unless you explicitly enable this feature. 
+
+When you choose to enable summarization:
+
+- For Teleport Enterprise (Self-hosted): You configure and manage your own AI integration. Using OpenAI or 
+OpenAI compatible LLMs gateways such as Lite LMM.
+- For Teleport Enterprise (Cloud) with Identity Security: Session Recording Summarization can be enabled 
+with your own OpenAI key. Later this year, Teleport Enterprise (Cloud) will provide summarization via Amazon Bedrock. 
+
+This ensures you have complete control over whether and how AI is used with your session recordings.
+
+Existing customers will never have AI features automatically enabled without explicit consent.
+Learn more about the features included in [Teleport Identity Security](https://goteleport.com/platform/identity-security/).
 </Admonition>
 
 ## How it works
@@ -43,7 +58,8 @@ There are three fundamental concepts to that underpin session summarization:
   model is used in given case.
 
 <Admonition type="warning">
-This feature is powered by AI, and as such, its accuracy may vary.
+This feature is powered by AI leveraging a Large Language Model, and as such,
+its accuracy may vary.
 
 Teleport doesn't currently support any spend controls; controlling the LLM
 token budget is your responsibility.
@@ -51,8 +67,8 @@ token budget is your responsibility.
 
 ## Prerequisites
 
-- A running Teleport Enterprise cluster v18.2.0 or later with Identity Security
-  enabled.
+- A running Teleport Enterprise (Self-Hosted) cluster v18.2.0 or later with Identity 
+  Security enabled.
 - Access to OpenAI or OpenAI-compatible inference API, either public or
   self-hosted.
 
@@ -376,7 +392,7 @@ Here's what you need to do:
 
 1. Set up [LiteLLM Proxy Server (LLM
    Gateway)](https://docs.litellm.ai/docs/#litellm-proxy-server-llm-gateway) on a
-   host accessible from the Teleport Auth server.
+   host accessible from the Teleport Auth Service.
 2. Add a model of your choice to the LiteLLM configuration. In this example,
    let's call it `my-custom-model`.
 3. Configure a Teleport inference model. Use `spec.openai.base_url` property to

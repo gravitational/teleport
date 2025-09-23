@@ -57,19 +57,13 @@ func TestHealthCheckConfig(t *testing.T) {
 			_, err := p.healthCheckConfig.CreateHealthCheckConfig(ctx, cfg)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*healthcheckconfigv1.HealthCheckConfig, error) {
-			items, _, err := p.healthCheckConfig.ListHealthCheckConfigs(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list: p.healthCheckConfig.ListHealthCheckConfigs,
 		update: func(ctx context.Context, cfg *healthcheckconfigv1.HealthCheckConfig) error {
 			_, err := p.healthCheckConfig.UpdateHealthCheckConfig(ctx, cfg)
 			return trace.Wrap(err)
 		},
 		deleteAll: p.healthCheckConfig.DeleteAllHealthCheckConfigs,
-		cacheList: func(ctx context.Context, _ int) ([]*healthcheckconfigv1.HealthCheckConfig, error) {
-			items, _, err := p.cache.ListHealthCheckConfigs(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheGet: p.cache.GetHealthCheckConfig,
-	}, withSkipPaginationTest())
+		cacheList: p.cache.ListHealthCheckConfigs,
+		cacheGet:  p.cache.GetHealthCheckConfig,
+	})
 }

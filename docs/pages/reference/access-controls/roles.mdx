@@ -6,6 +6,7 @@ tocDepth: 3
 tags:
  - reference
  - zero-trust
+ - privileged-access
 ---
 
 This guide shows you how to use Teleport roles to manage role-based access
@@ -280,7 +281,10 @@ allow:
 ```
 
 If this rule was declared in the `deny` section of a role definition, it would
-prohibit users from getting a list of active sessions. You can see all of the
+prohibit users from getting a list of active sessions. If a role does not allow
+access to list a resource, the user will not be able to view it in the Web UI
+or remotely with `tctl`.  The only exception is that a user can always view their 
+assigned roles and their own user information with `tctl`.  You can see all of the
 available resources and verbs under the `allow` section in the example role
 configuration below.
 
@@ -608,6 +612,8 @@ for Kubernetes sessions together with the user and session fields above.
 The following database session fields can be used in `where` expressions to filter access
 for database sessions together with the user and session fields above.
 
+{/* vale messaging.capitalization = NO */}
+
 | Database Session Field | Description | Type |
 |---|---|---|
 | `session.db_service` | The name of the database service where the session took place. | `string` |
@@ -617,6 +623,8 @@ for database sessions together with the user and session fields above.
 | `session.db_user` | The database user used during the session. | `string` |
 | `session.db_labels` | The labels assigned to the database where the session took place. | `dict<string, string>` |
 | `session.db_type` | The type of the database (e.g., "postgres", "mysql"). | `string` |
+
+{/* vale messaging.capitalization = YES */}
 
 </TabItem>
 <TabItem value="Windows Desktop Sessions" label="Windows Desktop Sessions">

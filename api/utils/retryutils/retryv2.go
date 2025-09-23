@@ -88,11 +88,7 @@ type linearDriver struct {
 }
 
 func (d linearDriver) Duration(attempt int64) time.Duration {
-	dur := d.step * time.Duration(attempt)
-	if dur > maxBackoff {
-		return maxBackoff
-	}
-	return dur
+	return min(d.step*time.Duration(attempt), maxBackoff)
 }
 
 func (d linearDriver) Check() error {

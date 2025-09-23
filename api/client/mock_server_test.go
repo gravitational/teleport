@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/testhelpers/mtls"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
@@ -37,7 +38,12 @@ type mockServer struct {
 	mtlsConfig *mtls.Config
 }
 
-func newMockServer(t *testing.T, addr string, service proto.AuthServiceServer) *mockServer {
+type mockServices struct {
+	auth                proto.AuthServiceServer
+	recordingEncryption recordingencryptionv1.RecordingEncryptionServiceServer
+}
+
+func newMockServer(t *testing.T, addr string, services mockServices) *mockServer {
 	t.Helper()
 	m := &mockServer{
 		addr:       addr,
@@ -50,15 +56,21 @@ func newMockServer(t *testing.T, addr string, service proto.AuthServiceServer) *
 		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
 	)
 
-	proto.RegisterAuthServiceServer(m.grpc, service)
+	if services.auth != nil {
+		proto.RegisterAuthServiceServer(m.grpc, services.auth)
+	}
+
+	if services.recordingEncryption != nil {
+		recordingencryptionv1.RegisterRecordingEncryptionServiceServer(m.grpc, services.recordingEncryption)
+	}
 	return m
 }
 
 // startMockServer starts a new mock server. Parallel tests cannot use the same addr.
-func startMockServer(t *testing.T, service proto.AuthServiceServer) *mockServer {
+func startMockServer(t *testing.T, services mockServices) *mockServer {
 	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
-	srv := newMockServer(t, l.Addr().String(), service)
+	srv := newMockServer(t, l.Addr().String(), services)
 	srv.serve(t, l)
 	return srv
 }
