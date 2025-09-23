@@ -142,6 +142,7 @@ export function RecordingWithMetadata({
           onTimeChange={handleTimeChange}
           initialCols={data.metadata.startCols}
           initialRows={data.metadata.startRows}
+          events={data.metadata.events}
           ref={playerRef}
         />
       </Player>
