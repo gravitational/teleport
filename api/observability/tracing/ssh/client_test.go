@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -267,4 +268,137 @@ func TestWrappedSSHConn(t *testing.T) {
 	require.Panics(t, func() {
 		wrappedConn.OpenChannel("", nil)
 	})
+}
+
+// TestGlobalAndSessionRequests tests that the tracing client correctly handles global and session requests.
+func TestGlobalAndSessionRequests(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	errChan := make(chan error, 5)
+
+	// pingRequest is an example request type. Whether sent by the server or client in
+	// a global or session context, the receiver should give an ok as the reply.
+	pingRequest := "ping@goteleport.com"
+
+	clientGlobalReply := make(chan bool, 1)
+	clientSessionReply := make(chan bool, 1)
+
+	srv := newServer(t, tracingSupported, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+		// Send a ping request when the client connection is established.
+		ok, _, err := conn.SendRequest(pingRequest, true, nil)
+		if err != nil {
+			errChan <- trace.Wrap(err, "server failed to send global ping request")
+			return
+		}
+		clientGlobalReply <- ok
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case req := <-requests:
+				switch req.Type {
+				case pingRequest:
+					err := req.Reply(true, nil)
+					if err != nil {
+						errChan <- trace.Wrap(err, "server failed to reply to global ping request")
+						return
+					}
+				default:
+					if err := req.Reply(false, nil); err != nil {
+						errChan <- trace.Wrap(err, "server failed to reply to global %q request", req.Type)
+						return
+					}
+				}
+			case ch := <-channels:
+				switch {
+				case ch == nil:
+					return
+				case ch.ChannelType() == "session":
+					ch, reqs, err := ch.Accept()
+					if err != nil {
+						errChan <- trace.Wrap(err, "failed to accept session channel")
+						return
+					}
+
+					go func() {
+						defer ch.Close()
+						for i := 0; ; i++ {
+							select {
+							case <-ctx.Done():
+								return
+							case req := <-reqs:
+								switch req.Type {
+								case pingRequest:
+									err := req.Reply(true, nil)
+									if err != nil {
+										errChan <- trace.Wrap(err, "server failed to reply to session ping request")
+										return
+									}
+								}
+								continue
+							}
+						}
+					}()
+
+					// Send a ping request when the session is established.
+					ok, err := ch.SendRequest(pingRequest, true, nil)
+					if err != nil {
+						errChan <- trace.Wrap(err, "server failed to send ping request")
+						return
+					}
+					clientSessionReply <- ok
+				default:
+					if err := ch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unexpected channel %s", ch.ChannelType())); err != nil {
+						errChan <- err
+						return
+					}
+				}
+			}
+		}
+	})
+	go srv.Run(errChan)
+
+	conn, chans, reqs := srv.GetClient(t)
+	client := NewClient(conn, chans, reqs)
+
+	// The client should reply false to any global request from the server, as we
+	// don't currently support a mechanism for the client to register global handlers.
+	require.False(t, <-clientGlobalReply, "Expected the client to reply false to global ping request")
+
+	// The server should reply true to a global ping request.
+	ok, _, err := client.SendRequest(ctx, pingRequest, true, nil)
+	require.True(t, ok, "Expected the server to reply true to global ping request")
+	require.NoError(t, err)
+
+	// If the client isn't setup to handle session requests, it should reply false to them.
+	// The client should reply true to a session ping request.
+	session, err := client.NewSession(ctx)
+	require.NoError(t, err)
+	require.False(t, <-clientSessionReply, "Expected the client to reply false to session ping request")
+
+	// The client should reply true to a session ping request.
+	err = client.HandleSessionRequests(ctx, pingRequest, func(ctx context.Context, req *ssh.Request) {
+		err := req.Reply(true, nil)
+		assert.NoError(t, err)
+	})
+	session, err = client.NewSession(ctx)
+	require.NoError(t, err)
+	require.True(t, <-clientSessionReply, "Expected the client to reply true to session ping request")
+
+	// New Sessions do not reuse previously registered handlers.
+	session, err = client.NewSession(ctx)
+	require.NoError(t, err)
+	require.False(t, <-clientSessionReply, "Expected the client to reply false to session ping request")
+
+	// The server should reply true to a session ping request.
+	ok, err = session.SendRequest(ctx, pingRequest, true, nil)
+	require.NoError(t, err)
+	require.True(t, ok, "Expected the server to reply true to session ping request")
+
+	select {
+	case err := <-errChan:
+		require.NoError(t, err)
+	default:
+	}
 }
