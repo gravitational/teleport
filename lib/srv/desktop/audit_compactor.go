@@ -132,10 +132,12 @@ func (s *fileOperationsBucket) compactEvents() iter.Seq[fileOperationEvent] {
 
 // compact finds the longest contiguous set of reads/writes following the given 'event'.
 func (s *fileOperationsBucket) compact(event fileOperationEvent, eventsByOffset map[uint64][]fileOperationEvent) ([]fileOperationEvent, uint64) {
+	eventLength := event.GetLength()
 	// Determine the offset at which the next contiguous segment must start.
-	offset := event.GetOffset() + event.GetLength()
-	// Consule the map for any events with this offset.
-	if len(eventsByOffset[offset]) > 0 {
+	offset := event.GetOffset() + eventLength
+	// Consult the map for any events with this offset.
+	// Skip events with length 0
+	if eventLength > 0 && len(eventsByOffset[offset]) > 0 {
 		// There may be multiple candidate segments to follow.
 		// Try each of them out and select the longest contiguous set of segments
 		var winner []fileOperationEvent
