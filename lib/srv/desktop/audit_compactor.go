@@ -249,7 +249,14 @@ type readEvent struct {
 	*events.DesktopSharedDirectoryRead
 }
 
-func (r *readEvent) SetLength(len uint64)        { r.Length = uint32(len) }
+func toUint32(len uint64) uint32 {
+	if len > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(len)
+}
+
+func (r *readEvent) SetLength(len uint64)        { r.Length = toUint32(len) }
 func (r *readEvent) GetLength() uint64           { return uint64(r.Length) }
 func (r *readEvent) GetOffset() uint64           { return r.Offset }
 func (r *readEvent) GetPath() string             { return r.Path }
@@ -261,7 +268,7 @@ type writeEvent struct {
 	*events.DesktopSharedDirectoryWrite
 }
 
-func (r *writeEvent) SetLength(len uint64)        { r.Length = uint32(len) }
+func (r *writeEvent) SetLength(len uint64)        { r.Length = toUint32(len) }
 func (r *writeEvent) GetLength() uint64           { return uint64(r.Length) }
 func (r *writeEvent) GetOffset() uint64           { return r.Offset }
 func (r *writeEvent) GetPath() string             { return r.Path }
