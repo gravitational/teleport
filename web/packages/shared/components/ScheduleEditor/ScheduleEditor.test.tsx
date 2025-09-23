@@ -20,7 +20,7 @@ import { render, screen, userEvent } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
 import { ScheduleEditor } from './ScheduleEditor';
-import { newSchedule, Schedule } from './types';
+import { newSchedule } from './types';
 
 test('Toggle Monday', async () => {
   const schedule = newSchedule();
