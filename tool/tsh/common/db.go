@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/client/db/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -956,36 +957,42 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		}
 		return trace.Wrap(err)
 	}
+
 	// ensure the route protocol matches the db.
 	d.Protocol = db.GetProtocol()
 
 	needDBUser := d.Username == "" && isDatabaseUserRequired(d.Protocol)
 	needDBName := d.Database == "" && isDatabaseNameRequired(d.Protocol)
-	if !needDBUser && !needDBName {
-		return nil
-	}
-
-	checker, err := d.getChecker(cf.Context, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if needDBUser {
-		dbUser, err := getDefaultDBUser(db, checker)
+	if needDBUser || needDBName {
+		checker, err := d.getChecker(cf.Context, tc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		logger.DebugContext(cf.Context, "Defaulting to the allowed database user", "database_user", dbUser)
-		d.Username = dbUser
-	}
-	if needDBName {
-		dbName, err := getDefaultDBName(db, checker)
-		if err != nil {
-			return trace.Wrap(err)
+
+		if needDBUser {
+			dbUser, err := getDefaultDBUser(db, checker)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			logger.DebugContext(cf.Context, "Defaulting to the allowed database user", "database_user", dbUser)
+			d.Username = dbUser
 		}
-		logger.DebugContext(cf.Context, "Defaulting to the allowed database name", "database_name", dbName)
-		d.Database = dbName
+		if needDBName {
+			dbName, err := getDefaultDBName(db, checker)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			logger.DebugContext(cf.Context, "Defaulting to the allowed database name", "database_name", dbName)
+			d.Database = dbName
+		}
 	}
+
+	adjusted, newUsername := gcp.AdjustDatabaseUsername(d.Username, db)
+	if adjusted {
+		logger.DebugContext(cf.Context, "Adding default project suffix for IAM principal", "original", d.Username, "updated", newUsername)
+		d.Username = newUsername
+	}
+
 	return nil
 }
 
