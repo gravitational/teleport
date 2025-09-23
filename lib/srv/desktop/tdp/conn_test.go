@@ -295,5 +295,6 @@ func TestInterceptor(t *testing.T) {
 	testConn.readChan <- mockMessage("noreplace")
 	// "omit" message should be dropped, so the next message is "noreplace"
 	msg, err = interceptedRWC.ReadMessage()
+	require.NoError(t, err)
 	assert.Equal(t, "noreplace", string(msg.(mockMessage)))
 }
