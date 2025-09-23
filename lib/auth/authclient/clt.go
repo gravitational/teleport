@@ -1004,6 +1004,8 @@ type IdentityService interface {
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*OIDCAuthResponse, error)
 	// TODO
 	CreateWebSessionFromJWT(ctx context.Context, req NewWebSessionFromJWTRequest) (types.WebSession, error)
+	// TODO
+	CreateAppSessionFromJWT(ctx context.Context, req NewWebSessionFromJWTRequest) (types.WebSession, error)
 
 	// CreateSAMLConnector creates a new SAML connector.
 	CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)

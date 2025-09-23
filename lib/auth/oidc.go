@@ -36,6 +36,7 @@ type OIDCService interface {
 	CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error)
 	CreateJWTWebSession(ctx context.Context, p authclient.NewWebSessionFromJWTRequest) (types.WebSession, error)
+	CreateJWTAppSession(ctx context.Context, p authclient.NewWebSessionFromJWTRequest) (types.WebSession, error)
 }
 
 var errOIDCNotImplemented = &trace.AccessDeniedError{Message: "OIDC is only available in enterprise subscriptions"}
@@ -166,5 +167,14 @@ func (a *Server) CreateJWTWebSession(ctx context.Context, p authclient.NewWebSes
 	}
 
 	resp, err := a.oidcAuthService.CreateJWTWebSession(ctx, p)
+	return resp, trace.Wrap(err)
+}
+
+func (a *Server) CreateJWTAppSession(ctx context.Context, p authclient.NewWebSessionFromJWTRequest) (types.WebSession, error) {
+	if a.oidcAuthService == nil {
+		return nil, errOIDCNotImplemented
+	}
+
+	resp, err := a.oidcAuthService.CreateJWTAppSession(ctx, p)
 	return resp, trace.Wrap(err)
 }

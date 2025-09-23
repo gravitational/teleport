@@ -426,6 +426,8 @@ type NewAppSessionRequest struct {
 	// BotInstanceID is the ID of the bot instance that is creating this session.
 	// Empty if not a bot.
 	BotInstanceID string
+
+	OverrideID string
 }
 
 // CreateAppSession creates and inserts a services.WebSession into the
@@ -525,10 +527,13 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	// Create services.WebSession for this session.
-	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	sessionID := req.OverrideID
+	if sessionID == "" {
+		// Create services.WebSession for this session.
+		sessionID, err = utils.CryptoRandomHex(defaults.SessionTokenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Create certificate for this session.

@@ -136,7 +136,7 @@ func MatchAll(matchers ...Matcher) Matcher {
 // ClusterGetter provides a means to retrieve all connected
 // Teleport clusters - either local or remote.
 type ClusterGetter interface {
-	Clusters(context.Context) ([]reversetunnelclient.Cluster, error)
+	reversetunnelclient.ClusterGetter
 }
 
 // ResolveFQDN makes a best effort attempt to resolve FQDN to an application
@@ -183,4 +183,21 @@ func ResolveFQDN(ctx context.Context, clt Getter, clusterGetter ClusterGetter, p
 	}
 
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
+}
+
+func ResolveBySiteAndName(ctx context.Context, clusterGetter ClusterGetter, site string, appName string) (types.AppServer, error) {
+	clusterClient, err := clusterGetter.Cluster(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authClient, err := clusterClient.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := MatchUnshuffled(ctx, authClient, MatchName(appName))
+	if err == nil && len(servers) > 0 {
+		return servers[rand.N(len(servers))], nil
+	}
+	return nil, trace.NotFound("failed to resolve %v to any application", appName)
 }

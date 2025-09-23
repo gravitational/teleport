@@ -528,14 +528,23 @@ type NewWebSessionFromJWTRequest struct {
 	// TODO
 	JWTToken string `json:"jwt"`
 	// TODO
-	AppName string `json:"app"`
-	// TODO
 	ClusterName string `json:"cluster_name"`
+	// TODO
+	AppName       string `json:"app"`
+	AppURI        string `json:"app_uri"`
+	AppPublicAddr string `json:"app_public_addr"`
 }
 
 // TODO
 func (c *HTTPClient) CreateWebSessionFromJWT(ctx context.Context, req NewWebSessionFromJWTRequest) (types.WebSession, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("jwt", "session", "create"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalWebSession(out.Bytes())
+}
+func (c *HTTPClient) CreateAppSessionFromJWT(ctx context.Context, req NewWebSessionFromJWTRequest) (types.WebSession, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("jwt", "session", "app"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
