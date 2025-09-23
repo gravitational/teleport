@@ -298,6 +298,14 @@ const StyledInput = styled.input<{ hasIcon: boolean; inputSize: InputSize }>`
 
   &:read-only {
     cursor: not-allowed;
+
+    &:hover {
+      border: 1px solid
+        ${props => props.theme.colors.interactive.tonal.neutral[2]};
+    }
+    &:focus-visible {
+      border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
+    }
   }
 
   &:disabled {

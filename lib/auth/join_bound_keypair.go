@@ -71,6 +71,9 @@ func populateRegistrationSecret(v2 *types.ProvisionTokenV2) error {
 	if v2.Spec.BoundKeypair == nil {
 		v2.Spec.BoundKeypair = &types.ProvisionTokenSpecV2BoundKeypair{}
 	}
+	if v2.Spec.BoundKeypair.Onboarding == nil {
+		v2.Spec.BoundKeypair.Onboarding = &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{}
+	}
 
 	if v2.Status == nil {
 		v2.Status = &types.ProvisionTokenStatusV2{}
@@ -981,9 +984,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		boundPublicKey = newPubKey
 	}
 
-	certs, botInstanceID, err := a.generateCertsBot(
-		ctx,
-		ptv2,
+	params := makeBotCertsParams(
 		req.JoinRequest,
 		&boundkeypair.Claims{
 			PublicKey:     boundPublicKey,
@@ -992,6 +993,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		},
 		nil, // TODO: workload id claims
 	)
+	certs, botInstanceID, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

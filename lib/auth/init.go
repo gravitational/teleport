@@ -1330,6 +1330,7 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
+		services.NewPresetMCPUserRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the

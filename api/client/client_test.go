@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
@@ -65,7 +68,7 @@ func (s *pingService) userAgentFromLastCall() string {
 func TestNew(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := startMockServer(t, &pingService{})
+	srv := startMockServer(t, mockServices{auth: &pingService{}})
 
 	tests := []struct {
 		desc         string
@@ -130,7 +133,7 @@ func TestNewDialBackground(t *testing.T) {
 	require.NoError(t, err)
 	addr := l.Addr().String()
 	ping := &pingService{}
-	srv := newMockServer(t, addr, ping)
+	srv := newMockServer(t, addr, mockServices{auth: ping})
 
 	// Create client before the server is listening.
 	cfg := srv.clientCfg()
@@ -167,7 +170,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	addr := l.Addr().String()
-	srv := newMockServer(t, addr, &proto.UnimplementedAuthServiceServer{})
+	srv := newMockServer(t, addr, mockServices{auth: &proto.UnimplementedAuthServiceServer{}})
 
 	// Create client before the server is listening.
 	cfg := srv.clientCfg()
@@ -440,7 +443,7 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 func TestListResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := startMockServer(t, &listResourcesService{})
+	srv := startMockServer(t, mockServices{auth: &listResourcesService{}})
 
 	testCases := map[string]struct {
 		resourceType   string
@@ -546,7 +549,7 @@ func testGetResources[T types.ResourceWithLabels](t *testing.T, clt *Client, kin
 func TestGetResources(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := startMockServer(t, &listResourcesService{})
+	srv := startMockServer(t, mockServices{auth: &listResourcesService{}})
 
 	// Create client
 	clt, err := New(ctx, srv.clientCfg())
@@ -586,7 +589,7 @@ func TestGetResources(t *testing.T) {
 func TestGetResourcesWithFilters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := startMockServer(t, &listResourcesService{})
+	srv := startMockServer(t, mockServices{auth: &listResourcesService{}})
 
 	// Create client
 	clt, err := New(ctx, srv.clientCfg())
@@ -698,4 +701,100 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[2].Logins)
 		}
 	}
+}
+
+func TestUploadEncryptedRecording(t *testing.T) {
+	ctx := t.Context()
+
+	recordingEncryptionService := &uploadRecordingService{
+		uploads: make(map[string][]*recordingencryptionv1.Part),
+	}
+	srv := startMockServer(t, mockServices{recordingEncryption: recordingEncryptionService})
+	parts := [][]byte{
+		[]byte("123"),
+		[]byte("456"),
+		[]byte("789"),
+	}
+	partIter := func(yield func([]byte, error) bool) {
+		for _, part := range parts {
+			if part == nil {
+				if !yield(nil, errors.New("invalid part")) {
+					return
+				}
+			} else {
+				if !yield(part, nil) {
+					return
+				}
+			}
+		}
+	}
+
+	clt, err := New(ctx, srv.clientCfg())
+	require.NoError(t, err)
+
+	sessionID, err := uuid.NewV7()
+	require.NoError(t, err)
+	err = clt.UploadEncryptedRecording(ctx, sessionID.String(), partIter)
+	require.NoError(t, err)
+
+	uploaded := recordingEncryptionService.uploads[sessionID.String()]
+	require.Len(t, uploaded, len(parts))
+	for idx, part := range uploaded {
+		// uploaded part numbers should increment starting with 1
+		require.Equal(t, int64(idx+1), part.PartNumber)
+	}
+}
+
+type uploadRecordingService struct {
+	recordingencryptionv1.UnimplementedRecordingEncryptionServiceServer
+
+	uploads map[string][]*recordingencryptionv1.Part
+}
+
+func (s *uploadRecordingService) CreateUpload(ctx context.Context, req *recordingencryptionv1.CreateUploadRequest) (*recordingencryptionv1.CreateUploadResponse, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.uploads[req.SessionId] = []*recordingencryptionv1.Part{}
+	return &recordingencryptionv1.CreateUploadResponse{
+		Upload: &recordingencryptionv1.Upload{
+			UploadId:  id.String(),
+			SessionId: req.SessionId,
+		},
+	}, nil
+}
+
+func (s *uploadRecordingService) UploadPart(ctx context.Context, req *recordingencryptionv1.UploadPartRequest) (*recordingencryptionv1.UploadPartResponse, error) {
+	sessionID := req.GetUpload().GetSessionId()
+	parts, ok := s.uploads[sessionID]
+	if !ok {
+		return nil, trace.Errorf("no upload found for %s", sessionID)
+	}
+	part := &recordingencryptionv1.Part{
+		PartNumber: req.PartNumber,
+	}
+	s.uploads[sessionID] = append(parts, part)
+	return &recordingencryptionv1.UploadPartResponse{
+		Part: part,
+	}, nil
+}
+
+func (s *uploadRecordingService) CompleteUpload(ctx context.Context, req *recordingencryptionv1.CompleteUploadRequest) (*recordingencryptionv1.CompleteUploadResponse, error) {
+	sessionID := req.GetUpload().GetSessionId()
+	parts, ok := s.uploads[sessionID]
+	if !ok {
+		return nil, trace.Errorf("no upload found for %s", sessionID)
+	}
+	if len(parts) != len(req.GetParts()) {
+		return nil, errors.New("parts reported as uploaded is not the ")
+	}
+	for _, part := range req.GetParts() {
+		uploaded := parts[part.PartNumber-1]
+		if uploaded.PartNumber != part.PartNumber {
+			return nil, fmt.Errorf("expected part %d in place of %d", part.PartNumber, uploaded.PartNumber)
+		}
+	}
+	return nil, nil
 }

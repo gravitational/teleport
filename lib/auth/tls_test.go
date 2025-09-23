@@ -742,9 +742,12 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 	defer newProxy.Close()
 
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
-		assert.NoError(ct, err)
+	newClient := func() *authclient.Client {
+		return testSrv.CloneClient(t, newProxy)
+	}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err = newClient().GetNodes(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
 	}, 15*time.Second, 100*time.Millisecond)
 
 	// advance rotation:
@@ -789,9 +792,9 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// clients with new creds will no longer work as soon as backend modification event propagates.
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		_, err := testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
-		assert.Error(ct, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := newClient().GetNodes(ctx, apidefaults.Namespace)
+		require.Error(t, err)
 	}, time.Second*15, time.Millisecond*100)
 
 	// clients with old creds will still work
@@ -5047,9 +5050,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						UpdatedBy: "token-creator",
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User:      "token-creator",
-						UserKind:  eventtypes.UserKind_USER_KIND_HUMAN,
-						UserRoles: []string{"user:token-creator"},
+						User:            "token-creator",
+						UserKind:        eventtypes.UserKind_USER_KIND_HUMAN,
+						UserRoles:       []string{"user:token-creator"},
+						UserClusterName: "localhost",
 					},
 					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
 					JoinMethod: types.JoinMethodToken,
@@ -5081,9 +5085,10 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 						UpdatedBy: "token-creator",
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User:      "token-creator",
-						UserKind:  eventtypes.UserKind_USER_KIND_HUMAN,
-						UserRoles: []string{"user:token-creator"},
+						User:            "token-creator",
+						UserKind:        eventtypes.UserKind_USER_KIND_HUMAN,
+						UserRoles:       []string{"user:token-creator"},
+						UserClusterName: "localhost",
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
@@ -5208,9 +5213,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User:      "token-upserter",
-						UserKind:  eventtypes.UserKind_USER_KIND_HUMAN,
-						UserRoles: []string{"user:token-upserter"},
+						User:            "token-upserter",
+						UserKind:        eventtypes.UserKind_USER_KIND_HUMAN,
+						UserRoles:       []string{"user:token-upserter"},
+						UserClusterName: "localhost",
 					},
 					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
 					JoinMethod: types.JoinMethodToken,
@@ -5242,9 +5248,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User:      "token-upserter",
-						UserKind:  eventtypes.UserKind_USER_KIND_HUMAN,
-						UserRoles: []string{"user:token-upserter"},
+						User:            "token-upserter",
+						UserKind:        eventtypes.UserKind_USER_KIND_HUMAN,
+						UserRoles:       []string{"user:token-upserter"},
+						UserClusterName: "localhost",
 					},
 					Roles:      types.SystemRoles{types.RoleTrustedCluster},
 					JoinMethod: types.JoinMethodToken,
@@ -5278,9 +5285,10 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 						UpdatedBy: "token-upserter",
 					},
 					UserMetadata: eventtypes.UserMetadata{
-						User:      "token-upserter",
-						UserKind:  eventtypes.UserKind_USER_KIND_HUMAN,
-						UserRoles: []string{"user:token-upserter"},
+						User:            "token-upserter",
+						UserKind:        eventtypes.UserKind_USER_KIND_HUMAN,
+						UserRoles:       []string{"user:token-upserter"},
+						UserClusterName: "localhost",
 					},
 					Roles:      types.SystemRoles{types.RoleNode},
 					JoinMethod: types.JoinMethodToken,

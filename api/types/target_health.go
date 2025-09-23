@@ -46,6 +46,8 @@ const (
 
 // Canonical converts a status into its canonical form.
 // An empty or unknown status is converted to [TargetHealthStatusUnknown].
+//
+// Returns only a healthy, unhealthy, or unknown status.
 func (s TargetHealthStatus) Canonical() TargetHealthStatus {
 	switch s {
 	case TargetHealthStatusHealthy, TargetHealthStatusUnhealthy:

@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -134,7 +135,7 @@ func TestManager(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	eventsCh := make(chan testEvent, 1024)
 	mgr, err := NewManager(ctx, ManagerConfig{
-		Component:               "test",
+		Component:               teleport.ComponentDatabase,
 		Events:                  local.NewEventsService(bk),
 		HealthCheckConfigReader: healthConfigSvc,
 		Clock:                   clock,

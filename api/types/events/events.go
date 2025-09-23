@@ -1596,13 +1596,15 @@ func (m *DesktopSharedDirectoryStart) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out := utils.CloneProtoMsg(m)
 	out.DirectoryName = ""
+	out.DesktopName = ""
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
-	customFieldsCount := nonEmptyStrs(m.DirectoryName)
+	customFieldsCount := nonEmptyStrs(m.DirectoryName, m.DesktopName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.DirectoryName = trimStr(m.DirectoryName, maxFieldsSize)
+	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
 
 	return out
 }
@@ -2596,6 +2598,37 @@ func (m *MCPSessionNotification) TrimToMaxSize(maxSize int) AuditEvent {
 	out.Message = MCPJSONRPCMessage{}
 	maxSize = adjustedMaxSize(out, maxSize)
 	out.Message = m.Message.trimToMaxSize(maxSize)
+	return out
+}
+
+func (m *MCPSessionListenSSEStream) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
+func (m *MCPSessionInvalidHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Path = ""
+	out.RawQuery = ""
+	out.Headers = nil
+	out.Body = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.Path, m.RawQuery) + nonEmptyTraits(m.Headers)
+	if len(m.Body) != 0 {
+		customFieldsCount++
+	}
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Path = trimStr(m.Path, maxFieldsSize)
+	out.RawQuery = trimStr(m.RawQuery, maxFieldsSize)
+	out.Body = []byte(trimStr(string(m.Body), maxFieldsSize))
+	out.Headers = trimTraits(m.Headers, maxFieldsSize)
 	return out
 }
 

@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/join"
@@ -65,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -252,7 +252,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 		},
 	}
 
-	k8s, err := fakejoin.NewKubernetesSigner(tp.clock)
+	k8s, err := fakeissuer.NewKubernetesSigner(tp.clock)
 	require.NoError(t, err)
 	jwks, err := k8s.GetMarshaledJWKS()
 	require.NoError(t, err)
@@ -706,9 +706,10 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 							Code: libevents.SPIFFESVIDIssuedSuccessCode,
 						},
 						UserMetadata: events.UserMetadata{
-							User:      wildcardAccess.GetName(),
-							UserKind:  events.UserKind_USER_KIND_HUMAN,
-							UserRoles: wildcardAccess.GetRoles(),
+							User:            wildcardAccess.GetName(),
+							UserKind:        events.UserKind_USER_KIND_HUMAN,
+							UserRoles:       wildcardAccess.GetRoles(),
+							UserClusterName: tp.srv.ClusterName(),
 						},
 						SPIFFEID:                 "spiffe://localhost/example/dog/default/bar",
 						SVIDType:                 "jwt",
@@ -850,9 +851,10 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 							Code: libevents.SPIFFESVIDIssuedSuccessCode,
 						},
 						UserMetadata: events.UserMetadata{
-							User:      wildcardAccess.GetName(),
-							UserKind:  events.UserKind_USER_KIND_HUMAN,
-							UserRoles: wildcardAccess.GetRoles(),
+							User:            wildcardAccess.GetName(),
+							UserKind:        events.UserKind_USER_KIND_HUMAN,
+							UserRoles:       wildcardAccess.GetRoles(),
+							UserClusterName: tp.srv.ClusterName(),
 						},
 						SPIFFEID:                 "spiffe://localhost/example/dog/default/bar",
 						SVIDType:                 "x509",
@@ -971,9 +973,10 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 							Code: libevents.SPIFFESVIDIssuedSuccessCode,
 						},
 						UserMetadata: events.UserMetadata{
-							User:      wildcardAccess.GetName(),
-							UserKind:  events.UserKind_USER_KIND_HUMAN,
-							UserRoles: wildcardAccess.GetRoles(),
+							User:            wildcardAccess.GetName(),
+							UserKind:        events.UserKind_USER_KIND_HUMAN,
+							UserRoles:       wildcardAccess.GetRoles(),
+							UserClusterName: tp.srv.ClusterName(),
 						},
 						SPIFFEID:                 "spiffe://localhost/foo",
 						SVIDType:                 "x509",
@@ -1696,9 +1699,10 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 					Name: "new",
 				},
 				UserMetadata: events.UserMetadata{
-					User:      authorizedUser.GetName(),
-					UserKind:  events.UserKind_USER_KIND_HUMAN,
-					UserRoles: authorizedUser.GetRoles(),
+					User:            authorizedUser.GetName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: srv.ClusterName(),
 				},
 			},
 		},
@@ -1887,9 +1891,10 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 					Name: preExisting.GetMetadata().GetName(),
 				},
 				UserMetadata: events.UserMetadata{
-					User:      authorizedUser.GetName(),
-					UserKind:  events.UserKind_USER_KIND_HUMAN,
-					UserRoles: authorizedUser.GetRoles(),
+					User:            authorizedUser.GetName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: srv.ClusterName(),
 				},
 			},
 		},
@@ -2262,9 +2267,10 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 					Name: preExisting.GetMetadata().GetName(),
 				},
 				UserMetadata: events.UserMetadata{
-					User:      authorizedUser.GetName(),
-					UserKind:  events.UserKind_USER_KIND_HUMAN,
-					UserRoles: authorizedUser.GetRoles(),
+					User:            authorizedUser.GetName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: srv.ClusterName(),
 				},
 			},
 		},
@@ -2428,9 +2434,10 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 					Name: "new",
 				},
 				UserMetadata: events.UserMetadata{
-					User:      authorizedUser.GetName(),
-					UserKind:  events.UserKind_USER_KIND_HUMAN,
-					UserRoles: authorizedUser.GetRoles(),
+					User:            authorizedUser.GetName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: srv.ClusterName(),
 				},
 			},
 		},
@@ -2609,9 +2616,10 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 					Name: "aa",
 				},
 				UserMetadata: events.UserMetadata{
-					User:      authorizedUser.GetName(),
-					UserKind:  events.UserKind_USER_KIND_HUMAN,
-					UserRoles: authorizedUser.GetRoles(),
+					User:            authorizedUser.GetName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: srv.ClusterName(),
 				},
 				Reason: "compromised",
 			},
@@ -2790,9 +2798,10 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 					Name: preExisting.GetMetadata().GetName(),
 				},
 				UserMetadata: events.UserMetadata{
-					User:      authorizedUser.GetName(),
-					UserRoles: authorizedUser.GetRoles(),
-					UserKind:  events.UserKind_USER_KIND_HUMAN,
+					User:            authorizedUser.GetName(),
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: srv.ClusterName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
 				},
 			},
 		},
@@ -3169,9 +3178,10 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 					Name: preExisting.GetMetadata().GetName(),
 				},
 				UserMetadata: events.UserMetadata{
-					User:      authorizedUser.GetName(),
-					UserKind:  events.UserKind_USER_KIND_HUMAN,
-					UserRoles: authorizedUser.GetRoles(),
+					User:            authorizedUser.GetName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: srv.ClusterName(),
 				},
 				Reason: "compromised",
 			},
@@ -3336,9 +3346,10 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 					Name: "aabbccdd",
 				},
 				UserMetadata: events.UserMetadata{
-					User:      authorizedUser.GetName(),
-					UserKind:  events.UserKind_USER_KIND_HUMAN,
-					UserRoles: authorizedUser.GetRoles(),
+					User:            authorizedUser.GetName(),
+					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					UserRoles:       authorizedUser.GetRoles(),
+					UserClusterName: srv.ClusterName(),
 				},
 				Reason: "compromised",
 			},

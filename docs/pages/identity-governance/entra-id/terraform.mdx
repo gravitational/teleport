@@ -2,10 +2,11 @@
 title:  Configure the Entra ID Integration using Terraform
 description: Describes how to set up the Teleport Entra ID integration using Terraform
 sidebar_position: 3
-labels:
+tags:
  - how-to
  - identity-governance
- - terraform
+ - azure
+ - privileged-access
 ---
 
 This guide shows you how to integrate Teleport with Microsoft Entra ID using Terraform and `tctl`.
@@ -16,7 +17,19 @@ For other supported configuration methods, see the following guides:
 - [Getting Started with the Entra ID Integration](getting-started.mdx)
 - [Configure the Entra ID Integration using Azure Portal](manual-installation.mdx)
 
-If you are new to the Teleport Entra ID integration, start by reading [how the integration works](entra-id.mdx). 
+## How it works
+
+If you are new to the Teleport Entra ID integration, start by reading [how the
+integration works](entra-id.mdx). The `entra-id-integration` Terraform module
+sets up the integration by deploying a Microsoft Entra ID enterprise application and
+configuring it as a SAML identity provider for your Teleport cluster in order to
+enable authentication to Teleport via Microsoft Entra ID. 
+
+The module also assigns permissions to the Teleport Auth Service to fetch user
+and group data from Microsoft Entra ID in order to synchronize it with Teleport
+RBAC resources. Depending on your configuration, the Terraform module either
+does this by using system credentials (Microsoft Graph API permission IDs) or
+using Teleport as an OIDC IdP.
 
 ## Prerequisites
 
@@ -106,7 +119,7 @@ A working PowerShell script is provided below.
 
 ```powershell
 Connect-AzureAD
-# This is a service principal object representing Microsoft Graph in Azure AD with a specific app ID.
+# This is a service principal object representing Microsoft Graph in Entra ID with a specific app ID.
 $GraphServicePrincipal = Get-AzureADServicePrincipal -Filter "AppId eq '00000003-0000-0000-c000-000000000000'"
 # These are Microsoft Graph API permissions required by the managed identity.
 $permissions = @(
@@ -127,8 +140,13 @@ foreach ($appRole in $appRoles) {
 
 </details>
 
-Once you have the permission IDs and the principal ID of the managed identity ready,
-create `tfvars` with your inputs.
+Once you have the permission IDs and the principal ID of the managed identity
+ready, create `tfvars` with your inputs. Assign values to the variables below:
+
+- <Var name="Permission IDs"/> 
+- <Var name="Principal ID of the managed identity"/>
+
+Enter the following command to populate your `tfvars` file:
 
 ```bash
 cat > variables.auto.tfvars << EOF
@@ -210,6 +228,6 @@ plugin service that imports users and groups from Entra ID to Teleport.
 ## Next steps
 
 - Learn how to [configure access](configure-access.mdx) for Entra ID users.
-- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/azuread.mdx). 
+- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/entra-id.mdx). 
 - Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
 - See [FAQs](faq.mdx) related to the Teleport Entra ID integration. 

@@ -101,7 +101,6 @@ export default tseslint.config(
       'unused-imports': unusedImportsPlugin,
     },
     rules: {
-      ...reactHooksPlugin.configs.recommended.rules,
       '@typescript-eslint/no-unused-expressions': [
         'error',
         { allowShortCircuit: true, allowTernary: true, enforceForJSX: true },
@@ -151,10 +150,18 @@ export default tseslint.config(
       'react/no-unescaped-entities': 'warn',
       'react/jsx-key': 'warn',
       'react/jsx-no-target-blank': 'warn',
-
-      'react-hooks/rules-of-hooks': 'warn',
-      'react-hooks/exhaustive-deps': 'warn',
-      'react-hooks/react-compiler': 'warn',
+      // Enable recommended react-hooks rules as warnings.
+      ...Object.fromEntries(
+        Object.entries(reactHooksPlugin.configs.recommended.rules).map(
+          ([ruleName]) => [ruleName, 'warn']
+        )
+      ),
+      // This rule is noisy, its message does not explain how to address the issue and in the
+      // release candidate version it seems to report false positives. Turn it back on once those
+      // concerns are addressed.
+      // https://github.com/facebook/react/issues/34289
+      // https://github.com/facebook/react/issues/34313
+      'react-hooks/preserve-manual-memoization': 'off',
     },
   },
   {

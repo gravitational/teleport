@@ -451,7 +451,17 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
-		assert.NoError(t, err)
-		assert.Len(t, rts, 1)
+		require.NoError(t, err)
+		require.Len(t, rts, 1)
+	}, time.Second*10, time.Second)
+
+	tsrv, err := rootServer.GetReverseTunnelServer()
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := tsrv.Cluster(ctx, leafServer.Config.Auth.ClusterName.GetClusterName())
+		require.NoError(t, err)
+		require.NotNil(t, rts)
+
+		require.Equal(t, 1, rts.GetTunnelsCount())
 	}, time.Second*10, time.Second)
 }

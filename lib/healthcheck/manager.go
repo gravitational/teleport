@@ -141,18 +141,19 @@ func (m *manager) Start(ctx context.Context) error {
 	return nil
 }
 
-// supportedTargetKinds is a list of resource kinds that support health checks.
-var supportedTargetKinds = []string{
-	types.KindDatabase,
-}
-
 // AddTarget adds a new target health checker and starts the health checker.
 func (m *manager) AddTarget(target Target) error {
 	if err := target.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	resource := target.GetResource()
-	if !slices.Contains(supportedTargetKinds, resource.GetKind()) {
+	var metricType string
+	switch resource.GetKind() {
+	case types.KindDatabase:
+		metricType = teleport.MetricResourceDB
+	case types.KindKubernetesCluster:
+		metricType = teleport.MetricResourceKubernetes
+	default:
 		return trace.BadParameter("health check target resource kind %q is not supported", resource.GetKind())
 	}
 
@@ -170,7 +171,8 @@ func (m *manager) AddTarget(target Target) error {
 			"target_kind", resource.GetKind(),
 			"target_origin", resource.Origin(),
 		),
-		Target: target,
+		Target:     target,
+		metricType: metricType,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -1,9 +1,11 @@
 ---
 title: Analyze Entra ID policies with Teleport Identity Security
 description: Describes how to import and visualize Entra ID policies using Identity Security and Graph Explorer.
-labels:
+tags:
  - how-to
  - identity-security
+ - azure
+ - access-risks
 ---
 
 The Microsoft Entra ID integration in Teleport Identity Governance synchronizes your Entra ID directory into your Teleport cluster,
@@ -169,7 +171,7 @@ Connect-MgGraph -Scopes 'Directory.ReadWrite.All', 'AppRoleAssignment.ReadWrite.
 $managedIdentity = Get-MgServicePrincipal -ServicePrincipalId '<Var name="Principal ID" />'
 
 # Set the Microsoft Graph enterprise application object.
-# This is a service principal object representing Microsoft Graph in Azure AD with a specific app ID.
+# This is a service principal object representing Microsoft Graph in Entra ID with a specific app ID.
 $graphSPN = Get-MgServicePrincipal -Filter "AppId eq '00000003-0000-0000-c000-000000000000'"
 
 # Define the permission scopes that we want to assign to the managed identity.
@@ -272,7 +274,7 @@ Connect-MgGraph -Scopes 'Directory.ReadWrite.All', 'AppRoleAssignment.ReadWrite.
 $managedIdentity = Get-MgServicePrincipal -ServicePrincipalId '<Var name="Principal ID" />'
 
 # Set the Microsoft Graph enterprise application object.
-# This is a service principal object representing Microsoft Graph in Azure AD with a specific app ID.
+# This is a service principal object representing Microsoft Graph in Entra ID with a specific app ID.
 $graphSPN = Get-MgServicePrincipal -Filter "AppId eq '00000003-0000-0000-c000-000000000000'"
 
 # Define the permission scopes that we want to assign to the managed identity.
@@ -350,7 +352,7 @@ $app = Invoke-MgInstantiateApplicationTemplate -ApplicationTemplateId $applicati
 
 # Extract the Application ID, Object ID, and Service Principal ID of the newly created application.
 $appId = $app.Application.AppId       # The unique identifier for the application (client ID).
-$objectId = $app.Application.Id       # The unique object ID for the application in Azure AD.
+$objectId = $app.Application.Id       # The unique object ID for the application in Entra ID.
 $servicePrincipal = $app.ServicePrincipal.Id  # The unique object ID for the service principal.
 
 # Define parameters for the token signing certificate used for SAML.
@@ -449,7 +451,7 @@ $managedIdentity = Get-MgServicePrincipal -ServicePrincipalId $servicePrincipal
 
 
 # Set the Microsoft Graph enterprise application object.
-# This is a service principal object representing Microsoft Graph in Azure AD with a specific app ID.
+# This is a service principal object representing Microsoft Graph in Entra ID with a specific app ID.
 $graphSPN = Get-MgServicePrincipal -Filter "AppId eq '00000003-0000-0000-c000-000000000000'"
 
 # Define the permission scopes that we want to assign to the managed identity.

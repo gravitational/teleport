@@ -1,7 +1,7 @@
 ---
 title: Backup and Restore
 description: How to back up and restore your Teleport cluster state.
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -24,7 +24,7 @@ You must back up data that the Auth Service manages across its three backends:
 - Audit event backend
 - Session recording backend
 
-See [Storage Backends](../../../reference/backends.mdx) for more information on
+See [Storage Backends](../../../reference/deployment/backends.mdx) for more information on
 Teleport backends.
 
 The following table summarizes the kinds of backend data the Auth Service
@@ -54,7 +54,7 @@ listed here, consult the documentation for your backend:
 For the most part, you can use the same solution for both cluster state and
 audit events, setting aside a separate table for each kind of backend. The
 exception is etcd, which can only function as a cluster state backend. (See a
-full explanation in [Storage Backends](../../../reference/backends.mdx#etcd).)
+full explanation in [Storage Backends](../../../reference/deployment/backends.mdx#etcd).)
 
 | Backend | Recommended backup strategy |
 | - | - |
@@ -142,7 +142,7 @@ Kubernetes pod that usually runs the Teleport Auth Service, you can expect the
    include information about the source and destination backends. Possible
    values of `src` and `dst` are the same as the `teleport.storage` section in
    the Teleport configuration file. See the [Storage
-   Backends](../../../reference/backends.mdx) reference for the configuration
+   Backends](../../../reference/deployment/backends.mdx) reference for the configuration
    fields to assign for each backend.
 
 1. Run the following command on an Auth Service instance to execute the clone

@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -42,6 +43,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
@@ -49,8 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -168,7 +168,7 @@ type Server interface {
 	Context() context.Context
 
 	// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
-	GetUserAccountingPaths() (utmp, wtmp, btmp string)
+	GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string)
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
@@ -217,6 +217,9 @@ type IdentityContext struct {
 	// TeleportUser is the Teleport user associated with the connection.
 	TeleportUser string
 
+	// ClusterName is the name of the cluster the user authenticated with.
+	OriginClusterName string
+
 	// Impersonator is a user acting on behalf of other user
 	Impersonator string
 
@@ -237,6 +240,13 @@ type IdentityContext struct {
 	// UnmappedRoles lists the original roles of this Teleport user without
 	// trusted-cluster-related role mapping being applied.
 	UnmappedRoles []string
+
+	// MappedRoles lists the final roles of this Teleport user after
+	// trusted-cluster-related role mapping has been applied.
+	MappedRoles []string
+
+	// Traits are the identity traits derived from the certificate.
+	Traits wrappers.Traits
 
 	// CertValidBefore is set to the expiry time of a certificate, or
 	// empty, if cert does not expire
@@ -510,6 +520,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		Conn:                  child.ServerConn,
 		Context:               cancelContext,
 		TeleportUser:          child.Identity.TeleportUser,
+		UserOriginClusterName: child.Identity.OriginClusterName,
 		Login:                 child.Identity.Login,
 		ServerID:              child.srv.ID(),
 		Logger:                child.Logger,
@@ -575,51 +586,48 @@ func (c *ServerContext) ID() int {
 	return c.id
 }
 
+// GetJoinParams gets join params if they are set.
+//
+// These params (env vars) are set synchronously between the "session" channel request
+// and the "shell" / "exec" channel request. Therefore, these params are only guaranteed
+// to be accurately set during and after the "shell" / "exec" channel request.
+//
+// TODO(Joerger): Rather than relying on the out-of-band env var params, we should
+// provide session params upfront as extra data in the session channel request.
+func (c *ServerContext) GetJoinParams() (string, types.SessionParticipantMode) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	sid, found := c.getEnvLocked(sshutils.SessionEnvVar)
+	if !found {
+		return "", ""
+	}
+
+	mode := types.SessionPeerMode // default
+	if modeString, found := c.getEnvLocked(teleport.EnvSSHJoinMode); found {
+		mode = types.SessionParticipantMode(modeString)
+	}
+
+	return sid, mode
+}
+
 // SessionID returns the ID of the session in the context.
-func (c *ServerContext) SessionID() rsession.ID {
-	return c.ConnectionContext.GetSessionID()
+//
+// This value is not set until during and after the "shell" / "exec" channel request.
+func (c *ServerContext) SessionID() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.session != nil {
+		return string(c.session.id)
+	}
+
+	return ""
 }
 
 // GetServer returns the underlying server which this context was created in.
 func (c *ServerContext) GetServer() Server {
 	return c.srv
-}
-
-// CreateOrJoinSession will look in the SessionRegistry for the session ID. If
-// no session is found, a new one is created. If one is found, it is returned.
-func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionRegistry) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// As SSH conversation progresses, at some point a session will be created and
-	// its ID will be added to the environment
-	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
-	if !found {
-		return nil
-	}
-
-	// make sure whatever session is requested is a valid session
-	id, err := rsession.ParseID(ssid)
-	if err != nil {
-		return trace.BadParameter("invalid session ID %s", ssid)
-	}
-
-	// update ctx with the session if it exists
-	if sess, found := reg.findSession(*id); found {
-		c.session = sess
-		c.ConnectionContext.SetSessionID(*id)
-		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
-	} else {
-		// TODO(capnspacehook): DELETE IN 19.0.0 - by then all supported
-		// clients should only set TELEPORT_SESSION when they want to
-		// join a session. Always return an error instead of using a
-		// new ID.
-		//
-		// The session ID the client sent was not found, ignore it; the
-		// connection's ID will be used as the session ID later.
-		c.Logger.DebugContext(ctx, "Sent session ID not found, using connection ID")
-	}
-
-	return nil
 }
 
 // TrackActivity keeps track of all activity on ssh.Channel. The caller should
@@ -704,6 +712,11 @@ func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Ch
 }
 
 // getSession returns the context's session
+//
+// The associated session is not set in the server context until a
+// shell / exec channel has been initiated for the session, so out-of-band
+// session requests that can occur before these channel requests should
+// consider fallback mechanisms.
 func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -724,6 +737,11 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 
 	// check if ssh access permit is defined and authorizes file copying
 	if permit := c.Identity.AccessPermit; permit != nil && permit.SshFileCopy {
+		return nil
+	}
+
+	// check if proxying permit is defined and authorizes file copying
+	if permit := c.Identity.ProxyingPermit; permit != nil && permit.SSHFileCopy {
 		return nil
 	}
 
@@ -1099,14 +1117,17 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	}
 
 	return apievents.UserMetadata{
-		Login:          id.Login,
-		User:           id.TeleportUser,
-		Impersonator:   id.Impersonator,
-		AccessRequests: id.ActiveRequests,
-		TrustedDevice:  id.UnmappedIdentity.GetDeviceMetadata(),
-		UserKind:       userKind,
-		BotName:        id.BotName,
-		BotInstanceID:  id.BotInstanceID,
+		Login:           id.Login,
+		User:            id.TeleportUser,
+		Impersonator:    id.Impersonator,
+		AccessRequests:  id.ActiveRequests,
+		TrustedDevice:   id.UnmappedIdentity.GetDeviceMetadata(),
+		UserKind:        userKind,
+		BotName:         id.BotName,
+		BotInstanceID:   id.BotInstanceID,
+		UserClusterName: id.OriginClusterName,
+		UserRoles:       slices.Clone(id.MappedRoles),
+		UserTraits:      id.Traits.Clone(),
 	}
 }
 
@@ -1175,23 +1196,13 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	addr := c.ConnectionContext.ServerConn.RemoteAddr()
-	hostname, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	preparedAddr, err := uacc.PrepareAddr(addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	utmpPath, wtmpPath, btmpPath := c.srv.GetUserAccountingPaths()
-
+	utmpPath, wtmpPath, btmpPath, wtmpdbPath := c.srv.GetUserAccountingPaths()
 	return &UaccMetadata{
-		Hostname:   hostname,
-		RemoteAddr: preparedAddr,
+		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 		BtmpPath:   btmpPath,
+		WtmpdbPath: wtmpdbPath,
 	}, nil
 }
 
@@ -1247,7 +1258,7 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 
 func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 	return apievents.SessionMetadata{
-		SessionID:        string(c.SessionID()),
+		SessionID:        c.SessionID(),
 		WithMFA:          c.Identity.UnmappedIdentity.MFAVerified,
 		PrivateKeyPolicy: string(c.Identity.UnmappedIdentity.PrivateKeyPolicy),
 	}

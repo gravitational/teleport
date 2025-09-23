@@ -1,10 +1,12 @@
 ---
-title: Access Controls Reference
+title: Teleport Role Reference
+sidebar_label: Roles
 description: Explains the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
 tocDepth: 3
-labels:
+tags:
  - reference
  - zero-trust
+ - privileged-access
 ---
 
 This guide shows you how to use Teleport roles to manage role-based access
@@ -70,7 +72,7 @@ user:
 | `request_prompt` | Prompt for the Access Request "reason" field | |
 | `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | The lowest value takes precedence. |
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
-| `record_session` |Defines the [Session recording mode](../monitoring/audit.mdx).|The strictest value takes precedence.|
+| `record_session` |Defines the [Session recording mode](../deployment/monitoring/audit.mdx).|The strictest value takes precedence.|
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `desktop_directory_sharing` | Allows sharing local workstation directory to remote desktop | Logical "AND" i.e. evaluates to "yes" if all roles enable directory sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
@@ -123,7 +125,7 @@ Version              |  `kubernetes_resources`
 `v8` |  `[{"kind":"*","api_group":"*","name":"*","namespace":"*","verbs":["*"]},{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}]`
 
 SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
-There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`. 
+There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`.
 See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
 
 ## RBAC for infrastructure resources
@@ -250,7 +252,7 @@ conditions:
 - `workload_identity_labels_expression`
 
 Check out our
-[predicate language](../predicate-language.mdx)
+[predicate language](predicate-language.mdx)
 guide for a more in depth explanation of the language.
 
 Typically you will only want to use one of `<kind>_labels` or
@@ -279,7 +281,10 @@ allow:
 ```
 
 If this rule was declared in the `deny` section of a role definition, it would
-prohibit users from getting a list of active sessions. You can see all of the
+prohibit users from getting a list of active sessions. If a role does not allow
+access to list a resource, the user will not be able to view it in the Web UI
+or remotely with `tctl`.  The only exception is that a user can always view their 
+assigned roles and their own user information with `tctl`.  You can see all of the
 available resources and verbs under the `allow` section in the example role
 configuration below.
 
@@ -371,13 +376,15 @@ an administrative role. In particular, you should avoid configuring `allow` rule
 that grant `create` and `update` permissions on `token` resources to prevent
 unexpected changes to the configuration or state of your cluster.
 
-## RBAC for sessions
+## RBAC for session recordings
 
 It is possible to further limit access to
-[shared sessions](../../connect-your-client/tsh.mdx) and
 [session recordings](../architecture/session-recording.mdx).
-The examples below illustrate how to restrict session access only for the user
-who created the session.
+
+The `where` field in RBAC rules provides powerful filtering capabilities,
+allowing you to restrict access to session recordings based on user traits
+and resource metadata. This enables fine-grained control over who can view
+recordings based on contextual information.
 
 <Admonition
   type="warning"
@@ -388,24 +395,276 @@ have a more permissive role, like the preset `auditor` role, which allows access
 to all events, sessions, and session recordings.
 </Admonition>
 
-Role for restricted access to session recordings:
+### Understanding the `where` clause
+
+The `where` clause acts as a condition that must evaluate to true for access to be
+granted. It uses predicate expressions that can reference:
+
+- Attributes of the authenticated user (name, roles, traits)
+- Metadata about the session recording (participants, proto, creator, etc.)
+- Resource-specific attributes (server details, database info, etc.)
+
+Basic syntax example:
+
+```
+where: contains(session.participants, user.metadata.name)
+```
+
+This expression evaluates to true only when the current user is found in the session's
+participants list.
+
+
+### Common Access Control Recipes
+
+Here are practical examples of how to use `where` expressions to implement common access control patterns:
+
+#### Restrict to Session Participants
+
+Allow users to view only recordings of sessions they participated in:
 
 ```yaml
-version: v5
+version: v8
 kind: role
 metadata:
   name: only-own-sessions
 spec:
   allow:
     rules:
-    # Users can only view session recordings for sessions in which they
-    # participated.
     - resources: [session]
       verbs: [list, read]
       where: contains(session.participants, user.metadata.name)
 ```
 
-Role for restricted access to active sessions:
+#### Restrict by User Role
+
+Allow access only to users that share a role with the session creator:
+
+```yaml
+version: v8
+kind: role
+metadata:
+  name: sessions-viewer
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: contains_any(user.spec.roles, session.user_roles)
+```
+
+#### Restrict by Team Trait
+
+Allow members of the same team to view each other's sessions:
+
+```yaml
+version: v8
+kind: role
+metadata:
+  name: team-sessions-viewer
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: contains_any(session.user_traits["team"], user.spec.traits["team"])
+```
+
+#### Restrict by Session participants
+
+Allow viewing only sessions where the user participated:
+
+```yaml
+version: v5
+kind: role
+metadata:
+  name: own-sessions
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: contains(session.participants, user.metadata.name)
+```
+
+#### Restrict by Resource Type
+
+Allow viewing only SSH session recordings:
+
+```yaml
+version: v5
+kind: role
+metadata:
+  name: ssh-sessions-only
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: session.proto == "ssh"
+```
+
+#### Combine Multiple Conditions
+
+This rule allows users to view SSH session recordings only if they were a participant OR the node is owned by his team.
+
+```yaml
+version: v5
+kind: role
+metadata:
+  name: complex-sessions-access
+spec:
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+      where: >
+        (contains(session.participants, user.metadata.name) || 
+         contains(user.spec.traits["team"], session.server_labels["team"])) && 
+        session.proto == "ssh"
+```
+
+By leveraging these where expressions, you can implement access control policies that
+match your organization's security requirements while still allowing appropriate visibility for auditing and
+monitoring purposes.
+
+### Filter fields
+
+The `where` field in a rule allows you to filter access to resources based on
+user traits and resource metadata.
+
+#### User fields
+
+The following user fields can be used in `where` expressions to filter access.
+The `user` object represents the authenticated user making the request to
+access the session recording.
+
+| User Field | Description | Type |
+|---|---|---|
+| `user.metadata.name` | The name of the user. | `string` |
+| `user.spec.traits` | The traits assigned to the user. | `dict<string, array<string>>` |
+| `user.spec.roles` | The roles assigned to the user. | `array<string> `|
+
+
+#### Session fields
+
+<Admonition
+  type="warning"
+  title="Session fields are immutable">
+
+Session fields are immutable and capture the state of the session at the moment it
+was created.
+
+If the underlying resource changes (e.g., server labels), these fields will not be
+updated, and the session’s RBAC will not reflect the changes.
+
+</Admonition>
+
+The following session fields can be used in `where` expressions to filter access.
+The `session` object represents the session resource being accessed.
+It contains metadata about the session, including the participants, proto,
+resource type and the session creator (user who initiated the session) roles and traits.
+
+| Session Field | Description | Type |
+|---|---|---|
+| `session.id` | The unique identifier of the session. | `string` |
+| `session.kind` | The kind of session (e.g., "ssh", "kube", "db", "rdp"). | `string` |
+| `session.participants` | The list of users who participated in the session. | `array<string>` |
+| `session.proto` | The proto used for the session (e.g., "ssh", "kube", "db", "rdp"). | `string` |
+| `session.user` | The user who initiated the session. | `string` |
+| `session.user_roles` | The roles assigned to the user who initiated the session. | `array<string>` |
+| `session.user_traits` | The traits assigned to the user who initiated the session. | `dict<string, array<string>>` |
+
+Depending on the session kind, additional session fields are available for filtering.
+
+<Tabs>
+<TabItem value="SSH Sessions" label="SSH Sessions">
+
+The following server session fields can also be used in `where` expressions to filter access
+for SSH sessions together with the user and session fields above.
+
+| Server Session Field | Description | Type |
+|---|---|---|
+| `session.server_id` | The unique identifier of the server where the session took place. | `string` |
+| `session.server_hostname` | The hostname of the server where the session took place. | `string` |
+| `session.server_labels` | The labels assigned to the server where the session took place. | `dict<string, string>` |
+| `session.server_addr` | The address of the server where the session took place. | `string` |
+| `session.login` | The username used to log in to the server during the session. |`string` |
+
+</TabItem>
+<TabItem value="Kubernetes Sessions" label="Kubernetes Sessions">
+
+The following Kubernetes session fields can be used in `where` expressions to filter access
+for Kubernetes sessions together with the user and session fields above.
+
+| Kubernetes Session Field | Description | Type |
+|---|---|---|
+| `session.kubernetes_cluster` | The name of the Kubernetes cluster where the session took place. | `string` |
+| `session.kubernetes_labels` | The labels assigned to the Kubernetes cluster where the session took place. | `dict<string, string>` |
+| `session.kubernetes_user` | The Kubernetes user used in the session. | `string` |
+| `session.kubernetes_groups` | The Kubernetes groups used in the session. | `array<string>` |
+| `session.kubernetes_pod_namespace` | The namespace in the Kubernetes cluster where the session took place. | `string` |
+| `session.kubernetes_pod_name` | The name of the pod in the Kubernetes cluster where the session took place. | `string` |
+| `session.kubernetes_container_name` | The name of the container in the Kubernetes cluster where the session took place. | `string` |
+
+</TabItem>
+<TabItem value="Database Sessions" label="Database Sessions">
+
+The following database session fields can be used in `where` expressions to filter access
+for database sessions together with the user and session fields above.
+
+{/* vale messaging.capitalization = NO */}
+
+| Database Session Field | Description | Type |
+|---|---|---|
+| `session.db_service` | The name of the database service where the session took place. | `string` |
+| `session.db_protocol` | The protocol used to connect to the database (e.g., "postgres", "mysql"). | `string` |
+| `session.db_uri` | The URI of the database where the session took place. | `string` |
+| `session.db_name` | The name of the database accessed during the session. | `string` |
+| `session.db_user` | The database user used during the session. | `string` |
+| `session.db_labels` | The labels assigned to the database where the session took place. | `dict<string, string>` |
+| `session.db_type` | The type of the database (e.g., "postgres", "mysql"). | `string` |
+
+{/* vale messaging.capitalization = YES */}
+
+</TabItem>
+<TabItem value="Windows Desktop Sessions" label="Windows Desktop Sessions">
+
+The following Windows Desktop session fields can be used in `where` expressions to filter access
+for Windows Desktop sessions together with the user and session fields above.
+
+| Windows Desktop Session Field | Description | Type |
+|---|---|---|
+| `session.windows_desktop_service` | The name of the Windows Desktop service where the session took place. | `string` |
+| `session.desktop_addr` | The address of the Windows desktop where the session took place. | `string` |
+| `session.desktop_name` | The name of the Windows desktop where the session took place. | `string` |
+| `session.domain` | The domain of the Windows desktop where the session took place. | `string` |
+| `session.windows_user` | The username used to log in to the Windows desktop during the session. | `string` |
+| `session.desktop_labels` | The labels assigned to the Windows desktop where the session took place. | `dict<string, string>` |
+
+</TabItem>
+</Tabs>
+
+### Functions
+
+You can use the following functions in `where` expressions to filter access to
+session recordings:
+
+| Function | Signature |Description |
+|---|---|---|
+| `contains` | `contains(array<string>, string) -> bool` | Returns true if the array contains the specified value. |
+| `contains_any` | `contains_any(array<string>, array<string>) -> bool` | Returns true if the two arrays have any elements in common. |
+| `contains_all` | `contains_all(array<string>, array<string>) -> bool` | Returns true if the first array contains all elements of the second array. |
+| `can_view` | `can_view() -> bool` | Returns true if the user can view the SSH Node, Kubernetes Cluster, Database or Windows machine in Teleport. |
+| `equals` | `equals(array<string>, array<string>) -> bool` | Returns true if the two strings or two arrays are equal. |
+| `set` | `set(string,string...) -> array<string>` | Converts one or multiple strings into an array. |
+
+
+## RBAC for active sessions
+
+It is possible to further limit access to
+[shared sessions](../../connect-your-client/tsh.mdx).
+The example below illustrates how to restrict access to active SSH sessions
+only for the user who created the session.
 
 ```yaml
 version: v5
@@ -505,7 +764,7 @@ Labels for resources enrolled with Teleport:
 |`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
 |`node_labels`|[SSH Servers](../../enroll-resources/server-access/server-access.mdx)|
 |`windows_desktop_labels`|[Windows desktops](../../enroll-resources/server-access/server-access.mdx)|
-|`workload_identity_labels`|[Workload Identities](../workload-identity/workload-identity-resource.mdx)|
+|`workload_identity_labels`|[Workload Identities](../machine-workload-identity/workload-identity/workload-identity-resource.mdx)|
 
 Principals a user can assume on infrastructure resources:
 - `aws_role_arns`
@@ -563,7 +822,7 @@ sign-on provider.
 The `internal` trait namespace includes only the exact internal trait names
 included in the above table.
 For local Teleport users, these traits can be set in the `spec.traits` field of the
-[user resource](../resources.mdx#user).
+[user resource](../infrastructure-as-code/resources.mdx#user).
 These trait names can also be set for SSO users if they are included in an
 attribute or claim from your IdP.
 
@@ -595,7 +854,7 @@ included in the `spec.allow.logins` field of roles the user holds in the root cl
 #### Referring to external traits in Teleport roles
 
 For local Teleport users, the `external` trait namespace includes all values
-from the `spec.traits` field of the [user resource](../resources.mdx#user).
+from the `spec.traits` field of the [user resource](../infrastructure-as-code/resources.mdx#user).
 This includes any custom trait names, as well as names matching the `internal`
 traits listed above.
 For example, `{{internal.logins}}` and `{{external.logins}}` are both valid ways
@@ -704,5 +963,5 @@ within this guide:
 | `user.metadata.name`       | The user's name                                   |
 
 Read the [predicate
-language](../predicate-language.mdx)
+language](predicate-language.mdx)
 guide for a more in depth explanation of the language.

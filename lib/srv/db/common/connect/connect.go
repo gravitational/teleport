@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // DatabaseServersGetter is an interface for retrieving information about
@@ -68,8 +69,6 @@ func GetDatabaseServers(ctx context.Context, params GetDatabaseServersParams) ([
 		return nil, trace.Wrap(err)
 	}
 
-	params.Logger.DebugContext(ctx, "Available database servers.", "cluster", params.ClusterName, "servers", servers)
-
 	// Find out which database servers proxy the database a user is
 	// connecting to using routing information from identity.
 	var result []types.DatabaseServer
@@ -78,6 +77,11 @@ func GetDatabaseServers(ctx context.Context, params GetDatabaseServersParams) ([
 			result = append(result, server)
 		}
 	}
+
+	params.Logger.DebugContext(ctx, "Available database servers",
+		"cluster", params.ClusterName,
+		"servers", logutils.StringerSliceAttr(result),
+	)
 
 	if len(result) != 0 {
 		return result, nil

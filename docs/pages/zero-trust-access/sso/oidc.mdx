@@ -1,9 +1,10 @@
 ---
 title: OAuth2 and OIDC authentication
 description: How to configure Teleport access with OAuth2 or OpenID connect (OIDC)
-labels:
+tags:
  - how-to
  - zero-trust
+ - privileged-access
 ---
 
 This guide will explain how to configure an SSO provider using [OpenID
@@ -69,7 +70,7 @@ this address points to the first one listed.
 
 The next step is to add an OIDC connector to Teleport. The connectors are
 created, tested, and added or removed using `tctl` [resource
-commands](../../reference/resources.mdx) or the Teleport Web UI.
+commands](../../reference/infrastructure-as-code/resources.mdx) or the Teleport Web UI.
 
 On your workstation, create a file called `client-secret.txt` consisting only of
 your client secret.
