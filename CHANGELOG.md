@@ -1,5 +1,13 @@
 # Changelog
 
+## 17.7.6 (09/23/25)
+
+* Made the check for a running Teleport process in the install-node.sh script more robust. [#59495](https://github.com/gravitational/teleport/pull/59495)
+* Fixed `tctl edit` producing an error when trying to modify a Bot resource. [#59481](https://github.com/gravitational/teleport/pull/59481)
+* Improved app access error messages in case of network error. [#59467](https://github.com/gravitational/teleport/pull/59467)
+* Fixed database IAM configurator potentially getting stuck and never recovering (#59290). [#59418](https://github.com/gravitational/teleport/pull/59418)
+* Fixed `tsh config` binary path after managed updates. [#59385](https://github.com/gravitational/teleport/pull/59385)
+
 ## 17.7.5 (09/18/25)
 
 * Fix issue preventing auto enrollment of EKS clusters when using the Web UI. [#59273](https://github.com/gravitational/teleport/pull/59273)
