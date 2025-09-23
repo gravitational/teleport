@@ -100,6 +100,7 @@ class MockedMacUpdater extends MacUpdater {
 function setUpAppUpdater(options: {
   clusters: GetClusterVersionsResponse;
   storage?: AppUpdaterStorage;
+  processEnvVar?: string;
 }) {
   const clusterGetter = async () => {
     return options.clusters;
@@ -117,6 +118,7 @@ function setUpAppUpdater(options: {
     event => {
       lastEvent.value = event;
     },
+    options.processEnvVar,
     nativeUpdater
   );
 
@@ -186,6 +188,34 @@ test('does not auto-download update when there are unreachable clusters', async 
     expect.objectContaining({
       kind: 'update-available',
       autoDownload: false,
+    })
+  );
+  expect(setup.downloadUpdateSpy).toHaveBeenCalledTimes(0);
+});
+
+test('does not auto-download update when env var is set to off', async () => {
+  const setup = setUpAppUpdater({
+    processEnvVar: 'off',
+    clusters: {
+      reachableClusters: [
+        {
+          clusterUri: '/clusters/foo',
+          toolsAutoUpdate: true,
+          toolsVersion: '19.0.0',
+          minToolsVersion: '18.0.0-aa',
+        },
+      ],
+      unreachableClusters: [],
+    },
+  });
+
+  await setup.appUpdater.checkForUpdates({ noAutoDownload: true });
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'update-not-available',
+      autoUpdatesStatus: expect.objectContaining({
+        reason: 'disabled-by-env-var',
+      }),
     })
   );
   expect(setup.downloadUpdateSpy).toHaveBeenCalledTimes(0);

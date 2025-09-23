@@ -407,18 +407,14 @@ func (a *Server) RegisterUsingIAMMethodWithOpts(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		certs, _, err := a.generateCertsBot(
-			ctx,
-			provisionToken,
-			req.RegisterUsingTokenRequest,
-			verifiedIdentity,
-			&workloadidentityv1pb.JoinAttrs{
-				Iam: verifiedIdentity.JoinAttrs(),
-			},
-		)
+		params := makeBotCertsParams(req.RegisterUsingTokenRequest, verifiedIdentity, &workloadidentityv1pb.JoinAttrs{
+			Iam: verifiedIdentity.JoinAttrs(),
+		})
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
 		return certs, trace.Wrap(err, "generating bot certs")
 	}
-	certs, err = a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, verifiedIdentity)
+	params := makeHostCertsParams(req.RegisterUsingTokenRequest, verifiedIdentity)
+	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
 	return certs, trace.Wrap(err, "generating certs")
 }
 

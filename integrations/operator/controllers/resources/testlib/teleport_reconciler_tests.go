@@ -153,19 +153,16 @@ func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	FastEventuallyWithT(t, func(c *assert.CollectT) {
+	FastEventuallyWithT(t, func(t *assert.CollectT) {
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		if !equal {
-			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
-		}
-		assert.True(c, equal)
+		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 	})
 
 	// Updating the resource in Kubernetes
@@ -176,19 +173,16 @@ func ResourceUpdateTest[T reconcilers.Resource, K reconcilers.KubernetesCR[T]](t
 	require.NoError(t, err)
 
 	// Check the resource was updated in Teleport
-	FastEventuallyWithT(t, func(c *assert.CollectT) {
+	FastEventuallyWithT(t, func(t *assert.CollectT) {
 		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(c, err)
+		require.NoError(t, err)
 
 		// Kubernetes and Teleport resources are in-sync
 		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		if !equal {
-			t.Logf("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
-		}
-		assert.True(c, equal)
+		require.True(t, equal, "Kubernetes and Teleport resources not sync-ed yet: %s", diff)
 	})
 
 	// Delete the resource to avoid leftover state.

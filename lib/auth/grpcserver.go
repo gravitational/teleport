@@ -129,7 +129,9 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -1137,6 +1139,18 @@ func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.Acces
 		return nil, trace.Wrap(err)
 	}
 	caps, err := auth.ServerWithRoles.GetAccessCapabilities(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
+func (g *GRPCServer) GetRemoteAccessCapabilities(ctx context.Context, req *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caps, err := auth.ServerWithRoles.GetRemoteAccessCapabilities(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2480,12 +2494,28 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 		return trace.Wrap(err)
 	}
 
-	err = actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user)
-	if err != nil {
-		return trace.Wrap(err)
+	// We must use the real username associated with the identity.
+	// GetUser() can be remote-{user}-{cluster} if we are using
+	// a leaf cluster.
+	realUsername := actx.Identity.GetIdentity().Username
+	originCluster := actx.Identity.GetIdentity().OriginClusterName
+	origErr := actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, realUsername, originCluster)
+	switch {
+	case trace.IsNotFound(origErr):
+		// If the user was not found, it may be because the session tracker
+		// was created with the .GetUser() value (remote-{user}-{cluster}).
+		// Try again with that username as a fallback.
+		// TODO(tigrato): DELETE IN 20.0.0
+		if fallbackErr := actx.authServer.UpdatePresence(ctx, challengeReq.SessionID, user, originCluster); fallbackErr != nil {
+			// Return the original error, as that is more relevant to the client.
+			return trace.Wrap(origErr)
+		}
+		return nil
+	case origErr != nil:
+		return trace.Wrap(origErr)
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 // MaintainSessionPresence establishes a channel used to continuously verify the presence for a session.
@@ -5730,8 +5760,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	trustv1pb.RegisterTrustServiceServer(server, trust)
 
-	joinServiceServer := joinserver.NewJoinServiceGRPCServer(cfg.AuthServer)
-	authpb.RegisterJoinServiceServer(server, joinServiceServer)
+	legacyJoinServiceServer := legacyjoin.NewJoinServiceGRPCServer(cfg.AuthServer)
+	authpb.RegisterJoinServiceServer(server, legacyJoinServiceServer)
+
+	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
+		Authorizer:  cfg.Authorizer,
+		AuthService: cfg.AuthServer,
+	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:      cfg.Authorizer,

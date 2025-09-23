@@ -188,7 +188,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 						},
 					}),
 					Description: "grants describes the access granted by membership to this Access List.",
-					Required:    true,
+					Optional:    true,
 				},
 				"membership_requires": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{

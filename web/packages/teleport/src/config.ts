@@ -45,6 +45,7 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
+import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
 import { KindAuthConnectors } from './services/resources';
 
@@ -170,11 +171,9 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
-    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
-    manageCluster: '/web/clusters/:clusterId/manage',
 
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
@@ -191,6 +190,7 @@ const cfg = {
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
+    workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -303,7 +303,8 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
-    ttyDbWsAddr: 'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws',
+    ttyDbWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws?params=:params',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
@@ -502,6 +503,10 @@ const cfg = {
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
     },
 
+    workloadIdentity: {
+      list: '/v1/webapi/sites/:clusterId/workload-identity',
+    },
+
     gcpWorkforceConfigurePath:
       '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
@@ -526,6 +531,8 @@ const cfg = {
     sessionRecording: {
       metadata:
         '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws',
+      playback:
+        '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
   },
@@ -681,6 +688,29 @@ const cfg = {
   },
 
   /**
+   * getIntegrationsEnrollRoute returns a path to the page which lists all integrations.
+   */
+  getIntegrationsEnrollRoute({
+    tags = [],
+    searchFilter = '',
+  }: {
+    tags?: IntegrationTag[];
+    searchFilter?: string;
+  } = {}) {
+    const searchParams = new URLSearchParams();
+    tags.forEach(tag => {
+      searchParams.append('tags', tag);
+    });
+    if (searchFilter) {
+      searchParams.set('search', searchFilter);
+    }
+    const queryString = searchParams.toString();
+    const path = generatePath(cfg.routes.integrationEnroll);
+
+    return queryString ? `${path}?${queryString}` : path;
+  },
+
+  /**
    * Generates a route for an Integration's enrolment page
    *
    * @param {string} [type] - The integration type (e.g. "okta", "aws-oidc")
@@ -729,10 +759,6 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
-  },
-
-  getManageClusterRoute(clusterId: string) {
-    return generatePath(cfg.routes.manageCluster, { clusterId });
   },
 
   getUnifiedResourcesRoute(clusterId: string) {
@@ -817,6 +843,10 @@ const cfg = {
 
   getBotInstancesRoute() {
     return generatePath(cfg.routes.botInstances);
+  },
+
+  getWorkloadIdentitiesRoute() {
+    return generatePath(cfg.routes.workloadIdentities);
   },
 
   getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
@@ -934,6 +964,13 @@ const cfg = {
       clusterId,
       sessionId,
       fqdn,
+    });
+  },
+
+  getSessionRecordingPlaybackUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.playback, {
+      clusterId,
+      sessionId,
     });
   },
 
@@ -1681,6 +1718,23 @@ const cfg = {
         });
       default:
         req satisfies never;
+        return '';
+    }
+  },
+
+  getWorkloadIdentityUrl(
+    req: {
+      action: 'list';
+    } & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.workloadIdentity.list, {
+          clusterId,
+        });
+      default:
+        req.action satisfies never;
         return '';
     }
   },

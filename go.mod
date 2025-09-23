@@ -1,6 +1,16 @@
 module github.com/gravitational/teleport
 
-go 1.24.7
+go 1.25.1
+
+ignore (
+	./build
+	./docs
+	./web
+	./webassets
+	node_modules
+	rfd
+	target
+)
 
 require (
 	cloud.google.com/go/alloydb v1.18.0
@@ -12,7 +22,7 @@ require (
 	cloud.google.com/go/iam v1.5.2
 	cloud.google.com/go/kms v1.22.0
 	cloud.google.com/go/resourcemanager v1.10.6
-	cloud.google.com/go/spanner v1.83.0
+	cloud.google.com/go/spanner v1.85.0
 	cloud.google.com/go/storage v1.56.1
 	code.dny.dev/ssrf v0.2.0
 	connectrpc.com/connect v1.18.1
@@ -207,7 +217,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spiffe/aws-spiffe-workload-helper v0.0.4
 	github.com/spiffe/go-spiffe/v2 v2.6.0
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.38.0
 	github.com/testcontainers/testcontainers-go/modules/mysql v0.38.0
 	github.com/tidwall/pretty v1.2.1
@@ -368,7 +378,6 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/globocom/go-buffer v1.2.2 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
-	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-chi/chi/v5 v5.2.2 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
@@ -531,7 +540,7 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
-	github.com/sigstore/rekor v1.4.0 // indirect
+	github.com/sigstore/rekor v1.4.1 // indirect
 	github.com/sigstore/rekor-tiles v0.1.7-0.20250624231741-98cd4a77300f // indirect
 	github.com/sigstore/timestamp-authority v1.2.8 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect

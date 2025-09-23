@@ -39,6 +39,7 @@ const (
 	UserLoginStateService_UpsertUserLoginState_FullMethodName     = "/teleport.userloginstate.v1.UserLoginStateService/UpsertUserLoginState"
 	UserLoginStateService_DeleteUserLoginState_FullMethodName     = "/teleport.userloginstate.v1.UserLoginStateService/DeleteUserLoginState"
 	UserLoginStateService_DeleteAllUserLoginStates_FullMethodName = "/teleport.userloginstate.v1.UserLoginStateService/DeleteAllUserLoginStates"
+	UserLoginStateService_ListUserLoginStates_FullMethodName      = "/teleport.userloginstate.v1.UserLoginStateService/ListUserLoginStates"
 )
 
 // UserLoginStateServiceClient is the client API for UserLoginStateService service.
@@ -48,6 +49,7 @@ const (
 // UserLoginStateService provides CRUD methods for user login state resources.
 type UserLoginStateServiceClient interface {
 	// GetUserLoginStates returns a list of all user login states.
+	// Deprecated: Use ListUserLoginStates instead.
 	GetUserLoginStates(ctx context.Context, in *GetUserLoginStatesRequest, opts ...grpc.CallOption) (*GetUserLoginStatesResponse, error)
 	// GetUserLoginState returns the specified user login state resource.
 	GetUserLoginState(ctx context.Context, in *GetUserLoginStateRequest, opts ...grpc.CallOption) (*UserLoginState, error)
@@ -57,6 +59,8 @@ type UserLoginStateServiceClient interface {
 	DeleteUserLoginState(ctx context.Context, in *DeleteUserLoginStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllUserLoginStates hard deletes all user login states.
 	DeleteAllUserLoginStates(ctx context.Context, in *DeleteAllUserLoginStatesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ListUserLoginStates lists all user login states allowing for pagination.
+	ListUserLoginStates(ctx context.Context, in *ListUserLoginStatesRequest, opts ...grpc.CallOption) (*ListUserLoginStatesResponse, error)
 }
 
 type userLoginStateServiceClient struct {
@@ -117,6 +121,16 @@ func (c *userLoginStateServiceClient) DeleteAllUserLoginStates(ctx context.Conte
 	return out, nil
 }
 
+func (c *userLoginStateServiceClient) ListUserLoginStates(ctx context.Context, in *ListUserLoginStatesRequest, opts ...grpc.CallOption) (*ListUserLoginStatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUserLoginStatesResponse)
+	err := c.cc.Invoke(ctx, UserLoginStateService_ListUserLoginStates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserLoginStateServiceServer is the server API for UserLoginStateService service.
 // All implementations must embed UnimplementedUserLoginStateServiceServer
 // for forward compatibility.
@@ -124,6 +138,7 @@ func (c *userLoginStateServiceClient) DeleteAllUserLoginStates(ctx context.Conte
 // UserLoginStateService provides CRUD methods for user login state resources.
 type UserLoginStateServiceServer interface {
 	// GetUserLoginStates returns a list of all user login states.
+	// Deprecated: Use ListUserLoginStates instead.
 	GetUserLoginStates(context.Context, *GetUserLoginStatesRequest) (*GetUserLoginStatesResponse, error)
 	// GetUserLoginState returns the specified user login state resource.
 	GetUserLoginState(context.Context, *GetUserLoginStateRequest) (*UserLoginState, error)
@@ -133,6 +148,8 @@ type UserLoginStateServiceServer interface {
 	DeleteUserLoginState(context.Context, *DeleteUserLoginStateRequest) (*emptypb.Empty, error)
 	// DeleteAllUserLoginStates hard deletes all user login states.
 	DeleteAllUserLoginStates(context.Context, *DeleteAllUserLoginStatesRequest) (*emptypb.Empty, error)
+	// ListUserLoginStates lists all user login states allowing for pagination.
+	ListUserLoginStates(context.Context, *ListUserLoginStatesRequest) (*ListUserLoginStatesResponse, error)
 	mustEmbedUnimplementedUserLoginStateServiceServer()
 }
 
@@ -157,6 +174,9 @@ func (UnimplementedUserLoginStateServiceServer) DeleteUserLoginState(context.Con
 }
 func (UnimplementedUserLoginStateServiceServer) DeleteAllUserLoginStates(context.Context, *DeleteAllUserLoginStatesRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllUserLoginStates not implemented")
+}
+func (UnimplementedUserLoginStateServiceServer) ListUserLoginStates(context.Context, *ListUserLoginStatesRequest) (*ListUserLoginStatesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserLoginStates not implemented")
 }
 func (UnimplementedUserLoginStateServiceServer) mustEmbedUnimplementedUserLoginStateServiceServer() {}
 func (UnimplementedUserLoginStateServiceServer) testEmbeddedByValue()                               {}
@@ -269,6 +289,24 @@ func _UserLoginStateService_DeleteAllUserLoginStates_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserLoginStateService_ListUserLoginStates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserLoginStatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserLoginStateServiceServer).ListUserLoginStates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserLoginStateService_ListUserLoginStates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserLoginStateServiceServer).ListUserLoginStates(ctx, req.(*ListUserLoginStatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserLoginStateService_ServiceDesc is the grpc.ServiceDesc for UserLoginStateService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -295,6 +333,10 @@ var UserLoginStateService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAllUserLoginStates",
 			Handler:    _UserLoginStateService_DeleteAllUserLoginStates_Handler,
+		},
+		{
+			MethodName: "ListUserLoginStates",
+			Handler:    _UserLoginStateService_ListUserLoginStates_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

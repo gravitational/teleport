@@ -486,7 +486,7 @@ export class WindowsManager {
         ? 'Keep Teleport Connect running in the menu bar?'
         : 'Keep Teleport Connect running in the system tray?',
       detail:
-        'VNet and connections to databases, kube clusters and apps will remain active.',
+        'VNet and connections to databases, Kubernetes clusters, and apps will remain active.',
       buttons: ['Keep Running', 'Quit'],
       noLink: true,
       defaultId: 0,

@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -153,6 +154,15 @@ type authAuditProps struct {
 	userOrigin     apievents.UserOrigin
 }
 
+// trimUsername truncates the length of a username to the maximum allowed length, if needed.
+func trimUsername(username string) string {
+	if len(username) <= teleport.MaxUsernameLength {
+		return username
+	}
+
+	return username[:teleport.MaxUsernameLength] + "..."
+}
+
 func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) error {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
@@ -163,7 +173,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 			Success: true,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:       props.username,
+			User:       trimUsername(props.username),
 			UserOrigin: props.userOrigin,
 		},
 		Method: events.LoginMethodLocal,
@@ -758,12 +768,33 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.Wrap(err)
 	}
 	UserLoginCount.Inc()
+
+	var clientOptions authclient.ClientOptions
+	if o, err := a.ClientOptionsForLogin(user); err == nil {
+		clientOptions = o
+	} else {
+		a.logger.WarnContext(ctx, "Failed to calculate client options for local login", "username", user.GetName(), "error", err)
+	}
+
 	return &authclient.SSHLoginResponse{
-		Username:    user.GetName(),
-		Cert:        certs.SSH,
-		TLSCert:     certs.TLS,
-		HostSigners: authclient.AuthoritiesToTrustedCerts(hostCertAuthorities),
+		Username:      user.GetName(),
+		Cert:          certs.SSH,
+		TLSCert:       certs.TLS,
+		HostSigners:   authclient.AuthoritiesToTrustedCerts(hostCertAuthorities),
+		ClientOptions: clientOptions,
 	}, nil
+}
+
+// ClientOptionsForLogin returns the client options for a user that has just
+// logged in.
+func (a *Server) ClientOptionsForLogin(userState services.UserState) (authclient.ClientOptions, error) {
+	var opts authclient.ClientOptions
+
+	if t := userState.GetTraits()[constants.TraitDefaultRelayAddr]; len(t) > 0 {
+		opts.DefaultRelayAddr = t[0]
+	}
+
+	return opts, nil
 }
 
 // emitNoLocalAuthEvent creates and emits a local authentication is disabled message.

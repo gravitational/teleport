@@ -24,7 +24,6 @@ import (
 	"io"
 	"math/rand/v2"
 	"os"
-	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -1133,10 +1132,9 @@ func TestUpdateLabels(t *testing.T) {
 	labels := map[string]string{"a": "1", "b": "2"}
 	require.NoError(t, upstreamHandle.UpdateLabels(ctx, proto.LabelUpdateKind_SSHServerCloudLabels, labels))
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		require.Equal(t, labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
-		return true
-	}, time.Second, 100*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestAgentMetadata verifies that an instance's agent metadata is received in
@@ -1209,9 +1207,11 @@ func TestAgentMetadata(t *testing.T) {
 	require.True(t, ok)
 
 	// Validate that the agent's metadata ends up in the auth server.
-	require.Eventually(t, func() bool {
-		return slices.Equal([]string{"llama", "alpaca"}, upstreamHandle.AgentMetadata().InstallMethods) &&
-			upstreamHandle.AgentMetadata().OS == "llamaOS"
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		md := upstreamHandle.AgentMetadata()
+		require.NotNil(t, md)
+		require.ElementsMatch(t, []string{"llama", "alpaca"}, md.InstallMethods)
+		require.Equal(t, "llamaOS", md.OS)
 	}, 10*time.Second, 200*time.Millisecond)
 }
 
@@ -1696,8 +1696,8 @@ func TestGetSender(t *testing.T) {
 	// Validate that once healthy the sender is provided.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		s, ok = handle.GetSender()
-		assert.True(t, ok)
-		assert.NotNil(t, s)
+		require.True(t, ok)
+		require.NotNil(t, s)
 	}, 10*time.Second, 100*time.Millisecond)
 }
 
