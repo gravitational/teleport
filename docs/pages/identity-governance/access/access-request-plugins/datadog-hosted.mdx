@@ -105,7 +105,7 @@ select **Enroll Users** and create a user with the `editor-requester` role.
 
 You should end up with two users that look like this:
 
-![Teleport Users](../../../img/enterprise/plugins/datadog/teleport-users.png)
+![Teleport Users](../../../../img/enterprise/plugins/datadog/teleport-users.png)
 
 ## Step 3/6. Generate Datadog credentials
 
@@ -120,7 +120,7 @@ First, in the Datadog web UI navigate to **Organization Settings -> Access -> AP
 to view your organization's API keys. To generate a new API key, click on **New Key**
 and name it "Teleport Access". Copy the API key to paste in a later step.
 
-![Datadog dashboard for API Keys](../../../img/enterprise/plugins/datadog/dashboard-api-keys.png)
+![Datadog dashboard for API Keys](../../../../img/enterprise/plugins/datadog/dashboard-api-keys.png)
 
 ### Create a Datadog Service Account
 
@@ -131,13 +131,13 @@ email you'd like to associate with the service account, then assign the role
 "Datadog Standard Role". This role provides the required permissions necessary to
 manage the incidents in Datadog.
 
-![Datadog dashboard for Service Accounts](../../../img/enterprise/plugins/datadog/dashboard-service-accounts.png)
+![Datadog dashboard for Service Accounts](../../../../img/enterprise/plugins/datadog/dashboard-service-accounts.png)
 
 Now click on the "Teleport Access" service account that was just created and click
 on the **Application Keys** tab and click on **New Key** and name it "Teleport Access"
 to create a new Application key. Copy the Application key to paste in a later step.
 
-![Datadog dashboard for Application Keys](../../../img/enterprise/plugins/datadog/dashboard-application-keys.png)
+![Datadog dashboard for Application Keys](../../../../img/enterprise/plugins/datadog/dashboard-application-keys.png)
 
 ## Step 4/6. Enroll the Datadog Incident Management plugin
 
@@ -162,7 +162,7 @@ the team members won't be notified, you must configure Datadog notification rule
 to page the team members. To do so, navigate to **Incidents -> Settings -> Notifications -> Rules**
 and create a new rule matching alerts labeled with the recipient team.
 
-![Datadog dashboard for Incident Notification Rules](../../../img/enterprise/plugins/datadog/dashboard-notification-rules.png)
+![Datadog dashboard for Incident Notification Rules](../../../../img/enterprise/plugins/datadog/dashboard-notification-rules.png)
 
 <details>
 <summary>Suggested reviewers</summary>
@@ -187,20 +187,20 @@ As the Teleport user `myuser@example.com`, create an Access Request for the
 `editor` role. Navigate to the **Access Requests** tab and click on
 **New Access Request**:
 
-![New access request](../../../img/enterprise/plugins/datadog/create-access-request.png)
+![New access request](../../../../img/enterprise/plugins/datadog/create-access-request.png)
 
 In Datadog, you will see a new incident containing information about the
 Access Request:
 
 ![Datadog dashboard showing an Access
-Request](../../../img/enterprise/plugins/datadog/new-access-request-incident.png)
+Request](../../../../img/enterprise/plugins/datadog/new-access-request-incident.png)
 
 ### Resolve the request
 
 Once you receive an Access Request message, click the link to visit Teleport and
 approve or deny the request:
 
-![Review access request](../../../img/enterprise/plugins/datadog/review-access-request.png)
+![Review access request](../../../../img/enterprise/plugins/datadog/review-access-request.png)
 
 <Admonition type="info" title="Auditing Access Requests">
 
