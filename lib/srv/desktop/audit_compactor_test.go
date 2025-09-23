@@ -127,7 +127,7 @@ func TestAuditCompactor(t *testing.T) {
 			compactor.handleRead(ctx, secondEvent)
 
 			compactor.flush(ctx)
-			// events with length zero should be ignored
+			// events with length zero should be ignored (not compacted)
 			require.Len(t, auditEvents, 2)
 			assert.Contains(t, auditEvents, firstEvent)
 			assert.Contains(t, auditEvents, secondEvent)
