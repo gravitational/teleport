@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/client/db/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -993,7 +993,7 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		logger.DebugContext(cf.Context, "Adding default project suffix for IAM principal", "original", d.Username, "updated", newUsername)
 		d.Username = newUsername
 	}
-	
+
 	return nil
 }
 
