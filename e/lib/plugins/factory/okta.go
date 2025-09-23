@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
+	oktausermonitor "github.com/gravitational/teleport/e/lib/okta/usermonitor"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
@@ -105,6 +106,26 @@ func Okta(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Deleg
 	oktaSpec.SyncSettings.SyncUsers = oktaSpec.SyncSettings.SyncUsers && modules.GetModules().Features().GetEntitlement(entitlements.OktaUserSync).Enabled
 	oktaSpec.SyncSettings.DisableSyncAppGroups = oktaSpec.SyncSettings.DisableSyncAppGroups || selectedOktaCreds.ApiTokenForSCIMOnly
 	return func(ctx context.Context) error {
+		// Bind Okta Plugin monitor lifecycle to the plugin runtime.
+		// When the plugin runtime stops, the monitor will also be stopped
+		// via the context cancellation. the Plugin Monitor manages the lifecycle.
+		// and if plugin monitor detects plugin removed it will also cancel the context.
+		//
+		// The oktausermonitor is responsible for monitoring user RBAC changes
+		// and translating them into Okta Assignments that. That allows to
+		// have async mechanism for syncing user changed RBAC checks made in
+		// Teleport to Okta without requiring a user to re-login.
+		userMonitor, err := oktausermonitor.New(oktausermonitor.Config{
+			Logger:     deps.Logger,
+			AuthServer: deps.ParentProcess.GetAuthServer(),
+			Events:     deps.ParentProcess.GetAuthServer().Cache,
+			Backend:    deps.ParentProcess.GetBackend(),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		userMonitor.Start(ctx)
+
 		closeEvent := services.InitOktaPlugin(ctx,
 			services.OktaPluginPrams{
 				Process:          deps.ParentProcess,
@@ -122,9 +143,7 @@ func Okta(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Deleg
 		// Wait 5 seconds for the close event.
 		eventCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, err := deps.ParentProcess.WaitForEvent(eventCtx, closeEvent)
-
-		if err != nil {
+		if _, err = deps.ParentProcess.WaitForEvent(eventCtx, closeEvent); err != nil {
 			deps.Logger.DebugContext(ctx, "Error waiting for OktaStopped event", "error", err)
 			return trace.Wrap(err)
 		}

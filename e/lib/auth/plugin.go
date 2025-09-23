@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	oktaservice "github.com/gravitational/teleport/e/lib/okta/service"
-	oktausermonitor "github.com/gravitational/teleport/e/lib/okta/usermonitor"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/e/lib/resourceusage/resourceusagev1"
@@ -373,17 +372,6 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-
-	userMonitor, err := oktausermonitor.New(oktausermonitor.Config{
-		Logger:     logger,
-		AuthServer: p.authServer.AuthServer,
-		Events:     p.authServer.AuthServer.Cache,
-		Backend:    p.authServer.GetBackend(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	userMonitor.Start(ctx)
 
 	err = p.registerSCIMService(ctx, gRPCServer, &common.Config{
 		IdentityService:     p.authServer.AuthServer,
