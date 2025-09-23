@@ -29,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -81,8 +80,6 @@ import (
 //	}
 type Server struct {
 	log *logrus.Entry
-
-	id string
 
 	// targetConn is the TCP connection to the remote host.
 	targetConn net.Conn
@@ -154,9 +151,9 @@ type Server struct {
 
 	clock clockwork.Clock
 
-	// hostUUID is the UUID of the underlying proxy that the forwarding server
+	// proxyUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
-	hostUUID string
+	proxyUUID string
 
 	// closeContext and closeCancel are used to signal to the outside
 	// world that this server is closed
@@ -172,9 +169,6 @@ type Server struct {
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
-
-	// TODO(Joerger): Remove in favor of targetServer, which has more accurate values.
-	targetID, targetAddr, targetHostname string
 
 	// targetServer is the host that the connection is being established for.
 	targetServer types.Server
@@ -228,9 +222,9 @@ type ServerConfig struct {
 	// configuration.
 	FIPS bool
 
-	// HostUUID is the UUID of the underlying proxy that the forwarding server
+	// ProxyUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
-	HostUUID string
+	ProxyUUID string
 
 	// Emitter is audit events emitter
 	Emitter events.StreamEmitter
@@ -245,9 +239,6 @@ type ServerConfig struct {
 	// TracerProvider is used to create tracers capable
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
-
-	// TODO(Joerger): Remove in favor of TargetServer, which has more accurate values.
-	TargetID, TargetAddr, TargetHostname string
 
 	// TargetServer is the host that the connection is being established for.
 	TargetServer types.Server
@@ -330,7 +321,6 @@ func New(c ServerConfig) (*Server, error) {
 				"dst-addr": c.DstAddr.String(),
 			},
 		}),
-		id:              uuid.New().String(),
 		targetConn:      c.TargetConn,
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
@@ -343,14 +333,11 @@ func New(c ServerConfig) (*Server, error) {
 		authService:     c.LocalAuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
-		hostUUID:        c.HostUUID,
+		proxyUUID:       c.ProxyUUID,
 		StreamEmitter:   c.Emitter,
 		parentContext:   c.ParentContext,
 		lockWatcher:     c.LockWatcher,
 		tracerProvider:  c.TracerProvider,
-		targetID:        c.TargetID,
-		targetAddr:      c.TargetAddr,
-		targetHostname:  c.TargetHostname,
 		targetServer:    c.TargetServer,
 	}
 
@@ -396,16 +383,18 @@ func New(c ServerConfig) (*Server, error) {
 	return s, nil
 }
 
-// TargetMetadata returns metadata about the forwarding target.
-func (s *Server) TargetMetadata() apievents.ServerMetadata {
+// EventMetadata returns metadata about the forwarding target.
+func (s *Server) EventMetadata() apievents.ServerMetadata {
+	serverInfo := s.GetInfo()
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
-		ServerNamespace: s.GetNamespace(),
-		ServerID:        s.targetID,
-		ServerAddr:      s.targetAddr,
-		ServerHostname:  s.targetHostname,
-		ForwardedBy:     s.hostUUID,
-		ServerSubKind:   s.targetServer.GetSubKind(),
+		ServerNamespace: serverInfo.GetNamespace(),
+		ServerID:        serverInfo.GetName(),
+		ServerAddr:      serverInfo.GetAddr(),
+		ServerLabels:    serverInfo.GetAllLabels(),
+		ServerHostname:  serverInfo.GetHostname(),
+		ServerSubKind:   serverInfo.GetSubKind(),
+		ForwardedBy:     s.proxyUUID,
 	}
 }
 
@@ -420,15 +409,15 @@ func (s *Server) GetDataDir() string {
 	return s.dataDir
 }
 
-// ID returns the ID of the proxy that creates the in-memory forwarding server.
+// ID returns the UUID of the server targeted by the forwarding server.
 func (s *Server) ID() string {
-	return s.id
+	return s.targetServer.GetName()
 }
 
 // HostUUID is the UUID of the underlying proxy that the forwarding server
 // is running in.
 func (s *Server) HostUUID() string {
-	return s.hostUUID
+	return s.proxyUUID
 }
 
 // GetNamespace returns the namespace the forwarding server resides in.
@@ -495,19 +484,39 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 	return &srv.HostSudoersNotImplemented{}
 }
 
-// GetInfo returns a services.Server that represents this server.
+// GetInfo returns a services.Server that represents the target server.
 func (s *Server) GetInfo() types.Server {
-	return &types.ServerV2{
+	return s.getBasicInfo()
+}
+
+func (s *Server) getBasicInfo() *types.ServerV2 {
+	// Only set the address for non-tunnel nodes.
+	var addr string
+	if !s.targetServer.GetUseTunnel() {
+		addr = s.targetServer.GetAddr()
+	}
+
+	srv := &types.ServerV2{
 		Kind:    types.KindNode,
+		SubKind: s.targetServer.GetSubKind(),
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      s.ID(),
-			Namespace: s.GetNamespace(),
+			Name:      s.targetServer.GetName(),
+			Namespace: s.targetServer.GetNamespace(),
+			Labels:    s.targetServer.GetLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			Addr: s.AdvertiseAddr(),
+			CmdLabels:   types.LabelsToV2(s.targetServer.GetCmdLabels()),
+			Addr:        addr,
+			Hostname:    s.targetServer.GetHostname(),
+			UseTunnel:   s.useTunnel,
+			Version:     teleport.Version,
+			ProxyIDs:    s.targetServer.GetProxyIDs(),
+			PublicAddrs: s.targetServer.GetPublicAddrs(),
 		},
 	}
+
+	return srv
 }
 
 // Dial returns the client connection created by pipeAddrConn.
@@ -1476,7 +1485,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),
-				ServerMetadata: serverContext.GetServer().TargetMetadata(),
+				ServerMetadata: serverContext.GetServer().EventMetadata(),
 				Error:          err.Error(),
 			})
 			return trace.Wrap(err)

@@ -153,6 +153,7 @@ type Server interface {
 	GetClock() clockwork.Clock
 
 	// GetInfo returns a services.Server that represents this server.
+	// In the case of the Proxy forwarder, this is the node target.
 	GetInfo() types.Server
 
 	// UseTunnel used to determine if this node has connected to this cluster
@@ -183,8 +184,8 @@ type Server interface {
 	// sudoer file provisioning
 	GetHostSudoers() HostSudoers
 
-	// TargetMetadata returns metadata about the session target node.
-	TargetMetadata() apievents.ServerMetadata
+	// EventMetadata returns [events.ServerMetadata] for this server.
+	EventMetadata() apievents.ServerMetadata
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -436,7 +437,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
-		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
+		ServerSubKind:          srv.GetInfo().GetSubKind(),
 	}
 
 	fields := log.Fields{
@@ -876,7 +877,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			Type:  events.SessionDataEvent,
 			Code:  events.SessionDataCode,
 		},
-		ServerMetadata:  c.srv.TargetMetadata(),
+		ServerMetadata:  c.srv.EventMetadata(),
 		SessionMetadata: c.GetSessionMetadata(),
 		UserMetadata:    c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
