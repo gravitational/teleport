@@ -9,6 +9,10 @@ teleport:
     severity: {{ required "log.level is required in chart values" .Values.log.level | quote }}
     format:
       output: {{ required "log.format is required in chart values" .Values.log.format | quote }}
+  diag_addr: "0.0.0.0:3000"
+  {{- with .Values.shutdownDelay }}
+  shutdown_delay: {{ quote . }}
+  {{- end }}
 auth_service:
   enabled: false
 proxy_service:
@@ -18,15 +22,15 @@ ssh_service:
 relay_service:
   enabled: true
   relay_group: {{ required "relayGroup is required in chart values" .Values.relayGroup | quote }}
-  {{- if gt (int .Values.targetConnectionCount) 0 }}
-  target_connection_count: {{ .Values.targetConnectionCount | int64 }}
-  {{- else }}
-  {{ fail "targetConnectionCount must be greater than 0" }}
+  {{- if le (int .Values.targetConnectionCount) 0 }}
+    {{ fail "targetConnectionCount must be greater than 0" }}
   {{- end }}
-  {{- with .Values.publicHostnames }}
+  target_connection_count: {{ int .Values.targetConnectionCount }}
+  {{- if empty .Values.publicHostnames }}
+    {{- fail "publicHostnames cannot be empty in chart values" }}
+  {{- end }}
   public_hostnames:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- toYaml .Values.publicHostnames | nindent 4 }}
   transport_listen_addr: "0.0.0.0:3040"
   peer_listen_addr: "0.0.0.0:3041"
   tunnel_listen_addr: "0.0.0.0:3042"
