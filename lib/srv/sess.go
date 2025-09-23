@@ -825,7 +825,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		doneCh:                         make(chan struct{}),
 		initiator:                      scx.Identity.TeleportUser,
 		displayParticipantRequirements: utils.AsBool(scx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
-		serverMeta:                     scx.srv.TargetMetadata(),
+		serverMeta:                     scx.srv.EventMetadata(),
 	}
 
 	sess.io.OnWriteError = sess.onWriteError
@@ -1347,7 +1347,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Emitter:        s.emitter,
 		Namespace:      scx.srv.GetNamespace(),
 		SessionID:      s.id.String(),
-		ServerID:       scx.srv.HostUUID(),
+		ServerID:       scx.srv.ID(),
 		ServerHostname: scx.srv.GetInfo().GetHostname(),
 		Login:          scx.Identity.Login,
 		User:           scx.Identity.TeleportUser,
@@ -1532,7 +1532,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Emitter:        s.emitter,
 		Namespace:      scx.srv.GetNamespace(),
 		SessionID:      string(s.id),
-		ServerID:       scx.srv.HostUUID(),
+		ServerID:       scx.srv.ID(),
 		ServerHostname: scx.srv.GetInfo().GetHostname(),
 		Login:          scx.Identity.Login,
 		User:           scx.Identity.TeleportUser,
@@ -2196,7 +2196,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		Kind:         string(types.SSHSessionKind),
 		State:        types.SessionState_SessionStatePending,
 		Hostname:     s.serverMeta.ServerHostname,
-		Address:      s.serverMeta.ServerID,
+		Address:      s.scx.srv.ID(),
 		ClusterName:  s.scx.ClusterName,
 		Login:        s.login,
 		HostUser:     teleportUser,
@@ -2211,7 +2211,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
-		HostID:         s.registry.Srv.ID(),
+		HostID:         s.registry.Srv.HostUUID(),
 		TargetSubKind:  s.serverMeta.ServerSubKind,
 		InitialCommand: initialCommand,
 	}
