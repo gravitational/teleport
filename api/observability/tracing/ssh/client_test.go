@@ -378,7 +378,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 	require.False(t, <-clientSessionReply, "Expected the client to reply false to session ping request")
 
 	// The client should reply true to a session ping request.
-	err = client.HandleSessionRequests(ctx, pingRequest, func(ctx context.Context, req *ssh.Request) {
+	err = client.HandleSessionRequest(ctx, pingRequest, func(ctx context.Context, req *ssh.Request) {
 		err := req.Reply(true, nil)
 		assert.NoError(t, err)
 	})
