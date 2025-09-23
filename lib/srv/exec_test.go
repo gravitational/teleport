@@ -64,8 +64,6 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	rec, ok := scx.session.recorder.(*mockRecorder)
 	require.True(t, ok)
 
-	scx.GetServer().TargetMetadata()
-
 	expectedUsr, err := user.Current()
 	require.NoError(t, err)
 	expectedHostname := "testHost"
