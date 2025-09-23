@@ -40,48 +40,22 @@ const (
 	cmcCacheTTL = time.Minute
 )
 
-// Client can read all autoupdate resources.
-type Client interface {
-	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+type AutoUpdateAgentRolloutGetter interface {
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
-	// GetClusterMaintenanceConfig loads the current maintenance config singleton.
+}
+
+type ClusterMaintenanceConfigGetter interface {
 	GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error)
-}
-
-// HybridClient creates a Client implementation from two different clients.
-// This can be used in cases where rollout is cached and available via the
-// proxy accesspoint while CMC is not and require a full auth client.
-// Implements Client.
-type HybridClient struct {
-	// RolloutClient can get the autoupdate_agent_rollout.
-	RolloutClient interface {
-		GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
-	}
-	// CMCClient can get the cluster_maintenance_configuration.
-	CMCClient interface {
-		GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error)
-	}
-}
-
-// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout.
-// Implements Client.
-func (h HybridClient) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error) {
-	return h.RolloutClient.GetAutoUpdateAgentRollout(ctx)
-}
-
-// GetClusterMaintenanceConfig loads the current maintenance config singleton.
-// Implements Client.
-func (h HybridClient) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
-	return h.CMCClient.GetClusterMaintenanceConfig(ctx)
 }
 
 // Config is the Resolver configuration. All fields must be set.
 type Config struct {
-	Client   Client
-	Channels automaticupgrades.Channels
-	Log      *slog.Logger
-	Clock    clockwork.Clock
-	Context  context.Context
+	RolloutGetter AutoUpdateAgentRolloutGetter
+	CMCGetter     ClusterMaintenanceConfigGetter
+	Channels      automaticupgrades.Channels
+	Log           *slog.Logger
+	Clock         clockwork.Clock
+	Context       context.Context
 }
 
 // Resolver resolves which version should be ran, and if update should happen now.
@@ -93,8 +67,11 @@ type Resolver struct {
 
 // NewResolver validates the Config and creates a Resolver.
 func NewResolver(cfg Config) (*Resolver, error) {
-	if cfg.Client == nil {
-		return nil, trace.BadParameter("missing autoupdate Client")
+	if cfg.RolloutGetter == nil {
+		return nil, trace.BadParameter("missing autoupdate autoupdate rollout getter")
+	}
+	if cfg.CMCGetter == nil {
+		return nil, trace.BadParameter("missing cluster maintenance config getter")
 	}
 	if cfg.Channels == nil {
 		return nil, trace.BadParameter("missing autoupdate Channels")
@@ -131,7 +108,7 @@ func NewResolver(cfg Config) (*Resolver, error) {
 // If the resource is not there, we fall back to RFD109-style updates with channels
 // and maintenance window derived from the cluster_maintenance_config resource.
 func (h *Resolver) GetVersion(ctx context.Context, group, updaterUUID string) (*semver.Version, error) {
-	rollout, err := h.cfg.Client.GetAutoUpdateAgentRollout(ctx)
+	rollout, err := h.cfg.RolloutGetter.GetAutoUpdateAgentRollout(ctx)
 	if err != nil {
 		// Fallback to channels if there is no autoupdate_agent_rollout.
 		if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
@@ -150,7 +127,7 @@ func (h *Resolver) GetVersion(ctx context.Context, group, updaterUUID string) (*
 // If the resource is not there, we fall back to RFD109-style updates with channels
 // and maintenance window derived from the cluster_maintenance_config resource.
 func (h *Resolver) ShouldUpdate(ctx context.Context, group, updaterUUID string, windowLookup bool) (bool, error) {
-	rollout, err := h.cfg.Client.GetAutoUpdateAgentRollout(ctx)
+	rollout, err := h.cfg.RolloutGetter.GetAutoUpdateAgentRollout(ctx)
 	if err != nil {
 		// Fallback to channels if there is no autoupdate_agent_rollout.
 		if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
