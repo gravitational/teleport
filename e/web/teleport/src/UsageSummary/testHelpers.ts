@@ -83,6 +83,8 @@ export const usageHistory: UsageHistoryItem[] = [
     cycleStartFormatted: 'Mar 15, 2023',
     cycleEnd: getUnixTime(new Date('2023/04/14')),
     cycleEndFormatted: 'Apr 14, 2023',
+    calibratingTenants: 0,
+    activeTenants: 1,
   },
   {
     mau: 101,
@@ -93,6 +95,8 @@ export const usageHistory: UsageHistoryItem[] = [
     cycleStartFormatted: 'Feb 15, 2023',
     cycleEnd: getUnixTime(new Date('2023/03/14')),
     cycleEndFormatted: 'Mar 14, 2023',
+    calibratingTenants: 0,
+    activeTenants: 1,
   },
   {
     mau: 100,
@@ -103,5 +107,7 @@ export const usageHistory: UsageHistoryItem[] = [
     cycleStartFormatted: 'Jan 15, 2023',
     cycleEnd: getUnixTime(new Date('2023/02/14')),
     cycleEndFormatted: 'Feb 14, 2023',
+    calibratingTenants: 0,
+    activeTenants: 1,
   },
 ];

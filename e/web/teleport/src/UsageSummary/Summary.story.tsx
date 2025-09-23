@@ -65,6 +65,8 @@ export function LoadedWithCta() {
                 tpr: 43009,
                 mwi: 20,
                 igmau: 0,
+                activeTenants: 0,
+                calibratingTenants: 0,
               },
               {
                 cycleStart: new Date('Sep 01, 2024').getTime(),
@@ -75,6 +77,8 @@ export function LoadedWithCta() {
                 tpr: 43020,
                 mwi: 33,
                 igmau: 0,
+                activeTenants: 0,
+                calibratingTenants: 0,
               },
               {
                 cycleStart: new Date('Aug 01, 2024').getTime(),
@@ -85,6 +89,8 @@ export function LoadedWithCta() {
                 tpr: 42120,
                 mwi: 38,
                 igmau: 0,
+                activeTenants: 0,
+                calibratingTenants: 0,
               },
             ],
           }),
@@ -155,6 +161,8 @@ export function Loaded() {
                 tpr: 43009,
                 mwi: 20,
                 igmau: 10,
+                activeTenants: 0,
+                calibratingTenants: 0,
               },
               {
                 cycleStart: new Date('Sep 01, 2024').getTime(),
@@ -165,6 +173,8 @@ export function Loaded() {
                 tpr: 43020,
                 mwi: 33,
                 igmau: 40,
+                activeTenants: 0,
+                calibratingTenants: 0,
               },
               {
                 cycleStart: new Date('Aug 01, 2024').getTime(),
@@ -175,6 +185,8 @@ export function Loaded() {
                 tpr: 42120,
                 mwi: 38,
                 igmau: 2,
+                activeTenants: 0,
+                calibratingTenants: 0,
               },
             ],
           }),

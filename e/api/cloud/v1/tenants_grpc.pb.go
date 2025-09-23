@@ -38,11 +38,14 @@ type TenantsServiceClient interface {
 	SendAccountRecovered(ctx context.Context, in *SendAccountRecoveredRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// GetFeatures returns the cluster features
 	GetFeatures(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetFeaturesResponse, error)
-	// GetBillingSummaryInformation returns the users Billing Summary Information
+	// GetBillingSummaryInformation returns the tenant-level Billing Summary Information
+	// TODO(michellescripts) last used in Teleport v18; safe to deprecate in v21; use GetUsage rpc
 	GetBillingSummaryInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetBillingSummaryInformationResponse, error)
 	// GetSurveyCompany returns the company survey responses for the account associated with the current user.
 	// These are answered by only the first user who completes the survey
 	GetSurveyCompany(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*SurveyCompanyResponse, error)
+	// GetUsage returns usage information for one or more tenants.
+	GetUsage(ctx context.Context, in *GetUsageRequest, opts ...grpc.CallOption) (*GetUsageResponse, error)
 	// SetSurveyResults updates the account object with onboarding survey results
 	SetSurveyResults(ctx context.Context, in *SetSurveyResultsRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// SendTeleportInvite sends a user invite link to onboard a new user in an existing cluster
@@ -184,6 +187,15 @@ func (c *tenantsServiceClient) GetBillingSummaryInformation(ctx context.Context,
 func (c *tenantsServiceClient) GetSurveyCompany(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*SurveyCompanyResponse, error) {
 	out := new(SurveyCompanyResponse)
 	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetSurveyCompany", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) GetUsage(ctx context.Context, in *GetUsageRequest, opts ...grpc.CallOption) (*GetUsageResponse, error) {
+	out := new(GetUsageResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetUsage", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -373,11 +385,14 @@ type TenantsServiceServer interface {
 	SendAccountRecovered(context.Context, *SendAccountRecoveredRequest) (*EmptyResponse, error)
 	// GetFeatures returns the cluster features
 	GetFeatures(context.Context, *EmptyRequest) (*GetFeaturesResponse, error)
-	// GetBillingSummaryInformation returns the users Billing Summary Information
+	// GetBillingSummaryInformation returns the tenant-level Billing Summary Information
+	// TODO(michellescripts) last used in Teleport v18; safe to deprecate in v21; use GetUsage rpc
 	GetBillingSummaryInformation(context.Context, *EmptyRequest) (*GetBillingSummaryInformationResponse, error)
 	// GetSurveyCompany returns the company survey responses for the account associated with the current user.
 	// These are answered by only the first user who completes the survey
 	GetSurveyCompany(context.Context, *EmptyRequest) (*SurveyCompanyResponse, error)
+	// GetUsage returns usage information for one or more tenants.
+	GetUsage(context.Context, *GetUsageRequest) (*GetUsageResponse, error)
 	// SetSurveyResults updates the account object with onboarding survey results
 	SetSurveyResults(context.Context, *SetSurveyResultsRequest) (*EmptyResponse, error)
 	// SendTeleportInvite sends a user invite link to onboard a new user in an existing cluster
@@ -461,6 +476,9 @@ func (UnimplementedTenantsServiceServer) GetBillingSummaryInformation(context.Co
 }
 func (UnimplementedTenantsServiceServer) GetSurveyCompany(context.Context, *EmptyRequest) (*SurveyCompanyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSurveyCompany not implemented")
+}
+func (UnimplementedTenantsServiceServer) GetUsage(context.Context, *GetUsageRequest) (*GetUsageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUsage not implemented")
 }
 func (UnimplementedTenantsServiceServer) SetSurveyResults(context.Context, *SetSurveyResultsRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetSurveyResults not implemented")
@@ -702,6 +720,24 @@ func _TenantsService_GetSurveyCompany_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TenantsServiceServer).GetSurveyCompany(ctx, req.(*EmptyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_GetUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetUsage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetUsage(ctx, req.(*GetUsageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1058,6 +1094,10 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSurveyCompany",
 			Handler:    _TenantsService_GetSurveyCompany_Handler,
+		},
+		{
+			MethodName: "GetUsage",
+			Handler:    _TenantsService_GetUsage_Handler,
 		},
 		{
 			MethodName: "SetSurveyResults",

@@ -74,6 +74,8 @@ test('highlights the current cycle', async () => {
     tpr: 1000,
     mwi: 100,
     igmau: 10,
+    activeTenants: 0,
+    calibratingTenants: 0,
   };
   render(
     <UsageHistory
