@@ -175,7 +175,7 @@ privileges:
      user creating the request provides this flag).
    - The lowest value of the `request.max_duration` field included in one of
      the user's requested roles.
-   If neither the `--max-duration` flag nor any `request.max_duration` values are set, the maximum duration is considered unset (effectively ≤0) during calculation.
+     If neither the `--max-duration` flag nor any `request.max_duration` values are set, the maximum duration is considered unset (effectively ≤0) during calculation.
 1. Calculate the session TTL of the certificate the user would receive if
    Teleport were to grant the Access Request. This calculation chooses the
    lowest value of:
