@@ -66,7 +66,7 @@ test('Set custom Monday start time', async () => {
   const user = userEvent.setup();
   expect(screen.getAllByText('12:00AM')).toHaveLength(2);
 
-  const [_, startSelector] = screen.getAllByRole('combobox');
+  const startSelector = screen.getAllByRole('combobox')[1];
   await user.click(startSelector);
   await user.type(startSelector, '9:10AM');
   const startOption = await screen.findByText('Create "9:10AM"');
