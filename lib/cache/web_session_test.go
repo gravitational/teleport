@@ -208,6 +208,19 @@ func TestSnowflakeSessions(t *testing.T) {
 		}
 	}, 15*time.Second, 100*time.Millisecond)
 
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		expected, next, err := p.snowflakeSessionS.ListSnowflakeSessions(ctx, 31, "")
+		require.NoError(t, err)
+		assert.Len(t, expected, 31)
+		assert.Empty(t, next)
+
+		for _, session := range expected {
+			cached, err := p.cache.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: session.GetName()})
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(session, cached))
+		}
+	}, 15*time.Second, 100*time.Millisecond)
+
 	require.NoError(t, p.snowflakeSessionS.DeleteAllSnowflakeSessions(ctx))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {

@@ -26,6 +26,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -323,6 +324,10 @@ type SnowflakeSession interface {
 	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 	// GetSnowflakeSessions gets all Snowflake web sessions.
 	GetSnowflakeSessions(context.Context) ([]types.WebSession, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error)
+	// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
+	RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error]
 	// UpsertSnowflakeSession upserts a Snowflake web session.
 	UpsertSnowflakeSession(context.Context, types.WebSession) error
 	// DeleteSnowflakeSession removes a Snowflake web session.
