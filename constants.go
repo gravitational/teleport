@@ -464,6 +464,9 @@ const (
 )
 
 const (
+	// CertExtensionScopePin is used to pin a certificate to a specific scope and
+	// set of scoped roles.
+	CertExtensionScopePin = "scope-pin@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -596,6 +599,10 @@ const MaxHTTPRequestSize = 10 * 1024 * 1024
 // a received HTTP response.  This limit is meant to be used with utils.ReadAtMost
 // to prevent resource exhaustion attacks.
 const MaxHTTPResponseSize = 10 * 1024 * 1024
+
+// MaxUsernameLength is the maximum allowed length (characters) for usernames.
+// This limit prevents sending extremely long usernames that could clog up logs or exhaust resources.
+const MaxUsernameLength = 1000
 
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older

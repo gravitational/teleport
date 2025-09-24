@@ -38,11 +38,15 @@ export enum DiscoverGuideId {
 
   // Applications:
   ApplicationWebHttpProxy = 'application-web-http-proxy',
-  ApplicationAwsCliConsole = 'application-aws-cli-console',
+  ApplicationAwsCliConsole = 'application-aws-cli-console', // AWS OIDC IdP
+  ApplicationAwsRolesAnywhere = 'application-aws-iam-roles-anywhere',
   ApplicationSamlGeneric = 'application-saml-generic',
   ApplicationSamlGrafana = 'application-saml-grafana',
   ApplicationSamlWorkforceIdentityFederation = 'application-saml-workforce-identity-federation',
   ApplicationSamlMicrosoftEntraId = 'application-saml-microsoft-entra-id',
+
+  // MCP Servers:
+  MCPServerStdioTransport = 'mcp-stdio',
 
   // Windows Desktops:
   WindowsDesktopsActiveDirectory = 'windows-desktops-active-directory',

@@ -234,6 +234,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		PKIDomain:            cfg.WindowsDesktop.PKIDomain,
 		Discovery:            cfg.WindowsDesktop.Discovery,
 		DiscoveryInterval:    cfg.WindowsDesktop.DiscoveryInterval,
+		PublishCRLInterval:   cfg.WindowsDesktop.PublishCRLInterval,
 		Hostname:             cfg.Hostname,
 		ConnectedProxyGetter: proxyGetter,
 		ResourceMatchers:     cfg.WindowsDesktop.ResourceMatchers,

@@ -1,0 +1,169 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.join.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1;joinv1";
+
+// ClientInit is the first message sent from the client during the join process, it
+// holds parameters common to all join methods.
+message ClientInit {
+  // JoinMethod is the name of the join method that the client is configured to use.
+  // This parameter is optional, the client can leave it empty to allow the
+  // server to determine the join method based on the provision token named by
+  // TokenName, it will be sent to the client in the ServerInit message.
+  optional string join_method = 1;
+  // TokenName is the name of the join token.
+  // This is a secret if using the token join method, otherwise it is a
+  // non-secret name of a provision token resource.
+  string token_name = 2;
+  // SystemRole is the system role requested, e.g. Proxy, Node, Instance, Bot.
+  string system_role = 3;
+  // PublicTlsKey is the public key requested for the subject of the x509 certificate.
+  // It must be encoded in PKIX, ASN.1 DER form.
+  bytes public_tls_key = 4;
+  // PublicSshKey is the public key requested for the subject of the SSH certificate.
+  // It must be encoded in SSH wire format.
+  bytes public_ssh_key = 5;
+  // ForwardedByProxy will be set to true when the message is forwarded by the
+  // Proxy service. When this is set the Auth service must ignore any
+  // any credentials authenticating the request, except for the purpose of
+  // accepting ProxySuppliedParams.
+  bool forwarded_by_proxy = 6;
+
+  // HostParams holds parameters that are specific to host joining and
+  // irrelevant to bot joining.
+  message HostParams {
+    // HostName is the user-friendly node name for the host. This comes from
+    // teleport.nodename in the service configuration and defaults to the
+    // hostname. It is encoded as a valid principal in issued certificates.
+    string host_name = 1;
+    // AdditionalPrincipals is a list of additional principals requested.
+    repeated string additional_principals = 2;
+    // DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
+    repeated string dns_names = 3;
+  }
+  optional HostParams host_params = 7;
+
+  // BotParams holds parameters that are specific to bot joining and irrelevant
+  // to host joining.
+  message BotParams {
+    // Expires is a desired time of the expiry of the returned certificates.
+    optional google.protobuf.Timestamp expires = 9;
+  }
+  optional BotParams bot_params = 8;
+
+  // ProxySuppliedParams holds parameters set by the Proxy when nodes join
+  // via the proxy address. They must only be trusted if the incoming join
+  // request is authenticated as the Proxy.
+  message ProxySuppliedParams {
+    // RemoteAddr is the remote address of the host requesting a host certificate.
+    // It replaces 0.0.0.0 in the list of additional principals.
+    string remote_addr = 1;
+    // ClientVersion is the Teleport version of the client attempting to join.
+    string client_version = 2;
+  }
+  optional ProxySuppliedParams proxy_supplied_parameters = 9;
+}
+
+// JoinRequest is the message type sent from the joining client to the server.
+message JoinRequest {
+  oneof payload {
+    ClientInit client_init = 1;
+  }
+}
+
+// ServerInit is the first message sent from the server in response to the
+// ClientInit message.
+message ServerInit {
+  // JoinMethod is the name of the selected join method.
+  string join_method = 1;
+}
+
+// Challenge is a challenge message sent from the server that the client must solve.
+message Challenge {}
+
+// Result is the final message sent from the cluster back to the client, it
+// contains the result of the joining process including the assigned host ID
+// and issued certificates.
+message Result {
+  // TlsCert is an X.509 certificate encoded in ASN.1 DER form.
+  bytes tls_cert = 1;
+  // TlsCaCerts is a list of TLS certificate authorities that the agent should trust.
+  // Each certificate is encoding in ASN.1 DER form.
+  repeated bytes tls_ca_certs = 2;
+  // SshCert is an SSH certificate encoded in SSH wire format.
+  bytes ssh_cert = 3;
+  // SshCaKey is a list of SSH certificate authority public keys that the agent should trust.
+  // Each CA key is encoded in SSH wire format.
+  repeated bytes ssh_ca_keys = 4;
+  // HostId is the unique ID assigned to the host.
+  optional string host_id = 5;
+}
+
+// JoinResponse is the message type sent from the server to the joining client.
+message JoinResponse {
+  oneof payload {
+    // Init is the initial message sent from the server in response to the
+    // ClientInit message. It specifies the join method used by the provision token.
+    ServerInit init = 1;
+    // Challenge is a challenge issued by the server that the client must solve
+    // in order to complete the join flow. The challenge type depends on the join method.
+    // Each method may issue zero or more challenges that the client must solve.
+    Challenge challenge = 2;
+    // Result is the result of the join flow, it is the final message sent from
+    // the cluster when the join flow is successful.
+    // For the token join method, it is sent immediately in response to the ClientInit request.
+    Result result = 3;
+  }
+}
+
+// JoinService provides methods which allow Teleport nodes, proxies, and other
+// services to "join" the Teleport cluster by completing a supported join flow
+// in order to receive signed certificates issued by the cluster.
+//
+// It may be used in multiple cases:
+// * Teleport agents joining the cluster on their first start to receive their
+//   initial certificates. These requests do not use mTLS and the client
+//   authenticates itself using only the join flow and is assigned a new host
+//   ID.
+// * Teleport agents that need certificates authenticated for an additional
+//   system role allowed by a new provision token. These requests must be
+//   authenticated with mTLS using their existing certificates so that the
+//   existing host ID can be maintained.
+// * MachineID bots fetching their initial certificates.
+// * MachineID bots refreshing their certificates.
+//
+// It is implemented on both the Auth and Proxy servers to serve the needs of
+// * clients connecting to the proxy address for their initial join when they are
+//   unauthenticated and unable to directly dial the auth service.
+// * clients connecting to the auth address for their initial join.
+// * clients refreshing existing certificates that are able to make an
+//   authenticates dial to the auth service via proxy TLS routing.
+service JoinService {
+  // Join is a bidirectional streaming RPC that implements all join methods.
+  // The client does not need to know the join method ahead of time, all it
+  // needs is the token name.
+  //
+  // The client must send an ClientInit message on the JoinRequest stream to
+  // initiate the join flow.
+  //
+  // The server will reply with a JoinResponse where the payload will vary
+  // based on the join method specified in the provision token.
+  rpc Join(stream JoinRequest) returns (stream JoinResponse);
+}

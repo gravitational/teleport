@@ -16,11 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { type RefObject } from 'react';
+import { Suspense, type RefObject } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import styled from 'styled-components';
 
+import Flex from 'design/Flex';
+import Indicator from 'design/Indicator';
+
 import type { RecordingType } from 'teleport/services/recordings';
+import { RECORDING_TYPES_WITH_METADATA } from 'teleport/services/recordings/recordings';
 import { DesktopPlayer } from 'teleport/SessionRecordings/view/DesktopPlayer';
+import { TtyRecordingPlayer } from 'teleport/SessionRecordings/view/player/tty/TtyRecordingPlayer';
 import SshPlayer, {
   type PlayerHandle,
 } from 'teleport/SessionRecordings/view/SshPlayer';
@@ -33,6 +39,10 @@ interface RecordingPlayerProps {
   sessionId: string;
   onToggleSidebar?: () => void;
   onToggleTimeline?: () => void;
+  onToggleFullscreen?: () => void;
+  fullscreen?: boolean;
+  initialCols?: number;
+  initialRows?: number;
   ref?: RefObject<PlayerHandle>;
 }
 
@@ -44,14 +54,27 @@ const Container = styled.div`
   bottom: 0;
 `;
 
+/**
+ * RecordingPlayer is a wrapper component that chooses between different types of recording players
+ * (e.g., DesktopPlayer, TtyRecordingPlayer) based on the recording type.
+ *
+ * It will fall back to the legacy SshPlayer if TtyRecordingPlayer fails to load (e.g. the WebSocket
+ * fails to open due to a proxy mismatch).
+ *
+ * TODO(ryan): DELETE in v20
+ */
 export function RecordingPlayer({
   clusterId,
-  durationMs,
-  onTimeChange,
-  onToggleSidebar,
-  recordingType,
   sessionId,
+  durationMs,
+  fullscreen,
+  onTimeChange,
+  onToggleFullscreen,
+  onToggleSidebar,
   onToggleTimeline,
+  recordingType,
+  initialCols,
+  initialRows,
   ref,
 }: RecordingPlayerProps) {
   if (recordingType === 'desktop') {
@@ -66,17 +89,50 @@ export function RecordingPlayer({
     );
   }
 
+  const sshPlayer = (
+    <SshPlayer
+      ref={ref}
+      onTimeChange={onTimeChange}
+      onToggleSidebar={onToggleSidebar}
+      sid={sessionId}
+      clusterId={clusterId}
+      durationMs={durationMs}
+      onToggleTimeline={onToggleTimeline}
+    />
+  );
+
+  if (!RECORDING_TYPES_WITH_METADATA.includes(recordingType)) {
+    // For recording types without metadata (e.g., database), render the legacy SshPlayer directly.
+    return <Container>{sshPlayer}</Container>;
+  }
+
   return (
     <Container>
-      <SshPlayer
-        ref={ref}
-        onTimeChange={onTimeChange}
-        onToggleSidebar={onToggleSidebar}
-        sid={sessionId}
-        clusterId={clusterId}
-        durationMs={durationMs}
-        onToggleTimeline={onToggleTimeline}
-      />
+      <ErrorBoundary fallback={sshPlayer}>
+        <Suspense fallback={<RecordingPlayerLoading />}>
+          <TtyRecordingPlayer
+            clusterId={clusterId}
+            sessionId={sessionId}
+            duration={durationMs}
+            fullscreen={fullscreen}
+            onToggleFullscreen={onToggleFullscreen}
+            onTimeChange={onTimeChange}
+            onToggleSidebar={onToggleSidebar}
+            onToggleTimeline={onToggleTimeline}
+            initialCols={initialCols}
+            initialRows={initialRows}
+            ref={ref}
+          />
+        </Suspense>
+      </ErrorBoundary>
     </Container>
+  );
+}
+
+function RecordingPlayerLoading() {
+  return (
+    <Flex alignItems="center" justifyContent="center" height="100%">
+      <Indicator />
+    </Flex>
   );
 }

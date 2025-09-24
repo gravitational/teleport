@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Audit defines an interface for database access audit events logger.
@@ -176,6 +177,15 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 		ConnectionMetadata: MakeConnectionMetadata(session),
 		DatabaseMetadata:   MakeDatabaseMetadata(session),
 		StartTime:          session.StartTime,
+		Participants: []string{
+			services.UsernameForCluster(
+				services.UsernameForClusterConfig{
+					User:              session.Identity.Username,
+					OriginClusterName: session.Identity.OriginClusterName,
+					LocalClusterName:  session.Identity.TeleportCluster,
+				},
+			),
+		},
 	}
 	endTime := a.cfg.Clock.Now()
 	event.SetTime(endTime)

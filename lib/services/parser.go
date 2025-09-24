@@ -477,7 +477,20 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 		case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.DatabaseSessionEnd:
 			session = ctx.Session
 		}
-		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
+		v, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
+		if trace.IsNotFound(origErr) {
+			// Special case: session is a special resource because
+			// it's backed by different object kinds (events.SessionEnd,
+			// events.WindowsDesktopSessionEnd, events.DatabaseSessionEnd)
+			// and these objects have different schemas, so it's possible that
+			// the parser can't find a field mentioned in the "where" clause.
+			// In this case, we try to find the field in all supported
+			// session end events and return the value if found.
+			if v, err := getMissingEmptyFieldForSessionEnd(fields); err == nil {
+				return v, nil
+			}
+		}
+		return v, trace.Wrap(origErr)
 	case SSHSessionIdentifier:
 		// Do not expose the original session.Session, instead transform it into a
 		// ctxSession so the exposed fields match our desired API.
@@ -517,6 +530,16 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	}
 }
 
+func getMissingEmptyFieldForSessionEnd(fields []string) (any, error) {
+	for _, emptySession := range []events.AuditEvent{&events.SessionEnd{}, &events.WindowsDesktopSessionEnd{}, &events.DatabaseSessionEnd{}} {
+		v, err := predicate.GetFieldByTag(emptySession, teleport.JSON, fields[1:])
+		if err == nil {
+			return v, nil
+		}
+	}
+	return nil, trace.NotFound("field %q is not found in any supported session end event", strings.Join(fields, "."))
+}
+
 // ctxSession represents the public contract of a session.Session, as exposed
 // to a Context rule.
 // See RFD 82: https://github.com/gravitational/teleport/blob/master/rfd/0082-session-tracker-resource-rbac.md
@@ -543,7 +566,14 @@ func toCtxTracker(t types.SessionTracker) ctxTracker {
 		participants := s.GetParticipants()
 		names := make([]string, len(participants))
 		for i, participant := range participants {
-			names[i] = participant.User
+			// Participant for RBAC must be represented as `remote-{user}-{cluster}`.
+			// if they belong to a different cluster. This is because the user
+			// is also named like that when they authenticate.
+			names[i] = UsernameForCluster(UsernameForClusterConfig{
+				User:              participant.User,
+				OriginClusterName: participant.Cluster,
+				LocalClusterName:  s.GetClusterName(),
+			})
 		}
 
 		return names

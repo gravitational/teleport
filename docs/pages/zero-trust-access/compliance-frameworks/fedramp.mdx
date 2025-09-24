@@ -1,9 +1,10 @@
 ---
 title: FedRAMP Compliance for Infrastructure Access
 description: How to configure SSH, Kubernetes, database, and web app access to be FedRAMP compliant, including support for FIPS 140-2.
-labels:
+tags:
  - conceptual
  - zero-trust
+ - audit
 ---
 
 Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure.
@@ -33,7 +34,7 @@ government agencies.
 
 | Control | Teleport Features |
 | - | - |
-| [AU-03, AU-04, AU-12 Audit and Accountability]((=fedramp.control_url=)AU) – Content of Audit Records and [AU-12 Audit Generation]((=fedramp.control_url=)AU-12) | Teleport contains an [Audit Log](../../reference/monitoring/audit.mdx) that records cluster-wide events such as: <br/>• Failed login attempts.<br/>• Commands that were executed (SSH “exec” commands).<br/> • Ports that were forwarded. <br/>• File transfers that were initiated. |
+| [AU-03, AU-04, AU-12 Audit and Accountability]((=fedramp.control_url=)AU) – Content of Audit Records and [AU-12 Audit Generation]((=fedramp.control_url=)AU-12) | Teleport contains an [Audit Log](../../reference/deployment/monitoring/audit.mdx) that records cluster-wide events such as: <br/>• Failed login attempts.<br/>• Commands that were executed (SSH “exec” commands).<br/> • Ports that were forwarded. <br/>• File transfers that were initiated. |
 | [AU-10 Non-Repudiation]((=fedramp.control_url=)AU-10) | Teleport audit logging supports both events as well as audit of an entire SSH session. For non-repudiation purposes, a full session can be replayed back and viewed. |
 
 ### Configuration management
@@ -302,7 +303,7 @@ by FIPS binaries.  If the Teleport Auth Service was already deployed with a stan
 the `--fips` flag, you must update the certificate authorities.  Otherwise, the error `User Message: only RSA and 
 ECDSA keys supported` is produced.  
 
-To migrate to a FIPS installation, [set the signature algorithm suite](../../reference/signature-algorithms.mdx)
+To migrate to a FIPS installation, [set the signature algorithm suite](../../reference/deployment/signature-algorithms.mdx)
 to `fips-v1`.  Then, any CA with an Ed25519 key must undergo a [CA rotation](../management/operations/ca-rotation.mdx).  The 
 command `tctl status` can be used on v17+ to confirm the signature algorithms in use.  After all CA rotations are 
 complete, proceed with installing the FIPS binary.

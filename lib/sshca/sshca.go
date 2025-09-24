@@ -48,9 +48,9 @@ type HostCertificateRequest struct {
 	// PublicHostKey is the public key of the host
 	PublicHostKey []byte
 	// HostID is used by Teleport to uniquely identify a node within a cluster (this is used to help infill
-	// Identity.Princiapals and is not a standalone cert field).
+	// Identity.Principals and is not a standalone cert field).
 	HostID string
-	// NodeName is the DNS name of the node (this is used to help infill Identity.Princiapals and is not a
+	// NodeName is the DNS name of the node (this is used to help infill Identity.Principals and is not a
 	// standalone cert field).
 	NodeName string
 	// TTL defines how long a certificate is valid for
@@ -107,6 +107,11 @@ func (r *UserCertificateRequest) CheckAndSetDefaults() error {
 	if len(r.Identity.Principals) == 0 {
 		return trace.BadParameter("ssh user identity missing allowed logins")
 	}
+
+	if r.Identity.ScopePin != nil && len(r.Identity.Roles) != 0 {
+		return trace.BadParameter("ssh user identity cannot have both scope pin and roles set")
+	}
+
 	if r.Identity.ValidBefore != 0 {
 		return trace.BadParameter("ValidBefore should not be set in user cert requests (derived from TTL)")
 	}

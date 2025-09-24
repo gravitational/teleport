@@ -204,10 +204,10 @@ export function RecordingTimeline({
         const deltaZoom = -event.deltaY * ZOOM_SENSITIVITY;
 
         renderer.accumulateZoom(event.clientX, deltaZoom);
+      } else if (event.deltaX !== 0) {
+        renderer.accumulatePan(event.deltaX);
       } else if (event.shiftKey && event.deltaY !== 0) {
         renderer.accumulatePan(event.deltaY);
-      } else if (!event.shiftKey && event.deltaX !== 0) {
-        renderer.accumulatePan(event.deltaX);
       }
     }
 
@@ -281,7 +281,7 @@ export function RecordingTimeline({
         event.clientX - canvasRef.current.getBoundingClientRect().left
       );
 
-      onTimeChange(time);
+      onTimeChange(Math.round(time)); // round to avoid sending a float for the current time
     },
     [onTimeChange]
   );

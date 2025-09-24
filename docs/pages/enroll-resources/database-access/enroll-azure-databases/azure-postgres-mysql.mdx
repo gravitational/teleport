@@ -2,17 +2,12 @@
 title: Database Access with Azure PostgreSQL and MySQL
 sidebar_label: Azure PostgreSQL/MySQL
 description: How to configure Teleport database access with Azure Database for PostgreSQL and MySQL.
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
+ - azure
 ---
-
-{/*
-Don't lint the presence of "Azure AD" until we change the guide to apply to
-Entra ID: https://github.com/gravitational/teleport/issues/47776
-*/}
-
-{/* vale 3rd-party-products.former-names = NO */}
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Azure PostgreSQL or MySQL" dbConfigure="with Microsoft Entra ID-based authentication"!)
 
@@ -41,7 +36,7 @@ database.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - Deployed Azure Database for PostgreSQL or MySQL server.
-- Azure Active Directory administrative privileges.
+- Microsoft Entra ID administrative privileges.
 - A host, e.g., an Azure VM instance, where you will run the Teleport Database
   Service.
 - (!docs/pages/includes/tctl.mdx!)
@@ -50,7 +45,7 @@ database.
 ## Step 1/5. Configure Azure service principal
 
 To authenticate with PostgreSQL or MySQL databases, Teleport Database Service
-needs to obtain access tokens from Azure AD.
+needs to obtain access tokens from Microsoft Entra ID.
 
 (!docs/pages/includes/database-access/azure-configure-service-principal.mdx!)
 
@@ -118,12 +113,12 @@ and replace the subscription in "assignableScopes" with your own subscription id
 ## Step 3/5. Create Azure database users
 
 To let Teleport connect to your Azure database authenticating as a service
-principal, you need to create Azure AD users authenticated by that principal in the database.
+principal, you need to create Entra ID users authenticated by that principal in the database.
 
-### Assign Azure AD administrator
+### Assign Entra ID administrator
 
-Only the Azure AD administrator for the database can connect to it and create
-Azure AD users.
+Only the Entra ID administrator for the database can connect to it and create
+Entra ID users.
 
 <Tabs>
 <TabItem label="MySQL Flexible">
@@ -135,7 +130,7 @@ admin using the edit button:
 </TabItem>
 <TabItem label="PostgreSQL Flexible">
 Go to your database's **Authentication** page and set the AD
-admin by selecting **+ Add Azure AD Admins**:
+admin by selecting **+ Add Entra ID Admins**:
 
 ![Set AD admin](../../../../img/database-access/guides/azure/set-ad-admin-postgres.png)
 
@@ -149,11 +144,11 @@ and set the AD admin using the *Set admin* button:
 </TabItem>
 </Tabs>
 
-<Admonition type="note" title="Azure AD Admin">
-Only one Azure user (or group) can be set as an Azure AD admin for the database.
-If the Azure AD admin is removed from the server, all Azure AD logins will be disabled for the server.
-Adding a new Azure AD admin from the same tenant will re-enable Azure AD logins.
-Refer to [Use Azure Active Directory for authenticating with PostgreSQL](https://docs.microsoft.com/en-us/azure/postgresql/single-server/concepts-azure-ad-authentication)
+<Admonition type="note" title="Entra ID Admin">
+Only one Azure user (or group) can be set as an Entra ID admin for the database.
+If the Entra ID admin is removed from the server, all Entra ID logins will be disabled for the server.
+Adding a new Entra ID admin from the same tenant will re-enable Entra ID logins.
+Refer to [Use Microsoft Entra ID for authenticating with PostgreSQL](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/security-entra-concepts)
 for more information.
 </Admonition>
 

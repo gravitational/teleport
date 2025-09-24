@@ -20,6 +20,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"strings"
 	"testing"
@@ -121,4 +122,30 @@ func TestTeleportPackageURLs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestFilterEnv verifies excluding environment variables by the list of the keys.
+func TestFilterEnv(t *testing.T) {
+	env := "TEST_ENV_WITHOUT_FILTER"
+	env1 := "TEST_ENV_WITHOUT_FILTER1"
+	env2 := "TEST_ENV_WITHOUT_FILTER2"
+	env3 := "TEST_ENV_WITHOUT_FILTER3"
+
+	source := []string{
+		env3,
+		env,
+		fmt.Sprint(env1, "=", "test"),
+		fmt.Sprint(teleportToolsVersionEnv, "=", teleportToolsVersionEnvDisabled),
+		fmt.Sprint(env2, "=", "test"),
+		env3,
+		env,
+		env3,
+	}
+
+	assert.Equal(t, []string{
+		env,
+		fmt.Sprint(env1, "=", "test"),
+		fmt.Sprint(env2, "=", "test"),
+		env,
+	}, filterEnvs(source, []string{teleportToolsVersionEnv, env3}))
 }

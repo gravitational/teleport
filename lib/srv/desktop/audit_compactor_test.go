@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -22,6 +20,7 @@ package desktop
 
 import (
 	"context"
+	"math"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -69,8 +68,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("basic", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		ctx := t.Context()
-		synctest.Run(func() {
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
 			// Read sequence A
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 100))
@@ -94,11 +93,51 @@ func TestAuditCompactor(t *testing.T) {
 
 	})
 
+	t.Run("overflow", func(t *testing.T) {
+		auditEvents = auditEvents[:0]
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			// Walk up to and beyond MaxUint32
+			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, math.MaxUint32-1))
+			compactor.handleRead(ctx, newReadEvent("foo", 1, math.MaxUint32-1, 1))
+			compactor.handleRead(ctx, newReadEvent("foo", 1, math.MaxUint32, 1))
+			compactor.handleRead(ctx, newReadEvent("foo", 1, math.MaxUint32+1, 1))
+
+			compactor.flush(ctx)
+			require.Len(t, auditEvents, 1)
+			// We should emit a single audit event with the largest length that we can represent
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, math.MaxUint32))
+		})
+	})
+
+	t.Run("zero-length-event", func(t *testing.T) {
+		auditEvents = auditEvents[:0]
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			// Create two read events with zero length, but with differing
+			// error codes. Neither should get compacted, as zero length
+			// events are not eligible for compaction.
+			firstEvent := newReadEvent("foo", 1, 0, 0)
+			firstEvent.Error = "some error"
+
+			secondEvent := newReadEvent("foo", 1, 0, 0)
+			secondEvent.Error = "another error"
+
+			compactor.handleRead(ctx, firstEvent)
+			compactor.handleRead(ctx, secondEvent)
+
+			compactor.flush(ctx)
+			// events with length zero should be ignored (not compacted)
+			require.Len(t, auditEvents, 2)
+			assert.Contains(t, auditEvents, firstEvent)
+			assert.Contains(t, auditEvents, secondEvent)
+		})
+	})
+
 	t.Run("complex", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		ctx := t.Context()
-		synctest.Run(func() {
-
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
 			// Three separate reads (with different lengths) of the same file
 			// Read sequence A
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
@@ -130,8 +169,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("expirations", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		ctx := t.Context()
-		synctest.Run(func() {
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
 			// 2 sequential reads
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 100))
@@ -170,7 +209,7 @@ func TestAuditCompactor(t *testing.T) {
 			// a single consolidated event
 			eventsLock.Lock()
 			require.Len(t, auditEvents, 1)
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 200, uint32(length*uint32(count))))
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 200, length*uint32(count)))
 			eventsLock.Unlock()
 
 		})
@@ -179,8 +218,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("mix-reads-writes", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		ctx := t.Context()
-		synctest.Run(func() {
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
 			// 3 sequential reads
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 100))
@@ -199,8 +238,8 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("mix-files-and-directories", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		ctx := t.Context()
-		synctest.Run(func() {
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
 			// Identical offsets and lengths, but different path and/or directoryID
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
 			compactor.handleRead(ctx, newReadEvent("foo", 2, 0, 100))
@@ -221,8 +260,8 @@ func TestAuditCompactor(t *testing.T) {
 	})
 
 	t.Run("racy-flush", func(t *testing.T) {
-		ctx := t.Context()
-		synctest.Run(func() {
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
 			auditEvents := make(chan events.AuditEvent)
 			compactor.emitFn = func(_ context.Context, ae events.AuditEvent) {
 				auditEvents <- ae
@@ -250,7 +289,7 @@ func TestAuditCompactor(t *testing.T) {
 				newReadEvent("baz", 1, 0, 100),
 				newReadEvent("caz", 1, 0, 100),
 			}
-			for _ = range len(expectedEvents) {
+			for range len(expectedEvents) {
 				assert.False(t, flushDone)
 				assert.Contains(t, expectedEvents, <-auditEvents)
 				synctest.Wait()

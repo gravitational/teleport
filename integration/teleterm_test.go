@@ -1095,11 +1095,11 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 		_, err = authServer.UpdateRole(ctx, role)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			role, err := authServer.GetRole(ctx, roleName)
-			if assert.NoError(collect, err) {
-				assert.Equal(collect, dbUsers, role.GetDatabaseUsers(types.Allow))
-			}
+			require.NoError(t, err)
+			require.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
+
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
@@ -1113,11 +1113,11 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 		_, err = authServer.UpdateUser(ctx, user)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
-			if assert.NoError(collect, err) {
-				assert.Equal(collect, roles, user.GetRoles())
-			}
+			require.NoError(t, err)
+
+			require.Equal(t, roles, user.GetRoles())
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 

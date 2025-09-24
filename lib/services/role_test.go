@@ -10903,6 +10903,42 @@ func TestSessionRecordingRBAC(t *testing.T) {
 			},
 			errCheck: requireAccessDenied,
 		},
+		{
+			name: "22 - bob can't read windows session because his role references session.server_labels",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `session.server_labels["env"]=="prod"`,
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newWindowsSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: requireAccessDenied,
+		},
+		{
+			name: "23 - bob can read windows session one of his roles allow it",
+			roles: RoleSet{
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+					Where:     `session.server_labels["env"]=="prod"`,
+				}, nil),
+				newRole(&types.Rule{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead},
+				}, nil),
+			},
+			context: Context{
+				User:     bob,
+				Session:  newWindowsSessionEndEvent(),
+				Resource: serverWithAccess,
+			},
+			errCheck: require.NoError,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
