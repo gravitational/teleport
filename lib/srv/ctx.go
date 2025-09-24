@@ -661,21 +661,6 @@ func (c *ServerContext) SetEnv(key, val string) {
 	c.mu.Unlock()
 }
 
-// GetEnv returns a environment variable within this context.
-func (c *ServerContext) GetEnv(key string) (string, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.getEnvLocked(key)
-}
-
-func (c *ServerContext) getEnvLocked(key string) (string, bool) {
-	val, ok := c.env[key]
-	if ok {
-		return val, true
-	}
-	return c.Parent().GetEnv(key)
-}
-
 // GetSessionParams gets session params for the current session.
 func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 	c.mu.RLock()

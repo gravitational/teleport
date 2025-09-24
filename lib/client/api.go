@@ -2279,7 +2279,6 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-
 	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, "", "", nil))
 }
 

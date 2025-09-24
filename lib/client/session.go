@@ -321,13 +321,8 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, sessionParams *tr
 	}
 
 	mode := types.SessionPeerMode
-	if sessionParams != nil && sessionParams.JoinSessionID != "" {
+	if sessionParams != nil && sessionParams.JoinMode != "" {
 		mode = sessionParams.JoinMode
-
-		// The join mode should default to "observer" for tsh and should be specified for the WebUI.
-		if mode == "" {
-			return trace.BadParameter("participant mode missing when joining as session. This is a bug.")
-		}
 	}
 
 	// start piping input into the remote shell and pipe the output from
