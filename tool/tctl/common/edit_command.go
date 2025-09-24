@@ -222,7 +222,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 				}
 				return trace.Wrap(err)
 			}
-			return nil
+			continue
 		}
 
 		// Else fallback to the legacy logic

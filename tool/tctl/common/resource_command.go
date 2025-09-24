@@ -457,6 +457,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 				}
 				return trace.Wrap(err)
 			}
+			return nil
 		}
 		// Else fallback to the legacy logic
 
