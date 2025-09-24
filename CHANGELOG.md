@@ -1,5 +1,9 @@
 # Changelog
 
+## 17.7.7 (09/24/25)
+
+* Enabled Oracle Cloud joining in Machine ID's `tbot` client. [#59041](https://github.com/gravitational/teleport/pull/59041)
+
 ## 17.7.6 (09/23/25)
 
 * Made the check for a running Teleport process in the install-node.sh script more robust. [#59495](https://github.com/gravitational/teleport/pull/59495)
