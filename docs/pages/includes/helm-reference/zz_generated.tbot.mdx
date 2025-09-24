@@ -179,10 +179,10 @@ is non-empty).
 `argocd.clusterNameTemplate` determines the format of cluster names
 in Argo CD. It is a Go template string that supports the following variables:
 
-  - {{.ClusterName}} - Name of the Teleport cluster
-  - {{.KubeName}} - Name of the Kubernetes cluster resource
+  - \{\{.ClusterName\}\} - Name of the Teleport cluster
+  - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
 
-By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}".
+By default, the following template will be used: "\{\{.ClusterName\}\}-\{\{.KubeName\}\}".
 
 ## `persistence`
 
