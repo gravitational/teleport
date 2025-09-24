@@ -145,10 +145,6 @@ func (c InferenceModelCollection) Resources() []types.Resource {
 	return out
 }
 
-func (c InferenceModelCollection) Resources() []types.Resource {
-	return c.Resources()
-}
-
 func (c InferenceModelCollection) WriteText(w io.Writer, verbose bool) error {
 	headers := []string{"Name", "Description", "Provider", "Provider Model ID"}
 	var rows [][]string
@@ -404,10 +400,6 @@ func (c InferencePolicyCollection) Resources() []types.Resource {
 		out = append(out, types.ProtoResource153ToLegacy(item))
 	}
 	return out
-}
-
-func (c InferencePolicyCollection) Resources() []types.Resource {
-	return c.Resources()
 }
 
 func (c InferencePolicyCollection) WriteText(w io.Writer, verbose bool) error {
