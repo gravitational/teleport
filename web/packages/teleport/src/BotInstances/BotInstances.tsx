@@ -51,6 +51,7 @@ export function BotInstances() {
   const queryParams = new URLSearchParams(location.search);
   const pageToken = queryParams.get('page') ?? '';
   const searchTerm = queryParams.get('search') ?? '';
+  const query = queryParams.get('query') ?? '';
   const sortField = queryParams.get('sort_field') || 'active_at_latest';
   const sortDir = queryParams.get('sort_dir') || 'DESC';
 
@@ -64,6 +65,7 @@ export function BotInstances() {
       'bot_instances',
       'list',
       searchTerm,
+      query,
       pageToken,
       sortField,
       sortDir,
@@ -74,6 +76,7 @@ export function BotInstances() {
           pageSize: 20,
           pageToken,
           searchTerm,
+          query,
           sortField,
           sortDir,
         },
