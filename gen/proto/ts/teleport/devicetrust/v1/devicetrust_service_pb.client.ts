@@ -47,9 +47,11 @@ import type { Empty } from "../../../google/protobuf/empty_pb";
 import type { DeleteDeviceRequest } from "./devicetrust_service_pb";
 import type { UpsertDeviceRequest } from "./devicetrust_service_pb";
 import type { UpdateDeviceRequest } from "./devicetrust_service_pb";
-import { stackIntercept } from "@protobuf-ts/runtime-rpc";
 import type { Device } from "./device_pb";
 import type { CreateDeviceRequest } from "./devicetrust_service_pb";
+import { stackIntercept } from "@protobuf-ts/runtime-rpc";
+import type { PingResponse } from "./devicetrust_service_pb";
+import type { PingRequest } from "./devicetrust_service_pb";
 import type { UnaryCall } from "@protobuf-ts/runtime-rpc";
 import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
 /**
@@ -78,6 +80,12 @@ import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
  * @generated from protobuf service teleport.devicetrust.v1.DeviceTrustService
  */
 export interface IDeviceTrustServiceClient {
+    /**
+     * Ping foo bar.
+     *
+     * @generated from protobuf rpc: Ping(teleport.devicetrust.v1.PingRequest) returns (teleport.devicetrust.v1.PingResponse);
+     */
+    ping(input: PingRequest, options?: RpcOptions): UnaryCall<PingRequest, PingResponse>;
     /**
      * CreateDevice creates a device, effectively registering it on Teleport.
      * Devices need to be registered before they can be enrolled.
@@ -272,6 +280,15 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
     constructor(private readonly _transport: RpcTransport) {
     }
     /**
+     * Ping foo bar.
+     *
+     * @generated from protobuf rpc: Ping(teleport.devicetrust.v1.PingRequest) returns (teleport.devicetrust.v1.PingResponse);
+     */
+    ping(input: PingRequest, options?: RpcOptions): UnaryCall<PingRequest, PingResponse> {
+        const method = this.methods[0], opt = this._transport.mergeOptions(options);
+        return stackIntercept<PingRequest, PingResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * CreateDevice creates a device, effectively registering it on Teleport.
      * Devices need to be registered before they can be enrolled.
      *
@@ -281,7 +298,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: CreateDevice(teleport.devicetrust.v1.CreateDeviceRequest) returns (teleport.devicetrust.v1.Device);
      */
     createDevice(input: CreateDeviceRequest, options?: RpcOptions): UnaryCall<CreateDeviceRequest, Device> {
-        const method = this.methods[0], opt = this._transport.mergeOptions(options);
+        const method = this.methods[1], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateDeviceRequest, Device>("unary", this._transport, method, opt, input);
     }
     /**
@@ -292,7 +309,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: UpdateDevice(teleport.devicetrust.v1.UpdateDeviceRequest) returns (teleport.devicetrust.v1.Device);
      */
     updateDevice(input: UpdateDeviceRequest, options?: RpcOptions): UnaryCall<UpdateDeviceRequest, Device> {
-        const method = this.methods[1], opt = this._transport.mergeOptions(options);
+        const method = this.methods[2], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateDeviceRequest, Device>("unary", this._transport, method, opt, input);
     }
     /**
@@ -305,7 +322,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: UpsertDevice(teleport.devicetrust.v1.UpsertDeviceRequest) returns (teleport.devicetrust.v1.Device);
      */
     upsertDevice(input: UpsertDeviceRequest, options?: RpcOptions): UnaryCall<UpsertDeviceRequest, Device> {
-        const method = this.methods[2], opt = this._transport.mergeOptions(options);
+        const method = this.methods[3], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertDeviceRequest, Device>("unary", this._transport, method, opt, input);
     }
     /**
@@ -321,7 +338,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: DeleteDevice(teleport.devicetrust.v1.DeleteDeviceRequest) returns (google.protobuf.Empty);
      */
     deleteDevice(input: DeleteDeviceRequest, options?: RpcOptions): UnaryCall<DeleteDeviceRequest, Empty> {
-        const method = this.methods[3], opt = this._transport.mergeOptions(options);
+        const method = this.methods[4], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteDeviceRequest, Empty>("unary", this._transport, method, opt, input);
     }
     /**
@@ -335,7 +352,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: FindDevices(teleport.devicetrust.v1.FindDevicesRequest) returns (teleport.devicetrust.v1.FindDevicesResponse);
      */
     findDevices(input: FindDevicesRequest, options?: RpcOptions): UnaryCall<FindDevicesRequest, FindDevicesResponse> {
-        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
         return stackIntercept<FindDevicesRequest, FindDevicesResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -344,7 +361,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: GetDevice(teleport.devicetrust.v1.GetDeviceRequest) returns (teleport.devicetrust.v1.Device);
      */
     getDevice(input: GetDeviceRequest, options?: RpcOptions): UnaryCall<GetDeviceRequest, Device> {
-        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        const method = this.methods[6], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetDeviceRequest, Device>("unary", this._transport, method, opt, input);
     }
     /**
@@ -353,7 +370,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: ListDevices(teleport.devicetrust.v1.ListDevicesRequest) returns (teleport.devicetrust.v1.ListDevicesResponse);
      */
     listDevices(input: ListDevicesRequest, options?: RpcOptions): UnaryCall<ListDevicesRequest, ListDevicesResponse> {
-        const method = this.methods[6], opt = this._transport.mergeOptions(options);
+        const method = this.methods[7], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListDevicesRequest, ListDevicesResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -362,7 +379,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: ListDevicesByUser(teleport.devicetrust.v1.ListDevicesByUserRequest) returns (teleport.devicetrust.v1.ListDevicesByUserResponse);
      */
     listDevicesByUser(input: ListDevicesByUserRequest, options?: RpcOptions): UnaryCall<ListDevicesByUserRequest, ListDevicesByUserResponse> {
-        const method = this.methods[7], opt = this._transport.mergeOptions(options);
+        const method = this.methods[8], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListDevicesByUserRequest, ListDevicesByUserResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -374,7 +391,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: BulkCreateDevices(teleport.devicetrust.v1.BulkCreateDevicesRequest) returns (teleport.devicetrust.v1.BulkCreateDevicesResponse);
      */
     bulkCreateDevices(input: BulkCreateDevicesRequest, options?: RpcOptions): UnaryCall<BulkCreateDevicesRequest, BulkCreateDevicesResponse> {
-        const method = this.methods[8], opt = this._transport.mergeOptions(options);
+        const method = this.methods[9], opt = this._transport.mergeOptions(options);
         return stackIntercept<BulkCreateDevicesRequest, BulkCreateDevicesResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -385,7 +402,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: CreateDeviceEnrollToken(teleport.devicetrust.v1.CreateDeviceEnrollTokenRequest) returns (teleport.devicetrust.v1.DeviceEnrollToken);
      */
     createDeviceEnrollToken(input: CreateDeviceEnrollTokenRequest, options?: RpcOptions): UnaryCall<CreateDeviceEnrollTokenRequest, DeviceEnrollToken> {
-        const method = this.methods[9], opt = this._transport.mergeOptions(options);
+        const method = this.methods[10], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateDeviceEnrollTokenRequest, DeviceEnrollToken>("unary", this._transport, method, opt, input);
     }
     /**
@@ -413,7 +430,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: EnrollDevice(stream teleport.devicetrust.v1.EnrollDeviceRequest) returns (stream teleport.devicetrust.v1.EnrollDeviceResponse);
      */
     enrollDevice(options?: RpcOptions): DuplexStreamingCall<EnrollDeviceRequest, EnrollDeviceResponse> {
-        const method = this.methods[10], opt = this._transport.mergeOptions(options);
+        const method = this.methods[11], opt = this._transport.mergeOptions(options);
         return stackIntercept<EnrollDeviceRequest, EnrollDeviceResponse>("duplex", this._transport, method, opt);
     }
     /**
@@ -428,7 +445,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: AuthenticateDevice(stream teleport.devicetrust.v1.AuthenticateDeviceRequest) returns (stream teleport.devicetrust.v1.AuthenticateDeviceResponse);
      */
     authenticateDevice(options?: RpcOptions): DuplexStreamingCall<AuthenticateDeviceRequest, AuthenticateDeviceResponse> {
-        const method = this.methods[11], opt = this._transport.mergeOptions(options);
+        const method = this.methods[12], opt = this._transport.mergeOptions(options);
         return stackIntercept<AuthenticateDeviceRequest, AuthenticateDeviceResponse>("duplex", this._transport, method, opt);
     }
     /**
@@ -450,7 +467,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: ConfirmDeviceWebAuthentication(teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest) returns (teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse);
      */
     confirmDeviceWebAuthentication(input: ConfirmDeviceWebAuthenticationRequest, options?: RpcOptions): UnaryCall<ConfirmDeviceWebAuthenticationRequest, ConfirmDeviceWebAuthenticationResponse> {
-        const method = this.methods[12], opt = this._transport.mergeOptions(options);
+        const method = this.methods[13], opt = this._transport.mergeOptions(options);
         return stackIntercept<ConfirmDeviceWebAuthenticationRequest, ConfirmDeviceWebAuthenticationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -464,7 +481,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: SyncInventory(stream teleport.devicetrust.v1.SyncInventoryRequest) returns (stream teleport.devicetrust.v1.SyncInventoryResponse);
      */
     syncInventory(options?: RpcOptions): DuplexStreamingCall<SyncInventoryRequest, SyncInventoryResponse> {
-        const method = this.methods[13], opt = this._transport.mergeOptions(options);
+        const method = this.methods[14], opt = this._transport.mergeOptions(options);
         return stackIntercept<SyncInventoryRequest, SyncInventoryResponse>("duplex", this._transport, method, opt);
     }
     /**
@@ -474,7 +491,7 @@ export class DeviceTrustServiceClient implements IDeviceTrustServiceClient, Serv
      * @generated from protobuf rpc: GetDevicesUsage(teleport.devicetrust.v1.GetDevicesUsageRequest) returns (teleport.devicetrust.v1.DevicesUsage);
      */
     getDevicesUsage(input: GetDevicesUsageRequest, options?: RpcOptions): UnaryCall<GetDevicesUsageRequest, DevicesUsage> {
-        const method = this.methods[14], opt = this._transport.mergeOptions(options);
+        const method = this.methods[15], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetDevicesUsageRequest, DevicesUsage>("unary", this._transport, method, opt, input);
     }
 }

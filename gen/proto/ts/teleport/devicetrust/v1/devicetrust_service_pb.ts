@@ -1017,6 +1017,20 @@ export interface SyncInventoryMissingDevices {
 export interface GetDevicesUsageRequest {
 }
 /**
+ * PingRequest foo bar.
+ *
+ * @generated from protobuf message teleport.devicetrust.v1.PingRequest
+ */
+export interface PingRequest {
+}
+/**
+ * PingResponse foo bar.
+ *
+ * @generated from protobuf message teleport.devicetrust.v1.PingResponse
+ */
+export interface PingResponse {
+}
+/**
  * DeviceView specifies which fields of returned devices should be present.
  *
  * @generated from protobuf enum teleport.devicetrust.v1.DeviceView
@@ -3279,10 +3293,61 @@ class GetDevicesUsageRequest$Type extends MessageType<GetDevicesUsageRequest> {
  * @generated MessageType for protobuf message teleport.devicetrust.v1.GetDevicesUsageRequest
  */
 export const GetDevicesUsageRequest = new GetDevicesUsageRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PingRequest$Type extends MessageType<PingRequest> {
+    constructor() {
+        super("teleport.devicetrust.v1.PingRequest", []);
+    }
+    create(value?: PartialMessage<PingRequest>): PingRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<PingRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PingRequest): PingRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: PingRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.devicetrust.v1.PingRequest
+ */
+export const PingRequest = new PingRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class PingResponse$Type extends MessageType<PingResponse> {
+    constructor() {
+        super("teleport.devicetrust.v1.PingResponse", []);
+    }
+    create(value?: PartialMessage<PingResponse>): PingResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<PingResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PingResponse): PingResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: PingResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.devicetrust.v1.PingResponse
+ */
+export const PingResponse = new PingResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.devicetrust.v1.DeviceTrustService
  */
 export const DeviceTrustService = new ServiceType("teleport.devicetrust.v1.DeviceTrustService", [
+    { name: "Ping", options: {}, I: PingRequest, O: PingResponse },
     { name: "CreateDevice", options: {}, I: CreateDeviceRequest, O: Device },
     { name: "UpdateDevice", options: {}, I: UpdateDeviceRequest, O: Device },
     { name: "UpsertDevice", options: {}, I: UpsertDeviceRequest, O: Device },

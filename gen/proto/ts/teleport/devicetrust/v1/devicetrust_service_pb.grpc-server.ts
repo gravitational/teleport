@@ -45,6 +45,8 @@ import { UpsertDeviceRequest } from "./devicetrust_service_pb";
 import { UpdateDeviceRequest } from "./devicetrust_service_pb";
 import { Device } from "./device_pb";
 import { CreateDeviceRequest } from "./devicetrust_service_pb";
+import { PingResponse } from "./devicetrust_service_pb";
+import { PingRequest } from "./devicetrust_service_pb";
 import type * as grpc from "@grpc/grpc-js";
 /**
  * DeviceTrustService provides methods to manage, enroll and authenticate
@@ -72,6 +74,12 @@ import type * as grpc from "@grpc/grpc-js";
  * @generated from protobuf service teleport.devicetrust.v1.DeviceTrustService
  */
 export interface IDeviceTrustService extends grpc.UntypedServiceImplementation {
+    /**
+     * Ping foo bar.
+     *
+     * @generated from protobuf rpc: Ping(teleport.devicetrust.v1.PingRequest) returns (teleport.devicetrust.v1.PingResponse);
+     */
+    ping: grpc.handleUnaryCall<PingRequest, PingResponse>;
     /**
      * CreateDevice creates a device, effectively registering it on Teleport.
      * Devices need to be registered before they can be enrolled.
@@ -246,6 +254,16 @@ export interface IDeviceTrustService extends grpc.UntypedServiceImplementation {
  * ```
  */
 export const deviceTrustServiceDefinition: grpc.ServiceDefinition<IDeviceTrustService> = {
+    ping: {
+        path: "/teleport.devicetrust.v1.DeviceTrustService/Ping",
+        originalName: "Ping",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => PingResponse.fromBinary(bytes),
+        requestDeserialize: bytes => PingRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(PingResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(PingRequest.toBinary(value))
+    },
     createDevice: {
         path: "/teleport.devicetrust.v1.DeviceTrustService/CreateDevice",
         originalName: "CreateDevice",
