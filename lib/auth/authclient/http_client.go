@@ -530,9 +530,10 @@ type NewWebSessionFromJWTRequest struct {
 	// TODO
 	ClusterName string `json:"cluster_name"`
 	// TODO
-	AppName       string `json:"app"`
-	AppURI        string `json:"app_uri"`
-	AppPublicAddr string `json:"app_public_addr"`
+	AppName       string            `json:"app"`
+	AppURI        string            `json:"app_uri"`
+	AppPublicAddr string            `json:"app_public_addr"`
+	AppLabels     map[string]string `json:"app_labels"`
 }
 
 // TODO

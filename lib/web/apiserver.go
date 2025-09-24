@@ -745,7 +745,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.GET("/mcp/sites/:site/apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
 		h.POST("/mcp/apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
 		h.DELETE("/mcp/apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
-		h.GET("/mcp//apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
+		h.GET("/mcp/apps/:app", h.WithUnauthenticatedLimiter(appHandler.ServeHTTPForMCP))
 	}
 
 	go h.startFeatureWatcher()

@@ -5372,6 +5372,12 @@ message OIDCConnectorSpecV3 {
   // It works by following through the groups claim source, which is sent for the "groups"
   // claim when the user's group membership exceeds 200 max item limit.
   EntraIDGroupsProvider entra_id_groups_provider = 23;
+  // TODO this is temporary until we get a proper type for application auth configuration.
+  wrappers.LabelValues AppLabels = 24 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "app_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // EntraIDGroupsProvider configures out-of-band user groups provider.

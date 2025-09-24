@@ -137,6 +137,8 @@ type OIDCConnector interface {
 	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
 	// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
 	IsEntraIDGroupsProviderDisabled() bool
+	// TODO
+	GetAppLabels() Labels
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -151,6 +153,11 @@ func NewOIDCConnector(name string, spec OIDCConnectorSpecV3) (OIDCConnector, err
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
+}
+
+// TODO
+func (o *OIDCConnectorV3) GetAppLabels() Labels {
+	return o.Spec.AppLabels
 }
 
 // SetPrompt sets OIDC prompt value

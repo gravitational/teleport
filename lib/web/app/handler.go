@@ -171,6 +171,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ServeHTTPForMCP(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	h.logger.DebugContext(r.Context(), "handling MCP request")
 	ctx := r.Context()
 	appName := p.ByName("app")
 	clusterName := p.ByName("site")
@@ -488,6 +489,7 @@ func (h *Handler) getMCPSession(r *http.Request, clusterName, appName string) (t
 		AppName:       app.GetName(),
 		AppPublicAddr: app.GetPublicAddr(),
 		AppURI:        app.GetURI(),
+		AppLabels:     app.GetAllLabels(),
 		ClusterName:   clusterName,
 	})
 	if err != nil {
