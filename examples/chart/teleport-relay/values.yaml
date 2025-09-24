@@ -196,8 +196,8 @@ highAvailability:
     # a Kubernetes PodDisruptionBudget for the agent pods.
     enabled: false
 
-    # highAvailability.podDisruptionBudget.minAvailable(int) -- is the minimum
-    # available pod specified on the PodDisruptionBudget.
+    # highAvailability.podDisruptionBudget.minAvailable(intOrString) -- is the
+    # minimum available pod count specified on the PodDisruptionBudget.
     minAvailable: 1
 
 # resources(object) -- sets the resource requests/limits for any pods created by
