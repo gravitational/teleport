@@ -1400,7 +1400,6 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 				return
 			}
-
 			go s.handleSessionRequests(ctx, ccx, identityContext, nil, ch, requests)
 			return
 		default:
