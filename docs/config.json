@@ -1490,12 +1490,12 @@
     },
     {
       "source": "/admin-guides/management/guides/scim/sailpoint/",
-      "destination": "/zero-trust-access/management/guides/scim/sailpoint/",
+      "destination": "/identity-governance/scim/sailpoint/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/scim/",
-      "destination": "/zero-trust-access/management/guides/scim/",
+      "destination": "/identity-governance/scim/",
       "permanent": true
     },
     {
@@ -2301,6 +2301,16 @@
     {
       "source": "/zero-trust-access/infrastructure-as-code/terraform-starter/rbac/",
       "destination": "/zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/scim/",
+      "destination": "/identity-governance/scim/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/scim/sailpoint/",
+      "destination": "/identity-governance/scim/sailpoint/",
       "permanent": true
     }
   ]
