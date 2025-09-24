@@ -80,7 +80,6 @@ export function BotInstances() {
           query,
           sortField,
           sortDir,
-          query,
         },
         signal
       ),
