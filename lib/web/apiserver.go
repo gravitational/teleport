@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1/devicetrustv1connect"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -1207,6 +1208,21 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
+
+	dtPrefix := "/webapi/devicetrust"
+	_, dtHandler := devicetrustv1connect.NewDeviceTrustServiceHandler(&deviceTrustServer{
+		logger: h.logger,
+	})
+	dtPrefixHandler := http.StripPrefix(dtPrefix, dtHandler)
+
+	h.Handle("GET", dtPrefix+"/*wildcard", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		h.logger.InfoContext(r.Context(), "Got request", "method", r.Method, "url", r.URL)
+		dtPrefixHandler.ServeHTTP(w, r)
+	})
+	h.Handle("POST", dtPrefix+"/*wildcard", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		h.logger.InfoContext(r.Context(), "Got request", "method", r.Method, "url", r.URL)
+		dtPrefixHandler.ServeHTTP(w, r)
+	})
 }
 
 // GetProxyClient returns authenticated auth server client
