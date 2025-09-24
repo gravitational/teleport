@@ -411,7 +411,7 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 		},
 		{
 			name:       "match on instance id",
-			searchTerm: "cb2c352",
+			searchTerm: "CB2C352",
 			instance:   newBotInstance("test-bot", withBotInstanceId("cb2c3523-01f6-4258-966b-ace9f38f9862")),
 		},
 		{

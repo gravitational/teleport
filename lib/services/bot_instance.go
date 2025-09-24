@@ -19,8 +19,8 @@ package services
 import (
 	"context"
 	"slices"
-	"strings"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -106,7 +106,7 @@ func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string)
 	}
 
 	return slices.ContainsFunc(values, func(val string) bool {
-		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
+		return strcase.Contains(val, search)
 	})
 }
 
