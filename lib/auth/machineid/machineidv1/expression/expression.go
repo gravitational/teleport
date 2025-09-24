@@ -67,17 +67,6 @@ func NewBotInstanceExpressionParser() (*typical.Parser[*Environment, bool], erro
 	spec.Functions["less_than"] = typical.BinaryFunction[*Environment](semverLt)
 	spec.Functions["between"] = typical.TernaryFunction[*Environment](semverBetween)
 
-	spec.Methods["more_than"] = typical.BinaryFunction[*Environment](semverGt)
-	spec.Methods["less_than"] = typical.BinaryFunction[*Environment](semverLt)
-	spec.Methods["between"] = typical.TernaryFunction[*Environment](semverBetween)
-	spec.Methods["to_string"] = typical.UnaryFunction[*Environment](
-		func(v *semver.Version) (string, error) {
-			if v == nil {
-				return "", nil
-			}
-			return v.String(), nil
-		})
-
 	return typical.NewParser[*Environment, bool](spec)
 }
 

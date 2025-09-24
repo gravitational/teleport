@@ -30,25 +30,27 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 	parser, err := NewBotInstanceExpressionParser()
 	require.NoError(t, err)
 
-	baseEnv := Environment{
-		Metadata: &headerv1.Metadata{
-			Name: "test-bot-1/76efb07a-3077-471c-988a-54d0fa49fc71",
-		},
-		Spec: &machineidv1.BotInstanceSpec{
-			BotName:    "test-bot-1",
-			InstanceId: "76efb07a-3077-471c-988a-54d0fa49fc71",
-		},
-		LatestAuthentication: &machineidv1.BotInstanceStatusAuthentication{
-			JoinMethod: "kubernetes",
-		},
-		LatestHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
-			IsStartup:    false,
-			Version:      "19.0.1",
-			OneShot:      false,
-			Architecture: "arm64",
-			Os:           "linux",
-			Hostname:     "test-hostname-1",
-		},
+	makeBaseEnv := func() Environment {
+		return Environment{
+			Metadata: &headerv1.Metadata{
+				Name: "test-bot-1/76efb07a-3077-471c-988a-54d0fa49fc71",
+			},
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    "test-bot-1",
+				InstanceId: "76efb07a-3077-471c-988a-54d0fa49fc71",
+			},
+			LatestAuthentication: &machineidv1.BotInstanceStatusAuthentication{
+				JoinMethod: "kubernetes",
+			},
+			LatestHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				IsStartup:    false,
+				Version:      "19.0.1",
+				OneShot:      false,
+				Architecture: "arm64",
+				Os:           "linux",
+				Hostname:     "test-hostname-1",
+			},
+		}
 	}
 
 	tcs := []struct {
@@ -105,19 +107,9 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 			},
 		},
 		{
-			name:     "equals join method",
-			expTrue:  `status.latest_authentication.join_method == "kubernetes"`,
-			expFalse: `status.latest_authentication.join_method == "gcp"`,
-		},
-		{
 			name:     "equal version (func)",
 			expTrue:  `to_string(status.latest_heartbeat.version) == "19.0.1"`,
 			expFalse: `to_string(status.latest_heartbeat.version) == "19.0.2"`,
-		},
-		{
-			name:     "equal version (method)",
-			expTrue:  `status.latest_heartbeat.version.to_string() == "19.0.1"`,
-			expFalse: `status.latest_heartbeat.version.to_string() == "19.0.2"`,
 		},
 		{
 			name:     "between versions (func) - lower",
@@ -125,19 +117,9 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 			expFalse: `between(status.latest_heartbeat.version, "19.0.2", "19.0.3")`,
 		},
 		{
-			name:     "between versions (method) - lower",
-			expTrue:  `status.latest_heartbeat.version.between("19.0.1", "19.0.2")`,
-			expFalse: `status.latest_heartbeat.version.between("19.0.2", "19.0.3")`,
-		},
-		{
 			name:     "between versions (func) - upper",
 			expTrue:  `between(status.latest_heartbeat.version, "19.0.0", "19.0.2")`,
 			expFalse: `between(status.latest_heartbeat.version, "19.0.0", "19.0.1")`,
-		},
-		{
-			name:     "between versions (method) - upper",
-			expTrue:  `status.latest_heartbeat.version.between("19.0.0", "19.0.2")`,
-			expFalse: `status.latest_heartbeat.version.between("19.0.0", "19.0.1")`,
 		},
 		{
 			name:     "more than version (func)",
@@ -145,25 +127,15 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 			expFalse: `more_than(status.latest_heartbeat.version, "19.0.1")`,
 		},
 		{
-			name:     "more than version (method)",
-			expTrue:  `status.latest_heartbeat.version.more_than("19.0.0")`,
-			expFalse: `status.latest_heartbeat.version.more_than("19.0.1")`,
-		},
-		{
 			name:     "less than version (func)",
 			expTrue:  `less_than(status.latest_heartbeat.version, "19.0.2")`,
 			expFalse: `less_than(status.latest_heartbeat.version, "19.0.1")`,
-		},
-		{
-			name:     "less than version (method)",
-			expTrue:  `status.latest_heartbeat.version.less_than("19.0.2")`,
-			expFalse: `status.latest_heartbeat.version.less_than("19.0.1")`,
 		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			env := baseEnv // don't mutate baseEnv
+			env := makeBaseEnv()
 			if tc.envFns != nil {
 				for _, fn := range tc.envFns {
 					fn(&env)
