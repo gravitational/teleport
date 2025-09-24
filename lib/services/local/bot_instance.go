@@ -124,6 +124,11 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 		}
 	}
 
+	if options.GetFilterSearchTerm() == "" && exp == nil {
+		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
+		return r, nextToken, trace.Wrap(err)
+	}
+
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
 		return services.MatchBotInstance(item, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp)
 	})
