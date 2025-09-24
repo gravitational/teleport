@@ -1,0 +1,19 @@
+version: v2
+
+inputs:
+  - directory: .
+    paths:
+      - api/proto/teleport/devicetrust/v1/
+
+# TODO: Use a local plugin?
+plugins:
+  - remote: buf.build/connectrpc/swift
+    out: mobile/Foobar/Foobar/gen
+    opt:
+      - GenerateAsyncMethods=true
+      - GenerateCallbackMethods=true
+      - Visibility=Public
+  - remote: buf.build/apple/swift
+    out: mobile/Foobar/Foobar/gen
+    opt: Visibility=Public
+    include_imports: true

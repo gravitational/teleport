@@ -169,7 +169,11 @@ func (s *deviceTrustServer) EnrollDevice(ctx context.Context, stream *connect.Bi
 
 	if err = stream.Send(&devicepb.EnrollDeviceResponse{
 		Payload: &devicepb.EnrollDeviceResponse_Success{
-			Success: &devicepb.EnrollDeviceSuccess{},
+			Success: &devicepb.EnrollDeviceSuccess{
+				Device: &devicepb.Device{
+					Id: "success :~)",
+				},
+			},
 		},
 	}); err != nil {
 		return trace.Wrap(err)

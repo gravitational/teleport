@@ -10,12 +10,20 @@ import SwiftUI
 struct ContentView: View {
   @State private var openedURL: URL?
   @State private var isConfirmingEnrollment: Bool = false
+  @ObservedObject private var viewModel: DeviceTrustViewModel
+
+  init(viewModel: DeviceTrustViewModel) {
+    self.viewModel = viewModel
+  }
 
   var body: some View {
     ScannedURLView(openedURL: $openedURL, isConfirmingEnrollment: $isConfirmingEnrollment)
       .onOpenURL { url in
         openedURL = url
         isConfirmingEnrollment = true
+      }
+      .onAppear {
+        Task { await viewModel.enrollDevice() }
       }
   }
 }
@@ -88,4 +96,46 @@ struct ScannedURLView: View {
     ),
     isConfirmingEnrollment: .constant(true)
   )
+}
+
+final class DeviceTrustViewModel: ObservableObject {
+  private let client: Teleport_Devicetrust_V1_DeviceTrustServiceClientInterface
+
+  init(client: Teleport_Devicetrust_V1_DeviceTrustServiceClientInterface) {
+    self.client = client
+  }
+
+  func enrollDevice() async {
+    let request = Teleport_Devicetrust_V1_PingRequest()
+    print("Sending ping")
+    let response = await client.ping(request: request, headers: [:])
+    print("Sent ping: \(response)")
+
+    print("Starting a stream")
+    let stream = client.enrollDevice(headers: [:])
+    do {
+      print("Sending a message over the stream")
+      try stream
+        .send(Teleport_Devicetrust_V1_EnrollDeviceRequest
+          .with { $0.init_p = Teleport_Devicetrust_V1_EnrollDeviceInit() })
+      print("Sent a message over the stream")
+    } catch {
+      print("Failed to send a message over the stream: \(error)")
+      return
+    }
+
+    var streamMessage: Teleport_Devicetrust_V1_EnrollDeviceResponse?
+    print("Waiting for message from the stream")
+    resultsLoop: for await result in stream.results() {
+      switch result {
+      case let .message(message):
+        streamMessage = message
+        break resultsLoop
+      case let .complete(code, error, _):
+        print("Stream ended with code: \(code), error: \(error?.localizedDescription ?? "none")")
+      default: ()
+      }
+    }
+    print("Got message: \(streamMessage, default: "no message")")
+  }
 }
