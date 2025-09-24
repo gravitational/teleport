@@ -96,7 +96,7 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("overflow", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		synctest.Test(t, func(t *testing.T) {
+		synctest.Run(func() {
 			ctx := t.Context()
 			// Walk up to and beyond MaxUint32
 			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, math.MaxUint32-1))
@@ -113,7 +113,7 @@ func TestAuditCompactor(t *testing.T) {
 
 	t.Run("zero-length-event", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
-		synctest.Test(t, func(t *testing.T) {
+		synctest.Run(func() {
 			ctx := t.Context()
 			// Create two read events with zero length, but with differing
 			// error codes. Neither should get compacted, as zero length
