@@ -168,7 +168,6 @@ const cfg = {
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
-    manageCluster: '/web/clusters/:clusterId/manage',
 
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
@@ -305,7 +304,10 @@ const cfg = {
     kubernetesResourcesPath:
       '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
 
+    // TODO(rudream): DELETE IN V21.0.0
     usersPath: '/v1/webapi/users',
+    usersPathV2:
+      '/v2/webapi/users?startKey=:startKey?&search=:search?&limit=:limit?',
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
@@ -313,6 +315,8 @@ const cfg = {
       '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
     rolePath: '/v1/webapi/roles/:name?',
     presetRolesPath: '/v1/webapi/presetroles',
+    listRequestableRolesPath:
+      '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
@@ -481,6 +485,10 @@ const cfg = {
     botInstance: {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+    },
+
+    workloadIdentity: {
+      list: '/v1/webapi/sites/:clusterId/workload-identity',
     },
 
     gcpWorkforceConfigurePath:
@@ -680,10 +688,6 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
-  },
-
-  getManageClusterRoute(clusterId: string) {
-    return generatePath(cfg.routes.manageCluster, { clusterId });
   },
 
   getUnifiedResourcesRoute(clusterId: string) {
@@ -929,8 +933,17 @@ const cfg = {
     return generatePath(cfg.routes.ssoConnector.create, { connectorType });
   },
 
+  // TODO(rudream): DELETE IN V21.0.0
   getUsersUrl() {
     return cfg.api.usersPath;
+  },
+
+  getUsersUrlV2(params?: UrlListUsersParams) {
+    return generatePath(cfg.api.usersPathV2, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getUserWithUsernameUrl(username: string) {
@@ -1142,6 +1155,14 @@ const cfg = {
 
   getRoleUrl(name?: string) {
     return generatePath(cfg.api.rolePath, { name });
+  },
+
+  getListRequestableRolesUrl(params?: UrlListRolesParams) {
+    return generatePath(cfg.api.listRequestableRolesPath, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getDiscoveryConfigUrl(clusterId: string) {
@@ -1578,6 +1599,23 @@ const cfg = {
     }
   },
 
+  getWorkloadIdentityUrl(
+    req: {
+      action: 'list';
+    } & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.workloadIdentity.list, {
+          clusterId,
+        });
+      default:
+        req.action satisfies never;
+        return '';
+    }
+  },
+
   getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {
     return (
       cfg.baseUrl + generatePath(cfg.api.gcpWorkforceConfigurePath, { ...p })
@@ -1699,6 +1737,12 @@ export interface UrlDesktopParams {
 }
 
 export interface UrlListRolesParams {
+  search?: string;
+  limit?: number;
+  startKey?: string;
+}
+
+export interface UrlListUsersParams {
   search?: string;
   limit?: number;
   startKey?: string;

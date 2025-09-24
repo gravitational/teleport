@@ -39,33 +39,6 @@ const (
 	botInstanceActiveAtIndex botInstanceIndex = "active_at_latest"
 )
 
-func keyForNameIndex(botInstance *machineidv1.BotInstance) string {
-	return makeNameIndexKey(
-		botInstance.GetSpec().GetBotName(),
-		botInstance.GetMetadata().GetName(),
-	)
-}
-
-func makeNameIndexKey(botName string, instanceID string) string {
-	return botName + "/" + instanceID
-}
-
-func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
-	var recordedAt time.Time
-
-	initialHeartbeatTime := botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt()
-	if initialHeartbeatTime != nil {
-		recordedAt = initialHeartbeatTime.AsTime()
-	}
-
-	latestHeartbeats := botInstance.GetStatus().GetLatestHeartbeats()
-	if len(latestHeartbeats) > 0 {
-		recordedAt = latestHeartbeats[len(latestHeartbeats)-1].GetRecordedAt().AsTime()
-	}
-
-	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
-}
-
 func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) (*collection[*machineidv1.BotInstance, botInstanceIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter upstream (BotInstance)")
@@ -79,9 +52,9 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 			},
 			map[botInstanceIndex]func(*machineidv1.BotInstance) string{
 				// Index on a combination of bot name and instance name
-				botInstanceNameIndex: keyForNameIndex,
+				botInstanceNameIndex: keyForBotInstanceNameIndex,
 				// Index on a combination of most recent heartbeat time and instance name
-				botInstanceActiveAtIndex: keyForActiveAtIndex,
+				botInstanceActiveAtIndex: keyForBotInstanceActiveAtIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			var out []*machineidv1.BotInstance
@@ -114,7 +87,7 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 		},
 	}
 
-	out, err := getter.get(ctx, makeNameIndexKey(botName, instanceID))
+	out, err := getter.get(ctx, makeBotInstanceNameIndexKey(botName, instanceID))
 	return out, trace.Wrap(err)
 }
 
@@ -124,7 +97,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 	defer span.End()
 
 	index := botInstanceNameIndex
-	keyFn := keyForNameIndex
+	keyFn := keyForBotInstanceNameIndex
 	var isDesc bool
 	if sort != nil {
 		isDesc = sort.IsDesc
@@ -132,10 +105,10 @@ func (c *Cache) ListBotInstances(ctx context.Context, botName string, pageSize i
 		switch sort.Field {
 		case "bot_name":
 			index = botInstanceNameIndex
-			keyFn = keyForNameIndex
+			keyFn = keyForBotInstanceNameIndex
 		case "active_at_latest":
 			index = botInstanceActiveAtIndex
-			keyFn = keyForActiveAtIndex
+			keyFn = keyForBotInstanceActiveAtIndex
 		default:
 			return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name or active_at_latest", sort.Field)
 		}
@@ -193,4 +166,31 @@ func matchBotInstance(b *machineidv1.BotInstance, botName string, search string)
 	return slices.ContainsFunc(values, func(val string) bool {
 		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
 	})
+}
+
+func keyForBotInstanceNameIndex(botInstance *machineidv1.BotInstance) string {
+	return makeBotInstanceNameIndexKey(
+		botInstance.GetSpec().GetBotName(),
+		botInstance.GetMetadata().GetName(),
+	)
+}
+
+func makeBotInstanceNameIndexKey(botName string, instanceID string) string {
+	return botName + "/" + instanceID
+}
+
+func keyForBotInstanceActiveAtIndex(botInstance *machineidv1.BotInstance) string {
+	var recordedAt time.Time
+
+	initialHeartbeatTime := botInstance.GetStatus().GetInitialHeartbeat().GetRecordedAt()
+	if initialHeartbeatTime != nil {
+		recordedAt = initialHeartbeatTime.AsTime()
+	}
+
+	latestHeartbeats := botInstance.GetStatus().GetLatestHeartbeats()
+	if len(latestHeartbeats) > 0 {
+		recordedAt = latestHeartbeats[len(latestHeartbeats)-1].GetRecordedAt().AsTime()
+	}
+
+	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
 }

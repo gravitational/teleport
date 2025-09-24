@@ -511,12 +511,12 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 				SemaphoreKind: types.SemaphoreKindHostUserModification,
 				SemaphoreName: "host_user_modification",
 				MaxLeases:     1,
-				Expires:       time.Now().Add(time.Second * 20),
 			},
 			Retry: retryutils.LinearConfig{
 				Step: time.Second * 5,
 				Max:  time.Minute,
 			},
+			TTL: 20 * time.Second,
 		})
 
 	if err != nil {

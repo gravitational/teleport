@@ -869,6 +869,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SigstorePolicyDelete{
 			SigstorePolicyDelete: e,
 		}
+	case *BoundKeypairRecovery:
+		out.Event = &OneOf_BoundKeypairRecovery{
+			BoundKeypairRecovery: e,
+		}
+	case *BoundKeypairRotation:
+		out.Event = &OneOf_BoundKeypairRotation{
+			BoundKeypairRotation: e,
+		}
+	case *BoundKeypairJoinStateVerificationFailed:
+		out.Event = &OneOf_BoundKeypairJoinStateVerificationFailed{
+			BoundKeypairJoinStateVerificationFailed: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

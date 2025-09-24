@@ -1173,6 +1173,8 @@ enum PrivateKeyType {
 
 // SSHKeyPair is an SSH CA key pair.
 message SSHKeyPair {
+  option (gogoproto.equal) = true;
+
   // PublicKey is the SSH public key.
   bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key,omitempty"];
   // PrivateKey is the SSH private key.
@@ -1946,12 +1948,12 @@ message ProvisionTokenSpecV2BoundKeypair {
     // public key on first join, which may be used instead of preregistering a
     // public key with `initial_public_key`. If `initial_public_key` is set,
     // this value is ignored. Otherwise, if set, this value will be used to
-    // populate `.status.bound_keypair.intitial_join_secret`. If unset and no
+    // populate `.status.bound_keypair.registration_secret`. If unset and no
     // `initial_public_key` is provided, a random secure value will be generated
     // server-side to populate the status field.
     string RegistrationSecret = 2 [(gogoproto.jsontag) = "registration_secret,omitempty"];
 
-    // MustRegisterBefore is an optional time before which registeration via
+    // MustRegisterBefore is an optional time before which registration via
     // initial join secret must be performed. Attempts to register using an
     // initial join secret after this timestamp will not be allowed. This may be
     // modified after creation if necessary to allow the initial registration to
@@ -2025,7 +2027,7 @@ message ProvisionTokenStatusV2BoundKeypair {
   // RegistrationSecret contains a secret value that may be used for public key
   // registration during the initial join process if no public key is
   // preregistered. If `.spec.bound_keypair.onboarding.initial_public_key`
-  // is set, †his field will remain empty. Otherwise, if
+  // is set, this field will remain empty. Otherwise, if
   // `.spec.bound_keypair.onboarding.registration_secret` is set, that value
   // will be copied here. If that field is unset, a value will be randomly
   // generated.
@@ -2052,9 +2054,9 @@ message ProvisionTokenStatusV2BoundKeypair {
   uint32 RecoveryCount = 4 [(gogoproto.jsontag) = "recovery_count"];
 
   // LastRecoveredAt contains a timestamp of the last successful recovery
-  // attempt. Note that normal renewals do not count as a recovery attempt,
-  // however onboarding does,  either with a preregistered key or registration
-  // secret. This corresponds with the last time `bound_bot_instance_id` was
+  // attempt. Note that normal renewals with valid client certificates do not
+  // count as a recovery attempt, however the initial join during onboarding
+  // does. This corresponds with the last time `bound_bot_instance_id` was
   // updated.
   google.protobuf.Timestamp LastRecoveredAt = 5 [
     (gogoproto.stdtime) = true,
@@ -3144,6 +3146,34 @@ message AccessCapabilitiesRequest {
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
+// RemoteAccessCapabilities is a summary of the capabilites that a remote cluster
+// user is granted in target cluster.
+// buf:lint:ignore PAGINATION_REQUIRED
+message RemoteAccessCapabilities {
+  // ApplicableRolesForResources is a list of the remote-cluster roles applicable
+  // for access to a given set of resources. This will always be a subset of the
+  // SearchAsRoles supplied in the [RemoteAccessCapabilitiesRequest]
+  repeated string ApplicableRolesForResources = 1 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
+}
+
+// AccessCapabilitiesRequest encodes parameters for the GetRemoteAccessCapabilities method.
+// buf:lint:ignore PAGINATION_REQUIRED
+message RemoteAccessCapabilitiesRequest {
+  // user is the name of the target user on their home cluster
+  string User = 1 [(gogoproto.jsontag) = "user,omitempty"];
+
+  // SearchAsRoles holds the roles the target user may use when searching for
+  // resources on the user's home cluster
+  repeated string SearchAsRoles = 2 [(gogoproto.jsontag) = "remote_search_as_roles,omitempty"];
+
+  // ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+  // the necessary roles for.
+  repeated ResourceID ResourceIDs = 3 [
+    (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
+}
+
 // RequestKubernetesResource is the Kubernetes resource identifier used
 // in access request settings.
 // Modeled after existing message KubernetesResource.
@@ -4071,6 +4101,8 @@ message BoolValue {
 message UserFilter {
   // SearchKeywords is a list of search keywords to match against resource field values.
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemUsers filters out teleport system users from the results.
+  bool SkipSystemUsers = 2 [(gogoproto.jsontag) = "skip_system_users,omitempty"];
 }
 
 // UserV2 is version 2 resource spec of the user
@@ -6007,6 +6039,15 @@ message LockTarget {
 
   // ServerID is the host id of the Teleport instance.
   string ServerID = 9 [(gogoproto.jsontag) = "server_id,omitempty"];
+
+  // BotInstanceID is the bot instance ID if this is a bot identity and is
+  // ignored otherwise.
+  string BotInstanceID = 10 [(gogoproto.jsontag) = "bot_instance_id,omitempty"];
+
+  // JoinToken is the name of the join token used when this identity originally
+  // joined. This is only valid for bot identities, and cannot be used to target
+  // `token`-joined bots.
+  string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specified
@@ -7465,6 +7506,7 @@ message PluginBootstrapCredentialsV1 {
 
 // PluginIdSecretCredential can be OAuth2-like client_id and client_secret or username and password.
 message PluginIdSecretCredential {
+  option (gogoproto.equal) = true;
   string id = 1;
   string secret = 2;
 }
@@ -7730,6 +7772,7 @@ message PluginOktaStatusDetailsAccessListsSync {
 // PluginCredentialsV1 represents "live" credentials
 // that are used by the plugin to authenticate to the 3rd party API.
 message PluginCredentialsV1 {
+  option (gogoproto.equal) = true;
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
@@ -7739,6 +7782,8 @@ message PluginCredentialsV1 {
 }
 
 message PluginOAuth2AccessTokenCredentials {
+  option (gogoproto.equal) = true;
+
   string access_token = 1;
   string refresh_token = 2;
   google.protobuf.Timestamp expires = 3 [
@@ -7748,6 +7793,8 @@ message PluginOAuth2AccessTokenCredentials {
 }
 
 message PluginBearerTokenCredentials {
+  option (gogoproto.equal) = true;
+
   // Token is the literal bearer token to be submitted to the 3rd-party API provider.
   string token = 1;
 
@@ -7786,6 +7833,7 @@ message PluginStaticCredentialsV1 {
 
 // PluginStaticCredentialsSpecV1 is the specification for the static credentials object.
 message PluginStaticCredentialsSpecV1 {
+  option (gogoproto.equal) = true;
   oneof credentials {
     string APIToken = 1;
     PluginStaticCredentialsBasicAuth BasicAuth = 2;
@@ -7796,6 +7844,8 @@ message PluginStaticCredentialsSpecV1 {
 
 // PluginStaticCredentialsBasicAuth represents username and password credentials for a plugin.
 message PluginStaticCredentialsBasicAuth {
+  option (gogoproto.equal) = true;
+
   // Username is the username to use for basic auth.
   string Username = 1 [(gogoproto.jsontag) = "username"];
 
@@ -7805,6 +7855,8 @@ message PluginStaticCredentialsBasicAuth {
 
 // PluginStaticCredentialsOAuthClientSecret represents an oauth client id and secret.
 message PluginStaticCredentialsOAuthClientSecret {
+  option (gogoproto.equal) = true;
+
   // ClientId is the client ID to use for OAuth client secret.
   string ClientId = 1 [(gogoproto.jsontag) = "client_id"];
 
@@ -7815,6 +7867,8 @@ message PluginStaticCredentialsOAuthClientSecret {
 // PluginStaticCredentialsSSHCertAuthorities contains the active SSH CAs used
 // for the integration or plugin.
 message PluginStaticCredentialsSSHCertAuthorities {
+  option (gogoproto.equal) = true;
+
   // CertAuthorities contains the active SSH CAs used for the integration or
   // plugin.
   repeated SSHKeyPair cert_authorities = 1;
@@ -8508,6 +8562,18 @@ message InstallerParams {
   // 1: uses script mode
   // 2: uses eice mode
   InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+  // Suffix indicates the installation suffix for the teleport installation.
+  // Set this value if you want multiple installations of Teleport.
+  // See --install-suffix flag in teleport-update program.
+  // Note: only supported for Amazon EC2.
+  // Suffix name can only contain alphanumeric characters and hyphens.
+  string Suffix = 9 [(gogoproto.jsontag) = "suffix,omitempty"];
+  // UpdateGroup indicates the update group for the teleport installation.
+  // This value is used to group installations in order to update them in batches.
+  // See --group flag in teleport-update program.
+  // Note: only supported for Amazon EC2.
+  // Group name can only contain alphanumeric characters and hyphens.
+  string UpdateGroup = 10 [(gogoproto.jsontag) = "update_group,omitempty"];
 }
 
 // InstallParamEnrollMode is the mode used to enroll the node into the cluster.

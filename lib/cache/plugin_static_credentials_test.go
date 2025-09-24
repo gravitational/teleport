@@ -19,7 +19,6 @@ package cache
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -55,6 +54,10 @@ func TestPluginStaticCredentials(t *testing.T) {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
+				if len(creds) == 0 {
+					// testResources expects the getter to return a NotFound error for unknown names.
+					return nil, trace.NotFound("no plugin static credentials found")
+				}
 				if len(creds) != 1 {
 					return nil, trace.CompareFailed("expecting one creds for this test but got %v", len(creds))
 				}
@@ -83,22 +86,15 @@ func TestPluginStaticCredentials(t *testing.T) {
 						})
 				},
 				create: p.pluginStaticCredentials.CreatePluginStaticCredentials,
-				list:   p.pluginStaticCredentials.GetAllPluginStaticCredentials,
+				list:   getAllAdapter(p.pluginStaticCredentials.GetAllPluginStaticCredentials),
 				update: func(ctx context.Context, cred types.PluginStaticCredentials) error {
 					_, err := p.pluginStaticCredentials.UpdatePluginStaticCredentials(ctx, cred)
 					return err
 				},
 				deleteAll: p.pluginStaticCredentials.DeleteAllPluginStaticCredentials,
-				cacheList: p.cache.pluginStaticCredentialsCache.GetAllPluginStaticCredentials,
+				cacheList: getAllAdapter(p.cache.pluginStaticCredentialsCache.GetAllPluginStaticCredentials),
 				cacheGet:  cacheGet.fn,
-				changeResource: func(cred types.PluginStaticCredentials) {
-					// types.PluginStaticCredentials does not support Expires. Let's
-					// use labels.
-					labels := cred.GetStaticLabels()
-					labels["now"] = time.Now().String()
-					cred.SetStaticLabels(labels)
-				},
-			})
+			}, withSkipPaginationTest())
 		})
 	}
 }

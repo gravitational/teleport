@@ -71,6 +71,7 @@ const (
 	AuthService_SetAccessRequestState_FullMethodName               = "/proto.AuthService/SetAccessRequestState"
 	AuthService_SubmitAccessReview_FullMethodName                  = "/proto.AuthService/SubmitAccessReview"
 	AuthService_GetAccessCapabilities_FullMethodName               = "/proto.AuthService/GetAccessCapabilities"
+	AuthService_GetRemoteAccessCapabilities_FullMethodName         = "/proto.AuthService/GetRemoteAccessCapabilities"
 	AuthService_GetAccessRequestAllowedPromotions_FullMethodName   = "/proto.AuthService/GetAccessRequestAllowedPromotions"
 	AuthService_GetPluginData_FullMethodName                       = "/proto.AuthService/GetPluginData"
 	AuthService_UpdatePluginData_FullMethodName                    = "/proto.AuthService/UpdatePluginData"
@@ -137,6 +138,7 @@ const (
 	AuthService_GenerateSnowflakeJWT_FullMethodName                = "/proto.AuthService/GenerateSnowflakeJWT"
 	AuthService_GetRole_FullMethodName                             = "/proto.AuthService/GetRole"
 	AuthService_ListRoles_FullMethodName                           = "/proto.AuthService/ListRoles"
+	AuthService_ListRequestableRoles_FullMethodName                = "/proto.AuthService/ListRequestableRoles"
 	AuthService_CreateRole_FullMethodName                          = "/proto.AuthService/CreateRole"
 	AuthService_UpdateRole_FullMethodName                          = "/proto.AuthService/UpdateRole"
 	AuthService_UpsertRoleV2_FullMethodName                        = "/proto.AuthService/UpsertRoleV2"
@@ -380,6 +382,8 @@ type AuthServiceClient interface {
 	SubmitAccessReview(ctx context.Context, in *types.AccessReviewSubmission, opts ...grpc.CallOption) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilities of a user.
 	GetAccessCapabilities(ctx context.Context, in *types.AccessCapabilitiesRequest, opts ...grpc.CallOption) (*types.AccessCapabilities, error)
+	// GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+	GetRemoteAccessCapabilities(ctx context.Context, in *types.RemoteAccessCapabilitiesRequest, opts ...grpc.CallOption) (*types.RemoteAccessCapabilities, error)
 	// GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
 	GetAccessRequestAllowedPromotions(ctx context.Context, in *AccessRequestAllowedPromotionRequest, opts ...grpc.CallOption) (*AccessRequestAllowedPromotionResponse, error)
 	// GetPluginData gets all plugin data matching the supplied filter.
@@ -551,6 +555,8 @@ type AuthServiceClient interface {
 	GetRole(ctx context.Context, in *GetRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error)
 	// ListRoles is a paginated role getter.
 	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error)
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error)
 	// CreateRole creates a new role.
 	CreateRole(ctx context.Context, in *CreateRoleRequest, opts ...grpc.CallOption) (*types.RoleV6, error)
 	// UpdateRole updates an existing role.
@@ -1423,6 +1429,16 @@ func (c *authServiceClient) GetAccessCapabilities(ctx context.Context, in *types
 	return out, nil
 }
 
+func (c *authServiceClient) GetRemoteAccessCapabilities(ctx context.Context, in *types.RemoteAccessCapabilitiesRequest, opts ...grpc.CallOption) (*types.RemoteAccessCapabilities, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(types.RemoteAccessCapabilities)
+	err := c.cc.Invoke(ctx, AuthService_GetRemoteAccessCapabilities_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetAccessRequestAllowedPromotions(ctx context.Context, in *AccessRequestAllowedPromotionRequest, opts ...grpc.CallOption) (*AccessRequestAllowedPromotionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AccessRequestAllowedPromotionResponse)
@@ -2120,6 +2136,16 @@ func (c *authServiceClient) ListRoles(ctx context.Context, in *ListRolesRequest,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListRolesResponse)
 	err := c.cc.Invoke(ctx, AuthService_ListRoles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRequestableRolesResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListRequestableRoles_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -3856,6 +3882,8 @@ type AuthServiceServer interface {
 	SubmitAccessReview(context.Context, *types.AccessReviewSubmission) (*types.AccessRequestV3, error)
 	// GetAccessCapabilities requests the access capabilities of a user.
 	GetAccessCapabilities(context.Context, *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error)
+	// GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+	GetRemoteAccessCapabilities(context.Context, *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error)
 	// GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
 	GetAccessRequestAllowedPromotions(context.Context, *AccessRequestAllowedPromotionRequest) (*AccessRequestAllowedPromotionResponse, error)
 	// GetPluginData gets all plugin data matching the supplied filter.
@@ -4027,6 +4055,8 @@ type AuthServiceServer interface {
 	GetRole(context.Context, *GetRoleRequest) (*types.RoleV6, error)
 	// ListRoles is a paginated role getter.
 	ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error)
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error)
 	// CreateRole creates a new role.
 	CreateRole(context.Context, *CreateRoleRequest) (*types.RoleV6, error)
 	// UpdateRole updates an existing role.
@@ -4595,6 +4625,9 @@ func (UnimplementedAuthServiceServer) SubmitAccessReview(context.Context, *types
 func (UnimplementedAuthServiceServer) GetAccessCapabilities(context.Context, *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessCapabilities not implemented")
 }
+func (UnimplementedAuthServiceServer) GetRemoteAccessCapabilities(context.Context, *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRemoteAccessCapabilities not implemented")
+}
 func (UnimplementedAuthServiceServer) GetAccessRequestAllowedPromotions(context.Context, *AccessRequestAllowedPromotionRequest) (*AccessRequestAllowedPromotionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequestAllowedPromotions not implemented")
 }
@@ -4792,6 +4825,9 @@ func (UnimplementedAuthServiceServer) GetRole(context.Context, *GetRoleRequest) 
 }
 func (UnimplementedAuthServiceServer) ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRoles not implemented")
+}
+func (UnimplementedAuthServiceServer) ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRequestableRoles not implemented")
 }
 func (UnimplementedAuthServiceServer) CreateRole(context.Context, *CreateRoleRequest) (*types.RoleV6, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateRole not implemented")
@@ -5840,6 +5876,24 @@ func _AuthService_GetAccessCapabilities_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetAccessCapabilities(ctx, req.(*types.AccessCapabilitiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetRemoteAccessCapabilities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.RemoteAccessCapabilitiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetRemoteAccessCapabilities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_GetRemoteAccessCapabilities_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetRemoteAccessCapabilities(ctx, req.(*types.RemoteAccessCapabilitiesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -6996,6 +7050,24 @@ func _AuthService_ListRoles_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).ListRoles(ctx, req.(*ListRolesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListRequestableRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRequestableRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListRequestableRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListRequestableRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListRequestableRoles(ctx, req.(*ListRequestableRolesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -9949,6 +10021,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_GetAccessCapabilities_Handler,
 		},
 		{
+			MethodName: "GetRemoteAccessCapabilities",
+			Handler:    _AuthService_GetRemoteAccessCapabilities_Handler,
+		},
+		{
 			MethodName: "GetAccessRequestAllowedPromotions",
 			Handler:    _AuthService_GetAccessRequestAllowedPromotions_Handler,
 		},
@@ -10195,6 +10271,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRoles",
 			Handler:    _AuthService_ListRoles_Handler,
+		},
+		{
+			MethodName: "ListRequestableRoles",
+			Handler:    _AuthService_ListRequestableRoles_Handler,
 		},
 		{
 			MethodName: "CreateRole",

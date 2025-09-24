@@ -228,8 +228,11 @@ type SSHIdentity struct {
 	// GitHubUsername indicates the GitHub username identified by the GitHub
 	// connector.
 	GithubUsername string `protobuf:"bytes,33,opt,name=github_username,json=githubUsername,proto3" json:"github_username,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// JoinToken is the name of the join token used for bot joining. It is unset
+	// for other identity types, or for bots using the `token` join method.
+	JoinToken     string `protobuf:"bytes,34,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SSHIdentity) Reset() {
@@ -493,6 +496,13 @@ func (x *SSHIdentity) GetGithubUsername() string {
 	return ""
 }
 
+func (x *SSHIdentity) GetJoinToken() string {
+	if x != nil {
+		return x.JoinToken
+	}
+	return ""
+}
+
 // CertExtension represents a key/value for a certificate extension. This type must
 // be kept up to date with types.CertExtension.
 type CertExtension struct {
@@ -575,7 +585,7 @@ var File_teleport_decision_v1alpha1_ssh_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x9a\v\n" +
+	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xb9\v\n" +
 	"\vSSHIdentity\x12\x1f\n" +
 	"\vvalid_after\x18\x01 \x01(\x04R\n" +
 	"validAfter\x12!\n" +
@@ -616,7 +626,9 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\x10device_asset_tag\x18\x1e \x01(\tR\x0edeviceAssetTag\x120\n" +
 	"\x14device_credential_id\x18\x1f \x01(\tR\x12deviceCredentialId\x12$\n" +
 	"\x0egithub_user_id\x18  \x01(\tR\fgithubUserId\x12'\n" +
-	"\x0fgithub_username\x18! \x01(\tR\x0egithubUsername\"\xbf\x01\n" +
+	"\x0fgithub_username\x18! \x01(\tR\x0egithubUsername\x12\x1d\n" +
+	"\n" +
+	"join_token\x18\" \x01(\tR\tjoinToken\"\xbf\x01\n" +
 	"\rCertExtension\x12A\n" +
 	"\x04type\x18\x01 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionTypeR\x04type\x12A\n" +
 	"\x04mode\x18\x02 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionModeR\x04mode\x12\x12\n" +

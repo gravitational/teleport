@@ -1834,6 +1834,13 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient
 
+	// WorkloadIdentityResourceServiceClient returns a client for interacting
+	// with workload identity resources.
+	// Clients connecting to  older Teleport versions, still get an access list
+	// client when calling this method, but all RPCs will return "not
+	// implemented" errors (as per the default gRPC behavior).
+	WorkloadIdentityResourceServiceClient() workloadidentityv1pb.WorkloadIdentityResourceServiceClient
+
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client
 	// when calling this method, but all RPCs will return "not implemented" errors
@@ -1946,4 +1953,7 @@ type ClientI interface {
 
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 }

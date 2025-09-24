@@ -1596,6 +1596,7 @@ func (m *DesktopSharedDirectoryStart) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out := utils.CloneProtoMsg(m)
 	out.DirectoryName = ""
+	out.DesktopName = ""
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
@@ -1603,6 +1604,7 @@ func (m *DesktopSharedDirectoryStart) TrimToMaxSize(maxSize int) AuditEvent {
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.DirectoryName = trimStr(m.DirectoryName, maxFieldsSize)
+	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
 
 	return out
 }
@@ -2521,4 +2523,70 @@ func (m *SigstorePolicyUpdate) TrimToMaxSize(int) AuditEvent {
 
 func (m *SigstorePolicyDelete) TrimToMaxSize(int) AuditEvent {
 	return m
+}
+
+func (m *BoundKeypairRecovery) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	out.TokenName = ""
+	out.BotName = ""
+	out.PublicKey = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.TokenName, m.BotName, m.PublicKey)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.TokenName = trimStr(m.TokenName, maxFieldsSize)
+	out.BotName = trimStr(m.BotName, maxFieldsSize)
+	out.PublicKey = trimStr(m.PublicKey, maxFieldsSize)
+	return out
+}
+
+func (m *BoundKeypairRotation) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	out.TokenName = ""
+	out.BotName = ""
+	out.PreviousPublicKey = ""
+	out.NewPublicKey = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.TokenName, m.BotName, m.PreviousPublicKey, m.NewPublicKey)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.TokenName = trimStr(m.TokenName, maxFieldsSize)
+	out.BotName = trimStr(m.BotName, maxFieldsSize)
+	out.PreviousPublicKey = trimStr(m.PreviousPublicKey, maxFieldsSize)
+	out.NewPublicKey = trimStr(m.NewPublicKey, maxFieldsSize)
+	return out
+}
+
+func (m *BoundKeypairJoinStateVerificationFailed) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	out.TokenName = ""
+	out.BotName = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+	customFieldsCount := m.Status.nonEmptyStrs() + nonEmptyStrs(m.TokenName, m.BotName)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Status = m.Status.trimToMaxSize(maxFieldsSize)
+	out.TokenName = trimStr(m.TokenName, maxFieldsSize)
+	out.BotName = trimStr(m.BotName, maxFieldsSize)
+	return out
 }

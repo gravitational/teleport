@@ -28,6 +28,7 @@ import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { mapToAction } from 'teleterm/ui/Search/actions';
 import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
@@ -50,6 +51,17 @@ export function useActionAttempts() {
   const { isSupported: isVnetSupported } = useVnetContext();
   const vnetLauncher = useVnetLauncher();
   const launchVnet = isVnetSupported ? vnetLauncher.launchVnet : undefined;
+  const workspaceUri = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.rootClusterUri, [])
+  );
+  const localClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(
+      state => state.workspaces[state.rootClusterUri]?.localClusterUri,
+      []
+    )
+  );
 
   const [resourceSearchAttempt, runResourceSearch, setResourceSearchAttempt] =
     useAsync(useResourceSearch());
@@ -127,11 +139,18 @@ export function useActionAttempts() {
   const resourceActionsAttempt = useMemo(
     () =>
       mapAttempt(resourceSearchAttempt, ({ results, search }) =>
-        rankResults(results, search).map(result =>
-          mapToAction(ctx, launchVnet, searchContext, result)
+        rankResults(results, search, { workspaceUri, localClusterUri }).map(
+          result => mapToAction(ctx, launchVnet, searchContext, result)
         )
       ),
-    [ctx, resourceSearchAttempt, searchContext, launchVnet]
+    [
+      ctx,
+      resourceSearchAttempt,
+      searchContext,
+      launchVnet,
+      workspaceUri,
+      localClusterUri,
+    ]
   );
 
   const runFilterSearch = useFilterSearch();

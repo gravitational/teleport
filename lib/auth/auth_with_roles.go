@@ -2999,6 +2999,75 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 	return a.authServer.GetAccessCapabilities(ctx, req)
 }
 
+// GetRemoteAccessCapabilities computes and returns what remote roles the user
+// needs to assume in order access resources in this cluster. In order to do so,
+// the method will:
+//   - maps the supplied remote search_as roles into local roles,
+//   - computes which subset of the local search_as roles are required to access
+//     the target resources, and finally
+//   - maps the required local roles *back* onto a subset of the supplied remote
+//     roles
+func (a *ServerWithRoles) GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	if !authz.IsRemoteUser(a.context) {
+		return nil, trace.AccessDenied("only remote users can invoke GetRemoteAccessCapabilities")
+	}
+
+	localIdentity := a.context.Identity.GetIdentity()
+	remoteIdentity := a.context.UnmappedIdentity.GetIdentity()
+
+	if req.User == "" {
+		req.User = remoteIdentity.Username
+	}
+	if req.User != remoteIdentity.Username {
+		return nil, trace.AccessDenied("users may only query their own access")
+	}
+
+	remoteCluster, err := a.authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: localIdentity.RouteToCluster,
+	}, false /* do not load keys */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	localSearchAsRoles, err := services.MapRoles(remoteCluster.GetRoleMap(), req.SearchAsRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(localSearchAsRoles) == 0 {
+		return &types.RemoteAccessCapabilities{ApplicableRolesForResources: []string{}}, nil
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Mapped search_as roles",
+		"remote_roles", req.SearchAsRoles,
+		"local_roles", localSearchAsRoles)
+
+	localAccessRoles, err := services.PruneMappedSearchAsRoles(ctx, a.authServer.clock, a.authServer, a.context.User, localSearchAsRoles, req.ResourceIDs, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Pruned search_as roles",
+		"remote_roles", req.SearchAsRoles,
+		"local_roles", localSearchAsRoles,
+		"local_access_roles", localAccessRoles)
+
+	remoteAccessRoles, err := services.UnmapRoles(remoteCluster.GetRoleMap(), req.SearchAsRoles, localAccessRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Mapped local access roles to remote access roles",
+		"local_access_roles", localAccessRoles,
+		"remote_access_roles", remoteAccessRoles)
+
+	caps := &types.RemoteAccessCapabilities{
+		ApplicableRolesForResources: remoteAccessRoles,
+	}
+	return caps, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {
@@ -3566,6 +3635,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		// `updateBotInstance()` is called below, and this (empty) value will be
 		// overridden.
 		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
+		joinToken:     a.context.Identity.GetIdentity().JoinToken,
 		// Propagate any join attributes from the current identity to the new
 		// identity.
 		joinAttributes: a.context.Identity.GetIdentity().JoinAttributes,
@@ -4563,6 +4633,78 @@ func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesReq
 	}, nil
 }
 
+// ListRequestableRoles is a paginated requestable role getter. Unlike ListRoles, this only returns a list of roles that the user can request in an access request.
+// This does not use the resource verbs for RBAC, and all users are allowed to call this endpoint. The requestable roles returned here are only the ones that the user
+// has been granted permission to request. If a user has not been granted permission to request any roles, this will return an empty list.
+func (a *ServerWithRoles) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	if req.PageSize == 0 || req.PageSize > apidefaults.DefaultChunkSize {
+		req.PageSize = apidefaults.DefaultChunkSize
+	}
+
+	requestValidator, err := services.NewRequestValidator(ctx, a.authServer.clock, a.authServer, a.context.GetUserMetadata().User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert ListRequestableRolesRequest to ListRolesRequest for compatibility with `IterateRoles`
+	listReq := &proto.ListRolesRequest{
+		Limit:    req.PageSize,
+		StartKey: req.PageToken,
+	}
+
+	var roleFilter *types.RoleFilter
+	if req.Filter != nil {
+		roleFilter = &types.RoleFilter{
+			SearchKeywords:  req.Filter.SearchKeywords,
+			SkipSystemRoles: true,
+		}
+	}
+	// matchFunc is the function that will be run on each retrieved role to verify that it is requestable and matches the provided filters (if any).
+	matchFunc := func(role *types.RoleV6) (bool, error) {
+		roleName := role.GetName()
+
+		// Users can't request their own roles
+		if slices.Contains(a.context.User.GetRoles(), roleName) {
+			return false, nil
+		}
+
+		// Apply any RoleFilters if defined.
+		if req.Filter != nil && !roleFilter.Match(role) {
+			return false, nil
+		}
+
+		if requestValidator.CanRequestRole(roleName) {
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	out, nextKey, err := a.authServer.IterateRoles(ctx, listReq, matchFunc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.ListRequestableRolesResponse{
+		Roles:         convertRolesToRequestableRoles(out),
+		NextPageToken: nextKey,
+	}, nil
+}
+
+// convertRolesToRequestableRoles turns a slice of Roles into RequestableRoles, stripping all data except the name and description.
+func convertRolesToRequestableRoles(roles []*types.RoleV6) []*proto.ListRequestableRolesResponse_RequestableRole {
+	items := make([]*proto.ListRequestableRolesResponse_RequestableRole, 0, len(roles))
+	for _, role := range roles {
+		item := &proto.ListRequestableRolesResponse_RequestableRole{
+			Name:        role.GetName(),
+			Description: role.GetMetadata().Description,
+		}
+		items = append(items, item)
+	}
+
+	return items
+}
+
 func (a *ServerWithRoles) validateRole(role types.Role) error {
 	if downgradeReason := role.GetMetadata().Labels[types.TeleportDowngradedLabel]; downgradeReason != "" {
 		return trace.BadParameter("refusing to upsert role because %s label is set with reason %q",
@@ -4722,7 +4864,14 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 	// that they hold.  This requirement is checked first to avoid
 	// misleading denial messages in the logs.
 	if slices.Contains(a.context.User.GetRoles(), name) {
-		return a.authServer.GetRole(ctx, name)
+		role, err := a.authServer.GetRole(ctx, name)
+		if err != nil && trace.IsNotFound(err) {
+			// Add the UserSessionRoleNotFoundErrorMsg message to indicate this role not found error was
+			// encountered while the user was looking up one of their own roles. At this point, the
+			// role not found error can only happen if a role in their session cert doesn't exist anymore.
+			return nil, trace.Wrap(err, services.UserSessionRoleNotFoundErrorMsg)
+		}
+		return role, trace.Wrap(err)
 	}
 
 	authErr := a.action(apidefaults.Namespace, types.KindRole, types.VerbRead)

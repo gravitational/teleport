@@ -1342,6 +1342,15 @@ func (c *Client) GetAccessCapabilities(ctx context.Context, req types.AccessCapa
 	return caps, nil
 }
 
+// GetRemoteAccessCapabilities requests the access capabilities of a user.
+func (c *Client) GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	caps, err := c.grpc.GetRemoteAccessCapabilities(ctx, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (c *Client) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	seq, err := c.grpc.GetPluginData(ctx, &filter)
@@ -1856,6 +1865,16 @@ func (c *Client) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*p
 		}
 	}
 	rsp.Roles = filtered
+
+	return rsp, nil
+}
+
+// ListRequestableRoles is a paginated requestable role getter.
+func (c *Client) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
+	rsp, err := c.grpc.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return rsp, nil
 }
@@ -4392,7 +4411,7 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetSAMLIdPServiceProvider()
 			default:
 				out.Resources = nil
-				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+				return out, trace.NotImplemented("resource type %q does not support pagination", req.ResourceType)
 			}
 
 			t, ok := resource.(T)

@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.1.4",
+      "version": "18.2.0",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -221,11 +221,6 @@
       "permanent": true
     },
     {
-      "source": "/kubernetes-ssh/",
-      "destination": "/enroll-resources/kubernetes-access/",
-      "permanent": true
-    },
-    {
       "source": "/machine-id/guides/github-actions/",
       "destination": "/machine-workload-identity/machine-id/deployment/github-actions/",
       "permanent": true
@@ -303,6 +298,11 @@
     {
       "source": "/kubernetes-access/",
       "destination": "/enroll-resources/kubernetes-access/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-ssh/",
+      "destination": "/enroll-resources/kubernetes-access/controls/",
       "permanent": true
     },
     {
@@ -883,6 +883,11 @@
     {
       "source": "/machine-workload-identity/workload-identity/workload-attestation/",
       "destination": "/reference/workload-identity/workload-identity-api-and-workload-attestation/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/machine-id/deployment/bound-keypair/",
+      "destination": "/reference/machine-id/bound-keypair/getting-started/",
       "permanent": true
     },
     {
