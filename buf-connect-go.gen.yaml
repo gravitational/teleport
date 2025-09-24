@@ -4,12 +4,17 @@ inputs:
   - directory: .
     paths:
       - proto/prehog/
+      - api/proto/teleport/devicetrust/v1/
 
 managed:
   enabled: true
   override:
     - file_option: go_package_prefix
       value: github.com/gravitational/teleport/gen/proto/go
+  disable:
+    - path: teleport/devicetrust/v1
+    - module: buf.build/googleapis/googleapis
+    - module: buf.build/gogo/protobuf
 
 plugins:
   - local:
