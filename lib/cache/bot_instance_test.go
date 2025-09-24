@@ -372,6 +372,14 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 		require.Equal(t, "instance-1", results[1].GetMetadata().GetName())
 		require.Equal(t, "instance-2", results[2].GetMetadata().GetName())
 	})
+
+	t.Run("sort invalid field", func(t *testing.T) {
+		_, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+			SortField: "blah",
+		})
+		require.Error(t, err)
+		assert.ErrorContains(t, err, `unsupported sort "blah" but expected bot_name, active_at_latest, version_latest or host_name_latest`)
+	})
 }
 
 // TestBotInstanceCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.

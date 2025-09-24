@@ -118,7 +118,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 	case "":
 		// default ordering as defined above
 	default:
-		return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name or active_at_latest", options.GetSortField())
+		return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name, active_at_latest, version_latest or host_name_latest", options.GetSortField())
 	}
 
 	lister := genericLister[*machineidv1.BotInstance, botInstanceIndex]{
