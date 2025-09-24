@@ -19,7 +19,8 @@
 package sftp
 
 import (
-	"fmt"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -117,8 +118,8 @@ func ParseTarget(input string, port int) (Target, error) {
 			return Target{}, trace.Wrap(err)
 		}
 	}
-	// Don't use net.JoinHostPort to avoid duplicate brackets for ipv6 addresses.
-	host.Addr = fmt.Sprintf("%s:%d", host.Addr, port)
+	// Add port. Trim brackets first for ipv6 addresses as JoinHostPort will re-add them.
+	host.Addr = net.JoinHostPort(strings.Trim(host.Host(), "[]"), strconv.Itoa(port))
 
 	// if there is nothing after the host the path defaults to "."
 	path := "."
