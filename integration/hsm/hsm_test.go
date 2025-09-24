@@ -597,8 +597,7 @@ func TestHSMMigrate(t *testing.T) {
 // software keys.
 func TestHSMRevert(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 	log := utils.NewLoggerForTests()
 
 	log.Debug("TestHSMRevert: starting auth server")
@@ -621,10 +620,13 @@ func TestHSMRevert(t *testing.T) {
 	require.NoError(t, auth1.start(ctx))
 
 	// Make sure a cluster alert is created.
-	alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
-	require.NoError(t, err)
-	require.Len(t, alerts, 1)
-	alert := alerts[0]
+	var alert types.ClusterAlert
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+		require.NoError(t, err)
+		require.Len(t, alerts, 1)
+		alert = alerts[0]
+	}, time.Second*30, time.Millisecond*100, "waiting for cluster alert to be created")
 	assert.Equal(t, types.AlertSeverity_HIGH, alert.Spec.Severity)
 	assert.Contains(t, alert.Spec.Message, "configured to use raw software keys")
 	assert.Contains(t, alert.Spec.Message, "the following CAs do not contain any keys of that type:")
@@ -681,7 +683,7 @@ func TestHSMRevert(t *testing.T) {
 	// auth.autoRotateCertAuthorities which reconciles the alert state.
 	clock.Advance(2 * defaults.HighResPollingPeriod)
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		alerts, err = auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+		alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, alerts)
 
