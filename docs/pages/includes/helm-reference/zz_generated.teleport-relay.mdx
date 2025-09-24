@@ -305,10 +305,10 @@ a Kubernetes PodDisruptionBudget for the agent pods.
 
 | Type | Default |
 |------|---------|
-| `int` | `1` |
+| `intOrString` | `1` |
 
-`highAvailability.podDisruptionBudget.minAvailable` is the minimum
-available pod specified on the PodDisruptionBudget.
+`highAvailability.podDisruptionBudget.minAvailable` is the
+minimum available pod count specified on the PodDisruptionBudget.
 
 ## `resources`
 
@@ -423,6 +423,14 @@ PodDisruptionBudget.
 
 `extraLabels.secret` are labels to set on the Secret.
 
+### `extraLabels.service`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.service` are labels to set on the Service.
+
 ### `extraLabels.serviceAccount`
 
 | Type | Default |
@@ -479,6 +487,14 @@ podDisruptionBudget.
 | `object` | `{}` |
 
 `annotations.secret` are annotations to set on the Secret.
+
+### `annotations.service`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.service` are annotations to set on the Service.
 
 ### `annotations.serviceAccount`
 
@@ -765,7 +781,7 @@ $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.p
 
 <Admonition type="warning" title="Root CA filename">
 
-The key containing the root CA in the secret must be `ca.pem`.
+  The key containing the root CA in the secret must be `ca.pem`.
 
 </Admonition>
 
@@ -861,16 +877,18 @@ together with the release name when giving a name to resources.
 `teleportVersionOverride` controls the Teleport Kubernetes Operator
 image version deployed by the chart.
 
-Normally, the version of the Teleport Kubernetes Operator matches the
-version of the chart. If you install chart version 15.0.0, you'll use
-Teleport version 15.0.0. Upgrading the agent is done by upgrading the chart.
+Normally, the version of the Teleport Kubernetes Operator matches the version
+of the chart. If you install chart version 15.0.0, you'll use Teleport version
+15.0.0. Upgrading the agent is done by upgrading the chart.
 
 <Admonition type="warning">
-`teleportVersionOverride` is intended for development and MUST NOT be
-used to control the Teleport version in a typical deployment. This
-chart is designed to run a specific Teleport version. You will face
-compatibility issues trying to run a different Teleport version with it.
 
-If you want to run Teleport version `X.Y.Z`, you should use
-`helm install --version X.Y.Z` instead.
+  `teleportVersionOverride` is intended for development and MUST NOT be used
+  to control the Teleport version in a typical deployment. This chart is
+  designed to run a specific Teleport version. You will face compatibility
+  issues trying to run a different Teleport version with it.
+
+  If you want to run Teleport version `X.Y.Z`, you should use `helm install
+  --version X.Y.Z` instead.
+
 </Admonition>
