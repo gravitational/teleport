@@ -17,15 +17,19 @@
 package web
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1/devicetrustv1connect"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -148,4 +152,32 @@ func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error)
 		return path.Join(basePath, cleanPath), nil
 	}
 	return cleanPath, nil
+}
+
+type deviceTrustServer struct {
+	devicetrustv1connect.UnimplementedDeviceTrustServiceHandler
+	logger *slog.Logger
+}
+
+func (s *deviceTrustServer) EnrollDevice(ctx context.Context, stream *connect.BidiStream[devicepb.EnrollDeviceRequest, devicepb.EnrollDeviceResponse]) error {
+	s.logger.InfoContext(ctx, "Enroll device start")
+	req, err := stream.Receive()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.logger.InfoContext(ctx, "Got message", "message", req)
+
+	if err = stream.Send(&devicepb.EnrollDeviceResponse{
+		Payload: &devicepb.EnrollDeviceResponse_Success{
+			Success: &devicepb.EnrollDeviceSuccess{},
+		},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (s *deviceTrustServer) Ping(ctx context.Context, req *connect.Request[devicepb.PingRequest]) (*connect.Response[devicepb.PingResponse], error) {
+	return connect.NewResponse(&devicepb.PingResponse{}), nil
 }
