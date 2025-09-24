@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		45FFF3B52E84116F00A28C94 /* Connect in Frameworks */ = {isa = PBXBuildFile; productRef = 45FFF3B42E84116F00A28C94 /* Connect */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		45D39C932E730E8F005CB76F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				45FFF3B52E84116F00A28C94 /* Connect in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,6 +131,7 @@
 			);
 			name = Foobar;
 			packageProductDependencies = (
+				45FFF3B42E84116F00A28C94 /* Connect */,
 			);
 			productName = Foobar;
 			productReference = 45D39C852E730E8D005CB76F /* Foobar.app */;
@@ -212,6 +218,7 @@
 			packageReferences = (
 				45D39CAF2E741825005CB76F /* XCRemoteSwiftPackageReference "SwiftFormat" */,
 				45D39CE32E741E29005CB76F /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */,
+				45FFF3B32E84116F00A28C94 /* XCRemoteSwiftPackageReference "connect-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 45D39C862E730E8D005CB76F /* Products */;
@@ -602,6 +609,14 @@
 				minimumVersion = 0.61.0;
 			};
 		};
+		45FFF3B32E84116F00A28C94 /* XCRemoteSwiftPackageReference "connect-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/connectrpc/connect-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -609,6 +624,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 45D39CE32E741E29005CB76F /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */;
 			productName = "plugin:SwiftLintBuildToolPlugin";
+		};
+		45FFF3B42E84116F00A28C94 /* Connect */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 45FFF3B32E84116F00A28C94 /* XCRemoteSwiftPackageReference "connect-swift" */;
+			productName = Connect;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
