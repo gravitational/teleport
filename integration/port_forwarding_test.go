@@ -280,9 +280,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cl.Stdin = term
 			cl.Labels = tt.labels
 
-			sshSessionCtx, sshSessionCancel := context.WithCancel(t.Context())
-			go cl.SSH(sshSessionCtx, []string{})
-			defer sshSessionCancel()
+			go cl.SSH(t.Context(), []string{})
 
 			timeout, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
