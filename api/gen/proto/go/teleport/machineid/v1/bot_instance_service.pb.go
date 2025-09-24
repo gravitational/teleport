@@ -198,14 +198,10 @@ type ListBotInstancesV2Request struct {
 	// The sort order to use for the results. If empty, the default sort order is
 	// used.
 	SortDesc bool `protobuf:"varint,4,opt,name=sort_desc,json=sortDesc,proto3" json:"sort_desc,omitempty"`
-	// The name of the Bot to list BotInstances for. If empty, all BotInstances
-	// will be listed.
-	FilterBotName string `protobuf:"bytes,5,opt,name=filter_bot_name,json=filterBotName,proto3" json:"filter_bot_name,omitempty"`
-	// A search term used to filter the results. If non-empty, it's used to match
-	// against supported fields.
-	FilterSearchTerm string `protobuf:"bytes,6,opt,name=filter_search_term,json=filterSearchTerm,proto3" json:"filter_search_term,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Fields used to filter the results
+	Filter        *ListBotInstancesV2Request_Filters `protobuf:"bytes,5,opt,name=filter,proto3" json:"filter,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListBotInstancesV2Request) Reset() {
@@ -266,18 +262,11 @@ func (x *ListBotInstancesV2Request) GetSortDesc() bool {
 	return false
 }
 
-func (x *ListBotInstancesV2Request) GetFilterBotName() string {
+func (x *ListBotInstancesV2Request) GetFilter() *ListBotInstancesV2Request_Filters {
 	if x != nil {
-		return x.FilterBotName
+		return x.Filter
 	}
-	return ""
-}
-
-func (x *ListBotInstancesV2Request) GetFilterSearchTerm() string {
-	if x != nil {
-		return x.FilterSearchTerm
-	}
-	return ""
+	return nil
 }
 
 // Response for ListBotInstances.
@@ -474,6 +463,63 @@ func (*SubmitHeartbeatResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{6}
 }
 
+// Filters contains fields to be used to filter the results.
+type ListBotInstancesV2Request_Filters struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The name of the Bot to list BotInstances for. If non-empty, only
+	// BotInstances for that bot will be listed.
+	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
+	// A search term used to filter the results. If non-empty, it's used to
+	// match against supported fields.
+	SearchTerm    string `protobuf:"bytes,2,opt,name=search_term,json=searchTerm,proto3" json:"search_term,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListBotInstancesV2Request_Filters) Reset() {
+	*x = ListBotInstancesV2Request_Filters{}
+	mi := &file_teleport_machineid_v1_bot_instance_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListBotInstancesV2Request_Filters) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListBotInstancesV2Request_Filters) ProtoMessage() {}
+
+func (x *ListBotInstancesV2Request_Filters) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_machineid_v1_bot_instance_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListBotInstancesV2Request_Filters.ProtoReflect.Descriptor instead.
+func (*ListBotInstancesV2Request_Filters) Descriptor() ([]byte, []int) {
+	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{2, 0}
+}
+
+func (x *ListBotInstancesV2Request_Filters) GetBotName() string {
+	if x != nil {
+		return x.BotName
+	}
+	return ""
+}
+
+func (x *ListBotInstancesV2Request_Filters) GetSearchTerm() string {
+	if x != nil {
+		return x.SearchTerm
+	}
+	return ""
+}
+
 var File_teleport_machineid_v1_bot_instance_service_proto protoreflect.FileDescriptor
 
 const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
@@ -489,16 +535,19 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12,\n" +
 	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\x12!\n" +
-	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xe9\x01\n" +
+	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xac\x02\n" +
 	"\x19ListBotInstancesV2Request\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1d\n" +
 	"\n" +
 	"sort_field\x18\x03 \x01(\tR\tsortField\x12\x1b\n" +
-	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12&\n" +
-	"\x0ffilter_bot_name\x18\x05 \x01(\tR\rfilterBotName\x12,\n" +
-	"\x12filter_search_term\x18\x06 \x01(\tR\x10filterSearchTerm\"\x8b\x01\n" +
+	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12P\n" +
+	"\x06filter\x18\x05 \x01(\v28.teleport.machineid.v1.ListBotInstancesV2Request.FiltersR\x06filter\x1aE\n" +
+	"\aFilters\x12\x19\n" +
+	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
+	"\vsearch_term\x18\x02 \x01(\tR\n" +
+	"searchTerm\"\x8b\x01\n" +
 	"\x18ListBotInstancesResponse\x12G\n" +
 	"\rbot_instances\x18\x01 \x03(\v2\".teleport.machineid.v1.BotInstanceR\fbotInstances\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"V\n" +
@@ -528,39 +577,41 @@ func file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP() []byte 
 	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescData
 }
 
-var file_teleport_machineid_v1_bot_instance_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_machineid_v1_bot_instance_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_machineid_v1_bot_instance_service_proto_goTypes = []any{
-	(*GetBotInstanceRequest)(nil),      // 0: teleport.machineid.v1.GetBotInstanceRequest
-	(*ListBotInstancesRequest)(nil),    // 1: teleport.machineid.v1.ListBotInstancesRequest
-	(*ListBotInstancesV2Request)(nil),  // 2: teleport.machineid.v1.ListBotInstancesV2Request
-	(*ListBotInstancesResponse)(nil),   // 3: teleport.machineid.v1.ListBotInstancesResponse
-	(*DeleteBotInstanceRequest)(nil),   // 4: teleport.machineid.v1.DeleteBotInstanceRequest
-	(*SubmitHeartbeatRequest)(nil),     // 5: teleport.machineid.v1.SubmitHeartbeatRequest
-	(*SubmitHeartbeatResponse)(nil),    // 6: teleport.machineid.v1.SubmitHeartbeatResponse
-	(*types.SortBy)(nil),               // 7: types.SortBy
-	(*BotInstance)(nil),                // 8: teleport.machineid.v1.BotInstance
-	(*BotInstanceStatusHeartbeat)(nil), // 9: teleport.machineid.v1.BotInstanceStatusHeartbeat
-	(*emptypb.Empty)(nil),              // 10: google.protobuf.Empty
+	(*GetBotInstanceRequest)(nil),             // 0: teleport.machineid.v1.GetBotInstanceRequest
+	(*ListBotInstancesRequest)(nil),           // 1: teleport.machineid.v1.ListBotInstancesRequest
+	(*ListBotInstancesV2Request)(nil),         // 2: teleport.machineid.v1.ListBotInstancesV2Request
+	(*ListBotInstancesResponse)(nil),          // 3: teleport.machineid.v1.ListBotInstancesResponse
+	(*DeleteBotInstanceRequest)(nil),          // 4: teleport.machineid.v1.DeleteBotInstanceRequest
+	(*SubmitHeartbeatRequest)(nil),            // 5: teleport.machineid.v1.SubmitHeartbeatRequest
+	(*SubmitHeartbeatResponse)(nil),           // 6: teleport.machineid.v1.SubmitHeartbeatResponse
+	(*ListBotInstancesV2Request_Filters)(nil), // 7: teleport.machineid.v1.ListBotInstancesV2Request.Filters
+	(*types.SortBy)(nil),                      // 8: types.SortBy
+	(*BotInstance)(nil),                       // 9: teleport.machineid.v1.BotInstance
+	(*BotInstanceStatusHeartbeat)(nil),        // 10: teleport.machineid.v1.BotInstanceStatusHeartbeat
+	(*emptypb.Empty)(nil),                     // 11: google.protobuf.Empty
 }
 var file_teleport_machineid_v1_bot_instance_service_proto_depIdxs = []int32{
-	7,  // 0: teleport.machineid.v1.ListBotInstancesRequest.sort:type_name -> types.SortBy
-	8,  // 1: teleport.machineid.v1.ListBotInstancesResponse.bot_instances:type_name -> teleport.machineid.v1.BotInstance
-	9,  // 2: teleport.machineid.v1.SubmitHeartbeatRequest.heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
-	0,  // 3: teleport.machineid.v1.BotInstanceService.GetBotInstance:input_type -> teleport.machineid.v1.GetBotInstanceRequest
-	1,  // 4: teleport.machineid.v1.BotInstanceService.ListBotInstances:input_type -> teleport.machineid.v1.ListBotInstancesRequest
-	2,  // 5: teleport.machineid.v1.BotInstanceService.ListBotInstancesV2:input_type -> teleport.machineid.v1.ListBotInstancesV2Request
-	4,  // 6: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:input_type -> teleport.machineid.v1.DeleteBotInstanceRequest
-	5,  // 7: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:input_type -> teleport.machineid.v1.SubmitHeartbeatRequest
-	8,  // 8: teleport.machineid.v1.BotInstanceService.GetBotInstance:output_type -> teleport.machineid.v1.BotInstance
-	3,  // 9: teleport.machineid.v1.BotInstanceService.ListBotInstances:output_type -> teleport.machineid.v1.ListBotInstancesResponse
-	3,  // 10: teleport.machineid.v1.BotInstanceService.ListBotInstancesV2:output_type -> teleport.machineid.v1.ListBotInstancesResponse
-	10, // 11: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:output_type -> google.protobuf.Empty
-	6,  // 12: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:output_type -> teleport.machineid.v1.SubmitHeartbeatResponse
-	8,  // [8:13] is the sub-list for method output_type
-	3,  // [3:8] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	8,  // 0: teleport.machineid.v1.ListBotInstancesRequest.sort:type_name -> types.SortBy
+	7,  // 1: teleport.machineid.v1.ListBotInstancesV2Request.filter:type_name -> teleport.machineid.v1.ListBotInstancesV2Request.Filters
+	9,  // 2: teleport.machineid.v1.ListBotInstancesResponse.bot_instances:type_name -> teleport.machineid.v1.BotInstance
+	10, // 3: teleport.machineid.v1.SubmitHeartbeatRequest.heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
+	0,  // 4: teleport.machineid.v1.BotInstanceService.GetBotInstance:input_type -> teleport.machineid.v1.GetBotInstanceRequest
+	1,  // 5: teleport.machineid.v1.BotInstanceService.ListBotInstances:input_type -> teleport.machineid.v1.ListBotInstancesRequest
+	2,  // 6: teleport.machineid.v1.BotInstanceService.ListBotInstancesV2:input_type -> teleport.machineid.v1.ListBotInstancesV2Request
+	4,  // 7: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:input_type -> teleport.machineid.v1.DeleteBotInstanceRequest
+	5,  // 8: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:input_type -> teleport.machineid.v1.SubmitHeartbeatRequest
+	9,  // 9: teleport.machineid.v1.BotInstanceService.GetBotInstance:output_type -> teleport.machineid.v1.BotInstance
+	3,  // 10: teleport.machineid.v1.BotInstanceService.ListBotInstances:output_type -> teleport.machineid.v1.ListBotInstancesResponse
+	3,  // 11: teleport.machineid.v1.BotInstanceService.ListBotInstancesV2:output_type -> teleport.machineid.v1.ListBotInstancesResponse
+	11, // 12: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:output_type -> google.protobuf.Empty
+	6,  // 13: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:output_type -> teleport.machineid.v1.SubmitHeartbeatResponse
+	9,  // [9:14] is the sub-list for method output_type
+	4,  // [4:9] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_machineid_v1_bot_instance_service_proto_init() }
@@ -575,7 +626,7 @@ func file_teleport_machineid_v1_bot_instance_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_bot_instance_service_proto_rawDesc), len(file_teleport_machineid_v1_bot_instance_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

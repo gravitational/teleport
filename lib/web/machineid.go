@@ -458,10 +458,12 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 	}
 
 	request := &machineidv1.ListBotInstancesV2Request{
-		PageToken:        r.URL.Query().Get("page_token"),
-		SortField:        r.URL.Query().Get("sort_field"),
-		FilterBotName:    r.URL.Query().Get("bot_name"),
-		FilterSearchTerm: r.URL.Query().Get("search"),
+		PageToken: r.URL.Query().Get("page_token"),
+		SortField: r.URL.Query().Get("sort_field"),
+		Filter: &machineidv1.ListBotInstancesV2Request_Filters{
+			BotName:    r.URL.Query().Get("bot_name"),
+			SearchTerm: r.URL.Query().Get("search"),
+		},
 	}
 
 	if r.URL.Query().Has("page_size") {

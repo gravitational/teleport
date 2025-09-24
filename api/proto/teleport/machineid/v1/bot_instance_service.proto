@@ -67,12 +67,18 @@ message ListBotInstancesV2Request {
   // The sort order to use for the results. If empty, the default sort order is
   // used.
   bool sort_desc = 4;
-  // The name of the Bot to list BotInstances for. If empty, all BotInstances
-  // will be listed.
-  string filter_bot_name = 5;
-  // A search term used to filter the results. If non-empty, it's used to match
-  // against supported fields.
-  string filter_search_term = 6;
+  // Fields used to filter the results
+  Filters filter = 5;
+
+  // Filters contains fields to be used to filter the results.
+  message Filters {
+    // The name of the Bot to list BotInstances for. If non-empty, only
+    // BotInstances for that bot will be listed.
+    string bot_name = 1;
+    // A search term used to filter the results. If non-empty, it's used to
+    // match against supported fields.
+    string search_term = 2;
+  }
 }
 
 // Response for ListBotInstances.
