@@ -3,6 +3,7 @@
 ## 17.7.7 (09/24/25)
 
 * Enabled Oracle Cloud joining in Machine ID's `tbot` client. [#59041](https://github.com/gravitational/teleport/pull/59041)
+* Fixed a crash in Teleport's Windows Desktop Service introduced in 17.7.3. Compaction of certain shared directory read/write audit events could result in a stack overflow error. [#59514](https://github.com/gravitational/teleport/pull/59514)
 
 ## 17.7.6 (09/23/25)
 
