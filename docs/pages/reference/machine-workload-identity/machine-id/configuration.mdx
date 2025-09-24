@@ -486,6 +486,15 @@ namespaces:
 # applicable when `namespaces` is non-empty.
 cluster_resources: true
 
+# cluster_name_template determines the format of cluster names in Argo CD. It is
+# a Go template string that supports the following variables:
+#
+#   - {{.ClusterName}} - Name of the Teleport cluster
+#   - {{.KubeName}} - Name of the Kubernetes cluster resource
+#
+# By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}".
+cluster_name_template: "{{.KubeName}}"
+
 # The following configuration fields are available across most output types.
 # Note that `roles` and `destination` are not supported for this output type.
 
