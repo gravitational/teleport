@@ -397,7 +397,7 @@ function RequestItem(props: {
             {getAccessRequestStatusText({
               canAssumeResourceRequest,
               attempt: assumeOrDropAttempt,
-              expires: props.request?.expires,
+              expires: props.request.expires,
               isAssumed: props.isAssumed,
             })}
           </P3>
