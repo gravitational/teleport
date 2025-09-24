@@ -27,9 +27,11 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
+	ber "github.com/go-asn1-ber/asn1-ber"
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
@@ -86,8 +88,9 @@ type LDAPConfig struct {
 // For this reason, callers are encouraged to create clients on-demand rather
 // than keeping them open for long periods of time.
 type LDAPClient struct {
-	cfg  *LDAPConfig
-	conn *ldap.Conn
+	cfg         *LDAPConfig
+	conn        *ldap.Conn
+	credentials *tls.Config
 }
 
 // DialLDAP creates a new LDAP client using the provided TLS config for client credentials.
@@ -98,8 +101,9 @@ func DialLDAP(ctx context.Context, cfg *LDAPConfig, credentials *tls.Config) (*L
 	}
 
 	return &LDAPClient{
-		cfg:  cfg,
-		conn: conn,
+		cfg:         cfg,
+		conn:        conn,
+		credentials: credentials,
 	}, nil
 }
 
@@ -124,6 +128,8 @@ func DomainDN(domain string) string {
 const (
 	// AttrObjectSid is the Security Identifier of an LDAP object
 	AttrObjectSid = "objectSid"
+	// AttrDistinguishedName is the Distinguished Name of an LDAP object
+	AttrDistinguishedName = "distinguishedName"
 	// AttrObjectClass is the object class of an LDAP object
 	AttrObjectClass = "objectClass"
 
@@ -136,6 +142,9 @@ const (
 
 	// AttrSAMAccountName is the SAM Account name of an LDAP object.
 	AttrSAMAccountName = "sAMAccountName"
+
+	// AttrUserPrincipalName is the User Principal Name of an LDAP object.
+	AttrUserPrincipalName = "userPrincipalName"
 )
 
 // searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
@@ -176,12 +185,21 @@ func convertLDAPError(err error) error {
 // GetActiveDirectorySID makes an LDAP query to retrieve the security identifier (SID)
 // for the specified Active Directory user.
 func (l *LDAPClient) GetActiveDirectorySID(ctx context.Context, username string) (string, error) {
-	filter := CombineLDAPFilters([]string{
+	domain := l.cfg.Domain
+	if strings.Contains(username, "@") {
+		parts := strings.SplitN(username, "@", 2)
+		username = parts[0]
+		domain = parts[1]
+	}
+	filter := CombineLDAPFilters("&", []string{
 		fmt.Sprintf("(%s=%s)", AttrSAMAccountType, AccountTypeUser),
-		fmt.Sprintf("(%s=%s)", AttrSAMAccountName, ldap.EscapeFilter(username)),
+		CombineLDAPFilters("|", []string{
+			fmt.Sprintf("(%s=%s)", AttrSAMAccountName, ldap.EscapeFilter(username)),
+			fmt.Sprintf("(%s=%s)", AttrUserPrincipalName, ldap.EscapeFilter(username+"@"+domain)),
+		}),
 	})
 
-	entries, err := l.ReadWithFilter(DomainDN(l.cfg.Domain), filter, []string{AttrObjectSid})
+	entries, err := l.ReadWithFilter(ctx, DomainDN(domain), filter, []string{AttrObjectSid})
 	switch {
 	case err != nil:
 		return "", trace.Wrap(err)
@@ -199,9 +217,62 @@ func (l *LDAPClient) GetActiveDirectorySID(ctx context.Context, username string)
 	return sid, nil
 }
 
+// child returns child of packet with matching description and reports if it was found
+func child(packet *ber.Packet, description string) (*ber.Packet, bool) {
+	if i := slices.IndexFunc(packet.Children, func(p *ber.Packet) bool {
+		return p.Description == description
+	}); i >= 0 {
+		return packet.Children[i], true
+	}
+	return nil, false
+}
+
+// extractReferrals gathers referrals from ldapErr
+// If LDAP server can't provide the information required but knows correct location, it will return error like:
+// LDAP Result Code 10 "Referral": 0000202B: RefErr: DSID-0310084A
+// You then have to parse content of the ber-encoded error to extract the address for the referral
+func extractReferrals(ldapErr *ldap.Error) []string {
+	if ldapErr == nil || ldapErr.ResultCode != ldap.LDAPResultReferral {
+		return nil
+	}
+
+	searchResult, ok := child(ldapErr.Packet, "Search Result Done")
+	if !ok {
+		return nil
+	}
+	referrals, ok := child(searchResult, "Referral")
+	if !ok {
+		return nil
+	}
+
+	out := make([]string, 0, len(referrals.Children))
+	for _, referral := range referrals.Children {
+		referralValue, ok := referral.Value.(string)
+		if !ok {
+			continue
+		}
+		// value is in form of ldaps://my.domain.example.com/DC=my,DC=domain,DC=example,DC=com
+		// we have to remove prefix and everything after the last /
+		// if protocol is not ldaps we skip it since we won't be able to connect anyway
+		referralValue, ok = strings.CutPrefix(referralValue, "ldaps://")
+		if !ok {
+			continue
+		}
+		if last := strings.LastIndex(referralValue, "/"); last >= 0 {
+			referralValue = referralValue[:last]
+		}
+		out = append(out, referralValue)
+	}
+
+	return out
+}
+
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
-func (l *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
+// If the LDAP server returns an LDAP referral, `ReadWithFilter` will attempt
+// to follow the referral using the same credentials it uses for the primary
+// connection.
+func (l *LDAPClient) ReadWithFilter(ctx context.Context, dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
 	req := ldap.NewSearchRequest(
 		dn,
 		ldap.ScopeWholeSubtree,
@@ -215,11 +286,45 @@ func (l *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	)
 
 	res, err := l.conn.SearchWithPaging(req, searchPageSize)
-	if err != nil {
-		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
+
+	if err == nil {
+		return res.Entries, nil
 	}
 
-	return res.Entries, nil
+	var ldapErr *ldap.Error
+	if !errors.As(err, &ldapErr) || ldapErr.ResultCode != ldap.LDAPResultReferral {
+		return nil, trace.Wrap(convertLDAPError(err), "fetching LDAP object %q with filter %q", dn, filter)
+	}
+	referrals := extractReferrals(ldapErr)
+	for i := 0; i < len(referrals); i++ {
+		cfg := LDAPConfig{
+			Addr:     referrals[i],
+			Username: l.cfg.Username,
+			SID:      l.cfg.SID,
+			Logger:   l.cfg.Logger,
+		}
+		cfg.Logger.DebugContext(ctx, "Trying connection to referral", "referral", referrals[i])
+		conn, err := cfg.createConnection(ctx, l.credentials)
+		if err != nil {
+			cfg.Logger.DebugContext(ctx, "Can't connect to referral", "referral", referrals[i], "error", err)
+			continue
+		}
+		defer conn.Close()
+
+		res, err := conn.SearchWithPaging(req, searchPageSize)
+		if err == nil {
+			return res.Entries, nil
+		}
+		// limit referrals to 10 to avoid loops
+		if len(referrals) > 10 || !errors.As(err, &ldapErr) || ldapErr.ResultCode != ldap.LDAPResultReferral {
+			cfg.Logger.DebugContext(ctx, "LDAP search failed", "referral", referrals[i], "error", err)
+			continue
+		}
+		cfg.Logger.DebugContext(ctx, "LDAP search failed, extracting referrals", "referral", referrals[i], "error", err)
+		newReferrals := extractReferrals(ldapErr)
+		referrals = append(referrals, newReferrals...)
+	}
+	return nil, trace.BadParameter("no referral provided by LDAP server can execute the query, tried: %s", strings.Join(referrals, ","))
 }
 
 // Read fetches an LDAP entry at path and its children, if any. Only
@@ -230,8 +335,8 @@ func (l *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 // specific entry using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (l *LDAPClient) Read(dn string, class string, attrs []string) ([]*ldap.Entry, error) {
-	return l.ReadWithFilter(dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs)
+func (l *LDAPClient) Read(ctx context.Context, dn string, class string, attrs []string) ([]*ldap.Entry, error) {
+	return l.ReadWithFilter(ctx, dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs)
 }
 
 // Create creates an LDAP entry at the given path, with the given class and
@@ -287,9 +392,9 @@ func (l *LDAPClient) Update(ctx context.Context, dn string, replaceAttrs map[str
 	return nil
 }
 
-// CombineLDAPFilters joins the slice of filters
-func CombineLDAPFilters(filters []string) string {
-	return "(&" + strings.Join(filters, "") + ")"
+// CombineLDAPFilters joins the slice of filters using given operator (e.g. &, |)
+func CombineLDAPFilters(operator string, filters []string) string {
+	return "(" + operator + strings.Join(filters, "") + ")"
 }
 
 func crlContainerDN(domain string, caType types.CertAuthType) string {
