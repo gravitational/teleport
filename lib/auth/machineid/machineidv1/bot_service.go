@@ -727,8 +727,9 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		Kind:    types.KindBot,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:    botName,
-			Expires: expiry,
+			Name:        botName,
+			Expires:     expiry,
+			Description: user.GetMetadata().Description,
 		},
 		Status: &pb.BotStatus{
 			UserName: user.GetName(),
@@ -821,6 +822,9 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	// previous user before writing if necessary
 	userMeta.Labels[types.BotGenerationLabel] = "0"
 	userMeta.Expires = userAndRoleExpiryFromBot(bot)
+	// We track the Bot description within the User description field because
+	// the Role description already has a message.
+	userMeta.Description = bot.Metadata.Description
 	user.SetMetadata(userMeta)
 
 	traits := map[string][]string{}
