@@ -121,8 +121,7 @@ func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string,
 }
 
 // GetBotInstanceLatestHeartbeat returns the most recent heartbeat for the
-// given bot instance. The initial heartbeat is returned as a fallback if no
-// latest heartbeats exist.
+// given bot instance.
 func GetBotInstanceLatestHeartbeat(botInstance *machineidv1.BotInstance) *machineidv1.BotInstanceStatusHeartbeat {
 	heartbeat := botInstance.GetStatus().GetInitialHeartbeat()
 	latestHeartbeats := botInstance.GetStatus().GetLatestHeartbeats()
@@ -133,8 +132,7 @@ func GetBotInstanceLatestHeartbeat(botInstance *machineidv1.BotInstance) *machin
 }
 
 // GetBotInstanceLatestAuthentication returns the most recent authentication for
-// the given bot instance. The initial authentication is returned as a fallback
-// if no latest authentications exist.
+// the given bot instance.
 func GetBotInstanceLatestAuthentication(botInstance *machineidv1.BotInstance) *machineidv1.BotInstanceStatusAuthentication {
 	authentication := botInstance.GetStatus().GetInitialAuthentication()
 	latestAuthentications := botInstance.GetStatus().GetLatestAuthentications()
