@@ -61,3 +61,19 @@ Create the name of the service account to use
 {{- required "serviceAccount.name is required in chart values if serviceAccount.create is false" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{- define "teleport-relay.version" -}}
+{{ default .Chart.AppVersion .Values.teleportVersionOverride }}
+{{- end }}
+
+{{- define "teleport-relay.baseImage" -}}
+{{- if .Values.enterprise }}
+  {{- .Values.enterpriseImage }}
+{{- else }}
+  {{- .Values.image }}
+{{- end }}
+{{- end }}
+
+{{- define "teleport-relay.image" -}}
+{{ include "teleport-relay.baseImage" . }}:{{ include "teleport-relay.version" . }}
+{{- end }}
