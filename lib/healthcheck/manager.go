@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/trace"
 )
 
 // Manager manages health checks for registered resource targets.
@@ -328,6 +328,10 @@ func (m *manager) updateWorkersLocked(ctx context.Context) {
 // getConfigLocked gets a matching config for the the given resource or returns
 // nil if no config matches.
 func (m *manager) getConfigLocked(ctx context.Context, r types.ResourceWithLabels) *healthCheckConfig {
+	if m.configs == nil {
+		m.logger.WarnContext(ctx, "Health check config unavailable")
+		return nil
+	}
 	for _, cfg := range m.configs {
 		matched, _, err := services.CheckLabelsMatch(
 			types.Allow,
