@@ -44,9 +44,15 @@ Teleport Proxy Service.
 {/* TODO: Consider recommending use of `tctl tokens configure-kube` once it is
 widely available. */}
 
-To begin, we'll need to create both a bot and a bot join token. For this example
-we'll assume your AWX jobs will run on a Kubernetes cluster where bots can join
-using the `static_jwks` joining mode.
+To begin, we'll need to create three new Teleport resources:
+1. A Teleport role to that will grant the `tbot` sidecar access to your desired
+   SSH nodes
+1. A bot resource to name the bot and specify its list of allowed roles
+2. A join token to allow the bot to authenticate to Teleport
+
+For this example we'll assume your AWX jobs will run on a Kubernetes cluster
+where bots can join using the [Kubernetes `static_jwks` joining
+mode](../../../reference/deployment/join-methods.mdx#kubernetes-jwks).
 
 <Admonition type="tip" title="OIDC Joining">
 Kubernetes clusters running on cloud providers like Amazon EKS, Azure AKS, and
@@ -62,17 +68,32 @@ $ kubectl get --raw /openid/v1/jwks
 {"keys":[--snip--]}
 ```
 
-Next, create the following file
+Next, create `awx-bot-resources.yaml` with the following content containing the
+three resources described above:
 ```yaml
+kind: role
+version: v7
+metadata:
+  name: example-role
+spec:
+  allow:
+    # Allow login to the Linux user 'root'.
+    logins: ['root']
+    # Allow connection to any node. Adjust these labels to match only nodes
+    # your Ansible jobs need to access.
+    node_labels:
+      '*': '*'
+---
 kind: bot
 version: v1
 metadata:
   # name is a unique identifier for the Bot in the cluster.
   name: awx-bot
 spec:
-  # roles is a list of roles to grant to the Bot. These roles should grant the
-  # bot SSH access to all the nodes you want to access via your Ansible jobs.
-  roles: []
+  # roles is a list of roles to grant to the Bot. This includes the role above,
+  # but you can add any additional roles needed to grants the bot SSH access to
+  # all the nodes you want to access via your Ansible jobs.
+  roles: [example-role]
 ---
 kind: token
 version: v2
@@ -100,18 +121,28 @@ spec:
 ```
 
 Be sure to adjust this configuration as needed:
-- Grant any desired roles to the bot by appending them to the `spec.roles` list
-  in the bot definition. These roles should grant access to any SSH nodes you
-  plan to access in your Ansible jobs.
+- Adjust the example role's `logins` and `node_labels` fields to limit access to
+  just the nodes and logins needed to run your Ansible jobs.
+- Grant any additional desired roles to the bot by appending them to the
+  `spec.roles` list in the bot definition.
 - Replace the token's `spec.kubernetes.static_jwks.jwks` field value with the
   JWKS keys you retrieved above.
 - Adjust the token's `spec.kubernetes.allow` entry or entries as needed to match
   the namespace(s) and service account under which your AWX jobs will run.
 
+Once ready, run the following command to create the resources on your Teleport
+cluster:
+```code
+$ tctl create -f awx-bot-resources.yaml
+```
+
 ## Step 2/5. Configure Kubernetes resources
 
 Next, we'll need to prepare resources in the Kubernetes cluster in which your
-AWX jobs will be run. Write the following to `configmap-tbot-awx-config.yaml`:
+AWX jobs will be run. The only Kubernetes resource we'll need to configure
+manually is a `ConfigMap` for Machine ID's `tbot` client.
+
+Write the following to `configmap-tbot-awx-config.yaml`:
 ```yaml
 apiVersion: v1
 kind: ConfigMap
@@ -131,8 +162,9 @@ data:
       type: memory
     # ensure this is configured to the address of your Teleport Proxy Service.
     proxy_server: <Var name="example.teleport.sh" />:443
-    # outputs will be filled in during the completion of an access guide.
     services:
+    # The `ssh-multiplexer` service provides a high-performance multiplexer
+    # socket for use in Ansible jobs.
     - type: ssh-multiplexer
       # This path (/tbot/) must match the volume mount for the `tbot-binaries`
       # shared volume.
@@ -144,6 +176,9 @@ data:
         # tbot containers.
         path: "/tbot-output"
 ```
+
+For more information on the possible values in this config file, see Machine
+ID's [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx).
 
 <Admonition type="info" title="About the ssh-multiplexer">
 Machine ID's `ssh-multiplexer` service is used to improve performance when
@@ -158,8 +193,8 @@ to learn more about the `ssh-multiplexer` service.
 
 Note that this `ConfigMap` resource may need to be adjusted to match your
 environment. Here we assume that AWX jobs will run in the namespace
-<Var name="awx" /> credentials should be fetched from the Teleport cluster at
-<Var name="example.teleport.sh" />. Once ready, create the resource:
+<Var name="awx" /> and that credentials should be fetched from the Teleport
+cluster at <Var name="example.teleport.sh" />. Once ready, create the resource:
 
 ```code
 $ kubectl create -f configmap-tbot-awx-config.yaml
@@ -210,6 +245,11 @@ guide, and what alternatives you might consider when implementing this yourself:
       `tbot` sidecar
 
 ### Configuring AWX
+
+Next, we'll need to create a new container instance group that spawns jobs in
+Kubernetes (or OpenShift). We'll additionally customize the pod specification to
+run Machine ID's `tbot` client as a sidecar alongside the `awx-ee` worker
+container to provide SSH credentials to your jobs.
 
 In the AWX web UI, navigate to Administration, Instance Groups, select the "Add"
 button, and select "Add container group". Enter any name you like, and set the
@@ -304,9 +344,14 @@ spec:
 Additional changes may be needed for your environment, but make certain
 to adjust at least these fields:
 - The top-level `metadata.namespace` field should match the namespace in which
-  AWX spawns pods for this instance group. This may depend on
+  AWX spawns pods for this instance group.
 - The `audience` field of the `join-sa-token` volume should be set to your
-  Teleport cluster name
+  Teleport cluster name.
+- The configured `serviceAccountName` should be adjusted if you opt to use a
+  service account other than `default`.
+
+Once all necessary modifications have been made, select "Save" to finish
+configuring the new container group.
 
 ## Step 4/5. Define an inventory
 
@@ -323,7 +368,7 @@ From the new inventory's details page, navigate to the Hosts tab, and select
 
 Node names follow the same rules as traditional [server
 access](./ssh.mdx#connecting-using-openssh). For example, if your Teleport
-cluster name is `example.teleport.sh`, and you have a node named `foo`, you
+cluster name is `example.teleport.sh` and you have a node named `foo`, you
 would add `foo.example.teleport.sh`. Add one or more nodes and continue on to
 the next step.
 
