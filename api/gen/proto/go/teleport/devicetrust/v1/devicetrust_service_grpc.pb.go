@@ -34,6 +34,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	DeviceTrustService_Ping_FullMethodName                           = "/teleport.devicetrust.v1.DeviceTrustService/Ping"
 	DeviceTrustService_CreateDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/CreateDevice"
 	DeviceTrustService_UpdateDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/UpdateDevice"
 	DeviceTrustService_UpsertDevice_FullMethodName                   = "/teleport.devicetrust.v1.DeviceTrustService/UpsertDevice"
@@ -77,6 +78,8 @@ const (
 // Device Trust is a Teleport Enterprise feature. Open Source Teleport clusters
 // treat all Device RPCs as unimplemented (which, in fact, they are for OSS.)
 type DeviceTrustServiceClient interface {
+	// Ping foo bar.
+	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 	// CreateDevice creates a device, effectively registering it on Teleport.
 	// Devices need to be registered before they can be enrolled.
 	//
@@ -186,6 +189,16 @@ type deviceTrustServiceClient struct {
 
 func NewDeviceTrustServiceClient(cc grpc.ClientConnInterface) DeviceTrustServiceClient {
 	return &deviceTrustServiceClient{cc}
+}
+
+func (c *deviceTrustServiceClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PingResponse)
+	err := c.cc.Invoke(ctx, DeviceTrustService_Ping_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *deviceTrustServiceClient) CreateDevice(ctx context.Context, in *CreateDeviceRequest, opts ...grpc.CallOption) (*Device, error) {
@@ -374,6 +387,8 @@ func (c *deviceTrustServiceClient) GetDevicesUsage(ctx context.Context, in *GetD
 // Device Trust is a Teleport Enterprise feature. Open Source Teleport clusters
 // treat all Device RPCs as unimplemented (which, in fact, they are for OSS.)
 type DeviceTrustServiceServer interface {
+	// Ping foo bar.
+	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	// CreateDevice creates a device, effectively registering it on Teleport.
 	// Devices need to be registered before they can be enrolled.
 	//
@@ -485,6 +500,9 @@ type DeviceTrustServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedDeviceTrustServiceServer struct{}
 
+func (UnimplementedDeviceTrustServiceServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
+}
 func (UnimplementedDeviceTrustServiceServer) CreateDevice(context.Context, *CreateDeviceRequest) (*Device, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDevice not implemented")
 }
@@ -549,6 +567,24 @@ func RegisterDeviceTrustServiceServer(s grpc.ServiceRegistrar, srv DeviceTrustSe
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&DeviceTrustService_ServiceDesc, srv)
+}
+
+func _DeviceTrustService_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).Ping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_Ping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).Ping(ctx, req.(*PingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _DeviceTrustService_CreateDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -795,6 +831,10 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.devicetrust.v1.DeviceTrustService",
 	HandlerType: (*DeviceTrustServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Ping",
+			Handler:    _DeviceTrustService_Ping_Handler,
+		},
 		{
 			MethodName: "CreateDevice",
 			Handler:    _DeviceTrustService_CreateDevice_Handler,
