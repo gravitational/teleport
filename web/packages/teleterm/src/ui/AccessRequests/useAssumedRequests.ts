@@ -43,7 +43,7 @@ export const useAssumedRequests = (
   return useQueries({
     queries: activeRequests.map(id => ({
       // Only run this background query when the cluster is connected.
-      enabled: cluster.connected,
+      enabled: cluster?.connected,
       queryKey: ['assumedAccessRequests', uri, id],
       // Fetch once and always use cached value.
       staleTime: Infinity,
