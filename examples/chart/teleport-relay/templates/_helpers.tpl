@@ -77,3 +77,11 @@ Create the name of the service account to use
 {{- define "teleport-relay.image" -}}
 {{ include "teleport-relay.baseImage" . }}:{{ include "teleport-relay.version" . }}
 {{- end }}
+
+{{- define "teleport-relay.joinTokenSecretName" -}}
+{{- if .Values.joinTokenSecret.create }}
+{{- default (include "teleport-relay.fullname" .) .Values.joinTokenSecret.name }}
+{{- else }}
+{{- required "joinTokenSecret.name is required in chart values if joinTokenSecret.create is false" .Values.joinTokenSecret.name }}
+{{- end }}
+{{- end }}
