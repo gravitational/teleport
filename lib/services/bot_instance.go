@@ -82,7 +82,7 @@ func UnmarshalBotInstance(data []byte, opts ...MarshalOption) (*machineidv1.BotI
 }
 
 func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
-	if botName != "" && b.Spec.BotName != botName {
+	if botName != "" && b.GetSpec().GetBotName() != botName {
 		return false
 	}
 
