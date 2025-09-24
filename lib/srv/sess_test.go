@@ -785,7 +785,7 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(t.Context(), sshChanOpen, scx)
+	err := reg.JoinSession(t.Context(), sshChanOpen, scx, sess.ID(), types.SessionPeerMode)
 	require.NoError(t, err)
 }
 

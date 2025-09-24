@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package claude
+package config
 
 import (
 	"bytes"
@@ -25,49 +25,13 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"runtime"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/tidwall/pretty"
 	"github.com/tidwall/sjson"
 )
-
-// DefaultConfigPath returns the default path for the Claude Desktop config.
-//
-// https://modelcontextprotocol.io/quickstart/user
-//
-// macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
-// Windows: %APPDATA%\Claude\claude_desktop_config.json
-func DefaultConfigPath() (string, error) {
-	switch runtime.GOOS {
-	case "darwin", "windows":
-		// os.UserConfigDir:
-		// On Darwin, it returns $HOME/Library/Application Support.
-		// On Windows, it returns %AppData%.
-		configDir, err := os.UserConfigDir()
-		if err != nil {
-			return "", trace.ConvertSystemError(err)
-		}
-		return filepath.Join(configDir, "Claude", "claude_desktop_config.json"), nil
-
-	default:
-		// TODO(greedy52) there is no official Claude Desktop for linux yet. The
-		// unofficial one uses the same path as above.
-		return "", trace.NotImplemented("Claude Desktop is not supported on OS %s", runtime.GOOS)
-	}
-}
-
-// GlobalCursorPath returns the default path for Cursor global MCP configuration.
-//
-// https://docs.cursor.com/context/mcp#configuration-locations
-func GlobalCursorPath() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return filepath.Join(homeDir, ".cursor", "mcp.json"), nil
-}
 
 // MCPServer contains details to launch an MCP server.
 //
@@ -98,7 +62,7 @@ func (s *MCPServer) GetEnv(key string) (string, bool) {
 	return value, ok
 }
 
-// Config represents a Claude Desktop config.
+// Config represents a MCP servers config.
 //
 // Config preserves unknown fields and ordering from the original JSON when
 // saving, by using the sjson lib.
@@ -108,38 +72,43 @@ type Config struct {
 	mcpServers            map[string]MCPServer
 	configData            []byte
 	isOriginalJSONCompact bool
+	format                ConfigFormat
 }
 
 // NewConfig creates an empty config.
-func NewConfig() *Config {
+func NewConfig(format ConfigFormat) *Config {
 	return &Config{
 		mcpServers:            make(map[string]MCPServer),
 		configData:            []byte("{}"),
 		isOriginalJSONCompact: false,
+		format:                format,
 	}
 }
 
 // NewConfigFromJSON creates a config from JSON.
-func NewConfigFromJSON(data []byte) (*Config, error) {
-	config := struct {
-		MCPServers map[string]MCPServer `json:"mcpServers"`
-	}{}
+func NewConfigFromJSON(format ConfigFormat, data []byte) (*Config, error) {
+	var config map[string]json.RawMessage
 	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, trace.Wrap(err, "parsing Claude Desktop config")
+		return nil, trace.Wrap(err, "parsing config")
 	}
 
-	if config.MCPServers == nil {
-		config.MCPServers = map[string]MCPServer{}
+	servers := make(map[string]MCPServer)
+	if rawServers, ok := config[format.serversKey()]; ok {
+		if err := json.Unmarshal(rawServers, &servers); err != nil {
+			return nil, trace.Wrap(err, "parsing mcp servers config")
+		}
 	}
+
 	isOriginalJSONCompact, err := isJSONCompact(data)
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing Claude Desktop config")
+		return nil, trace.Wrap(err, "parsing mcp servers config")
 	}
 
 	return &Config{
-		mcpServers:            config.MCPServers,
+		mcpServers:            servers,
 		configData:            data,
 		isOriginalJSONCompact: isOriginalJSONCompact,
+		format:                format,
 	}, nil
 }
 
@@ -192,6 +161,82 @@ const (
 	FormatJSONAuto FormatJSONOption = "auto"
 )
 
+// ConfigFormat specifies what is the MCP servers configuration format.
+type ConfigFormat string
+
+const (
+	// ConfigFormatUnspecified represents an unspecified format.
+	ConfigFormatUnspecified ConfigFormat = ""
+	// ConfigFormatClaude represents the Claude desktop and Claude Code formats.
+	ConfigFormatClaude ConfigFormat = "claude"
+	// ConfigFormatVSCode represents the VSCode format.
+	ConfigFormatVSCode ConfigFormat = "vscode"
+)
+
+// DefaultConfigFormat determines the dafault config format. This can be used
+// in cases where the format wasn't specified.
+const DefaultConfigFormat = ConfigFormatClaude
+
+// ParseConfigFormat parses configuration format from string.
+func ParseConfigFormat(s string) (ConfigFormat, error) {
+	switch ConfigFormat(s) {
+	case ConfigFormatClaude:
+		return ConfigFormatClaude, nil
+	case ConfigFormatVSCode:
+		return ConfigFormatVSCode, nil
+	case ConfigFormatUnspecified:
+		return ConfigFormatUnspecified, nil
+	}
+
+	return ConfigFormatUnspecified, trace.BadParameter("unsupported %q config format", s)
+}
+
+// IsSpecified returns whether the config format was specified or not.
+func (cf ConfigFormat) IsSpecified() bool {
+	return cf != ConfigFormatUnspecified
+}
+
+// serversKey returns the MCP servers JSON key for the format.
+func (cf ConfigFormat) serversKey() string {
+	switch cf {
+	case ConfigFormatClaude:
+		return claudeServersKey
+	case ConfigFormatVSCode:
+		return vsCodeServersKey
+	default:
+		return ""
+	}
+}
+
+// String returns human readable config format name.
+func (cf ConfigFormat) String() string {
+	switch cf {
+	case ConfigFormatClaude:
+		return "Claude/Cursor"
+	case ConfigFormatVSCode:
+		return "VSCode"
+	default:
+		return "Unspecified"
+	}
+}
+
+// ConfigFormatFromPath tries to determine the config format based on its path.
+func ConfigFormatFromPath(configPath string) ConfigFormat {
+	switch {
+	case pathContains(configPath, vsCodeProjectDir):
+		return ConfigFormatVSCode
+	case pathContains(configPath, cursorProjectDir), pathContains(configPath, claudeCodeFileName):
+		// Works for both, global and projects settings.
+		return ConfigFormatClaude // Cursor uses the same format as Claude.
+	default:
+		return ConfigFormatUnspecified
+	}
+}
+
+func pathContains(path, dir string) bool {
+	return slices.Contains(strings.Split(filepath.Clean(path), string(filepath.Separator)), dir)
+}
+
 // Write writes the config to provided writer.
 func (c *Config) Write(w io.Writer, format FormatJSONOption) error {
 	data, err := c.formatConfigData(format)
@@ -212,22 +257,22 @@ type FileConfig struct {
 	configExists bool
 }
 
-// LoadConfigFromFile loads the Claude Desktop's config from the provided path.
-func LoadConfigFromFile(configPath string) (*FileConfig, error) {
+// LoadConfigFromFile loads the MCP config from the provided path.
+func LoadConfigFromFile(configPath string, format ConfigFormat) (*FileConfig, error) {
 	data, err := os.ReadFile(configPath)
 	switch {
 	case os.IsNotExist(err):
 		return &FileConfig{
-			Config:       NewConfig(),
+			Config:       NewConfig(format),
 			configPath:   configPath,
 			configExists: false,
 		}, nil
 
 	case err != nil:
-		return nil, trace.Wrap(trace.ConvertSystemError(err), "reading Claude Desktop config")
+		return nil, trace.Wrap(trace.ConvertSystemError(err), "reading mcp servers config")
 
 	default:
-		config, err := NewConfigFromJSON(data)
+		config, err := NewConfigFromJSON(format, data)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -238,28 +283,6 @@ func LoadConfigFromFile(configPath string) (*FileConfig, error) {
 			configExists: true,
 		}, nil
 	}
-}
-
-// LoadConfigFromDefaultPath loads the Claude Desktop's config from the default
-// path.
-func LoadConfigFromDefaultPath() (*FileConfig, error) {
-	configPath, err := DefaultConfigPath()
-	if err != nil {
-		return nil, trace.Wrap(err, "finding Claude Desktop config path")
-	}
-	config, err := LoadConfigFromFile(configPath)
-	return config, trace.Wrap(err)
-}
-
-// LoadConfigFromGlobalCursor loads the Cursor global MCP server configuration.
-func LoadConfigFromGlobalCursor() (*FileConfig, error) {
-	configPath, err := GlobalCursorPath()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	config, err := LoadConfigFromFile(configPath)
-	return config, trace.Wrap(err)
 }
 
 // Exists returns true if config file exists.
@@ -275,7 +298,7 @@ func (c *FileConfig) Path() string {
 // Save saves the updated config to the config path. Format defaults to "auto"
 // if empty.
 func (c *FileConfig) Save(format FormatJSONOption) error {
-	// Claude Desktop creates the config with 0644.
+	// Creates the config with 0644.
 	file, err := os.OpenFile(c.configPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -285,7 +308,7 @@ func (c *FileConfig) Save(format FormatJSONOption) error {
 }
 
 func (c *Config) mcpServerJSONPath(serverName string) string {
-	return "mcpServers." + serverName
+	return c.format.serversKey() + "." + serverName
 }
 
 func (c *Config) formatConfigData(format FormatJSONOption) ([]byte, error) {
