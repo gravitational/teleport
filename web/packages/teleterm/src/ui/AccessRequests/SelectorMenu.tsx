@@ -98,12 +98,10 @@ export function SelectorMenu() {
     [fetchRequestsAttempt, username]
   );
 
-  // Ensure that the assumed requests are always displayed in the menu.
-  // It's possible that the user assumed a request that was later deleted.
-  // If they refreshed the list after that, the request would be gone there, but
-  // still displayed in the status bar.
-  // The same thing would happen if the API call to fetch requests failed.
-  // We need to make sure that the assumed roles are always visible.
+  // Ensure assumed requests are always shown.
+  // If a request was deleted after being assumed, or if the API call to fetch
+  // requests fails, add the cached assumed requests to the list
+  // (or at least their request IDs if full details aren’t available).
   const assumedAndAssumableRequests = useMemo(() => {
     const allRequests: AccessRequest[] = [...(assumableRequests.data || [])];
     Array.from(assumed).forEach(([assumedRequestId, assumedRequestQuery]) => {
@@ -386,6 +384,7 @@ function RequestItem(props: {
           `}
         >
           <Flex gap={1} flexWrap="wrap">
+            {/*Only fallback requests have no roles/resources.*/}
             {clippedRequestItems.length
               ? clippedRequestItems
               : props.request.id}
