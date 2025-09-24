@@ -236,7 +236,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			mem, err := memory.New(memory.Config{
 				Context: ctx,
@@ -259,7 +259,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 func TestBotInstanceInvalidGetters(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -283,7 +283,7 @@ func TestBotInstanceInvalidGetters(t *testing.T) {
 func TestBotInstanceCRUD(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -341,7 +341,7 @@ func TestBotInstanceCRUD(t *testing.T) {
 func TestBotInstanceList(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -438,7 +438,7 @@ func TestBotInstanceListWithSearchFilter(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			mem, err := memory.New(memory.Config{
 				Context: ctx,
@@ -470,7 +470,7 @@ func TestBotInstanceListWithQuery(t *testing.T) {
 	t.Parallel()
 
 	clock := clockwork.NewFakeClock()
-	ctx := context.Background()
+	ctx := t.Context()
 	mem, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clock,
@@ -499,7 +499,7 @@ func TestBotInstanceListWithSort(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mem, err := memory.New(memory.Config{
 		Context: ctx,

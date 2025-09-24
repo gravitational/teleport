@@ -17,7 +17,6 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -43,7 +42,7 @@ import (
 )
 
 func TestListBots(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -82,7 +81,7 @@ func TestListBots(t *testing.T) {
 }
 
 func TestListBots_UnauthenticatedError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := newWebSuite(t)
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -121,7 +120,7 @@ func TestCreateBot(t *testing.T) {
 		"bot",
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	resp, err := pack.clt.PostJSON(ctx, endpoint, CreateBotRequest{
 		BotName: "test-bot",
@@ -179,7 +178,7 @@ func TestCreateBot(t *testing.T) {
 }
 
 func TestCreateBotJoinToken(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -231,7 +230,7 @@ func TestCreateBotJoinToken(t *testing.T) {
 }
 
 func TestDeleteBot_UnauthenticatedError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := newWebSuite(t)
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -255,7 +254,7 @@ func TestDeleteBot_UnauthenticatedError(t *testing.T) {
 func TestDeleteBot(t *testing.T) {
 	botName := "bot-bravo"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -290,7 +289,7 @@ func TestDeleteBot(t *testing.T) {
 }
 
 func TestGetBotByName(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -325,7 +324,7 @@ func TestGetBotByName(t *testing.T) {
 }
 
 func TestEditBot(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -359,7 +358,7 @@ func TestEditBot(t *testing.T) {
 }
 
 func TestEditBotRoles(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -415,7 +414,7 @@ func TestEditBotRoles(t *testing.T) {
 }
 
 func TestEditBotTraits(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -484,7 +483,7 @@ func TestEditBotTraits(t *testing.T) {
 }
 
 func TestEditBotMaxSessionTTL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -549,7 +548,7 @@ func TestEditBotMaxSessionTTL(t *testing.T) {
 func TestListBotInstances(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -660,7 +659,7 @@ func TestListBotInstances(t *testing.T) {
 func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -739,7 +738,7 @@ func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 func TestListBotInstancesPaging(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -828,7 +827,7 @@ func TestListBotInstancesPaging(t *testing.T) {
 func TestListBotInstancesWithBotFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -886,7 +885,7 @@ func TestListBotInstancesWithBotFilter(t *testing.T) {
 func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -1020,7 +1019,7 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 func TestListBotInstancesWithQueryFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
@@ -1078,7 +1077,7 @@ func TestListBotInstancesWithQueryFilter(t *testing.T) {
 }
 
 func TestGetBotInstance(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})

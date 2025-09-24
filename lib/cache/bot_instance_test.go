@@ -86,7 +86,7 @@ func TestBotInstanceCache(t *testing.T) {
 func TestBotInstanceCachePaging(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
@@ -145,7 +145,7 @@ func TestBotInstanceCachePaging(t *testing.T) {
 func TestBotInstanceCacheBotFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
@@ -187,7 +187,7 @@ func TestBotInstanceCacheBotFilter(t *testing.T) {
 func TestBotInstanceCacheSearchFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
@@ -232,7 +232,7 @@ func TestBotInstanceCacheSearchFilter(t *testing.T) {
 func TestBotInstanceCacheQueryFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
@@ -296,7 +296,7 @@ func TestBotInstanceCacheQueryFilter(t *testing.T) {
 func TestBotInstanceCacheSorting(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
