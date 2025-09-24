@@ -373,7 +373,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 
 	// If the client isn't setup to handle session requests, it should reply false to them.
 	// The client should reply true to a session ping request.
-	session, err := client.NewSession(ctx)
+	_, err = client.NewSession(ctx)
 	require.NoError(t, err)
 	require.False(t, <-clientSessionReply, "Expected the client to reply false to session ping request")
 
@@ -382,12 +382,13 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 		err := req.Reply(true, nil)
 		assert.NoError(t, err)
 	})
-	session, err = client.NewSession(ctx)
+	require.NoError(t, err)
+	_, err = client.NewSession(ctx)
 	require.NoError(t, err)
 	require.True(t, <-clientSessionReply, "Expected the client to reply true to session ping request")
 
 	// New Sessions do not reuse previously registered handlers.
-	session, err = client.NewSession(ctx)
+	session, err := client.NewSession(ctx)
 	require.NoError(t, err)
 	require.False(t, <-clientSessionReply, "Expected the client to reply false to session ping request")
 
