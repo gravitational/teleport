@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -579,7 +580,8 @@ func TestAccessLists(t *testing.T) {
 			})
 
 			ctx := context.Background()
-			svc, backendSvc := initGeneratorSvc(t)
+			svc, backendSvc, err := initGeneratorSvc()
+			require.NoError(t, err)
 
 			for _, accessList := range test.accessLists {
 				_, err = backendSvc.UpsertAccessList(ctx, accessList)
@@ -632,7 +634,8 @@ func TestAccessLists(t *testing.T) {
 
 func TestGitHubIdentity(t *testing.T) {
 	ctx := context.Background()
-	svc, backendSvc := initGeneratorSvc(t)
+	svc, backendSvc, err := initGeneratorSvc()
+	require.NoError(t, err)
 
 	noGitHubIdentity, err := types.NewUser("alice")
 	require.NoError(t, err)
@@ -715,20 +718,24 @@ func (s *svc) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventR
 	return nil
 }
 
-func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
-	t.Helper()
-
+func initGeneratorSvc() (*Generator, *svc, error) {
 	clock := clockwork.NewFakeClock()
 	mem, err := memory.New(memory.Config{
 		Clock: clock,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	accessListsSvc, err := local.NewAccessListService(mem, clock)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	accessSvc := local.NewAccessService(mem)
 	ulsService, err := local.NewUserLoginStateService(mem)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	svc := &svc{
 		AccessLists:     accessListsSvc,
@@ -746,8 +753,10 @@ func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
 		Clock:       clock,
 		Emitter:     emitter,
 	})
-	require.NoError(t, err)
-	return generator, svc
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return generator, svc, nil
 }
 
 func grants(roles []string, traits trait.Traits) accesslist.Grants {

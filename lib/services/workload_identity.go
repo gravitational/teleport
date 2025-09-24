@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -39,7 +40,10 @@ type WorkloadIdentities interface {
 	// ListWorkloadIdentities lists all WorkloadIdentities using Google style
 	// pagination.
 	ListWorkloadIdentities(
-		ctx context.Context, pageSize int, lastToken string,
+		ctx context.Context,
+		pageSize int,
+		lastToken string,
+		options *ListWorkloadIdentitiesRequestOptions,
 	) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
 	// CreateWorkloadIdentity creates a new WorkloadIdentity.
 	CreateWorkloadIdentity(
@@ -132,4 +136,53 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 	}
 
 	return nil
+}
+
+type ListWorkloadIdentitiesRequestOptions struct {
+	// The sort field to use for the results. If empty, the default sort field is used.
+	SortField string
+	// The sort order to use for the results. If empty, the default sort order is used.
+	SortDesc bool
+	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
+	FilterSearchTerm string
+}
+
+func (o *ListWorkloadIdentitiesRequestOptions) GetSortField() string {
+	if o == nil {
+		return ""
+	}
+	return o.SortField
+}
+
+func (o *ListWorkloadIdentitiesRequestOptions) GetSortDesc() bool {
+	if o == nil {
+		return false
+	}
+	return o.SortDesc
+}
+
+func (o *ListWorkloadIdentitiesRequestOptions) GetFilterSearchTerm() string {
+	if o == nil {
+		return ""
+	}
+	return o.FilterSearchTerm
+}
+
+func MatchWorkloadIdentity(item *workloadidentityv1pb.WorkloadIdentity, filterSearchTerm string) bool {
+	if item == nil {
+		return false
+	}
+	if filterSearchTerm == "" {
+		return true
+	}
+
+	values := []string{
+		item.GetMetadata().GetName(),
+		item.GetSpec().GetSpiffe().GetId(),
+		item.GetSpec().GetSpiffe().GetHint(),
+	}
+
+	return slices.ContainsFunc(values, func(val string) bool {
+		return strings.Contains(strings.ToLower(val), strings.ToLower(filterSearchTerm))
+	})
 }

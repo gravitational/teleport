@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
@@ -92,6 +93,11 @@ type entraArgs struct {
 	accessGraph          bool
 	force                bool
 	manualEntraIDSetup   bool
+
+	groupFilterIncludeID   []string
+	groupFilterIncludeName []string
+	groupFilterExcludeID   []string
+	groupFilterExcludeName []string
 }
 
 func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
@@ -131,6 +137,15 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Short('m').
 		Default("false").
 		BoolVar(&p.install.entraID.manualEntraIDSetup)
+
+	cmd.Flag("group-id", "Include group matching the specified group ID.").
+		StringsVar(&p.install.entraID.groupFilterIncludeID)
+	cmd.Flag("group-name", "Include groups matching the specified group name regex.").
+		StringsVar(&p.install.entraID.groupFilterIncludeName)
+	cmd.Flag("exclude-group-id", "Exclude group matching the specified group ID.").
+		StringsVar(&p.install.entraID.groupFilterExcludeID)
+	cmd.Flag("exclude-group-name", "Exclude groups matching the specified group name regex.").
+		StringsVar(&p.install.entraID.groupFilterExcludeName)
 }
 
 type entraSettings struct {
@@ -143,8 +158,8 @@ var errCancel = trace.BadParameter("operation canceled")
 
 func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSetup bool) (entraSettings, error) {
 	if manualEntraIDSetup {
-		fmt.Fprint(os.Stdout, manualConfigurationTemplate)
-		settings, err := readAzureInputs(p.install.entraID.accessGraph)
+		fmt.Fprint(p.stdout, manualConfigurationTemplate)
+		settings, err := readAzureInputs(p.install.entraID.accessGraph, p.stdin, p.stdout)
 		return settings, trace.Wrap(err)
 	}
 
@@ -173,9 +188,9 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSe
 	}
 	fileLoc := f.Name()
 
-	fmt.Fprintf(os.Stdout, step1Template, fileLoc, filepath.Base(fileLoc))
+	fmt.Fprintf(p.stdout, step1Template, fileLoc, filepath.Base(fileLoc))
 
-	op, err := readData(os.Stdin, os.Stdout,
+	op, err := readData(p.stdin, p.stdout,
 		`Once the script completes, type 'continue' to proceed, 'exit' to quit`,
 		func(input string) bool {
 			return input == "continue" || input == "exit"
@@ -187,25 +202,25 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSe
 		return entraSettings{}, errCancel
 	}
 
-	fmt.Fprint(os.Stdout, step2Template)
+	fmt.Fprint(p.stdout, step2Template)
 
-	settings, err := readAzureInputs(p.install.entraID.accessGraph)
+	settings, err := readAzureInputs(p.install.entraID.accessGraph, p.stdin, p.stdout)
 	return settings, trace.Wrap(err)
 }
 
-func readAzureInputs(acessGraph bool) (entraSettings, error) {
+func readAzureInputs(acessGraph bool, r io.Reader, w io.Writer) (entraSettings, error) {
 	validUUID := func(input string) bool {
 		_, err := uuid.Parse(input)
 		return err == nil
 	}
 	var settings entraSettings
 	var err error
-	settings.tenantID, err = readData(os.Stdin, os.Stdout, "Enter the Tenant ID", validUUID, "Invalid Tenant ID")
+	settings.tenantID, err = readData(r, w, "Enter the Tenant ID", validUUID, "Invalid Tenant ID")
 	if err != nil {
 		return settings, trace.Wrap(err, "failed to read Tenant ID")
 	}
 
-	settings.clientID, err = readData(os.Stdin, os.Stdout, "Enter the Client ID", validUUID, "Invalid Client ID")
+	settings.clientID, err = readData(r, w, "Enter the Client ID", validUUID, "Invalid Client ID")
 	if err != nil {
 		return settings, trace.Wrap(err, "failed to read Client ID")
 	}
@@ -215,7 +230,7 @@ func readAzureInputs(acessGraph bool) (entraSettings, error) {
 			settings.accessGraphCache, err = readTAGCache(input)
 			return err == nil
 		}
-		_, err = readData(os.Stdin, os.Stdout, "Enter the Access Graph Cache file location", dataValidator, "File does not exist or is invalid")
+		_, err = readData(r, w, "Enter the Access Graph Cache file location", dataValidator, "File does not exist or is invalid")
 		if err != nil {
 			return settings, trace.Wrap(err, "failed to read Access Graph Cache file")
 		}
@@ -241,6 +256,12 @@ func readAzureInputs(acessGraph bool) (entraSettings, error) {
 // in Teleport and a Teleport plugin to synchronize access lists from EntraID to Teleport.
 func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) error {
 	inputs := p.install
+	if p.stdin == nil {
+		p.stdin = os.Stdin
+	}
+	if p.stdout == nil {
+		p.stdout = os.Stdout
+	}
 
 	proxyPublicAddr, err := getProxyPublicAddr(ctx, args.authClient)
 	if err != nil {
@@ -330,6 +351,12 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 	if inputs.entraID.useSystemCredentials {
 		credentialsSource = types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS
 	}
+
+	groupFilters, err := filter.New(buildFilters(inputs.entraID))
+	if err != nil {
+		return trace.Wrap(err, "failed to read filters")
+	}
+
 	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
@@ -347,6 +374,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 							CredentialsSource: credentialsSource,
 							TenantId:          settings.tenantID,
 							EntraAppId:        settings.clientID,
+							GroupFilters:      groupFilters,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},
@@ -453,4 +481,35 @@ func readData(r io.Reader, w io.Writer, message string, validate func(string) bo
 		}
 		return input, nil
 	}
+}
+
+func buildFilters(args entraArgs) []*types.PluginSyncFilter {
+	filtersCap := len(args.groupFilterIncludeID) + len(args.groupFilterExcludeID) + len(args.groupFilterIncludeName) + len(args.groupFilterExcludeName)
+	filters := make([]*types.PluginSyncFilter, 0, filtersCap)
+
+	for _, id := range args.groupFilterIncludeID {
+		filters = append(filters, &types.PluginSyncFilter{
+			Include: &types.PluginSyncFilter_Id{Id: id},
+		})
+	}
+
+	for _, n := range args.groupFilterIncludeName {
+		filters = append(filters, &types.PluginSyncFilter{
+			Include: &types.PluginSyncFilter_NameRegex{NameRegex: n},
+		})
+	}
+
+	for _, id := range args.groupFilterExcludeID {
+		filters = append(filters, &types.PluginSyncFilter{
+			Exclude: &types.PluginSyncFilter_ExcludeId{ExcludeId: id},
+		})
+	}
+
+	for _, n := range args.groupFilterExcludeName {
+		filters = append(filters, &types.PluginSyncFilter{
+			Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: n},
+		})
+	}
+
+	return filters
 }

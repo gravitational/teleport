@@ -1,5 +1,21 @@
 # Changelog
 
+## 18.2.2 (09/19/25)
+
+* Fixed a regression in Teleport Connect for Windows that caused the executable to be unsigned. [#59302](https://github.com/gravitational/teleport/pull/59302)
+* Fixed an issue that prevented uploading encrypted recordings using the S3 session recording backend. [#59281](https://github.com/gravitational/teleport/pull/59281)
+* Fix issue preventing auto enrollment of EKS clusters when using the Web UI. [#59272](https://github.com/gravitational/teleport/pull/59272)
+* Terraform provider: Allow creating access lists without setting spec.grants. [#59217](https://github.com/gravitational/teleport/pull/59217)
+* Fixes a panic that occurs when creating a Bound Keypair join token with the `spec.onboarding` field unset. [#59178](https://github.com/gravitational/teleport/pull/59178)
+* Added desktop name for Windows Directory and Clipboard audit events. [#59146](https://github.com/gravitational/teleport/pull/59146)
+* Added the ability to update the AWS Identity Center SCIM token in `tctl`. [#59114](https://github.com/gravitational/teleport/pull/59114)
+* Added services to correctly choose Access Request roles in remote clusters. [#59062](https://github.com/gravitational/teleport/pull/59062)
+* Install script allows specifying a group for agent installation with managed updates V2 enabled. [#59059](https://github.com/gravitational/teleport/pull/59059)
+* Added support for ElastiCache Serverless for Redis OSS and Valkey database access. [#58891](https://github.com/gravitational/teleport/pull/58891)
+
+Enterprise:
+* Fixed an issue in the Entra ID integration where a user account with an unsupported username value could prevent other valid users and groups to be synced to Teleport. Such user accounts are now filtered.
+
 ## 18.2.1 (09/12/25)
 
 * Fixed client tools managed updates sequential update. [#59086](https://github.com/gravitational/teleport/pull/59086)
@@ -745,3 +761,4 @@ or `alpn-ping` as upgrade types was left as a fallback until v17.
 
 Teleport v18 removes the legacy upgrade mode entirely including the use of the
 `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE` environment variable.
+

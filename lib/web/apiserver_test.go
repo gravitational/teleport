@@ -1359,6 +1359,23 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), appServer)
 	require.NoError(t, err)
 
+	// add a SAMLIdPServiceProvider
+	samlapp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityID: "https://example.com",
+			ACSURL:   "https://example.com/acs",
+		},
+	)
+	require.NoError(t, err)
+	err = env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), samlapp)
+	require.NoError(t, err)
+
 	// Add nodes
 	for i := range 20 {
 		name := fmt.Sprintf("server-%d", i)
@@ -1425,7 +1442,8 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Equal(t, types.KindApp, res.Items[0].Kind)
 	require.Equal(t, types.KindApp, res.Items[1].Kind)
-	require.Equal(t, types.KindDatabase, res.Items[2].Kind)
+	require.Equal(t, types.KindApp, res.Items[2].Kind)
+	require.Equal(t, types.KindDatabase, res.Items[3].Kind)
 
 	// test sort type desc
 	query = url.Values{"sort": []string{"kind:desc"}}
@@ -1486,7 +1504,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 11)
+	require.Len(t, res.Items, 12)
 	require.Empty(t, res.StartKey)
 
 	// Only list valid AWS Roles for AWS Apps
@@ -1506,6 +1524,40 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	}
 	require.Equal(t, expectedRoles, listResp.Items[0].AWSRoles)
 	t.Log(string(re.Bytes()), listResp)
+
+	t.Run("saml_idp_service_provider is included with app kinds", func(t *testing.T) {
+		type appResponse struct {
+			Items      []webui.App `json:"items"`
+			TotalCount int         `json:"totalCount"`
+		}
+		query := url.Values{"kinds": []string{types.KindApp}}
+		re, err := pack.clt.Get(context.Background(), endpoint, query)
+		require.NoError(t, err)
+		appRes := appResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &appRes))
+
+		appConfig := webui.MakeAppsConfig{
+			LocalClusterName:      clusterName,
+			LocalProxyDNSName:     "proxy-1.example.com",
+			AppClusterName:        clusterName,
+			RequiresRequest:       false,
+			AllowedAWSRolesLookup: map[string][]string{"my-aws-app": {"arn:aws:iam::999999999999:role/ProdInstance"}},
+		}
+
+		expectedApps := []webui.App{
+			webui.MakeApp(app, appConfig),
+			webui.MakeApp(awsApp, appConfig),
+			webui.MakeAppTypeFromSAMLApp(samlapp, appConfig),
+		}
+
+		// marshal & unmarshal to match API response (i.e. omitempty)
+		expectedJSON, err := json.Marshal(expectedApps)
+		require.NoError(t, err)
+		var expected []webui.App
+		require.NoError(t, json.Unmarshal(expectedJSON, &expected))
+
+		require.ElementsMatch(t, appRes.Items, expected)
+	})
 }
 
 type clusterAlertsGetResponse struct {
@@ -8189,16 +8241,42 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 	return cookie.SessionID
 }
 
-func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
+type WebPackOptions struct {
+	proxyOptions    []proxyOption
+	enableAuthCache bool
+}
+
+type webPackOptions func(*WebPackOptions)
+
+func withWebPackProxyOptions(opts ...proxyOption) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.proxyOptions = opts
+	}
+}
+
+func withWebPackAuthCacheEnabled(enable bool) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.enableAuthCache = enable
+	}
+}
+
+func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
+	options := &WebPackOptions{}
+
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			ClusterName: "localhost",
-			Dir:         t.TempDir(),
-			Clock:       clock,
-			AuditLog:    events.NewDiscardAuditLog(),
+			ClusterName:  "localhost",
+			Dir:          t.TempDir(),
+			Clock:        clock,
+			AuditLog:     events.NewDiscardAuditLog(),
+			CacheEnabled: options.enableAuthCache,
 		},
 	})
 	require.NoError(t, err)
@@ -8310,7 +8388,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, opts...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.

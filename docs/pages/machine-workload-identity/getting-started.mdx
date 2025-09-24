@@ -222,9 +222,10 @@ or the Assumed Role of an AWS EC2 Instance, to attest to the identity of the pro
 ensuring only authorized bots can join the cluster. This means the bot has a verified <i>identity</i>,
 rather than just a shared secret.
 
-Teleport supports a number of secure [join methods](../reference/join-methods.mdx#delegated-join-methods)
-specific to the platform the bot is running on. Since we are using GitHub Actions,
-we will use the `github` join method.
+Teleport supports a number of secure [join
+methods](../reference/deployment/join-methods.mdx#delegated-join-methods)
+specific to the platform the bot is running on. Since we are using GitHub
+Actions, we will use the `github` join method.
 
 For the join token definition, edit the `repository`
 field to match the GitHub repository where you will run the GitHub Actions workflow.
@@ -261,8 +262,10 @@ $ tctl create -f ./teleport/github_bot_join_token.yaml
 
 ## Step 5/5 Access a resource from GitHub Actions
 
-We have several published [Actions](../reference/machine-id/github-actions.mdx#github-actions-helpers)
-for convenience, but for this guide we will look at things explicitly to aid understanding.
+We have several published
+[Actions](../reference/machine-workload-identity/machine-id/github-actions.mdx#github-actions-helpers)
+for convenience, but for this guide we will look at things explicitly to aid
+understanding.
 
 <Tabs>
 <TabItem label="Server">
@@ -433,7 +436,10 @@ without distributing long-lived credentials, making the process more secure and 
   configuring `tbot` in a production-ready way for your platform.
 - Check out the [access guides](./machine-id/access-guides/access-guides.mdx) to learn about configuring
   `tbot` for other use cases than SSH and Kubernetes.
-- Read the [configuration reference](../reference/machine-id/configuration.mdx) to explore
-  all the available configuration options.
-- Learn how [Workload Identities](../machine-workload-identity/workload-identity/introduction.mdx) enable the same capabilities
-  for resources like cloud APIs that can't be protected with the Teleport proxy.
+- Read the [configuration
+  reference](../reference/machine-workload-identity/machine-id/configuration.mdx)
+  to explore all the available configuration options.
+- Learn how [Workload
+  Identities](../machine-workload-identity/workload-identity/introduction.mdx)
+  enable the same capabilities for resources like cloud APIs that can't be
+  protected with the Teleport proxy.

@@ -87,6 +87,7 @@ type accessListAndMembersGetter struct {
 func (s *accessListAndMembersGetter) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	return s.memberService.WithPrefix(accessListName).ListResources(ctx, pageSize, pageToken)
 }
+
 func (s *accessListAndMembersGetter) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
 	return s.service.GetResource(ctx, name)
 }
@@ -171,6 +172,19 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 	return a.service.ListResources(ctx, pageSize, nextToken)
 }
 
+// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
+func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
+	// Currently, the backend only sorts on lexicographical keys and not
+	// based on fields within a resource
+	if req.SortBy != nil && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc != false) {
+		return nil, "", trace.CompareFailed("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
+	}
+
+	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
+		return services.MatchAccessList(item, req.GetFilter())
+	})
+}
+
 // GetAccessList returns the specified access list resource.
 func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
 	return a.service.GetResource(ctx, name)
@@ -239,16 +253,6 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	}
 
 	reconcileOwners := func() error {
-		// Create map to store owners for efficient lookup
-		originalOwnersMap := make(map[string]struct{})
-		if existingAccessList != nil {
-			for _, owner := range existingAccessList.Spec.Owners {
-				if owner.MembershipKind == accesslist.MembershipKindList {
-					originalOwnersMap[owner.Name] = struct{}{}
-				}
-			}
-		}
-
 		currentOwnersMap := make(map[string]struct{})
 		for _, owner := range accessList.Spec.Owners {
 			if owner.MembershipKind == accesslist.MembershipKindList {
@@ -258,18 +262,23 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 
 		// update references for new owners
 		for ownerName := range currentOwnersMap {
-			if _, exists := originalOwnersMap[ownerName]; !exists {
-				if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), ownerName, true); err != nil {
-					return trace.Wrap(err)
-				}
+			if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), ownerName, true); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 
 		// update references for old owners
-		for ownerName := range originalOwnersMap {
-			if _, exists := currentOwnersMap[ownerName]; !exists {
-				if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), ownerName, false); err != nil {
-					return trace.Wrap(err)
+		if existingAccessList != nil {
+			for _, owner := range existingAccessList.Spec.Owners {
+				if owner.MembershipKind != accesslist.MembershipKindList {
+					continue
+				}
+				// If this owner access list is not an owner anymore after the
+				// update/upsert, its status.owner_of has to be updated.
+				if _, exists := currentOwnersMap[owner.Name]; !exists {
+					if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), owner.Name, false); err != nil {
+						return trace.Wrap(err)
+					}
 				}
 			}
 		}
@@ -583,7 +592,17 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 			}
 
 			updated, err = a.memberService.WithPrefix(member.Spec.AccessList).ConditionalUpdateResource(ctx, member)
-			return trace.Wrap(err)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+				if err := a.updateAccessListMemberOf(ctx, member.Spec.AccessList, member.Spec.Name, true); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+
+			return nil
 		})
 	})
 	return updated, trace.Wrap(err)
@@ -919,6 +938,17 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 		accessList.Spec.Audit.NextAuditDate = nextAuditDate
 
 		for _, removedMember := range review.Spec.Changes.RemovedMembers {
+			_, err := a.memberService.WithPrefix(review.Spec.AccessList).GetResource(ctx, removedMember)
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+			isAccessListMember := err == nil
+
+			if isAccessListMember {
+				if err := a.updateAccessListMemberOf(ctx, review.Spec.AccessList, removedMember, false); err != nil {
+					return trace.Wrap(err)
+				}
+			}
 			if err := a.memberService.WithPrefix(review.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
 				return trace.Wrap(err)
 			}
