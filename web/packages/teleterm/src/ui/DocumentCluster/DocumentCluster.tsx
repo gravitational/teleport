@@ -83,13 +83,17 @@ export default function DocumentCluster(props: {
 function ClusterState(props: {
   clusterUri: uri.ClusterUri;
   clusterName: string;
-  rootCluster: Cluster;
+  rootCluster: Cluster | undefined;
   cluster: Cluster | undefined;
   syncCluster(): void;
   clusterSyncAttempt: Attempt<void>;
   queryParams: DocumentClusterQueryParams;
   docUri: uri.DocumentUri;
 }) {
+  if (!props.rootCluster) {
+    return <NotFound clusterName={props.clusterName} />;
+  }
+
   if (!props.rootCluster.connected) {
     return (
       <RequiresLogin

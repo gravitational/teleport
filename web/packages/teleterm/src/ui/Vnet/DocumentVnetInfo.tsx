@@ -54,7 +54,8 @@ export function DocumentVnetInfo(props: {
   const userAtHost = `${username}@${hostname}`;
   const { rootClusterUri, documentsService } = useWorkspaceContext();
   const proxyHostname = routing.parseClusterName(rootClusterUri);
-  const clusterName = clustersService.findCluster(rootClusterUri).name;
+  const clusterName =
+    clustersService.findCluster(rootClusterUri)?.name || '<cluster>';
 
   const startVnet = async () => {
     await launchVnetWithoutFirstTimeCheck(doc.launcherArgs);

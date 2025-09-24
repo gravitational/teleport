@@ -127,6 +127,9 @@ async function setUpPtyProcess(
     leafClusterId: doc.leafClusterId,
   });
   const rootCluster = ctx.clustersService.findRootClusterByResource(clusterUri);
+  if (!rootCluster) {
+    throw new Error(`Cluster ${clusterUri} not found.`);
+  }
   const cmd = createCmd(
     ctx.clustersService,
     doc,

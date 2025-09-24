@@ -39,7 +39,7 @@ export type ConnectMyComputerAccessNoAccess =
 // This will make it easier to understand what the user can and cannot do without having to jump around the code base.
 // https://github.com/gravitational/teleport/pull/28346#discussion_r1246653846
 export function getConnectMyComputerAccess(
-  loggedInUser: tsh.LoggedInUser,
+  loggedInUser: tsh.LoggedInUser | undefined,
   runtimeSettings: RuntimeSettings
 ): ConnectMyComputerAccess {
   const isUnix =

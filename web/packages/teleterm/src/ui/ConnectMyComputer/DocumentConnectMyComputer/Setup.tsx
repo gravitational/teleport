@@ -264,9 +264,14 @@ function AgentSetup() {
   ] = useAsync(
     useCallback(
       () =>
-        retryWithRelogin(ctx, rootClusterUri, () =>
-          ctx.connectMyComputerService.createAgentConfigFile(rootCluster)
-        ),
+        retryWithRelogin(ctx, rootClusterUri, () => {
+          if (!rootCluster) {
+            throw new Error(`Cluster ${rootClusterUri} not found.`);
+          }
+          return ctx.connectMyComputerService.createAgentConfigFile(
+            rootCluster
+          );
+        }),
       [rootCluster, ctx, rootClusterUri]
     )
   );
@@ -378,7 +383,7 @@ function AgentSetup() {
     for (const step of steps) {
       const [, error] = await step.runAttempt();
       if (error) {
-        ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
+        ctx.usageService.captureConnectMyComputerSetup(rootClusterUri, {
           success: false,
           failedStep: step.nameInFailureEvent,
         });
@@ -387,7 +392,7 @@ function AgentSetup() {
       }
     }
 
-    ctx.usageService.captureConnectMyComputerSetup(rootCluster.uri, {
+    ctx.usageService.captureConnectMyComputerSetup(rootClusterUri, {
       success: true,
     });
     // Wait before navigating away from the document, so the user has time

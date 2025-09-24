@@ -22,6 +22,7 @@ import * as connectMyComputer from 'shared/connectMyComputer';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { routing } from 'teleterm/ui/uri';
 
 export function useAgentProperties(): {
   systemUsername: string;
@@ -40,9 +41,9 @@ export function useAgentProperties(): {
   return {
     systemUsername,
     hostname,
-    roleName: cluster.loggedInUser
+    roleName: cluster?.loggedInUser
       ? connectMyComputer.getRoleNameForUser(cluster.loggedInUser.name)
       : '',
-    clusterName: cluster.name,
+    clusterName: cluster?.name || routing.parseClusterName(rootClusterUri),
   };
 }

@@ -57,6 +57,14 @@ export async function connectToApp(
   const rootCluster = ctx.clustersService.findCluster(rootClusterUri);
   const cluster = ctx.clustersService.findClusterByResource(target.uri);
 
+  if (!rootCluster) {
+    ctx.notificationsService.notifyError({
+      title: `Could not launch ${target.name}`,
+      description: `Cluster ${rootClusterUri} not found.`,
+    });
+    return;
+  }
+
   if (target.samlApp) {
     launchAppInBrowser(
       ctx,
@@ -71,6 +79,13 @@ export async function connectToApp(
   }
 
   if (target.awsConsole) {
+    if (!cluster) {
+      ctx.notificationsService.notifyError({
+        title: `Could not launch ${target.name}`,
+        description: `Cluster for ${target.uri} not found.`,
+      });
+      return;
+    }
     launchAppInBrowser(
       ctx,
       target,
@@ -91,6 +106,13 @@ export async function connectToApp(
   }
 
   if (isWebApp(target)) {
+    if (!cluster) {
+      ctx.notificationsService.notifyError({
+        title: `Could not launch ${target.name}`,
+        description: `Cluster for ${target.uri} not found.`,
+      });
+      return;
+    }
     launchAppInBrowser(
       ctx,
       target,

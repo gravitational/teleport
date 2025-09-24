@@ -19,7 +19,6 @@
 import { Alert, ButtonPrimary, ButtonText, H1, Text } from 'design';
 import Flex from 'design/Flex';
 import { DeviceConfirmationToken } from 'gen-proto-ts/teleport/devicetrust/v1/device_confirmation_token_pb';
-import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 import { processRedirectUri } from 'shared/redirects';
 
@@ -50,16 +49,16 @@ export function DocumentAuthorizeWebSession(props: {
     return confirmationToken;
   });
   const clusterName = routing.parseClusterName(props.doc.rootClusterUri);
-  const isDeviceTrusted = rootCluster.loggedInUser?.isDeviceTrusted;
+  const isDeviceTrusted = rootCluster?.loggedInUser?.isDeviceTrusted;
   const isRequestedUserLoggedIn =
-    props.doc.webSessionRequest.username === rootCluster.loggedInUser?.name;
+    props.doc.webSessionRequest.username === rootCluster?.loggedInUser?.name;
   const canAuthorize = isDeviceTrusted && isRequestedUserLoggedIn;
 
-  async function authorizeAndCloseDocument() {
+  async function authorizeAndCloseDocument(proxyHost: string) {
     const [confirmationToken, error] = await authorize();
     if (!error) {
       const url = buildAuthorizedSessionUrl(
-        rootCluster,
+        proxyHost,
         props.doc.webSessionRequest,
         confirmationToken
       );
@@ -69,9 +68,9 @@ export function DocumentAuthorizeWebSession(props: {
     }
   }
 
-  function openUnauthorizedAndCloseDocument() {
+  function openUnauthorizedAndCloseDocument(proxyHost: string) {
     const url = buildUnauthorizedSessionUrl(
-      rootCluster,
+      proxyHost,
       props.doc.webSessionRequest
     );
     window.open(url);
@@ -125,13 +124,13 @@ export function DocumentAuthorizeWebSession(props: {
                 content: 'Log Out',
                 onClick: () => {
                   ctx.commandLauncher.executeCommand('cluster-logout', {
-                    clusterUri: rootCluster.uri,
+                    clusterUri: props.doc.rootClusterUri,
                   });
                 },
               }}
               details={
                 <>
-                  You are logged in as <b>{rootCluster.loggedInUser?.name}</b>.
+                  You are logged in as <b>{rootCluster?.loggedInUser?.name}</b>.
                   To authorize this web session request, please log out in
                   Teleport Connect and log in again as{' '}
                   <b>{props.doc.webSessionRequest.username}</b>.
@@ -157,21 +156,25 @@ export function DocumentAuthorizeWebSession(props: {
           <Flex flexDirection="column" gap={2}>
             <ButtonPrimary
               disabled={
+                !rootCluster ||
                 !canAuthorize ||
                 authorizeAttempt.status === 'processing' ||
                 authorizeAttempt.status === 'success'
               }
               size="large"
-              onClick={authorizeAndCloseDocument}
+              onClick={() => authorizeAndCloseDocument(rootCluster.proxyHost)}
             >
               {getButtonText(authorizeAttempt)}
             </ButtonPrimary>
             <ButtonText
               disabled={
+                !rootCluster ||
                 authorizeAttempt.status === 'processing' ||
                 authorizeAttempt.status === 'success'
               }
-              onClick={openUnauthorizedAndCloseDocument}
+              onClick={() =>
+                openUnauthorizedAndCloseDocument(rootCluster.proxyHost)
+              }
             >
               Open Session Without Device Trust
             </ButtonText>
@@ -185,13 +188,13 @@ export function DocumentAuthorizeWebSession(props: {
 const confirmPath = 'webapi/devices/webconfirm';
 
 function buildAuthorizedSessionUrl(
-  rootCluster: Cluster,
+  proxyHost: string,
   webSessionRequest: WebSessionRequest,
   confirmationToken: DeviceConfirmationToken
 ): string {
   const { redirectUri } = webSessionRequest;
 
-  let url = `https://${rootCluster.proxyHost}/${confirmPath}?id=${confirmationToken.id}&token=${confirmationToken.token}`;
+  let url = `https://${proxyHost}/${confirmPath}?id=${confirmationToken.id}&token=${confirmationToken.token}`;
   if (redirectUri) {
     url = `${url}&redirect_uri=${redirectUri}`;
   }
@@ -199,7 +202,7 @@ function buildAuthorizedSessionUrl(
 }
 
 function buildUnauthorizedSessionUrl(
-  rootCluster: Cluster,
+  proxyHost: string,
   webSessionRequest: WebSessionRequest
 ): string {
   // processedRedirectUri is the path part of the redirectUri.
@@ -208,7 +211,7 @@ function buildUnauthorizedSessionUrl(
   const processedRedirectUri = processRedirectUri(
     webSessionRequest.redirectUri
   );
-  return `https://${rootCluster.proxyHost}${processedRedirectUri}`;
+  return `https://${proxyHost}${processedRedirectUri}`;
 }
 
 function getButtonText(attempt: Attempt<unknown>): string {
