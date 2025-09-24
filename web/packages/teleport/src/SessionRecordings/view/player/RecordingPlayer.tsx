@@ -31,6 +31,11 @@ import Box from 'web/packages/design/src/Box';
 import Flex from 'web/packages/design/src/Flex';
 import { Pause, Play } from 'web/packages/design/src/Icon';
 
+import type { SessionRecordingEvent } from 'teleport/services/recordings';
+import {
+  CurrentEventInfo,
+  type CurrentEventInfoHandle,
+} from 'teleport/SessionRecordings/view/CurrentEventInfo';
 import type { Player } from 'teleport/SessionRecordings/view/player/Player';
 import {
   PlayerControls,
@@ -58,6 +63,7 @@ export interface RecordingPlayerProps<
   endEventType: TEndEventType;
   decodeEvent: (buffer: ArrayBuffer) => TEvent;
   ref: RefObject<PlayerHandle>;
+  events?: SessionRecordingEvent[];
   ws: WebSocket;
 }
 
@@ -74,6 +80,7 @@ export function RecordingPlayer<
   onToggleFullscreen,
   onToggleSidebar,
   onToggleTimeline,
+  events,
   ref,
   ws,
 }: RecordingPlayerProps<TEvent>) {
@@ -81,6 +88,7 @@ export function RecordingPlayer<
 
   const [showPlayButton, setShowPlayButton] = useState(true);
 
+  const eventInfoRef = useRef<CurrentEventInfoHandle>(null);
   const controlsRef = useRef<PlayerControlsHandle>(null);
   const playerRef = useRef<HTMLDivElement>(null);
 
@@ -95,12 +103,13 @@ export function RecordingPlayer<
     });
 
     stream.on('time', time => {
-      if (!controlsRef.current) {
+      if (!controlsRef.current || !eventInfoRef.current) {
         return;
       }
 
       controlsRef.current.setTime(time);
       onTimeChange(time);
+      eventInfoRef.current.setTime(time);
     });
 
     stream.loadInitial();
@@ -161,7 +170,14 @@ export function RecordingPlayer<
         borderColor="spotBackground.1"
         borderRadius={4}
         overflow="hidden"
+        position="relative"
       >
+        <CurrentEventInfo
+          events={events}
+          onSeek={handleSeek}
+          ref={eventInfoRef}
+        />
+
         {showPlayButton && (
           <PlayButton onClick={handlePlay}>
             <AdjustedPlay size="extra-large" />

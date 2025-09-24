@@ -23,7 +23,10 @@ import styled from 'styled-components';
 import Flex from 'design/Flex';
 import Indicator from 'design/Indicator';
 
-import type { RecordingType } from 'teleport/services/recordings';
+import type {
+  RecordingType,
+  SessionRecordingEvent,
+} from 'teleport/services/recordings';
 import { DesktopPlayer } from 'teleport/SessionRecordings/view/DesktopPlayer';
 import { TtyRecordingPlayer } from 'teleport/SessionRecordings/view/player/tty/TtyRecordingPlayer';
 import SshPlayer, {
@@ -42,6 +45,7 @@ interface RecordingPlayerProps {
   fullscreen?: boolean;
   initialCols?: number;
   initialRows?: number;
+  events?: SessionRecordingEvent[];
   ref?: RefObject<PlayerHandle>;
 }
 
@@ -74,6 +78,7 @@ export function RecordingPlayer({
   recordingType,
   initialCols,
   initialRows,
+  events,
   ref,
 }: RecordingPlayerProps) {
   if (recordingType === 'desktop') {
@@ -115,6 +120,7 @@ export function RecordingPlayer({
             onToggleTimeline={onToggleTimeline}
             initialCols={initialCols}
             initialRows={initialRows}
+            events={events}
             ref={ref}
           />
         </Suspense>
