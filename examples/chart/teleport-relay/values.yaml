@@ -473,7 +473,7 @@ tls:
   #
   # <Admonition type="warning" title="Root CA filename">
   #
-  # The key containing the root CA in the secret must be `ca.pem`.
+  #   The key containing the root CA in the secret must be `ca.pem`.
   #
   # </Admonition>
   existingCASecretName: ""
@@ -544,17 +544,19 @@ fullnameOverride: ""
 # teleportVersionOverride(string) -- controls the Teleport Kubernetes Operator
 # image version deployed by the chart.
 #
-# Normally, the version of the Teleport Kubernetes Operator matches the
-# version of the chart. If you install chart version 15.0.0, you'll use
-# Teleport version 15.0.0. Upgrading the agent is done by upgrading the chart.
+# Normally, the version of the Teleport Kubernetes Operator matches the version
+# of the chart. If you install chart version 15.0.0, you'll use Teleport version
+# 15.0.0. Upgrading the agent is done by upgrading the chart.
 #
 # <Admonition type="warning">
-# `teleportVersionOverride` is intended for development and MUST NOT be
-# used to control the Teleport version in a typical deployment. This
-# chart is designed to run a specific Teleport version. You will face
-# compatibility issues trying to run a different Teleport version with it.
 #
-# If you want to run Teleport version `X.Y.Z`, you should use
-# `helm install --version X.Y.Z` instead.
+#   `teleportVersionOverride` is intended for development and MUST NOT be used
+#   to control the Teleport version in a typical deployment. This chart is
+#   designed to run a specific Teleport version. You will face compatibility
+#   issues trying to run a different Teleport version with it.
+#
+#   If you want to run Teleport version `X.Y.Z`, you should use `helm install
+#   --version X.Y.Z` instead.
+#
 # </Admonition>
 teleportVersionOverride: ""
