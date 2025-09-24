@@ -101,7 +101,7 @@ func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, ccf *tctlcfg.Gl
 
 	c.toolsStrategyCmd = clientToolsCmd.Command("strategies", "Sets the client tools strategies when update must be applied depends on client version.")
 	c.toolsStrategyCmd.Arg("strategies", "List of the strategies that must be overridden for cluster").EnumsVar(&c.toolsStrategies,
-		autoupdate.ToolStrategyNoDowngrade, autoupdate.ToolStrategyIgnoreMinorUpdate, autoupdate.ToolStrategyIgnorePatchUpdate)
+		autoupdate.ToolStrategyNoDowngrade, autoupdate.ToolStrategyIgnoreMajorDowngrade)
 	c.toolsStrategyCmd.Flag("clear", "Removes the target version, Teleport will default to its current proxy version.").BoolVar(&c.clear)
 
 	agentsCmd := autoUpdateCmd.Command("agents", "Manage agents auto update configuration.")

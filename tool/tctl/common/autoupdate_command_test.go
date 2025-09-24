@@ -90,14 +90,13 @@ func TestClientToolsAutoUpdateCommands(t *testing.T) {
 	assert.Equal(t, "1.2.3", version.Spec.Tools.TargetVersion)
 
 	// Set the strategy to ensure that it was saved for cluster configuration.
-	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "strategies", "no-downgrade", "ignore-minor-update"})
+	_, err = runAutoUpdateCommand(t, authClient, []string{"client-tools", "strategies", "no-downgrade"})
 	require.NoError(t, err)
 
 	config, err = authClient.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, []autoupdatepb.AutoUpdateToolsStrategy{
 		autoupdatepb.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE,
-		autoupdatepb.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE,
 	}, config.Spec.Tools.Strategies)
 
 	getBuf, err := runAutoUpdateCommand(t, authClient, []string{"client-tools", "status", "--format=json"})

@@ -47,12 +47,9 @@ const (
 	AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED AutoUpdateToolsStrategy = 0
 	// AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE is strategy that restricts client tools to downgrade.
 	AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE AutoUpdateToolsStrategy = 1
-	// AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE is strategy that restricts client tools
-	// to upgrade/downgrade minor version.
-	AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE AutoUpdateToolsStrategy = 2
-	// AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE is strategy that restricts client tools
-	// to upgrade/downgrade patch version
-	AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE AutoUpdateToolsStrategy = 3
+	// AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE is strategy that restricts client tools
+	// to downgrade major version.
+	AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE AutoUpdateToolsStrategy = 2
 )
 
 // Enum value maps for AutoUpdateToolsStrategy.
@@ -60,14 +57,12 @@ var (
 	AutoUpdateToolsStrategy_name = map[int32]string{
 		0: "AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED",
 		1: "AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE",
-		2: "AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE",
-		3: "AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE",
+		2: "AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE",
 	}
 	AutoUpdateToolsStrategy_value = map[string]int32{
-		"AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED":         0,
-		"AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE":        1,
-		"AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE": 2,
-		"AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE": 3,
+		"AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED":            0,
+		"AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE":           1,
+		"AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE": 2,
 	}
 )
 
@@ -1801,12 +1796,11 @@ const file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = "" +
 	"updater_id\x18\x01 \x01(\tR\tupdaterId\x12\x17\n" +
 	"\ahost_id\x18\x02 \x01(\tR\x06hostId\x12\x1a\n" +
 	"\bhostname\x18\x03 \x01(\tR\bhostname\x12\x18\n" +
-	"\asuccess\x18\x04 \x01(\bR\asuccess*\xda\x01\n" +
+	"\asuccess\x18\x04 \x01(\bR\asuccess*\xa9\x01\n" +
 	"\x17AutoUpdateToolsStrategy\x12*\n" +
 	"&AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED\x10\x00\x12+\n" +
-	"'AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE\x10\x01\x122\n" +
-	".AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE\x10\x02\x122\n" +
-	".AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE\x10\x03*\xa1\x02\n" +
+	"'AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE\x10\x01\x125\n" +
+	"1AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE\x10\x02*\xa1\x02\n" +
 	"\x19AutoUpdateAgentGroupState\x12-\n" +
 	")AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED\x10\x00\x12+\n" +
 	"'AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED\x10\x01\x12(\n" +

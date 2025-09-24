@@ -92,10 +92,8 @@ func TransformStrategyToPb(strategy string) autoupdate.AutoUpdateToolsStrategy {
 	switch strategy {
 	case ToolStrategyNoDowngrade:
 		return autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE
-	case ToolStrategyIgnoreMinorUpdate:
-		return autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE
-	case ToolStrategyIgnorePatchUpdate:
-		return autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE
+	case ToolStrategyIgnoreMajorDowngrade:
+		return autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE
 	default:
 		return autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED
 	}
@@ -106,10 +104,8 @@ func TransformPbToStrategy(strategy autoupdate.AutoUpdateToolsStrategy) string {
 	switch strategy {
 	case autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE:
 		return ToolStrategyNoDowngrade
-	case autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE:
-		return ToolStrategyIgnoreMinorUpdate
-	case autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE:
-		return ToolStrategyIgnorePatchUpdate
+	case autoupdate.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE:
+		return ToolStrategyIgnoreMajorDowngrade
 	default:
 		return ""
 	}

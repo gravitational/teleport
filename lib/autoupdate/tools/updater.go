@@ -546,13 +546,8 @@ func validateUpdateByStrategy(strategies []string, requestedVersion, localVersio
 		return ErrCancelUpdate
 	}
 
-	if slices.Contains(strategies, types.ToolStrategyIgnorePatchUpdate) &&
-		localSemVer.Major == requestedSemVer.Major && localSemVer.Minor == requestedSemVer.Minor {
-		return ErrCancelUpdate
-	}
-
-	if slices.Contains(strategies, types.ToolStrategyIgnoreMinorUpdate) &&
-		localSemVer.Major == requestedSemVer.Major {
+	if slices.Contains(strategies, types.ToolStrategyIgnoreMajorDowngrade) &&
+		localSemVer.Major > requestedSemVer.Major {
 		return ErrCancelUpdate
 	}
 

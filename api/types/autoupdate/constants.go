@@ -24,12 +24,9 @@ const (
 
 	// ToolStrategyNoDowngrade is strategy that denies downgrading client tools.
 	ToolStrategyNoDowngrade = "no-downgrade"
-	// ToolStrategyIgnoreMinorUpdate is strategy that denies to upgrade/downgrade
-	// if minor version is changed.
-	ToolStrategyIgnoreMinorUpdate = "ignore-minor-update"
-	// ToolStrategyIgnorePatchUpdate is strategy that denies to upgrade/downgrade
-	// if patch version is changed.
-	ToolStrategyIgnorePatchUpdate = "ignore-patch-update"
+	// ToolStrategyIgnoreMajorDowngrade is strategy that denies to downgrade
+	// if major version is changed.
+	ToolStrategyIgnoreMajorDowngrade = "ignore-major-downgrade"
 
 	// AgentsUpdateModeEnabled enabled agent automatic updates.
 	AgentsUpdateModeEnabled = "enabled"

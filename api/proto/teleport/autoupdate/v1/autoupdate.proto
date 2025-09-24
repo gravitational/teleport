@@ -48,12 +48,9 @@ enum AutoUpdateToolsStrategy {
   AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED = 0;
   // AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE is strategy that restricts client tools to downgrade.
   AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE = 1;
-  // AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE is strategy that restricts client tools
-  // to upgrade/downgrade minor version.
-  AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MINOR_UPDATE = 2;
-  // AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE is strategy that restricts client tools
-  // to upgrade/downgrade patch version
-  AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_PATCH_UPDATE = 3;
+  // AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE is strategy that restricts client tools
+  // to downgrade major version.
+  AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE = 2;
 }
 
 // AutoUpdateConfigSpecTools encodes the parameters for client tools auto updates.
