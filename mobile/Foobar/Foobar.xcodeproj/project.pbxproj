@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		45FFF3B52E84116F00A28C94 /* Connect in Frameworks */ = {isa = PBXBuildFile; productRef = 45FFF3B42E84116F00A28C94 /* Connect */; };
+		45FFF4212E842E7B00A28C94 /* ConnectNIO in Frameworks */ = {isa = PBXBuildFile; productRef = 45FFF4202E842E7B00A28C94 /* ConnectNIO */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				45FFF4212E842E7B00A28C94 /* ConnectNIO in Frameworks */,
 				45FFF3B52E84116F00A28C94 /* Connect in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -132,6 +134,7 @@
 			name = Foobar;
 			packageProductDependencies = (
 				45FFF3B42E84116F00A28C94 /* Connect */,
+				45FFF4202E842E7B00A28C94 /* ConnectNIO */,
 			);
 			productName = Foobar;
 			productReference = 45D39C852E730E8D005CB76F /* Foobar.app */;
@@ -629,6 +632,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 45FFF3B32E84116F00A28C94 /* XCRemoteSwiftPackageReference "connect-swift" */;
 			productName = Connect;
+		};
+		45FFF4202E842E7B00A28C94 /* ConnectNIO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 45FFF3B32E84116F00A28C94 /* XCRemoteSwiftPackageReference "connect-swift" */;
+			productName = ConnectNIO;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
