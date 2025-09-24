@@ -261,7 +261,7 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) er
 	coll := &serverCollection{servers: nodes}
 	switch c.lsFormat {
 	case teleport.Text:
-		if err := coll.writeText(os.Stdout, c.verbose); err != nil {
+		if err := coll.WriteText(os.Stdout, c.verbose); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
