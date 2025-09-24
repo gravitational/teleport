@@ -142,3 +142,7 @@ func (l localFS) Readlink(name string) (string, error) {
 func (l localFS) Getwd() (string, error) {
 	return os.Getwd()
 }
+
+func (l localFS) RealPath(path string) (string, error) {
+	return filepath.EvalSymlinks(path)
+}

@@ -211,6 +211,10 @@ func (h *proxyHandlers) Filelist(req *sftp.Request) (_ sftp.ListerAt, err error)
 	return lister, nil
 }
 
+func (h *proxyHandlers) RealPath(path string) (string, error) {
+	return h.remoteFS.RealPath(path)
+}
+
 func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	wd, err := h.remoteFS.Getwd()
 	if err != nil {
