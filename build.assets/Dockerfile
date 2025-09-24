@@ -55,7 +55,6 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16
 
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
-# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
     cd libfido2 && \
     [ "$(git rev-parse HEAD)" = 'f87c19c9487c0131531314d9ccb475ea5325794e' ] && \
@@ -277,7 +276,6 @@ RUN scversion='v0.10.0' && \
     shellcheck --version
 
 # Install helm.
-# Keep the version below synced with devbox.json
 RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \

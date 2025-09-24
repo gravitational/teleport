@@ -18,7 +18,9 @@ package cache
 
 import (
 	"context"
-	"fmt"
+	"encoding/base32"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -55,13 +57,13 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 			proto.CloneOf[*machineidv1.BotInstance],
 			map[botInstanceIndex]func(*machineidv1.BotInstance) string{
 				// Index on a combination of bot name and instance name
-				botInstanceNameIndex: keyForNameIndex,
+				botInstanceNameIndex: keyForBotInstanceNameIndex,
 				// Index on a combination of most recent heartbeat time and instance name
-				botInstanceActiveAtIndex: keyForActiveAtIndex,
+				botInstanceActiveAtIndex: keyForBotInstanceActiveAtIndex,
 				// Index on a combination of most recent heartbeat version and instance name
-				botInstanceVersionIndex: keyForVersionIndex,
+				botInstanceVersionIndex: keyForBotInstanceVersionIndex,
 				// Index on a combination of most recent heartbeat hostname and instance name
-				botInstanceHostnameIndex: keyForHostnameIndex,
+				botInstanceHostnameIndex: keyForBotInstanceHostnameIndex,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
@@ -89,7 +91,7 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 		},
 	}
 
-	out, err := getter.get(ctx, makeNameIndexKey(botName, instanceID))
+	out, err := getter.get(ctx, makeBotInstanceNameIndexKey(botName, instanceID))
 	return out, trace.Wrap(err)
 }
 
@@ -100,25 +102,25 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 	defer span.End()
 
 	index := botInstanceNameIndex
-	keyFn := keyForNameIndex
+	keyFn := keyForBotInstanceNameIndex
 	isDesc := options.GetSortDesc()
 	switch options.GetSortField() {
 	case "bot_name":
 		index = botInstanceNameIndex
-		keyFn = keyForNameIndex
+		keyFn = keyForBotInstanceNameIndex
 	case "active_at_latest":
 		index = botInstanceActiveAtIndex
-		keyFn = keyForActiveAtIndex
+		keyFn = keyForBotInstanceActiveAtIndex
 	case "version_latest":
 		index = botInstanceVersionIndex
-		keyFn = keyForVersionIndex
+		keyFn = keyForBotInstanceVersionIndex
 	case "host_name_latest":
 		index = botInstanceHostnameIndex
-		keyFn = keyForHostnameIndex
+		keyFn = keyForBotInstanceHostnameIndex
 	case "":
 		// default ordering as defined above
 	default:
-		return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name or active_at_latest", options.GetSortField())
+		return nil, "", trace.BadParameter("unsupported sort %q but expected bot_name, active_at_latest, version_latest or host_name_latest", options.GetSortField())
 	}
 
 	var exp typical.Expression[*expression.Environment, bool]
@@ -156,50 +158,63 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 	return out, next, trace.Wrap(err)
 }
 
-func keyForNameIndex(botInstance *machineidv1.BotInstance) string {
-	return makeNameIndexKey(
+func keyForBotInstanceNameIndex(botInstance *machineidv1.BotInstance) string {
+	return makeBotInstanceNameIndexKey(
 		botInstance.GetSpec().GetBotName(),
 		botInstance.GetMetadata().GetName(),
 	)
 }
 
-func makeNameIndexKey(botName string, instanceID string) string {
+func makeBotInstanceNameIndexKey(botName string, instanceID string) string {
 	return botName + "/" + instanceID
 }
 
-func keyForActiveAtIndex(botInstance *machineidv1.BotInstance) string {
+func keyForBotInstanceActiveAtIndex(botInstance *machineidv1.BotInstance) string {
 	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	recordedAt := heartbeat.GetRecordedAt().AsTime()
 	return recordedAt.Format(time.RFC3339) + "/" + botInstance.GetMetadata().GetName()
 }
 
-func keyForVersionIndex(botInstance *machineidv1.BotInstance) string {
+// keyForBotInstanceVersionIndex produces a zero-padded version string for sorting. Pre-
+// releases are sorted naively - 1.0.0-rc is correctly less than 1.0.0, but
+// 1.0.0-rc.2 is more than 1.0.0-rc.11
+func keyForBotInstanceVersionIndex(botInstance *machineidv1.BotInstance) string {
 	version := "000000.000000.000000"
 	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	if heartbeat == nil {
-		return version + "/" + botInstance.GetMetadata().GetName()
+		return version + "-~/" + botInstance.GetMetadata().GetName()
 	}
 
 	sv, err := semver.NewVersion(heartbeat.GetVersion())
 	if err != nil {
-		return version + "/" + botInstance.GetMetadata().GetName()
+		return version + "-~/" + botInstance.GetMetadata().GetName()
 	}
 
-	version = fmt.Sprintf("%06d.%06d.%06d", sv.Major, sv.Minor, sv.Patch)
+	zeroPad := func(num int) string {
+		length := 6
+		s := strconv.Itoa(num)
+		var b strings.Builder
+		b.Grow(length)
+		b.WriteString(strings.Repeat("0", length-len(s)))
+		b.WriteString(s)
+		return b.String()
+	}
+
+	version = zeroPad(int(sv.Major)) + "." + zeroPad(int(sv.Minor)) + "." + zeroPad(int(sv.Patch))
 	if sv.PreRelease != "" {
 		version = version + "-" + string(sv.PreRelease)
-	}
-	if sv.Metadata != "" {
-		version = version + "+" + sv.Metadata
+	} else {
+		version = version + "-~"
 	}
 	return version + "/" + botInstance.GetMetadata().GetName()
 }
 
-func keyForHostnameIndex(botInstance *machineidv1.BotInstance) string {
+func keyForBotInstanceHostnameIndex(botInstance *machineidv1.BotInstance) string {
 	hostname := "~"
 	heartbeat := services.GetBotInstanceLatestHeartbeat(botInstance)
 	if heartbeat != nil {
 		hostname = heartbeat.GetHostname()
 	}
-	return hostname + "/" + botInstance.GetMetadata().GetName()
+	hostname = hostname + "/" + botInstance.GetMetadata().GetName()
+	return base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(hostname))
 }

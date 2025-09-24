@@ -25,6 +25,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func setupWorkloadIdentityServiceTest(
@@ -61,7 +63,8 @@ func newValidWorkloadIdentity(name string) *workloadidentityv1pb.WorkloadIdentit
 		},
 		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
 			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-				Id: "/test",
+				Id:   "/test/" + name,
+				Hint: "This is hint " + name,
 			},
 		},
 	}
@@ -157,7 +160,7 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 		createdObjects = append(createdObjects, created)
 	}
 	t.Run("default page size", func(t *testing.T) {
-		page, nextToken, err := service.ListWorkloadIdentities(ctx, 0, "")
+		page, nextToken, err := service.ListWorkloadIdentities(ctx, 0, "", nil)
 		require.NoError(t, err)
 		require.Len(t, page, 49)
 		require.Empty(t, nextToken)
@@ -175,7 +178,7 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 		iterations := 0
 		for {
 			iterations++
-			page, nextToken, err := service.ListWorkloadIdentities(ctx, 10, token)
+			page, nextToken, err := service.ListWorkloadIdentities(ctx, 10, token, nil)
 			require.NoError(t, err)
 			fetched = append(fetched, page...)
 			if nextToken == "" {
@@ -192,6 +195,51 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 				return proto.Equal(created, resource)
 			}))
 		}
+	})
+	t.Run("default sort", func(t *testing.T) {
+		page, nextToken, err := service.ListWorkloadIdentities(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, page, 49)
+		require.Empty(t, nextToken)
+
+		prevName := ""
+		for i := range len(page) {
+			assert.Greater(t, page[i].GetMetadata().GetName(), prevName)
+			prevName = page[i].GetMetadata().GetName()
+		}
+	})
+	t.Run("unsupported sort field error", func(t *testing.T) {
+		_, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			SortField: "blah",
+		})
+		require.ErrorContains(t, err, `unsupported sort, only name field is supported, but got "blah"`)
+	})
+	t.Run("unsupported sort order error", func(t *testing.T) {
+		_, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			SortDesc: true,
+		})
+		require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
+	})
+	t.Run("search filter match on name", func(t *testing.T) {
+		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			FilterSearchTerm: "9",
+		})
+		require.NoError(t, err)
+		assert.Len(t, page, 4)
+	})
+	t.Run("search filter match on spiffe id", func(t *testing.T) {
+		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			FilterSearchTerm: "test/22",
+		})
+		require.NoError(t, err)
+		assert.Len(t, page, 1)
+	})
+	t.Run("search filter match on spiffe hint", func(t *testing.T) {
+		page, _, err := service.ListWorkloadIdentities(ctx, 0, "", &services.ListWorkloadIdentitiesRequestOptions{
+			FilterSearchTerm: "hint 13",
+		})
+		require.NoError(t, err)
+		assert.Len(t, page, 1)
 	})
 }
 
@@ -263,14 +311,14 @@ func TestWorkloadIdentityService_DeleteAllWorkloadIdentities(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	page, _, err := service.ListWorkloadIdentities(ctx, 0, "")
+	page, _, err := service.ListWorkloadIdentities(ctx, 0, "", nil)
 	require.NoError(t, err)
 	require.Len(t, page, 2)
 
 	err = service.DeleteAllWorkloadIdentities(ctx)
 	require.NoError(t, err)
 
-	page, _, err = service.ListWorkloadIdentities(ctx, 0, "")
+	page, _, err = service.ListWorkloadIdentities(ctx, 0, "", nil)
 	require.NoError(t, err)
 	require.Empty(t, page)
 }

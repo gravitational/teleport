@@ -155,12 +155,14 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		sortDesc = req.GetSort().IsDesc
 	}
 	return b.ListBotInstancesV2(ctx, &pb.ListBotInstancesV2Request{
-		PageSize:         req.GetPageSize(),
-		PageToken:        req.GetPageToken(),
-		SortField:        sortField,
-		SortDesc:         sortDesc,
-		FilterBotName:    req.GetFilterBotName(),
-		FilterSearchTerm: req.GetFilterSearchTerm(),
+		PageSize:  req.GetPageSize(),
+		PageToken: req.GetPageToken(),
+		SortField: sortField,
+		SortDesc:  sortDesc,
+		Filter: &pb.ListBotInstancesV2Request_Filters{
+			BotName:    req.GetFilterBotName(),
+			SearchTerm: req.GetFilterSearchTerm(),
+		},
 	})
 }
 
@@ -176,11 +178,11 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 	}
 
 	res, nextToken, err := b.cache.ListBotInstances(ctx, int(req.PageSize), req.PageToken, &services.ListBotInstancesRequestOptions{
-		SortField:        req.SortField,
-		SortDesc:         req.SortDesc,
-		FilterBotName:    req.FilterBotName,
-		FilterSearchTerm: req.FilterSearchTerm,
-		FilterQuery:      req.FilterQuery,
+		SortField:        req.GetSortField(),
+		SortDesc:         req.GetSortDesc(),
+		FilterBotName:    req.GetFilter().GetBotName(),
+		FilterSearchTerm: req.GetFilter().GetSearchTerm(),
+		FilterQuery:      req.GetFilter().GetQuery(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -1,0 +1,1110 @@
+---
+title: Get Started with the Teleport Terraform Provider
+sidebar_label: Getting Started
+description: Provides an example to help you get started managing dynamic resources in a Teleport cluster using Terraform.
+tags:
+ - how-to
+ - zero-trust
+---
+
+This guide provides an example of a Terraform module that manages Teleport
+resources in production. The guide helps you to understand the Teleport
+resources to manage with Terraform in order to accomplish common Teleport setup
+tasks. You can use the example module as a starting point for managing a
+complete set of Teleport cluster resources.
+
+## How it works
+
+This guide shows you how to use a Terraform module that serves two purposes:
+joining Teleport Agents to your cluster and configure role-based access control
+for infrastructure resources.
+
+### Joining Teleport Agents
+
+An Agent is a Teleport instance configured to run one or more Teleport services
+in order to proxy infrastructure resources (see [Introduction to Teleport
+Agents](../../../enroll-resources/agents/agents.mdx)). There are several methods
+you can use to join a Teleport Agent to your cluster, which we discuss in the
+[Joining Services to your Cluster](../../../enroll-resources/agents/agents.mdx)
+guide. In this guide, we will use the **join token** method, where the operator
+stores a secure token on the Auth Service, and an Agent presents the token in
+order to join a cluster.
+
+The Terraform module enrolls resources such as Linux servers, databases, and
+Kubernetes clusters by deploying a pool of Teleport Agents on virtual machine
+instances. You can then declare dynamic infrastructure resources with Terraform
+or change the configuration file provided to each Agent.
+
+### Configuring role-based access control
+
+The module also configures Teleport role-based access controls to provide
+different levels of access to the resources. It also configures Access Requests,
+available in Teleport Identity Governance, so that users authenticate with less
+privileged roles by default but can request access to more privileged roles. An
+authentication connector lets users authenticate to Teleport using a Single
+Sign-On provider.
+
+## Prerequisites
+
+- A running Teleport (v16.2.0 or higher) cluster. If you do not have one, read
+  [Getting Started](../../../get-started.mdx).
+
+<Admonition type="tip">
+
+We recommend following this guide on a fresh Teleport demo cluster. After you
+are familiar with the setup, apply the lessons from this guide to protect your
+infrastructure. You can get started with a demo cluster using:
+- A demo deployment on a [Linux server](../../../linux-demo.mdx)
+- A [Teleport Enterprise (Cloud) trial](https://goteleport.com/signup)
+
+</Admonition>
+
+- An AWS, Google Cloud, or Azure account with permissions to create virtual
+  machine instances.
+  
+- Cloud infrastructure that enables virtual machine instances to connect to the
+  Teleport Proxy Service. For example:
+  - An AWS subnet with a public NAT gateway or NAT instance
+  - Google Cloud NAT
+  - Azure NAT Gateway
+
+  In minimum-security demo clusters, you can also configure the VM instances you
+  deploy to have public IP addresses.
+
+- [Optional] If adding a Single Sign-On authentication connector, an identity
+  provider that supports OIDC or SAML. You should have either:
+  - The ability to modify SAML attributes or OIDC claims in your organization.
+  - Pre-existing groups of users that you want to map to two levels of access:
+    the ability to connect to `dev` resources; and the ability to review Access
+    Requests for `prod` access.
+
+- [Optional] If adding a Single Sign-On authentication connector, an app
+  registered with your IdP for your Teleport cluster. The following guides show
+  you how to set up your IdP to support the SAML or OIDC authentication
+  connector. **Read only the linked section**, since these guides assume you are
+  using `tctl` instead of Terraform to manage authentication connectors:
+  - [AD FS](../../sso/adfs.mdx#step-13-configure-adfs)
+  - [GitLab](../../sso/gitlab.mdx#step-14-configure-gitlab)
+  - [Google
+    Workspace](../../sso/google-workspace.mdx#step-14-configure-google-workspace)
+  - [OneLogin](../../sso/one-login.mdx#step-13-create-teleport-application-in-onelogin)
+  - [Entra ID](../../sso/entra-id.mdx#step-13-configure-microsoft-entra-id)
+  - [Okta](../../sso/okta.mdx#step-24-configure-okta)
+
+- To help with troubleshooting, we recommend completing the setup steps in this
+  guide with a local user that has the preset `editor` and `auditor` roles. In
+  production, you can apply the lessons in this guide using a less privileged
+  user.
+
+- Terraform v(=terraform.version=) or higher.
+
+## Step 1/7. Import the Terraform module
+
+To configure the `terraform-starter` module, you will clone the
+`gravitational/teleport` repository from GitHub and copy child modules into a
+project directory. After finishing this guide and becoming familiar with the
+setup, you can modify your Terraform configuration to accommodate your
+infrastructure in production.
+
+1. Navigate to your Terraform project directory.
+
+1. Fetch the Teleport code repository and copy the example Terraform
+   configuration for this project into your current working directory. 
+
+   ```code
+   $ git clone --depth=1 https://github.com/gravitational/teleport teleport-clone --branch=branch/v(=teleport.major_version=)
+   ```
+
+## Step 2/7. Add provider configurations
+
+In this step, you will configure the `terraform-starter` module for your
+Teleport cluster and cloud provider.
+
+In your Terraform project directory, ensure that the file called `provider.tf`
+includes the following content, depending on which cloud provider you plan to
+use to deploy Teleport Agents:
+
+<Tabs>
+<TabItem label="AWS">
+
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
+
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> (=teleport.major_version=).0"
+    }
+  }
+}
+
+provider "aws" {
+  region = AWS_REGION
+}
+
+provider "teleport" {
+  # Update addr to point to your Teleport Enterprise (Cloud) tenant URL's host:port
+  addr               = PROXY_SERVICE_ADDRESS
+}
+```
+
+Replace the following placeholders:
+
+| Placeholder           | Value                                                                        |
+|-----------------------|------------------------------------------------------------------------------|
+| AWS_REGION            | The AWS region where you will deploy Agents, e.g., `us-east-2`               |
+| PROXY_SERVICE_ADDRESS | The host and port of the Teleport Proxy Service, e.g., `example.teleport.sh:443` |
+
+</TabItem>
+<TabItem label="Google Cloud">
+```hcl
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.5.0"
+    }
+
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> (=teleport.major_version=).0"
+    }
+  }
+}
+
+provider "google" {
+  project = GOOGLE_CLOUD_PROJECT
+  region  = GOOGLE_CLOUD_REGION
+}
+
+provider "teleport" {
+  # Update addr to point to your Teleport Enterprise (Cloud) tenant URL's host:port
+  addr               = PROXY_SERVICE_ADDRESS
+}
+```
+
+Replace the following placeholders:
+
+| Placeholder           | Value                                                                        |
+|-----------------------|------------------------------------------------------------------------------|
+| GOOGLE_CLOUD_PROJECT| Google Cloud project where you will deploy Agents. |
+| GOOGLE_CLOUD_REGION | Google Cloud region where you will deploy Agents. |
+| PROXY_SERVICE_ADDRESS | The host and port of the Teleport Proxy Service, e.g., `example.teleport.sh:443` |
+
+
+</TabItem>
+<TabItem label="Azure">
+```hcl
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0.0"
+    }
+
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> (=teleport.major_version=).0"
+    }
+  }
+}
+
+provider "teleport" {
+  # Update addr to point to your Teleport Cloud tenant URL's host:port
+  addr               = PROXY_SERVICE_ADDRESS
+}
+
+provider "azurerm" {
+  features {}
+}
+```
+
+Replace the following placeholders:
+
+|Placeholder|Value|
+|---|---|
+| PROXY_SERVICE_ADDRESS | The host and port of the Teleport Proxy Service, e.g., `example.teleport.sh:443` |
+
+</TabItem>
+</Tabs>
+
+## Step 3/7. Configure Agent deployments
+
+Configure your Terraform project to deploy Teleport Agents:
+
+1. Copy the appropriate child module for your cloud provider into a subdirectory
+   called `cloud` and HCL configurations for Teleport resources into a
+   subdirectory called `teleport`:
+
+   <Tabs>
+   <TabItem label="AWS">
+
+   ```code
+   $ cp -R teleport-clone/examples/terraform-starter/agent-installation teleport
+   $ cp -R teleport-clone/examples/terraform-starter/aws cloud
+   ```
+
+   </TabItem>
+   <TabItem label="Google Cloud">
+
+   ```code
+   $ cp -R teleport-clone/examples/terraform-starter/agent-installation teleport
+   $ cp -R teleport-clone/examples/terraform-starter/gcp cloud
+   ```
+
+   </TabItem>
+   <TabItem label="Azure">
+
+   ```code
+   $ cp -R teleport-clone/examples/terraform-starter/agent-installation teleport
+   $ cp -R teleport-clone/examples/terraform-starter/azure cloud
+   ```
+
+   </TabItem>
+   </Tabs>
+
+1. Create a file called `agent.tf` with the following content, which configures
+   the child modules you downloaded in the previous step:
+
+   <Tabs>
+   <TabItem label="AWS">
+   
+   ```hcl
+   module "agent_installation_dev" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "dev"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_installation_prod" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "prod"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_deployment" {
+     region           = ""
+     source           = "./cloud"
+     subnet_id        = ""
+     userdata_scripts = concat(
+       module.agent_installation_dev.userdata_scripts,
+       module.agent_installation_prod.userdata_scripts
+     )
+   }
+   ```
+   
+   </TabItem>
+   <TabItem label="Google Cloud">
+   
+   ```hcl
+   module "agent_installation_dev" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "dev"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_installation_prod" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "prod"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_deployment" {
+     gcp_zone         = "us-east1-b"
+     google_project   = ""
+     source           = "./cloud"
+     subnet_id        = ""
+     userdata_scripts = concat(
+       module.agent_installation_dev.userdata_scripts,
+       module.agent_installation_prod.userdata_scripts
+     )
+   }
+   ```
+   
+   </TabItem>
+   <TabItem label="Azure">
+   
+   ```hcl
+   module "agent_installation_dev" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "dev"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_installation_prod" {
+     source      = "./teleport"
+     agent_count = 1
+     agent_labels = {
+       env = "prod"
+     }
+     proxy_service_address = "teleport.example.com:443"
+     teleport_edition      = "cloud"
+     teleport_version      = "(=teleport.version=)"
+   }
+   
+   module "agent_deployment" {
+     azure_resource_group = ""
+     public_key_path      = ""
+     region               = "East US"
+     source               = "./cloud"
+     subnet_id            = ""
+     userdata_scripts     = concat(
+       module.agent_installation_dev.userdata_scripts,
+       module.agent_installation_prod.userdata_scripts
+     )
+   }
+   ```
+   
+   </TabItem>
+   </Tabs>
+
+Each of the `agent_installation_*` module blocks produces a number of
+installation scripts equal to the `agent_count` input. Each installation script
+runs the Teleport SSH Service with a Teleport join token, labeling the Agent
+with the key/value pairs specified in `agent_labels`. This configuration passes
+all installation scripts to the `agent_deployment` module in order to run them
+on virtual machines, launching one VM per script.
+
+As you scale your Teleport usage, you can increase this count to ease the load
+on each Agent. 
+
+Edit the `agent_installation_dev` and `agent_installation_prod` blocks in
+`agent.tf` as follows:
+
+1. Assign `proxy_service_address` to the host and HTTPS port of your Teleport
+   Proxy Service, e.g., `mytenant.teleport.sh:443`.
+
+   <Admonition type="tip">
+   
+   Make sure to include the port.
+   
+   </Admonition>
+
+1. Make sure `teleport_edition` matches your Teleport edition. Assign this to
+   `oss`, `cloud`, or `enterprise`. The default is `oss`.
+
+1. If needed, change the value of `teleport_version` to the version of Teleport
+   you want to run on your Agents. It must be either the same major version as
+   your Teleport cluster or one major version behind.
+
+Edit the `module "agent_deployment"` block in `agent.tf` as follows:
+
+1. If you are deploying your instance in a minimum-security demo environment and
+   do not have a NAT gateway, NAT instance, or other method for connecting your
+   instances to the Teleport Proxy Service, modify the `module` block to
+   associate a public IP address with each Agent instance: 
+
+   ```hcl
+   insecure_direct_access=true
+   ```
+
+1. Assign the remaining input variables depending on your cloud provider:
+
+   <Tabs>
+   <TabItem label="AWS">
+   
+   1. Assign `region` to the AWS region where you plan to deploy Teleport Agents,
+      such as `us-east-1`.
+   1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
+      Agents.
+   
+   </TabItem>
+   <TabItem label="Google Cloud">
+   
+   1. Assign `google_project` to the name of your Google Cloud project and
+      `gcp_zone` to the zone where you will deploy Agents, such as `us-east1-b`.
+
+   1. For `subnet_id`, include the name or URI of the Google Cloud subnet where you
+      will deploy the Teleport Agents.
+   
+      The subnet URI has the format:
+   
+      ```
+      projects/PROJECT_NAME/regions/REGION/subnetworks/SUBNET_NAME
+      ```
+   
+   </TabItem>
+   <TabItem label="Azure">
+   
+   1. Assign `azure_resource_group` to the name of the Azure resource group where
+      you are deploying Teleport Agents.
+   
+   1. The module uses `public_key_path` to pass validation, as Azure VMs must
+      include an RSA public key with at least 2048 bits. Once the module deploys
+      the VMs, a cloud-init script removes the public key and disables OpenSSH. Set
+      this input to the path to a valid public SSH key.
+   
+   1. Assign `region` to the Azure region where you plan to deploy Teleport Agents,
+      such as `East US`.
+   
+   1. For `subnet_id`, include the ID of the subnet where you will deploy Teleport
+      Agents. Use the following format:
+   
+      ```text
+      /subscriptions/SUBSCRIPTION/resourceGroups/RESOURCE_GROUP/providers/Microsoft.Network/virtualNetworks/NETWORK_NAME/subnets/SUBNET_NAME
+      ```
+   
+   </TabItem>
+   </Tabs>
+
+## Step 4/7. Configure role-based access control
+
+After configuring Teleport Agent deployments, configure role-based access
+control so Teleport users can access only the infrastructure resources they need
+to:
+
+1. Since you will enable users to authenticate to Teleport through your
+   organization's identity provider (IdP), the modules depend on whether your
+   organization uses OIDC or SAML to communicate with services:
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   ```code
+   $ cp -R teleport-clone/examples/terraform-starter/env_role env_role
+   $ cp -R teleport-clone/examples/terraform-starter/oidc oidc
+   ```
+   </TabItem>
+   <TabItem label="SAML">
+
+   ```code
+   $ cp -R teleport-clone/examples/terraform-starter/env_role env_role
+   $ cp -R teleport-clone/examples/terraform-starter/saml saml
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   Your project directory will include two new modules: 
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   |Name|Description|
+   |---|---|
+   |`env_role`|A module for a Teleport role that grants access to resources with a specific `env` label.|
+   |`oidc`|Teleport resources to configure an OIDC authentication connector and require that users authenticate with it.|
+
+   </TabItem>
+   <TabItem label="SAML">
+
+   |Name|Description|
+   |---|---|
+   |`env_role`|A module for a Teleport role that grants access to resources with a specific `env` label.|
+   |`saml`|Teleport resources to configure a SAML authentication connector and require that users authenticate with it.|
+
+   </TabItem>
+   </Tabs>
+
+1. Create a file called `rbac.tf` that includes the following `module` blocks: 
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   ```hcl
+   module "oidc" {
+     source               = "./oidc"
+     oidc_claims_to_roles = []
+     oidc_client_id       = ""
+     oidc_connector_name  = "Log in with OIDC"
+     oidc_redirect_url    = ""
+     oidc_secret          = ""
+     teleport_domain      = ""
+   }
+   
+   module "prod_role" {
+     source        = "./env_role"
+     env_label     = "prod"
+     principals    = {}
+     request_roles = []
+   }
+
+   module "dev_role" {
+     source        = "./env_role"
+     env_label     = "dev"
+     principals    = {}
+     request_roles = [module.prod_role.role_name]
+   }
+   ```
+   </TabItem>
+   <TabItem label="SAML">
+
+   ```hcl
+   module "saml" {
+     source                   = "./saml"
+     saml_connector_name      = "Log in with SAML"
+     saml_attributes_to_roles = []
+     saml_acs                 = ""
+     saml_entity_descriptor   = ""
+     teleport_domain          = ""
+   }
+   
+   module "prod_role" {
+     source        = "./env_role"
+     env_label     = "prod"
+     principals    = {}
+     request_roles = []
+   }
+   
+   module "dev_role" {
+     source        = "./env_role"
+     env_label     = "dev"
+     principals    = {}
+     request_roles = [module.prod_role.role_name]
+   }
+   ```
+   </TabItem>
+   </Tabs>
+
+Next, we will show you how to configure the two child modules, and walk you
+through the Terraform resources that they apply.
+
+
+## Step 5/7. Configure role principals
+
+Together, the `prod_role` and `dev_role` modules you declared in Step 1 create
+three Teleport roles:
+
+|Role|Description|
+|---|---|
+|`prod_access`|Allows access to infrastructure resources with the `env:prod` label.|
+|`dev_access`|Allows access to infrastructure resources with the `env:dev` label, and Access Requests for the `prod_access` role.|
+|`prod_reviewer`|Allows reviews of Access Requests for the `prod_access` role.|
+
+When Teleport users connect to resources in your infrastructure, they assume a
+principal, such as an operating system login or Kubernetes user, in order to
+interact with those resources. In this step, you will configure the `prod_role`
+and `dev_role` modules to grant access to principals in your infrastructure.
+
+In `rbac.tf`, edit the `prod_role` and `dev_role` blocks so that the
+`principals` field contains a mapping, similar to the example below. Use the
+list of keys below the example to configure the principals.
+
+```hcl
+module "prod_role" {
+  principals = {
+    KEY = "value"
+  }
+  // ...
+}
+
+// ...
+```
+
+|Key|Description|
+|---|---|
+|`aws_role_arns`|AWS role ARNs the user can access when authenticating to an AWS API.|
+|`azure_identities`|Azure identities the user can access when authenticating to an Azure API.|
+|`db_names`|Names of databases the user can access within a database server.|
+|`db_roles`|Roles the user can access on a database when they authenticate to a database server.|
+|`db_users`|Users the user can access on a database when they authenticate to a database server.|
+|`gcp_service_accounts`|Google Cloud service accounts the user can access when authenticating to a Google Cloud API.|
+|`kubernetes_groups`|Kubernetes groups the Teleport Database Service can impersonate when proxying requests from the user.|
+|`kubernetes_users`|Kubernetes users the Teleport Database Service can impersonate when proxying requests from the user.|
+|`logins`|Operating system logins the user can access when authenticating to a Linux server.|
+|`windows_desktop_logins`|Operating system logins the user can access when authenticating to a Windows desktop.|
+
+For example, the following configuration allows users with the `dev_access` role
+to assume the `dev` login on Linux hosts and the `developers` group on
+Kubernetes. `prod` users have more privileges and can assume the `root` login
+and `system:masters` Kubernetes group:
+
+```hcl
+module "dev_role" {
+  principals = {
+    logins            = ["dev"]
+    kubernetes_groups = ["developers"]
+  }
+  // ...
+}
+
+module "prod_role" {
+  principals = {
+    logins            = ["root"]
+    kubernetes_groups = ["system:masters"]
+  }
+  // ...
+}
+```
+
+## Step 6/7. [Optional] Configure the single sign-on connector
+
+In this step, you will configure your Terraform module to enable authentication
+through your organization's IdP. Configure the `saml` or `oidc` module you
+declared in Step 1 by following the instructions.
+
+<Admonition type="tip">
+
+You can skip this step for now if you want to assign the `dev_access` and
+`prod_access` roles to local Teleport users instead of single sign-on users. To
+do so, you can:
+
+- Import existing `teleport_user` resources and modify them to include the
+  `dev_access` and `prod_access` roles (see the
+  [documentation](../managing-resources/import-existing-resources.mdx)).
+- Create a new `teleport_user` resource that includes the roles
+  ([documentation](../managing-resources/user-and-role.mdx).
+
+If you plan to skip this step, make sure to remove the `module "saml"` or
+`module "oidc"` block from your Terraform configuration.
+
+</Admonition>
+
+1. Configure the redirect URL (for OIDC) or assertion consumer service (for SAML):
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   Set `oidc_redirect_url` to
+   `https://example.teleport.sh:443/v1/webapi/oidc/callback`, replacing
+   `example.teleport.sh` with the domain name of your Teleport cluster. 
+
+   Ensure that `oidc_redirect_url` matches match the URL you configured with
+   your IdP when registering your Teleport cluster as a relying party.
+
+   </TabItem>
+   <TabItem label="SAML">
+
+   Set `saml_acs` to `https://example.teleport.sh:443/v1/webapi/saml/acs`,
+   replacing `example.teleport.sh` with the domain name of your Teleport
+   cluster. 
+
+   Ensure that `saml_acs` matches the URL you configured with your IdP when
+   registering your Teleport cluster as a relying party.
+
+   </TabItem>
+   </Tabs>
+
+1. After you register Teleport as a relying party, your identity provider will
+   print information that you will use to configure the authentication
+   connector. Fill in the information depending on your provider type:
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   Fill in the `oidc_client_id` and `oidc_secret` with the client ID and secret
+   returned by the IdP.
+
+   </TabItem>
+   <TabItem label="SAML">
+
+   Assign `saml_entity_descriptor` to the contents of the XML document that
+   contains the SAML entity descriptor for the IdP.
+
+   </TabItem>
+   </Tabs>
+
+1. Assign `teleport_domain` to the domain name of your Teleport Proxy Service,
+   with no scheme or path, e.g., `example.teleport.sh`. The child module uses
+   this to configure WebAuthn for local users. This way, you can authenticate as
+   a local user as a fallback if you need to troubleshoot your single sign-on
+   authentication connector.
+
+1. Configure role mapping for your authentication connector. When a user
+   authenticates to Teleport through your organization's IdP, Teleport assigns
+   roles to the user based on your connector's role mapping configuration:
+
+   <Tabs>
+   <TabItem label="OIDC">
+
+   In this example, users with a `group` claim with the `developers` value
+   receive the `dev_access` role, while users with a `group` claim with the
+   value `admins` receive the `prod_reviewer` role:
+
+   ```hcl
+        oidc_claims_to_roles = [
+          {
+            claim = "group"
+            value = "developers"
+            roles = [
+              module.dev_role.role_name
+            ]
+          },
+          {
+            claim = "group"
+            value = "admins"
+            roles = module.dev_role.reviewer_role_names
+          }
+        ]
+   ```
+
+   Edit the `claim` value for each item in `oidc_claims_to_roles` to match the
+   name of an OIDC claim you have configured on your IdP. 
+
+   </TabItem>
+   <TabItem label="SAML">
+
+   In this example, users with a `group` attribute with the `developers` value
+   receive the `dev_access` role, while users with a `group` attribute with the
+   value `admins` receive the `prod_reviewer` role:
+
+   ```hcl
+        saml_attributes_to_roles = [
+          {
+            name  = "group"
+            value = "developers"
+            roles = [
+              module.dev_role.role_name
+            ]
+          },
+          {
+            name  = "group"
+            value = "admins"
+            roles = module.dev_role.reviewer_role_names
+          }
+        ]
+   ```
+
+   </TabItem>
+   </Tabs>
+
+## Step 7/7. Apply and verify
+
+In this step, you will ensure that your Terraform configuration works as
+expected by applying it against your demo cluster.
+
+### Apply your Terraform configuration
+
+In this step, you will create a Teleport bot to apply your Terraform
+configuration. The bot will exist for one hour and will be granted the default
+`terraform-provider` role that can edit every resource the TF provider supports.
+
+1. Navigate to your Terraform project directory and run the following command.
+   The `eval`command assigns environment variables in your shell to credentials
+   for the Teleport Terraform provider:
+
+   ```code
+   $ eval "$(tctl terraform env)"
+   🔑 Detecting if MFA is required
+   This is an admin-level action and requires MFA to complete
+   Tap any security key
+   Detected security key tap
+   ⚙️ Creating temporary bot "tctl-terraform-env-82ab1a2e" and its token
+   🤖 Using the temporary bot to obtain certificates
+   🚀 Certificates obtained, you can now use Terraform in this terminal for 1h0m0s
+   ```
+
+1. Make sure your cloud provider credentials are available to Terraform using
+   the standard approach for your organization.
+
+1. Apply the Terraform configuration:
+
+   ```code
+   $ terraform init
+   $ terraform apply
+   ```
+
+### Verify that agents have deployed
+
+Once the `apply` command completes, run the following command to verify that
+your Agents have deployed successfully. This command, which assumes that the
+Agents have the `Node` role, lists all Teleport SSH Service instances with the
+`role=agent-pool` label:
+
+```code
+$ tsh ls role=agent-pool
+Node Name                  Address    Labels
+-------------------------- ---------- ---------------
+ip-10-1-1-187.ec2.internal ⟵ Tunnel   role=agent-pool
+ip-10-1-1-24.ec2.internal  ⟵ Tunnel   role=agent-pool
+```
+
+### Verify access controls
+
+1. Open the Teleport Web UI in a browser and sign in to Teleport as a user on
+   your IdP with the `groups` trait assigned to the value that you mapped to the
+   role in your authentication connector. Your user should have the `dev_access`
+   role.
+
+   <Admonition type="tip">
+
+   If you receive errors logging in using your authentication connector, log in
+   as a local user with permissions to view the Teleport audit log. These is
+   available in the preset `auditor` role. Check for error messages in events
+   related with the "SSO Login" type.
+
+   </Admonition>
+
+1. Request access to the `prod_access` role through the Web UI. Visit the
+   "Access Requests" tab and click "New Request".
+
+1. Sign out of the Web UI and, as a user in a group that you mapped to the
+   `prod_access` role, sign in. In the "Access Requests" tab, you should be able
+   to see and resolve the Access Request you created.
+
+## Further reading: How the module works
+
+In this section, we explain the resources configured in the
+`terraform-starter` module.
+
+We encourage you to copy and customize these configurations in order to refine
+your settings and choose the best reusable interface for your environment.
+
+### Join token
+
+The `terraform-starter` module deploys one virtual machine instance for each
+Teleport Agent. Each Agent joins the cluster using a token. We create each token
+using the `teleport_provision_token` Terraform resource, specifying the token's
+value with a `random_string` resource:
+
+```hcl
+(!examples/terraform-starter/agent-installation/token.tf!)
+```
+
+When we apply the `teleport_provision_token` resources, the Teleport Terraform
+provider creates them on the Teleport Auth Service backend. 
+
+### User data script
+
+Each Teleport Agent deployed by the `terraform-starter` module loads a user
+data script that creates a Teleport configuration file for the Agent: 
+
+```text
+(!examples/terraform-starter/agent-installation/userdata!)
+```
+
+The configuration adds the `role: agent-pool` label to the Teleport SSH Service
+on each instance. This makes it easier to access hosts in the Agent pool later.
+It also adds the labels you configured using the `agent_labels` input of the
+module.
+
+The script makes Teleport the only option for accessing Agent instances by
+disabling OpenSSH on startup and deleting any authorized public keys.
+
+### Virtual machine instances
+
+Each cloud-specific child module of `terraform-starter` declares resources to
+deploy a virtual machine instance on your cloud provider:
+
+<Tabs>
+<TabItem label="AWS">
+
+`ec2-instance.tf` declares a data source for an Amazon Linux 2023 machine image
+and uses it to launch EC2 instances that run Teleport Agents with the
+`teleport_provision_token` resource:
+
+```hcl
+(!examples/terraform-starter/aws/ec2-instance.tf!)
+```
+
+</TabItem>
+<TabItem label="Google Cloud">
+
+`gcp-instance.tf` declares Google Compute Engine instances that use the
+`teleport_provision_token` to run Teleport Agents:
+
+```hcl
+(!examples/terraform-starter/gcp/gcp-instance.tf!)
+```
+
+</TabItem>
+<TabItem label="Azure">
+
+`azure-instance.tf` declares an Azure virtual machine resource to run Teleport
+Agents using the `teleport_provision_token` resource, plus the required network
+interface for each instance. 
+
+Note that while Azure VM instances require a user account, this module declares
+a temporary one to pass validation, but uses Teleport to enable access to the
+instances:
+
+```hcl
+(!examples/terraform-starter/azure/azure-instance.tf!)
+```
+
+</TabItem>
+</Tabs>
+
+### The `env_access` role
+
+The `env_role` child module creates Teleport roles with the ability to access
+Teleport-protected resources with the `env` label:
+
+```hcl
+(!examples/terraform-starter/env_role/env_role.tf!)
+```
+
+The role hardcodes an `allow` rule with the ability to access applications,
+databases, Linux servers, Kubernetes clusters, and Windows desktops with the
+user-configured `env` label. 
+
+Since we cannot predict which principals are available in your infrastructure,
+this role leaves the `aws_role_arns`, `logins`, and other principal-related role
+attributes for the user to configure.
+
+The role also configures an `allow` rule that enables users to request access
+for the roles configured in the `request_roles` input variable.
+
+An `output` prints the name of the role to allow us to create a dependency
+relationship between this role and an authentication connector.
+
+### The `env_access_reviewer` role
+
+If `var.request_roles` in the `env_access` role is nonempty, the `env_role`
+module creates a role that can review those roles. This is a separate role to
+make permissions more composable:
+
+```hcl
+(!examples/terraform-starter/env_role/reviewer.tf!)
+```
+
+As with the `env_access` role, there is an output to print the name of the
+`env_access_reviewer` role to create a dependency relationship with the
+authentication connector.
+
+### Configuring an authentication connector
+
+The authentication connector resources are minimal. Beyond providing the
+attributes necessary to send and receive Teleport OIDC and SAML messages, the
+connectors configure role mappings based on user-provided values:
+
+<Tabs>
+<TabItem label="OIDC">
+
+```hcl
+(!examples/terraform-starter/oidc/oidc_connector.tf!)
+```
+</TabItem>
+<TabItem label="SAML">
+
+```hcl
+(!examples/terraform-starter/saml/saml.tf!)
+```
+
+</TabItem>
+</Tabs>
+
+Since the role mappings inputs are composite data types, we add a complex type
+definition when declaring the input variables for the `oidc` and `saml` child
+modules:
+
+<Tabs>
+<TabItem label="OIDC">
+
+```hcl
+(!examples/terraform-starter/oidc/inputs.tf!)
+```
+</TabItem>
+<TabItem label="SAML">
+
+```hcl
+(!examples/terraform-starter/saml/inputs.tf!)
+```
+</TabItem>
+</Tabs>
+
+For each authentication connector, we declare a cluster authentication
+preference that enables the connector. The cluster authentication preference
+enables local user login with WebAuthn as a secure fallback in case you need to
+troubleshoot the single sign-on provider.
+
+<Tabs>
+<TabItem label="OIDC">
+
+```hcl
+(!examples/terraform-starter/oidc/auth_pref.tf!)
+```
+</TabItem>
+<TabItem label="SAML">
+
+```hcl
+(!examples/terraform-starter/saml/auth_pref.tf!)
+```
+</TabItem>
+</Tabs>
+
+
+## Next steps
+
+In this guide, we showed you how to use Terraform to deploy a pool of Teleport
+Agents in order to enroll infrastructure resources with Teleport. While the
+guide showed you how to enroll resources dynamically, by declaring Terraform
+resources for each infrastructure resource you want to enroll, you can protect
+more of your infrastructure with Teleport by:
+
+- Configuring Auto-Discovery
+- Configuring resource enrollment
+
+### Configure Auto-Discovery
+
+For a more scalable approach to enrolling resources than the one shown in this
+guide, configure the Teleport Discovery Service to automatically detect
+resources in your infrastructure and enroll them with the Teleport Auth Service.
+
+To configure the Teleport Discovery Service:
+
+1. Edit the userdata script run by the Agent instances managed in the Terraform
+   starter module. Follow the [Auto-Discovery
+   guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides
+   to configure the Discovery Service and enable your Agents to proxy the
+   resources that the service enrolls.
+1. Add the `Discovery` role to the join token resource you created earlier. In
+   this guide, the join token only has the `Node` role.
+1. Add roles to the join token resource that corresponds to the Agent services
+   you want to proxy discovered resources. The roles to add depend on the
+   resources you want to automatically enroll based on the [Auto-Discovery
+   guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides.
+
+### Enroll resources manually
+
+You can also enroll resources manually, instructing Agents to proxy specific
+endpoints in your infrastructure. For information about manual enrollment, read
+the documentation section for each kind of resource you would like to enroll:
+  
+- [Databases](../../../enroll-resources/database-access/database-access.mdx)
+- [Windows
+  desktops](../../../enroll-resources/desktop-access/desktop-access.mdx)
+- [Kubernetes
+  clusters](../../../enroll-resources/kubernetes-access/kubernetes-access.mdx)
+- [Linux servers](../../../enroll-resources/server-access/server-access.mdx)
+- [Web applications and cloud provider
+  APIs](../../../enroll-resources/application-access/application-access.mdx)
+
+Once you are familiar with the process of enrolling a resource manually, you can
+edit your Terraform module to:
+
+1. **Add token roles:** The token resource you created has only the `Node` role,
+   and you can add roles to authorize your Agents to proxy additional kinds of
+   resources. Consult a guide to enrolling resources manually to determine the
+   role to add to the token.
+1. **Change the userdata script** to enable additional Agent services additional
+   infrastructure resources for your Agents to proxy.
+1. **Deploy dynamic resources:** Consult the [Terraform provider
+   reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx) for
+   Terraform resources that you can apply in order to enroll dynamic resources
+   in your infrastructure.
+
+### Fine-tune your configuration
+
+Now that you have configured RBAC in your Terraform demo cluster, fine-tune your
+setup by reading the comprehensive [Terraform provider
+reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx).

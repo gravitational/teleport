@@ -130,7 +130,7 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-		return services.MatchBotInstance(item, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp)
+		return services.MatchBotInstance(item, "", options.GetFilterSearchTerm(), exp)
 	})
 
 	return r, nextToken, trace.Wrap(err)

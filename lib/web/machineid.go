@@ -413,6 +413,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 		sort = &s
 	}
 
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), &machineidv1.ListBotInstancesRequest{
 		FilterBotName:    r.URL.Query().Get("bot_name"),
 		PageSize:         int32(pageSize),
@@ -457,11 +458,13 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 	}
 
 	request := &machineidv1.ListBotInstancesV2Request{
-		PageToken:        r.URL.Query().Get("page_token"),
-		SortField:        r.URL.Query().Get("sort_field"),
-		FilterBotName:    r.URL.Query().Get("bot_name"),
-		FilterSearchTerm: r.URL.Query().Get("search"),
-		FilterQuery:      r.URL.Query().Get("query"),
+		PageToken: r.URL.Query().Get("page_token"),
+		SortField: r.URL.Query().Get("sort_field"),
+		Filter: &machineidv1.ListBotInstancesV2Request_Filters{
+			BotName:    r.URL.Query().Get("bot_name"),
+			SearchTerm: r.URL.Query().Get("search"),
+			Query:      r.URL.Query().Get("query"),
+		},
 	}
 
 	if r.URL.Query().Has("page_size") {

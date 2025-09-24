@@ -19,8 +19,8 @@ package services
 import (
 	"context"
 	"slices"
-	"strings"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -84,7 +84,7 @@ func UnmarshalBotInstance(data []byte, opts ...MarshalOption) (*machineidv1.BotI
 }
 
 func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string, exp typical.Expression[*expression.Environment, bool]) bool {
-	if botName != "" && b.Spec.BotName != botName {
+	if botName != "" && b.GetSpec().GetBotName() != botName {
 		return false
 	}
 
@@ -116,7 +116,7 @@ func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string,
 	}
 
 	return slices.ContainsFunc(values, func(val string) bool {
-		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
+		return strcase.Contains(val, search)
 	})
 }
 

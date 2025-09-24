@@ -49,7 +49,9 @@ const (
 type BotInstanceServiceClient interface {
 	// GetBotInstance returns the specified BotInstance resource.
 	GetBotInstance(ctx context.Context, in *GetBotInstanceRequest, opts ...grpc.CallOption) (*BotInstance, error)
+	// Deprecated: Do not use.
 	// ListBotInstances returns a page of BotInstance resources.
+	// Deprecated: Use ListBotInstancesV2 instead
 	ListBotInstances(ctx context.Context, in *ListBotInstancesRequest, opts ...grpc.CallOption) (*ListBotInstancesResponse, error)
 	// ListBotInstancesV2 returns a page of BotInstance resources.
 	ListBotInstancesV2(ctx context.Context, in *ListBotInstancesV2Request, opts ...grpc.CallOption) (*ListBotInstancesResponse, error)
@@ -77,6 +79,7 @@ func (c *botInstanceServiceClient) GetBotInstance(ctx context.Context, in *GetBo
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *botInstanceServiceClient) ListBotInstances(ctx context.Context, in *ListBotInstancesRequest, opts ...grpc.CallOption) (*ListBotInstancesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListBotInstancesResponse)
@@ -125,7 +128,9 @@ func (c *botInstanceServiceClient) SubmitHeartbeat(ctx context.Context, in *Subm
 type BotInstanceServiceServer interface {
 	// GetBotInstance returns the specified BotInstance resource.
 	GetBotInstance(context.Context, *GetBotInstanceRequest) (*BotInstance, error)
+	// Deprecated: Do not use.
 	// ListBotInstances returns a page of BotInstance resources.
+	// Deprecated: Use ListBotInstancesV2 instead
 	ListBotInstances(context.Context, *ListBotInstancesRequest) (*ListBotInstancesResponse, error)
 	// ListBotInstancesV2 returns a page of BotInstance resources.
 	ListBotInstancesV2(context.Context, *ListBotInstancesV2Request) (*ListBotInstancesResponse, error)

@@ -1255,7 +1255,7 @@ type botCollection struct {
 func (c *botCollection) resources() []types.Resource {
 	resources := make([]types.Resource, len(c.bots))
 	for i, b := range c.bots {
-		resources[i] = types.Resource153ToLegacy(b)
+		resources[i] = types.ProtoResource153ToLegacy(b)
 	}
 	return resources
 }
