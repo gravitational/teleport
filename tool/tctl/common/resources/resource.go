@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -34,6 +35,7 @@ type Kind string
 // This map will be filled as we convert existing resources
 // to the Handler format.
 var Handlers = map[Kind]Handler{
+	types.KindRole: roleHandler,
 	// TODO: convert resources one by one and add them here
 }
 
@@ -130,4 +132,12 @@ func (r *Handler) SupportedCommands() []string {
 // does and in which case they should interact with it.
 func (r *Handler) Description() string {
 	return r.description
+}
+
+// upsertVerb generates the correct string form of a verb based on the action taken
+func upsertVerb(exists bool, force bool) string {
+	if !force && exists {
+		return "updated"
+	}
+	return "created"
 }

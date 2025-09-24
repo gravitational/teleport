@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -86,43 +85,6 @@ func (c namedResourceCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(t.WriteTo(w))
 }
 
-type roleCollection struct {
-	roles []types.Role
-}
-
-func (r *roleCollection) Resources() (res []types.Resource) {
-	for _, resource := range r.roles {
-		res = append(res, resource)
-	}
-	return res
-}
-
-func (r *roleCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, r := range r.roles {
-		if r.GetName() == constants.DefaultImplicitRole {
-			continue
-		}
-		rows = append(rows, []string{
-			r.GetMetadata().Name,
-			strings.Join(r.GetLogins(types.Allow), ","),
-			printNodeLabels(r.GetNodeLabels(types.Allow)),
-			printActions(r.GetRules(types.Allow)),
-		})
-	}
-
-	headers := []string{"Role", "Allowed to login as", "Node Labels", "Access to resources"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Access to resources")
-	}
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type namespaceCollection struct {
 	namespaces []types.Namespace
 }
@@ -143,29 +105,10 @@ func (n *namespaceCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-func printActions(rules []types.Rule) string {
-	pairs := []string{}
-	for _, rule := range rules {
-		pairs = append(pairs, fmt.Sprintf("%v:%v", strings.Join(rule.Resources, ","), strings.Join(rule.Verbs, ",")))
-	}
-	return strings.Join(pairs, ",")
-}
-
 func printMetadataLabels(labels map[string]string) string {
 	pairs := []string{}
 	for key, value := range labels {
 		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
-	}
-	return strings.Join(pairs, ",")
-}
-
-func printNodeLabels(labels types.Labels) string {
-	pairs := []string{}
-	for key, values := range labels {
-		if key == types.Wildcard {
-			return "<all nodes>"
-		}
-		pairs = append(pairs, fmt.Sprintf("%v=%v", key, values))
 	}
 	return strings.Join(pairs, ",")
 }
