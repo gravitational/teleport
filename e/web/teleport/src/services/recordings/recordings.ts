@@ -22,4 +22,8 @@ export async function fetchRecordingSummary(
   return response as SessionRecordingSummary;
 }
 
-export const RECORDING_TYPES_WITH_SUMMARIES: RecordingType[] = ['ssh', 'k8s'];
+export const RECORDING_TYPES_WITH_SUMMARIES: RecordingType[] = [
+  'ssh',
+  'k8s',
+  'database',
+];
