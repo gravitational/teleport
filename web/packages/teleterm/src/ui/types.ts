@@ -39,6 +39,7 @@ import { TerminalsService } from 'teleterm/ui/services/terminals';
 import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -83,6 +84,8 @@ export interface IAppContext {
    * process (renderer).
    */
   unexpectedVnetShutdownListener: UnexpectedVnetShutdownListener | undefined;
+  /** Logs out from the cluster, and performs related resources cleanup. */
+  logoutWithCleanup(clusterUri: RootClusterUri): Promise<void>;
 }
 
 export type UnexpectedVnetShutdownListener = (

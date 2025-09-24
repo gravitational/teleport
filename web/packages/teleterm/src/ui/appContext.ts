@@ -18,6 +18,7 @@
 
 import { debounce } from 'shared/utils/highbar';
 
+import Logger from 'teleterm/logger';
 import { ConfigService } from 'teleterm/services/config';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
 import {
@@ -41,6 +42,7 @@ import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications
 import { UsageService } from 'teleterm/ui/services/usage';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
 import { IAppContext, UnexpectedVnetShutdownListener } from 'teleterm/ui/types';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import { CommandLauncher } from './commandLauncher';
 import { createTshdEventsContextBridgeService } from './tshdEvents';
@@ -81,6 +83,7 @@ export default class AppContext implements IAppContext {
   private _unexpectedVnetShutdownListener:
     | UnexpectedVnetShutdownListener
     | undefined;
+  private logger = new Logger('AppContext');
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
@@ -196,6 +199,50 @@ export default class AppContext implements IAppContext {
   // directly on appContext, we use a getter which exposes a private property.
   get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
     return this._unexpectedVnetShutdownListener;
+  }
+
+  /** Logs out of the cluster and disposes related resources. */
+  async logoutWithCleanup(clusterUri: RootClusterUri): Promise<void> {
+    await this.clustersService.logout(clusterUri);
+    // This function checks for updates, do not wait for it.
+    this.mainProcessClient
+      .maybeRemoveAppUpdatesManagingCluster(clusterUri)
+      .catch(err => {
+        this.logger.error('Failed to remove managing cluster', err);
+      });
+
+    if (this.workspacesService.getRootClusterUri() === clusterUri) {
+      const [firstConnectedWorkspace] = this.workspacesService
+        .getConnectedWorkspacesClustersUri()
+        .filter(c => c !== clusterUri);
+      if (firstConnectedWorkspace) {
+        await this.workspacesService.setActiveWorkspace(
+          firstConnectedWorkspace
+        );
+      } else {
+        await this.workspacesService.setActiveWorkspace(null);
+      }
+    }
+
+    // Remove connections, they depend on the workspace.
+    this.connectionTracker.removeItemsBelongingToRootCluster(clusterUri);
+
+    this.workspacesService.removeWorkspace(clusterUri);
+
+    // If there are active ssh connections to the agent, killing it will take a few seconds. To work
+    // around this, kill the agent only after removing the workspace. Removing the workspace closes
+    // ssh tabs, so it should terminate connections to the cluster from the app.
+    await this.connectMyComputerService.killAgentAndRemoveData(clusterUri);
+
+    await this.clustersService.removeClusterGateways(clusterUri);
+
+    const {
+      params: { rootClusterId },
+    } = routing.parseClusterUri(clusterUri);
+    await this.mainProcessClient.removeKubeConfig({
+      relativePath: rootClusterId,
+      isDirectory: true,
+    });
   }
 
   private notifyMainProcessAboutClusterListChanges() {
