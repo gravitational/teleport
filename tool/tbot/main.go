@@ -123,6 +123,10 @@ func Run(args []string, stdout io.Writer) error {
 			return onKeypairCreateCommand(ctx, globalCfg, keypairCreateCmd)
 		}),
 
+		cli.NewCopyBinariesCommand(app, func(cbc *cli.CopyBinariesCommand) error {
+			return onCopyBinariesCommand(ctx, cbc)
+		}),
+
 		// `start` and `configure` commands
 		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
