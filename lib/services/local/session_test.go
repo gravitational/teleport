@@ -46,12 +46,13 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	require.NoError(t, err)
 	users := []string{"alice", "bob"}
 	ctx := context.Background()
+	expires := clock.Now().Add(time.Hour)
 
 	// Create app sessions for different users.
 	for _, user := range users {
 		session, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
 			User:    user,
-			Expires: clock.Now().Add(time.Hour),
+			Expires: expires,
 		})
 		require.NoError(t, err)
 
@@ -64,6 +65,27 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, sessions, 2)
 	require.Empty(t, nextKey)
+
+	session := sessions[0]
+	expected := expires
+	actual := session.GetExpiryTime()
+	if !actual.Equal(expected) {
+		t.Errorf("expected expiry time %v, got %v", expected, actual)
+	}
+
+	expected = expires.Add(2 * time.Hour)
+	session.SetExpiryTime(expected)
+	require.NoError(t, identity.UpsertAppSession(ctx, session))
+
+	updated, err := identity.GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: session.GetName(),
+	})
+	require.NoError(t, err)
+
+	actual = updated.GetExpiryTime()
+	if !actual.Equal(expected) {
+		t.Errorf("expected expiry time %v, got %v", expected, actual)
+	}
 
 	// Delete sessions of the first user.
 	err = identity.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: users[0]})

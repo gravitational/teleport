@@ -53,7 +53,9 @@ func (s *IdentityService) getSession(ctx context.Context, keyParts ...string) (t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
+	session, err := services.UnmarshalWebSession(item.Value,
+		services.WithRevision(item.Revision),
+		services.WithExpires(item.Expires))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -79,7 +81,9 @@ func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 
 	out := make([]types.WebSession, len(result.Items))
 	for i, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
+		session, err := services.UnmarshalWebSession(item.Value,
+			services.WithRevision(item.Revision),
+			services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -107,7 +111,9 @@ func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageTo
 			return nil, "", trace.Wrap(err)
 		}
 
-		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
+		session, err := services.UnmarshalWebSession(item.Value,
+			services.WithRevision(item.Revision),
+			services.WithExpires(item.Expires))
 		if err != nil {
 			continue
 		}
@@ -231,7 +237,9 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
+	session, err := services.UnmarshalWebSession(item.Value,
+		services.WithRevision(item.Revision),
+		services.WithExpires(item.Expires))
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -252,7 +260,9 @@ func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err err
 		return nil, trace.Wrap(err)
 	}
 	for _, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
+		session, err := services.UnmarshalWebSession(item.Value,
+			services.WithRevision(item.Revision),
+			services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -316,7 +326,9 @@ func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSessio
 		if idx != len(item.Key.Components())-2 {
 			continue
 		}
-		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
+		session, err := services.UnmarshalWebSession(item.Value,
+			services.WithRevision(item.Revision),
+			services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
