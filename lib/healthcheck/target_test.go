@@ -28,15 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-type fakeResource struct {
-	kind string
-	types.ResourceWithLabels
-}
-
-func (r *fakeResource) GetKind() string {
-	return r.kind
-}
-
 func TestTarget_checkAndSetDefaults(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -46,23 +37,27 @@ func TestTarget_checkAndSetDefaults(t *testing.T) {
 		{
 			name: "valid target",
 			target: &Target{
+				HealthChecker: NewTargetDialer(
+					func(ctx context.Context) ([]string, error) { return []string{"127.0.0.1"}, nil },
+				),
 				GetResource: func() types.ResourceWithLabels { return &fakeResource{kind: types.KindDatabase} },
-				ResolverFn:  func(ctx context.Context) ([]string, error) { return []string{"127.0.0.1"}, nil },
 			},
 		},
 		{
 			name: "missing resource getter",
 			target: &Target{
-				ResolverFn: func(ctx context.Context) ([]string, error) { return nil, nil },
+				HealthChecker: NewTargetDialer(
+					func(ctx context.Context) ([]string, error) { return nil, nil },
+				),
 			},
 			wantErr: "missing target resource getter",
 		},
 		{
-			name: "missing resolver",
+			name: "missing health checker",
 			target: &Target{
 				GetResource: func() types.ResourceWithLabels { return nil },
 			},
-			wantErr: "missing target endpoint resolver",
+			wantErr: "missing health checker",
 		},
 	}
 
