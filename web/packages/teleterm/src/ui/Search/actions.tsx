@@ -212,7 +212,7 @@ export function mapToAction(
               name,
               protocol,
               gcpProjectId,
-              dbUser: dbUser.value
+              dbUser: dbUser.value,
             },
             {
               origin: 'search_bar',
