@@ -201,6 +201,15 @@ func (a *DiscoveryConfig) MatchSearch(values []string) bool {
 	return types.MatchSearch(fieldVals, values, nil)
 }
 
+// IsMatchersEmpty returns true if all matchers are empty.
+func (a *DiscoveryConfig) IsMatchersEmpty() bool {
+	return len(a.Spec.AWS) == 0 &&
+		len(a.Spec.Azure) == 0 &&
+		len(a.Spec.GCP) == 0 &&
+		len(a.Spec.Kube) == 0 &&
+		(a.Spec.AccessGraph == nil || len(a.Spec.AccessGraph.AWS) == 0)
+}
+
 // CloneResource returns a copy of the resource as types.ResourceWithLabels.
 func (a *DiscoveryConfig) CloneResource() types.ResourceWithLabels {
 	var copy *DiscoveryConfig
