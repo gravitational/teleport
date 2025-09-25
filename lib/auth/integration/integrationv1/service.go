@@ -82,6 +82,8 @@ type Backend interface {
 	services.Integrations
 	services.PluginStaticCredentials
 	services.GitServers
+	services.DiscoveryConfigs
+	services.Applications
 }
 
 // ServiceConfig holds configuration options for
@@ -495,6 +497,8 @@ func (s *Service) ensureNoGitHubAssociatedResources(ctx context.Context, ig type
 
 func (s *Service) deleteAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
 	switch ig.GetSubKind() {
+	case types.IntegrationSubKindAWSOIDC:
+		return trace.Wrap(s.deleteAWSOIDCAssociatedResources(ctx, authCtx, ig))
 	case types.IntegrationSubKindGitHub:
 		return trace.Wrap(s.deleteGitHubAssociatedResources(ctx, authCtx, ig))
 	default:

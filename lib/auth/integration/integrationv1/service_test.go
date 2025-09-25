@@ -33,7 +33,9 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -666,6 +668,66 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			ErrAssertion: noError,
 		},
+		{
+			Name: "delete AWS OIDC integration with associated resources",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindIntegration},
+						Verbs:     []string{types.VerbDelete},
+					},
+					{
+						Resources: []string{types.KindDiscoveryConfig},
+						Verbs:     []string{types.VerbDelete, types.VerbList},
+					},
+					{
+						Resources: []string{types.KindApp},
+						Verbs:     []string{types.VerbDelete, types.VerbList},
+					},
+				}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+
+				ig := sampleIntegrationFn(t, igName)
+				_, err := localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
+				require.NoError(t, err)
+				err = localClient.CreateApp(ctx, mustMakeAppServer(t, ig))
+				require.NoError(t, err)
+
+				anotherIg := sampleIntegrationFn(t, igName+igName)
+				_, err = localClient.CreateIntegration(ctx, anotherIg)
+				require.NoError(t, err)
+				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, anotherIg))
+				require.NoError(t, err)
+				err = localClient.CreateApp(ctx, mustMakeAppServer(t, anotherIg))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				})
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				// DiscoveryConfig associated with the integration is removed
+				_, err := localClient.GetDiscoveryConfig(context.Background(), igName)
+				require.True(t, trace.IsNotFound(err))
+				// AppServer associated with the integration is removed
+				_, err = localClient.GetApp(context.Background(), igName)
+				require.True(t, trace.IsNotFound(err))
+				// other integration's associated resources remain
+				_, err = localClient.GetDiscoveryConfig(context.Background(), igName+igName)
+				require.NoError(t, err)
+				_, err = localClient.GetApp(context.Background(), igName+igName)
+				require.NoError(t, err)
+			},
+			ErrAssertion: noError,
+		},
 
 		// Delete all
 		{
@@ -745,6 +807,8 @@ type localClient interface {
 	services.PluginStaticCredentials
 	services.Integrations
 	services.GitServers
+	services.Applications
+	services.DiscoveryConfigs
 }
 
 type testClient struct {
@@ -853,6 +917,9 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	require.NoError(t, err)
 	gitServerService, err := local.NewGitServerService(backend)
 	require.NoError(t, err)
+	appsService := local.NewAppService(backend)
+	discoveryConfigService, err := local.NewDiscoveryConfigService(backend)
+	require.NoError(t, err)
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
@@ -870,10 +937,14 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		services.Integrations
 		services.PluginStaticCredentials
 		services.GitServers
+		services.Applications
+		services.DiscoveryConfigs
 	}{
 		Integrations:            localResourceService,
 		PluginStaticCredentials: localCredService,
 		GitServers:              gitServerService,
+		Applications:            appsService,
+		DiscoveryConfigs:        discoveryConfigService,
 	}
 
 	cacheResourceService, err := local.NewIntegrationsService(backend, local.WithIntegrationsServiceCacheMode(true))
@@ -923,6 +994,8 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		*local.PluginsService
 		*local.PluginStaticCredentialsService
 		*local.GitServerService
+		*local.AppService
+		*local.DiscoveryConfigService
 	}{
 		AccessService:                  roleSvc,
 		IdentityService:                userSvc,
@@ -931,6 +1004,8 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		PluginsService:                 pluginSvc,
 		PluginStaticCredentialsService: localCredService,
 		GitServerService:               gitServerService,
+		AppService:                     appsService,
+		DiscoveryConfigService:         discoveryConfigService,
 	}, resourceSvc
 }
 
@@ -1071,4 +1146,35 @@ func mustMakeGitHubServer(t *testing.T, ig types.Integration) types.Server {
 	require.NoError(t, err)
 	server.SetName(ig.GetName())
 	return server
+}
+
+func mustMakeDiscoveryConfig(t *testing.T, ig types.Integration) *discoveryconfig.DiscoveryConfig {
+	t.Helper()
+	discoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: ig.GetName()},
+		discoveryconfig.Spec{
+			DiscoveryGroup: ig.GetName(),
+			AWS: []types.AWSMatcher{
+				{
+					Types:       []string{"ec2"},
+					Regions:     []string{"us-west-2"},
+					Integration: ig.GetName(),
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return discoveryConfig
+}
+
+func mustMakeAppServer(t *testing.T, ig types.Integration) types.Application {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name: ig.GetName(),
+	}, types.AppSpecV3{
+		URI:         "https://example.com",
+		Integration: ig.GetName(),
+	})
+	require.NoError(t, err)
+	return app
 }
