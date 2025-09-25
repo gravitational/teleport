@@ -87,27 +87,31 @@ struct ScannedURLView: View {
       }.padding(8)
       Spacer()
       Spacer()
-    }.sheet(isPresented: .constant(isConfirmingEnrollment), onDismiss: { openedURL = nil }) {
-      VStack(spacing: 8) {
-        HStack {
-          Button("Cancel", role: .cancel) { openedURL = nil }
+    }.sheet(
+      isPresented: .constant(isConfirmingEnrollment),
+      onDismiss: { openedURL = nil },
+      content: {
+        VStack(spacing: 8) {
+          HStack {
+            Button("Cancel", role: .cancel) { openedURL = nil }
+            Spacer()
+            Button("Enroll", systemImage: "progress.indicator") {}.symbolEffect(
+              .variableColor.iterative,
+              options: .repeat(.continuous),
+              isActive: true
+            ).buttonRepeatBehavior(.disabled)
+          }.padding(8)
           Spacer()
-          Button("Enroll", systemImage: "progress.indicator") {}.symbolEffect(
-            .variableColor.iterative,
-            options: .repeat(.continuous),
-            isActive: true
-          ).buttonRepeatBehavior(.disabled)
-        }.padding(8)
-        Spacer()
-        Text("Do you want to enroll this device?").font(.headline)
-        Text("""
-        This will enable \(maybeOpenedURL!
-          .user(percentEncoded: false) ?? "") to authorize Device Trust web sessions \
-        in \(maybeOpenedURL!.host(percentEncoded: false) ?? "") with this device.
-        """)
-        Spacer()
-      }.presentationDetents([.medium]).padding(16).presentationCompactAdaptation(.sheet)
-    }
+          Text("Do you want to enroll this device?").font(.headline)
+          Text("""
+          This will enable \(maybeOpenedURL!
+            .user(percentEncoded: false) ?? "") to authorize Device Trust web sessions \
+          in \(maybeOpenedURL!.host(percentEncoded: false) ?? "") with this device.
+          """)
+          Spacer()
+        }.presentationDetents([.medium]).padding(16).presentationCompactAdaptation(.sheet)
+      }
+    )
     .alert("Cannot open the link", isPresented: .constant(hasDeepLinkError)) {
       Button("Dismiss", role: .cancel) {}
     } message: {
