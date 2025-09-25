@@ -725,7 +725,10 @@ func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *trac
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
 		teleport.SSHTeleportClusterName: scx.ClusterName,
 		teleport.SSHSessionID:           scx.SessionID(),
-		teleport.SSHSessionWebProxyAddr: scx.GetSessionParams().WebProxyAddr,
+	}
+
+	if scx.GetSessionParams().WebProxyAddr != "" {
+		envs[teleport.SSHSessionWebProxyAddr] = scx.GetSessionParams().WebProxyAddr
 	}
 
 	if err := session.SetEnvs(ctx, envs); err != nil {
