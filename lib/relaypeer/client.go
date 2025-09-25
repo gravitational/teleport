@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	relaypeeringv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaypeering/v1alpha"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -117,6 +118,8 @@ type Client struct {
 	getPool        func() (*x509.CertPool, error)
 	ciphersuites   []uint16
 }
+
+var _ proxy.RelayPeerDialFunc = (*Client)(nil).Dial
 
 // Dial will try to open a connection to a target host (in "<host id>.<cluster
 // name>" format) with a given tunnel type, trying to dial through a list of
