@@ -501,6 +501,7 @@ const cfg = {
     botInstance: {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+      listV2: '/v2/webapi/sites/:clusterId/machine-id/bot-instance',
     },
 
     workloadIdentity: {
@@ -1698,6 +1699,9 @@ const cfg = {
           action: 'list';
         }
       | {
+          action: 'listV2';
+        }
+      | {
           action: 'read';
           botName: string;
           instanceId: string;
@@ -1708,6 +1712,10 @@ const cfg = {
     switch (req.action) {
       case 'list':
         return generatePath(cfg.api.botInstance.list, {
+          clusterId,
+        });
+      case 'listV2':
+        return generatePath(cfg.api.botInstance.listV2, {
           clusterId,
         });
       case 'read':

@@ -2957,6 +2957,10 @@ type Relay struct {
 	// format.
 	PeerListenAddr string `yaml:"peer_listen_addr"`
 
+	// PeerPublicAddr, if set, is the public address for the peer listener, in
+	// host:port format.
+	PeerPublicAddr string `yaml:"peer_public_addr"`
+
 	// TunnelListenAddr is the listen address for the tunnel listener, in
 	// addr:port format.
 	TunnelListenAddr string `yaml:"tunnel_listen_addr"`

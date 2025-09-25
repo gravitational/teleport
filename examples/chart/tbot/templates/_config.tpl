@@ -68,6 +68,9 @@ outputs:
     {{- if .Values.argocd.clusterResources }}
     cluster_resources: {{ .Values.argocd.clusterResources }}
     {{- end }}
+    {{- if .Values.argocd.clusterNameTemplate }}
+    cluster_name_template: {{ .Values.argocd.clusterNameTemplate | quote }}
+    {{- end }}
 {{- end }}
 {{- if .Values.outputs }}
 {{- toYaml .Values.outputs | nindent 2}}

@@ -250,7 +250,7 @@ func (m *mockServer) GetInfo() types.Server {
 	}
 }
 
-func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
+func (m *mockServer) EventMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerID:        "123",
 		ForwardedBy:     "abc",
