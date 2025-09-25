@@ -523,6 +523,9 @@ type Config struct {
 
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
+
+	// Dir is the directory of the profile.
+	Dir string
 }
 
 // CachePolicy defines cache policy for local clients
@@ -953,6 +956,7 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
 	c.SSHDialTimeout = profile.SSHDialTimeout
 	c.SSOHost = profile.SSOHost
+	c.Dir = profile.Dir
 
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
@@ -1021,6 +1025,7 @@ func (c *Config) Profile() *profile.Profile {
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
 		SSHDialTimeout:                c.SSHDialTimeout,
 		SSOHost:                       c.SSOHost,
+		Dir:                           c.Dir,
 	}
 }
 
