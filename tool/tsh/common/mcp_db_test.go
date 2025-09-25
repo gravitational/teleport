@@ -144,8 +144,11 @@ func TestMCPDBCommand(t *testing.T) {
 		})
 	}()
 
-	clt := mcpclient.NewClient(mcptransport.NewIO(reader, writer, nil /* logging */))
+	cltTransport := mcptransport.NewIO(reader, writer, nil /* logging */)
+	require.NoError(t, cltTransport.Start(t.Context()))
+	clt := mcpclient.NewClient(cltTransport)
 	require.NoError(t, clt.Start(t.Context()))
+	defer clt.Close()
 
 	req := mcp.InitializeRequest{}
 	req.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
