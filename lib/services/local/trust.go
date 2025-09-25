@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -38,12 +39,15 @@ import (
 // is using local backend
 type CA struct {
 	backend.Backend
+	logger *slog.Logger
 }
 
 // NewCAService returns new instance of CAService
 func NewCAService(b backend.Backend) *CA {
 	return &CA{
 		Backend: b,
+		// TODO(okraport): Update local services to take an optional logger override option to support test loggers.
+		logger: slog.With(teleport.ComponentKey, "trust"),
 	}
 }
 
@@ -719,6 +723,48 @@ func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, er
 
 	sort.Sort(types.SortedTrustedCluster(out))
 	return out, nil
+}
+
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (s *CA) ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	clusterKey := backend.NewKey(trustedClustersPrefix)
+	var out []types.TrustedCluster
+	result, err := s.Backend.GetRange(
+		ctx,
+		clusterKey.AppendKey(backend.KeyFromString(startKey)),
+		backend.RangeEnd(clusterKey),
+		limit+1,
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	for _, item := range result.Items {
+		tc, err := services.UnmarshalTrustedCluster(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal TrustedCluster",
+				"key", item.Key,
+				"error", err,
+			)
+			continue
+		}
+
+		if len(out) >= limit {
+			return out, tc.GetName(), nil
+		}
+
+		out = append(out, tc)
+	}
+
+	return out, "", nil
+
 }
 
 // DeleteTrustedCluster removes a TrustedCluster from the backend by name.
