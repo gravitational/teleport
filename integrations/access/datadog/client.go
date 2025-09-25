@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,6 +48,20 @@ const (
 	// See documentation for more details:
 	// https://docs.datadoghq.com/account_management/rbac/permissions/#case-and-incident-management
 	IncidentWritePermissions = "incident_write"
+
+	// TeamsManagePermissions is a Datadog permission that allows the role to
+	// create, view, and maage teams in Datadog.
+	//
+	// See documentation for more details:
+	// https://docs.datadoghq.com/account_management/rbac/permissions/#teams
+	TeamsManagePermissions = "teams_manage"
+
+	// OnCallReadPermissions is a Datadog permission that allows the role to
+	// view on-call teams, schedules, escalation policies and overrides.
+	//
+	// See documentation for more details:
+	// https://docs.datadoghq.com/account_management/rbac/permissions/#on-call
+	OnCallReadPermissions = "on_call_read"
 )
 
 // Datadog is a wrapper around resty.Client.
@@ -58,10 +73,6 @@ type Datadog struct {
 	// simpler to integrate with the existing framework. Consider using the official
 	// datadog api client package: https://github.com/DataDog/datadog-api-client-go.
 	client *resty.Client
-
-	// TODO: Remove clientUnstable once on-call API is merged into official API.
-	// See: https://docs.datadoghq.com/api/latest/
-	clientUnstable *resty.Client
 }
 
 // NewDatadogClient creates a new Datadog client for managing incidents.
@@ -88,30 +99,9 @@ func NewDatadogClient(conf DatadogConfig, webProxyAddr string, statusSink common
 		}).
 		OnAfterResponse(onAfterDatadogResponse(statusSink))
 
-	apiEndpointUnstable, err := url.JoinPath(conf.APIEndpoint, APIUnstable)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clientUnstable := resty.NewWithClient(&http.Client{
-		Timeout: datadogHTTPTimeout,
-		Transport: &http.Transport{
-			MaxConnsPerHost:     datadogMaxConns,
-			MaxIdleConnsPerHost: datadogMaxConns,
-		}}).
-		SetBaseURL(apiEndpointUnstable).
-		SetHeader("Accept", "application/json").
-		SetHeader("Content-Type", "application/json").
-		SetHeader("DD-API-KEY", conf.APIKey).
-		SetHeader("DD-APPLICATION-KEY", conf.ApplicationKey).
-		OnBeforeRequest(func(_ *resty.Client, req *resty.Request) error {
-			req.SetError(&ErrorResult{})
-			return nil
-		}).OnAfterResponse(onAfterDatadogResponse(statusSink))
-
 	return &Datadog{
-		DatadogConfig:  conf,
-		client:         client,
-		clientUnstable: clientUnstable,
+		DatadogConfig: conf,
+		client:        client,
 	}, nil
 }
 
@@ -153,13 +143,11 @@ func (d *Datadog) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	for _, permission := range result.Data {
-		// TODO: Verify on-call/teams permissions once required permissions have
-		// been published.
-		if permission.Attributes.Name == IncidentWritePermissions {
+		switch name := permission.Attributes.Name; name {
+		case IncidentWritePermissions, TeamsManagePermissions, OnCallReadPermissions:
 			if permission.Attributes.Restricted {
-				return trace.AccessDenied("missing incident_write permissions")
+				return trace.AccessDenied("missing %s permissions", name)
 			}
-			return nil
 		}
 	}
 	return nil
@@ -277,12 +265,25 @@ func (d *Datadog) ResolveIncident(ctx context.Context, incidentID, state string)
 	return trace.Wrap(err)
 }
 
-// GetOncallTeams gets current on call teams.
-func (d *Datadog) GetOncallTeams(ctx context.Context) (OncallTeamsBody, error) {
-	var result OncallTeamsBody
-	_, err := d.clientUnstable.NewRequest().
+// ListTeamsPage returns a page of teams.
+func (d *Datadog) ListTeamsPage(ctx context.Context, pageNum int) (ListTeamsBody, error) {
+	var result ListTeamsBody
+	_, err := d.client.NewRequest().
 		SetContext(ctx).
 		SetResult(&result).
-		Get("on-call/teams")
+		SetQueryParam("page[number]", strconv.Itoa(pageNum)).
+		Get("team")
+	return result, trace.Wrap(err)
+}
+
+// GetTeamOncall gets the team's current on-call users.
+func (d *Datadog) GetTeamOncall(ctx context.Context, teamID string) (OncallTeamsBody, error) {
+	var result OncallTeamsBody
+	_, err := d.client.NewRequest().
+		SetContext(ctx).
+		SetResult(&result).
+		SetPathParam("team_id", teamID).
+		SetQueryParam("include", "responders").
+		Get("on-call/teams/{team_id}/on-call")
 	return result, trace.Wrap(err)
 }

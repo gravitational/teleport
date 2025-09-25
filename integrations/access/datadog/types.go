@@ -112,21 +112,37 @@ type TimelineAttributes struct {
 	Content  TimelineContent `json:"content"`
 }
 
-// TimelineContent contains the incident tineline content.
+// TimelineContent contains the incident timeline content.
 type TimelineContent struct {
 	Content string `json:"content,omitempty"`
 }
 
+// ListTeamsBody contains the list of teams data.
+type ListTeamsBody struct {
+	Data []TeamsData `json:"data,omitempty"`
+}
+
+// TeamData contains a team metadata and attributes.
+type TeamsData struct {
+	Metadata
+	Attributes TeamsAttributes `json:"attributes"`
+}
+
+// TeamsAttributes contains a team's attributes.
+type TeamsAttributes struct {
+	Name   string `json:"name,omitempty"`
+	Handle string `json:"handle,omitempty"`
+}
+
 // OncallTeamsBody contains the response body for an on-call teams request.
 type OncallTeamsBody struct {
-	Data     []OncallTeamsData     `json:"data,omitempty"`
+	Data     OncallTeamsData       `json:"data,omitempty"`
 	Included []OncallTeamsIncluded `json:"included,omitempty"`
 }
 
 // OncallTeamsData contains the on-call teams data.
 type OncallTeamsData struct {
 	Metadata
-	Attributes    OncallTeamsAttributes    `json:"attributes"`
 	Relationships OncallTeamsRelationships `json:"relationships"`
 }
 
@@ -138,11 +154,11 @@ type OncallTeamsAttributes struct {
 
 // OncallTeamsRelationships contains the on-call teams relationships.
 type OncallTeamsRelationships struct {
-	OncallUsers OncallUsers `json:"oncall_users"`
+	Responders Responders `json:"responders"`
 }
 
 // OncallUsers contains the list of on-call users.
-type OncallUsers struct {
+type Responders struct {
 	Data []OncallUsersData `json:"data,omitempty"`
 }
 
