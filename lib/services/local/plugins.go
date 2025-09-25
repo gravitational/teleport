@@ -27,6 +27,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	libplugin "github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -45,6 +46,9 @@ func NewPluginsService(backend backend.Backend) *PluginsService {
 
 // CreatePlugin implements services.Plugins
 func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
+	if err := libplugin.Validate(plugin); err != nil {
+		return trace.Wrap(err)
+	}
 	value, err := services.MarshalPlugin(plugin)
 	if err != nil {
 		return trace.Wrap(err)
@@ -75,6 +79,9 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 
 // UpdatePlugin updates a plugin resource.
 func (s *PluginsService) UpdatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error) {
+	if err := libplugin.Validate(plugin); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := services.CheckAndSetDefaults(plugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
