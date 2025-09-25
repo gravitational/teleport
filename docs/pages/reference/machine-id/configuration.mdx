@@ -401,6 +401,113 @@ If clusters are added or removed over time, the `kubeconfig.yaml` will be
 updated at the bot's normal renewal interval. You can trigger an early renewal
 by restarting `tbot`, or signaling it with `pkill -usr1 tbot`.
 
+### `kubernetes/argo-cd`
+
+The `kubernetes/argo-cd` output type can be used to enable Argo CD to securely
+connect to external Kubernetes clusters.
+
+It works by "declaratively" managing cluster credentials
+[using Kubernetes secrets](https://argo-cd.readthedocs.io/en/release-1.8/operator-manual/declarative-setup/#clusters).
+For each matching Kubernetes cluster, `tbot` will create and continuously update
+a secret containing connection details and short-lived credentials, labeled with
+`"argocd.argoproj.io/secret-type": "cluster"` for Argo CD to discover.
+
+As such, it is only intended to be used within a Kubernetes cluster. See the
+[Machine ID with Argo CD guide](../../machine-workload-identity/machine-id/access-guides/argocd.mdx)
+for information on how to deploy it using the Helm chart.
+
+<Admonition type="warning" >
+    The `kubernetes/argo-cd` output type does not currently support
+    configurations where the Teleport proxy is behind a TLS-terminating load
+    balancer.
+</Admonition>
+
+```yaml
+type: kubernetes/argo-cd
+
+# selectors include one or more matching Kubernetes clusters. Each matching
+# cluster that the bot has permission to access will be registered with Argo CD
+# by creating a Kubernetes secret.
+selectors:
+  # name includes an exact match by name. Note that wildcards are not currently
+  # supported. Multiple name selectors can be specified if desired.
+  - name: foo
+  # labels include all clusters matching all of these labels. Multiple label
+  # selectors can be provided if needed.
+  - labels:
+      env: dev
+
+# secret_namespace is the Kubernetes namespace in which Argo CD cluster secrets
+# will be created. It must match the namespace where Argo CD is running.
+#
+# By default, `tbot` will use the `POD_NAMESPACE` environment variable, or if
+# that is empty: "default".
+secret_namespace: "argocd"
+
+# secret_name_prefix is the prefix that will be applied to Kubernetes secret
+# names so they can be easily identified. The rest of the name will be derived
+# from a hash of the target cluster name.
+#
+# By default, the prefix will be: "teleport.argocd-cluster".
+secret_name_prefix: "argocd-cluster"
+
+# secret_labels is a set of labels that will be applied to the cluster secrets
+# in addition to the "argocd.argoproj.io/secret-type" label added for Argo CD
+# discovery.
+secret_labels:
+  department: engineering
+
+# secret_annotations is a set of annotations that will be applied to the cluster
+# secrets in addition to `tbot`'s own annotations:
+#
+#   - "teleport.dev/bot-name"                - Name of the Bot
+#   - "teleport.dev/kubernetes-cluster-name" - Name of the Kubernetes cluster
+#   - "teleport.dev/updated"                 - RFC3339-formatted timestamp
+#   - "teleport.dev/tbot-version"            - Version of tbot running
+#   - "teleport.dev/teleport-cluster-name"   - Name of the Teleport cluster
+secret_annotations:
+  creator: bob
+
+# project is the Argo CD project with which the Kubernetes clusters will be
+# associated.
+project: edge-services
+
+# namespaces optionally restricts which namespaces within the target Kubernetes
+# clusters applications may be deployed into. By default, all namespaces are
+# allowed.
+namespaces:
+  - dev
+  - qa
+
+# cluster_resources determines whether Argo CD will be allowed to operate on
+# cluster-scoped resources within the target clusters. This option is only
+# applicable when `namespaces` is non-empty.
+cluster_resources: true
+
+# cluster_name_template determines the format of cluster names in Argo CD. It is
+# a Go template string that supports the following variables:
+#
+#   - \{\{.ClusterName\}\} - Name of the Teleport cluster
+#   - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
+#
+# By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}".
+cluster_name_template: "{{.KubeName}}"
+
+# The following configuration fields are available across most output types.
+# Note that `roles` and `destination` are not supported for this output type.
+
+# credential_ttl and renewal_interval override the credential TTL and renewal
+# interval for this specific output, so that you can make its certificates valid
+# for shorter than `tbot`'s internal certificates.
+credential_ttl: 30m
+renewal_interval: 15m
+
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
+```
+
 ### `ssh_host`
 
 The `ssh_host` output is used to generate the artifacts required to configure
@@ -1360,7 +1467,7 @@ name: my-secret
 namespace:
 # labels specifies the labels to apply to the Kubernetes Secret. This field is
 # optional.
-tags:
+labels:
   example: "foo"
 ```
 
