@@ -44,6 +44,11 @@ services:
     app_name: my-app
     credential_ttl: 30s
     renewal_interval: 15s
+  - type: application-proxy
+    listen: tcp://127.0.0.1:8080
+    credential_lifetime:
+      credential_ttl: 30s
+      renewal_interval: 15s
   - type: workload-identity-x509
     selector:
       name: my-workload-identity
