@@ -239,22 +239,27 @@ func (process *TeleportProcess) runRelayService() error {
 		transportCreds = multiplexergrpc.PPV2ServerCredentials{TransportCredentials: transportCreds}
 	}
 
+	relayPeerClient, err := relaypeer.NewClient(relaypeer.ClientConfig{
+		HostID:      conn.hostID,
+		ClusterName: conn.clusterName,
+		GroupName:   process.Config.Relay.RelayGroup,
+
+		AccessPoint: accessPoint,
+		Log:         sublogger("relay_router"),
+
+		GetCertificate: conn.ClientGetCertificate,
+		GetPool:        conn.ClientGetPool,
+		Ciphersuites:   process.Config.CipherSuites,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	relayRouter, err := proxy.NewRelayRouter(proxy.RelayRouterConfig{
 		ClusterName: conn.clusterName,
 		GroupName:   process.Config.Relay.RelayGroup,
 		LocalDial:   tunnelServer.Dial,
-		PeerDial: relaypeer.ClientConfig{
-			HostID:      conn.hostID,
-			ClusterName: conn.clusterName,
-			GroupName:   process.Config.Relay.RelayGroup,
-
-			AccessPoint: accessPoint,
-			Log:         sublogger("relay_router"),
-
-			GetCertificate: conn.ClientGetCertificate,
-			GetPool:        conn.ClientGetPool,
-			Ciphersuites:   process.Config.CipherSuites,
-		}.Dial,
+		PeerDial:    relayPeerClient.Dial,
 		AccessPoint: accessPoint,
 		NodeWatcher: nodeWatcher,
 	})
