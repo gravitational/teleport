@@ -28,7 +28,6 @@ GRPCBOX_RUN := $(DOCKER) run -it --rm -u $(UID):$(GID) -v "$$(pwd)/../:/workdir"
 .PHONY: grpcbox
 grpcbox:
 	$(DOCKER) build \
-		--build-arg BUF_VERSION=$(BUF_VERSION) \
 		--build-arg UID=$(UID) --build-arg GID=$(GID) \
 		-f Dockerfile-grpcbox \
 		-t "$(GRPCBOX)" \

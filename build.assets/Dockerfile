@@ -326,11 +326,6 @@ RUN VERSION="$GOLANGCI_LINT_VERSION"; \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$VERSION/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$VERSION"
 
-# Install Buf.
-ARG BUF_VERSION # eg, "v1.26.1"
-RUN VERSION="$BUF_VERSION"; \
-    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
-
 # Copy BPF libraries.
 ARG LIBBPF_VERSION
 COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}

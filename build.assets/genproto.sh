@@ -42,15 +42,15 @@ main() {
   # this for us (and which is what we use for the non-gogo protogen).
   rm -fr gogogen
   trap 'rm -fr gogogen' EXIT # don't leave files behind
-  echoed buf generate --template=buf-gogo.gen.yaml
+  echoed go tool buf generate --template=buf-gogo.gen.yaml
   cp -r gogogen/github.com/gravitational/teleport/. .
   # error out if there's anything outside of github.com/gravitational/teleport
   rm -fr gogogen/github.com/gravitational/teleport
   rmdir gogogen/github.com/gravitational gogogen/github.com gogogen
 
   # Generate go, go-grpc and connect-go protos (preferred).
-  echoed buf generate --template=buf-go.gen.yaml
-  echoed buf generate --template=buf-connect-go.gen.yaml
+  echoed go tool buf generate --template=buf-go.gen.yaml
+  echoed go tool buf generate --template=buf-connect-go.gen.yaml
 
   # Generate TS protos.
   [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-ts.gen.yaml

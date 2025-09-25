@@ -21,10 +21,6 @@ RUN npm exec --yes \
   --package=typescript@3.9.10 \
   -- true
 
-# buf version including v, like "v1.26.1"
-ARG BUF_VERSION
-RUN go install "github.com/bufbuild/buf/cmd/buf@${BUF_VERSION}"
-
 # Pre-cache `go run`ned binaries. We use `true` as the launcher so `go run` will
 # cache the final linked binaries but not actually run anything. This can be
 # verified to work in the final image by using `go run -n` (dry-run) from the
