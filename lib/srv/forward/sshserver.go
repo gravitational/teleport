@@ -1187,20 +1187,6 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	defer s.logger.DebugContext(ctx, "Closing session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
 
 	for {
-		// Update the context with the session ID.
-		err := scx.CreateOrJoinSession(ctx, s.sessionRegistry)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "unable create or join session", "error", err)
-
-			// Write the error to channel and close it.
-			s.stderrWrite(ctx, ch, fmt.Sprintf("unable to update context: %v", err))
-			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
-			if err != nil {
-				s.logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
-			}
-			return
-		}
-
 		select {
 		case result := <-scx.SubsystemResultCh:
 			// Subsystem has finished executing, close the channel and session.
