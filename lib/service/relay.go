@@ -21,6 +21,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"log/slog"
+	"net"
+	"net/netip"
 	"sync/atomic"
 
 	"github.com/google/uuid"
@@ -38,8 +40,10 @@ import (
 	relaytunnelv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	multiplexergrpc "github.com/gravitational/teleport/lib/multiplexer/grpc"
+	"github.com/gravitational/teleport/lib/relaypeer"
 	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func (process *TeleportProcess) initRelay() {
@@ -110,12 +114,57 @@ func (process *TeleportProcess) runRelayService() error {
 		TargetConnectionCount: process.Config.Relay.TargetConnectionCount,
 	})
 
+	peerServer, err := relaypeer.NewServer(relaypeer.ServerConfig{
+		Log: sublogger("peer_server"),
+
+		GetCertificate: func(ctx context.Context) (*tls.Certificate, error) {
+			return conn.serverGetCertificate()
+		},
+		GetPool: func(ctx context.Context) (*x509.CertPool, error) {
+			pool, _, err := authclient.ClientCertPool(ctx, accessPoint, conn.clusterName, apitypes.HostCA)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return pool, nil
+		},
+		Ciphersuites: process.Config.CipherSuites,
+
+		LocalDial: tunnelServer.Dial,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer peerServer.Close()
+
 	tunnelListener, err := process.importOrCreateListener(ListenerRelayTunnel, process.Config.Relay.TunnelListenAddr.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer tunnelListener.Close()
 	go tunnelGRPCServer.Serve(tunnelListener)
+
+	peerListener, err := process.importOrCreateListener(ListenerRelayPeer, process.Config.Relay.PeerListenAddr.String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer peerListener.Close()
+	go peerServer.ServeTLSListener(peerListener)
+
+	peerPublicAddr := process.Config.Relay.PeerPublicAddr
+	if peerPublicAddr == "" {
+		peerListenerPort := process.Config.Relay.PeerListenAddr.Port()
+		if a, _ := peerListener.Addr().(*net.TCPAddr); a != nil {
+			// handle the case where the server was configured to bind on port 0
+			peerListenerPort = uint16(a.Port)
+		}
+
+		hostIP, err := utils.GuessHostIP()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		hostNetIP, _ := netip.AddrFromSlice(hostIP)
+		peerPublicAddr = netip.AddrPortFrom(hostNetIP.Unmap(), peerListenerPort).String()
+	}
 
 	nonce := uuid.NewString()
 	var relayServer atomic.Pointer[presencev1.RelayServer]
@@ -129,6 +178,7 @@ func (process *TeleportProcess) runRelayService() error {
 		Spec: &presencev1.RelayServer_Spec{
 			Hostname:   process.Config.Hostname,
 			RelayGroup: process.Config.Relay.RelayGroup,
+			PeerAddr:   peerPublicAddr,
 			Nonce:      nonce,
 		},
 	})
@@ -194,6 +244,12 @@ func (process *TeleportProcess) runRelayService() error {
 		// TODO(espadolini): let connections continue (for a time?) before
 		// abruptly terminating them right after the shutdown delay
 		_ = tunnelServer.Close()
+		return nil
+	})
+	eg.Go(func() error {
+		// TODO(espadolini): let connections continue (for a time?) before
+		// abruptly terminating them right after the shutdown delay
+		_ = peerServer.Close()
 		return nil
 	})
 	warnOnErr(egCtx, eg.Wait(), log)
