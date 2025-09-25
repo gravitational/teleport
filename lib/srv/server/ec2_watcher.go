@@ -354,7 +354,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 
 	var envVars []string
 
-	// InstallSuffix and UpdateGroup should only contain alphanumeric characters and hyphens.
+	// InstallSuffix and UpdateGroup only contains alphanumeric characters and hyphens.
 	// Escape them anyway as another layer of safety.
 	if cfg.InstallSuffix != "" {
 		safeInstallSuffix := shsprintf.EscapeDefaultContext(cfg.InstallSuffix)
