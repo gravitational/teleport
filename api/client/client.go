@@ -3616,31 +3616,7 @@ func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]
 
 // RangeDatabases returns database resources within the range [start, end).
 func (c *Client) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
-	return func(yield func(types.Database, error) bool) {
-		for {
-			databases, next, err := c.ListDatabases(ctx, 0, start)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			for _, db := range databases {
-				if end != "" && db.GetName() >= end {
-					return
-				}
-
-				if !yield(db, nil) {
-					return
-				}
-			}
-
-			if next == "" {
-				return
-			}
-
-			start = next
-		}
-	}
+	return clientutils.RangeResources(ctx, start, end, c.ListDatabases, types.Database.GetName)
 }
 
 // DeleteDatabase deletes specified database resource.
