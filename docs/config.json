@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.1.8",
+      "version": "18.2.0",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -67,17 +67,17 @@
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
       "major_version": "16",
-      "version": "16.5.15",
+      "version": "16.5.17",
       "url": "teleport.example.com",
-      "golang": "1.24.6",
+      "golang": "1.24.7",
       "plugin": {
-        "version": "16.5.15"
+        "version": "16.5.17"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:16.5.15",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:16.5.15",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:16.5.15",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:16.5.15",
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:16.5.17",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:16.5.17",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:16.5.17",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:16.5.17",
       "teleport_install_script_url": "https://cdn.teleport.dev/install.sh"
     },
     "terraform": {
@@ -2925,12 +2925,12 @@
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
     },
-        {
+    {
       "source": "/machine-workload-identity/mwi-use-cases/",
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
     },
-        {
+    {
       "source": "/machine-workload-identity/mwi-use-cases/mwi-ci-cd/",
       "destination": "/machine-workload-identity/mwi-ci-cd/",
       "permanent": true
@@ -3586,5 +3586,4 @@
       "permanent": true
     }
   ]
-
 }

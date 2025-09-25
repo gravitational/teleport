@@ -667,8 +667,8 @@ github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyP
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
 github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf h1:aXnqDSit8L1qhI0+QdbJh+MTUFKXG7qbkZXnfr7L96A=
 github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf/go.mod h1:f7i0iNDQJ059oMTcWxx8MA/zKFIuD/lY+0GqbN2Wy8c=
-github.com/gravitational/terraform-plugin-docs v0.19.5-0.20240627183239-7e7e22a2c1f6 h1:roGf4UO3jjf/vv2fc+ChlWFPISFMkRXFwBUKEtjH3uY=
-github.com/gravitational/terraform-plugin-docs v0.19.5-0.20240627183239-7e7e22a2c1f6/go.mod h1:8eiBaRanEugPy3lh7UZ5NW6yaISaXXS4R56pi1D962k=
+github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250326215846-2e10ca5fcbdf h1:bAsFak60gi442t2x3GuDp5Fww47zUs460NFIPiQJjzg=
+github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250326215846-2e10ca5fcbdf/go.mod h1:8eiBaRanEugPy3lh7UZ5NW6yaISaXXS4R56pi1D962k=
 github.com/gravitational/trace v1.4.1 h1:IpaQyg/HzBApX34VIyy4tCZF2wB839AEAMT13sTYYmE=
 github.com/gravitational/trace v1.4.1/go.mod h1:oEs/tamajqgZ6/oEb31Hbh50BODsd2H/1iOAkQRDkdg=
 github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c h1:C2iWDiod8vQ3YnOiCdMP9qYeg2UifQ8KSk36r0NswSE=

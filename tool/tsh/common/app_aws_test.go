@@ -212,7 +212,7 @@ func TestAWSConsoleLogins(t *testing.T) {
 			}
 		}),
 	)
-	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer, types.RoleMapping{Remote: "aws", Local: []string{"aws"}})
+	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer, 1, types.RoleMapping{Remote: "aws", Local: []string{"aws"}})
 
 	authServer := rootServer.GetAuthServer()
 	require.NotNil(t, authServer)
