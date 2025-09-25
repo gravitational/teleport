@@ -21,6 +21,7 @@ package desktop
 import (
 	"context"
 	"math"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -38,6 +39,9 @@ func newReadEvent(path string, directory directoryID, offset uint64, length uint
 		DirectoryID: uint32(directory),
 		Offset:      offset,
 		Length:      length,
+		Status: events.Status{
+			Success: true,
+		},
 	}
 }
 
@@ -47,6 +51,9 @@ func newWriteEvent(path string, directory directoryID, offset uint64, length uin
 		DirectoryID: uint32(directory),
 		Offset:      offset,
 		Length:      length,
+		Status: events.Status{
+			Success: true,
+		},
 	}
 }
 
@@ -110,27 +117,61 @@ func TestAuditCompactor(t *testing.T) {
 		})
 	})
 
+	// Events with length zero are properly compacted
 	t.Run("zero-length-event", func(t *testing.T) {
 		auditEvents = auditEvents[:0]
 		synctest.Test(t, func(t *testing.T) {
 			ctx := t.Context()
-			// Create two read events with zero length, but with differing
-			// error codes. Neither should get compacted, as zero length
-			// events are not eligible for compaction.
-			firstEvent := newReadEvent("foo", 1, 0, 0)
-			firstEvent.Error = "some error"
+			errorEvent := newReadEvent("foo", 1, 0, 0)
+			errorEvent.Success = false
+			errorEvent.Error = "an error"
 
-			secondEvent := newReadEvent("foo", 1, 0, 0)
-			secondEvent.Error = "another error"
-
-			compactor.handleRead(ctx, firstEvent)
-			compactor.handleRead(ctx, secondEvent)
+			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 0))
+			compactor.handleRead(ctx, newReadEvent("foo", 1, 0, 100))
+			compactor.handleRead(ctx, errorEvent)
+			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 0))
+			compactor.handleRead(ctx, newReadEvent("foo", 1, 100, 200))
+			compactor.handleRead(ctx, newReadEvent("foo", 1, 101, 0))
 
 			compactor.flush(ctx)
 			// events with length zero should be ignored (not compacted)
-			require.Len(t, auditEvents, 2)
-			assert.Contains(t, auditEvents, firstEvent)
-			assert.Contains(t, auditEvents, secondEvent)
+			require.Len(t, auditEvents, 3)
+			assert.Contains(t, auditEvents, errorEvent)
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 300))
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 101, 0))
+
+		})
+	})
+
+	t.Run("error-event", func(t *testing.T) {
+		auditEvents = auditEvents[:0]
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			// Create two read events that would be eligible for compaction,
+			// but one has an error code.
+			firstEvent := newReadEvent("foo", 1, 0, 100)
+			firstEvent.Success = false
+			firstEvent.Error = "some error"
+
+			secondEvent := newReadEvent("foo", 1, 100, 200)
+
+			testEvents := []*events.DesktopSharedDirectoryRead{firstEvent, secondEvent}
+			var reverseTestEvents = make([]*events.DesktopSharedDirectoryRead, len(testEvents))
+			copy(reverseTestEvents, testEvents)
+			slices.Reverse(reverseTestEvents)
+
+			// Order should not affect the outcome
+			for _, events := range [][]*events.DesktopSharedDirectoryRead{testEvents, reverseTestEvents} {
+				auditEvents = auditEvents[:0]
+				compactor.handleRead(ctx, events[0])
+				compactor.handleRead(ctx, events[1])
+
+				compactor.flush(ctx)
+
+				require.Len(t, auditEvents, 2)
+				assert.Contains(t, auditEvents, events[0])
+				assert.Contains(t, auditEvents, events[1])
+			}
 		})
 	})
 
@@ -160,9 +201,9 @@ func TestAuditCompactor(t *testing.T) {
 			compactor.flush(ctx)
 			require.Len(t, auditEvents, 3)
 			// Should be compacted to 3 audit events
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 100, 325))
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 425))
 			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 750))
-			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 0, 1200))
+			assert.Contains(t, auditEvents, newReadEvent("foo", 1, 100, 1100))
 		})
 
 	})
