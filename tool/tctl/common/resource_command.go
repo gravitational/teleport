@@ -2019,7 +2019,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabase:
-		databases, err := stream.Collect(client.RangeDatabases(ctx, "", ""))
+		databases, err := stream.Collect(clientutils.Resources(ctx, client.ListDatabases))
 		if err != nil {
 			// TODO(okraport) DELETE IN v21.0.0
 			if trace.IsNotImplemented(err) {
@@ -2839,7 +2839,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &netRestrictionsCollection{nr}, nil
 	case types.KindApp:
 		if rc.ref.Name == "" {
-			apps, err := stream.Collect(client.Apps(ctx, "", ""))
+			apps, err := stream.Collect(clientutils.Resources(ctx, client.ListApps))
 			if err != nil {
 				// TODO(tross) DELETE IN v21.0.0
 				if trace.IsNotImplemented(err) {
@@ -2863,7 +2863,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
-		databases, err := stream.Collect(client.RangeDatabases(ctx, "", ""))
+		databases, err := stream.Collect(clientutils.Resources(ctx, client.ListDatabases))
 		if err != nil {
 			// TODO(okraport) DELETE IN v21.0.0
 			if trace.IsNotImplemented(err) {
@@ -2937,32 +2937,26 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &windowsDesktopCollection{desktops: desktops}, nil
 		}
 
-		var collection windowsDesktopCollection
-		var startKey string
-		for {
-			resp, err := client.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{StartKey: startKey})
-			if err != nil {
-				// TODO(tross) DELETE IN v21.0.0
-				if trace.IsNotImplemented(err) {
-					desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
+		desktops, err := stream.Collect(clientutils.Resources(ctx,
+			func(ctx context.Context, limit int, token string) ([]types.WindowsDesktop, string, error) {
+				resp, err := client.ListWindowsDesktops(ctx,
+					types.ListWindowsDesktopsRequest{StartKey: token, Limit: limit})
+				return resp.Desktops, resp.NextKey, trace.Wrap(err)
+			}))
 
-					return &windowsDesktopCollection{desktops: desktops}, nil
+		if err != nil {
+			// TODO(tross) DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				desktops, err = client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+				if err != nil {
+					return nil, trace.Wrap(err)
 				}
-
-				return nil, trace.Wrap(err)
+				return &windowsDesktopCollection{desktops: desktops}, nil
 			}
-
-			collection.desktops = append(collection.desktops, resp.Desktops...)
-			startKey = resp.NextKey
-			if resp.NextKey == "" {
-				break
-			}
+			return nil, trace.Wrap(err)
 		}
 
-		return &collection, nil
+		return &windowsDesktopCollection{desktops: desktops}, nil
 	case types.KindDynamicWindowsDesktop:
 		dynamicDesktopClient := client.DynamicDesktopClient()
 		if rc.ref.Name != "" {
