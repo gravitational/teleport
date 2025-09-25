@@ -1,2 +1,4 @@
 disabled_rules:
   - todo
+  # Used by generated protos to disable checking the files.
+  - blanket_disable_command
