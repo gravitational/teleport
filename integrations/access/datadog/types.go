@@ -119,7 +119,19 @@ type TimelineContent struct {
 
 // ListTeamsBody contains the list of teams data.
 type ListTeamsBody struct {
-	Data []TeamsData `json:"data,omitempty"`
+	Data []TeamsData  `json:"data,omitempty"`
+	Meta ListMetadata `json:"meta"`
+}
+
+// ListMetadata contains metadata for a list request.
+type ListMetadata struct {
+	Pagination PaginationMetadata `json:"pagination"`
+}
+
+// PaginationMetadata contains pagination metadata.
+type PaginationMetadata struct {
+	Size  int `json:"size"`
+	Total int `json:"total"`
 }
 
 // TeamData contains a team metadata and attributes.

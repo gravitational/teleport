@@ -175,6 +175,12 @@ func NewFakeDatadog(concurrency int) *FakeDatadog {
 
 		body := datadog.ListTeamsBody{
 			Data: teams,
+			Meta: datadog.ListMetadata{
+				Pagination: datadog.PaginationMetadata{
+					Size:  len(teams),
+					Total: len(teams),
+				},
+			},
 		}
 
 		err := json.NewEncoder(rw).Encode(body)

@@ -167,14 +167,16 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 	}
 
 	var teamIDs []string
-
-	// Query a max of 10 pages with 100 teams per page.
-	const maxPages = 10
-	for page := range maxPages {
+	var total int
+	var page int
+	for {
 		resp, err := b.datadog.ListTeamsPage(ctx, page)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		total = total + resp.Meta.Pagination.Size
+		page++
 
 		// Filter the list of teams to only the teams that match the datadog annotation.
 		for _, teamData := range resp.Data {
@@ -185,8 +187,8 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 			teamIDs = append(teamIDs, teamData.ID)
 		}
 
-		// Break if page is empty or all team IDs have been identified.
-		if len(resp.Data) == 0 || len(teamIDs) == len(teamNames) {
+		// Break if all teams have been listed or all team IDs have been identified.
+		if total >= resp.Meta.Pagination.Total || len(teamIDs) == len(teamNames) {
 			break
 		}
 	}
