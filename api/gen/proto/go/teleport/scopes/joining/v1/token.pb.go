@@ -22,6 +22,7 @@ package joiningv1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -133,8 +134,18 @@ func (x *ScopedToken) GetSpec() *ScopedTokenSpec {
 // ScopedTokenSpec is the specification of a scoped token.
 type ScopedTokenSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// AssignedScope is the scope to which this token is assigned.
+	// The scope to which this token is assigned.
 	AssignedScope string `protobuf:"bytes,1,opt,name=assigned_scope,json=assignedScope,proto3" json:"assigned_scope,omitempty"`
+	// The list of roles associated with the token. They will be converted
+	// to metadata in the SSH and X509 certificates issued to the user of the
+	// token.
+	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	// The joining method required in order to use this token.
+	// Supported joining methods for scoped tokens only include 'token'.
+	JoinMethod string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
+	// The list of rules applied to resources using this token.
+	// At least one rule must match the resource in order to join.
+	Allow         []*types.TokenRule `protobuf:"bytes,4,rep,name=allow,proto3" json:"allow,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -176,20 +187,45 @@ func (x *ScopedTokenSpec) GetAssignedScope() string {
 	return ""
 }
 
+func (x *ScopedTokenSpec) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetJoinMethod() string {
+	if x != nil {
+		return x.JoinMethod
+	}
+	return ""
+}
+
+func (x *ScopedTokenSpec) GetAllow() []*types.TokenRule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\n" +
-	"&teleport/scopes/joining/v1/token.proto\x12\x1ateleport.scopes.joining.v1\x1a!teleport/header/v1/metadata.proto\"\xe7\x01\n" +
+	"&teleport/scopes/joining/v1/token.proto\x12\x1ateleport.scopes.joining.v1\x1a!teleport/header/v1/metadata.proto\x1a!teleport/legacy/types/types.proto\"\xe7\x01\n" +
 	"\vScopedToken\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
-	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\"8\n" +
+	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\"\x97\x01\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
-	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScopeBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
+	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
+	"\vjoin_method\x18\x03 \x01(\tR\n" +
+	"joinMethod\x12&\n" +
+	"\x05allow\x18\x04 \x03(\v2\x10.types.TokenRuleR\x05allowBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -208,15 +244,17 @@ var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*ScopedToken)(nil),     // 0: teleport.scopes.joining.v1.ScopedToken
 	(*ScopedTokenSpec)(nil), // 1: teleport.scopes.joining.v1.ScopedTokenSpec
 	(*v1.Metadata)(nil),     // 2: teleport.header.v1.Metadata
+	(*types.TokenRule)(nil), // 3: types.TokenRule
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
 	2, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	3, // 2: teleport.scopes.joining.v1.ScopedTokenSpec.allow:type_name -> types.TokenRule
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
