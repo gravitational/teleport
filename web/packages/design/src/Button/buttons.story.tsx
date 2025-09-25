@@ -85,7 +85,8 @@ export const Buttons = () => {
             </Fragment>
           ))}
         </tbody>
-      </Table>{' '}
+      </Table>
+
       <Flex gap={3}>
         <ButtonPrimary>Primary</ButtonPrimary>
         <ButtonPrimaryBorder>Primary (border)</ButtonPrimaryBorder>
@@ -93,12 +94,14 @@ export const Buttons = () => {
         <ButtonBorder>Border</ButtonBorder>
         <ButtonWarning>Warning</ButtonWarning>
       </Flex>
+
       <Flex gap={3} alignItems="center">
         <Button size="extra-large">Extra large</Button>
         <Button size="large">Large</Button>
         <Button size="medium">Medium</Button>
         <Button size="small">Small</Button>
       </Flex>
+
       <Flex flexDirection="column" gap={3} alignItems="flex-start">
         <Input
           defaultValue="Padding of buttons below should match padding of this input"
@@ -117,19 +120,23 @@ export const Buttons = () => {
           Small with input alignment
         </Button>
       </Flex>
+
       <Button block>block = true</Button>
+
       <Flex gap={3}>
         <Button disabled>Disabled</Button>
         <Box className="teleport-button__force-focus-visible">
           <Button>Focused</Button>
         </Box>
       </Flex>
+
       <Flex gap={3}>
         <ButtonPrimary gap={2}>
           <icons.AddUsers />
           Add users
         </ButtonPrimary>
       </Flex>
+
       <Flex gap={3} alignItems="center">
         <ButtonWithMenu
           text="Button with menu"
@@ -169,6 +176,27 @@ export const Buttons = () => {
           {menuItemsForButtonWithMenu}
         </ButtonWithMenu>
       </Flex>
+
+      <Stack gap={3}>
+        <ButtonWithMenu
+          text={`width={${constantWidth}}`}
+          width={constantWidth}
+          size="small"
+          onClick={() => alert('Button with menu')}
+        >
+          {menuItemsForButtonWithMenu}
+        </ButtonWithMenu>
+
+        <ButtonWithMenu
+          text={`buttonWidth={${constantWidth}}`}
+          buttonWidth={constantWidth}
+          size="small"
+          onClick={() => alert('Button with menu')}
+        >
+          {menuItemsForButtonWithMenu}
+        </ButtonWithMenu>
+      </Stack>
+
       <Flex gap={3}>
         <Button as="a" href="https://example.com" target="_blank">
           Link as button
@@ -183,10 +211,12 @@ export const Buttons = () => {
           <icons.Link />
         </ButtonIcon>
       </Flex>
+
       <Flex gap={3}>
         <ButtonLink href="">Button Link</ButtonLink>
         <ButtonText>Button Text</ButtonText>
       </Flex>
+
       <Flex gap={3} flexDirection="column" alignItems="flex-start">
         {([2, 1, 0] as const).map(size => (
           <Flex gap={3} key={`size-${size}`}>
@@ -324,3 +354,5 @@ const Emphasis = styled.span`
   text-decoration-line: underline;
   text-decoration-color: red;
 `;
+
+const constantWidth = 150;

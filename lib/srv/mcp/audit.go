@@ -129,7 +129,7 @@ func (a *sessionAuditor) emitEndEvent(ctx context.Context, err error) {
 }
 
 func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, err error) {
-	if !a.shouldEmitEvent(msg.Method) {
+	if err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
 	event := &apievents.MCPSessionNotification{
@@ -150,7 +150,7 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 		},
 	}
 	if err != nil {
-		event.Metadata.Code = events.MCPSessionNotificationCode
+		event.Metadata.Code = events.MCPSessionNotificationFailureCode
 		event.Status.Success = false
 		event.Status.Error = err.Error()
 	}
@@ -188,6 +188,7 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 	a.emitEvent(ctx, event)
 }
 
+//nolint:unused //TODO(greedy52) remove nolint
 func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error) {
 	event := &apievents.MCPSessionListenSSEStream{
 		Metadata: a.makeEventMetadata(
@@ -209,12 +210,13 @@ func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error
 	a.emitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitBadHTTPRequest(ctx context.Context, r *http.Request) {
+//nolint:unused //TODO(greedy52) remove nolint
+func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Request) {
 	body, _ := utils.GetAndReplaceRequestBody(r)
-	event := &apievents.MCPSessionBadHTTPRequest{
+	event := &apievents.MCPSessionInvalidHTTPRequest{
 		Metadata: a.makeEventMetadata(
-			events.MCPSessionBadHTTPRequest,
-			events.MCPSessionBadHTTPRequestCode,
+			events.MCPSessionInvalidHTTPRequest,
+			events.MCPSessionInvalidHTTPRequestCode,
 		),
 		SessionMetadata: a.makeSessionMetadata(),
 		UserMetadata:    a.makeUserMetadata(),
@@ -222,6 +224,7 @@ func (a *sessionAuditor) emitBadHTTPRequest(ctx context.Context, r *http.Request
 		Path:            r.URL.Path,
 		Method:          r.Method,
 		Body:            body,
+		RawQuery:        r.URL.RawQuery,
 	}
 	a.emitEvent(ctx, event)
 }

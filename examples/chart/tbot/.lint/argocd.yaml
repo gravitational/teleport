@@ -19,3 +19,4 @@ argocd:
     - dev
     - prod
   clusterResources: true
+  clusterNameTemplate: "{{.KubeName}}"

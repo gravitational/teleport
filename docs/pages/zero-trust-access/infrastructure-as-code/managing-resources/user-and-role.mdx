@@ -4,10 +4,11 @@ description: Use infrastructure-as-code tooling to create Teleport users and rol
 tags:
  - how-to
  - zero-trust
+ - privileged-access
 ---
 
 In this guide, you will see how to create users and grant them roles through
-infrastructure as code (IaC). Teleports supports three ways to dynamically
+infrastructure as code (IaC). Teleport supports three ways to dynamically
 create resources from code:
 
 - The Teleport Kubernetes Operator, which allows you to manage Teleport resources
@@ -204,7 +205,7 @@ We will create 2 users:
   Users created from manifests are local users, as opposed to users coming from
   an external SAML/OIDC/GitHub Identity Provider (IdP).
 
-  See [the user type reference](../../../reference/user-types.mdx) for more details.
+  See [the user type reference](../../../reference/access-controls/user-types.mdx) for more details.
 </Admonition>
 
 <Tabs>
@@ -497,5 +498,5 @@ resource "teleport_user" "bob" {
   production, and have users with the `manager` role validate the requests.
   See [the Access Requests documentation](../../../identity-governance/access-requests/access-requests.mdx)
 - You can see all supported fields in the references
-  of [the user resource](../../../reference/resources.mdx)
-  and [the role resource](../../../reference/resources.mdx).
+  of [the user resource](../../../reference/infrastructure-as-code/resources.mdx)
+  and [the role resource](../../../reference/infrastructure-as-code/resources.mdx).

@@ -606,6 +606,7 @@ type Global struct {
 	// v3
 	AuthServer  string `yaml:"auth_server,omitempty"`
 	ProxyServer string `yaml:"proxy_server,omitempty"`
+	RelayServer string `yaml:"relay_server,omitempty"`
 
 	Limits      ConnectionLimits `yaml:"connection_limits,omitempty"`
 	Logger      Log              `yaml:"log,omitempty"`
@@ -2955,6 +2956,10 @@ type Relay struct {
 	// PeerListenAddr is the listen address for the peer listener, in addr:port
 	// format.
 	PeerListenAddr string `yaml:"peer_listen_addr"`
+
+	// PeerPublicAddr, if set, is the public address for the peer listener, in
+	// host:port format.
+	PeerPublicAddr string `yaml:"peer_public_addr"`
 
 	// TunnelListenAddr is the listen address for the tunnel listener, in
 	// addr:port format.

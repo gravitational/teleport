@@ -2684,10 +2684,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &namespaceCollection{namespaces: []types.Namespace{types.DefaultNamespace()}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
-			trustedClusters, err := client.GetTrustedClusters(ctx)
+			trustedClusters, err := stream.Collect(clientutils.Resources(ctx, client.ListTrustedClusters))
 			if err != nil {
-				return nil, trace.Wrap(err)
+				// TODO(okraport) DELETE IN v21.0.0
+				if trace.IsNotImplemented(err) {
+					trustedClusters, err = client.GetTrustedClusters(ctx)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+				} else {
+					return nil, trace.Wrap(err)
+				}
 			}
+
 			return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
 		}
 		trustedCluster, err := client.GetTrustedCluster(ctx, rc.ref.Name)
@@ -3498,6 +3507,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		instances, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
+			// TODO(nicholasmarais1158) Use ListBotInstancesV2 instead.
+			//nolint:staticcheck // SA1019
 			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
 				PageSize:  int32(limit),
 				PageToken: pageToken,

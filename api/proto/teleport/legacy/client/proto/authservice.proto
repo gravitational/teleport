@@ -2881,6 +2881,8 @@ service AuthService {
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
   // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+  // GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+  rpc GetRemoteAccessCapabilities(types.RemoteAccessCapabilitiesRequest) returns (types.RemoteAccessCapabilities);
 
   // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
   rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);
@@ -3246,7 +3248,11 @@ service AuthService {
   // GetTrustedCluster gets a Trusted Cluster resource by name.
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
   // GetTrustedClusters gets all current Trusted Cluster resources.
-  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
+  // Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+  // TODO(okraport): DELETE IN 21.0.0
+  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List) {
+    option deprecated = true;
+  }
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
   //
   // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.

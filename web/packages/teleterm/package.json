@@ -31,7 +31,7 @@
     "ring-buffer-ts": "^1.2.0",
     "split2": "4.2.0",
     "strip-ansi": "^7.1.0",
-    "tar-fs": "^3.1.0",
+    "tar-fs": "^3.1.1",
     "which": "^5.0.0",
     "winston": "^3.17.0"
   },
@@ -53,8 +53,7 @@
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
     "whatwg-url": "^14.2.0",
-    "zod": "^3.25.67",
-    "zod-to-json-schema": "^3.24.6"
+    "zod": "^4.1.5"
   },
   "productName": "Teleport Connect"
 }

@@ -158,6 +158,7 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 			jwt:          jwt,
 			traits:       traits,
 			log:          c.log,
+			hostID:       c.cfg.HostID,
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -312,7 +313,8 @@ func (c *ConnectionsHandler) createTracker(sess *sessionChunk, identity *tlsca.I
 		ClusterName: identity.RouteToApp.ClusterName,
 		Login:       identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
-			User: identity.Username,
+			User:    identity.Username,
+			Cluster: identity.OriginClusterName,
 		}},
 		HostUser:     identity.Username,
 		Created:      c.cfg.Clock.Now(),

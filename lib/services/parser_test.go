@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"github.com/vulcand/predicate"
@@ -821,6 +822,101 @@ func TestCanView(t *testing.T) {
 					require.True(t, trace.IsAccessDenied(err), "Got err = %v/%T, wanted AccessDenied. %v", err, err, comment)
 				}
 			}
+		})
+	}
+}
+
+func TestSessionTrackerRBAC(t *testing.T) {
+	t.Parallel()
+	localCluster := "local-cluster"
+	remoteCluster := "remote-cluster"
+	tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+		SessionID:   uuid.NewString(),
+		Kind:        types.KindSSHSession,
+		Hostname:    "hostname",
+		ClusterName: localCluster,
+		Login:       "root",
+		Participants: []types.Participant{
+			{
+				ID:      uuid.New().String(),
+				User:    "eve",
+				Cluster: localCluster,
+				Mode:    string(types.SessionPeerMode),
+			},
+			{
+				ID:      uuid.New().String(),
+				User:    "alice",
+				Cluster: remoteCluster,
+				Mode:    string(types.SessionObserverMode),
+			},
+			{
+				ID:      uuid.New().String(),
+				User:    "bob",
+				Cluster: localCluster,
+				Mode:    string(types.SessionObserverMode),
+			},
+		},
+		Expires: time.Now().UTC().Add(24 * time.Hour),
+	})
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name        string
+		username    string
+		userCluster string
+		checkAccess require.BoolAssertionFunc
+	}{
+		{
+			name:        "same user and same cluster as peer participant",
+			username:    "eve",
+			userCluster: localCluster,
+			checkAccess: require.True,
+		},
+		{
+			name:        "same user but different cluster as peer participant",
+			username:    "eve",
+			userCluster: remoteCluster,
+			checkAccess: require.False,
+		},
+		{
+			name:        "different user but same cluster as peer participant",
+			username:    "alice",
+			userCluster: localCluster,
+			checkAccess: require.False,
+		},
+		{
+			name:        "observer participant, same cluster",
+			username:    "bob",
+			userCluster: localCluster,
+			checkAccess: require.True,
+		},
+		{
+			name:        "not a participant, same cluster",
+			username:    "mallory",
+			userCluster: localCluster,
+			checkAccess: require.False,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			user, err := types.NewUser(UsernameForCluster(UsernameForClusterConfig{
+				User:              tc.username,
+				LocalClusterName:  localCluster,
+				OriginClusterName: tc.userCluster,
+			}))
+			require.NoError(t, err)
+			ctx := &Context{
+				User:           user,
+				SessionTracker: tracker,
+			}
+			parser, err := NewWhereParser(ctx)
+			require.NoError(t, err)
+			expr, err := parser.Parse("contains(session_tracker.participants, user.metadata.name)")
+			require.NoError(t, err)
+			pred, ok := expr.(predicate.BoolPredicate)
+			require.True(t, ok)
+			tc.checkAccess(t, pred())
 		})
 	}
 }

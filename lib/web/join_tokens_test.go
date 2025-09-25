@@ -48,6 +48,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -1338,6 +1339,11 @@ func (a *autoupdateProxyClientMock) GetClusterCACert(ctx context.Context) (*prot
 	return args.Get(0).(*proto.GetClusterCACertResponse), args.Error(1)
 }
 
+func (a *autoupdateProxyClientMock) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	args := a.Called(ctx)
+	return args.Get(0).(types.ClusterMaintenanceConfig), args.Error(1)
+}
+
 type autoupdateTestHandlerConfig struct {
 	testModules *modulestest.Modules
 	hostname    string
@@ -1376,22 +1382,34 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	}
 
 	clt.On("GetClusterCACert", mock.Anything).Return(&proto.GetClusterCACertResponse{TLSCA: []byte(fixtures.SigningCertPEM)}, nil)
+	clt.On("GetClusterMaintenanceConfig", mock.Anything).Return(nil, trace.NotImplemented("Should not be called"))
 
 	if config.testModules == nil {
 		config.testModules = &modulestest.Modules{
 			TestBuildType: modules.BuildCommunity,
 		}
 	}
+
+	log := logtest.NewLogger()
 	modulestest.SetTestModules(t, *config.testModules)
+	r, err := autoupdatelookup.NewResolver(
+		autoupdatelookup.Config{
+			RolloutGetter: ap,
+			CMCGetter:     clt,
+			Channels:      config.channels,
+			Log:           log,
+			Context:       t.Context(),
+		})
+	require.NoError(t, err)
 	h := &Handler{
 		clusterFeatures: *config.testModules.Features().ToProto(),
 		cfg: Config{
-			AutomaticUpgradesChannels: config.channels,
-			AccessPoint:               ap,
-			PublicProxyAddr:           addr,
-			ProxyClient:               clt,
+			AccessPoint:     ap,
+			PublicProxyAddr: addr,
+			ProxyClient:     clt,
 		},
-		logger: logtest.NewLogger(),
+		logger:             log,
+		autoUpdateResolver: r,
 	}
 	h.PublicProxyAddr()
 	return h

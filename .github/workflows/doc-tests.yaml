@@ -69,7 +69,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: shared-workflows
-          ref: 664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2 
+          ref: 6ea1f547eee108478e4dc576cc2128f2fb0e460a 
 
       - name: Install Go
         uses: actions/setup-go@v5
@@ -158,7 +158,7 @@ jobs:
       - name: Check docs style
         working-directory: 'docs/content/current'
         run: |
-          echo "Running Vale style checks. For information about ignoring Vale rules, see: https://vale.sh/docs/formats/mdx#comments"
+          echo "Running Vale style checks. For information about ignoring Vale rules using comments, see: https://vale.sh/docs/formats/mdx#comments"
           "${GITHUB_WORKSPACE}/vale" --config docs/.vale.ini docs/pages
 
       - name: Test the docs build

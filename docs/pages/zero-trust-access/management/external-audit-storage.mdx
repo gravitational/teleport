@@ -4,6 +4,7 @@ description: Store audit logs and session recordings on your own infrastructure 
 tags:
  - how-to
  - zero-trust
+ - audit
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -21,8 +22,8 @@ custom audit event queries, since you can access and efficiently query your
 audit events right where they are stored.
 
 External Audit Storage is based on Teleport's
-[Athena](../../reference/backends.mdx#athena) backend for audit events and the
-[S3](../../reference/backends.mdx#s3-session-recordings) backend for session recordings. It is only
+[Athena](../../reference/deployment/backends.mdx#athena) backend for audit events and the
+[S3](../../reference/deployment/backends.mdx#s3-session-recordings) backend for session recordings. It is only
 available on Teleport Enterprise Cloud clusters running Teleport v14.2.1 or
 above.
 

@@ -16,20 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex } from 'design';
-
 import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
+  BotIntegration,
+  integrations as botIntegrations,
+  BotTile,
+} from 'teleport/Bots/Add/AddBotsPicker';
+import { FeatureBox } from 'teleport/components/Layout';
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
+import { useNoMinWidth } from 'teleport/Main';
+import useTeleport from 'teleport/useTeleport';
 
-import { NoCodeIntegrationDescription } from './common';
 import { getRoutesToEnrollIntegrations } from './IntegrationRoute';
-import { IntegrationTiles } from './IntegrationTiles/IntegrationTiles';
-import { MachineIDIntegrationSection } from './MachineIDIntegrationSection';
+import {
+  installableIntegrations,
+  IntegrationTileSpec,
+} from './IntegrationTiles/integrations';
+import {
+  displayName,
+  IntegrationTileWithSpec,
+  IntegrationPicker as SharedIntegrationPicker,
+} from './Shared';
 
 export function IntegrationEnroll() {
   return (
@@ -45,23 +52,67 @@ export function IntegrationEnroll() {
   );
 }
 
-export function IntegrationPicker() {
+type Integration = IntegrationTileSpec | BotIntegration;
+
+const isGuided = (i: Integration) => {
+  if ('guided' in i) {
+    return i.guided;
+    // non-Bot Integrations are guided
+  } else {
+    return true;
+  }
+};
+
+const sortByName = (a: Integration, b: Integration) => {
+  return displayName(a).localeCompare(displayName(b));
+};
+
+const initialSort = (a: Integration, b: Integration) => {
   return (
-    <>
-      <FeatureHeader>
-        <FeatureHeaderTitle>Select Integration Type</FeatureHeaderTitle>
-      </FeatureHeader>
-      <Flex flexDirection="column" gap={4}>
-        <Flex flexDirection="column">
-          <NoCodeIntegrationDescription />
-          <Flex mb={2} gap={3} flexWrap="wrap">
-            <IntegrationTiles />
-          </Flex>
-        </Flex>
-        <Flex flexDirection="column">
-          <MachineIDIntegrationSection />
-        </Flex>
-      </Flex>
-    </>
+    (isGuided(b) ? (isGuided(a) ? 0 : 1) : isGuided(a) ? -1 : 0) ||
+    sortByName(a, b)
+  );
+};
+
+export function IntegrationPicker() {
+  const ctx = useTeleport();
+  const hasCreateBotPermission = ctx.getFeatureFlags().addBots;
+  const hasIntegrationAccess = ctx.storeUser.getIntegrationsAccess().create;
+  const hasExternalAuditStorage =
+    ctx.storeUser.getExternalAuditStorageAccess().create;
+
+  const integrations = [...installableIntegrations(), ...botIntegrations];
+  useNoMinWidth();
+
+  const renderIntegration = (i: Integration) => {
+    if (i.type === 'integration') {
+      return (
+        <IntegrationTileWithSpec
+          key={i.kind}
+          spec={i}
+          hasIntegrationAccess={hasIntegrationAccess}
+          hasExternalAuditStorage={hasExternalAuditStorage}
+        />
+      );
+    }
+
+    if (i.type === 'bot') {
+      return (
+        <BotTile
+          key={i.kind}
+          integration={i}
+          hasCreateBotPermission={hasCreateBotPermission}
+        />
+      );
+    }
+  };
+
+  return (
+    <SharedIntegrationPicker
+      integrations={integrations}
+      renderIntegration={renderIntegration}
+      initialSort={initialSort}
+      canCreate={true}
+    />
   );
 }

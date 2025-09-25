@@ -323,7 +323,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: Icons.Warning,
   [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: Icons.ModelContextProtocol,
   [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: Icons.Warning,
-  [eventCodes.MCP_SESSION_BAD_HTTP_REQUEST]: Icons.Warning,
+  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: Icons.Warning,
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: Icons.Info,
   [eventCodes.BOUND_KEYPAIR_ROTATION]: Icons.Info,
   [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: Icons.Warning,

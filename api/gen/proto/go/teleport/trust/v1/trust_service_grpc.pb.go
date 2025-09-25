@@ -45,6 +45,7 @@ const (
 	TrustService_UpsertTrustedCluster_FullMethodName        = "/teleport.trust.v1.TrustService/UpsertTrustedCluster"
 	TrustService_CreateTrustedCluster_FullMethodName        = "/teleport.trust.v1.TrustService/CreateTrustedCluster"
 	TrustService_UpdateTrustedCluster_FullMethodName        = "/teleport.trust.v1.TrustService/UpdateTrustedCluster"
+	TrustService_ListTrustedClusters_FullMethodName         = "/teleport.trust.v1.TrustService/ListTrustedClusters"
 )
 
 // TrustServiceClient is the client API for TrustService service.
@@ -74,6 +75,8 @@ type TrustServiceClient interface {
 	CreateTrustedCluster(ctx context.Context, in *CreateTrustedClusterRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// UpdateTrustedCluster updates a Trusted Cluster in a backend.
 	UpdateTrustedCluster(ctx context.Context, in *UpdateTrustedClusterRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
+	// ListTrustedClusters returns a page of current Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, in *ListTrustedClustersRequest, opts ...grpc.CallOption) (*ListTrustedClustersResponse, error)
 }
 
 type trustServiceClient struct {
@@ -184,6 +187,16 @@ func (c *trustServiceClient) UpdateTrustedCluster(ctx context.Context, in *Updat
 	return out, nil
 }
 
+func (c *trustServiceClient) ListTrustedClusters(ctx context.Context, in *ListTrustedClustersRequest, opts ...grpc.CallOption) (*ListTrustedClustersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTrustedClustersResponse)
+	err := c.cc.Invoke(ctx, TrustService_ListTrustedClusters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TrustServiceServer is the server API for TrustService service.
 // All implementations must embed UnimplementedTrustServiceServer
 // for forward compatibility.
@@ -211,6 +224,8 @@ type TrustServiceServer interface {
 	CreateTrustedCluster(context.Context, *CreateTrustedClusterRequest) (*types.TrustedClusterV2, error)
 	// UpdateTrustedCluster updates a Trusted Cluster in a backend.
 	UpdateTrustedCluster(context.Context, *UpdateTrustedClusterRequest) (*types.TrustedClusterV2, error)
+	// ListTrustedClusters returns a page of current Trusted Cluster resources.
+	ListTrustedClusters(context.Context, *ListTrustedClustersRequest) (*ListTrustedClustersResponse, error)
 	mustEmbedUnimplementedTrustServiceServer()
 }
 
@@ -250,6 +265,9 @@ func (UnimplementedTrustServiceServer) CreateTrustedCluster(context.Context, *Cr
 }
 func (UnimplementedTrustServiceServer) UpdateTrustedCluster(context.Context, *UpdateTrustedClusterRequest) (*types.TrustedClusterV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateTrustedCluster not implemented")
+}
+func (UnimplementedTrustServiceServer) ListTrustedClusters(context.Context, *ListTrustedClustersRequest) (*ListTrustedClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListTrustedClusters not implemented")
 }
 func (UnimplementedTrustServiceServer) mustEmbedUnimplementedTrustServiceServer() {}
 func (UnimplementedTrustServiceServer) testEmbeddedByValue()                      {}
@@ -452,6 +470,24 @@ func _TrustService_UpdateTrustedCluster_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TrustService_ListTrustedClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTrustedClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TrustServiceServer).ListTrustedClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TrustService_ListTrustedClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TrustServiceServer).ListTrustedClusters(ctx, req.(*ListTrustedClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TrustService_ServiceDesc is the grpc.ServiceDesc for TrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -498,6 +534,10 @@ var TrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateTrustedCluster",
 			Handler:    _TrustService_UpdateTrustedCluster_Handler,
+		},
+		{
+			MethodName: "ListTrustedClusters",
+			Handler:    _TrustService_ListTrustedClusters_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

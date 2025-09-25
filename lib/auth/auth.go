@@ -759,7 +759,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.k8sJWKSValidator = kubetoken.ValidateTokenWithJWKS
 	}
 	if as.k8sOIDCValidator == nil {
-		as.k8sOIDCValidator = kubetoken.ValidateTokenWithOIDC
+		validator, err := kubetoken.NewKubernetesOIDCTokenValidator()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.k8sOIDCValidator = validator
 	}
 
 	if as.gcpIDTokenValidator == nil {
@@ -1226,7 +1231,7 @@ type Server struct {
 	k8sJWKSValidator k8sJWKSValidator
 	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
 	// auth server using a known OIDC endpoint. It can be overridden in tests.
-	k8sOIDCValidator k8sOIDCValidator
+	k8sOIDCValidator *kubetoken.KubernetesOIDCTokenValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
@@ -1378,7 +1383,18 @@ func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	if len(loginHooks) == 0 {
 		return nil
 	}
-
+	// Clone the input user so that hooks never mutate the original object.
+	//
+	// Currently, login hook share state via UserLoginState resources.
+	// The login hook calls GetUserLoginState to read the state, updates it,
+	// and then saves the changes  when a next looking hood loads the state from storage.
+	//
+	// Note: We intentionally do not write access-list–derived roles/traits back
+	// to the user record. Doing so could create inconsistencies with user objects
+	// provisioned by Entra ID / Okta Sync or via SCIM. If we choose to persist
+	// these attributes in the future, we should first define a single source of
+	// truth and a clear reconciliation strategy.
+	user = user.Clone()
 	var errs []error
 	for _, hook := range loginHooks {
 		errs = append(errs, hook(ctx, user))
@@ -2153,6 +2169,12 @@ func (a *Server) Close() error {
 
 	if a.bk != nil {
 		if err := a.bk.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if a.scopedAccessCache != nil {
+		if err := a.scopedAccessCache.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}

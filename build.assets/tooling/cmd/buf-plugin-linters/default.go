@@ -145,7 +145,6 @@ func newDefaultConfig() *Config {
 			"proto.AuthService.GetSSHTargets":                                           {},
 			"proto.AuthService.GetSSODiagnosticInfo":                                    {},
 			"proto.AuthService.GetTokens":                                               {},
-			"proto.AuthService.GetTrustedClusters":                                      {},
 			"proto.AuthService.GetWebTokens":                                            {},
 			"proto.AuthService.GetWindowsDesktops":                                      {},
 			"proto.AuthService.GetWindowsDesktopServices":                               {},

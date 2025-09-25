@@ -184,8 +184,7 @@ export interface CreateAccessRequestRequest {
      */
     suggestedReviewers: string[];
     /**
-     * TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
-     * a list of resourceIDs requested in the AccessRequest
+     * List of resources to which access is being requested.
      *
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.ResourceID resource_ids = 5;
      */

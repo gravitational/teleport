@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -58,9 +57,6 @@ const (
 )
 
 type NodeSession struct {
-	// id is the Teleport session ID
-	id session.ID
-
 	// env is the environment variables that need to be created
 	// on the server for this session
 	env map[string]string
@@ -143,8 +139,6 @@ func newSession(ctx context.Context,
 			return nil, trace.Wrap(err)
 		}
 
-		ns.id = session.ID(sessionID)
-
 		if ns.terminal.IsAttached() {
 			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))
 			if err != nil {
@@ -153,7 +147,7 @@ func newSession(ctx context.Context,
 
 		}
 
-		ns.env[sshutils.SessionEnvVar] = string(ns.id)
+		ns.env[sshutils.SessionEnvVar] = sessionID
 	}
 
 	// Close the Terminal when finished.
@@ -245,7 +239,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context, chanReqCallback 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = agent.RequestAgentForwarding(sess.Session)
+		err = sshagent.RequestAgentForwarding(ctx, sess)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

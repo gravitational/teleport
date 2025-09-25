@@ -758,12 +758,16 @@ const (
 	// mcp.session.notification when the notification is denied by the MCP
 	// server.
 	MCPSessionNotificationFailureCode = "TMCP004E"
-	// TODO
+	// MCPSessionListenSSEStreamCode is the event code for
+	// mcp.session.listen_sse_stream.
 	MCPSessionListenSSEStreamCode = "TMCP005I"
-	// TODO
+	// MCPSessionListenSSEStreamFailureCode is the event code for
+	// mcp.session.listen_sse_stream when the request is denied by the MCP
+	// server.
 	MCPSessionListenSSEStreamFailureCode = "TMCP005E"
-	// TODO
-	MCPSessionBadHTTPRequestCode = "TMCP006E"
+	// MCPSessionInvalidHTTPRequestCode is the event code for
+	// mcp.session.invalid_http_request.
+	MCPSessionInvalidHTTPRequestCode = "TMCP006E"
 
 	// BoundKeypairRecoveryCode is the event code for
 	// join_token.bound_keypair.recovery.

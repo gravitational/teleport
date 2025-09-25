@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"mime"
 	"net/http"
@@ -47,7 +46,7 @@ type ServerMessageProcessor interface {
 // streamable HTTP transport.
 //
 // https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http
-func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processer ServerMessageProcessor) error {
+func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processor ServerMessageProcessor) error {
 	// Nothing to replace.
 	if resp.StatusCode != http.StatusOK || resp.ContentLength == 0 {
 		return nil
@@ -68,7 +67,7 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processer Ser
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		respToClient := processer.ProcessResponse(ctx, respFromServer)
+		respToClient := processor.ProcessResponse(ctx, respFromServer)
 		respToClientAsBody, err := json.Marshal(respToClient)
 		if err != nil {
 			return trace.Wrap(err)
@@ -84,7 +83,7 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processer Ser
 		resp.Body = &httpSSEResponseReplacer{
 			ctx:               ctx,
 			SSEResponseReader: NewSSEResponseReader(resp.Body),
-			processer:         processer,
+			processor:         processor,
 		}
 		return nil
 	default:
@@ -95,7 +94,7 @@ func ReplaceHTTPResponse(ctx context.Context, resp *http.Response, processer Ser
 type httpSSEResponseReplacer struct {
 	*SSEResponseReader
 	ctx       context.Context
-	processer ServerMessageProcessor
+	processor ServerMessageProcessor
 	buf       []byte
 }
 
@@ -108,7 +107,7 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 
 	msg, err := r.ReadMessage(r.ctx)
 	if err != nil {
-		if utils.IsOKNetworkError(err) || errors.Is(err, context.Canceled) {
+		if utils.IsOKNetworkError(err) {
 			return 0, io.EOF
 		}
 		return 0, trace.Wrap(err)
@@ -122,9 +121,9 @@ func (r *httpSSEResponseReplacer) Read(p []byte) (int, error) {
 	var respToClient mcp.JSONRPCMessage
 	switch {
 	case base.IsResponse():
-		respToClient = r.processer.ProcessResponse(r.ctx, base.MakeResponse())
+		respToClient = r.processor.ProcessResponse(r.ctx, base.MakeResponse())
 	case base.IsNotification():
-		respToClient = r.processer.ProcessNotification(r.ctx, base.MakeNotification())
+		respToClient = r.processor.ProcessNotification(r.ctx, base.MakeNotification())
 	default:
 		return 0, trace.BadParameter("message is not a response or a notification")
 	}
