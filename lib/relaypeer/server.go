@@ -83,8 +83,13 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	}, nil
 }
 
-// Server manages listeners and accepts connections for the relay peering
-// protocol.
+// Server manages listeners and accepts connections for the relay peering dial
+// protocol, used by other relays in the same relay group to bounce connections
+// for which the local relay hopefully has a tunnel but the peer relay does not.
+// It implements the server side of the relay peering dial protocol. The
+// relay_server heartbeat for the local relay should be advertising a peer
+// address that lets the other relays reach the listener (or listeners) of this
+// server.
 type Server struct {
 	log *slog.Logger
 
