@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-  @State private var openedURL: URL?
+  @State private var openedURL: Result<DeepLink, DeepLinkError>?
   @State private var isConfirmingEnrollment: Bool = false
   @ObservedObject private var viewModel: DeviceTrustViewModel
 
@@ -17,10 +17,15 @@ struct ContentView: View {
   }
 
   var body: some View {
-    ScannedURLView(openedURL: $openedURL, isConfirmingEnrollment: $isConfirmingEnrollment)
+    ScannedURLView(openedURL: $openedURL)
       .onOpenURL { url in
-        openedURL = url
-        isConfirmingEnrollment = true
+        switch url.path(percentEncoded: false) {
+        case "/enroll_mobile_device":
+          openedURL = .success(.enrollMobileDevice(url))
+          isConfirmingEnrollment = true
+        default:
+          openedURL = .failure(.unsupportedURL)
+        }
       }
       .onAppear {
         Task { await viewModel.enrollDevice() }
@@ -28,9 +33,37 @@ struct ContentView: View {
   }
 }
 
+enum DeepLink {
+  case enrollMobileDevice(URL)
+}
+
+enum DeepLinkError: Error {
+  case unsupportedURL
+}
+
 struct ScannedURLView: View {
-  @Binding var openedURL: URL?
-  @Binding var isConfirmingEnrollment: Bool
+  @Binding var openedURL: Result<DeepLink, DeepLinkError>?
+  private var isConfirmingEnrollment: Bool {
+    if case .success = openedURL { return true }
+    return false
+  }
+
+  private var maybeOpenedURL: URL? {
+    switch openedURL {
+    case let .success(deepLink):
+      switch deepLink {
+      case let .enrollMobileDevice(url):
+        url
+      }
+    default:
+      nil
+    }
+  }
+
+  private var hasDeepLinkError: Bool {
+    if case .failure = openedURL { return true }
+    return false
+  }
 
   var body: some View {
     VStack(spacing: 16) {
@@ -54,47 +87,74 @@ struct ScannedURLView: View {
       }.padding(8)
       Spacer()
       Spacer()
-    }.confirmationDialog(
-      "Do you want to enroll this device?",
-      isPresented: $isConfirmingEnrollment,
-      titleVisibility: .visible,
-      presenting: openedURL
-    ) { _ in
-      Button("Enroll") {}
-      Button("Cancel", role: .cancel) {
-        openedURL = nil
-      }
-    } message: { url in
-      Text(
-        """
-        This will enable \(url
+    }.sheet(isPresented: .constant(isConfirmingEnrollment), onDismiss: { openedURL = nil }) {
+      VStack(spacing: 8) {
+        HStack {
+          Button("Cancel", role: .cancel) { openedURL = nil }
+          Spacer()
+          Button("Enroll", systemImage: "progress.indicator") {}.symbolEffect(
+            .variableColor.iterative,
+            options: .repeat(.continuous),
+            isActive: true
+          ).buttonRepeatBehavior(.disabled)
+        }.padding(8)
+        Spacer()
+        Text("Do you want to enroll this device?").font(.headline)
+        Text("""
+        This will enable \(maybeOpenedURL!
           .user(percentEncoded: false) ?? "") to authorize Device Trust web sessions \
-        in \(url.host(percentEncoded: false) ?? "") with this device.
-        """
-      )
+        in \(maybeOpenedURL!.host(percentEncoded: false) ?? "") with this device.
+        """)
+        Spacer()
+      }.presentationDetents([.medium]).padding(16).presentationCompactAdaptation(.sheet)
+    }
+    .alert("Cannot open the link", isPresented: .constant(hasDeepLinkError)) {
+      Button("Dismiss", role: .cancel) {}
+    } message: {
+      switch openedURL {
+      case let .failure(failure):
+        switch failure {
+        case .unsupportedURL:
+          Text("""
+          Either this version of the app does not support the action represented by this link \
+          or the link is malformed.
+          """)
+        }
+      default: EmptyView()
+      }
     }
   }
 }
 
 #Preview("No URL") {
-  ScannedURLView(openedURL: .constant(nil), isConfirmingEnrollment: .constant(false))
+  ScannedURLView(openedURL: .constant(nil))
 }
 
 #Preview("URL") {
   ScannedURLView(
     openedURL: .constant(
-      URL(string: "teleport://alice@example.com/enroll_mobile_device?user_token=1234")
-    ),
-    isConfirmingEnrollment: .constant(true)
+      .success(.enrollMobileDevice(
+        URL(string: "teleport://alice@example.com/enroll_mobile_device?user_token=1234")!
+      ))
+    )
   )
 }
 
 #Preview("URL with email username") {
   ScannedURLView(
     openedURL: .constant(
-      URL(string: "teleport://alice%40example.com@example.com/enroll_mobile_device?user_token=1234")
-    ),
-    isConfirmingEnrollment: .constant(true)
+      .success(.enrollMobileDevice(
+        URL(
+          string: "teleport://alice%40example.com@example.com/enroll_mobile_device?user_token=1234"
+        )!
+      ))
+    )
+  )
+}
+
+#Preview("Deep link error") {
+  ScannedURLView(
+    openedURL: .constant(.failure(.unsupportedURL))
   )
 }
 
