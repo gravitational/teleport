@@ -157,7 +157,7 @@ type OncallTeamsRelationships struct {
 	Responders Responders `json:"responders"`
 }
 
-// OncallUsers contains the list of on-call users.
+// Responders contains the list of on-call users.
 type Responders struct {
 	Data []OncallUsersData `json:"data,omitempty"`
 }
