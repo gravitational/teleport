@@ -534,14 +534,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MCPSessionNotification{}
 	case MCPSessionListenSSEStream:
 		e = &events.MCPSessionListenSSEStream{}
-<<<<<<< HEAD
-	case MCPSessionBadHTTPRequest:
-		e = &events.MCPSessionBadHTTPRequest{}
-=======
 	case MCPSessionInvalidHTTPRequest:
 		e = &events.MCPSessionInvalidHTTPRequest{}
->>>>>>> master
-
 	case BoundKeypairRecovery:
 		e = &events.BoundKeypairRecovery{}
 	case BoundKeypairRotation:

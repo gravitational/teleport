@@ -342,11 +342,7 @@ export const eventCodes = {
   MCP_SESSION_NOTIFICATION_FAILURE: 'TMCP004E',
   MCP_SESSION_LISTEN_SSE_STREAM: 'TMCP005I',
   MCP_SESSION_LISTEN_SSE_STREAM_FAILURE: 'TMCP005E',
-<<<<<<< HEAD
-  MCP_SESSION_BAD_HTTP_REQUEST: 'TMCP006E',
-=======
   MCP_SESSION_INVALID_HTTP_REQUEST: 'TMCP006E',
->>>>>>> master
   BOUND_KEYPAIR_RECOVERY: 'TBK001I',
   BOUND_KEYPAIR_ROTATION: 'TBK002I',
   BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
@@ -1966,17 +1962,10 @@ export type RawEvents = {
     }
   >;
   [eventCodes.MCP_SESSION_END_FAILURE]: RawEvent<
-<<<<<<< HEAD
-      typeof eventCodes.MCP_SESSION_END_FAILURE,
-      {
-          app_name: string;
-      }
-=======
     typeof eventCodes.MCP_SESSION_END_FAILURE,
     {
       app_name: string;
     }
->>>>>>> master
   >;
   [eventCodes.MCP_SESSION_REQUEST]: RawEvent<
     typeof eventCodes.MCP_SESSION_REQUEST,
@@ -2012,33 +2001,6 @@ export type RawEvents = {
     }
   >;
   [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: RawEvent<
-<<<<<<< HEAD
-      typeof eventCodes.MCP_SESSION_NOTIFICATION_FAILURE,
-      {
-          app_name: string;
-          message: {
-              method: string;
-          };
-      }
-  >;
-  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: RawEvent<
-      typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM,
-      {
-          app_name: string;
-      }
-  >;
-  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: RawEvent<
-      typeof eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE,
-      {
-          app_name: string;
-      }
-  >;
-  [eventCodes.MCP_SESSION_BAD_HTTP_REQUEST]: RawEvent<
-      typeof eventCodes.MCP_SESSION_BAD_HTTP_REQUEST,
-      {
-          app_name: string;
-      }
-=======
     typeof eventCodes.MCP_SESSION_NOTIFICATION_FAILURE,
     {
       app_name: string;
@@ -2064,7 +2026,6 @@ export type RawEvents = {
     {
       app_name: string;
     }
->>>>>>> master
   >;
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: RawEvent<
     typeof eventCodes.BOUND_KEYPAIR_RECOVERY,

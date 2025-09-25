@@ -131,7 +131,7 @@ func (t *sessionTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	default:
 		// Some clients like MCP inspector may send OPTIONS requests which are
 		// not documented in the MCP spec ¯\_(ツ)_/¯.
-		t.emitBadHTTPRequest(t.parentCtx, r)
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return &http.Response{
 			Request:    r,
 			StatusCode: http.StatusMethodNotAllowed,
@@ -154,10 +154,10 @@ func (t *sessionTransport) handleListenSSEStreamRequest(r *http.Request) (*http.
 func (t *sessionTransport) handleMCPMessage(r *http.Request) (*http.Response, error) {
 	var baseMessage mcputils.BaseJSONRPCMessage
 	if reqBody, err := utils.GetAndReplaceRequestBody(r); err != nil {
-		t.emitBadHTTPRequest(t.parentCtx, r)
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter(err.Error())
 	} else if err := json.Unmarshal(reqBody, &baseMessage); err != nil {
-		t.emitBadHTTPRequest(t.parentCtx, r)
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter(err.Error())
 	}
 
@@ -171,7 +171,7 @@ func (t *sessionTransport) handleMCPMessage(r *http.Request) (*http.Response, er
 		// nothing to do, yet.
 	default:
 		// Not sending it to the server if we don't understand it.
-		t.emitBadHTTPRequest(t.parentCtx, r)
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("not a MCP request or notification")
 	}
 
