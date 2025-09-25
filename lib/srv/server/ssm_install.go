@@ -220,7 +220,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		// Handle this error gracefully and ask the user to update the SSM Document.
 		_, hasEnvParam := params[ParamEnvVars]
 		if hasEnvParam {
-			return trace.BadParameter("%q param is missing in the SSM Document %s (%s), update the document to the latest version: %v", ParamEnvVars, req.DocumentName, req.Region, err)
+			return trace.BadParameter("%q param is missing in the SSM Document %s (%s), refer to https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-manual/ to update the document to the latest version: %v", ParamEnvVars, req.DocumentName, req.Region, err)
 		}
 
 		// The sshdConfigPath param only exists for non-agent installations of teleport (ie, openssh agents).
