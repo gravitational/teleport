@@ -76,7 +76,7 @@ const meta: Meta<StoryProps> = {
   argTypes: {
     envVar: {
       control: { type: 'radio' },
-      options: ['Off', 'Set to version (v15)', 'Unset'],
+      options: ['Off', 'Set to version - v15', 'Unset'],
       description: '`TELEPORT_TOOLS_VERSION` value',
     },
     clusterFoo: {
