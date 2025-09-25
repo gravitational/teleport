@@ -707,6 +707,7 @@
     "mtls",
     "multiaccount",
     "multistep",
+    "mvcc",
     "myapp",
     "myauth",
     "mybot",
@@ -915,6 +916,7 @@
     "semodule",
     "sendall",
     "seqno",
+    "serverlesscache",
     "serviceaccount",
     "serviceaccountname",
     "serviceaccounts",
@@ -996,6 +998,8 @@
     "teleportinfra",
     "teleportmwi",
     "teleportopensshserverv",
+    "teleportprovisiontoken",
+    "teleportprovisiontokenv2",
     "teleportproxy",
     "teleportrolesv",
     "teleportrolev",
@@ -1114,8 +1118,8 @@
     "hte"
   ],
   "ignorePaths": [
-    "**/reference/terraform-provider/**",
-    "**/reference/operator-resources/**",
+    "**/reference/infrastructure-as-code/terraform-provider/**",
+    "**/reference/infrastructure-as-code/operator-resources/**",
     "**/includes/reference/code-blocks-no-cspell/**"
   ]
 }

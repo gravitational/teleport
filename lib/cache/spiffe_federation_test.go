@@ -50,27 +50,17 @@ func TestSPIFFEFederations(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*machineidv1.SPIFFEFederation]{
+	testResources153(t, p, testFuncs[*machineidv1.SPIFFEFederation]{
 		newResource: func(s string) (*machineidv1.SPIFFEFederation, error) {
 			return newSPIFFEFederation(s), nil
 		},
-
 		create: func(ctx context.Context, item *machineidv1.SPIFFEFederation) error {
 			_, err := p.spiffeFederations.CreateSPIFFEFederation(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*machineidv1.SPIFFEFederation, error) {
-			items, _, err := p.spiffeFederations.ListSPIFFEFederations(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		deleteAll: func(ctx context.Context) error {
-			return p.spiffeFederations.DeleteAllSPIFFEFederations(ctx)
-		},
-
-		cacheList: func(ctx context.Context) ([]*machineidv1.SPIFFEFederation, error) {
-			items, _, err := p.cache.ListSPIFFEFederations(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheGet: p.cache.GetSPIFFEFederation,
-	})
+		list:      p.spiffeFederations.ListSPIFFEFederations,
+		deleteAll: p.spiffeFederations.DeleteAllSPIFFEFederations,
+		cacheList: p.cache.ListSPIFFEFederations,
+		cacheGet:  p.cache.GetSPIFFEFederation,
+	}, withSkipPaginationTest())
 }

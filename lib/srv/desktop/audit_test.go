@@ -288,6 +288,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 				DesktopAddr:   audit.desktop.GetAddr(),
 				DirectoryName: testDirName,
 				DirectoryID:   uint32(testDirectoryID),
+				DesktopName:   audit.desktop.GetName(),
 			}
 
 			expected := test.expected(baseEvent)
@@ -438,6 +439,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 				Path:          testFilePath,
 				Length:        testLength,
 				Offset:        testOffset,
+				DesktopName:   audit.desktop.GetName(),
 			}
 
 			require.Empty(t, cmp.Diff(test.expected(baseEvent), readEvent))
@@ -586,6 +588,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 				Path:          testFilePath,
 				Length:        testLength,
 				Offset:        testOffset,
+				DesktopName:   audit.desktop.GetName(),
 			}
 
 			require.Empty(t, cmp.Diff(test.expected(baseEvent), writeEvent))
@@ -648,6 +651,7 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 		DesktopAddr:   audit.desktop.GetAddr(),
 		DirectoryName: testDirName,
 		DirectoryID:   uint32(testDirectoryID),
+		DesktopName:   audit.desktop.GetName(),
 	}
 
 	require.Empty(t, cmp.Diff(expected, startEvent))
@@ -706,6 +710,7 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 		Path:          testFilePath,
 		Length:        testLength,
 		Offset:        testOffset,
+		DesktopName:   audit.desktop.GetName(),
 	}
 
 	require.Empty(t, cmp.Diff(expected, readEvent))
@@ -761,6 +766,7 @@ func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
 		Path:          testFilePath,
 		Length:        testLength,
 		Offset:        testOffset,
+		DesktopName:   audit.desktop.GetName(),
 	}
 
 	require.Empty(t, cmp.Diff(expected, writeEvent))

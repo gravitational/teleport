@@ -21,6 +21,7 @@ package aws_sync
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"testing"
@@ -205,10 +206,6 @@ func kmsMockToProto(c *mocks.KMSClient, accountID, region string) (*Resources, e
 			errs = append(errs, trace.Errorf("key %q not found", keyID))
 			continue
 		}
-		if k.DescribeKeyErr != nil {
-			errs = append(errs, k.DescribeKeyErr)
-			continue
-		}
 		var tags []*pb.AWSTag
 		for key, val := range k.Tags {
 			tag := &pb.AWSTag{Key: key, Value: wrapperspb.String(val)}
@@ -224,6 +221,10 @@ func kmsMockToProto(c *mocks.KMSClient, accountID, region string) (*Resources, e
 			Aliases:            k.Aliases,
 			Tags:               tags,
 			MultiRegionKeyType: string(k.MultiType),
+		}
+		if k.DescribeKeyErr != nil {
+			key.Arn = fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID)
+			key.CreatedAt = nil
 		}
 		keys = append(keys, key)
 		errs = append(errs, k.DescribeKeyErr, k.TagsErr, k.AliasesErr, k.PolicyErr)

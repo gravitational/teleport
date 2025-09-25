@@ -33,7 +33,7 @@ func TestCrownJewel(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*crownjewelv1.CrownJewel]{
+	testResources153(t, p, testFuncs[*crownjewelv1.CrownJewel]{
 		newResource: func(name string) (*crownjewelv1.CrownJewel, error) {
 			return newCrownJewel(t, name), nil
 		},
@@ -41,14 +41,12 @@ func TestCrownJewel(t *testing.T) {
 			_, err := p.crownJewels.CreateCrownJewel(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
-			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
-			return items, trace.Wrap(err)
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {
+			return p.crownJewels.ListCrownJewels(ctx, int64(pageSize), pageToken)
 		},
-		cacheList: func(ctx context.Context) ([]*crownjewelv1.CrownJewel, error) {
-			items, _, err := p.crownJewels.ListCrownJewels(ctx, 0, "")
-			return items, trace.Wrap(err)
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {
+			return p.crownJewels.ListCrownJewels(ctx, int64(pageSize), pageToken)
 		},
 		deleteAll: p.crownJewels.DeleteAllCrownJewels,
-	})
+	}, withSkipPaginationTest())
 }

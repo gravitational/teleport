@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -153,6 +154,15 @@ type authAuditProps struct {
 	userOrigin     apievents.UserOrigin
 }
 
+// trimUsername truncates the length of a username to the maximum allowed length, if needed.
+func trimUsername(username string) string {
+	if len(username) <= teleport.MaxUsernameLength {
+		return username
+	}
+
+	return username[:teleport.MaxUsernameLength] + "..."
+}
+
 func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) error {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
@@ -163,7 +173,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 			Success: true,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:       props.username,
+			User:       trimUsername(props.username),
 			UserOrigin: props.userOrigin,
 		},
 		Method: events.LoginMethodLocal,

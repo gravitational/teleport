@@ -20,6 +20,7 @@ package aws_sync
 
 import (
 	"context"
+	"log/slog"
 	"reflect"
 	"sync"
 	"time"
@@ -64,6 +65,8 @@ type Config struct {
 	Integration string
 	// DiscoveryConfigName if set, will be used to report the Discovery Config Status to the Auth Server.
 	DiscoveryConfigName string
+	// Log is the logger to use for logging.
+	Log *slog.Logger
 
 	// awsClients provides AWS SDK clients.
 	awsClients awsClientProvider
@@ -74,6 +77,9 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing AWSConfigProvider")
 	}
 
+	if c.Log == nil {
+		c.Log = slog.Default()
+	}
 	if c.awsClients == nil {
 		c.awsClients = defaultAWSClients{}
 	}

@@ -4,6 +4,7 @@ description: How to install and configure Machine ID on GitLab CI
 tags:
  - how-to
  - mwi
+ - infrastructure-identity
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -79,7 +80,7 @@ spec:
 
 You can find a full list of the token configuration options for GitLab joining
 on the
-[GitLab CI reference page.](../../../reference/machine-id/gitlab.mdx)
+[GitLab CI reference page.](../../../reference/machine-workload-identity/machine-id/gitlab.mdx)
 
 Apply this to your Teleport cluster using `tctl`:
 
@@ -100,7 +101,7 @@ Create `tbot.yaml` within your repository:
 
 ```yaml
 version: v2
-proxy_server: example.teleport.sh:443
+proxy_server: <Var name="example.teleport.sh"/>:443
 onboarding:
   join_method: gitlab
   token: example-bot
@@ -113,7 +114,7 @@ outputs: []
 
 Replace:
 
-- `example.teleport.sh:443` with the address of your Teleport Proxy or
+- <Var name="example.teleport.sh"/> with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
 - `example-bot` with the name of the token you created in the second step
 
@@ -144,18 +145,18 @@ deploy-job:
       #
       # This helps the Teleport Auth Service know that the token is intended for
       # it, and not a different service or Teleport cluster.
-      aud: teleport.example.com
+      aud: <Var name="example.teleport.sh"/>
   script:
-    - cd /tmp
-    - 'curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz'
-    - tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
-    - sudo ./teleport/install
+    - curl "https://<Var name="example.teleport.sh"/>:443/scripts/install.sh" | bash
     - 'TELEPORT_ANONYMOUS_TELEMETRY=1 tbot start -c tbot.yaml'
 ```
 
-Replace `teleport.example.com` with the name of your Teleport cluster. This
-is not necessarily the address of your Teleport cluster and will not include
-a port or scheme (e.g. http/https).
+Replace:
+
+- <Var name="example.teleport.sh"/> for `aud` with the name of your Teleport cluster. This
+  is not necessarily the address of your Teleport cluster and will not include
+  a port or scheme (e.g. http/https).
+- <Var name="example.teleport.sh"/> with the address of your Teleport Proxy Service.
 
 `TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
 telemetry. This helps us shape the future development of `tbot`. You can disable
@@ -173,11 +174,11 @@ failure.
 ## Further steps
 
 - For more information about GitLab joining, read the
-  [GitLab CI reference page.](../../../reference/machine-id/gitlab.mdx)
+  [GitLab CI reference page.](../../../reference/machine-workload-identity/machine-id/gitlab.mdx)
 - For more information about GitLab itself, read
   [their documentation](https://docs.gitlab.com/ee/ci/).
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../../../reference/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-id/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../../reference/machine-workload-identity/machine-id/telemetry.mdx)

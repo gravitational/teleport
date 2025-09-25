@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
 // Client extends the [agent.ExtendedAgent] interface with an [io.Closer].
@@ -132,5 +134,18 @@ func ServeChannelRequests(ctx context.Context, client *ssh.Client, getForwardAge
 			}()
 		}
 	}()
+	return nil
+}
+
+// RequestAgentForwarding sets up agent forwarding for the session.
+// ForwardToAgent or ForwardToRemote should be called to route
+// the authentication requests.
+func RequestAgentForwarding(ctx context.Context, session *tracessh.Session) error {
+	ok, err := session.SendRequest(ctx, "auth-agent-req@openssh.com", true, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.Errorf("agent forwarding request denied")
+	}
 	return nil
 }

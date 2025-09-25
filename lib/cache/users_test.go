@@ -45,20 +45,14 @@ func TestUsers(t *testing.T) {
 				_, err := p.usersS.UpsertUser(ctx, user)
 				return err
 			},
-			list: func(ctx context.Context) ([]types.User, error) {
-				return p.usersS.GetUsers(ctx, false)
-			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.User, error) {
-				return p.cache.GetUsers(ctx, false)
-			},
+			list:      getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.usersS.GetUsers(ctx, false) }),
+			cacheList: getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.cache.GetUsers(ctx, false) }),
 			update: func(ctx context.Context, user types.User) error {
 				_, err := p.usersS.UpdateUser(ctx, user)
 				return err
 			},
-			deleteAll: func(ctx context.Context) error {
-				return p.usersS.DeleteAllUsers(ctx)
-			},
-		})
+			deleteAll: p.usersS.DeleteAllUsers,
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListUsers", func(t *testing.T) {
@@ -70,49 +64,39 @@ func TestUsers(t *testing.T) {
 				_, err := p.usersS.UpsertUser(ctx, user)
 				return err
 			},
-			list: func(ctx context.Context) ([]types.User, error) {
-				var out []types.User
-				req := &userspb.ListUsersRequest{}
-				for {
-					resp, err := p.usersS.ListUsers(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, u := range resp.Users {
-						out = append(out, u)
-					}
-
-					req.PageToken = resp.NextPageToken
-					if resp.NextPageToken == "" {
-						break
-					}
-				}
-
-				return out, nil
-			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.User, error) {
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
 				var out []types.User
 				req := &userspb.ListUsersRequest{
-					PageSize: int32(pageSize),
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
 				}
-				for {
-					resp, err := p.cache.ListUsers(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, u := range resp.Users {
-						out = append(out, u)
-					}
-
-					req.PageToken = resp.NextPageToken
-					if resp.NextPageToken == "" {
-						break
-					}
+				resp, err := p.usersS.ListUsers(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
 
-				return out, nil
+				for _, u := range resp.Users {
+					out = append(out, u)
+				}
+
+				return out, resp.NextPageToken, nil
+			},
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
+				var out []types.User
+				req := &userspb.ListUsersRequest{
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+				}
+				resp, err := p.cache.ListUsers(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+
+				for _, u := range resp.Users {
+					out = append(out, u)
+				}
+
+				return out, resp.NextPageToken, nil
 			},
 			update: func(ctx context.Context, user types.User) error {
 				_, err := p.usersS.UpdateUser(ctx, user)

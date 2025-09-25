@@ -294,6 +294,116 @@ func (*DeleteAllUserLoginStatesRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{5}
 }
 
+// ListUserLoginStatesRequest is the request for listing user login states with pagination.
+type ListUserLoginStatesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// page_size is the maximum number of user login states to return.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// page_token is the token for the next page of results.
+	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUserLoginStatesRequest) Reset() {
+	*x = ListUserLoginStatesRequest{}
+	mi := &file_teleport_userloginstate_v1_userloginstate_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUserLoginStatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUserLoginStatesRequest) ProtoMessage() {}
+
+func (x *ListUserLoginStatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_userloginstate_v1_userloginstate_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUserLoginStatesRequest.ProtoReflect.Descriptor instead.
+func (*ListUserLoginStatesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListUserLoginStatesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListUserLoginStatesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+// ListUserLoginStatesResponse is the response for listing user login states with pagination.
+type ListUserLoginStatesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// user_login_states is the list of user login states.
+	UserLoginStates []*UserLoginState `protobuf:"bytes,1,rep,name=user_login_states,json=userLoginStates,proto3" json:"user_login_states,omitempty"`
+	// next_page_token is the token for the next page of results.
+	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUserLoginStatesResponse) Reset() {
+	*x = ListUserLoginStatesResponse{}
+	mi := &file_teleport_userloginstate_v1_userloginstate_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUserLoginStatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUserLoginStatesResponse) ProtoMessage() {}
+
+func (x *ListUserLoginStatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_userloginstate_v1_userloginstate_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUserLoginStatesResponse.ProtoReflect.Descriptor instead.
+func (*ListUserLoginStatesResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListUserLoginStatesResponse) GetUserLoginStates() []*UserLoginState {
+	if x != nil {
+		return x.UserLoginStates
+	}
+	return nil
+}
+
+func (x *ListUserLoginStatesResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
 var File_teleport_userloginstate_v1_userloginstate_service_proto protoreflect.FileDescriptor
 
 const file_teleport_userloginstate_v1_userloginstate_service_proto_rawDesc = "" +
@@ -308,13 +418,21 @@ const file_teleport_userloginstate_v1_userloginstate_service_proto_rawDesc = "" 
 	"\x10user_login_state\x18\x01 \x01(\v2*.teleport.userloginstate.v1.UserLoginStateR\x0euserLoginState\"1\n" +
 	"\x1bDeleteUserLoginStateRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"!\n" +
-	"\x1fDeleteAllUserLoginStatesRequest2\xeb\x04\n" +
+	"\x1fDeleteAllUserLoginStatesRequest\"X\n" +
+	"\x1aListUserLoginStatesRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\x9d\x01\n" +
+	"\x1bListUserLoginStatesResponse\x12V\n" +
+	"\x11user_login_states\x18\x01 \x03(\v2*.teleport.userloginstate.v1.UserLoginStateR\x0fuserLoginStates\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xf4\x05\n" +
 	"\x15UserLoginStateService\x12\x83\x01\n" +
 	"\x12GetUserLoginStates\x125.teleport.userloginstate.v1.GetUserLoginStatesRequest\x1a6.teleport.userloginstate.v1.GetUserLoginStatesResponse\x12u\n" +
 	"\x11GetUserLoginState\x124.teleport.userloginstate.v1.GetUserLoginStateRequest\x1a*.teleport.userloginstate.v1.UserLoginState\x12{\n" +
 	"\x14UpsertUserLoginState\x127.teleport.userloginstate.v1.UpsertUserLoginStateRequest\x1a*.teleport.userloginstate.v1.UserLoginState\x12g\n" +
 	"\x14DeleteUserLoginState\x127.teleport.userloginstate.v1.DeleteUserLoginStateRequest\x1a\x16.google.protobuf.Empty\x12o\n" +
-	"\x18DeleteAllUserLoginStates\x12;.teleport.userloginstate.v1.DeleteAllUserLoginStatesRequest\x1a\x16.google.protobuf.EmptyB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1;userloginstatev1b\x06proto3"
+	"\x18DeleteAllUserLoginStates\x12;.teleport.userloginstate.v1.DeleteAllUserLoginStatesRequest\x1a\x16.google.protobuf.Empty\x12\x86\x01\n" +
+	"\x13ListUserLoginStates\x126.teleport.userloginstate.v1.ListUserLoginStatesRequest\x1a7.teleport.userloginstate.v1.ListUserLoginStatesResponseB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1;userloginstatev1b\x06proto3"
 
 var (
 	file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescOnce sync.Once
@@ -328,7 +446,7 @@ func file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP() 
 	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescData
 }
 
-var file_teleport_userloginstate_v1_userloginstate_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_userloginstate_v1_userloginstate_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_userloginstate_v1_userloginstate_service_proto_goTypes = []any{
 	(*GetUserLoginStatesRequest)(nil),       // 0: teleport.userloginstate.v1.GetUserLoginStatesRequest
 	(*GetUserLoginStatesResponse)(nil),      // 1: teleport.userloginstate.v1.GetUserLoginStatesResponse
@@ -336,27 +454,32 @@ var file_teleport_userloginstate_v1_userloginstate_service_proto_goTypes = []any
 	(*UpsertUserLoginStateRequest)(nil),     // 3: teleport.userloginstate.v1.UpsertUserLoginStateRequest
 	(*DeleteUserLoginStateRequest)(nil),     // 4: teleport.userloginstate.v1.DeleteUserLoginStateRequest
 	(*DeleteAllUserLoginStatesRequest)(nil), // 5: teleport.userloginstate.v1.DeleteAllUserLoginStatesRequest
-	(*UserLoginState)(nil),                  // 6: teleport.userloginstate.v1.UserLoginState
-	(*emptypb.Empty)(nil),                   // 7: google.protobuf.Empty
+	(*ListUserLoginStatesRequest)(nil),      // 6: teleport.userloginstate.v1.ListUserLoginStatesRequest
+	(*ListUserLoginStatesResponse)(nil),     // 7: teleport.userloginstate.v1.ListUserLoginStatesResponse
+	(*UserLoginState)(nil),                  // 8: teleport.userloginstate.v1.UserLoginState
+	(*emptypb.Empty)(nil),                   // 9: google.protobuf.Empty
 }
 var file_teleport_userloginstate_v1_userloginstate_service_proto_depIdxs = []int32{
-	6, // 0: teleport.userloginstate.v1.GetUserLoginStatesResponse.user_login_states:type_name -> teleport.userloginstate.v1.UserLoginState
-	6, // 1: teleport.userloginstate.v1.UpsertUserLoginStateRequest.user_login_state:type_name -> teleport.userloginstate.v1.UserLoginState
-	0, // 2: teleport.userloginstate.v1.UserLoginStateService.GetUserLoginStates:input_type -> teleport.userloginstate.v1.GetUserLoginStatesRequest
-	2, // 3: teleport.userloginstate.v1.UserLoginStateService.GetUserLoginState:input_type -> teleport.userloginstate.v1.GetUserLoginStateRequest
-	3, // 4: teleport.userloginstate.v1.UserLoginStateService.UpsertUserLoginState:input_type -> teleport.userloginstate.v1.UpsertUserLoginStateRequest
-	4, // 5: teleport.userloginstate.v1.UserLoginStateService.DeleteUserLoginState:input_type -> teleport.userloginstate.v1.DeleteUserLoginStateRequest
-	5, // 6: teleport.userloginstate.v1.UserLoginStateService.DeleteAllUserLoginStates:input_type -> teleport.userloginstate.v1.DeleteAllUserLoginStatesRequest
-	1, // 7: teleport.userloginstate.v1.UserLoginStateService.GetUserLoginStates:output_type -> teleport.userloginstate.v1.GetUserLoginStatesResponse
-	6, // 8: teleport.userloginstate.v1.UserLoginStateService.GetUserLoginState:output_type -> teleport.userloginstate.v1.UserLoginState
-	6, // 9: teleport.userloginstate.v1.UserLoginStateService.UpsertUserLoginState:output_type -> teleport.userloginstate.v1.UserLoginState
-	7, // 10: teleport.userloginstate.v1.UserLoginStateService.DeleteUserLoginState:output_type -> google.protobuf.Empty
-	7, // 11: teleport.userloginstate.v1.UserLoginStateService.DeleteAllUserLoginStates:output_type -> google.protobuf.Empty
-	7, // [7:12] is the sub-list for method output_type
-	2, // [2:7] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	8, // 0: teleport.userloginstate.v1.GetUserLoginStatesResponse.user_login_states:type_name -> teleport.userloginstate.v1.UserLoginState
+	8, // 1: teleport.userloginstate.v1.UpsertUserLoginStateRequest.user_login_state:type_name -> teleport.userloginstate.v1.UserLoginState
+	8, // 2: teleport.userloginstate.v1.ListUserLoginStatesResponse.user_login_states:type_name -> teleport.userloginstate.v1.UserLoginState
+	0, // 3: teleport.userloginstate.v1.UserLoginStateService.GetUserLoginStates:input_type -> teleport.userloginstate.v1.GetUserLoginStatesRequest
+	2, // 4: teleport.userloginstate.v1.UserLoginStateService.GetUserLoginState:input_type -> teleport.userloginstate.v1.GetUserLoginStateRequest
+	3, // 5: teleport.userloginstate.v1.UserLoginStateService.UpsertUserLoginState:input_type -> teleport.userloginstate.v1.UpsertUserLoginStateRequest
+	4, // 6: teleport.userloginstate.v1.UserLoginStateService.DeleteUserLoginState:input_type -> teleport.userloginstate.v1.DeleteUserLoginStateRequest
+	5, // 7: teleport.userloginstate.v1.UserLoginStateService.DeleteAllUserLoginStates:input_type -> teleport.userloginstate.v1.DeleteAllUserLoginStatesRequest
+	6, // 8: teleport.userloginstate.v1.UserLoginStateService.ListUserLoginStates:input_type -> teleport.userloginstate.v1.ListUserLoginStatesRequest
+	1, // 9: teleport.userloginstate.v1.UserLoginStateService.GetUserLoginStates:output_type -> teleport.userloginstate.v1.GetUserLoginStatesResponse
+	8, // 10: teleport.userloginstate.v1.UserLoginStateService.GetUserLoginState:output_type -> teleport.userloginstate.v1.UserLoginState
+	8, // 11: teleport.userloginstate.v1.UserLoginStateService.UpsertUserLoginState:output_type -> teleport.userloginstate.v1.UserLoginState
+	9, // 12: teleport.userloginstate.v1.UserLoginStateService.DeleteUserLoginState:output_type -> google.protobuf.Empty
+	9, // 13: teleport.userloginstate.v1.UserLoginStateService.DeleteAllUserLoginStates:output_type -> google.protobuf.Empty
+	7, // 14: teleport.userloginstate.v1.UserLoginStateService.ListUserLoginStates:output_type -> teleport.userloginstate.v1.ListUserLoginStatesResponse
+	9, // [9:15] is the sub-list for method output_type
+	3, // [3:9] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_teleport_userloginstate_v1_userloginstate_service_proto_init() }
@@ -371,7 +494,7 @@ func file_teleport_userloginstate_v1_userloginstate_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_userloginstate_v1_userloginstate_service_proto_rawDesc), len(file_teleport_userloginstate_v1_userloginstate_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

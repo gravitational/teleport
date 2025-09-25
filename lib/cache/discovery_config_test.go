@@ -25,8 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
@@ -51,13 +49,9 @@ func TestDiscoveryConfig(t *testing.T) {
 			_, err := p.discoveryConfigs.CreateDiscoveryConfig(ctx, discoveryConfig)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*discoveryconfig.DiscoveryConfig, error) {
-			return stream.Collect(clientutils.Resources(ctx, p.discoveryConfigs.ListDiscoveryConfigs))
-		},
-		cacheGet: p.cache.GetDiscoveryConfig,
-		cacheList: func(ctx context.Context, pageSize int) ([]*discoveryconfig.DiscoveryConfig, error) {
-			return stream.Collect(clientutils.ResourcesWithPageSize(ctx, p.cache.ListDiscoveryConfigs, pageSize))
-		},
+		list:      p.discoveryConfigs.ListDiscoveryConfigs,
+		cacheGet:  p.cache.GetDiscoveryConfig,
+		cacheList: p.cache.ListDiscoveryConfigs,
 		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
 			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
 			return trace.Wrap(err)
