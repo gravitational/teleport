@@ -302,7 +302,19 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 
 	kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: "kube-cluster"}, types.KubernetesClusterSpecV3{})
 	require.NoError(t, err)
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "foo", "1")
+	kubeServer, err := types.NewKubernetesServerV3(types.Metadata{
+		Name: "kube1-server",
+	}, types.KubernetesServerSpecV3{
+		Hostname: "kube-hostname",
+		HostID:   uuid.NewString(),
+		Cluster:  kubeCluster,
+	})
+	kubeHealth := kubeServer.GetTargetHealth()
+	if kubeHealth == nil {
+		kubeHealth = &types.TargetHealth{}
+	}
+	kubeHealth.Status = "unknown"
+	kubeServer.SetTargetHealth(kubeHealth)
 	require.NoError(t, err)
 	_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
@@ -529,16 +541,28 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 		{
 			name: "kubernetes",
 			createResource: func(name string, c *client) error {
-				kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
-				if err != nil {
-					return err
+				for _, status := range []string{"healthy", "unhealthy", "unknown"} {
+					kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
+					if err != nil {
+						return err
+					}
+					kubeServer, err := types.NewKubernetesServerV3(types.Metadata{
+						Name: name,
+					}, types.KubernetesServerSpecV3{
+						Hostname: "hostname:" + name,
+						HostID:   uuid.NewString(),
+						Cluster:  kubeCluster,
+					})
+					if err != nil {
+						return err
+					}
+					kubeServer.SetTargetHealth(&types.TargetHealth{Status: status})
+					_, err = c.UpsertKubernetesServer(ctx, kubeServer)
+					if err != nil {
+						return err
+					}
 				}
-				kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, name, "1")
-				if err != nil {
-					return err
-				}
-				_, err = c.UpsertKubernetesServer(ctx, kubeServer)
-				return err
+				return nil
 			},
 			iterateResources: func(urc *services.UnifiedResourceCache, descending bool) iter.Seq2[GetNamer, error] {
 				return func(yield func(GetNamer, error) bool) {
