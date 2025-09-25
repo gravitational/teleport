@@ -19,8 +19,7 @@ package cache
 import (
 	"context"
 	"encoding/base32"
-	"strconv"
-	"strings"
+	"fmt"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -176,17 +175,7 @@ func keyForBotInstanceVersionIndex(botInstance *machineidv1.BotInstance) string 
 		return version + "-~/" + botInstance.GetMetadata().GetName()
 	}
 
-	zeroPad := func(num int) string {
-		length := 6
-		s := strconv.Itoa(num)
-		var b strings.Builder
-		b.Grow(length)
-		b.WriteString(strings.Repeat("0", length-len(s)))
-		b.WriteString(s)
-		return b.String()
-	}
-
-	version = zeroPad(int(sv.Major)) + "." + zeroPad(int(sv.Minor)) + "." + zeroPad(int(sv.Patch))
+	version = fmt.Sprintf("%06d.%06d.%06d", sv.Major, sv.Minor, sv.Patch)
 	if sv.PreRelease != "" {
 		version = version + "-" + string(sv.PreRelease)
 	} else {
