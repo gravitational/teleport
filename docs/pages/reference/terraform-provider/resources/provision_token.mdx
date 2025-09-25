@@ -10,6 +10,9 @@ tags:
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
 
+This page describes the supported values of the teleport_provision_token resource of the Teleport Terraform provider.
+
+
 
 
 ## Example Usage
@@ -404,4 +407,3 @@ Optional:
 - `last_rotated_at` (String) LastRotatedAt contains a timestamp of the last time the keypair was rotated, if any. This is not set at initial join.
 - `recovery_count` (Number) RecoveryCount is a count of the total number of recoveries performed using this token. It is incremented for every successful join or rejoin. Recovery is only allowed if this value is less than `.spec.bound_keypair.recovery.limit`, or if the recovery mode is `relaxed` or `insecure`.
 - `registration_secret` (String) RegistrationSecret contains a secret value that may be used for public key registration during the initial join process if no public key is preregistered. If `.spec.bound_keypair.onboarding.initial_public_key` is set, this field will remain empty. Otherwise, if `.spec.bound_keypair.onboarding.registration_secret` is set, that value will be copied here. If that field is unset, a value will be randomly generated.
-

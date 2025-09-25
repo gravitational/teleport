@@ -5,9 +5,6 @@ go 1.24.7
 // Doc generation tooling
 require github.com/hashicorp/terraform-plugin-docs v0.0.0 // replaced
 
-// using our own fork
-replace github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20240627183239-7e7e22a2c1f6
-
 // TF provider dependencies
 require (
 	github.com/gogo/protobuf v1.3.2
@@ -538,3 +535,9 @@ replace (
 	github.com/redis/go-redis/v9 => github.com/gravitational/redis/v9 v9.6.1-teleport.1
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
 )
+
+// Doc generation tooling.
+// (using our fork of github.com/hashicorp/terraform-plugin-docs)
+tool github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+
+replace github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250326215846-2e10ca5fcbdf
