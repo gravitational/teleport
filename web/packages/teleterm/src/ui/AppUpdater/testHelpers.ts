@@ -26,7 +26,8 @@ import { shouldAutoDownload } from 'teleterm/services/appUpdater/autoUpdatesStat
 
 export function makeUpdateInfo(
   nonTeleportCdn: boolean,
-  version: string
+  version: string,
+  isDowngrade: boolean
 ): UpdateInfo {
   return {
     files: [
@@ -39,6 +40,7 @@ export function makeUpdateInfo(
       },
     ],
     releaseDate: '',
+    isDowngrade,
     version,
     path: '',
     sha512: '',
