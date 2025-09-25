@@ -64,18 +64,19 @@ func (h *Handler) automaticUpdateSettings184(ctx context.Context, group, updater
 		shouldUpdate = false
 	}
 
-	toolsVersion, err := getToolsVersion(autoUpdateVersion)
+	toolsVersion, err := getToolsVersion(autoUpdateConfig, autoUpdateVersion)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to get tools version", "error", err)
 		toolsVersion = teleport.SemVer()
 	}
 
 	return webclient.AutoUpdateSettings{
-		ToolsAutoUpdate:          getToolsAutoUpdate(autoUpdateConfig),
-		ToolsVersion:             toolsVersion.String(),
-		AgentUpdateJitterSeconds: DefaultAgentUpdateJitterSeconds,
-		AgentVersion:             agentVersion.String(),
-		AgentAutoUpdate:          shouldUpdate,
+		ToolsAutoUpdate:           getToolsAutoUpdate(autoUpdateConfig),
+		ToolsVersion:              toolsVersion.String(),
+		ToolsAutoUpdateStrategies: getToolsStrategies(autoUpdateConfig),
+		AgentUpdateJitterSeconds:  DefaultAgentUpdateJitterSeconds,
+		AgentVersion:              agentVersion.String(),
+		AgentAutoUpdate:           shouldUpdate,
 	}
 }
 
@@ -90,11 +91,19 @@ func getToolsAutoUpdate(config *autoupdatepb.AutoUpdateConfig) bool {
 	return false
 }
 
-func getToolsVersion(v *autoupdatepb.AutoUpdateVersion) (*semver.Version, error) {
+func getToolsVersion(config *autoupdatepb.AutoUpdateConfig, v *autoupdatepb.AutoUpdateVersion) (*semver.Version, error) {
 	// If we can't get the AU version or tools AU version is not specified, we default to the current proxy version.
 	// This ensures we always advertise a version compatible with the cluster.
 	if v.GetSpec().GetTools() == nil {
 		return teleport.SemVer(), nil
 	}
 	return version.EnsureSemver(v.GetSpec().GetTools().GetTargetVersion())
+}
+
+func getToolsStrategies(config *autoupdatepb.AutoUpdateConfig) []string {
+	var strategies []string
+	for _, strategy := range config.GetSpec().GetTools().GetStrategies() {
+		strategies = append(strategies, autoupdate.TransformPbToStrategy(strategy))
+	}
+	return strategies
 }

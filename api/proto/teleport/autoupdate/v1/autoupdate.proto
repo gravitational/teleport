@@ -41,10 +41,25 @@ message AutoUpdateConfigSpec {
   AutoUpdateConfigSpecAgents agents = 3;
 }
 
+// AutoUpdateToolsStrategy defines additional strategy that must be applied
+// for client tools to decide if update must be initiated.
+enum AutoUpdateToolsStrategy {
+  // AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED is unspecified strategy.
+  AUTO_UPDATE_TOOLS_STRATEGY_UNSPECIFIED = 0;
+  // AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE is strategy that restricts client tools to downgrade.
+  AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE = 1;
+  // AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE is strategy that restricts client tools
+  // to downgrade major version.
+  AUTO_UPDATE_TOOLS_STRATEGY_IGNORE_MAJOR_DOWNGRADE = 2;
+}
+
 // AutoUpdateConfigSpecTools encodes the parameters for client tools auto updates.
 message AutoUpdateConfigSpecTools {
   // Mode defines state of the client tools auto update.
   string mode = 1;
+  // Custom strategies for modifying behavior when updates are applied.
+  // For example: protecting against client tool downgrades or ignoring patch updates.
+  repeated AutoUpdateToolsStrategy strategies = 2;
 }
 
 // AutoUpdateConfigSpecAgents encodes the parameters of automatic agent updates.
