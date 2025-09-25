@@ -46,7 +46,7 @@ A breakdown of active instance versions will make the process of monitoring the 
 
 Currently in the web UI the instances list can be filtered by version, but this is a text search and it is not aware of semantic versioning. It’s possible to find a specific version number, but it’s not easy to isolate a range of versions, such as “>18 & <18.2.1”, which is likely required to find instances between a vulnerable and patched version.
 
-To support this use-case, the filter for bot instances will support the predicate language and allow queries such as `version.between("18.1.0")`. This works though the web UI and the CLI (`tctl`).
+To support this use-case, the filter for bot instances will support the predicate language and allow queries such as `version.between("18.0.0", "18.1.0")`. This works though the web UI and the CLI (`tctl`).
 
 **As a Bot Instance owner (Dev/Dev Ops team), I'd like help in understanding why my Bot Instance is not working properly.**
 
