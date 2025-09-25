@@ -17,19 +17,24 @@
 package plugin
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/lib/asciitable"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/client"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -496,5 +501,229 @@ func (args *awsICRotateCredsArgs) validateToken(ctx context.Context, awsicSettin
 	default:
 		return trace.BadParameter("unexpected status code %v", resp.StatusCode)
 	}
+	return nil
+}
+
+type awsicCommands struct {
+	rootCmd           *kingpin.CmdClause
+	describePrincipal struct {
+		cmd          *kingpin.CmdClause
+		name         string
+		isAccessList bool
+	}
+	listPrincipals struct {
+		cmd        *kingpin.CmdClause
+		listUsers  bool
+		listGroups bool
+	}
+	resetPrincipal struct {
+		cmd          *kingpin.CmdClause
+		name         string
+		isAccessList bool
+	}
+}
+
+func (p *PluginsCommand) initAWSICCmds(parent *kingpin.CmdClause) {
+	root := parent.Command("awsic", "Manage AWS Identity center")
+
+	p.awsic.rootCmd = root
+
+	describeCmd := root.Command("describe", "describe an identity center principal")
+	p.awsic.describePrincipal.cmd = describeCmd
+	describeCmd.
+		Flag("access-list", "principal is an access list").
+		Default("false").
+		BoolVar(&p.awsic.describePrincipal.isAccessList)
+	describeCmd.
+		Arg("principal", "the principal to describe").
+		Required().
+		StringVar(&p.awsic.describePrincipal.name)
+
+	listCmd := root.Command("principals", "list identity center principals")
+	p.awsic.listPrincipals.cmd = listCmd
+	listCmd.
+		Flag("include-users", "include users in listing").
+		Default("true").
+		BoolVar(&p.awsic.listPrincipals.listUsers)
+	listCmd.
+		Flag("include-groups", "include Access Lists in listing").
+		Default("true").
+		BoolVar(&p.awsic.listPrincipals.listGroups)
+
+	resetCmd := root.Command("reset", "force a principal to be re-provisioned")
+	p.awsic.resetPrincipal.cmd = resetCmd
+	resetCmd.
+		Flag("access-list", "principal is an access list").
+		Default("false").
+		BoolVar(&p.awsic.resetPrincipal.isAccessList)
+	resetCmd.
+		Arg("principal", "the principal to reset").
+		Required().
+		StringVar(&p.awsic.resetPrincipal.name)
+}
+
+func (p *awsicCommands) ResetPrincipal(ctx context.Context, args pluginServices) error {
+	request := &identitycenterv1.ResetPrincipalRequest{
+		PrincipalName: p.resetPrincipal.name,
+		PrincipalType: identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER,
+	}
+
+	if p.resetPrincipal.isAccessList {
+		request.PrincipalType = identitycenterv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST
+	}
+
+	_, err := args.identityCenter.ResetPrincipal(ctx, request)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func formatPrincipalType(t identitycenterv1.PrincipalType) string {
+	switch t {
+	case identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER:
+		return "User"
+	case identitycenterv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
+		return "Group"
+	default:
+		return fmt.Sprintf("Unkown (%d)", int(t))
+	}
+}
+
+func formatProvisioningStatus(t provisioningv1.ProvisioningState) string {
+	switch t {
+	case provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE:
+		return "Stale"
+	case provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED:
+		return "Provisioned"
+	case provisioningv1.ProvisioningState_PROVISIONING_STATE_DELETED:
+		return "Deleted"
+	default:
+		return fmt.Sprintf("Unkown (%d)", int(t))
+	}
+}
+
+func formatAssignmentStatus(t identitycenterv1.ProvisioningState) string {
+	switch t {
+	case identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE:
+		return "Stale"
+	case identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED:
+		return "Provisioned"
+	case identitycenterv1.ProvisioningState_PROVISIONING_STATE_DELETED:
+		return "Deleted"
+	default:
+		return fmt.Sprintf("Unkown (%d)", int(t))
+	}
+}
+
+func formatErrorFlag(s *identitycenterv1.PrincipalSummary) string {
+	if s.GetAssignment().GetError() != "" || s.GetProvisioning().GetError() != "" {
+		return "*"
+	}
+	return ""
+}
+
+func (p *awsicCommands) DescribePrincipal(ctx context.Context, args pluginServices) error {
+	request := &identitycenterv1.DescribePrincipalRequest{
+		PrincipalName: p.describePrincipal.name,
+		PrincipalType: identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER,
+	}
+
+	if p.describePrincipal.isAccessList {
+		request.PrincipalType = identitycenterv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST
+	}
+
+	summary, err := args.identityCenter.DescribePrincipal(ctx, request)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	provisioning := summary.GetProvisioning()
+	assignment := summary.GetAssignment()
+
+	table := asciitable.MakeHeadlessTable(2)
+	table.AddRow([]string{"Type", formatPrincipalType(summary.GetPrincipalType())})
+	table.AddRow([]string{"Name", summary.GetPrincipalName()})
+
+	table.AddRow([]string{"SCIM State", formatProvisioningStatus(provisioning.GetStatus())})
+	table.AddRow([]string{"SCIM External ID", provisioning.GetExternalId()})
+	if provisioning.GetError() != "" {
+		table.AddRow([]string{"SCIM Error", provisioning.GetError()})
+	}
+
+	table.AddRow([]string{"Assignment State", formatAssignmentStatus(assignment.GetStatus())})
+	table.AddRow([]string{"Assignment External ID", assignment.GetExternalId()})
+	if assignment.GetError() != "" {
+		table.AddRow([]string{"Assignmen Error", assignment.GetError()})
+	}
+
+	if err := table.WriteTo(os.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(summary.AccountAssignments) == 0 {
+		return nil
+	}
+
+	accountAssignmentTable := asciitable.MakeTable([]string{"Account ID", "Account", "Permission Set"})
+	for _, asmt := range summary.AccountAssignments {
+		accountAssignmentTable.AddRow([]string{
+			asmt.AccountId,
+			cmp.Or(asmt.AccountName, asmt.AccountId),
+			cmp.Or(asmt.PermissionSetName, asmt.PermissionSetArn),
+		})
+	}
+
+	fmt.Printf("\nAccount Assignments\n")
+	if err := accountAssignmentTable.WriteTo(os.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (p *awsicCommands) ListPrincipals(ctx context.Context, args pluginServices) error {
+	request := identitycenterv1.ListPrincipalsRequest{
+		ListUsers:       p.listPrincipals.listUsers,
+		ListAccessLists: p.listPrincipals.listGroups,
+		PageSize:        100,
+	}
+
+	var summaries []*identitycenterv1.PrincipalSummary
+	for {
+		response, err := args.identityCenter.ListPrincipals(ctx, &request)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		summaries = append(summaries, response.Principals...)
+
+		if response.NextPageToken == "" {
+			break
+		}
+		request.PageToken = response.NextPageToken
+	}
+
+	table := asciitable.MakeTable([]string{
+		"Error", "Type", "Name", "External ID", "SCIM Status", "Assignment Status"})
+	for _, s := range summaries {
+		assignment := s.GetAssignment()
+		provisioning := s.GetProvisioning()
+
+		table.AddRow([]string{
+			formatErrorFlag(s),
+			formatPrincipalType(s.GetPrincipalType()),
+			s.GetPrincipalName(),
+			assignment.GetExternalId(),
+			formatProvisioningStatus(provisioning.GetStatus()),
+			formatAssignmentStatus(s.GetAssignment().GetStatus()),
+		})
+	}
+
+	if err := table.WriteTo(os.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }

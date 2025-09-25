@@ -32,6 +32,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -89,6 +90,8 @@ type PluginsCommand struct {
 	edit        pluginEditArgs
 	rotateCreds pluginRotateCredsArgs
 
+	awsic awsicCommands
+
 	// optional input and output buffer
 	// for tests.
 	stdin  io.Reader
@@ -116,6 +119,8 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 	p.initDelete(pluginsCommand)
 	p.initEdit(pluginsCommand)
 	p.initRotateCreds(pluginsCommand)
+
+	p.initAWSICCmds(pluginsCommand)
 }
 
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
@@ -230,10 +235,17 @@ type pluginsClient interface {
 	UpdatePluginStaticCredentials(ctx context.Context, in *pluginsv1.UpdatePluginStaticCredentialsRequest, opts ...grpc.CallOption) (*pluginsv1.UpdatePluginStaticCredentialsResponse, error)
 }
 
+type identityCenterClient interface {
+	DescribePrincipal(ctx context.Context, in *identitycenterv1.DescribePrincipalRequest, opts ...grpc.CallOption) (*identitycenterv1.PrincipalSummary, error)
+	ListPrincipals(ctx context.Context, in *identitycenterv1.ListPrincipalsRequest, opts ...grpc.CallOption) (*identitycenterv1.ListPrincipalsResponse, error)
+	ResetPrincipal(context.Context, *identitycenterv1.ResetPrincipalRequest, ...grpc.CallOption) (*identitycenterv1.ResetPrincipalResponse, error)
+}
+
 type pluginServices struct {
-	authClient   authClient
-	plugins      pluginsClient
-	httpProvider http.RoundTripper
+	authClient     authClient
+	plugins        pluginsClient
+	identityCenter identityCenterClient
+	httpProvider   http.RoundTripper
 }
 
 // TryRun runs the plugins command
@@ -260,6 +272,12 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.EditAWSIC
 	case p.rotateCreds.awsic.cmd.FullCommand():
 		commandFunc = p.RotateAWSICCreds
+	case p.awsic.resetPrincipal.cmd.FullCommand():
+		commandFunc = p.awsic.ResetPrincipal
+	case p.awsic.listPrincipals.cmd.FullCommand():
+		commandFunc = p.awsic.ListPrincipals
+	case p.awsic.describePrincipal.cmd.FullCommand():
+		commandFunc = p.awsic.DescribePrincipal
 	default:
 		return false, nil
 	}
@@ -268,9 +286,10 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		return false, trace.Wrap(err)
 	}
 	args := pluginServices{
-		authClient:   client,
-		plugins:      client.PluginsClient(),
-		httpProvider: http.DefaultTransport,
+		authClient:     client,
+		plugins:        client.PluginsClient(),
+		identityCenter: client.IdentityCenterClient(),
+		httpProvider:   http.DefaultTransport,
 	}
 	err = commandFunc(ctx, args)
 	closeFn(ctx)
