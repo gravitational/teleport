@@ -138,8 +138,18 @@ $ tctl create -f awx-bot-resources.yaml
 
 ## Step 2/5. Configure Kubernetes resources
 
-Next, we'll need to prepare resources in the Kubernetes cluster in which your
-AWX jobs will be run. The only Kubernetes resource we'll need to configure
+Next, we'll prepare a `ConfigMap` resource in the Kubernetes cluster in which
+your AWX jobs will run. This `ConfigMap` will contain the configuration for
+Machine ID's `tbot` client, in particular:
+- The address of your Teleport cluster
+- How to join your Teleport cluster, using the join token you created in the
+  previous step
+- Where the bot should store its internal data (in memory, since AWX jobs are
+  ephemeral)
+- Which additional services the bot should run, in this case an
+  `ssh-multiplexer` to provide efficient access to SSH nodes
+
+The only Kubernetes resource we'll need to configure
 manually is a `ConfigMap` for Machine ID's `tbot` client.
 
 Write the following to `configmap-tbot-awx-config.yaml`:
@@ -183,9 +193,9 @@ ID's [configuration reference](../../../reference/machine-workload-identity/mach
 <Admonition type="info" title="About the ssh-multiplexer">
 Machine ID's `ssh-multiplexer` service is used to improve performance when
 opening many SSH connections. It provides a Unix socket which the
-`fdpass-teleport` executable can use to open new SSH sessions over the same
-connection to Teleport. The SSH config written to `/tbot-output/ssh_config` will
-be automatically configured to do this.
+`fdpass-teleport` executable can use to open new SSH sessions over a single,
+shared connection to Teleport. The SSH config written to
+`/tbot-output/ssh_config` will be automatically configured to do this.
 
 See the [reference page](../../../reference/machine-workload-identity/machine-id/configuration.mdx#ssh-multiplexer)
 to learn more about the `ssh-multiplexer` service.
