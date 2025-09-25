@@ -176,14 +176,29 @@ export async function listBotInstances(
     pageToken: string;
     pageSize: number;
     searchTerm?: string;
-    sort?: string;
+    sortField?: string;
+    sortDir?: string;
     botName?: string;
+    query?: string;
   },
   signal?: AbortSignal
 ) {
-  const { pageToken, pageSize, searchTerm, sort, botName } = variables;
+  const {
+    pageToken,
+    pageSize,
+    searchTerm,
+    sortField,
+    sortDir,
+    botName,
+    query,
+  } = variables;
 
-  const path = cfg.getBotInstanceUrl({ action: 'list' });
+  // TODO(nicholasmarais1158) DELETE IN v20.0.0
+  const useV1Endpoint = !query;
+
+  const path = cfg.getBotInstanceUrl({
+    action: useV1Endpoint ? 'list' : 'listV2',
+  });
   const qs = new URLSearchParams();
 
   qs.set('page_size', pageSize.toFixed());
@@ -191,11 +206,25 @@ export async function listBotInstances(
   if (searchTerm) {
     qs.set('search', searchTerm);
   }
-  if (sort) {
-    qs.set('sort', sort);
-  }
   if (botName) {
     qs.set('bot_name', botName);
+  }
+
+  if (useV1Endpoint) {
+    const sort = `${sortField || 'name'}:${sortDir || 'asc'}`;
+    if (sort) {
+      qs.set('sort', sort);
+    }
+  } else {
+    if (sortField) {
+      qs.set('sort_field', sortField);
+    }
+    if (sortDir) {
+      qs.set('sort_dir', sortDir);
+    }
+    if (query) {
+      qs.set('query', query);
+    }
   }
 
   const data = await api.get(`${path}?${qs.toString()}`, signal);
