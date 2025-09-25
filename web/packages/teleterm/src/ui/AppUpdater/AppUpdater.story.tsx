@@ -67,6 +67,7 @@ export interface StoryProps {
     | 'Enabled client updates - v16 cluster'
     | 'Disabled client updates - v17 cluster';
   clusterBarSetToManageUpdates: boolean;
+  isDowngrade: boolean;
   nonTeleportCdn: boolean;
 }
 
@@ -105,6 +106,10 @@ const meta: Meta<StoryProps> = {
       control: { type: 'boolean' },
       description: 'Whether cluster "bar" is manually set to control updates',
     },
+    isDowngrade: {
+      control: { type: 'boolean' },
+      description: 'Whether the app version is newer than the update',
+    },
     step: {
       control: { type: 'radio' },
       options: [
@@ -133,6 +138,7 @@ const meta: Meta<StoryProps> = {
     clusterFoo: 'Enabled client updates - v18 cluster',
     clusterBar: 'Does not exist',
     clusterBarSetToManageUpdates: false,
+    isDowngrade: false,
     step: 'Update available',
     platform: 'darwin',
     nonTeleportCdn: false,
@@ -236,7 +242,8 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
 
   const updateInfo = makeUpdateInfo(
     storyProps.nonTeleportCdn,
-    status.enabled ? status.version : ''
+    status.enabled ? status.version : '',
+    storyProps.isDowngrade
   );
 
   switch (storyProps.step) {
