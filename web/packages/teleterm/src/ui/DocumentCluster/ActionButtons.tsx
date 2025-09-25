@@ -210,7 +210,7 @@ export function ConnectDatabaseActionButton(props: {
 }): React.JSX.Element {
   const appContext = useAppContext();
 
-    function connect(dbUser: string): void {
+  function connect(dbUser: string): void {
     const { uri, name, protocol, gcpProjectId } = props.database;
 
     connectToDatabase(
