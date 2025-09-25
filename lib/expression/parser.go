@@ -19,7 +19,6 @@
 package expression
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -151,22 +150,6 @@ func DefaultParserSpec[evaluationEnv any]() typical.ParserSpec[evaluationEnv] {
 			"is_empty": typical.UnaryFunction[evaluationEnv](
 				func(s Set) (bool, error) {
 					return len(s.s) == 0, nil
-				}),
-			"to_string": typical.UnaryFunction[evaluationEnv](
-				func(v any) (string, error) {
-					switch t := v.(type) {
-					case fmt.Stringer:
-						if t == nil {
-							return "", nil
-						}
-						return t.String(), nil
-					case string:
-						return t, nil
-					case nil:
-						return "", nil
-					default:
-						return "", trace.BadParameter("value of type %T cannot be converted to a string", t)
-					}
 				}),
 		},
 		Methods: map[string]typical.Function{
