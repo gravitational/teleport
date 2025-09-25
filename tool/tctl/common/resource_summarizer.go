@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // CRUD operations for InferenceModel resources
@@ -87,7 +88,7 @@ func (rc *ResourceCommand) updateInferenceModel(
 // getInferenceModels retrieves one or more inference model resources.
 func (rc *ResourceCommand) getInferenceModels(
 	ctx context.Context, clt *authclient.Client,
-) (ResourceCollection, error) {
+) (resources.Collection, error) {
 	ssclt := clt.SummarizerServiceClient()
 	if rc.ref.Name != "" {
 		req := &summarizerv1.GetInferenceModelRequest{
@@ -136,7 +137,7 @@ func (rc *ResourceCommand) deleteInferenceModel(
 // can be written to an io.Writer in a human-readable format.
 type InferenceModelCollection []*summarizerv1.InferenceModel
 
-func (c InferenceModelCollection) resources() []types.Resource {
+func (c InferenceModelCollection) Resources() []types.Resource {
 	out := make([]types.Resource, 0, len(c))
 	for _, item := range c {
 		out = append(out, types.ProtoResource153ToLegacy(item))
@@ -144,11 +145,7 @@ func (c InferenceModelCollection) resources() []types.Resource {
 	return out
 }
 
-func (c InferenceModelCollection) Resources() []types.Resource {
-	return c.resources()
-}
-
-func (c InferenceModelCollection) writeText(w io.Writer, verbose bool) error {
+func (c InferenceModelCollection) WriteText(w io.Writer, verbose bool) error {
 	headers := []string{"Name", "Description", "Provider", "Provider Model ID"}
 	var rows [][]string
 	for _, item := range c {
@@ -215,7 +212,7 @@ func (rc *ResourceCommand) createInferenceSecret(
 // getInferenceSecrets retrieves one or more inference secret resources.
 func (rc *ResourceCommand) getInferenceSecrets(
 	ctx context.Context, clt *authclient.Client,
-) (ResourceCollection, error) {
+) (resources.Collection, error) {
 	ssclt := clt.SummarizerServiceClient()
 	if rc.ref.Name != "" {
 		req := &summarizerv1.GetInferenceSecretRequest{
@@ -263,7 +260,7 @@ func (rc *ResourceCommand) deleteInferenceSecret(
 // can be written to an io.Writer in a human-readable format.
 type inferenceSecretCollection []*summarizerv1.InferenceSecret
 
-func (c inferenceSecretCollection) resources() []types.Resource {
+func (c inferenceSecretCollection) Resources() []types.Resource {
 	out := make([]types.Resource, 0, len(c))
 	for _, item := range c {
 		out = append(out, types.ProtoResource153ToLegacy(item))
@@ -271,7 +268,7 @@ func (c inferenceSecretCollection) resources() []types.Resource {
 	return out
 }
 
-func (c inferenceSecretCollection) writeText(w io.Writer, verbose bool) error {
+func (c inferenceSecretCollection) WriteText(w io.Writer, verbose bool) error {
 	headers := []string{"Name", "Description"}
 	var rows [][]string
 	for _, item := range c {
@@ -348,7 +345,7 @@ func (rc *ResourceCommand) updateInferencePolicy(
 // getInferencePolicies retrieves one or more inference policy resources.
 func (rc *ResourceCommand) getInferencePolicies(
 	ctx context.Context, clt *authclient.Client,
-) (ResourceCollection, error) {
+) (resources.Collection, error) {
 	ssclt := clt.SummarizerServiceClient()
 	if rc.ref.Name != "" {
 		req := &summarizerv1.GetInferencePolicyRequest{
@@ -397,7 +394,7 @@ func (rc *ResourceCommand) deleteInferencePolicy(
 // can be written to an io.Writer in a human-readable format.
 type InferencePolicyCollection []*summarizerv1.InferencePolicy
 
-func (c InferencePolicyCollection) resources() []types.Resource {
+func (c InferencePolicyCollection) Resources() []types.Resource {
 	out := make([]types.Resource, 0, len(c))
 	for _, item := range c {
 		out = append(out, types.ProtoResource153ToLegacy(item))
@@ -405,11 +402,7 @@ func (c InferencePolicyCollection) resources() []types.Resource {
 	return out
 }
 
-func (c InferencePolicyCollection) Resources() []types.Resource {
-	return c.resources()
-}
-
-func (c InferencePolicyCollection) writeText(w io.Writer, verbose bool) error {
+func (c InferencePolicyCollection) WriteText(w io.Writer, verbose bool) error {
 	headers := []string{"Name", "Description", "Kinds", "Filter", "Model"}
 	var rows [][]string
 	for _, item := range c {
