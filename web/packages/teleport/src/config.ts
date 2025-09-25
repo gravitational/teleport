@@ -171,7 +171,6 @@ const cfg = {
     joinTokens: '/web/tokens',
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
-    workloadIdentity: `/web/workloadidentity`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
@@ -191,6 +190,7 @@ const cfg = {
     botInstances: '/web/bots/instances',
     botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
+    workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -501,6 +501,7 @@ const cfg = {
     botInstance: {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+      listV2: '/v2/webapi/sites/:clusterId/machine-id/bot-instance',
     },
 
     workloadIdentity: {
@@ -843,6 +844,10 @@ const cfg = {
 
   getBotInstancesRoute() {
     return generatePath(cfg.routes.botInstances);
+  },
+
+  getWorkloadIdentitiesRoute() {
+    return generatePath(cfg.routes.workloadIdentities);
   },
 
   getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
@@ -1694,6 +1699,9 @@ const cfg = {
           action: 'list';
         }
       | {
+          action: 'listV2';
+        }
+      | {
           action: 'read';
           botName: string;
           instanceId: string;
@@ -1704,6 +1712,10 @@ const cfg = {
     switch (req.action) {
       case 'list':
         return generatePath(cfg.api.botInstance.list, {
+          clusterId,
+        });
+      case 'listV2':
+        return generatePath(cfg.api.botInstance.listV2, {
           clusterId,
         });
       case 'read':

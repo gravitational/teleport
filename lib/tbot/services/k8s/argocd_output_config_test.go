@@ -54,9 +54,10 @@ func TestArgoCDOutput_YAML(t *testing.T) {
 				SecretAnnotations: map[string]string{
 					"my-annotation": "value",
 				},
-				Project:          "super-secret-project",
-				Namespaces:       []string{"prod", "dev"},
-				ClusterResources: true,
+				Project:             "super-secret-project",
+				Namespaces:          []string{"prod", "dev"},
+				ClusterResources:    true,
+				ClusterNameTemplate: "{{.KubeName}}",
 			},
 		},
 		{
@@ -85,8 +86,9 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{Name: "foo", Labels: make(map[string]string)},
 					},
-					SecretNamespace:  "argocd",
-					SecretNamePrefix: "argo-cluster",
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "argo-cluster",
+					ClusterNameTemplate: "{{.KubeName}}",
 				}
 			},
 		},
@@ -97,8 +99,9 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{Labels: map[string]string{"foo": "bar"}},
 					},
-					SecretNamespace:  "argocd",
-					SecretNamePrefix: "argo-cluster",
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "argo-cluster",
+					ClusterNameTemplate: "{{.KubeName}}",
 				}
 			},
 		},
@@ -106,9 +109,10 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 			name: "no_selectors",
 			in: func() *ArgoCDOutputConfig {
 				return &ArgoCDOutputConfig{
-					Selectors:        []*KubernetesSelector{},
-					SecretNamespace:  "argocd",
-					SecretNamePrefix: "argo-cluster",
+					Selectors:           []*KubernetesSelector{},
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "argo-cluster",
+					ClusterNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "at least one selector is required",
@@ -120,8 +124,9 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{},
 					},
-					SecretNamespace:  "argocd",
-					SecretNamePrefix: "argo-cluster",
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "argo-cluster",
+					ClusterNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "one of 'name' and 'labels' must be specified",
@@ -133,8 +138,9 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{Labels: map[string]string{"foo": "bar"}},
 					},
-					SecretNamespace:  "argocd",
-					SecretNamePrefix: "NOT VALID",
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "NOT VALID",
+					ClusterNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "secret_name_prefix may only include lowercase letters, numbers, '-' and '.' characters",
@@ -146,9 +152,10 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{Labels: map[string]string{"foo": "bar"}},
 					},
-					SecretNamespace:  "argocd",
-					SecretNamePrefix: "argo-cluster",
-					Namespaces:       []string{""},
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "argo-cluster",
+					Namespaces:          []string{""},
+					ClusterNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "namespaces[0] cannot be blank",
@@ -160,9 +167,10 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{Labels: map[string]string{"foo": "bar"}},
 					},
-					SecretNamespace:  "argocd",
-					SecretNamePrefix: "argo-cluster",
-					Namespaces:       []string{"foo,"},
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "argo-cluster",
+					Namespaces:          []string{"foo,"},
+					ClusterNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "namespaces[0] is not a valid namespace name",
@@ -174,13 +182,28 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{Labels: map[string]string{"foo": "bar"}},
 					},
-					SecretNamespace:  "argocd",
-					SecretNamePrefix: "argo-cluster",
-					Namespaces:       []string{},
-					ClusterResources: true,
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "argo-cluster",
+					Namespaces:          []string{},
+					ClusterResources:    true,
+					ClusterNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "cluster_resources is only applicable if namespaces is also set",
+		},
+		{
+			name: "invalid cluster_name_template",
+			in: func() *ArgoCDOutputConfig {
+				return &ArgoCDOutputConfig{
+					Selectors: []*KubernetesSelector{
+						{Labels: map[string]string{"foo": "bar"}},
+					},
+					SecretNamespace:     "argocd",
+					SecretNamePrefix:    "argo-cluster",
+					ClusterNameTemplate: "{{.InvalidVariable}}",
+				}
+			},
+			wantErr: "can't evaluate field InvalidVariable",
 		},
 		{
 			name: "defaults",
@@ -195,8 +218,9 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 				Selectors: []*KubernetesSelector{
 					{Labels: map[string]string{"foo": "bar"}},
 				},
-				SecretNamespace:  "my-pod-namespace",
-				SecretNamePrefix: "teleport.argocd-cluster",
+				SecretNamespace:     "my-pod-namespace",
+				SecretNamePrefix:    "teleport.argocd-cluster",
+				ClusterNameTemplate: "{{.ClusterName}}-{{.KubeName}}",
 			},
 		},
 	}

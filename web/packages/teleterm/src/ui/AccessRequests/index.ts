@@ -18,3 +18,4 @@
 
 export * from './AccessRequestsContext';
 export { SelectorMenu as AccessRequestsMenu } from './SelectorMenu';
+export * from './useAssumedRequests';

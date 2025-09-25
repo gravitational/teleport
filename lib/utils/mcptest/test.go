@@ -67,6 +67,7 @@ func MustStartSSETestServer(t *testing.T) string {
 func NewStdioClient(t *testing.T, input io.Reader, output io.WriteCloser) *mcpclient.Client {
 	t.Helper()
 	stdioClientTransport := mcpclienttransport.NewIO(input, output, io.NopCloser(bytes.NewReader(nil)))
+	require.NoError(t, stdioClientTransport.Start(t.Context()))
 	stdioClient := mcpclient.NewClient(stdioClientTransport)
 	t.Cleanup(func() {
 		stdioClient.Close()
