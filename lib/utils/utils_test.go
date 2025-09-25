@@ -547,3 +547,56 @@ func TestReadAtMost(t *testing.T) {
 		})
 	}
 }
+
+func TestWithFallback(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		primary  func() (string, error)
+		fallback func() (string, error)
+		match    func(error) bool
+		value    string
+		err      error
+	}{
+		{
+			name:    "happy primary path",
+			primary: func() (string, error) { return "happy", nil },
+			err:     nil,
+			value:   "happy",
+		},
+
+		{
+			name:     "fallback fail",
+			primary:  func() (string, error) { return "", trace.BadParameter("") },
+			fallback: func() (string, error) { return "", trace.NotFound("") },
+			match:    trace.IsBadParameter,
+			err:      trace.NotFound(""),
+			value:    "",
+		},
+		{
+			name:     "fallback success",
+			primary:  func() (string, error) { return "", trace.BadParameter("") },
+			fallback: func() (string, error) { return "happy fallback", nil },
+			match:    trace.IsBadParameter,
+			err:      nil,
+			value:    "happy fallback",
+		},
+		{
+			name:     "fallback no match",
+			primary:  func() (string, error) { return "", trace.BadParameter("") },
+			fallback: func() (string, error) { return "happy fallback", nil },
+			match:    trace.IsNotFound,
+			err:      trace.BadParameter(""),
+			value:    "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := WithFallback(tc.primary, tc.fallback, tc.match)
+			require.Equal(t, tc.value, out)
+			require.ErrorIs(t, err, tc.err)
+		})
+	}
+}

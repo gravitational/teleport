@@ -529,3 +529,34 @@ const (
 func IsInternalSSHExtension(extension string) bool {
 	return strings.HasSuffix(extension, extIntSuffix)
 }
+
+// WithFallback attempts to fetch a value from the primary function, if the error matches attempts a fallback function
+//
+// Example usage for migrating APIs:
+//
+//	out, err := utils.WithFallback(
+//		func() ([]types.Foos, error) { return stream.Collect(upstream.RangeFoos(ctx, "", "")) },
+//		func() ([]types.Foos, error) { return upstream.GetFoos(ctx) },
+//		trace.IsNotImplemented,
+//	)
+//	return out, trace.Wrap(err)
+func WithFallback[T any](
+	primary func() (T, error),
+	fallback func() (T, error),
+	match func(error) bool,
+) (T, error) {
+	out, err := primary()
+	if err == nil {
+		return out, nil
+	}
+
+	if match(err) {
+		out, err = fallback()
+		if err != nil {
+			return *new(T), trace.Wrap(err)
+		}
+		return out, nil
+	}
+
+	return *new(T), trace.Wrap(err)
+}
