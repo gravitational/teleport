@@ -1165,7 +1165,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	// GET Machine ID instance for a bot by id
 	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
 	// GET Machine ID bot instances (paged)
+	// TODO(nicholasmarais1158) DELETE IN v20.0.0
+	// Replaced by `GET /v2/webapi/sites/:site/machine-id/bot-instance`.
 	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
+	// GET Machine ID bot instances (paged)
+	h.GET("/v2/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstancesV2))
 
 	// List workload identities
 	h.GET("/webapi/sites/:site/workload-identity", h.WithClusterAuth(h.listWorkloadIdentities))
