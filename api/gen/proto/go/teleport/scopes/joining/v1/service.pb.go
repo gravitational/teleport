@@ -131,14 +131,16 @@ func (x *GetScopedTokenResponse) GetToken() *ScopedToken {
 // ListScopedTokensRequest is the request to list scoped tokens.
 type ListScopedTokensRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// ResourceScope filters tokens by their resource scope if specified.
+	// Filter tokens by their resource scope.
 	ResourceScope *v1.Filter `protobuf:"bytes,1,opt,name=resource_scope,json=resourceScope,proto3" json:"resource_scope,omitempty"`
-	// AssignedScope filters tokens by their assigned scope if specified.
+	// Filter tokens by their assigned scope.
 	AssignedScope *v1.Filter `protobuf:"bytes,2,opt,name=assigned_scope,json=assignedScope,proto3" json:"assigned_scope,omitempty"`
-	// Cursor is the pagination cursor.
+	// The pagination cursor.
 	Cursor string `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
-	// Limit is the maximum number of results to return.
-	Limit         uint32 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	// The maximum number of results to return.
+	Limit uint32 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Filter tokens that apply at least one of the provided roles.
+	Roles         []string `protobuf:"bytes,5,rep,name=roles,proto3" json:"roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -199,6 +201,13 @@ func (x *ListScopedTokensRequest) GetLimit() uint32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ListScopedTokensRequest) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
 }
 
 // ListScopedTokensResponse is the response to list scoped tokens.
@@ -540,12 +549,13 @@ const file_teleport_scopes_joining_v1_service_proto_rawDesc = "" +
 	"\x15GetScopedTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"W\n" +
 	"\x16GetScopedTokenResponse\x12=\n" +
-	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"\xcd\x01\n" +
+	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"\xe3\x01\n" +
 	"\x17ListScopedTokensRequest\x12A\n" +
 	"\x0eresource_scope\x18\x01 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rresourceScope\x12A\n" +
 	"\x0eassigned_scope\x18\x02 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rassignedScope\x12\x16\n" +
 	"\x06cursor\x18\x03 \x01(\tR\x06cursor\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\rR\x05limit\"s\n" +
+	"\x05limit\x18\x04 \x01(\rR\x05limit\x12\x14\n" +
+	"\x05roles\x18\x05 \x03(\tR\x05roles\"s\n" +
 	"\x18ListScopedTokensResponse\x12?\n" +
 	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokens\x12\x16\n" +
 	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"Y\n" +
