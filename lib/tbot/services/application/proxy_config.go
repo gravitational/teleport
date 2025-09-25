@@ -39,8 +39,8 @@ type ProxyServiceConfig struct {
 	// Optional.
 	Name string `yaml:"name,omitempty"`
 	// Listen is the address on which application proxy should listen. Example:
-	// - "tcp://127.0.0.1:3306"
-	// - "tcp://0.0.0.0:3306
+	// - "tcp://127.0.0.1:8080"
+	// - "tcp://0.0.0.0:8080"
 	Listen string `yaml:"listen"`
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed. For the application
