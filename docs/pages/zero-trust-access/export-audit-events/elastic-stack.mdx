@@ -4,6 +4,7 @@ description: "How to configure Teleport's Event Handler plugin to send audit eve
 tags:
  - how-to
  - zero-trust
+ - audit
 ---
 
 Teleport's Event Handler plugin receives audit events from the Teleport Auth
@@ -466,10 +467,10 @@ Teleport Cluster, ensure that:
 ## Next steps
 
 Now that you are exporting your audit events to the Elastic Stack, consult our
-[audit event reference](../../reference/monitoring/audit.mdx) so you can plan
+[audit event reference](../../reference/deployment/monitoring/audit.mdx) so you can plan
 visualizations and alerts.
 
 While this guide uses the `tctl auth sign` command to issue credentials for the
 Teleport Event Handler, production clusters should use Machine ID for safer,
-more reliable renewals. Read [our guide](../../machine-workload-identity/machine-id/getting-started.mdx)
+more reliable renewals. Read [our guide](../../machine-workload-identity/getting-started.mdx)
 to getting started with Machine ID.

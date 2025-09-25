@@ -5,6 +5,7 @@ tocDepth: 3
 tags:
  - how-to
  - platform-wide
+ - aws
 ---
 
 This guide is designed to accompany our [reference starter-cluster Terraform code](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster#teleport-terraform-aws-ami-simple-example)
@@ -413,7 +414,7 @@ table for cluster state will be the same as the cluster name configured in the [
 
 In our example, the DynamoDB table would be called `teleport-example`.
 
-More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../reference/backends.mdx).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../reference/deployment/backends.mdx).
 
 ### Audit event storage
 
@@ -423,7 +424,7 @@ with `-events` appended to the end.
 
 In our example, the DynamoDB table would be called `teleport-example-events`.
 
-More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../reference/backends.mdx).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../../reference/deployment/backends.mdx).
 
 ### Recorded session storage
 
@@ -741,7 +742,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
 - [Install the Teleport binary on the Server](../../../installation/installation.mdx)
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
-- [Set the correct settings in /etc/teleport.yaml](../../../reference/config.mdx)
+- [Set the correct settings in /etc/teleport.yaml](../../../reference/deployment/config.mdx)
 - [Add Nodes to the Teleport
   cluster](../../../enroll-resources/agents/agents.mdx)
 

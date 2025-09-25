@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -156,6 +155,7 @@ type Server interface {
 	GetClock() clockwork.Clock
 
 	// GetInfo returns a services.Server that represents this server.
+	// In the case of the Proxy forwarder, this is the node target.
 	GetInfo() types.Server
 
 	// UseTunnel used to determine if this node has connected to this cluster
@@ -190,8 +190,8 @@ type Server interface {
 	// support or not.
 	GetSELinuxEnabled() bool
 
-	// TargetMetadata returns metadata about the session target node.
-	TargetMetadata() apievents.ServerMetadata
+	// EventMetadata returns [events.ServerMetadata] for this server.
+	EventMetadata() apievents.ServerMetadata
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -484,7 +484,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		clientIdleTimeout:      clientIdleTimeout,
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
-		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
+		ServerSubKind:          srv.GetInfo().GetSubKind(),
 	}
 
 	child.Logger = slog.With(
@@ -587,51 +587,48 @@ func (c *ServerContext) ID() int {
 	return c.id
 }
 
+// GetJoinParams gets join params if they are set.
+//
+// These params (env vars) are set synchronously between the "session" channel request
+// and the "shell" / "exec" channel request. Therefore, these params are only guaranteed
+// to be accurately set during and after the "shell" / "exec" channel request.
+//
+// TODO(Joerger): Rather than relying on the out-of-band env var params, we should
+// provide session params upfront as extra data in the session channel request.
+func (c *ServerContext) GetJoinParams() (string, types.SessionParticipantMode) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	sid, found := c.getEnvLocked(sshutils.SessionEnvVar)
+	if !found {
+		return "", ""
+	}
+
+	mode := types.SessionPeerMode // default
+	if modeString, found := c.getEnvLocked(teleport.EnvSSHJoinMode); found {
+		mode = types.SessionParticipantMode(modeString)
+	}
+
+	return sid, mode
+}
+
 // SessionID returns the ID of the session in the context.
-func (c *ServerContext) SessionID() rsession.ID {
-	return c.ConnectionContext.GetSessionID()
+//
+// This value is not set until during and after the "shell" / "exec" channel request.
+func (c *ServerContext) SessionID() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.session != nil {
+		return string(c.session.id)
+	}
+
+	return ""
 }
 
 // GetServer returns the underlying server which this context was created in.
 func (c *ServerContext) GetServer() Server {
 	return c.srv
-}
-
-// CreateOrJoinSession will look in the SessionRegistry for the session ID. If
-// no session is found, a new one is created. If one is found, it is returned.
-func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionRegistry) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// As SSH conversation progresses, at some point a session will be created and
-	// its ID will be added to the environment
-	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
-	if !found {
-		return nil
-	}
-
-	// make sure whatever session is requested is a valid session
-	id, err := rsession.ParseID(ssid)
-	if err != nil {
-		return trace.BadParameter("invalid session ID %s", ssid)
-	}
-
-	// update ctx with the session if it exists
-	if sess, found := reg.findSession(*id); found {
-		c.session = sess
-		c.ConnectionContext.SetSessionID(*id)
-		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
-	} else {
-		// TODO(capnspacehook): DELETE IN 19.0.0 - by then all supported
-		// clients should only set TELEPORT_SESSION when they want to
-		// join a session. Always return an error instead of using a
-		// new ID.
-		//
-		// The session ID the client sent was not found, ignore it; the
-		// connection's ID will be used as the session ID later.
-		c.Logger.DebugContext(ctx, "Sent session ID not found, using connection ID")
-	}
-
-	return nil
 }
 
 // TrackActivity keeps track of all activity on ssh.Channel. The caller should
@@ -716,6 +713,11 @@ func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Ch
 }
 
 // getSession returns the context's session
+//
+// The associated session is not set in the server context until a
+// shell / exec channel has been initiated for the session, so out-of-band
+// session requests that can occur before these channel requests should
+// consider fallback mechanisms.
 func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -902,7 +904,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			Type:  events.SessionDataEvent,
 			Code:  events.SessionDataCode,
 		},
-		ServerMetadata:  c.srv.TargetMetadata(),
+		ServerMetadata:  c.srv.EventMetadata(),
 		SessionMetadata: c.GetSessionMetadata(),
 		UserMetadata:    c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -1257,7 +1259,7 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 
 func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 	return apievents.SessionMetadata{
-		SessionID:        string(c.SessionID()),
+		SessionID:        c.SessionID(),
 		WithMFA:          c.Identity.UnmappedIdentity.MFAVerified,
 		PrivateKeyPolicy: string(c.Identity.UnmappedIdentity.PrivateKeyPolicy),
 	}

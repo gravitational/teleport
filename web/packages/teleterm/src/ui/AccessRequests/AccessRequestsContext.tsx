@@ -16,21 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { UseQueryResult } from '@tanstack/react-query';
 import {
   createContext,
   FC,
   PropsWithChildren,
   useCallback,
   useContext,
-  useMemo,
 } from 'react';
 
 import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
+import { useAssumedRequests } from 'teleterm/ui/AccessRequests/useAssumedRequests';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
-import { getAssumedRequests } from 'teleterm/ui/services/clusters';
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
@@ -42,7 +42,7 @@ export interface AccessRequestsContext {
   fetchRequestsAttempt: Attempt<AccessRequest[]>;
   fetchRequests(): Promise<[AccessRequest[], Error]>;
   /** Maps access request ID to the corresponding request object. */
-  assumed: Map<string, AccessRequest>;
+  assumed: Map<string, UseQueryResult<AccessRequest>>;
 }
 
 const AccessRequestsContext = createContext<AccessRequestsContext>(null);
@@ -59,17 +59,7 @@ export const AccessRequestsContextProvider: FC<
     useCallback(state => state.clusters.get(rootClusterUri), [rootClusterUri])
   );
 
-  const assumedObject = useStoreSelector(
-    'clustersService',
-    useCallback(
-      state => getAssumedRequests(state, rootClusterUri),
-      [rootClusterUri]
-    )
-  );
-  const assumed = useMemo(
-    () => new Map(Object.entries(assumedObject)),
-    [assumedObject]
-  );
+  const assumed = useAssumedRequests(rootClusterUri);
 
   const canUse = !!rootCluster?.features?.advancedAccessWorkflows;
 

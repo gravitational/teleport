@@ -875,27 +875,27 @@ func testStaticHostUsers(t *testing.T, nodeUUID, goodLogin, goodLoginWithShell, 
 	})
 
 	// Check that the good user was correctly applied.
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Check that the user was created.
 		existingUser, err := user.Lookup(goodLogin)
-		require.NoError(collect, err)
-		assert.DirExists(collect, existingUser.HomeDir)
+		require.NoError(t, err)
+		require.DirExists(t, existingUser.HomeDir)
 		// Check that the user has the right groups, including teleport-static.
 		groupIDs, err := existingUser.GroupIds()
-		require.NoError(collect, err)
+		require.NoError(t, err)
 		userGroups := make([]string, 0, len(groupIDs))
 		for _, gid := range groupIDs {
 			group, err := user.LookupGroupId(gid)
-			require.NoError(collect, err)
+			require.NoError(t, err)
 			userGroups = append(userGroups, group.Name)
 		}
-		assert.Subset(collect, userGroups, groups)
-		assert.Contains(collect, userGroups, types.TeleportStaticGroup)
+		require.Subset(t, userGroups, groups)
+		require.Contains(t, userGroups, types.TeleportStaticGroup)
 		// Check that the sudoers file was created.
-		assert.FileExists(collect, sudoersPath(goodLogin, nodeUUID))
+		require.FileExists(t, sudoersPath(goodLogin, nodeUUID))
 		userShells, err := getUserShells("/etc/passwd")
-		require.NoError(collect, err)
-		assert.Equal(collect, "/usr/bin/bash", userShells[goodLoginWithShell])
+		require.NoError(t, err)
+		require.Equal(t, "/usr/bin/bash", userShells[goodLoginWithShell])
 	}, 10*time.Second, time.Second)
 
 	// Check that the nonmatching and conflicting users were not created.

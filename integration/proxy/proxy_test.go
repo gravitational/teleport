@@ -288,7 +288,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.NotZero(t, ph.Count())
+		require.NotZero(t, ph.Count())
 	}, 10*time.Second, time.Second, "http proxy did not intercept any connection")
 }
 
@@ -325,7 +325,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.NotZero(t, ph.Count())
+		require.NotZero(t, ph.Count())
 	}, 10*time.Second, time.Second, "http proxy did not intercept any connection")
 }
 

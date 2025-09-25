@@ -1289,7 +1289,7 @@ type Cache interface {
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// ListWorkloadIdentities lists all SPIFFE Federations using Google style
 	// pagination.
-	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
 
 	// ListStaticHostUsers lists static host users.
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
@@ -1334,6 +1334,9 @@ type Cache interface {
 
 	// ListProvisionTokens returns a paginated list of provision tokens.
 	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
+
+	// UserLoginStatesGetter defines methods for fetching user login states.
+	services.UserLoginStatesGetter
 }
 
 type NodeWrapper struct {

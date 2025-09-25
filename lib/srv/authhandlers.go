@@ -689,7 +689,7 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 	ctx := h.c.Server.Context()
 
 	// For SubKindOpenSSHEICENode we use SSH Keys (EC2 does not support Certificates in ec2.SendSSHPublicKey).
-	if h.c.Server.TargetMetadata().ServerSubKind == types.SubKindOpenSSHEICENode {
+	if h.c.Server.GetInfo().GetSubKind() == types.SubKindOpenSSHEICENode {
 		return nil
 	}
 
