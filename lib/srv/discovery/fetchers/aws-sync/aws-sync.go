@@ -36,6 +36,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/types"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/server"
@@ -67,6 +68,9 @@ type Config struct {
 	DiscoveryConfigName string
 	// Log is the logger to use for logging.
 	Log *slog.Logger
+	// EKSAuditLogs if set specifies the EKS clusters for which apiserver audit logs
+	// should be fetched.
+	EKSAuditLogs *EKSAuditLogs
 
 	// awsClients provides AWS SDK clients.
 	awsClients awsClientProvider
@@ -160,6 +164,13 @@ type AssumeRole struct {
 	ExternalID string
 }
 
+// EKSAuditLogs is the configuration of which discovered EKS clusters should have
+// their apiserver audit logs fetched and sent to Access Graph.
+type EKSAuditLogs struct {
+	// Tags is a set of name/value tags that an EKS cluster must have for audit log fetching.
+	Tags types.Labels
+}
+
 // Fetcher is a fetcher that fetches AWS resources.
 type Fetcher struct {
 	Config
@@ -216,6 +227,11 @@ type Resources struct {
 	OIDCProviders []*accessgraphv1alpha.AWSOIDCProviderV1
 	// KMSKeys is a list of KMS keys.
 	KMSKeys []*accessgraphv1alpha.AWSKMSKeyV1
+
+	// EKSAuditLogClusters is a subset of EKSClusters for which audit logs
+	// are fetched. This is not reconciled here or sent to access graph
+	// with the other resources.
+	EKSAuditLogClusters []*accessgraphv1alpha.AWSEKSClusterV1
 }
 
 func (r *Resources) count() int {
