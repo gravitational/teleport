@@ -689,8 +689,6 @@ func TestRecursiveSymlinks(t *testing.T) {
 			require.NoError(t, cfg.initFS(nil))
 			require.NoError(t, cfg.transfer(t.Context()))
 
-			fmt.Println(srcFS.fileAccesses)
-
 			// Check results. Don't use checkTransfer() as the directories will not have
 			// matching sizes (the symlinks that aren't copied over).
 			for _, file := range []string{fileA, fileB, fileC} {
