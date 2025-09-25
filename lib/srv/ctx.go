@@ -1167,7 +1167,10 @@ func buildEnvironment(ctx *ServerContext) []string {
 	env.AddTrusted(teleport.SSHTeleportHostUUID, ctx.srv.ID())
 	env.AddTrusted(teleport.SSHTeleportClusterName, ctx.ClusterName)
 	env.AddTrusted(teleport.SSHTeleportUser, ctx.Identity.TeleportUser)
-	env.AddTrusted(teleport.SSHSessionWebProxyAddr, ctx.GetSessionParams().WebProxyAddr)
+
+	if ctx.GetSessionParams().WebProxyAddr != "" {
+		env.AddTrusted(teleport.SSHSessionWebProxyAddr, ctx.GetSessionParams().WebProxyAddr)
+	}
 
 	// At the end gather all dynamically defined environment variables
 	ctx.VisitEnv(env.AddUnique)
