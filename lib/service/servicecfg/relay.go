@@ -44,6 +44,10 @@ type RelayConfig struct {
 	// PeerListenAddr is the listen address for the peer listener.
 	PeerListenAddr netip.AddrPort
 
+	// PeerPublicAddr, if set, is the public address for the peer listener, in
+	// host:port format.
+	PeerPublicAddr string
+
 	// TunnelListenAddr is the listen address for the tunnel listener.
 	TunnelListenAddr netip.AddrPort
 
