@@ -211,10 +211,11 @@ export function ConnectDatabaseActionButton(props: {
   const appContext = useAppContext();
 
   function connect(dbUser: string): void {
-    const { uri, name, protocol } = props.database;
+    const { uri, name, protocol, gcpProjectId } = props.database;
+
     connectToDatabase(
       appContext,
-      { uri, name, protocol, dbUser },
+      { uri, name, protocol, dbUser, gcpProjectId },
       { origin: 'resource_table' }
     );
   }
