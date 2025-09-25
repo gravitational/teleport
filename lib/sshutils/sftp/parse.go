@@ -19,6 +19,7 @@
 package sftp
 
 import (
+	"os"
 	"regexp"
 	"strings"
 
@@ -54,7 +55,7 @@ func IsRemotePath(input string) bool {
 		// Can't be remote without a colon.
 		return false
 	}
-	slashIndex := strings.Index(input, "/")
+	slashIndex := strings.Index(input, string(os.PathSeparator))
 	// On Unix, colons are valid in path names, so check if the first colon is
 	// part of the path.
 	//
