@@ -1812,6 +1812,13 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.logger.ErrorContext(r.Context(), "Cannot retrieve OIDC connectors", "error", err)
 	}
 	for _, item := range oidcConnectors {
+		// TODO
+		// skip OIDC connectors used for app auth
+		if len(item.GetAppLabels()) > 0 {
+			h.logger.DebugContext(r.Context(), "skipping OIDC connector as it is only used for app auth", "name", item.GetName())
+			continue
+		}
+
 		if item.GetUserMatchers() != nil {
 			identifierFirstLoginEnabled = true
 		}
