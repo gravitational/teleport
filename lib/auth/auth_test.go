@@ -3118,7 +3118,7 @@ func TestNewWebSession(t *testing.T) {
 		LoginTime:  p.a.GetClock().Now().UTC(),
 		SessionTTL: apidefaults.CertDuration,
 	}
-	bearerTokenTTL := min(req.SessionTTL, defaults.BearerTokenTTL)
+	bearerTokenTTL := min(req.SessionTTL, duration)
 
 	ws, _, err := p.a.NewWebSession(ctx, req, nil /* opts */)
 	require.NoError(t, err)
