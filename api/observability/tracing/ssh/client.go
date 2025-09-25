@@ -248,7 +248,7 @@ func (c *Client) NewSession(ctx context.Context, sessionParams *SessionParams) (
 }
 
 // RequestHandlerFn is an ssh request handler function.
-type RequestHandlerFn func(ctx context.Context, ch *ssh.Request)
+type RequestHandlerFn func(ctx context.Context, req *ssh.Request)
 
 // HandleSessionRequest registers a handler for any incoming [ssh.Request] matching the
 // provided type within a session. If the type is already being handled, an error is returned.
