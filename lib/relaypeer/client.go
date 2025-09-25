@@ -40,7 +40,7 @@ type ClientAccessPoint interface {
 	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
 }
 
-// ClientConfig contains the parameters to dial through a peer relay service.
+// ClientConfig contains parameters for [NewClient].
 type ClientConfig struct {
 	// HostID is the host ID of the local machine, to avoid peering with
 	// ourselves.
@@ -50,13 +50,72 @@ type ClientConfig struct {
 	// GroupName is the relay group we belong to, to avoid attempting to connect
 	// to relays from a different group.
 	GroupName string
-
+	// AccessPoint is used to read information about other relays in the same
+	// group.
 	AccessPoint ClientAccessPoint
-	Log         *slog.Logger
+
+	Log *slog.Logger
 
 	GetCertificate func() (*tls.Certificate, error)
 	GetPool        func() (*x509.CertPool, error)
 	Ciphersuites   []uint16
+}
+
+// NewClient creates a [Client] with a given configuration.
+func NewClient(cfg ClientConfig) (*Client, error) {
+	if cfg.HostID == "" {
+		return nil, trace.BadParameter("missing HostID")
+	}
+	if cfg.ClusterName == "" {
+		return nil, trace.BadParameter("missing ClusterName")
+	}
+	if cfg.GroupName == "" {
+		return nil, trace.BadParameter("missing GroupName")
+	}
+	if cfg.AccessPoint == nil {
+		return nil, trace.BadParameter("missing AccessPoint")
+	}
+	if cfg.Log == nil {
+		return nil, trace.BadParameter("missing Log")
+	}
+	if cfg.GetCertificate == nil {
+		return nil, trace.BadParameter("missing GetCertificate")
+	}
+	if cfg.GetPool == nil {
+		return nil, trace.BadParameter("missing GetPool")
+	}
+
+	return &Client{
+		hostID:      cfg.HostID,
+		clusterName: cfg.ClusterName,
+		groupName:   cfg.GroupName,
+		accessPoint: cfg.AccessPoint,
+
+		log: cfg.Log,
+
+		getCertificate: cfg.GetCertificate,
+		getPool:        cfg.GetPool,
+		ciphersuites:   cfg.Ciphersuites,
+	}, nil
+}
+
+// Client is used to open tunnel connections to services that are connected with
+// relay tunnels to the local relay group, but don't have a tunnel available
+// locally, and thus require bouncing the connection to a different peer relay
+// in the same relay group. It implements the client side of the relay peer
+// dialing protocol, and connects to peer relays through the advertised peer
+// address in the relay_server heartbeats.
+type Client struct {
+	hostID      string
+	clusterName string
+	groupName   string
+	accessPoint ClientAccessPoint
+
+	log *slog.Logger
+
+	getCertificate func() (*tls.Certificate, error)
+	getPool        func() (*x509.CertPool, error)
+	ciphersuites   []uint16
 }
 
 // Dial will try to open a connection to a target host (in "<host id>.<cluster
@@ -64,31 +123,31 @@ type ClientConfig struct {
 // peer relay IDs in random order. The list is assumed to be owned by Dial and
 // will be shuffled in place. The returned connection will have the given source
 // (remote) and destination (local) addresses.
-func (c ClientConfig) Dial(ctx context.Context, dialTarget string, tunnelType types.TunnelType, relayIDs []string, src, dst net.Addr) (net.Conn, error) {
+func (c *Client) Dial(ctx context.Context, dialTarget string, tunnelType types.TunnelType, relayIDs []string, src, dst net.Addr) (net.Conn, error) {
 	// it's assumed that all peer relays are equivalent
 	for _, relayID := range utils.ShuffleVisit(relayIDs) {
-		if relayID == c.HostID {
+		if relayID == c.hostID {
 			continue
 		}
 		nc, err := c.dialRelay(ctx, dialTarget, tunnelType, relayID, src, dst)
 		if err == nil {
-			c.Log.DebugContext(ctx, "Successfully dialed through peer relay", "relay_id", relayID)
+			c.log.DebugContext(ctx, "Successfully dialed through peer relay", "relay_id", relayID)
 			return nc, nil
 		}
-		c.Log.DebugContext(ctx, "Failed to dial through peer relay", "relay_id", relayID, "error", err, "target", dialTarget)
+		c.log.DebugContext(ctx, "Failed to dial through peer relay", "relay_id", relayID, "error", err, "target", dialTarget)
 	}
 	return nil, trace.ConnectionProblem(nil, "unable to reach dial target through relay peering")
 }
 
 // dialRelay tries to open a connection to a target through a specific peer
 // relay.
-func (c ClientConfig) dialRelay(ctx context.Context, dialTarget string, tunnelType types.TunnelType, relayID string, src net.Addr, dst net.Addr) (net.Conn, error) {
-	relayServer, err := c.AccessPoint.GetRelayServer(ctx, relayID)
+func (c *Client) dialRelay(ctx context.Context, dialTarget string, tunnelType types.TunnelType, relayID string, src net.Addr, dst net.Addr) (net.Conn, error) {
+	relayServer, err := c.accessPoint.GetRelayServer(ctx, relayID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if relayServer.GetSpec().GetRelayGroup() != c.GroupName {
+	if relayServer.GetSpec().GetRelayGroup() != c.groupName {
 		return nil, trace.BadParameter("peer relay server belongs to different relay group")
 	}
 
@@ -97,11 +156,11 @@ func (c ClientConfig) dialRelay(ctx context.Context, dialTarget string, tunnelTy
 		return nil, trace.BadParameter("no peer addr in peer relay server")
 	}
 
-	cert, err := c.GetCertificate()
+	cert, err := c.getCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pool, err := c.GetPool()
+	pool, err := c.getPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,7 +216,7 @@ func (c ClientConfig) dialRelay(ctx context.Context, dialTarget string, tunnelTy
 				return trace.BadParameter("dialed server is not a relay (roles %+q, system roles %+q)", id.Groups, id.SystemRoles)
 			}
 
-			if id.Username != relayID+"."+c.ClusterName {
+			if id.Username != relayID+"."+c.clusterName {
 				return trace.BadParameter("dialed server is the wrong relay (expected %+q, got %+q)", relayID, id.Username)
 			}
 
@@ -167,7 +226,7 @@ func (c ClientConfig) dialRelay(ctx context.Context, dialTarget string, tunnelTy
 		NextProtos: []string{simpleALPN},
 		ServerName: serverName,
 
-		CipherSuites: c.Ciphersuites,
+		CipherSuites: c.ciphersuites,
 		MinVersion:   tls.VersionTLS12,
 	}
 	tc := tls.Client(nc, tlsConfig)
