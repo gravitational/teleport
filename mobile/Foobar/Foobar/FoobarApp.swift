@@ -27,9 +27,7 @@ struct FoobarApp: App {
   var body: some Scene {
     WindowGroup {
       ContentView(
-        viewModel: DeviceTrustViewModel(
-          client: Teleport_Devicetrust_V1_DeviceTrustServiceClient(client: client)
-        )
+        viewModel: DeviceTrustViewModel()
       )
     }
   }
