@@ -107,19 +107,9 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 			},
 		},
 		{
-			name:     "version equals (major)",
-			expTrue:  `equals(status.latest_heartbeat.version, "19")`,
-			expFalse: `equals(status.latest_heartbeat.version, "18")`,
-		},
-		{
-			name:     "version equals (minor)",
-			expTrue:  `equals(status.latest_heartbeat.version, "19.0")`,
-			expFalse: `equals(status.latest_heartbeat.version, "19.1")`,
-		},
-		{
-			name:     "version equals (patch)",
+			name:     "version equals",
 			expTrue:  `equals(status.latest_heartbeat.version, "19.0.1")`,
-			expFalse: `equals(status.latest_heartbeat.version, "19.0.2")`,
+			expFalse: `equals(status.latest_heartbeat.version, "19.0.2-rc.1+56001")`,
 		},
 		{
 			name:     "between versions - lower",

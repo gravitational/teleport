@@ -17,8 +17,6 @@
 package expression
 
 import (
-	"strings"
-
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
@@ -71,8 +69,8 @@ func NewBotInstanceExpressionParser() (*typical.Parser[*Environment, bool], erro
 	spec.Functions["less_than"] = typical.BinaryFunction[*Environment](semverLt)
 	// e.g. `between(status.latest_heartbeat.version, "19.0.0", "19.0.2")`
 	spec.Functions["between"] = typical.TernaryFunction[*Environment](semverBetween)
-	// e.g. `equals(status.latest_heartbeat.version, "19.1")`
-	spec.Functions["equals"] = typical.BinaryFunction[*Environment](fuzzyEquals)
+	// e.g. `equals(status.latest_heartbeat.version, "19.1.0")`
+	spec.Functions["equals"] = typical.BinaryFunction[*Environment](semverEq)
 
 	return typical.NewParser[*Environment, bool](spec)
 }
@@ -138,14 +136,4 @@ func toSemver(anyV any) (*semver.Version, error) {
 	default:
 		return nil, trace.BadParameter("type %T cannot be parsed as semver.Version", v)
 	}
-}
-
-// fuzzyEquals compares a semver.Version to the given string prefix. If the
-// version number starts with the given prefix then true is returned. If semver
-// is nil, false is returned.
-func fuzzyEquals(v *semver.Version, prefix string) (bool, error) {
-	if v == nil {
-		return false, nil
-	}
-	return strings.HasPrefix(v.String(), prefix), nil
 }
