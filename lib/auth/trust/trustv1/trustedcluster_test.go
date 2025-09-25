@@ -261,6 +261,43 @@ func TestTrustedClusterRBAC(t *testing.T) {
 				{types.KindTrustedCluster, types.VerbUpdate},
 			},
 		},
+		{
+			desc: "list ok",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.ListTrustedClusters(ctx, &trustpb.ListTrustedClustersRequest{})
+				require.NoError(t, err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindTrustedCluster, types.VerbRead}: true,
+						{types.KindTrustedCluster, types.VerbList}: true,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindTrustedCluster, types.VerbRead},
+				{types.KindTrustedCluster, types.VerbList},
+			},
+		},
+		{
+			desc: "list no access",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.ListTrustedClusters(ctx, &trustpb.ListTrustedClustersRequest{})
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindTrustedCluster, types.VerbList}: true,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindTrustedCluster, types.VerbRead},
+				{types.KindTrustedCluster, types.VerbList},
+			},
+		},
 	}
 
 	for _, test := range tests {
