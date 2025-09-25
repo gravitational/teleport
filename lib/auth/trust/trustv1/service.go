@@ -50,6 +50,8 @@ type authServer interface {
 	CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
 	// UpdateTrustedCluster updates a Trusted Cluster.
 	UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// ListTrustedClusters returns a page of Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 }
 
 // ServiceConfig holds configuration options for

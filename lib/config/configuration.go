@@ -3157,6 +3157,14 @@ func applyRelayConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.Relay.PeerListenAddr = peerListenAddr
 
+	if fc.Relay.PeerPublicAddr != "" {
+		_, _, err := net.SplitHostPort(fc.Relay.PeerPublicAddr)
+		if err != nil {
+			return trace.Wrap(err, "parsing relay_service.peer_public_addr")
+		}
+		cfg.Relay.PeerPublicAddr = fc.Relay.PeerPublicAddr
+	}
+
 	if fc.Relay.TunnelListenAddr == "" {
 		return trace.BadParameter("missing relay_service.tunnel_listen_addr")
 	}
