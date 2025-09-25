@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev"
+.version: &version "19.0.0-dev.rusttoolchainfile.6"
 
 name: teleport-kube-agent
 apiVersion: v2
