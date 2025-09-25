@@ -232,6 +232,8 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 	return sftputils.HandleFilelist(req, nil /* local filesystem */)
 }
 
+// RealPath canonicalizes a path name, including resolving ".." and
+// following symlinks. Required to implement [sftp.RealPathFileLister].
 func (s *sftpHandler) RealPath(path string) (string, error) {
 	return filepath.EvalSymlinks(path)
 }

@@ -161,7 +161,8 @@ type FileSystem interface {
 	Readlink(name string) (string, error)
 	// Getwd gets the current working directory.
 	Getwd() (string, error)
-
+	// RealPath canonicalizes a path name, including resolving ".." and
+	// following symlinks.
 	RealPath(path string) (string, error)
 }
 
@@ -569,6 +570,7 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 		return trace.Wrap(err)
 	}
 	if _, ok := visited[realSrcPath]; ok {
+		c.Log.DebugContext(ctx, "symlink loop detected, directory will be skipped", "link", srcPath, "target", realSrcPath)
 		return nil
 	}
 	visited[realSrcPath] = struct{}{}
