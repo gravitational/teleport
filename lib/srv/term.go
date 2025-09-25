@@ -718,13 +718,17 @@ func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
 	return trace.Wrap(t.session.WindowChange(ctx, h, w))
 }
 
-// prepareRemoteSession prepares the more session for execution.
+// prepareRemoteSession prepares the remote session with env vars provided by the forwarding server or client.
 func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *tracessh.Session, scx *ServerContext) {
 	envs := map[string]string{
 		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
 		teleport.SSHTeleportClusterName: scx.ClusterName,
 		teleport.SSHSessionID:           scx.SessionID(),
+	}
+
+	if scx.GetSessionParams().WebProxyAddr != "" {
+		envs[teleport.SSHSessionWebProxyAddr] = scx.GetSessionParams().WebProxyAddr
 	}
 
 	if err := session.SetEnvs(ctx, envs); err != nil {

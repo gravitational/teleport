@@ -1209,7 +1209,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				)
 				assert.NoError(t, err)
 
-				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
+				errCh <- nodeClient.RunInteractiveShell(ctx, "", "", nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
 
@@ -7948,7 +7948,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	})
 
 	peerSSH := peerNodeClient.Client
-	peerSess, err := peerSSH.NewSession(ctx)
+	peerSess, err := peerSSH.NewSession(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, peerSess.Close())
@@ -8004,7 +8004,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		ProxyPublicAddr: modTC.WebProxyAddr,
 	}
 
-	modSess, err := modNodeCli.Client.NewSession(ctx)
+	modSess, err := modNodeCli.Client.NewSession(ctx, nil)
 	require.NoError(t, err)
 	err = modSess.Setenv(ctx, sshutils.SessionEnvVar, sessTracker.GetSessionID())
 	require.NoError(t, err)
@@ -8048,13 +8048,13 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	// Test that only operations needed to complete the download
 	// are allowed
-	transferSess, err := peerSSH.NewSession(ctx)
+	transferSess, err := peerSSH.NewSession(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		isNilOrEOFErr(t, transferSess.Close())
 	})
 
-	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+	err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
 	require.NoError(t, err)
 
 	err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
@@ -8110,13 +8110,13 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	sshRquestIgnoringKeepalives(t, modSSHReqs)
 
 	isNilOrEOFErr(t, transferSess.Close())
-	transferSess, err = peerSSH.NewSession(ctx)
+	transferSess, err = peerSSH.NewSession(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, transferSess.Close())
 	})
 
-	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+	err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
 	require.NoError(t, err)
 
 	// Test that only operations needed to complete the download
