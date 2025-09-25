@@ -71,7 +71,7 @@ func NewBotInstanceExpressionParser() (*typical.Parser[*Environment, bool], erro
 	spec.Functions["less_than"] = typical.BinaryFunction[*Environment](semverLt)
 	// e.g. `between(status.latest_heartbeat.version, "19.0.0", "19.0.2")`
 	spec.Functions["between"] = typical.TernaryFunction[*Environment](semverBetween)
-	// e.g. `status.latest_heartbeat.version.equals("19.1")`
+	// e.g. `equals(status.latest_heartbeat.version, "19.1")`
 	spec.Functions["equals"] = typical.BinaryFunction[*Environment](fuzzyEquals)
 
 	return typical.NewParser[*Environment, bool](spec)
