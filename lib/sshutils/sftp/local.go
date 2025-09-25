@@ -144,5 +144,12 @@ func (l localFS) Getwd() (string, error) {
 }
 
 func (l localFS) RealPath(path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		wd, err := l.Getwd()
+		if err != nil {
+			return "", err
+		}
+		path = filepath.Join(wd, path)
+	}
 	return filepath.EvalSymlinks(path)
 }

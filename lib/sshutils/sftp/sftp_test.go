@@ -648,9 +648,9 @@ func (m *mockFS) Open(path string) (File, error) {
 }
 
 func TestRecursiveSymlinks(t *testing.T) {
-	t.Parallel()
 	// Create files and symlinks.
 	root := t.TempDir()
+	t.Chdir(root)
 	srcDir := filepath.Join(root, "a")
 	createDir(t, filepath.Join(srcDir, "b/c"))
 	fileA := "a/a.txt"
@@ -662,31 +662,52 @@ func TestRecursiveSymlinks(t *testing.T) {
 	require.NoError(t, os.Symlink(srcDir, filepath.Join(srcDir, "abs_link")))
 	require.NoError(t, os.Symlink("..", filepath.Join(srcDir, "b/rel_link")))
 
-	// Perform the transfer.
-	dstDir := filepath.Join(root, "dst")
-	cfg, err := CreateDownloadConfig(srcDir, dstDir, Options{Recursive: true})
-	require.NoError(t, err)
-	// use all local filesystems to avoid SSH overhead
-	srcFS := &mockFS{fileAccesses: make(map[string]int)}
-	cfg.srcFS = srcFS
-	require.NoError(t, cfg.initFS(nil))
-	require.NoError(t, cfg.transfer(t.Context()))
+	tests := []struct {
+		name   string
+		srcDir string
+	}{
+		{
+			name:   "absolute",
+			srcDir: srcDir,
+		},
+		{
+			name:   "relative",
+			srcDir: filepath.Base(srcDir),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Perform the transfer.
+			dstDir := filepath.Join(root, "dst")
+			t.Cleanup(func() { os.RemoveAll(dstDir) })
 
-	// Check results. Don't use checkTransfer() as the directories will not have
-	// matching sizes (the symlinks that aren't copied over).
-	for _, file := range []string{fileA, fileB, fileC} {
-		srcFile, err := filepath.EvalSymlinks(filepath.Join(root, file))
-		require.NoError(t, err)
-		srcInfo, err := os.Stat(srcFile)
-		require.NoError(t, err)
-		dstFile, err := filepath.EvalSymlinks(filepath.Join(dstDir, file))
-		require.NoError(t, err)
-		dstInfo, err := os.Stat(dstFile)
-		require.NoError(t, err)
-		compareFiles(t, false, dstInfo, srcInfo, dstFile, srcFile)
-		// Check that the file was only opened once.
-		accesses := srcFS.fileAccesses[srcFile]
-		require.Equal(t, 1, accesses, "file %q was opened %d times", srcFile, accesses)
+			cfg, err := CreateDownloadConfig(tc.srcDir, dstDir, Options{Recursive: true})
+			require.NoError(t, err)
+			// use all local filesystems to avoid SSH overhead
+			srcFS := &mockFS{fileAccesses: make(map[string]int)}
+			cfg.srcFS = srcFS
+			require.NoError(t, cfg.initFS(nil))
+			require.NoError(t, cfg.transfer(t.Context()))
+
+			fmt.Println(srcFS.fileAccesses)
+
+			// Check results. Don't use checkTransfer() as the directories will not have
+			// matching sizes (the symlinks that aren't copied over).
+			for _, file := range []string{fileA, fileB, fileC} {
+				srcFile, err := filepath.EvalSymlinks(filepath.Join(filepath.Dir(tc.srcDir), file))
+				require.NoError(t, err)
+				srcInfo, err := os.Stat(srcFile)
+				require.NoError(t, err)
+				dstFile, err := filepath.EvalSymlinks(filepath.Join(dstDir, file))
+				require.NoError(t, err)
+				dstInfo, err := os.Stat(dstFile)
+				require.NoError(t, err)
+				compareFiles(t, false, dstInfo, srcInfo, dstFile, srcFile)
+				// Check that the file was only opened once.
+				accesses := srcFS.fileAccesses[srcFile]
+				require.Equal(t, 1, accesses, "file %q was opened %d times", srcFile, accesses)
+			}
+		})
 	}
 }
 
