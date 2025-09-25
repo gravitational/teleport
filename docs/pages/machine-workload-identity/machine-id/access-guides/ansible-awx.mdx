@@ -68,6 +68,10 @@ $ kubectl get --raw /openid/v1/jwks
 {"keys":[--snip--]}
 ```
 
+These keys will allow Teleport to verify that a bot trying to authenticate is
+using a JWT signed by your trusted Kubernetes cluster. Keep this value available
+for the next step.
+
 Next, create `awx-bot-resources.yaml` with the following content containing the
 three resources described above:
 ```yaml
