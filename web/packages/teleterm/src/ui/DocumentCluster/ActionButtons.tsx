@@ -210,30 +210,12 @@ export function ConnectDatabaseActionButton(props: {
 }): React.JSX.Element {
   const appContext = useAppContext();
 
-    function adjustDbUser(
-        dbUser: string,
-        protocol: string,
-        gcpProjectId?: string | null
-    ): string {
-        const user = dbUser?.trim();
-        if (!user) return user;
-        if (protocol !== 'postgres') return user;
-        if (!gcpProjectId) return user; // use gcpProjectId as the GCP-hosted check
-        if (user.includes('@')) return user;
-
-        const updated = `${user}@${gcpProjectId}.iam`;
-        return updated;
-    }
-
-
     function connect(dbUser: string): void {
     const { uri, name, protocol, gcpProjectId } = props.database;
 
-    const adjustedUser = adjustDbUser(dbUser, protocol, gcpProjectId);
-
     connectToDatabase(
       appContext,
-      { uri, name, protocol, dbUser: adjustedUser },
+      { uri, name, protocol, dbUser, gcpProjectId },
       { origin: 'resource_table' }
     );
   }
