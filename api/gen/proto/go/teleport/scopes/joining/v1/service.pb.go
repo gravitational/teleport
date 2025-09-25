@@ -131,14 +131,18 @@ func (x *GetScopedTokenResponse) GetToken() *ScopedToken {
 // ListScopedTokensRequest is the request to list scoped tokens.
 type ListScopedTokensRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// ResourceScope filters tokens by their resource scope if specified.
+	// Filter tokens by their resource scope.
 	ResourceScope *v1.Filter `protobuf:"bytes,1,opt,name=resource_scope,json=resourceScope,proto3" json:"resource_scope,omitempty"`
-	// AssignedScope filters tokens by their assigned scope if specified.
+	// Filter tokens by their assigned scope.
 	AssignedScope *v1.Filter `protobuf:"bytes,2,opt,name=assigned_scope,json=assignedScope,proto3" json:"assigned_scope,omitempty"`
-	// Cursor is the pagination cursor.
+	// The pagination cursor.
 	Cursor string `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
-	// Limit is the maximum number of results to return.
-	Limit         uint32 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	// The maximum number of results to return.
+	Limit uint32 `protobuf:"varint,4,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Filter tokens that apply at least one of the provided roles.
+	Roles []string `protobuf:"bytes,5,rep,name=roles,proto3" json:"roles,omitempty"`
+	// Filter tokens that match all provided labels.
+	Labels        map[string]string `protobuf:"bytes,6,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -199,6 +203,20 @@ func (x *ListScopedTokensRequest) GetLimit() uint32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ListScopedTokensRequest) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *ListScopedTokensRequest) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
 }
 
 // ListScopedTokensResponse is the response to list scoped tokens.
@@ -540,12 +558,17 @@ const file_teleport_scopes_joining_v1_service_proto_rawDesc = "" +
 	"\x15GetScopedTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"W\n" +
 	"\x16GetScopedTokenResponse\x12=\n" +
-	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"\xcd\x01\n" +
+	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"\xf7\x02\n" +
 	"\x17ListScopedTokensRequest\x12A\n" +
 	"\x0eresource_scope\x18\x01 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rresourceScope\x12A\n" +
 	"\x0eassigned_scope\x18\x02 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rassignedScope\x12\x16\n" +
 	"\x06cursor\x18\x03 \x01(\tR\x06cursor\x12\x14\n" +
-	"\x05limit\x18\x04 \x01(\rR\x05limit\"s\n" +
+	"\x05limit\x18\x04 \x01(\rR\x05limit\x12\x14\n" +
+	"\x05roles\x18\x05 \x03(\tR\x05roles\x12W\n" +
+	"\x06labels\x18\x06 \x03(\v2?.teleport.scopes.joining.v1.ListScopedTokensRequest.LabelsEntryR\x06labels\x1a9\n" +
+	"\vLabelsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"s\n" +
 	"\x18ListScopedTokensResponse\x12?\n" +
 	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokens\x12\x16\n" +
 	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"Y\n" +
@@ -580,7 +603,7 @@ func file_teleport_scopes_joining_v1_service_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_joining_v1_service_proto_rawDescData
 }
 
-var file_teleport_scopes_joining_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_scopes_joining_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_teleport_scopes_joining_v1_service_proto_goTypes = []any{
 	(*GetScopedTokenRequest)(nil),     // 0: teleport.scopes.joining.v1.GetScopedTokenRequest
 	(*GetScopedTokenResponse)(nil),    // 1: teleport.scopes.joining.v1.GetScopedTokenResponse
@@ -592,33 +615,35 @@ var file_teleport_scopes_joining_v1_service_proto_goTypes = []any{
 	(*UpdateScopedTokenResponse)(nil), // 7: teleport.scopes.joining.v1.UpdateScopedTokenResponse
 	(*DeleteScopedTokenRequest)(nil),  // 8: teleport.scopes.joining.v1.DeleteScopedTokenRequest
 	(*DeleteScopedTokenResponse)(nil), // 9: teleport.scopes.joining.v1.DeleteScopedTokenResponse
-	(*ScopedToken)(nil),               // 10: teleport.scopes.joining.v1.ScopedToken
-	(*v1.Filter)(nil),                 // 11: teleport.scopes.v1.Filter
+	nil,                               // 10: teleport.scopes.joining.v1.ListScopedTokensRequest.LabelsEntry
+	(*ScopedToken)(nil),               // 11: teleport.scopes.joining.v1.ScopedToken
+	(*v1.Filter)(nil),                 // 12: teleport.scopes.v1.Filter
 }
 var file_teleport_scopes_joining_v1_service_proto_depIdxs = []int32{
-	10, // 0: teleport.scopes.joining.v1.GetScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
-	11, // 1: teleport.scopes.joining.v1.ListScopedTokensRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
-	11, // 2: teleport.scopes.joining.v1.ListScopedTokensRequest.assigned_scope:type_name -> teleport.scopes.v1.Filter
-	10, // 3: teleport.scopes.joining.v1.ListScopedTokensResponse.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
-	10, // 4: teleport.scopes.joining.v1.CreateScopedTokenRequest.token:type_name -> teleport.scopes.joining.v1.ScopedToken
-	10, // 5: teleport.scopes.joining.v1.CreateScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
-	10, // 6: teleport.scopes.joining.v1.UpdateScopedTokenRequest.token:type_name -> teleport.scopes.joining.v1.ScopedToken
-	10, // 7: teleport.scopes.joining.v1.UpdateScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
-	0,  // 8: teleport.scopes.joining.v1.ScopedJoiningService.GetScopedToken:input_type -> teleport.scopes.joining.v1.GetScopedTokenRequest
-	2,  // 9: teleport.scopes.joining.v1.ScopedJoiningService.ListScopedTokens:input_type -> teleport.scopes.joining.v1.ListScopedTokensRequest
-	4,  // 10: teleport.scopes.joining.v1.ScopedJoiningService.CreateScopedToken:input_type -> teleport.scopes.joining.v1.CreateScopedTokenRequest
-	6,  // 11: teleport.scopes.joining.v1.ScopedJoiningService.UpdateScopedToken:input_type -> teleport.scopes.joining.v1.UpdateScopedTokenRequest
-	8,  // 12: teleport.scopes.joining.v1.ScopedJoiningService.DeleteScopedToken:input_type -> teleport.scopes.joining.v1.DeleteScopedTokenRequest
-	1,  // 13: teleport.scopes.joining.v1.ScopedJoiningService.GetScopedToken:output_type -> teleport.scopes.joining.v1.GetScopedTokenResponse
-	3,  // 14: teleport.scopes.joining.v1.ScopedJoiningService.ListScopedTokens:output_type -> teleport.scopes.joining.v1.ListScopedTokensResponse
-	5,  // 15: teleport.scopes.joining.v1.ScopedJoiningService.CreateScopedToken:output_type -> teleport.scopes.joining.v1.CreateScopedTokenResponse
-	7,  // 16: teleport.scopes.joining.v1.ScopedJoiningService.UpdateScopedToken:output_type -> teleport.scopes.joining.v1.UpdateScopedTokenResponse
-	9,  // 17: teleport.scopes.joining.v1.ScopedJoiningService.DeleteScopedToken:output_type -> teleport.scopes.joining.v1.DeleteScopedTokenResponse
-	13, // [13:18] is the sub-list for method output_type
-	8,  // [8:13] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	11, // 0: teleport.scopes.joining.v1.GetScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
+	12, // 1: teleport.scopes.joining.v1.ListScopedTokensRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
+	12, // 2: teleport.scopes.joining.v1.ListScopedTokensRequest.assigned_scope:type_name -> teleport.scopes.v1.Filter
+	10, // 3: teleport.scopes.joining.v1.ListScopedTokensRequest.labels:type_name -> teleport.scopes.joining.v1.ListScopedTokensRequest.LabelsEntry
+	11, // 4: teleport.scopes.joining.v1.ListScopedTokensResponse.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	11, // 5: teleport.scopes.joining.v1.CreateScopedTokenRequest.token:type_name -> teleport.scopes.joining.v1.ScopedToken
+	11, // 6: teleport.scopes.joining.v1.CreateScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
+	11, // 7: teleport.scopes.joining.v1.UpdateScopedTokenRequest.token:type_name -> teleport.scopes.joining.v1.ScopedToken
+	11, // 8: teleport.scopes.joining.v1.UpdateScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
+	0,  // 9: teleport.scopes.joining.v1.ScopedJoiningService.GetScopedToken:input_type -> teleport.scopes.joining.v1.GetScopedTokenRequest
+	2,  // 10: teleport.scopes.joining.v1.ScopedJoiningService.ListScopedTokens:input_type -> teleport.scopes.joining.v1.ListScopedTokensRequest
+	4,  // 11: teleport.scopes.joining.v1.ScopedJoiningService.CreateScopedToken:input_type -> teleport.scopes.joining.v1.CreateScopedTokenRequest
+	6,  // 12: teleport.scopes.joining.v1.ScopedJoiningService.UpdateScopedToken:input_type -> teleport.scopes.joining.v1.UpdateScopedTokenRequest
+	8,  // 13: teleport.scopes.joining.v1.ScopedJoiningService.DeleteScopedToken:input_type -> teleport.scopes.joining.v1.DeleteScopedTokenRequest
+	1,  // 14: teleport.scopes.joining.v1.ScopedJoiningService.GetScopedToken:output_type -> teleport.scopes.joining.v1.GetScopedTokenResponse
+	3,  // 15: teleport.scopes.joining.v1.ScopedJoiningService.ListScopedTokens:output_type -> teleport.scopes.joining.v1.ListScopedTokensResponse
+	5,  // 16: teleport.scopes.joining.v1.ScopedJoiningService.CreateScopedToken:output_type -> teleport.scopes.joining.v1.CreateScopedTokenResponse
+	7,  // 17: teleport.scopes.joining.v1.ScopedJoiningService.UpdateScopedToken:output_type -> teleport.scopes.joining.v1.UpdateScopedTokenResponse
+	9,  // 18: teleport.scopes.joining.v1.ScopedJoiningService.DeleteScopedToken:output_type -> teleport.scopes.joining.v1.DeleteScopedTokenResponse
+	14, // [14:19] is the sub-list for method output_type
+	9,  // [9:14] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_service_proto_init() }
@@ -633,7 +658,7 @@ func file_teleport_scopes_joining_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_service_proto_rawDesc), len(file_teleport_scopes_joining_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
