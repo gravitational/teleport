@@ -57,9 +57,9 @@ export function BotInstancesList({
 } & Omit<FetchingConfig, 'onFetchMore'>) {
   const tableData = data.map(x => ({
     ...x,
-    hostnameDisplay: x.host_name_latest ?? '-',
+    host_name_latest: x.host_name_latest ?? '-',
     instanceIdDisplay: x.instance_id.substring(0, 7),
-    versionDisplay: x.version_latest ? `v${x.version_latest}` : '-',
+    version_latest: x.version_latest ? `v${x.version_latest}` : '-',
     active_at_latest: x.active_at_latest
       ? `${formatDistanceToNowStrict(parseISO(x.active_at_latest))} ago`
       : '-',
@@ -124,14 +124,14 @@ export function BotInstancesList({
             ),
         },
         {
-          key: 'hostnameDisplay',
+          key: 'host_name_latest',
           headerText: 'Hostname',
-          isSortable: false,
+          isSortable: true,
         },
         {
-          key: 'versionDisplay',
+          key: 'version_latest',
           headerText: 'Version (tbot)',
-          isSortable: false,
+          isSortable: true,
         },
         {
           key: 'active_at_latest',

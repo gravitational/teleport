@@ -242,10 +242,8 @@ func (r *AutoUpdateVersionReporter) generateReport(ctx context.Context) error {
 		)
 		instances, nextToken, err = r.cache.ListBotInstances(
 			ctx,
-			"",
 			defaults.DefaultChunkSize,
 			nextToken,
-			"",
 			nil,
 		)
 		if err != nil {
