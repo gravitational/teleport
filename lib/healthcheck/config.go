@@ -33,12 +33,13 @@ import (
 // healthCheckConfig is an internal health check config type converted from a
 // [*healthcheckconfigv1.HealthCheckConfig] with defaults set.
 type healthCheckConfig struct {
-	name                  string
-	interval              time.Duration
-	timeout               time.Duration
-	healthyThreshold      uint32
-	unhealthyThreshold    uint32
-	databaseLabelMatchers types.LabelMatchers
+	name                    string
+	interval                time.Duration
+	timeout                 time.Duration
+	healthyThreshold        uint32
+	unhealthyThreshold      uint32
+	databaseLabelMatchers   types.LabelMatchers
+	kubernetesLabelMatchers types.LabelMatchers
 }
 
 // newHealthCheckConfig converts a health check config protobuf message into a
@@ -47,12 +48,13 @@ func newHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) *healthChe
 	spec := cfg.GetSpec()
 	match := spec.GetMatch()
 	return &healthCheckConfig{
-		name:                  cfg.GetMetadata().GetName(),
-		timeout:               cmp.Or(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
-		interval:              cmp.Or(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
-		healthyThreshold:      cmp.Or(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
-		unhealthyThreshold:    cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
-		databaseLabelMatchers: newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
+		name:                    cfg.GetMetadata().GetName(),
+		timeout:                 cmp.Or(spec.GetTimeout().AsDuration(), defaults.HealthCheckTimeout),
+		interval:                cmp.Or(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
+		healthyThreshold:        cmp.Or(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
+		unhealthyThreshold:      cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
+		databaseLabelMatchers:   newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
+		kubernetesLabelMatchers: newLabelMatchers(match.GetKubernetesLabelsExpression(), match.GetKubernetesLabels()),
 	}
 }
 
@@ -74,6 +76,8 @@ func (h *healthCheckConfig) getLabelMatchers(kind string) types.LabelMatchers {
 	switch kind {
 	case types.KindDatabase:
 		return h.databaseLabelMatchers
+	case types.KindKubernetesCluster:
+		return h.kubernetesLabelMatchers
 	}
 	// unreachable since we enforce a list of supported target resource kinds,
 	// but empty matchers do the right thing anyway: don't match anything.
