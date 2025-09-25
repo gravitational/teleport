@@ -34,7 +34,8 @@ should match the snapshot (argocd):
           join_method: kubernetes
           token: my-token
         outputs:
-        - cluster_resources: true
+        - cluster_name_template: '{{.KubeName}}'
+          cluster_resources: true
           namespaces:
           - dev
           - prod
