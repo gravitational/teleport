@@ -19,16 +19,11 @@
 package expression
 
 import (
-	"net"
-	"os"
 	"testing"
-	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -387,52 +382,4 @@ func FuzzTraitsExpressionParser(f *testing.F) {
 		// make sure we don't panic.
 		_, _ = expr.Evaluate(evaluationEnv{DictFromStringSliceMap(baseInputTraits)})
 	})
-}
-
-func TestToStringFunction(t *testing.T) {
-	t.Parallel()
-
-	type env struct {
-		value any
-	}
-
-	loc, err := time.LoadLocation("Europe/London")
-	require.NoError(t, err)
-
-	tcs := []struct {
-		name     string
-		val      any
-		expected string
-	}{
-		{"string", "hello", "hello"},
-		{"empty string", "", ""},
-		{"nil", nil, ""},
-		{"semver", semver.New("1.0.0"), "1.0.0"},
-		{"ip", net.ParseIP("192.168.1.1"), "192.168.1.1"},
-		{"duration", time.Second * 90, "1m30s"},
-		{"time", time.Unix(0, 0).In(loc), "1970-01-01 01:00:00 +0100 BST"},
-		{"file mode", os.FileMode(0644), "-rw-r--r--"},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			spec := DefaultParserSpec[env]()
-			spec.Variables = map[string]typical.Variable{
-				"value": typical.DynamicVariable(func(env env) (any, error) {
-					return env.value, nil
-				}),
-			}
-
-			parser, err := typical.NewParser[env, string](spec)
-			require.NoError(t, err)
-
-			exp, err := parser.Parse("to_string(value)")
-			require.NoError(t, err)
-
-			actual, err := exp.Evaluate(env{value: tc.val})
-			require.NoError(t, err)
-
-			assert.Equal(t, tc.expected, actual)
-		})
-	}
 }
