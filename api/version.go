@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "17.8.0-dev.mcpauth.0"
+const Version = "17.8.0-dev.mcpauth.1"
 
 const VersionMajor = 17
 const VersionMinor = 8
 const VersionPatch = 0
-const VersionPreRelease = "dev.mcpauth.0"
+const VersionPreRelease = "dev.mcpauth.1"
 const VersionMetadata = ""

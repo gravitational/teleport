@@ -1,4 +1,4 @@
-.version: &version "17.8.0-dev.mcpauth.0"
+.version: &version "17.8.0-dev.mcpauth.1"
 
 apiVersion: v2
 name: teleport-plugin-msteams
