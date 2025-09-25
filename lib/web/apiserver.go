@@ -102,7 +102,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -832,7 +831,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sessions/web/renew", h.WithAuth(h.renewWebSession))
 	h.POST("/webapi/users", h.WithAuth(h.createUserHandle))
 	h.PUT("/webapi/users", h.WithAuth(h.updateUserHandle))
+	// TODO(rudream): DELETE IN V21.0.0
+	// MUST delete with related code found in web/packages/teleport/src/services/user/user.ts(fetchUsers)
 	h.GET("/webapi/users", h.WithAuth(h.getUsersHandle))
+	// The v2 version of this endpoint is paginated.
+	h.GET("/v2/webapi/users", h.WithAuth(h.listUsersHandle))
 	h.DELETE("/webapi/users/:username", h.WithAuth(h.deleteUserHandle))
 
 	// We have an overlap route here, please see godoc of handleGetUserOrResetToken
@@ -1003,6 +1006,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
+	h.GET("/webapi/requestableroles", h.WithAuth(h.listRequestableRolesHandle))
 	h.GET("/webapi/presetroles", h.WithUnauthenticatedHighLimiter(h.getPresetRoles))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
@@ -1181,6 +1185,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/machine-id/bot/:name/bot-instance/:id", h.WithClusterAuth(h.getBotInstance))
 	// GET Machine ID bot instances (paged)
 	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
+
+	// List workload identities
+	h.GET("/webapi/sites/:site/workload-identity", h.WithClusterAuth(h.listWorkloadIdentities))
 
 	// GET a paginated list of notifications for a user
 	h.GET("/webapi/sites/:site/notifications", h.WithClusterAuth(h.notificationsGet))
@@ -3110,29 +3117,6 @@ type loginGetter interface {
 	GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error)
 }
 
-// calculateSSHLogins returns the subset of the allowedLogins that exist in
-// the principals of the identity. This is required because SSH authorization
-// only allows using a login that exists in the certificates valid principals.
-// When connecting to servers in a leaf cluster, the root certificate is used,
-// so we need to ensure that we only present the allowed logins that would
-// result in a successful connection, if any exists.
-func calculateSSHLogins(identity *tlsca.Identity, allowedLogins []string) ([]string, error) {
-	allowed := make(map[string]struct{})
-	for _, login := range allowedLogins {
-		allowed[login] = struct{}{}
-	}
-
-	var logins []string
-	for _, local := range identity.Principals {
-		if _, ok := allowed[local]; ok {
-			logins = append(logins, local)
-		}
-	}
-
-	slices.Sort(logins)
-	return logins, nil
-}
-
 // calculateAppLogins determines the app logins allowed for the provided
 // resource.
 //
@@ -3213,7 +3197,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		case types.Server:
 			switch enriched.GetKind() {
 			case types.KindNode:
-				logins, err := calculateSSHLogins(identity, enriched.Logins)
+				logins, err := client.CalculateSSHLogins(identity.Principals, enriched.Logins)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -3341,7 +3325,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 			continue
 		}
 
-		logins, err := calculateSSHLogins(identity, resource.Logins)
+		logins, err := client.CalculateSSHLogins(identity.Principals, resource.Logins)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

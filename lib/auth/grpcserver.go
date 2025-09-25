@@ -1073,6 +1073,18 @@ func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.Acces
 	return caps, nil
 }
 
+func (g *GRPCServer) GetRemoteAccessCapabilities(ctx context.Context, req *types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caps, err := auth.ServerWithRoles.GetRemoteAccessCapabilities(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *authpb.CreateResetPasswordTokenRequest) (*types.UserTokenV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2130,6 +2142,21 @@ func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest
 		downgradedRoles = append(downgradedRoles, downgraded)
 	}
 	rsp.Roles = downgradedRoles
+
+	return rsp, nil
+}
+
+// ListRequestableRoles is a paginated requestable role getter.
+func (g *GRPCServer) ListRequestableRoles(ctx context.Context, req *authpb.ListRequestableRolesRequest) (*authpb.ListRequestableRolesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ServerWithRoles.ListRequestableRoles(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return rsp, nil
 }

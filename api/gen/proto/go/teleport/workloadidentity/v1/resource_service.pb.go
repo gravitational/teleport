@@ -322,6 +322,89 @@ func (x *ListWorkloadIdentitiesRequest) GetPageToken() string {
 	return ""
 }
 
+// The request for ListWorkloadIdentitiesV2.
+type ListWorkloadIdentitiesV2Request struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// The page_token value returned from a previous ListWorkloadIdentities request, if any.
+	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// The sort field to use for the results. If empty, the default sort field is used.
+	SortField string `protobuf:"bytes,3,opt,name=sort_field,json=sortField,proto3" json:"sort_field,omitempty"`
+	// The sort order to use for the results. If empty, the default sort order is used.
+	SortDesc bool `protobuf:"varint,4,opt,name=sort_desc,json=sortDesc,proto3" json:"sort_desc,omitempty"`
+	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
+	FilterSearchTerm string `protobuf:"bytes,5,opt,name=filter_search_term,json=filterSearchTerm,proto3" json:"filter_search_term,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ListWorkloadIdentitiesV2Request) Reset() {
+	*x = ListWorkloadIdentitiesV2Request{}
+	mi := &file_teleport_workloadidentity_v1_resource_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListWorkloadIdentitiesV2Request) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListWorkloadIdentitiesV2Request) ProtoMessage() {}
+
+func (x *ListWorkloadIdentitiesV2Request) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_resource_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListWorkloadIdentitiesV2Request.ProtoReflect.Descriptor instead.
+func (*ListWorkloadIdentitiesV2Request) Descriptor() ([]byte, []int) {
+	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListWorkloadIdentitiesV2Request) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListWorkloadIdentitiesV2Request) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListWorkloadIdentitiesV2Request) GetSortField() string {
+	if x != nil {
+		return x.SortField
+	}
+	return ""
+}
+
+func (x *ListWorkloadIdentitiesV2Request) GetSortDesc() bool {
+	if x != nil {
+		return x.SortDesc
+	}
+	return false
+}
+
+func (x *ListWorkloadIdentitiesV2Request) GetFilterSearchTerm() string {
+	if x != nil {
+		return x.FilterSearchTerm
+	}
+	return ""
+}
+
 // The response for ListWorkloadIdentities.
 type ListWorkloadIdentitiesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -336,7 +419,7 @@ type ListWorkloadIdentitiesResponse struct {
 
 func (x *ListWorkloadIdentitiesResponse) Reset() {
 	*x = ListWorkloadIdentitiesResponse{}
-	mi := &file_teleport_workloadidentity_v1_resource_service_proto_msgTypes[6]
+	mi := &file_teleport_workloadidentity_v1_resource_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -348,7 +431,7 @@ func (x *ListWorkloadIdentitiesResponse) String() string {
 func (*ListWorkloadIdentitiesResponse) ProtoMessage() {}
 
 func (x *ListWorkloadIdentitiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_workloadidentity_v1_resource_service_proto_msgTypes[6]
+	mi := &file_teleport_workloadidentity_v1_resource_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -361,7 +444,7 @@ func (x *ListWorkloadIdentitiesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWorkloadIdentitiesResponse.ProtoReflect.Descriptor instead.
 func (*ListWorkloadIdentitiesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{6}
+	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListWorkloadIdentitiesResponse) GetWorkloadIdentities() []*WorkloadIdentity {
@@ -396,17 +479,26 @@ const file_teleport_workloadidentity_v1_resource_service_proto_rawDesc = "" +
 	"\x1dListWorkloadIdentitiesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\xa9\x01\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"\xc7\x01\n" +
+	"\x1fListWorkloadIdentitiesV2Request\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1d\n" +
+	"\n" +
+	"sort_field\x18\x03 \x01(\tR\tsortField\x12\x1b\n" +
+	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12,\n" +
+	"\x12filter_search_term\x18\x05 \x01(\tR\x10filterSearchTerm\"\xa9\x01\n" +
 	"\x1eListWorkloadIdentitiesResponse\x12_\n" +
 	"\x13workload_identities\x18\x01 \x03(\v2..teleport.workloadidentity.v1.WorkloadIdentityR\x12workloadIdentities\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xbf\x06\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xd9\a\n" +
 	"\x1fWorkloadIdentityResourceService\x12\x85\x01\n" +
 	"\x16CreateWorkloadIdentity\x12;.teleport.workloadidentity.v1.CreateWorkloadIdentityRequest\x1a..teleport.workloadidentity.v1.WorkloadIdentity\x12\x85\x01\n" +
 	"\x16UpdateWorkloadIdentity\x12;.teleport.workloadidentity.v1.UpdateWorkloadIdentityRequest\x1a..teleport.workloadidentity.v1.WorkloadIdentity\x12\x85\x01\n" +
 	"\x16UpsertWorkloadIdentity\x12;.teleport.workloadidentity.v1.UpsertWorkloadIdentityRequest\x1a..teleport.workloadidentity.v1.WorkloadIdentity\x12\x7f\n" +
 	"\x13GetWorkloadIdentity\x128.teleport.workloadidentity.v1.GetWorkloadIdentityRequest\x1a..teleport.workloadidentity.v1.WorkloadIdentity\x12m\n" +
 	"\x16DeleteWorkloadIdentity\x12;.teleport.workloadidentity.v1.DeleteWorkloadIdentityRequest\x1a\x16.google.protobuf.Empty\x12\x93\x01\n" +
-	"\x16ListWorkloadIdentities\x12;.teleport.workloadidentity.v1.ListWorkloadIdentitiesRequest\x1a<.teleport.workloadidentity.v1.ListWorkloadIdentitiesResponseBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
+	"\x16ListWorkloadIdentities\x12;.teleport.workloadidentity.v1.ListWorkloadIdentitiesRequest\x1a<.teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse\x12\x97\x01\n" +
+	"\x18ListWorkloadIdentitiesV2\x12=.teleport.workloadidentity.v1.ListWorkloadIdentitiesV2Request\x1a<.teleport.workloadidentity.v1.ListWorkloadIdentitiesResponseBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
 var (
 	file_teleport_workloadidentity_v1_resource_service_proto_rawDescOnce sync.Once
@@ -420,37 +512,40 @@ func file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP() []by
 	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescData
 }
 
-var file_teleport_workloadidentity_v1_resource_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_workloadidentity_v1_resource_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_workloadidentity_v1_resource_service_proto_goTypes = []any{
-	(*CreateWorkloadIdentityRequest)(nil),  // 0: teleport.workloadidentity.v1.CreateWorkloadIdentityRequest
-	(*UpdateWorkloadIdentityRequest)(nil),  // 1: teleport.workloadidentity.v1.UpdateWorkloadIdentityRequest
-	(*UpsertWorkloadIdentityRequest)(nil),  // 2: teleport.workloadidentity.v1.UpsertWorkloadIdentityRequest
-	(*GetWorkloadIdentityRequest)(nil),     // 3: teleport.workloadidentity.v1.GetWorkloadIdentityRequest
-	(*DeleteWorkloadIdentityRequest)(nil),  // 4: teleport.workloadidentity.v1.DeleteWorkloadIdentityRequest
-	(*ListWorkloadIdentitiesRequest)(nil),  // 5: teleport.workloadidentity.v1.ListWorkloadIdentitiesRequest
-	(*ListWorkloadIdentitiesResponse)(nil), // 6: teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
-	(*WorkloadIdentity)(nil),               // 7: teleport.workloadidentity.v1.WorkloadIdentity
-	(*emptypb.Empty)(nil),                  // 8: google.protobuf.Empty
+	(*CreateWorkloadIdentityRequest)(nil),   // 0: teleport.workloadidentity.v1.CreateWorkloadIdentityRequest
+	(*UpdateWorkloadIdentityRequest)(nil),   // 1: teleport.workloadidentity.v1.UpdateWorkloadIdentityRequest
+	(*UpsertWorkloadIdentityRequest)(nil),   // 2: teleport.workloadidentity.v1.UpsertWorkloadIdentityRequest
+	(*GetWorkloadIdentityRequest)(nil),      // 3: teleport.workloadidentity.v1.GetWorkloadIdentityRequest
+	(*DeleteWorkloadIdentityRequest)(nil),   // 4: teleport.workloadidentity.v1.DeleteWorkloadIdentityRequest
+	(*ListWorkloadIdentitiesRequest)(nil),   // 5: teleport.workloadidentity.v1.ListWorkloadIdentitiesRequest
+	(*ListWorkloadIdentitiesV2Request)(nil), // 6: teleport.workloadidentity.v1.ListWorkloadIdentitiesV2Request
+	(*ListWorkloadIdentitiesResponse)(nil),  // 7: teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
+	(*WorkloadIdentity)(nil),                // 8: teleport.workloadidentity.v1.WorkloadIdentity
+	(*emptypb.Empty)(nil),                   // 9: google.protobuf.Empty
 }
 var file_teleport_workloadidentity_v1_resource_service_proto_depIdxs = []int32{
-	7,  // 0: teleport.workloadidentity.v1.CreateWorkloadIdentityRequest.workload_identity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
-	7,  // 1: teleport.workloadidentity.v1.UpdateWorkloadIdentityRequest.workload_identity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
-	7,  // 2: teleport.workloadidentity.v1.UpsertWorkloadIdentityRequest.workload_identity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
-	7,  // 3: teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse.workload_identities:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 0: teleport.workloadidentity.v1.CreateWorkloadIdentityRequest.workload_identity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 1: teleport.workloadidentity.v1.UpdateWorkloadIdentityRequest.workload_identity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 2: teleport.workloadidentity.v1.UpsertWorkloadIdentityRequest.workload_identity:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 3: teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse.workload_identities:type_name -> teleport.workloadidentity.v1.WorkloadIdentity
 	0,  // 4: teleport.workloadidentity.v1.WorkloadIdentityResourceService.CreateWorkloadIdentity:input_type -> teleport.workloadidentity.v1.CreateWorkloadIdentityRequest
 	1,  // 5: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpdateWorkloadIdentity:input_type -> teleport.workloadidentity.v1.UpdateWorkloadIdentityRequest
 	2,  // 6: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpsertWorkloadIdentity:input_type -> teleport.workloadidentity.v1.UpsertWorkloadIdentityRequest
 	3,  // 7: teleport.workloadidentity.v1.WorkloadIdentityResourceService.GetWorkloadIdentity:input_type -> teleport.workloadidentity.v1.GetWorkloadIdentityRequest
 	4,  // 8: teleport.workloadidentity.v1.WorkloadIdentityResourceService.DeleteWorkloadIdentity:input_type -> teleport.workloadidentity.v1.DeleteWorkloadIdentityRequest
 	5,  // 9: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentities:input_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesRequest
-	7,  // 10: teleport.workloadidentity.v1.WorkloadIdentityResourceService.CreateWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
-	7,  // 11: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpdateWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
-	7,  // 12: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpsertWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
-	7,  // 13: teleport.workloadidentity.v1.WorkloadIdentityResourceService.GetWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
-	8,  // 14: teleport.workloadidentity.v1.WorkloadIdentityResourceService.DeleteWorkloadIdentity:output_type -> google.protobuf.Empty
-	6,  // 15: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentities:output_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
-	10, // [10:16] is the sub-list for method output_type
-	4,  // [4:10] is the sub-list for method input_type
+	6,  // 10: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentitiesV2:input_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesV2Request
+	8,  // 11: teleport.workloadidentity.v1.WorkloadIdentityResourceService.CreateWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 12: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpdateWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 13: teleport.workloadidentity.v1.WorkloadIdentityResourceService.UpsertWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
+	8,  // 14: teleport.workloadidentity.v1.WorkloadIdentityResourceService.GetWorkloadIdentity:output_type -> teleport.workloadidentity.v1.WorkloadIdentity
+	9,  // 15: teleport.workloadidentity.v1.WorkloadIdentityResourceService.DeleteWorkloadIdentity:output_type -> google.protobuf.Empty
+	7,  // 16: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentities:output_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
+	7,  // 17: teleport.workloadidentity.v1.WorkloadIdentityResourceService.ListWorkloadIdentitiesV2:output_type -> teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse
+	11, // [11:18] is the sub-list for method output_type
+	4,  // [4:11] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -468,7 +563,7 @@ func file_teleport_workloadidentity_v1_resource_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_resource_service_proto_rawDesc), len(file_teleport_workloadidentity_v1_resource_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -159,6 +159,12 @@ func GetReExecFromVersion(ctx context.Context) string {
 	return reExecFromVersion
 }
 
+// GetReExecPath returns the execution path if current execution binary is re-executed from
+// another version.
+func GetReExecPath() string {
+	return os.Getenv(teleportToolsPathReExecEnv)
+}
+
 // CleanUp cleans the tools directory with downloaded versions.
 func CleanUp(toolsDir string, tools []string) error {
 	var aggErr []error

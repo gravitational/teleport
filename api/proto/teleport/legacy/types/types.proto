@@ -3146,6 +3146,34 @@ message AccessCapabilitiesRequest {
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
 }
 
+// RemoteAccessCapabilities is a summary of the capabilites that a remote cluster
+// user is granted in target cluster.
+// buf:lint:ignore PAGINATION_REQUIRED
+message RemoteAccessCapabilities {
+  // ApplicableRolesForResources is a list of the remote-cluster roles applicable
+  // for access to a given set of resources. This will always be a subset of the
+  // SearchAsRoles supplied in the [RemoteAccessCapabilitiesRequest]
+  repeated string ApplicableRolesForResources = 1 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
+}
+
+// AccessCapabilitiesRequest encodes parameters for the GetRemoteAccessCapabilities method.
+// buf:lint:ignore PAGINATION_REQUIRED
+message RemoteAccessCapabilitiesRequest {
+  // user is the name of the target user on their home cluster
+  string User = 1 [(gogoproto.jsontag) = "user,omitempty"];
+
+  // SearchAsRoles holds the roles the target user may use when searching for
+  // resources on the user's home cluster
+  repeated string SearchAsRoles = 2 [(gogoproto.jsontag) = "remote_search_as_roles,omitempty"];
+
+  // ResourceIDs is the list of the ResourceIDs of the resources we would like to view
+  // the necessary roles for.
+  repeated ResourceID ResourceIDs = 3 [
+    (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
+}
+
 // RequestKubernetesResource is the Kubernetes resource identifier used
 // in access request settings.
 // Modeled after existing message KubernetesResource.
@@ -4073,6 +4101,8 @@ message BoolValue {
 message UserFilter {
   // SearchKeywords is a list of search keywords to match against resource field values.
   repeated string SearchKeywords = 1 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SkipSystemUsers filters out teleport system users from the results.
+  bool SkipSystemUsers = 2 [(gogoproto.jsontag) = "skip_system_users,omitempty"];
 }
 
 // UserV2 is version 2 resource spec of the user
@@ -8532,6 +8562,18 @@ message InstallerParams {
   // 1: uses script mode
   // 2: uses eice mode
   InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
+  // Suffix indicates the installation suffix for the teleport installation.
+  // Set this value if you want multiple installations of Teleport.
+  // See --install-suffix flag in teleport-update program.
+  // Note: only supported for Amazon EC2.
+  // Suffix name can only contain alphanumeric characters and hyphens.
+  string Suffix = 9 [(gogoproto.jsontag) = "suffix,omitempty"];
+  // UpdateGroup indicates the update group for the teleport installation.
+  // This value is used to group installations in order to update them in batches.
+  // See --group flag in teleport-update program.
+  // Note: only supported for Amazon EC2.
+  // Group name can only contain alphanumeric characters and hyphens.
+  string UpdateGroup = 10 [(gogoproto.jsontag) = "update_group,omitempty"];
 }
 
 // InstallParamEnrollMode is the mode used to enroll the node into the cluster.

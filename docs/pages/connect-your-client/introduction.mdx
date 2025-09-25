@@ -313,9 +313,14 @@ initiate a CLI connection inside Teleport Connect:
 </TabItem>
 <TabItem label="Web UI">
 
-The Teleport Web UI cannot provide direct connections to databases, but it will
-list those that are accessible to your user under **Databases** and provide
-`tsh` commands to connect from your local terminal environment.
+The Teleport Web UI will show all databases a user has access to and only offers
+browser-based sessions for a select number of databases. For databases
+that can't be accessed from the browser, the Web UI will show the `tsh` commands
+that are needed to connect from a developer workstation.
+
+For more details on accessing databases directly from the browser, refer to
+[Starting a database session](./web-ui.mdx#starting-a-database-session) in 
+the Teleport Web UI.
 
 </TabItem>
 </Tabs>

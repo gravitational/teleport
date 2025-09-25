@@ -583,7 +583,6 @@ type Cache struct {
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      *local.ProvisioningStateService
 	identityCenterCache          *local.IdentityCenterService
-	workloadIdentityCache        workloadIdentityCacher
 	pluginStaticCredentialsCache *local.PluginStaticCredentialsService
 	gitServersCache              *local.GitServerService
 
@@ -826,7 +825,7 @@ type Config struct {
 	StaticHostUsers services.StaticHostUser
 	// WorkloadIdentity is the upstream Workload Identities service that we're
 	// caching
-	WorkloadIdentity WorkloadIdentityReader
+	WorkloadIdentity services.WorkloadIdentities
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -1115,12 +1114,6 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	workloadIdentityCache, err := local.NewWorkloadIdentityService(config.Backend)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
 	if err != nil {
 		cancel()
@@ -1205,7 +1198,6 @@ func New(config Config) (*Cache, error) {
 		staticHostUsersCache:         staticHostUserCache,
 		provisioningStatesCache:      provisioningStatesCache,
 		identityCenterCache:          identityCenterCache,
-		workloadIdentityCache:        workloadIdentityCache,
 		pluginStaticCredentialsCache: pluginStaticCredentialsCache,
 		gitServersCache:              gitServersCache,
 		Logger: log.WithFields(log.Fields{

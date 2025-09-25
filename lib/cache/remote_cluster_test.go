@@ -26,8 +26,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestRemoteClusters tests remote clusters caching
@@ -51,23 +49,15 @@ func TestRemoteClusters(t *testing.T) {
 				_, err := p.trustS.CreateRemoteCluster(ctx, rc)
 				return err
 			},
-			list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-				return p.trustS.GetRemoteClusters(ctx)
-			},
-			cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
-				return p.cache.GetRemoteCluster(ctx, name)
-			},
-			cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
-				return p.cache.GetRemoteClusters(ctx)
-			},
+			list:      getAllAdapter(p.trustS.GetRemoteClusters),
+			cacheGet:  p.cache.GetRemoteCluster,
+			cacheList: getAllAdapter(p.cache.GetRemoteClusters),
 			update: func(ctx context.Context, rc types.RemoteCluster) error {
 				_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
 				return err
 			},
-			deleteAll: func(ctx context.Context) error {
-				return p.trustS.DeleteAllRemoteClusters(ctx)
-			},
-		})
+			deleteAll: p.trustS.DeleteAllRemoteClusters,
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListRemoteClusters", func(t *testing.T) {
@@ -84,23 +74,15 @@ func TestRemoteClusters(t *testing.T) {
 				_, err := p.trustS.CreateRemoteCluster(ctx, rc)
 				return err
 			},
-			list: func(ctx context.Context) ([]types.RemoteCluster, error) {
-				return p.trustS.GetRemoteClusters(ctx)
-			},
-			cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
-				return p.cache.GetRemoteCluster(ctx, name)
-			},
-			cacheList: func(ctx context.Context) ([]types.RemoteCluster, error) {
-				return stream.Collect(clientutils.Resources(ctx, p.cache.ListRemoteClusters))
-			},
+			list:      getAllAdapter(p.trustS.GetRemoteClusters),
+			cacheGet:  p.cache.GetRemoteCluster,
+			cacheList: getAllAdapter(p.cache.GetRemoteClusters),
 			update: func(ctx context.Context, rc types.RemoteCluster) error {
 				_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
 				return err
 			},
-			deleteAll: func(ctx context.Context) error {
-				return p.trustS.DeleteAllRemoteClusters(ctx)
-			},
-		})
+			deleteAll: p.trustS.DeleteAllRemoteClusters,
+		}, withSkipPaginationTest())
 
 		// TODO(smallinsky): Remove this once pagination tests covering this case for each resource type
 		// have been merged into v17.

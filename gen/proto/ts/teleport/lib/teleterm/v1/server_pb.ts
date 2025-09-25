@@ -79,6 +79,12 @@ export interface Server {
      * @generated from protobuf field: string sub_kind = 7;
      */
     subKind: string;
+    /**
+     * Subset of logins allowed by the certificate and RBAC rules.
+     *
+     * @generated from protobuf field: repeated string logins = 8;
+     */
+    logins: string[];
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class Server$Type extends MessageType<Server> {
@@ -90,7 +96,8 @@ class Server$Type extends MessageType<Server> {
             { no: 4, name: "hostname", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "addr", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
-            { no: 7, name: "sub_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 7, name: "sub_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "logins", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<Server>): Server {
@@ -102,6 +109,7 @@ class Server$Type extends MessageType<Server> {
         message.addr = "";
         message.labels = [];
         message.subKind = "";
+        message.logins = [];
         if (value !== undefined)
             reflectionMergePartial<Server>(this, message, value);
         return message;
@@ -131,6 +139,9 @@ class Server$Type extends MessageType<Server> {
                     break;
                 case /* string sub_kind */ 7:
                     message.subKind = reader.string();
+                    break;
+                case /* repeated string logins */ 8:
+                    message.logins.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -165,6 +176,9 @@ class Server$Type extends MessageType<Server> {
         /* string sub_kind = 7; */
         if (message.subKind !== "")
             writer.tag(7, WireType.LengthDelimited).string(message.subKind);
+        /* repeated string logins = 8; */
+        for (let i = 0; i < message.logins.length; i++)
+            writer.tag(8, WireType.LengthDelimited).string(message.logins[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

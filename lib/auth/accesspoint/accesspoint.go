@@ -107,7 +107,7 @@ type Config struct {
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
-	WorkloadIdentity        cache.WorkloadIdentityReader
+	WorkloadIdentity        services.WorkloadIdentities
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
