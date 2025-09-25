@@ -133,6 +133,8 @@ func onAfterDatadogResponse(sink common.StatusSink) resty.ResponseMiddleware {
 }
 
 // CheckHealth pings Datadog and ensures required permissions.
+//
+// See: https://docs.datadoghq.com/api/latest/roles/#list-permissions
 func (d *Datadog) CheckHealth(ctx context.Context) error {
 	var result PermissionsBody
 	_, err := d.client.NewRequest().
@@ -154,6 +156,8 @@ func (d *Datadog) CheckHealth(ctx context.Context) error {
 }
 
 // Create Incident creates a new Datadog incident.
+//
+// See: https://docs.datadoghq.com/api/latest/incidents/#create-an-incident
 func (d *Datadog) CreateIncident(ctx context.Context, summary string, recipients []common.Recipient, reqData pd.AccessRequestData) (IncidentsData, error) {
 	teams := make([]string, 0, len(recipients))
 	emails := make([]NotificationHandle, 0, len(recipients))
@@ -240,6 +244,8 @@ func (d *Datadog) PostReviewNote(ctx context.Context, incidentID, note string) e
 }
 
 // ResolveIncident resolves an incident and posts a note with resolution details.
+//
+// See: https://docs.datadoghq.com/api/latest/incidents/#update-an-existing-incident
 func (d *Datadog) ResolveIncident(ctx context.Context, incidentID, state string) error {
 	body := IncidentsBody{
 		Data: IncidentsData{
@@ -266,6 +272,8 @@ func (d *Datadog) ResolveIncident(ctx context.Context, incidentID, state string)
 }
 
 // ListTeamsPage returns a page of teams.
+//
+// See: https://docs.datadoghq.com/api/latest/teams/#get-all-teams
 func (d *Datadog) ListTeamsPage(ctx context.Context, pageNum int) (ListTeamsBody, error) {
 	var result ListTeamsBody
 	_, err := d.client.NewRequest().
@@ -277,6 +285,8 @@ func (d *Datadog) ListTeamsPage(ctx context.Context, pageNum int) (ListTeamsBody
 }
 
 // GetTeamOncall gets the team's current on-call users.
+//
+// See: https://docs.datadoghq.com/api/latest/on-call/?s=teams#get-team-on-call-users
 func (d *Datadog) GetTeamOncall(ctx context.Context, teamID string) (OncallTeamsBody, error) {
 	var result OncallTeamsBody
 	_, err := d.client.NewRequest().
