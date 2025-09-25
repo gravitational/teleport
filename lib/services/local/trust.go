@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"errors"
+	"iter"
 	"log/slog"
 	"slices"
 	"sort"
@@ -28,9 +29,11 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -38,12 +41,15 @@ import (
 // is using local backend
 type CA struct {
 	backend.Backend
+	logger *slog.Logger
 }
 
 // NewCAService returns new instance of CAService
 func NewCAService(b backend.Backend) *CA {
 	return &CA{
 		Backend: b,
+		// TODO(okraport): Update local services to take an optional logger override option to support test loggers.
+		logger: slog.With(teleport.ComponentKey, "trust"),
 	}
 }
 
@@ -701,6 +707,7 @@ func (s *CA) GetTrustedCluster(ctx context.Context, name string) (types.TrustedC
 }
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
+// Deprecated: Prefer paginated variant such as [ListTrustedClusters] or [RangeTrustedClusters]
 func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	startKey := backend.ExactKey(trustedClustersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -719,6 +726,69 @@ func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, er
 
 	sort.Sort(types.SortedTrustedCluster(out))
 	return out, nil
+}
+
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (s *CA) ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	var next string
+	var seen int
+	out, err := stream.Collect(
+		stream.TakeWhile(
+			s.RangeTrustedClusters(ctx, startKey, ""),
+			func(cluster types.TrustedCluster) bool {
+				if seen < limit {
+					seen++
+					return true
+				}
+				next = cluster.GetName()
+				return false
+			},
+		),
+	)
+	return out, next, trace.Wrap(err)
+}
+
+// RangeTrustedClusters returns Trusted Cluster resources within the range [start, end).
+func (s *CA) RangeTrustedClusters(ctx context.Context, start, end string) iter.Seq2[types.TrustedCluster, error] {
+	mapFn := func(item backend.Item) (types.TrustedCluster, bool) {
+		cluster, err := services.UnmarshalTrustedCluster(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal TrustedCluster",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
+		}
+		return cluster, true
+	}
+
+	clusterKey := backend.NewKey(trustedClustersPrefix)
+	startKey := clusterKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(clusterKey)
+	if end != "" {
+		endKey = clusterKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(cluster types.TrustedCluster) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || cluster.GetName() < end
+		})
 }
 
 // DeleteTrustedCluster removes a TrustedCluster from the backend by name.

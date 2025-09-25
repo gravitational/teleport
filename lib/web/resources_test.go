@@ -550,7 +550,7 @@ func TestGithubConnectorsCRUD(t *testing.T) {
 	}
 }
 
-func TestGetTrustedClusters(t *testing.T) {
+func TestGetTrustedClustersFallback(t *testing.T) {
 	ctx := context.Background()
 	m := &mockedResourceAPIGetter{}
 
@@ -559,6 +559,24 @@ func TestGetTrustedClusters(t *testing.T) {
 		require.NoError(t, err)
 
 		return []types.TrustedCluster{cluster}, nil
+	}
+
+	// Test response is converted to ui objects.
+	tcs, err := getTrustedClusters(ctx, m)
+	require.NoError(t, err)
+	require.Len(t, tcs, 1)
+	require.Contains(t, tcs[0].Content, "name: test")
+}
+
+func TestListTrustedClusters(t *testing.T) {
+	ctx := context.Background()
+	m := &mockedResourceAPIGetter{}
+
+	m.mockListTrustedClusters = func(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error) {
+		cluster, err := types.NewTrustedCluster("test", types.TrustedClusterSpecV2{})
+		require.NoError(t, err)
+
+		return []types.TrustedCluster{cluster}, "", nil
 	}
 
 	// Test response is converted to ui objects.
@@ -727,6 +745,7 @@ type mockedResourceAPIGetter struct {
 	mockUpsertTrustedCluster  func(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
 	mockGetTrustedCluster     func(ctx context.Context, name string) (types.TrustedCluster, error)
 	mockGetTrustedClusters    func(ctx context.Context) ([]types.TrustedCluster, error)
+	mockListTrustedClusters   func(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 	mockDeleteTrustedCluster  func(ctx context.Context, name string) error
 	mockListResources         func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	mockGetAuthPreference     func(ctx context.Context) (types.AuthPreference, error)
@@ -815,6 +834,13 @@ func (m *mockedResourceAPIGetter) GetTrustedClusters(ctx context.Context) ([]typ
 	}
 
 	return nil, trace.NotImplemented("mockGetTrustedClusters not implemented")
+}
+
+func (m *mockedResourceAPIGetter) ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error) {
+	if m.mockListTrustedClusters != nil {
+		return m.mockListTrustedClusters(ctx, limit, startKey)
+	}
+	return nil, "", trace.NotImplemented("mockListTrustedClusters not implemented")
 }
 
 func (m *mockedResourceAPIGetter) DeleteTrustedCluster(ctx context.Context, name string) error {
