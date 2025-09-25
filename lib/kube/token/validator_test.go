@@ -847,7 +847,10 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			result, err := ValidateTokenWithOIDC(ctx, idp.IssuerURL(), tt.audience, tt.token)
+			validator, err := NewKubernetesOIDCTokenValidator()
+			require.NoError(t, err)
+
+			result, err := validator.ValidateToken(ctx, idp.IssuerURL(), tt.audience, tt.token)
 			tt.assertError(t, err)
 
 			require.Empty(t, cmp.Diff(
