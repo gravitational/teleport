@@ -40,7 +40,6 @@ jobs:
       actions: read
       contents: read
       id-token: write
-      security-events: write
     uses: ./.github/workflows/tag-build.yaml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}

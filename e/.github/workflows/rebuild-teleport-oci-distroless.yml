@@ -56,7 +56,6 @@ jobs:
     needs: configure
     permissions:
       id-token: write  # required for aws-actions/configure-aws-credentials
-      security-events: write # required for trivy scan
       contents: read
       actions: read
     strategy:
@@ -105,7 +104,6 @@ jobs:
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       image-build-dockerfile: Dockerfile-distroless${{ matrix.dockerfile-suffix }}
-      scan-image: false
       architectures: ${{ matrix.architectures }}
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}

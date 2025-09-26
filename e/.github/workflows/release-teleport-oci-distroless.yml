@@ -65,7 +65,6 @@ jobs:
     needs: configure
     permissions:
       id-token: write  # required for aws-actions/configure-aws-credentials
-      security-events: write # required for trivy scan
       contents: read
       actions: read
     strategy:

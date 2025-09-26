@@ -62,7 +62,6 @@ jobs:
       actions: read
       contents: read
       id-token: write  # required for aws-actions/configure-aws-credentials
-      security-events: write # required for trivy scan
     strategy:
       matrix:
         release: ['oss', 'fips']

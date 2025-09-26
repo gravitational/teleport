@@ -219,7 +219,6 @@ jobs:
       actions: read
       contents: read
       id-token: write
-      security-events: write
     uses: ./.github/workflows/release-teleport-kube-agent-updater-oci.yml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
@@ -235,7 +234,6 @@ jobs:
       actions: read
       contents: read
       id-token: write
-      security-events: write
     uses: ./.github/workflows/release-teleport-oci-distroless.yml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
@@ -252,7 +250,6 @@ jobs:
       actions: read
       contents: read
       id-token: write
-      security-events: write
     uses: ./.github/workflows/build-tbot-distroless-oci.yml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
@@ -299,7 +296,6 @@ jobs:
       actions: read
       contents: read
       id-token: write
-      security-events: write # required for trivy scan
     uses: ./.github/workflows/build-plugins.yaml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}

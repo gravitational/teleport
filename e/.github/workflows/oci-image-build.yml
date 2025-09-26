@@ -85,14 +85,6 @@ on:
         type: string
         default: "Dockerfile-distroless"
 
-      scan-image:
-        description: |
-          Should the resulting image be run through the `trivy` scanner as part
-          of the build? Only turn this off if you know that the image will be
-          automatically scanned in some other way.
-        type: boolean
-        default: true
-
       skip-base-image-verify:
         description: |
           Should the verification of the signature of the base image be skipped?
@@ -368,52 +360,3 @@ jobs:
         run: |
           cosign sign --yes --key "awskms:///${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE}"
           cosign sign --yes --upload=false --recursive "${DST_IMAGE}"
-
-  trivy-scan:
-    name: Scan Multiarch Image with Trivy
-    if: inputs.scan-image && (needs.build-docker-image.outputs.image-built == 'true')
-    runs-on: ubuntu-latest
-    needs: build-docker-image
-    environment: ${{ inputs.environment }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          sparse-checkout: .environments
-
-      - name: Load environment values
-        uses: gravitational/shared-workflows/tools/env-loader@e28b4323d6c036f904996b9a4a77578e52560570 # tools/env-loader/v0.0.5
-        with:
-          tool-version: v0.0.5
-          environment-name: ${{ inputs.environment }}
-
-      - name: Assume tag build AWS role
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
-        with:
-          aws-region: us-west-2
-          role-to-assume: ${{ env.OCI_ECR_AWS_ROLE }}
-          role-session-name: "gha-oci-image-build-trivy-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}"
-          role-duration-seconds: 3600
-
-      - name: Login to ECR
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          registry: ${{ env.ECR_PENDING_REPO_BASE }}
-        env:
-          AWS_REGION: ${{ inputs.dest-image-registry-region }}
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
-        env:
-          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db,public.ecr.aws/aquasecurity/trivy-db
-          TRIVY_JAVA_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-java-db,public.ecr.aws/aquasecurity/trivy-java-db
-        with:
-          image-ref: "${{ env.ECR_PENDING_REPO_BASE }}/${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
-          ignore-unfixed: true
-          format: "sarif"
-          output: "trivy-results.sarif"
-
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: "trivy-results.sarif"
