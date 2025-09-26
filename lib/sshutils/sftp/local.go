@@ -21,7 +21,9 @@ package sftp
 import (
 	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -144,9 +146,50 @@ func (l localFS) Getwd() (string, error) {
 }
 
 func (l localFS) RealPath(path string) (string, error) {
-	path, err := filepath.Abs(path)
+	return RealPath(path)
+}
+
+func RealPath(path string) (string, error) {
+	path, err := expandTildePrefix(path)
+	if err != nil {
+		return "", err
+	}
+	path, err = filepath.Abs(path)
 	if err != nil {
 		return "", err
 	}
 	return filepath.EvalSymlinks(path)
+}
+
+func expandTildePrefix(path string) (string, error) {
+	if !strings.HasPrefix(path, "~") {
+		return path, nil
+	}
+	path = filepath.Clean(path)
+	tildePrefix, rest, _ := strings.Cut(path[1:], string(os.PathSeparator))
+
+	var targetUser *user.User
+	var err error
+	switch tildePrefix {
+	case "+":
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(wd, rest), nil
+	case "-":
+		oldPwd, ok := os.LookupEnv("OLDPWD")
+		if ok {
+			return filepath.Join(oldPwd, rest), nil
+		}
+		return path, nil
+	case "":
+		targetUser, err = user.Current()
+	default:
+		targetUser, err = user.Lookup(tildePrefix)
+	}
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(targetUser.HomeDir, rest), nil
 }

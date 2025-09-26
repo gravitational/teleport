@@ -30,7 +30,7 @@ import (
 	"net/http"
 	"os"
 	"path" // SFTP requires UNIX-style path separators
-	"runtime"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -358,7 +358,6 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	if err := c.initFS(sftpClient); err != nil {
 		return trace.Wrap(err)
 	}
@@ -374,96 +373,40 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 
 // initFS ensures the source and destination filesystems are ready to transfer
 func (c *Config) initFS(client *sftp.Client) error {
-	var haveRemoteFS bool
 	srcFS, srcOK := c.srcFS.(*RemoteFS)
 	if srcOK {
 		srcFS.Client = client
-		haveRemoteFS = true
 	}
 	dstFS, dstOK := c.dstFS.(*RemoteFS)
 	if dstOK {
 		dstFS.Client = client
-		haveRemoteFS = true
 	}
-	// this will only happen in tests
-	if !haveRemoteFS {
-		return nil
-	}
-
-	return trace.Wrap(c.expandPaths(srcOK, dstOK))
-}
-
-func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
-	if srcIsRemote {
-		for i, srcPath := range c.srcPaths {
-			c.srcPaths[i], err = expandPath(srcPath)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	if dstIsRemote {
-		c.dstPath, err = expandPath(c.dstPath)
+	for i, src := range c.srcPaths {
+		realSrc, err := expandRemoteTildePrefix(src, c.srcFS)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		c.srcPaths[i] = realSrc
 	}
-
+	realDst, err := expandRemoteTildePrefix(c.dstPath, c.dstFS)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.dstPath = realDst
 	return nil
 }
 
-// PathExpansionError is an [error] indicating that
-// path expansion was rejected.
-type PathExpansionError struct {
-	path string
-}
-
-func (p PathExpansionError) Error() string {
-	return fmt.Sprintf("expanding remote ~user paths is not supported, specify an absolute path instead of %q", p.path)
-}
-
-func expandPath(pathStr string) (string, error) {
-	pfxLen, ok := homeDirPrefixLen(pathStr)
-	if !ok {
-		return pathStr, nil
+func expandRemoteTildePrefix(path string, fileSystem FileSystem) (string, error) {
+	if !strings.HasPrefix(path, "~") {
+		return path, nil
 	}
-
-	// Removing the home dir prefix would mean returning an empty string,
-	// which is supported by SFTP but won't be as clear in logs or audit
-	// events. Since the SFTP server will be rooted at the user's home
-	// directory, "." and "" are equivalent in this context.
-	if pathStr == "~" {
-		return ".", nil
+	path = filepath.Clean(path)
+	tildePrefix, rest, _ := strings.Cut(path, string(os.PathSeparator))
+	resolvedPrefix, err := fileSystem.RealPath(tildePrefix)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	if pfxLen == 1 && len(pathStr) > 1 {
-		return "", trace.Wrap(PathExpansionError{path: pathStr})
-	}
-
-	// if an SFTP path is not absolute, it is assumed to start at the user's
-	// home directory so just strip the prefix and let the SFTP server
-	// figure out the correct remote path
-	return pathStr[pfxLen:], nil
-}
-
-// homeDirPrefixLen returns the length of a set of characters that
-// indicates the user wants the path to begin with a user's home
-// directory and a bool that indicates whether such a prefix exists.
-func homeDirPrefixLen(path string) (int, bool) {
-	if strings.HasPrefix(path, "~/") {
-		return 2, true
-	}
-	// allow '~\' or '~/' on Windows since '\' is the canonical path
-	// separator but some users may use '/' instead
-	if runtime.GOOS == "windows" && strings.HasPrefix(path, `~\`) {
-		return 2, true
-	}
-
-	if len(path) >= 1 && path[0] == '~' {
-		return 1, true
-	}
-
-	return -1, false
+	return filepath.Join(resolvedPrefix, rest), nil
 }
 
 // transfer performs file transfers

@@ -30,7 +30,6 @@ import (
 	"os"
 	"os/user"
 	"path"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -235,7 +234,7 @@ func (s *sftpHandler) Filelist(req *sftp.Request) (_ sftp.ListerAt, retErr error
 // RealPath canonicalizes a path name, including resolving ".." and
 // following symlinks. Required to implement [sftp.RealPathFileLister].
 func (s *sftpHandler) RealPath(path string) (string, error) {
-	return filepath.EvalSymlinks(path)
+	return sftputils.RealPath(path)
 }
 
 func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {

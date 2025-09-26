@@ -562,53 +562,6 @@ func TestDownload(t *testing.T) {
 	}
 }
 
-func TestHomeDirExpansion(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		path         string
-		expandedPath string
-		errCheck     require.ErrorAssertionFunc
-	}{
-		{
-			name:         "absolute path",
-			path:         "/foo/bar",
-			expandedPath: "/foo/bar",
-		},
-		{
-			name:         "path with tilde-slash",
-			path:         "~/foo/bar",
-			expandedPath: "foo/bar",
-		},
-		{
-			name:         "just tilde",
-			path:         "~",
-			expandedPath: ".",
-		},
-
-		{
-			name: "~user path",
-			path: "~user/foo",
-			errCheck: func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, PathExpansionError{path: "~user/foo"})
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			expanded, err := expandPath(tt.path)
-			if tt.errCheck == nil {
-				require.NoError(t, err)
-				require.Equal(t, tt.expandedPath, expanded)
-			} else {
-				tt.errCheck(t, err)
-			}
-		})
-	}
-}
-
 func TestCopyingSymlinkedFile(t *testing.T) {
 	t.Parallel()
 
