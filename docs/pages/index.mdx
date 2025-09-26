@@ -7,6 +7,8 @@ template: "landing-page"
 ---
 
 import DocsHeader, { DocsHeaderProps } from "@site/src/components/Pages/Homepage/DocsHeader";
+import Products, { ProductProps } from "@site/src/components/Pages/Homepage/Products/Products";
+import VersionHighlights from "@site/src/components/Pages/Homepage/VersionHighlights";
 import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/Resources";
 import Integrations, { IntegrationsProps } from "@site/src/components/Pages/Homepage/Integrations";
 
@@ -28,6 +30,10 @@ import jamfProSvg from "@site/src/components/Icon/teleport-svg/jamf-pro.svg";
 import jenkinsSvg from "@site/src/components/Icon/teleport-svg/jenkins.svg";
 import snowflakeSvg from "@site/src/components/Icon/teleport-svg/snowflake.svg";
 import arrowRightSvg from "@site/src/components/Icon/teleport-svg/arrow-right.svg";
+import zeroTrustSvg from "@site/src/components/Icon/teleport-svg/zero-trust.svg";
+import mwiSvg from "@site/src/components/Icon/teleport-svg/mwi.svg";
+import identityGovernanceSvg from "@site/src/components/Icon/teleport-svg/identity-governance.svg";
+import identitySecuritySvg from "@site/src/components/Icon/teleport-svg/identity-security.svg";
 
 <DocsHeader
   quickActions={[
@@ -57,9 +63,213 @@ endpoints, infrastructure assets, and AI agents.
 You can quickly see how Teleport works by following our [Get
 Started](./get-started.mdx) guide to enroll your first resource with Teleport.
 
-(!docs/pages/includes/homepage/products.mdx!)
+<Products
+  productCategories={[
+    {
+      id: 'zero-trust-access',
+      title: 'Zero Trust Access',
+      href: './zero-trust-access/',
+      description: 'Easy access to all your infrastructure on a foundation of cryptographic identity',
+      iconColor: '#EEEAFA',
+      iconComponent: zeroTrustSvg,
+      features: [
+        {
+          title: 'Enroll and Protect Your Infrastructure',
+          description: 'Apps, servers, databases, Kubernetes clusters, desktops, & more',
+          href: './enroll-resources/'
+        },
+        {
+          title: 'VNet: Build without VPNs',
+          description: 'Secure app & SSH access with no VPNs or proxies',
+          href: './enroll-resources/application-access/guides/vnet/'
+        },
+        {
+          title: 'Secure MCP (Protect the Vibes)',
+          description: 'Secure MCP integration with granular audit trail',
+          href: './connect-your-client/model-context-protocol/'
+        },
+        {
+          title: 'Role-Based Access Control (RBAC)',
+          description: 'Govern infrastructure access with granular permissions',
+          href: './admin-guides/access-controls/'
+        },
+        {
+          title: 'Passwordless Authentication',
+          description: 'Log in securely using biometrics',
+          href: './admin-guides/access-controls/guides/passwordless'
+        },
+        {
+          title: 'Integrate with SSO Providers',
+          description: 'Connect Okta, Entra ID, Google, and more',
+          href: './admin-guides/access-controls/sso/'
+        },
+        {
+          title: 'Structured Audit Export',
+          description: 'Forward audit logs to SIEMs like Splunk and Datadog',
+          href: './admin-guides/management/export-audit-events/'
+        },
+        {
+          title: 'Identity-Based Audit Events',
+          description: 'Detailed audit logs for every user action',
+          href: './reference/monitoring/audit/'
+        },
+        {
+          title: 'Session Recording and Playback',
+          description: 'Record a detailed review of what took place',
+          href: './reference/architecture/session-recording/'
+        },
+        {
+          title: 'Session Sharing and Moderation',
+          description: 'Require a moderator for privileged sessions',
+          href: './admin-guides/access-controls/guides/joining-sessions/'
+        },
+        {
+          title: 'Dual Authorization Capabilities',
+          description: 'Require approvals to perform critical actions',
+          href: './admin-guides/access-controls/guides/dual-authz/'
+        },
+        {
+          title: 'Manage Clusters with IaC',
+          description: 'Create, update, and manage Teleport in declarative code.',
+          href: './admin-guides/infrastructure-as-code/'
+        }
+      ]
+    },
+    {
+      id: 'machine-workload-identity',
+      title: 'Machine and Workload Identity',
+      href: './machine-workload-identity/',
+      description: 'Replace long-lived secrets with identity-based authentication and authorization',
+      iconColor: '#EEEAFA',
+      iconComponent: mwiSvg,
+      features: [
+        {
+          title: 'Intro to Machine & Workload ID',
+          description: 'Replace long-lived secrets with identity-based auth',
+          href: './machine-workload-identity/'
+        },
+        {
+          title: 'Deploy CI/CD Pipelines',
+          description: 'Replace long-lived secrets in CI/CD pipelines',
+          href: './machine-workload-identity/machine-id/deployment/#cicd'
+        },
+        {
+          title: 'Secure Infrastructure as Code',
+          description: 'Manage IaC workflows in Terraform and Pulumi',
+          href: './admin-guides/infrastructure-as-code/terraform-provider/'
+        },
+        {
+          title: 'Hybrid & Multi-Cloud Authentication',
+          description: 'Universal identities across cloud platforms',
+          href: './machine-workload-identity/machine-id/deployment/'
+        },
+        {
+          title: 'Workload to Workload Authentication',
+          description: 'Service-to-service auth with mTLS',
+          href: './machine-workload-identity/workload-identity/spiffe/'
+        },
+        {
+          title: 'Identity Management for AI Agents',
+          description: 'RBAC for autonomous agents and processes',
+          href: './machine-workload-identity/workload-identity/introduction/'
+        }
+      ]
+    },
+    {
+      id: 'identity-governance',
+      title: 'Identity Governance',
+      href: './identity-governance/',
+      description: 'Manage identities by enforcing principles of least privilege and zero trust',
+      iconColor: '#EEEAFA',
+      iconComponent: identityGovernanceSvg,
+      features: [
+        {
+          title: 'Request Temporary Elevated Access',
+          description: 'Eliminate standing privileges w/ just-in-time access',
+          href: './identity-governance/access-requests/'
+        },
+        {
+          title: 'Manage Standing Access for Teams',
+          description: 'Sync IdP groups to roles w/ automated reviews',
+          href: './identity-governance/okta/app-and-group-sync/'
+        },
+        {
+          title: 'Require Managed Devices for Access',
+          description: 'Guarantee access only from trusted devices',
+          href: './identity-governance/device-trust/'
+        },
+        {
+          title: 'Instantly Lock Identities & Sessions',
+          description: 'Lock compromised users and resources',
+          href: './identity-governance/locking/'
+        },
+        {
+          title: 'Integrate w/your Identity Provider(s)',
+          description: 'Okta, Entra ID, and Sailpoint w/ SCIM group sync',
+          href: './identity-governance/okta/'
+        },
+        {
+          title: 'Federate Users to External Services',
+          description: 'Use Teleport as SAML IdP to 3rd-party apps',
+          href: './admin-guides/access-controls/idps/'
+        },
+      ]
+    },
+    {
+      id: 'identity-security',
+      title: 'Identity Security',
+      href: './identity-security/',
+      description: 'Visualize access paths and identify security risks across your infrastructure',
+      iconColor: '#EEEAFA',
+      iconComponent: identitySecuritySvg,
+      features: [
+        {
+          title: 'Expose Hidden Access Risks',
+          description: 'Scan for SSH keys, repo access, and more',
+          href: './identity-security/integrations/ssh-keys-scan'
+        },
+        {
+          title: 'Identify Over-Privileged Users',
+          description: 'Identify users with excessive standing privileges',
+          href: './identity-security/policy-how-to-use/#dashboard-standing-privileges'
+        },
+        {
+          title: 'Monitor Changes to Critical Resources',
+          description: 'Monitor, alert on, and visualize access changes',
+          href: './identity-security/crown-jewels'
+        },
+        {
+          title: 'Centralize Visibility Across Systems',
+          description: 'Centralize visibility into identities and access across Okta, AWS, GitHub, and more',
+          href: './identity-security/integrations/'
+        },
+        {
+          title: 'Query Roles, Groups, & Permissions',
+          description: 'Create custom tailored queries w/the SQL Editor',
+          href: './identity-security/policy-how-to-use/#sql-editor'
+        }
+      ]
+    }
+  ]}
+/>
 
-(!docs/pages/includes/homepage/version-highlights.mdx!)
+<VersionHighlights
+  title="What's new in version 18"
+  highlights={[
+    {
+      title: "MCP server access",
+      description: "Teleport now provides the ability to connect to stdio-based MCP servers with connection proxying and audit logging support.",
+      tag: "Zero Trust Access",
+      href: "./connect-your-client/model-context-protocol/mcp-access/",
+    },
+    {
+      title: "MCP for database access",
+      description: "Teleport now allows MCP clients such as Claude Desktop to execute queries in Teleport-protected databases.",
+      tag: "Zero Trust Access",
+      href: "./connect-your-client/model-context-protocol/database-access/",
+    },
+  ]}
+/>
 
 <Resources
   resources={[
