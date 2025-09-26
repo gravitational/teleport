@@ -16,99 +16,54 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ipcMain } from 'electron';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { isAbortError } from 'shared/utils/abortError';
-
-import { MainProcessIpc } from 'teleterm/mainProcess/types';
-import { TshdClient } from 'teleterm/services/tshd';
-import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { proxyHostToBrowserProxyHost } from 'teleterm/services/tshd/cluster';
-import * as tshd from 'teleterm/services/tshd/types';
 import { Logger } from 'teleterm/types';
 
-export type RootClusterProxyHostAllowList = Set<string>;
-
 /**
- * Refreshes the allow list whenever the renderer process notifies the main process that the list of
- * clusters in ClustersService got updated.
+ * Produces a list of proxy and SSO hosts of root clusters. This enables us to
+ * open links to Web UIs of clusters from within Connect.
  *
- * The allow list includes proxy hosts of root clusters. This enables us to open links to Web UIs of
- * clusters from within Connect.
- *
- * The port part of a proxy host is dropped if the port is 443. See proxyHostToBrowserProxyHost for
+ * The port part of a proxy host is dropped if the port is 443. See `proxyHostToBrowserProxyHost` for
  * more details.
  */
-export function manageRootClusterProxyHostAllowList({
-  tshdClient,
-  logger,
-  allowList,
-}: {
-  tshdClient: TshdClient;
-  logger: Logger;
-  allowList: RootClusterProxyHostAllowList;
-}) {
-  let abortController: AbortController;
-
-  const refreshAllowList = async () => {
-    // Allow only one call to be in progress. This ensures that on subsequent calls to
-    // refreshAllowList, we always store only the most recent version of the list.
-    abortController?.abort();
-    abortController = new AbortController();
-
-    let rootClusters: tshd.Cluster[];
-    try {
-      const { response } = await tshdClient.listRootClusters(
-        {},
-        { abort: cloneAbortSignal(abortController.signal) }
-      );
-      rootClusters = response.clusters;
-    } catch (error) {
-      if (isAbortError(error)) {
-        // Ignore abort errors. They will be logged by the gRPC client middleware.
-        return;
-      }
-
-      logger.error('Could not fetch root clusters', error);
-      // Return instead of throwing as there's nothing else we can do with the error at this place
-      // in the program.
-      return;
-    }
-
-    allowList.clear();
-    for (const rootCluster of rootClusters) {
-      if (rootCluster.proxyHost) {
+export function makeRootClusterProxyHostAllowList(
+  clusters: Cluster[],
+  logger: Logger
+): Set<string> {
+  return new Set(
+    clusters
+      .flatMap(c => {
+        if (!c.proxyHost) {
+          return;
+        }
         let browserProxyHost: string;
-        try {
-          browserProxyHost = proxyHostToBrowserProxyHost(rootCluster.proxyHost);
-          allowList.add(browserProxyHost);
-        } catch (error) {
-          logger.error(
-            'Ran into an error when converting proxy host to browser proxy host',
-            error
-          );
+        if (c.proxyHost) {
+          try {
+            browserProxyHost = proxyHostToBrowserProxyHost(c.proxyHost);
+          } catch (error) {
+            logger.error(
+              'Ran into an error when converting proxy host to browser proxy host',
+              error
+            );
+          }
         }
-      }
 
-      // Allow the SSO host for SSO login/mfa redirects.
-      if (rootCluster.ssoHost) {
+        // Allow the SSO host for SSO login/mfa redirects.
         let browserSsoHost: string;
-        try {
-          browserSsoHost = proxyHostToBrowserProxyHost(rootCluster.ssoHost);
-          allowList.add(browserSsoHost);
-        } catch (error) {
-          logger.error(
-            'Ran into an error when converting sso host to browser sso host',
-            error
-          );
+        if (c.ssoHost) {
+          try {
+            browserSsoHost = proxyHostToBrowserProxyHost(c.ssoHost);
+          } catch (error) {
+            logger.error(
+              'Ran into an error when converting sso host to browser sso host',
+              error
+            );
+          }
         }
-      }
-    }
-  };
-
-  refreshAllowList();
-
-  ipcMain.on(MainProcessIpc.RefreshClusterList, () => {
-    refreshAllowList();
-  });
+        return [browserProxyHost, browserSsoHost];
+      })
+      .filter(Boolean)
+  );
 }

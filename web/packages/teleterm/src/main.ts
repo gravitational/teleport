@@ -28,7 +28,7 @@ import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
 import MainProcess from 'teleterm/mainProcess';
 import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
-import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
+import { makeRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { createConfigService } from 'teleterm/services/config';
@@ -146,23 +146,6 @@ async function initializeApp(): Promise<void> {
   // window before processing the listener for deep links.
   setUpDeepLinks(logger, windowsManager, settings);
 
-  const rootClusterProxyHostAllowList = new Set<string>();
-
-  (async () => {
-    const { terminalService } = await mainProcess.getTshdClients();
-
-    manageRootClusterProxyHostAllowList({
-      tshdClient: terminalService,
-      logger,
-      allowList: rootClusterProxyHostAllowList,
-    });
-  })().catch(error => {
-    const message = 'Could not initialize the tshd client in the main process';
-    logger.error(message, error);
-    showDialogWithError(message, error);
-    app.exit(1);
-  });
-
   app
     .whenReady()
     .then(() => {
@@ -221,6 +204,11 @@ async function initializeApp(): Promise<void> {
         ) {
           return true;
         }
+
+        const rootClusterProxyHostAllowList = makeRootClusterProxyHostAllowList(
+          this.clusterStore.getRootClusters(),
+          logger
+        );
 
         // Allow opening links to the Web UIs of root clusters currently added in the app.
         if (rootClusterProxyHostAllowList.has(url.host)) {

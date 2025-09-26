@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { debounce } from 'shared/utils/highbar';
-
 import Logger from 'teleterm/logger';
 import { ConfigService } from 'teleterm/services/config';
 import { TshdClient, VnetClient } from 'teleterm/services/tshd/createClient';
@@ -163,7 +161,6 @@ export default class AppContext implements IAppContext {
       createTshdEventsContextBridgeService(this)
     );
 
-    this.notifyMainProcessAboutClusterListChanges();
     void this.clustersService.syncGatewaysAndCatchErrors();
     await this.clustersService.syncRootClustersAndCatchErrors();
     this.workspacesService.restorePersistedState();
@@ -198,25 +195,6 @@ export default class AppContext implements IAppContext {
   // directly on appContext, we use a getter which exposes a private property.
   get unexpectedVnetShutdownListener(): UnexpectedVnetShutdownListener {
     return this._unexpectedVnetShutdownListener;
-  }
-
-  private notifyMainProcessAboutClusterListChanges() {
-    // Debounce the notifications sent to the main process so that we don't unnecessarily send more
-    // than one notification per frame. The main process doesn't need to be notified absolutely
-    // immediately after a change in the cluster list.
-    //
-    // The clusters map in ClustersService gets updated a bunch of times during the start of the
-    // app. After each update, the renderer tells the main process to refresh the list. The main
-    // process sends a request to list root clusters and cancels any pending ones. Debouncing here
-    // helps to minimize those cancellations.
-    const refreshClusterList = debounce(
-      this.mainProcessClient.refreshClusterList,
-      16
-    );
-    this.clustersService.subscribeWithSelector(
-      state => state.clusters,
-      refreshClusterList
-    );
   }
 }
 
