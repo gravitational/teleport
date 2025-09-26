@@ -302,7 +302,143 @@ describe('sub-tick rendering', () => {
         (call.props.height === 4 || call.props.height === 6)
     );
 
-    // At high zoom, should have multiple sub-ticks between main markers
-    expect(subTickCalls.length).toBeGreaterThan(0);
+    // At high zoom with 1-second intervals, should have 7 sub-ticks per interval
+    // 10 intervals × 7 sub-ticks = 70 sub-ticks total
+    expect(subTickCalls.length).toBe(70);
+  });
+});
+
+describe('label spacing', () => {
+  it('should skip labels when markers are too close at very low zoom', () => {
+    const { ctx, renderer } = createRenderer({
+      duration: 10 * 60 * 1000, // 10 minutes
+    });
+
+    renderer.setTimelineWidth(200); // very low zoom level
+
+    const renderContext: TimelineRenderContext = {
+      containerWidth: 300,
+      offset: 0,
+      containerHeight: 200,
+      eventsHeight: 100,
+    };
+
+    renderer._render(renderContext);
+
+    const drawCalls = ctx.__getDrawCalls();
+    const fillTextCalls = drawCalls.filter(call => call.type === 'fillText');
+    const fillRectCalls = drawCalls.filter(
+      call => call.type === 'fillRect' && call.props.height === 10
+    );
+
+    // At very low zoom, should show 60-second intervals with label skipping
+    // Should render 11 tick marks (one every 60s for 10 minutes)
+    expect(fillRectCalls.length).toBe(11);
+    // Should show only 4 labels due to label skipping
+    expect(fillTextCalls.length).toBe(4);
+
+    expect(fillTextCalls[0].props.text).toBe('0:00');
+    expect(fillTextCalls[1].props.text).toBe('3:00');
+    expect(fillTextCalls[2].props.text).toBe('6:00');
+    expect(fillTextCalls[3].props.text).toBe('9:00');
+  });
+
+  it('should show all labels when markers are well-spaced', () => {
+    const { ctx, renderer } = createRenderer({
+      duration: 30 * 1000, // 30 seconds
+    });
+
+    renderer.setTimelineWidth(3000); // high zoom level
+
+    const renderContext: TimelineRenderContext = {
+      containerWidth: 3100,
+      offset: 0,
+      containerHeight: 200,
+      eventsHeight: 100,
+    };
+
+    renderer._render(renderContext);
+
+    const drawCalls = ctx.__getDrawCalls();
+    const fillTextCalls = drawCalls.filter(call => call.type === 'fillText');
+    const fillRectCalls = drawCalls.filter(
+      call => call.type === 'fillRect' && call.props.height === 10
+    );
+
+    // When markers are well-spaced, should show all labels
+    expect(fillTextCalls.length).toBe(fillRectCalls.length);
+  });
+
+  it('should render tick marks even when labels are hidden', () => {
+    const { ctx, renderer } = createRenderer({
+      duration: 5 * 60 * 1000, // 5 minutes
+    });
+
+    renderer.setTimelineWidth(100); // extremely low zoom
+
+    const renderContext: TimelineRenderContext = {
+      containerWidth: 150,
+      offset: 0,
+      containerHeight: 200,
+      eventsHeight: 100,
+    };
+
+    renderer._render(renderContext);
+
+    const drawCalls = ctx.__getDrawCalls();
+    const fillRectCalls = drawCalls.filter(
+      call => call.type === 'fillRect' && call.props.height === 10
+    );
+
+    // Should render 6 tick marks (one every 60s for 5 minutes)
+    expect(fillRectCalls.length).toBe(6);
+  });
+
+  it('should use 30-second intervals when very zoomed out', () => {
+    const { ctx, renderer } = createRenderer({
+      duration: 30 * 60 * 1000, // 30 minutes
+    });
+
+    renderer.setTimelineWidth(300); // very low zoom level
+
+    const renderContext: TimelineRenderContext = {
+      containerWidth: 400,
+      offset: 0,
+      containerHeight: 200,
+      eventsHeight: 100,
+    };
+
+    renderer._render(renderContext);
+
+    const drawCalls = ctx.__getDrawCalls();
+    const fillTextCalls = drawCalls.filter(call => call.type === 'fillText');
+
+    // Should use 30-second intervals when pixelsPerSecond < 5
+    // With label skipping (every 10th marker), should show 7 labels
+    expect(fillTextCalls.length).toBe(7);
+  });
+
+  it('should use 60-second intervals when extremely zoomed out', () => {
+    const { ctx, renderer } = createRenderer({
+      duration: 60 * 60 * 1000, // 1 hour
+    });
+
+    renderer.setTimelineWidth(100); // extremely low zoom level
+
+    const renderContext: TimelineRenderContext = {
+      containerWidth: 150,
+      offset: 0,
+      containerHeight: 200,
+      eventsHeight: 100,
+    };
+
+    renderer._render(renderContext);
+
+    const drawCalls = ctx.__getDrawCalls();
+    const fillTextCalls = drawCalls.filter(call => call.type === 'fillText');
+
+    // Should use 60-second intervals when pixelsPerSecond < 2
+    // With label skipping (every 10th marker), should show 7 labels
+    expect(fillTextCalls.length).toBe(7);
   });
 });
