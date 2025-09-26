@@ -31,11 +31,15 @@ We continue to support the following major versions of Teleport:
 
 #### Web UI Workload ID
 
-TODO(@zmb3)
+Teleport's web UI will list all workload identity resources registered in the cluster.
 
 #### Relay Service
 
-TODO(@zmb3)
+Teleport will ship with a new relay service that acts as a lightweight proxy service,
+receiving connections from both clients and agents. 
+
+The relay service can be used to avoid routing connections through the broader Teleport
+control plane, providing the ability to optimize network flows in large or complex deployments.
 
 #### Multi-cluster Discovery
 
