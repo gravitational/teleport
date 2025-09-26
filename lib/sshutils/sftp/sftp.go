@@ -161,6 +161,9 @@ type FileSystem interface {
 	Readlink(name string) (string, error)
 	// Getwd gets the current working directory.
 	Getwd() (string, error)
+	// RealPath canonicalizes a path name, including resolving ".." and
+	// following symlinks.
+	RealPath(path string) (string, error)
 }
 
 // CreateUploadConfig returns a Config ready to upload files over SFTP.
@@ -547,7 +550,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		}
 
 		if fi.IsDir() {
-			if err := c.transferDir(ctx, dstPath, matchedPaths[i], fi); err != nil {
+			if err := c.transferDir(ctx, dstPath, matchedPaths[i], fi, make(map[string]struct{})); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
@@ -561,10 +564,19 @@ func (c *Config) transfer(ctx context.Context) error {
 }
 
 // transferDir transfers a directory
-func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo, visited map[string]struct{}) error {
+	realSrcPath, err := c.srcFS.RealPath(srcPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, ok := visited[realSrcPath]; ok {
+		c.Log.DebugContext(ctx, "symlink loop detected, directory will be skipped", "link", srcPath, "target", realSrcPath)
+		return nil
+	}
+	visited[realSrcPath] = struct{}{}
 	c.Log.DebugContext(ctx, "transferring contents of directory", "source_fs", c.srcFS.Type(), "source_path", srcPath, "dest_fs", c.dstFS.Type(), "dest_path", dstPath)
 
-	err := c.dstFS.Mkdir(dstPath)
+	err = c.dstFS.Mkdir(dstPath)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
@@ -582,7 +594,7 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 		lSubPath := path.Join(srcPath, info.Name())
 
 		if info.IsDir() {
-			if err := c.transferDir(ctx, dstSubPath, lSubPath, info); err != nil {
+			if err := c.transferDir(ctx, dstSubPath, lSubPath, info, visited); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
