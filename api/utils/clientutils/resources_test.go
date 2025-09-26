@@ -244,7 +244,7 @@ func TestRangeResources(t *testing.T) {
 	}
 }
 
-func TestCollectWithFallbackk(t *testing.T) {
+func TestCollectWithFallback(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
