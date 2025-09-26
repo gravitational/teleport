@@ -219,15 +219,6 @@ the specification. We&nbsp;strongly recommend specifying only the necessary port
 wide port range that happens to include ports that are meant to be available.
 </Admonition>
 
-{/* TODO: DELETE IN 19.0.0. At this point all compatible servers and clients are going
-to support multiple ports. */}
-
-Support for multiple ports is available in Teleport v17.1+. Connections from Teleport clients that
-do not support multiple ports are routed to the first port from the application specification. An
-Application Service that does not support multiple ports will not be able to handle traffic to a
-multi-port application if it receives such application through [dynamic
-registration](./dynamic-registration.mdx) from an Auth Service.
-
 ### Further reading
 
 - Learn about [access controls](../controls.mdx) for applications.
