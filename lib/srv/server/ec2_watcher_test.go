@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
@@ -275,9 +276,13 @@ func TestEC2Watcher(t *testing.T) {
 		"alternate-role-arn": &altAccountOutput,
 	})
 
+	getOrgClient := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (*organizations.Client, error) {
+		return nil, nil
+	}
+
 	const noDiscoveryConfig = ""
 	fetchersFn := func() []Fetcher {
-		fetchers, err := matchersToEC2InstanceFetchers(t.Context(), matchers, getClient, noDiscoveryConfig)
+		fetchers, err := matchersToEC2InstanceFetchers(t.Context(), matchers, getClient, getOrgClient, noDiscoveryConfig)
 		require.NoError(t, err)
 
 		return fetchers
