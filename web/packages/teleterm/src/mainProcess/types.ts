@@ -199,7 +199,6 @@ export type MainProcessClient = {
    * interacted with the relevant modals during startup and is free to use the app.
    */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
-  refreshClusterList(): void;
   /**
    * Opens the Electron directory picker and sends the selected path to tshd through SetSharedDirectoryForDesktopSession.
    * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
@@ -355,7 +354,6 @@ export enum RendererIpc {
 export enum MainProcessIpc {
   GetRuntimeSettings = 'main-process-get-runtime-settings',
   TryRemoveConnectMyComputerAgentBinary = 'main-process-try-remove-connect-my-computer-agent-binary',
-  RefreshClusterList = 'main-process-refresh-cluster-list',
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
   SaveTextToFile = 'main-process-save-text-to-file',
