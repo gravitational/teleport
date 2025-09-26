@@ -356,6 +356,13 @@ period and while receiving appropriate deprecation notices.
 1. [Access Control Decision API (RFD
    0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md) refactor
    and relocate implementation
+   1. Decision service has a way for deriving user/session metadata from incoming requests without relying on client
+      certificates.
+   1. Proxy is able to evaluate SSH access requests using the Decision service.
+   1. Reverse tunnel and proxy peering protocols are updated to include the `Permit` from the Decision API response to
+      be forwarded from Proxy to agent as part of an incoming dial.
+   1. There exists a way for the Proxy to determine if MFA is required for a given SSH session based on the Decision API
+      response. Similarly, the Proxy has a way to tell Decision service that MFA has been satisfied for a session.
 
 #### Phase 1
 
