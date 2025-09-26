@@ -43,14 +43,18 @@ export function BotInstancesList({
   onFetchNext,
   onFetchPrev,
   searchTerm,
+  query,
   onSearchChange,
+  onQueryChange,
   onItemSelected,
   sortType,
   onSortChanged,
 }: {
   data: BotInstanceSummary[];
   searchTerm: string;
+  query: string;
   onSearchChange: (term: string) => void;
+  onQueryChange: (term: string) => void;
   onItemSelected: (item: BotInstanceSummary) => void;
   sortType: SortType;
   onSortChanged: (sortType: SortType) => void;
@@ -83,8 +87,9 @@ export function BotInstancesList({
         serversideSearchPanel: (
           <SearchPanel
             updateSearch={onSearchChange}
-            hideAdvancedSearch={true}
-            filter={{ search: searchTerm }}
+            updateQuery={onQueryChange}
+            hideAdvancedSearch={false}
+            filter={{ search: searchTerm, query }}
             disableSearch={fetchStatus !== ''}
           />
         ),
