@@ -49,6 +49,7 @@ func (process *TeleportProcess) initDatabases() {
 
 func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id))
+	process.ExpectService(teleport.ComponentDatabase)
 
 	conn, err := process.WaitForConnector(DatabasesIdentityEvent, logger)
 	if conn == nil {
