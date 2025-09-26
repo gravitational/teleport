@@ -197,8 +197,8 @@ teleport  \t   Show Teleport interactive shell information, such as execution li
 use       \u   Use another database.
 
 
-1    
--    
+1
+-
 1    
 
 1 row in set

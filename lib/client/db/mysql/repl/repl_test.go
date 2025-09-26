@@ -300,7 +300,7 @@ func TestInteractively(t *testing.T) {
 	require.NoError(t, repl.Run(t.Context()))
 }
 
-func Test_formatResult(t *testing.T) {
+func Test_summarizeResult(t *testing.T) {
 	resultRows, err := mysql.BuildSimpleTextResultset(
 		[]string{"one", "two", "three"},
 		[][]any{{1, 2.2, "3"}, {4, 5.5, "6"}, {7, 8.8, "8"}},
@@ -342,7 +342,11 @@ func Test_formatResult(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			mustParseResult(t, test.input)
-			got := formatResult(test.input, &test.elapsed)
+			var numRows int
+			if test.input.Resultset != nil {
+				numRows = len(test.input.Resultset.Values)
+			}
+			got := summarizeResult(test.input, numRows, &test.elapsed)
 			goldenName := strings.ReplaceAll(test.desc, " ", "-")
 			if golden.ShouldSet() {
 				golden.SetNamed(t, goldenName, []byte(got))
