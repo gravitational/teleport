@@ -259,7 +259,7 @@ func TestCollectWithFallbackk(t *testing.T) {
 				return []string{"hello", "world"}, "", nil
 			},
 			fallbackFunc: func(context.Context) ([]string, error) {
-				panic("enexpected call")
+				panic("unexpected call")
 			},
 			err: nil,
 		},
