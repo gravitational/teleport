@@ -90,7 +90,9 @@ overall security posture will depend on the correct and secure integration of th
 
 ### Proto Specification
 
-A new service called `TransportService` will be introduced. `TransportService` will replace the existing
+#### Transport Service v2
+
+A new version of `TransportService` will be introduced. `TransportService` v2 will replace the existing
 `TransportService` in the v1 package. The `ProxySSH` RPC of the v1 `TransportService` will be deprecated in favor of the
 v2 package's `TransportService`'s `ProxySSH` RPC, which provides in-band MFA enforcement during SSH session
 establishment. The new RPC supports both MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA
@@ -147,7 +149,7 @@ message ProxySSHResponse {
 }
 ```
 
-#### ProxySSH RPC
+##### ProxySSH RPC
 
 The `ProxySSH` RPC establishes a bidirectional stream for SSH session establishment with integrated MFA. When the stream
 initializes, the server first checks if MFA is required for the session based on policy.
@@ -168,62 +170,111 @@ maintaining the proxy's protocol-agnostic nature, which simplifies maintenance a
 
 ```mermaid
 sequenceDiagram
-   autoNumber
+  autoNumber
 
-   participant Client
-   participant Proxy
-   participant Auth
-   participant Node
+  participant Client
+  participant Proxy
+  participant Auth
+  participant Node
 
-   Client->>Proxy: Open ProxySSH stream
-   Client->>Proxy: TargetHost (dial_target)
+  Client->>Proxy: Open ProxySSH stream
+  Client->>Proxy: TargetHost (dial_target)
 
-   Proxy->>Proxy: Check MFA Requirement
+  alt New Client
+    Proxy->>Proxy: Check MFA Requirement (EvaluateSSHAccess)
+    Note over Proxy: Using local Decision service
 
-   alt MFA Required
+    alt MFA Required
       Proxy->>Client: MFAAuthenticateChallenge
       Client->>Proxy: MFAAuthenticateResponse
-      Proxy->>Auth: Verify MFA
-      Auth->>Proxy: MFA Verification Response
+      Proxy->>Auth: ValidateAuthenticateChallenge
+      Auth->>Proxy: ValidateAuthenticateChallengeResponse
 
       break MFA Failure
-         Proxy->>Client: MFA Failure (stream closes)
-         Note over Client,Proxy: Session denied, connection terminated
+        Proxy->>Client: MFA Failure (stream closes)
+        Note over Client,Proxy: Session denied, connection terminated
       end
-   end
+    end
+  end
 
-   Proxy->>Client: ClusterDetails
+  Proxy->>Node: DialHost
+  alt New Client
+    Note over Proxy,Node: Permit only (no SSH certificate required)
+  else Legacy Client
+    Note over Proxy,Node: No permit (SSH certificate required)
+  end
 
-   Proxy->>Node: DialRequest (Permit)
-   Node->>Proxy: DialResponse
+  Node->>Proxy: DialResponse
 
-   Client->>Proxy: Establish SSH connection
-   Proxy->>Node: Establish SSH connection
-   alt New Client
-      Note over Proxy,Node: Permit only (no SSH certificate required)
-   else Legacy Client
-      Note over Proxy,Node: Permit and SSH certificate
-   end
-   break SSH Connection Failure
+  Proxy->>Client: ClusterDetails
+
+  Client->>Proxy: Establish SSH connection
+  Proxy->>Node: Establish SSH connection
+
+  break SSH Connection Failure
+    Proxy->>Client: SSH Connection Failure
+    Note over Client,Proxy: Session terminated
+  end
+
+  Node->>Proxy: SSH Connection Established
+  Proxy->>Client: SSH Connection Established
+
+  loop Proxy SSH/Agent Frames
+    Client->>Proxy: SSH/Agent Frames
+    Proxy->>Node: Forward SSH/Agent Frames
+    Node->>Proxy: SSH/Agent Frames
+    Proxy->>Client: Forward SSH/Agent Frames
+
+    break SSH Connection Failure
       Proxy->>Client: SSH Connection Failure
       Note over Client,Proxy: Session terminated
-   end
-
-   Node->>Proxy: SSH Connection Established
-   Proxy->>Client: SSH Connection Established
-
-   loop Proxy SSH/Agent Frames
-      Client->>Proxy: SSH/Agent Frames
-      Proxy->>Node: Forward SSH/Agent Frames
-      Node->>Proxy: SSH/Agent Frames
-      Proxy->>Client: Forward SSH/Agent Frames
-
-      break SSH Connection Failure
-         Proxy->>Client: SSH Connection Failure
-         Note over Client,Proxy: Session terminated
-      end
-   end
+    end
+  end
 ```
+
+#### MFA Service
+
+A new MFA service will be introduced to handle MFA challenges and responses. MFA related RPCs in the Auth service will
+be deprecated and migrated to this new service. The Proxy will invoke the MFA service to validate MFA responses during
+the SSH session establishment process.
+
+```proto
+// MFAService is responsible for handling MFA challenges and responses.
+service MFAService {
+   // ... other MFA related RPCs from the Auth service ...
+
+   // ValidateAuthenticateChallenge validates an MFA challenge response from a client.
+  rpc ValidateAuthenticateChallenge(ValidateAuthenticateChallengeRequest) returns (ValidateAuthenticateChallengeResponse);
+}
+
+message ValidateAuthenticateChallengeRequest {
+  // The MFAAuthenticateResponse sent by the client in response to an MFA challenge.
+  MFAAuthenticateResponse MFAResponse = 1;
+
+  // ChallengeExtensions are the extensions sent in the original MFA challenge. These must match the extensions in the response.
+  teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 2;
+
+  // User is the user the MFA challenge is being validated for. If passwordless, no username is required.
+  string User = 3;
+}
+
+message ValidateAuthenticateChallengeResponse {
+  // User is the user the MFA challenge was validated for.
+  string User = 1;
+
+  // Device is the MFA device that was used to successfully complete the MFA challenge.
+  teleport.mfa.v1.MFADevice Device = 2;
+
+  // AllowReuse indicates if the MFA response can be reused for subsequent challenges within a short time window.
+  teleport.mfa.v1.ChallengeAllowReuse AllowReuse = 3;
+}
+```
+
+##### ValidateAuthenticateChallenge RPC
+
+The `ValidateAuthenticateChallenge` RPC is used by the Proxy to validate the MFA response from the client. It takes a
+`ValidateAuthenticateChallengeRequest` message as input and returns a `ValidateAuthenticateChallengeResponse` message.
+If the MFA response is invalid, the RPC returns a gRPC error. Only the Proxy service is authorized to invoke this RPC.
 
 ### SSH Certificate
 
@@ -307,12 +358,15 @@ period and while receiving appropriate deprecation notices.
 1. Deprecate the v1 `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
 1. Ensure server can handle clients using the deprecated v1 `TransportService` RPCs, while supporting the new v2
    `TransportService` RPCs.
+1. Add new `MFAService` in `api/proto/teleport/mfa/v1/mfa_service.proto` and implement the
+   `ValidateAuthenticateChallenge` RPC.
+1. Migrate existing MFA related RPCs from the Auth service to the new `MFAService`.
 1. Update client/tsh code in `api/client/proxy/client.go` to use the v2 `TransportService`. Client should fallback to
    the v1 `TransportService` if the v2 service is not available.
 1. Update clients so they handle MFA challenges and responses as a part of the SSH session establishment process.
 1. Add deprecation notices to SSH banner for clients connecting directly.
 1. Add tests to verify backward compatibility with the deprecated v1 `TransportService` RPCs.
-1. Update documentation to reflect the new architecture and deprecation of direct node access.
+1. Update documentation to reflect the new architecture and deprecation of direct node access. å
 
 #### Phase 2
 
@@ -324,5 +378,7 @@ period and while receiving appropriate deprecation notices.
 
 ## Future Considerations
 
-1. Extend in-band MFA enforcement and session-bound certificate logic to additional protocols e.g., Kubernetes API
-   requests, database connections, desktop access, etc.
+1. Extend in-band MFA enforcement to additional protocols e.g., Kubernetes API requests, database connections, desktop
+   access, etc.
+1. Consider finding a way to allow direct SSH access to node without going through the Proxy or requiring Auth, while
+   still enforcing in-band MFA.
