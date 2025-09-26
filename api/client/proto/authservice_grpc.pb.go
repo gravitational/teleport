@@ -107,6 +107,7 @@ const (
 	AuthService_CreateSnowflakeSession_FullMethodName              = "/proto.AuthService/CreateSnowflakeSession"
 	AuthService_GetSnowflakeSession_FullMethodName                 = "/proto.AuthService/GetSnowflakeSession"
 	AuthService_GetSnowflakeSessions_FullMethodName                = "/proto.AuthService/GetSnowflakeSessions"
+	AuthService_ListSnowflakeSessions_FullMethodName               = "/proto.AuthService/ListSnowflakeSessions"
 	AuthService_DeleteSnowflakeSession_FullMethodName              = "/proto.AuthService/DeleteSnowflakeSession"
 	AuthService_DeleteAllSnowflakeSessions_FullMethodName          = "/proto.AuthService/DeleteAllSnowflakeSessions"
 	AuthService_CreateSAMLIdPSession_FullMethodName                = "/proto.AuthService/CreateSAMLIdPSession"
@@ -483,8 +484,13 @@ type AuthServiceClient interface {
 	CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(ctx context.Context, in *GetSnowflakeSessionRequest, opts ...grpc.CallOption) (*GetSnowflakeSessionResponse, error)
+	// Deprecated: Do not use.
 	// GetSnowflakeSessions gets all Snowflake web sessions.
+	// Deprecated: Use [ListSnowflakeSessions] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(ctx context.Context, in *ListSnowflakeSessionsRequest, opts ...grpc.CallOption) (*ListSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(ctx context.Context, in *DeleteSnowflakeSessionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -1824,10 +1830,21 @@ func (c *authServiceClient) GetSnowflakeSession(ctx context.Context, in *GetSnow
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetSnowflakeSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSnowflakeSessionsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSnowflakeSessionsResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetSnowflakeSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ListSnowflakeSessions(ctx context.Context, in *ListSnowflakeSessionsRequest, opts ...grpc.CallOption) (*ListSnowflakeSessionsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListSnowflakeSessionsResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListSnowflakeSessions_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4031,8 +4048,13 @@ type AuthServiceServer interface {
 	CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error)
 	// GetSnowflakeSession returns a web session with sub kind Snowflake.
 	GetSnowflakeSession(context.Context, *GetSnowflakeSessionRequest) (*GetSnowflakeSessionResponse, error)
+	// Deprecated: Do not use.
 	// GetSnowflakeSessions gets all Snowflake web sessions.
+	// Deprecated: Use [ListSnowflakeSessions] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error)
+	// ListSnowflakeSessions returns a page of Snowflake web sessions.
+	ListSnowflakeSessions(context.Context, *ListSnowflakeSessionsRequest) (*ListSnowflakeSessionsResponse, error)
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error)
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
@@ -4798,6 +4820,9 @@ func (UnimplementedAuthServiceServer) GetSnowflakeSession(context.Context, *GetS
 }
 func (UnimplementedAuthServiceServer) GetSnowflakeSessions(context.Context, *emptypb.Empty) (*GetSnowflakeSessionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSnowflakeSessions not implemented")
+}
+func (UnimplementedAuthServiceServer) ListSnowflakeSessions(context.Context, *ListSnowflakeSessionsRequest) (*ListSnowflakeSessionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListSnowflakeSessions not implemented")
 }
 func (UnimplementedAuthServiceServer) DeleteSnowflakeSession(context.Context, *DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSnowflakeSession not implemented")
@@ -6574,6 +6599,24 @@ func _AuthService_GetSnowflakeSessions_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetSnowflakeSessions(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ListSnowflakeSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListSnowflakeSessionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListSnowflakeSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListSnowflakeSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListSnowflakeSessions(ctx, req.(*ListSnowflakeSessionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10280,6 +10323,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSnowflakeSessions",
 			Handler:    _AuthService_GetSnowflakeSessions_Handler,
+		},
+		{
+			MethodName: "ListSnowflakeSessions",
+			Handler:    _AuthService_ListSnowflakeSessions_Handler,
 		},
 		{
 			MethodName: "DeleteSnowflakeSession",
