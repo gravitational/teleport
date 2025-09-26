@@ -70,6 +70,7 @@ func TestRegisterProxyWebHandlers(t *testing.T) {
 
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/billing")
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/billing-summary")
+	handlerHasPath(t, h, http.MethodPost, "/enterprise/cloud/billing-summary")
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/nonbillable-summary")
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/upgradewindowstart")
 	handlerHasPath(t, h, http.MethodPost, "/enterprise/cloud/upgradewindowstart")

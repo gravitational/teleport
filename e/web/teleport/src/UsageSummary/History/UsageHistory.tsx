@@ -1,141 +1,94 @@
-import { fromUnixTime } from 'date-fns';
 import styled from 'styled-components';
 
 import Table, { Cell } from 'design/DataTable';
 import Flex from 'design/Flex';
-import Text, { H2 } from 'design/Text';
+import Text, { H2, P2 } from 'design/Text';
 
-import { UsageHistoryItem } from 'e-teleport/services/cloud/v1/tenants_pb';
-
-import { isCalibrationPeriod } from '../helpers';
+import {
+  GetUsageResponse,
+  UsageCycle,
+} from 'e-teleport/services/cloud/v1/tenants_pb';
+import { usageUnixInMilliseconds } from 'e-teleport/UsageSummary/helpers';
 
 export type UsageHistoryProps = {
-  cloud: boolean;
-  history: UsageHistoryItem[];
-  hasCloudAnonymizationKey: boolean;
-  salesforceIdUpdatedAt: number;
-  hasIdentityGovernance: boolean;
-  hasIdentitySecurity: boolean;
+  usageResponse: GetUsageResponse;
 };
 
-export const UsageHistory = ({
-  cloud,
-  history,
-  hasCloudAnonymizationKey,
-  salesforceIdUpdatedAt,
-  hasIdentityGovernance,
-  hasIdentitySecurity,
-}: UsageHistoryProps) => {
-  const tableHasCalibrationPeriod =
-    history.length > 0 &&
-    isCalibrationPeriod(
-      cloud,
-      history[history.length - 1].cycleStart,
-      history[0].cycleEnd,
-      hasCloudAnonymizationKey,
-      salesforceIdUpdatedAt
-    );
-
+export const UsageHistory = ({ usageResponse }: UsageHistoryProps) => {
   return (
     <Flex flexDirection="column" gap="3">
       <H2 mb="4">Usage History</H2>
-      <Table<UsageHistoryItem>
+      <Table<UsageCycle>
         disableFilter={true}
         emptyText="No cycle information available"
-        data={history}
-        initialSort={{ altSortKey: 'cycleStart', dir: 'DESC' }}
+        data={usageResponse.usageHistory}
+        initialSort={{ altSortKey: 'start', dir: 'DESC' }}
         columns={[
           {
             headerText: 'Billing Cycle',
-            render: ({ cycleStartFormatted, cycleEnd, cycleEndFormatted }) => (
-              <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
-                {cycleStartFormatted} - {cycleEndFormatted}
+            render: ({ startFormatted, endFormatted, end }) => (
+              <StyledCell $highlight={isCurrentCycle(end)}>
+                {startFormatted} - {endFormatted}
               </StyledCell>
             ),
             isSortable: true,
-            key: 'cycleStart',
+            key: 'start',
           },
           {
-            key: 'mau',
+            altKey: 'usage.ztamau',
             isSortable: true,
             headerText: 'ZTA MAU',
-            render: ({ mau, cycleStart, cycleEnd }) => {
-              const isCalibration = isCalibrationPeriod(
-                cloud,
-                cycleStart,
-                cycleEnd,
-                hasCloudAnonymizationKey,
-                salesforceIdUpdatedAt
-              );
+            render: ({ calibratingAccounts, usage, end }: UsageCycle) => {
               return (
                 <MetricCell
-                  val={mau}
-                  cycleEnd={cycleEnd}
-                  isCalibration={isCalibration}
+                  val={usage.ztamau}
+                  cycleEnd={end}
+                  isCalibration={calibratingAccounts >= 1}
                 />
               );
             },
           },
           {
-            key: 'tpr',
+            altKey: 'usage.tpr',
             isSortable: true,
             headerText: 'ZTA TPR',
-            render: ({ tpr, cycleStart, cycleEnd }) => {
-              const isCalibration = isCalibrationPeriod(
-                cloud,
-                cycleStart,
-                cycleEnd,
-                hasCloudAnonymizationKey,
-                salesforceIdUpdatedAt
-              );
+            render: ({ calibratingAccounts, usage, end }) => {
               return (
                 <MetricCell
-                  val={tpr}
-                  cycleEnd={cycleEnd}
-                  isCalibration={isCalibration}
+                  val={usage.tpr}
+                  cycleEnd={end}
+                  isCalibration={calibratingAccounts >= 1}
                 />
               );
             },
           },
           {
-            key: 'mwi',
+            altKey: 'usage.mwi',
             isSortable: true,
             headerText: 'MWI',
-            render: ({ mwi, cycleStart, cycleEnd }) => {
-              const isCalibration = isCalibrationPeriod(
-                cloud,
-                cycleStart,
-                cycleEnd,
-                hasCloudAnonymizationKey,
-                salesforceIdUpdatedAt
-              );
+            render: ({ calibratingAccounts, usage, end }) => {
               return (
                 <MetricCell
-                  val={mwi}
-                  cycleEnd={cycleEnd}
-                  isCalibration={isCalibration}
+                  val={usage.mwi}
+                  cycleEnd={end}
+                  isCalibration={calibratingAccounts >= 1}
                 />
               );
             },
           },
           {
-            key: 'igmau',
+            altKey: 'usage.igmau',
             isSortable: true,
             headerText: 'IG MAU',
-            render: ({ igmau, cycleStart, cycleEnd }) => {
-              const isCalibration = isCalibrationPeriod(
-                cloud,
-                cycleStart,
-                cycleEnd,
-                hasCloudAnonymizationKey,
-                salesforceIdUpdatedAt
-              );
+            render: ({ calibratingAccounts, usage, end }) => {
               return (
                 <MetricCell
-                  val={igmau}
-                  cycleEnd={cycleEnd}
-                  isCalibration={isCalibration}
-                  isDisabled={!hasIdentityGovernance}
+                  val={usage.igmau}
+                  cycleEnd={end}
+                  isCalibration={calibratingAccounts >= 1}
+                  isDisabled={usageResponse.missingEntitlements.includes(
+                    'Identity'
+                  )}
                 />
               );
             },
@@ -144,35 +97,26 @@ export const UsageHistory = ({
             altKey: 'is-tpr',
             isSortable: true,
             headerText: 'IS TPR',
-            render: ({ tpr, cycleStart, cycleEnd }) => {
-              const isCalibration = isCalibrationPeriod(
-                cloud,
-                cycleStart,
-                cycleEnd,
-                hasCloudAnonymizationKey,
-                salesforceIdUpdatedAt
-              );
+            render: ({ calibratingAccounts, usage, end }) => {
               return (
                 <MetricCell
-                  val={tpr}
-                  cycleEnd={cycleEnd}
-                  isCalibration={isCalibration}
-                  isDisabled={!hasIdentitySecurity}
+                  val={usage.tpr}
+                  cycleEnd={end}
+                  isCalibration={calibratingAccounts >= 1}
+                  isDisabled={usageResponse.missingEntitlements.includes(
+                    'Policy'
+                  )}
                 />
               );
             },
           },
         ]}
       />
-      {tableHasCalibrationPeriod && (
-        <Text
-          css="font-style: italic"
-          fontWeight={400}
-          color="text.slightlyMuted"
-        >
+      {usageResponse.usageHistory.some(h => h.calibratingAccounts > 0) && (
+        <P2 color="text.slightlyMuted">
           * A change to your account required a calibration period in order to
           accurately count Active Users across trusted clusters.
-        </Text>
+        </P2>
       )}
     </Flex>
   );
@@ -185,7 +129,7 @@ export const UsageHistory = ({
  */
 const isCurrentCycle = (cycleEnd: number): boolean => {
   const now = new Date();
-  return fromUnixTime(cycleEnd).getTime() > now.getTime();
+  return usageUnixInMilliseconds(cycleEnd) > now.getTime();
 };
 
 const MetricCell = ({
@@ -202,9 +146,9 @@ const MetricCell = ({
   return (
     <StyledCell $highlight={isCurrentCycle(cycleEnd)}>
       {isDisabled ? (
-        '-'
+        'N/A'
       ) : isCalibration ? (
-        <Text css="font-style: italic">Calibration Period*</Text>
+        <Text style={{ fontStyle: 'italic' }}>Calibration Period*</Text>
       ) : (
         val
       )}

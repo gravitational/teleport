@@ -1,5 +1,11 @@
 import cfg from 'e-teleport/config';
-import { GetBillingSummaryInformationResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
+import {
+  GetUsageRequest,
+  GetUsageResponse,
+  Usage,
+  UsageCycle,
+  UsageLimits,
+} from 'e-teleport/services/cloud/v1/tenants_pb';
 import api from 'teleport/services/api';
 import auth from 'teleport/services/auth/auth';
 import { User } from 'teleport/services/user/types';
@@ -11,10 +17,10 @@ import {
 } from './types';
 
 class CloudService {
-  fetchBillingSummaryInformation(): Promise<GetBillingSummaryInformationResponse> {
-    return api
-      .get(cfg.api.billingSummaryPath)
-      .then(makeBillingSummaryInformation);
+  fetchBillingSummaryInformation(
+    req: GetUsageRequest
+  ): Promise<GetUsageResponse> {
+    return api.post(cfg.api.billingSummaryPath, req).then(makeGetUsageResponse);
   }
 
   fetchNonBillableSummaryInformation(): Promise<NonBillableSummaryInformation> {
@@ -43,22 +49,45 @@ class CloudService {
 
 export default CloudService;
 
-function makeBillingSummaryInformation(
-  json: any
-): GetBillingSummaryInformationResponse {
-  const { usageHistory } = json.usageSummary;
+function makeGetUsageResponse(json: any): GetUsageResponse {
   return {
-    ...json,
-    usageSummary: {
-      ...json.usageSummary,
-      usageHistory: usageHistory.map(u => ({
-        ...u,
-        mau: parseInt(u.mau) || 0,
-        tpr: parseInt(u.tpr) || 0,
-        mwi: parseInt(u.mwi) || 0,
-        igmau: parseInt(u.ig_mau) || 0,
-      })),
-    },
+    usageHistory: makeUsageHistory(json?.usageHistory || []),
+    missingEntitlements: json?.missingEntitlements || [],
+    aggregateCount: json?.aggregateCount || 0,
+    usageUpdatedAt: json?.usageUpdatedAt || 0,
+  };
+}
+
+function makeUsageHistory(json: any): UsageCycle[] {
+  return json.map(j => {
+    return {
+      usage: makeUsage(j.usage || {}),
+      usageLimits: makeUsageLimits(j.usageLimits || {}),
+      start: j.start || 0,
+      startFormatted: j.startFormatted || '',
+      end: j.end || 0,
+      endFormatted: j.endFormatted || '',
+      activeAccounts: j.activeAccounts || 0,
+      calibratingAccounts: j.calibratingAccounts || 0,
+    };
+  });
+}
+
+function makeUsage(json: any): Usage {
+  return {
+    igmau: json?.igmau || 0,
+    mwi: json?.mwi || 0,
+    tpr: json?.tpr || 0,
+    ztamau: json?.ztamau || 0,
+  };
+}
+
+function makeUsageLimits(json: any): UsageLimits {
+  return {
+    igmau: json?.igmau || 0,
+    mwi: json?.mwi || 0,
+    tpr: json?.tpr || 0,
+    ztamau: json?.ztamau || 0,
   };
 }
 

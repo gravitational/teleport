@@ -31,6 +31,8 @@ type MockedClient struct {
 	MockGetFeatures func(context.Context, *v1.EmptyRequest) (*v1.GetFeaturesResponse, error)
 	// MockGetBillingSummaryInformation returns the users Billing Summary Information
 	MockGetBillingSummaryInformation func(context.Context, *v1.EmptyRequest, ...grpc.CallOption) (*v1.GetBillingSummaryInformationResponse, error)
+	// MockGetUsage returns usage information for one or more tenants.
+	MockGetUsage func(ctx context.Context, in *v1.GetUsageRequest, opts ...grpc.CallOption) (*v1.GetUsageResponse, error)
 	// GetSurveyCompany returns the company survey responses for the account associated with the current user.
 	// These are answered by only the first user who completes the survey
 	MockGetSurveyCompany func(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.SurveyCompanyResponse, error)
@@ -123,6 +125,14 @@ func (m *MockedClient) GetBillingSummaryInformation(ctx context.Context, in *v1.
 	}
 
 	return nil, trace.NotImplemented("GetBillingSummaryInformation is not implemented")
+}
+
+func (m *MockedClient) GetUsage(ctx context.Context, in *v1.GetUsageRequest, _ ...grpc.CallOption) (*v1.GetUsageResponse, error) {
+	if m.MockGetUsage != nil {
+		return m.MockGetUsage(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("GetUsage is not implemented")
 }
 
 func (m *MockedClient) GetSurveyCompany(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.SurveyCompanyResponse, error) {

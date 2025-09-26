@@ -70,6 +70,53 @@ func TestPlugin_getBillingSummaryInformationHandle(t *testing.T) {
 	require.Equal(t, pass, actual)
 }
 
+func TestPlugin_getUsageHandle(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	w := httptest.NewRecorder()
+	jsonReq := `{"tenants": []}`
+	r := httptest.NewRequest(http.MethodPost, "/enterprise/cloud/billing-summary", strings.NewReader(jsonReq))
+	r.Header.Add("content-type", "application/json")
+	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
+	wCtx := &web.SessionContext{}
+
+	pass := &cloudapi.GetUsageResponse{
+		UsageHistory: []*cloudapi.UsageCycle{
+			{
+				StartFormatted: "Jan 02, 2024",
+				EndFormatted:   "Feb 01, 2024",
+				Usage: &cloudapi.Usage{
+					Igmau:  10,
+					Ztamau: 11,
+					Mwi:    33,
+					Tpr:    10,
+				},
+				UsageLimits: &cloudapi.UsageLimits{
+					Igmau:  11,
+					Ztamau: 11,
+					Mwi:    30,
+					Tpr:    10,
+				},
+			},
+		},
+		MissingEntitlements: []string{"Identity"},
+		AggregateCount:      4,
+		UsageUpdatedAt:      1758864837,
+	}
+
+	client := &testClient{
+		MockedClient: cloud.MockedClient{
+			MockGetUsage: func(ctx context.Context, in *cloudapi.GetUsageRequest, opts ...grpc.CallOption) (*cloudapi.GetUsageResponse, error) {
+				return pass, nil
+			},
+		},
+	}
+
+	actual, err := s.webPlugin.getUsageHandle(w, r, wCtx, client)
+	require.NoError(t, err)
+	require.Equal(t, pass, actual)
+}
+
 func TestPlugin_getBillingInformationHandle(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)

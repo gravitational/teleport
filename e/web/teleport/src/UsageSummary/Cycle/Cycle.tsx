@@ -1,99 +1,108 @@
 import styled, { useTheme } from 'styled-components';
 
-import { Box, Flex, H2, H3, SyncStamp, Text } from 'design';
-import { IconTooltip } from 'design/Tooltip';
+import { Box, Flex, H2, H3, Subtitle2, SyncStamp, Text } from 'design';
+import { Info } from 'design/Alert';
+import { pluralize } from 'shared/utils/text';
 
-import { UsageSummary } from 'e-teleport/services/cloud/v1/tenants_pb';
-import { isCalibrationPeriod } from 'e-teleport/UsageSummary/helpers';
-import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
+import { GetUsageResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
+import { usageUnixInMilliseconds } from 'e-teleport/UsageSummary/helpers';
 
 import { UsageBar } from './UsageBar';
 
-// MWI_PER_MAU is how many free MWI customers get for each MAU they aquire.
+export type Section = {
+  name: string;
+  info: string;
+  blurb?: string;
+  enabled: boolean;
+  ctaUrl?: string;
+  usage: {
+    name: string;
+    used: number;
+    limit: number;
+    percentage: number;
+    customerUsed: number;
+    customerPercentage: number;
+  }[];
+};
+
+// MWI_PER_MAU is how many free MWI customers get for each MAU they acquire.
 // This value is used to tell if a customer has bought additional MWI and hence is
 // in the new price model, or not.
 // TODO(mcbattirola): This is temporary and will be removed in fall 2025.
 const MWI_PER_MAU = 0.5;
 
 export interface CycleProps {
-  summary: UsageSummary;
-  hasIdentityGovernance: boolean;
-  hasIdentitySecurity: boolean;
+  usageResponse: GetUsageResponse;
+  // the following are used to create the 'underlay' on the tenant view with customer data
+  customer: GetUsageResponse;
+  aggregate: boolean;
 }
 
-export type ProductUsage = {
-  name: string;
-  info: string;
-  blurb?: string;
-  enabled: boolean;
-  ctaUrl?: string;
-  usages: {
-    name: string;
-    total: number;
-    percentageMax: number;
-    hardMax: number;
-    percentage: number;
-  }[];
-};
-
-export const Cycle = ({
-  summary: {
-    cloud,
-    cycleEnd,
-    cycleEndFormatted,
-    cycleStart,
-    cycleStartFormatted,
-    mau,
-    tpr,
-    mwi,
-    igmau,
-    hasCloudAnonymizationKey,
-    salesforceIdUpdatedAt,
-    usageUpdatedAt,
-  },
-  hasIdentityGovernance,
-  hasIdentitySecurity,
-}: CycleProps) => {
+export const Cycle = ({ usageResponse, customer, aggregate }: CycleProps) => {
   const theme = useTheme();
-  const updated = usageUpdatedAt ? new Date(usageUpdatedAt * 1000) : undefined; // convert unix to milliseconds
-  const calibrationPeriod = isCalibrationPeriod(
-    cloud,
-    cycleStart,
-    cycleEnd,
-    hasCloudAnonymizationKey,
-    salesforceIdUpdatedAt
-  );
+  const { usageHistory, missingEntitlements, usageUpdatedAt } = usageResponse;
+  const currentCycle = usageHistory[0];
+  const {
+    usage,
+    usageLimits,
+    startFormatted,
+    endFormatted,
+    calibratingAccounts,
+    activeAccounts,
+  } = currentCycle;
+  const calibrationPeriod = calibratingAccounts > 0;
+  const customerUsage = customer?.usageHistory[0]?.usage || {
+    ztamau: 0,
+    tpr: 0,
+    igmau: 0,
+    mwi: 0,
+  };
 
   // hasExtraMwi is used to show or hide MWI's blurb, which contains additional info
   // that only customers in the old price model should see.
   // Ideally, this information should come from the Cloud backend, but since this is
   // temporary and all products use the same MWI per MAU (0.5), we hardcoded it here.
   // TODO(mcbattirola): remove this and MWI blurb completely on v19.
-  const hasExtraMwi = mwi.maximum > Math.ceil(MWI_PER_MAU * mau.maximum);
+  const hasExtraMwi =
+    usageLimits.mwi > Math.ceil(MWI_PER_MAU * usageLimits.ztamau);
 
-  const productUsages: ProductUsage[] = [
+  const sections: Section[] = [
     {
       name: 'Zero Trust Access',
       info: 'A secure, on-demand, least-privileged access to infrastructure using cryptographic identity and Zero Trust principles.',
       enabled: true, // always enabled
-      usages: [
+      usage: [
         {
           name: 'Monthly Active Users (MAU)',
-          total: mau.cycleCount,
-          percentage: calibrationPeriod
-            ? 100
-            : ~~Math.round((mau.cycleCount / mau.maximum) * 100),
-          percentageMax: mau.maximum,
-          hardMax: mau.maximum,
+          used: usage.ztamau,
+          percentage: getPercentage({
+            usage: usage.ztamau,
+            limit: usageLimits.ztamau,
+            calibration: calibrationPeriod,
+          }),
+          limit: usageLimits.ztamau,
+          customerUsed: customerUsage.ztamau || 0,
+          customerPercentage: getPercentage({
+            usage: customerUsage.ztamau,
+            limit: usageLimits.ztamau,
+            calibration: calibrationPeriod,
+          }),
         },
         {
           name: 'Teleport Protected Resources (TPR)',
-          total: tpr.cycleCount,
-          percentage: calibrationPeriod
-            ? 100
-            : ~~Math.round((tpr.cycleCount / tpr.maximum) * 100),
-          percentageMax: tpr.maximum,
-          hardMax: tpr.maximum,
+          used: usage.tpr,
+          percentage: getPercentage({
+            usage: usage.tpr,
+            limit: usageLimits.tpr,
+            calibration: calibrationPeriod,
+          }),
+          limit: usageLimits.tpr,
+          customerUsed: customerUsage.tpr || 0,
+          customerPercentage: getPercentage({
+            usage: customerUsage.tpr,
+            limit: usageLimits.tpr,
+            calibration: calibrationPeriod,
+          }),
         },
       ],
     },
@@ -101,15 +110,22 @@ export const Cycle = ({
       name: 'Machine and Workload Identities',
       info: 'Improve infrastructure resiliency by securing access to systems  and data between machines & workloads.',
       enabled: true, // always enabled
-      usages: [
+      usage: [
         {
           name: 'MWI',
-          total: mwi.cycleCount,
-          percentage: calibrationPeriod
-            ? 100
-            : ~~Math.round((mwi.cycleCount / mwi.maximum) * 100),
-          percentageMax: mwi.maximum,
-          hardMax: mwi.maximum,
+          used: usage.mwi,
+          percentage: getPercentage({
+            usage: usage.mwi,
+            limit: usageLimits.mwi,
+            calibration: calibrationPeriod,
+          }),
+          limit: usageLimits.mwi,
+          customerUsed: customerUsage.mwi || 0,
+          customerPercentage: getPercentage({
+            usage: customerUsage.mwi,
+            limit: usageLimits.mwi,
+            calibration: calibrationPeriod,
+          }),
         },
       ],
       blurb: hasExtraMwi
@@ -119,34 +135,48 @@ export const Cycle = ({
     {
       name: 'Identity Governance',
       info: 'Harden your infrastructure with identity governance and security.',
-      enabled: hasIdentityGovernance,
-      ctaUrl: UPGRADE_POLICY_URL,
-      usages: [
+      enabled: !missingEntitlements.includes('Identity'),
+      ctaUrl: '',
+      usage: [
         {
           name: 'Monthly Active Users (MAU)',
-          total: igmau.cycleCount,
-          percentage: calibrationPeriod
-            ? 100
-            : ~~Math.round((igmau.cycleCount / igmau.maximum) * 100),
-          percentageMax: igmau.maximum,
-          hardMax: igmau.maximum,
+          used: usage.igmau,
+          percentage: getPercentage({
+            usage: usage.igmau,
+            limit: usageLimits.igmau,
+            calibration: calibrationPeriod,
+          }),
+          limit: usageLimits.igmau,
+          customerUsed: customerUsage.igmau || 0,
+          customerPercentage: getPercentage({
+            usage: customerUsage.igmau,
+            limit: usageLimits.igmau,
+            calibration: calibrationPeriod,
+          }),
         },
       ],
     },
     {
       name: 'Identity Security',
       info: 'Secure identities and access policies across all of your infrastructure. Eliminate shadow access and blind spots.',
-      enabled: hasIdentitySecurity,
+      enabled: !missingEntitlements.includes('Policy'),
       ctaUrl: '',
-      usages: [
+      usage: [
         {
           name: 'Teleport Protected Resources (TPR)',
-          total: tpr.cycleCount,
-          percentage: calibrationPeriod
-            ? 100
-            : ~~Math.round((tpr.cycleCount / tpr.maximum) * 100),
-          percentageMax: tpr.maximum,
-          hardMax: tpr.maximum,
+          used: usage.tpr,
+          percentage: getPercentage({
+            usage: usage.tpr,
+            limit: usageLimits.tpr,
+            calibration: calibrationPeriod,
+          }),
+          limit: usageLimits.tpr,
+          customerUsed: customerUsage.tpr || 0,
+          customerPercentage: getPercentage({
+            usage: customerUsage.tpr,
+            limit: usageLimits.tpr,
+            calibration: calibrationPeriod,
+          }),
         },
       ],
     },
@@ -154,55 +184,46 @@ export const Cycle = ({
 
   return (
     <Box>
-      <Flex gap="3" alignItems="center">
-        <H2>
-          Current Billing Cycle: {cycleStartFormatted} - {cycleEndFormatted}
-        </H2>
-        {calibrationPeriod && (
-          <Flex
-            gap="1"
-            alignItems="center"
-            bg="interactive.tonal.neutral.0"
-            borderRadius="35px"
-            px="2"
-            py="1"
-          >
-            <IconTooltip>
-              A change to your account requires a calibration period in order to
-              accurately count Active Users and Teleport Protected Resources.
-              This should resolve itself with the start of your next billing
-              cycle.
-            </IconTooltip>
-            <CalibrationText>Calibration In Progress</CalibrationText>
-          </Flex>
-        )}
-      </Flex>
-      <Text color={theme.colors.text.slightlyMuted} mt="2">
+      <H2>
+        Current Billing Cycle: {startFormatted} - {endFormatted}
+      </H2>
+      <Subtitle2 color={theme.colors.text.slightlyMuted} mt="2">
         Monthly usage will reset at the end of this cycle
-      </Text>
+      </Subtitle2>
+      {calibrationPeriod && (
+        <Info
+          details={`A change to ${calibratingAccounts} Teleport ${pluralize(calibratingAccounts, 'cluster')} requires a calibration period in order to accurately count users and resources. This should resolve itself with the start of your next billing cycle. This data represents usage from ${activeAccounts} non-calibrating ${pluralize(activeAccounts, 'cluster')}.`}
+        />
+      )}
       <Flex gap="3" flexWrap="wrap" my="3">
-        {productUsages.map(p => (
+        {sections.map(section => (
           <CyclesContainer
-            key={p.name}
-            data-testid={p.name}
-            enabled={p.enabled}
+            key={section.name}
+            data-testid={section.name}
+            enabled={section.enabled}
           >
-            <H3>{p.name}</H3>
+            <H3>{section.name}</H3>
             <Text color="text.slightlyMuted" mt="2" fontWeight={300}>
-              {p.info}
+              {section.info}
             </Text>
             <Box mt="4">
-              <UsageBar productUsage={p} calibrating={calibrationPeriod} />
+              <UsageBar
+                section={section}
+                calibrating={calibrationPeriod}
+                aggregate={aggregate}
+              />
             </Box>
-            {p.blurb && (
+            {section.blurb && (
               <Text color="text.muted" mt="4" fontWeight={400}>
-                {p.blurb}
+                {section.blurb}
               </Text>
             )}
           </CyclesContainer>
         ))}
       </Flex>
-      <SyncStamp date={updated}>| Updated every 12 hours</SyncStamp>
+      <SyncStamp date={new Date(usageUnixInMilliseconds(usageUpdatedAt))}>
+        | Updated every 12 hours
+      </SyncStamp>
     </Box>
   );
 };
@@ -217,10 +238,17 @@ const CyclesContainer = styled(Flex)<{ enabled?: boolean }>`
   justify-content: ${({ enabled }) => (enabled ? 'normal' : 'space-between')};
 `;
 
-const CalibrationText = styled(Text)`
-  display: none;
-  font-size: ${p => p.theme.fontSizes[1]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-    display: inline;
+function getPercentage({
+  usage,
+  limit,
+  calibration,
+}: {
+  usage: number;
+  limit: number;
+  calibration: boolean;
+}): number {
+  if (calibration) {
+    return 100;
   }
-`;
+  return ~~Math.round((usage / limit) * 100);
+}

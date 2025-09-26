@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import React from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex, Indicator } from 'design';
+import { Box, ButtonSelect, Flex } from 'design';
 import { Danger } from 'design/Alert';
+import { ShimmerBox } from 'design/ShimmerBox';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
+import { GetUsageResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
 import { Cycle } from 'e-teleport/UsageSummary/Cycle/Cycle';
 import { UsageHistory } from 'e-teleport/UsageSummary/History/UsageHistory';
 import useTeleport from 'e-teleport/useTeleportE';
@@ -14,76 +16,106 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import cfg from 'teleport/config';
 import { useNoMinWidth } from 'teleport/Main';
 
 import { Guide } from './Guide';
 
-export const Summary = (): React.ReactElement => {
+export function Summary() {
   useNoMinWidth();
+
+  // Initial implementation for GetUsage allows for a nil UUID as a
+  // representation of the accountId associated with the license of the
+  // requestor. When sent, the cloud service will translate this as the
+  // 'current' tenant.
+  const nilId = '00000000-0000-0000-0000-000000000000';
   const ctx = useTeleport();
-  const hasIdentityGovernance = cfg.entitlements.Identity.enabled;
-  const hasIdentitySecurity = cfg.entitlements.Policy.enabled;
+  const [aggregate, setAggregate] = useState(true);
+  const [customer, setCustomer] = useState<GetUsageResponse>();
 
   const {
-    data: summary,
+    data: usageResponse,
     error,
     status,
+    isRefetching,
   } = useQuery({
-    queryKey: ['summary'],
-    gcTime: 0,
-    queryFn: () =>
-      ctx.cloudService.fetchBillingSummaryInformation().then(data => data),
+    queryKey: ['usageResponse', aggregate],
+    placeholderData: customer,
+    queryFn: () => {
+      const request = aggregate ? [] : [nilId];
+      return ctx.cloudService
+        .fetchBillingSummaryInformation({ tenants: request })
+        .then(data => {
+          // if we have not yet set the customer, and the request is customer
+          // level, and the response indicates more than one subscription, set
+          // customer values to be used in underlay for tenant view.
+          if (!customer && request.length == 0 && data.aggregateCount > 1) {
+            setCustomer(data);
+          }
+          return data;
+        });
+    },
   });
 
   return (
     <Box>
       <StyledContainer>
         <FeatureBox>
-          <Box>
-            <FeatureHeader alignItems="center" justifyContent="space-between">
-              <FeatureHeaderTitle>Usage Reporting</FeatureHeaderTitle>
-              <InfoGuideButton config={{ guide: <Guide /> }} />
-            </FeatureHeader>
-            {status === 'error' && error && (
-              <Danger details={error.message}>Error: {error.name}</Danger>
-            )}
-            {status === 'pending' && (
-              <Box textAlign="center" m={10}>
-                <Indicator />
+          {status == 'pending' && <ShimmerBox height="24px" width="100%" />}
+          {status == 'error' && (
+            <Danger details={error.message}>Error: {error.name}</Danger>
+          )}
+          {status == 'success' &&
+            usageResponse &&
+            usageResponse.usageHistory &&
+            usageResponse.usageHistory.length > 0 && (
+              <Box>
+                <FeatureHeader
+                  alignItems="center"
+                  justifyContent="space-between"
+                >
+                  <FeatureHeaderTitle>Usage Reporting</FeatureHeaderTitle>
+                  <Flex alignItems="center" gap={3}>
+                    {usageResponse.aggregateCount > 1 && (
+                      <ButtonSelect
+                        fullWidth
+                        disabled={isRefetching}
+                        options={[
+                          {
+                            value: 'all',
+                            label: `All Clusters (${usageResponse?.aggregateCount})`,
+                          },
+                          { value: 'current', label: 'Current Cluster' },
+                        ]}
+                        activeValue={aggregate ? 'all' : 'current'}
+                        onChange={() => setAggregate(!aggregate)}
+                      />
+                    )}
+                    <InfoGuideButton config={{ guide: <Guide /> }} />
+                  </Flex>
+                </FeatureHeader>
+                <Flex gap="5" flexDirection="column">
+                  <Cycle
+                    usageResponse={usageResponse}
+                    customer={customer}
+                    aggregate={aggregate}
+                  />
+                  <UsageHistory usageResponse={usageResponse} />
+                </Flex>
               </Box>
             )}
-
-            {status === 'success' && summary && summary.usageSummary && (
-              <Flex gap="5" flexDirection="column">
-                <Cycle
-                  summary={summary?.usageSummary}
-                  hasIdentityGovernance={hasIdentityGovernance}
-                  hasIdentitySecurity={hasIdentitySecurity}
-                />
-                <UsageHistory
-                  cloud={summary?.usageSummary?.cloud}
-                  history={summary?.usageSummary.usageHistory}
-                  hasCloudAnonymizationKey={
-                    summary?.usageSummary.hasCloudAnonymizationKey
-                  }
-                  salesforceIdUpdatedAt={summary.salesforceIdUpdatedAt}
-                  hasIdentityGovernance={hasIdentityGovernance}
-                  hasIdentitySecurity={hasIdentitySecurity}
-                />
-              </Flex>
-            )}
-            {status === 'success' && !summary && (
+          {status === 'success' &&
+            (!usageResponse ||
+              !usageResponse?.usageHistory ||
+              usageResponse?.usageHistory?.length === 0) && (
               <StyledBox>
                 Usage data is being gathered. This page updates every 12 hours.
               </StyledBox>
             )}
-          </Box>
         </FeatureBox>
       </StyledContainer>
     </Box>
   );
-};
+}
 
 const StyledContainer = styled(Flex)`
   width: 100%;

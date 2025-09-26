@@ -45,6 +45,7 @@ func (p *Plugin) registerCloudHandlers() {
 	// the billing summary API is available for cloud users and usage-based self-hosted (dashboard) customers
 	if features.GetCloud() || (services.IsDashboard(features) && features.IsUsageBased && !features.IsStripeManaged) {
 		p.h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.withCloudCache(p.getBillingSummaryInformationHandle)))
+		p.h.POST("/enterprise/cloud/billing-summary", p.withCloudAuth(p.withCloudCache(p.getUsageHandle)))
 	}
 
 	// the following endpoints are only available to Cloud cloud-hosted customers (not Cloud dashboard customers)
@@ -74,8 +75,24 @@ func (p *Plugin) registerCloudHandlers() {
 	p.h.DELETE("/enterprise/sites/:site/contact", p.withCloudClusterAuth(p.deleteClusterContactHandle))
 }
 
+// TODO(michellescripts) safe to remove in v19
+// Deprecated by getUsageHandle
 func (p *Plugin) getBillingSummaryInformationHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
 	res, err := client.GetBillingSummaryInformation(r.Context(), &cloudapi.EmptyRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+func (p *Plugin) getUsageHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, client cloud.Client) (any, error) {
+	var req cloudapi.GetUsageRequest
+	if err := p.readProtoJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.GetUsage(r.Context(), &req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

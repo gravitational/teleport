@@ -1,302 +1,299 @@
+import { StoryObj } from '@storybook/react-vite';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
+import { Info } from 'design/Alert';
+import { CollapsibleInfoSection as CollapsibleInfoSectionComponent } from 'design/CollapsibleInfoSection';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
+import cfg from 'e-teleport/config';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { Summary } from 'e-teleport/UsageSummary/Summary';
 import {
-  makeGetBillingSummaryInformationResponse,
-  makeUsageSummary,
+  makeGetUsageResponse,
+  makeUsageCycle,
 } from 'e-teleport/UsageSummary/testHelpers';
-import { ContextProvider } from 'teleport';
-import cfg from 'teleport/config';
+import { ContextProvider } from 'teleport/index';
 import { ContentMinWidth } from 'teleport/Main/Main';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 
 export default {
   title: 'TeleportE/Usage',
+  decorators: [
+    Story => {
+      const queryClient = new QueryClient();
+      const ctx = createTeleportContextE() as any;
+      return (
+        <MemoryRouter>
+          <ContextProvider ctx={ctx}>
+            <InfoGuidePanelProvider>
+              <QueryClientProvider client={queryClient}>
+                <ContentMinWidth>
+                  <CollapsibleInfoSectionComponent openLabel="Devs Instructions">
+                    <Info
+                      kind="info"
+                      details="Aggregate cases require multiple calls to the same endpoint with a different payload. For the story, the first and second call are mocked with `once:true`; meaning you can toggle views but after the first set, the calls will end up failing."
+                    >
+                      Aggregate Cases
+                    </Info>
+                  </CollapsibleInfoSectionComponent>
+                  <Story />
+                </ContentMinWidth>
+              </QueryClientProvider>
+            </InfoGuidePanelProvider>
+          </ContextProvider>
+        </MemoryRouter>
+      );
+    },
+  ],
 };
 
-export function LoadedWithCta() {
-  cfg.entitlements.Identity = { enabled: false, limit: 0 };
-  cfg.entitlements.Policy = { enabled: false, limit: 0 };
-  const ctx = createTeleportContext() as any;
-  ctx.cloudService = {
-    fetchBillingSummaryInformation: () =>
-      Promise.resolve(
-        makeGetBillingSummaryInformationResponse({
-          usageSummary: makeUsageSummary({
-            cycleStart: new Date('Oct 01, 2024').getTime(),
-            cycleStartFormatted: 'Oct 01, 2024',
-            cycleEnd: new Date('Oct 31, 2024').getTime(),
-            cycleEndFormatted: 'Oct 31, 2024',
-            usageUpdatedAt: new Date('Oct 14, 2024 11:24').getTime() / 1000,
-            usageUpdatedAtFormatted: 'Oct 14, 2024 11:24',
-            mau: {
-              maximum: 1000,
-              cycleCount: 45,
-              free: 0,
-              perMau: 0,
-            },
-            tpr: {
-              maximum: 44004,
-              cycleCount: 43009,
-              free: 0,
-              perMau: 5,
-            },
-            mwi: {
-              maximum: 500,
-              cycleCount: 49,
-              free: 0,
-              perMau: 0.5,
-            },
-            igmau: {
-              maximum: 0,
-              cycleCount: 0,
-              free: 0,
-              perMau: 0,
-            },
+const defaultResponse = makeGetUsageResponse({
+  usageHistory: [
+    makeUsageCycle({
+      usage: {
+        igmau: 34,
+        ztamau: 55,
+        tpr: 301,
+        mwi: 29,
+      },
+      usageLimits: {
+        igmau: 30,
+        ztamau: 65,
+        tpr: 1000,
+        mwi: 50,
+      },
+    }),
+    makeUsageCycle({
+      usage: {
+        igmau: 54,
+        ztamau: 78,
+        tpr: 299,
+        mwi: 31,
+      },
+      usageLimits: {
+        igmau: 30,
+        ztamau: 65,
+        tpr: 1000,
+        mwi: 50,
+      },
+    }),
+  ],
+  aggregateCount: 3,
+});
+
+export const Aggregate = {
+  parameters: {
+    msw: [
+      http.post(
+        cfg.api.billingSummaryPath,
+        () => {
+          return HttpResponse.json(defaultResponse);
+        },
+        { once: true }
+      ),
+      http.post(
+        cfg.api.billingSummaryPath,
+        () => {
+          return HttpResponse.json({
+            ...defaultResponse,
             usageHistory: [
-              {
-                cycleStart: new Date('Oct 01, 2024').getTime(),
-                cycleStartFormatted: 'Oct 01, 2024',
-                cycleEnd: new Date('Oct 31, 2024').getTime(),
-                cycleEndFormatted: 'Oct 31, 2024',
-                mau: 45,
-                tpr: 43009,
-                mwi: 20,
-                igmau: 0,
-                activeTenants: 0,
-                calibratingTenants: 0,
-              },
-              {
-                cycleStart: new Date('Sep 01, 2024').getTime(),
-                cycleStartFormatted: 'Sep 01, 2024',
-                cycleEnd: new Date('Aug 31, 2024').getTime(),
-                cycleEndFormatted: 'Aug 31, 2024',
-                mau: 52,
-                tpr: 43020,
-                mwi: 33,
-                igmau: 0,
-                activeTenants: 0,
-                calibratingTenants: 0,
-              },
-              {
-                cycleStart: new Date('Aug 01, 2024').getTime(),
-                cycleStartFormatted: 'Aug 01, 2024',
-                cycleEnd: new Date('Jul 31, 2024').getTime(),
-                cycleEndFormatted: 'Jul 31, 2024',
-                mau: 38,
-                tpr: 42120,
-                mwi: 38,
-                igmau: 0,
-                activeTenants: 0,
-                calibratingTenants: 0,
-              },
+              makeUsageCycle({
+                usage: {
+                  igmau: 23,
+                  ztamau: 40,
+                  tpr: 107,
+                  mwi: 30,
+                },
+                usageLimits: {
+                  igmau: 30,
+                  ztamau: 65,
+                  tpr: 1000,
+                  mwi: 50,
+                },
+              }),
             ],
-          }),
-        })
+          });
+        },
+        { once: true }
       ),
-  };
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;
 
-  return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <InfoGuidePanelProvider>
-          <ContentMinWidth>
-            <Summary />
-          </ContentMinWidth>
-        </InfoGuidePanelProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
-}
-
-export function Loaded() {
-  cfg.entitlements.Identity = { enabled: true, limit: 0 };
-  cfg.entitlements.Policy = { enabled: true, limit: 0 };
-
-  const ctx = createTeleportContext() as any;
-  ctx.cloudService = {
-    fetchBillingSummaryInformation: () =>
-      Promise.resolve(
-        makeGetBillingSummaryInformationResponse({
-          usageSummary: makeUsageSummary({
-            cycleStart: new Date('Oct 01, 2024').getTime(),
-            cycleStartFormatted: 'Oct 01, 2024',
-            cycleEnd: new Date('Oct 31, 2024').getTime(),
-            cycleEndFormatted: 'Oct 31, 2024',
-            usageUpdatedAt: new Date('Oct 14, 2024 11:24').getTime() / 1000,
-            usageUpdatedAtFormatted: 'Oct 14, 2024 11:24',
-            mau: {
-              maximum: 1000,
-              cycleCount: 45,
-              free: 0,
-              perMau: 0,
-            },
-            tpr: {
-              maximum: 44004,
-              cycleCount: 43009,
-              free: 0,
-              perMau: 5,
-            },
-            mwi: {
-              maximum: 500,
-              cycleCount: 49,
-              free: 0,
-              perMau: 0.5,
-            },
-            igmau: {
-              maximum: 20,
-              cycleCount: 16,
-              free: 0,
-              perMau: 0,
-            },
+export const AggregateWithCta = {
+  parameters: {
+    msw: [
+      http.post(
+        cfg.api.billingSummaryPath,
+        () => {
+          return HttpResponse.json({
+            ...defaultResponse,
+            missingEntitlements: ['Identity', 'Policy'],
+          });
+        },
+        { once: true }
+      ),
+      http.post(
+        cfg.api.billingSummaryPath,
+        () => {
+          return HttpResponse.json({
+            ...defaultResponse,
             usageHistory: [
-              {
-                cycleStart: new Date('Oct 01, 2024').getTime(),
-                cycleStartFormatted: 'Oct 01, 2024',
-                cycleEnd: new Date('Oct 31, 2024').getTime(),
-                cycleEndFormatted: 'Oct 31, 2024',
-                mau: 45,
-                tpr: 43009,
-                mwi: 20,
-                igmau: 10,
-                activeTenants: 0,
-                calibratingTenants: 0,
-              },
-              {
-                cycleStart: new Date('Sep 01, 2024').getTime(),
-                cycleStartFormatted: 'Sep 01, 2024',
-                cycleEnd: new Date('Aug 31, 2024').getTime(),
-                cycleEndFormatted: 'Aug 31, 2024',
-                mau: 52,
-                tpr: 43020,
-                mwi: 33,
-                igmau: 40,
-                activeTenants: 0,
-                calibratingTenants: 0,
-              },
-              {
-                cycleStart: new Date('Aug 01, 2024').getTime(),
-                cycleStartFormatted: 'Aug 01, 2024',
-                cycleEnd: new Date('Jul 31, 2024').getTime(),
-                cycleEndFormatted: 'Jul 31, 2024',
-                mau: 38,
-                tpr: 42120,
-                mwi: 38,
-                igmau: 2,
-                activeTenants: 0,
-                calibratingTenants: 0,
-              },
+              makeUsageCycle({
+                usage: {
+                  igmau: 23,
+                  ztamau: 40,
+                  tpr: 107,
+                  mwi: 30,
+                },
+                usageLimits: {
+                  igmau: 30,
+                  ztamau: 65,
+                  tpr: 1000,
+                  mwi: 50,
+                },
+              }),
             ],
-          }),
-        })
+          });
+        },
+        { once: true }
       ),
-  };
-  return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <InfoGuidePanelProvider>
-          <ContentMinWidth>
-            <Summary />
-          </ContentMinWidth>
-        </InfoGuidePanelProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
-}
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;
 
-export function CalibratingSummaryView() {
-  cfg.entitlements.Identity = { enabled: true, limit: 0 };
-  cfg.entitlements.Policy = { enabled: true, limit: 0 };
-  const ctx = createTeleportContext() as any;
-  ctx.cloudService = {
-    fetchBillingSummaryInformation: () =>
-      Promise.resolve(
-        makeGetBillingSummaryInformationResponse({
-          usageSummary: makeUsageSummary({
-            cloud: true,
-            cycleStart: new Date('2024-01-01').getTime(),
-            cycleEnd: new Date('2024-01-31').getTime(),
-            salesforceIdUpdatedAt: new Date('2024-01-13').getTime(),
-            hasCloudAnonymizationKey: true,
-            tpr: {
-              cycleCount: 500,
-              maximum: 1000,
-              free: 0,
-              perMau: 0,
-            },
-            mau: {
-              cycleCount: 500,
-              maximum: 1000,
-              free: 0,
-              perMau: 0,
-            },
-            mwi: {
-              cycleCount: 500,
-              maximum: 1000,
-              free: 0,
-              perMau: 0,
-            },
-            igmau: {
-              cycleCount: 500,
-              maximum: 1000,
-              free: 0,
-              perMau: 0,
-            },
-          }),
-        })
+export const AggregateCalibrating = {
+  parameters: {
+    msw: [
+      http.post(
+        cfg.api.billingSummaryPath,
+        () => {
+          return HttpResponse.json({
+            ...defaultResponse,
+            usageHistory: [
+              makeUsageCycle({ calibratingAccounts: 1 }),
+              ...defaultResponse.usageHistory,
+            ],
+          });
+        },
+        { once: true }
       ),
-  };
-  return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <InfoGuidePanelProvider>
-          <ContentMinWidth>
-            <Summary />
-          </ContentMinWidth>
-        </InfoGuidePanelProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
-}
+      http.post(
+        cfg.api.billingSummaryPath,
+        () => {
+          return HttpResponse.json({
+            ...defaultResponse,
+            usageHistory: [
+              makeUsageCycle({
+                usage: {
+                  igmau: 23,
+                  ztamau: 40,
+                  tpr: 107,
+                  mwi: 30,
+                },
+                usageLimits: {
+                  igmau: 30,
+                  ztamau: 65,
+                  tpr: 1000,
+                  mwi: 50,
+                },
+              }),
+            ],
+          });
+        },
+        { once: true }
+      ),
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;
 
-export function EmptySummaryView() {
-  const ctx = createTeleportContext() as any;
-  ctx.cloudService = {
-    fetchBillingSummaryInformation: () =>
-      Promise.resolve(makeGetBillingSummaryInformationResponse({})),
-  };
+export const Tenant = {
+  parameters: {
+    msw: [
+      http.post(cfg.api.billingSummaryPath, () => {
+        return HttpResponse.json({ ...defaultResponse, aggregateCount: 1 });
+      }),
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;
 
-  return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <InfoGuidePanelProvider>
-          <ContentMinWidth>
-            <Summary />
-          </ContentMinWidth>
-        </InfoGuidePanelProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
-}
+export const TenantWithCTA = {
+  parameters: {
+    msw: [
+      http.post(cfg.api.billingSummaryPath, () => {
+        return HttpResponse.json({
+          ...defaultResponse,
+          aggregateCount: 1,
+          missingEntitlements: ['Identity', 'Policy'],
+        });
+      }),
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;
 
-export function Error() {
-  const ctx = createTeleportContext() as any;
-  ctx.cloudService = {
-    fetchBillingSummaryInformation: () =>
-      Promise.reject({ message: 'error getting usage' }),
-  };
+export const TenantCalibrating = {
+  parameters: {
+    msw: [
+      http.post(cfg.api.billingSummaryPath, () => {
+        return HttpResponse.json({
+          ...defaultResponse,
+          usageHistory: [
+            makeUsageCycle({ calibratingAccounts: 1 }),
+            ...defaultResponse.usageHistory,
+          ],
+          aggregateCount: 1,
+        });
+      }),
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;
 
-  return (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <InfoGuidePanelProvider>
-          <ContentMinWidth>
-            <Summary />
-          </ContentMinWidth>
-        </InfoGuidePanelProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
-}
+export const Empty = {
+  parameters: {
+    msw: [
+      http.post(cfg.api.billingSummaryPath, () => {
+        return HttpResponse.json({});
+      }),
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;
+
+export const Error = {
+  parameters: {
+    msw: [
+      http.post(cfg.api.billingSummaryPath, () => {
+        return HttpResponse.json(
+          {
+            error: { message: 'Error loading usage.' },
+          },
+          { status: 400 }
+        );
+      }),
+    ],
+  },
+  render: () => {
+    return <Summary />;
+  },
+} satisfies StoryObj<typeof Summary>;

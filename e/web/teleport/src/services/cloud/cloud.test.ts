@@ -1,5 +1,6 @@
 import cfg from 'e-teleport/config';
-import { GetBillingSummaryInformationResponse as CloudGetBillingSummaryInformationResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
+import { GetUsageResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
+import { makeGetUsageResponse } from 'e-teleport/UsageSummary/testHelpers';
 import api from 'teleport/services/api';
 
 import CloudSvc from './cloud';
@@ -13,50 +14,38 @@ describe('cloudService', () => {
   });
 
   test('fetchBillingSummaryInformation', async () => {
-    const expected: CloudGetBillingSummaryInformationResponse = {
-      usageBasedBilling: false,
-      stripeCurrentUsage: {
-        invoiceId: 'some-invoiceId',
-        status: 'some-status',
-        periodEnd: 1684773766,
-        periodStart: 1684773766,
-        usageMau: 0,
-        usagePr: 2,
-      },
-      productName: 'some-productName',
+    const expected: GetUsageResponse = makeGetUsageResponse({
+      aggregateCount: 1,
       usageUpdatedAt: 0,
-      salesforceIdUpdatedAt: new Date('2024/09/01').getTime(),
-      usageSummary: {
-        cloud: false,
-        cycleEnd: new Date('2024/01/30').getTime(),
-        cycleEndFormatted: 'Jan 30, 2024',
-        cycleStart: new Date('2024/01/02').getTime(),
-        cycleStartFormatted: 'Jan 02, 2024',
-        hasCloudAnonymizationKey: false,
-        salesforceIdUpdatedAt: new Date('2024/09/01').getTime(),
-        salesforceIdUpdatedAtFormatted: 'Jan 09, 2024',
-        usageBased: false,
-        usageUpdatedAt: new Date('2024/01/02').getTime(),
-        usageUpdatedAtFormatted: 'Jan 02, 2024',
-        mau: {
-          maximum: 1,
-          free: 2,
-          cycleCount: 3,
-          perMau: 0,
+      usageHistory: [
+        {
+          activeAccounts: 1,
+          calibratingAccounts: 0,
+          end: new Date('2024/01/30').getTime(),
+          endFormatted: 'Jan 30, 2024',
+          start: new Date('2024/01/02').getTime(),
+          startFormatted: 'Jan 02, 2024',
+          usage: {
+            ztamau: 1,
+            igmau: 3,
+            mwi: 33,
+            tpr: 12,
+          },
+          usageLimits: {
+            ztamau: 2,
+            igmau: 4,
+            mwi: 35,
+            tpr: 10,
+          },
         },
-        tpr: {
-          maximum: 4,
-          free: 5,
-          cycleCount: 6,
-          perMau: 7,
-        },
-        usageHistory: [],
-      },
-    };
-    jest.spyOn(api, 'get').mockResolvedValue(expected);
+      ],
+    });
+    jest.spyOn(api, 'post').mockResolvedValue(expected);
 
-    let response = await cloud.fetchBillingSummaryInformation();
-    expect(api.get).toHaveBeenCalledWith(cfg.api.billingSummaryPath);
+    let response = await cloud.fetchBillingSummaryInformation({ tenants: [] });
+    expect(api.post).toHaveBeenCalledWith(cfg.api.billingSummaryPath, {
+      tenants: [],
+    });
     expect(response).toEqual(expected);
   });
 });

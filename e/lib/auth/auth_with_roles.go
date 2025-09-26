@@ -41,6 +41,16 @@ func (ac *cloudWithRoles) GetBillingSummaryInformation(ctx context.Context, req 
 	return ac.plugin.cloudClient.GetBillingSummaryInformation(ctx, req)
 }
 
+// GetUsage returns usage information for one or more tenants.
+func (ac *cloudWithRoles) GetUsage(ctx context.Context, req *v1.GetUsageRequest) (*v1.GetUsageResponse, error) {
+	err := ac.action(ctx, types.KindBilling, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.GetUsage(ctx, req)
+}
+
 // SubmitUsageReports submits usage report for processing
 func (ac *cloudWithRoles) SubmitUsageReports(ctx context.Context, req *v1.SubmitUsageReportsRequest) (*v1.EmptyResponse, error) {
 	return nil, trace.NotImplemented("SubmitUsageReports cannot be called via Auth Service.")

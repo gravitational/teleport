@@ -2,72 +2,59 @@ import styled, { useTheme } from 'styled-components';
 
 import { Box, ButtonSecondary, Flex, Text } from 'design';
 
-import { ProductUsage } from 'e-teleport/UsageSummary/Cycle/Cycle';
-import { getSalesURL } from 'teleport/services/sales';
-import { CtaEvent } from 'teleport/services/userEvent';
-import useTeleport from 'teleport/useTeleport';
+import { Section } from 'e-teleport/UsageSummary/Cycle/Cycle';
 
 export function UsageBar({
-  productUsage,
+  section,
   calibrating,
+  aggregate,
 }: {
-  productUsage: ProductUsage;
+  section: Section;
   calibrating: boolean;
+  aggregate: boolean;
 }) {
-  const ctx = useTeleport();
-  const version = ctx.storeUser.state.cluster.authVersion;
-
   const theme = useTheme();
 
   const getColor = (
-    total: number,
-    hasFreeTier: boolean,
-    freeTierMax: number,
-    hardMax: number
+    used: number,
+    limit: number,
+    isTransparent: boolean
   ): string => {
-    // if a product has hit its hard max
-    if (total >= hardMax) {
-      return theme.colors.error.main;
+    if (Number(used) >= Number(limit)) {
+      return isTransparent
+        ? theme.colors.interactive.tonal.danger[2]
+        : theme.colors.interactive.solid.danger.default;
     }
-
-    // if a product does not contain a free tier, or it has exceeded its free tier
-    // then they are being charged for usage
-    if (!hasFreeTier || total > freeTierMax) {
-      return theme.colors.link;
-    }
-
-    // the default behavior is for free tier products within their free tier limits
-    return theme.colors.success.main;
+    return isTransparent
+      ? theme.colors.interactive.tonal.success[2]
+      : theme.colors.interactive.solid.success.default;
   };
 
-  if (!productUsage.enabled) {
+  if (!section.enabled) {
     return (
-      <Flex justifyContent="space-between">
+      <Flex
+        justifyContent="space-between"
+        data-testid={`${section.name.toLowerCase().replace(' ', '_')}-cta`}
+      >
         <Text color={theme.colors.text.slightlyMuted} fontWeight="300">
           This feature isn&apos;t part of your current plan.
         </Text>
-        <ButtonSecondary
-          as="a"
-          target="blank"
-          href={getSalesURL(
-            version,
-            true,
-            CtaEvent.CTA_UNSPECIFIED,
-            productUsage.ctaUrl
-          )}
-        >
+        <ButtonSecondary as="a" target="blank" href="" disabled>
           Upgrade Now
         </ButtonSecondary>
       </Flex>
     );
   }
 
-  return productUsage.usages.map(
-    ({ percentageMax, percentage, hardMax, total, name }, i) => (
+  return section.usage.map(
+    (
+      { percentage, limit, used, name, customerUsed, customerPercentage },
+      i
+    ) => (
       <BarContainer
         key={name}
         data-testid={name}
-        mb={i == productUsage.usages.length - 1 ? '0' : '4'}
+        mb={i == section.usage.length - 1 ? '0' : '4'}
       >
         <Flex width="100%" justifyContent="space-between">
           <Text>{name}</Text>
@@ -76,16 +63,31 @@ export function UsageBar({
               <Text style={{ fontStyle: 'italic' }}>Calibrating</Text>
             ) : (
               <>
-                {total || 0} of {percentageMax} ({percentage}%)
+                {used || 0} of {limit || 0} ({percentage}%)
               </>
             )}
           </Box>
         </Flex>
-        <Box mt="3">
+        <Box mt="3" style={{ position: 'relative' }}>
+          {!aggregate && customerUsed > 0 && (
+            <StyledBar
+              percent={Math.min(customerPercentage, 100)}
+              color={getColor(customerUsed, limit, true)}
+              calibrating={calibrating}
+              style={{
+                position: 'absolute',
+                width: '100%',
+              }}
+            />
+          )}
           <StyledBar
             percent={Math.min(percentage, 100)}
-            color={getColor(total, false, percentageMax, hardMax)}
+            color={getColor(used, limit, false)}
             calibrating={calibrating}
+            style={{
+              width: '100%',
+              background: theme.colors.spotBackground[0],
+            }}
           />
         </Box>
       </BarContainer>
