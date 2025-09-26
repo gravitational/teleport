@@ -765,6 +765,7 @@ var (
 			Help:      "The number of Teleport services that are connected to an auth server.",
 		},
 		[]string{
+			teleport.TagOS,
 			teleport.TagVersion,
 			teleport.TagAutomaticUpdates,
 		},
@@ -1780,6 +1781,7 @@ func (a *Server) updateAgentMetrics() {
 	registeredAgents.Reset()
 	for agent, count := range imp.RegisteredAgentsCount() {
 		registeredAgents.With(prometheus.Labels{
+			teleport.TagOS:               agent.os,
 			teleport.TagVersion:          agent.version,
 			teleport.TagAutomaticUpdates: agent.automaticUpdates,
 		}).Set(float64(count))
