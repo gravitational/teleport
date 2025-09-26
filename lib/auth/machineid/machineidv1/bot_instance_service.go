@@ -182,6 +182,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		SortDesc:         req.GetSortDesc(),
 		FilterBotName:    req.GetFilter().GetBotName(),
 		FilterSearchTerm: req.GetFilter().GetSearchTerm(),
+		FilterQuery:      req.GetFilter().GetQuery(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
