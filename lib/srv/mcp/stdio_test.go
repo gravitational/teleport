@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -307,4 +308,14 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("reporting", func(t *testing.T) {
+		// Note that some metrics may be incremented by other tests too so here
+		// just checking they are non-zero.
+		require.Positive(t, testutil.ToFloat64(setupErrors.WithLabelValues(types.MCPTransportStdio)))
+		require.Positive(t, testutil.ToFloat64(accumulatedSessions.WithLabelValues(types.MCPTransportStdio)))
+		require.Positive(t, testutil.ToFloat64(messagesFromClient.WithLabelValues(types.MCPTransportStdio, "request", "initialize")))
+		require.Positive(t, testutil.ToFloat64(messagesFromClient.WithLabelValues(types.MCPTransportStdio, "notification", "notifications/initialized")))
+		require.Positive(t, testutil.ToFloat64(messagesFromServer.WithLabelValues(types.MCPTransportStdio, "response", "initialize")))
+	})
 }
