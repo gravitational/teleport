@@ -2240,7 +2240,7 @@ func TestTerminalRouting(t *testing.T) {
 
 			sess := term.GetSession()
 
-			metadata := tt.target.TargetMetadata()
+			metadata := tt.target.EventMetadata()
 			require.Equal(t, metadata.ServerID, sess.ServerID)
 			require.Equal(t, metadata.ServerHostname, sess.ServerHostname)
 
@@ -8647,7 +8647,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		AccessPoint:    client,
 		LockWatcher:    proxyLockWatcher,
 		Clock:          clock,
-		ServerID:       proxyID,
+		ServerID:       node.ID(),
 		Emitter:        client,
 		EmitterContext: ctx,
 		Logger:         log,
