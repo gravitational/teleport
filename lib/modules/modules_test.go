@@ -167,36 +167,6 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.ClientIPRestrictions):       {Enabled: true},
 			string(entitlements.WorkloadClusters):           {Enabled: true},
 		},
-		//	 Legacy Fields; remove in v18
-		Kubernetes:             true,
-		App:                    false,
-		DB:                     true,
-		OIDC:                   true,
-		SAML:                   true,
-		HSM:                    true,
-		Desktop:                true,
-		FeatureHiding:          true,
-		IdentityGovernance:     true,
-		ExternalAuditStorage:   true,
-		JoinActiveSessions:     true,
-		MobileDeviceManagement: true,
-		DeviceTrust: &proto.DeviceTrustFeature{
-			Enabled:           true,
-			DevicesUsageLimit: 103,
-		},
-		AccessRequests: &proto.AccessRequestsFeature{
-			MonthlyRequestLimit: 39,
-		},
-		AccessMonitoring: &proto.AccessMonitoringFeature{
-			Enabled:             false, // set to value of AccessMonitoringConfigured
-			MaxReportRangeLimit: 2113,
-		},
-		AccessList: &proto.AccessListFeature{
-			CreateLimit: 111,
-		},
-		Policy: &proto.PolicyFeature{
-			Enabled: true,
-		},
 	}
 
 	f := modules.Features{
