@@ -45,7 +45,9 @@ use ironrdp_pdu::input::fast_path::{
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::{InputEventError, MousePdu};
 use ironrdp_pdu::nego::NegoRequestData;
-use ironrdp_pdu::rdp::capability_sets::{BitmapCodecs, MajorPlatformType};
+use ironrdp_pdu::rdp::capability_sets::{
+    client_codecs_capabilities, BitmapCodecs, MajorPlatformType,
+};
 use ironrdp_pdu::rdp::client_info::{PerformanceFlags, TimezoneInfo};
 use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduError;
@@ -60,7 +62,7 @@ use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
-use log::debug;
+use log::{debug, error};
 use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
@@ -1402,7 +1404,12 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
             // Changing this to 16 gets us uncompressed bitmaps on machines configured like
             // https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
             color_depth: 32,
-            codecs: BitmapCodecs::default(),
+            // Try to congiure the client to use remotefx only. This should never fail in practice, but just in
+            // case we'll log an error and fall back to defaults.
+            codecs: client_codecs_capabilities(&["remotefx"]).unwrap_or({
+                error!("Failed to configure client for remotefx");
+                BitmapCodecs::default()
+            }),
         }),
         dig_product_id: "".to_string(),
         // `client_dir` is apparently unimportant, however most RDP clients hardcode this value (including FreeRDP):
