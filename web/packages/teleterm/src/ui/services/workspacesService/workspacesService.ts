@@ -355,17 +355,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       await this.clustersService.syncRootClustersAndCatchErrors(abortSignal);
       // Update the cluster.
       cluster = this.clustersService.findCluster(clusterUri);
-      if (!cluster) {
-        this.notificationsService.notifyError({
-          title: 'Could not set cluster as active',
-          description: `Cluster with URI ${clusterUri} does not exist`,
-        });
-        this.logger.warn(
-          `Could not find cluster with uri ${clusterUri} when changing active cluster`
-        );
-        return { isAtDesiredWorkspace: false };
-      }
-
       // If the problem persists (because, for example, the user still hasn't
       // connected the hardware key) show a notification and return early.
       if (cluster.profileStatusError) {

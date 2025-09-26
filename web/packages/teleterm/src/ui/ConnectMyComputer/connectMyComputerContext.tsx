@@ -148,7 +148,7 @@ export const ConnectMyComputerContextProvider: FC<
     isAgentConfiguredAttempt.data;
 
   const rootCluster = clustersService.findCluster(rootClusterUri);
-  const loggedInUser = rootCluster?.loggedInUser;
+  const { loggedInUser } = rootCluster;
 
   const access = useMemo(
     () =>
@@ -163,7 +163,7 @@ export const ConnectMyComputerContextProvider: FC<
   const agentCompatibility = useMemo(
     () =>
       checkAgentCompatibility(
-        rootCluster?.proxyVersion,
+        rootCluster.proxyVersion,
         mainProcessClient.getRuntimeSettings()
       ),
     [mainProcessClient, rootCluster]

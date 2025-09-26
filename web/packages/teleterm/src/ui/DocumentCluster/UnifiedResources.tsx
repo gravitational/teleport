@@ -141,16 +141,12 @@ export function UnifiedResources(props: {
     ]
   );
 
-  const rootClusterExists = !!rootCluster;
   const integratedAccessRequests = useMemo<IntegratedAccessRequests>(() => {
     // Ideally, we would have a cluster loading status that would tell us,
     // whether the cluster data from the auth server has been loaded.
     // However, since we don't have that,
     // we use the `showResources` status as an indicator.
-    if (
-      !rootClusterExists ||
-      rootCluster.showResources === ShowResources.UNSPECIFIED
-    ) {
+    if (rootCluster.showResources === ShowResources.UNSPECIFIED) {
       return { supported: 'unknown' };
     }
     if (!rootCluster.features?.advancedAccessWorkflows) {
@@ -164,9 +160,8 @@ export function UnifiedResources(props: {
       ),
     };
   }, [
-    rootClusterExists,
-    rootCluster?.features?.advancedAccessWorkflows,
-    rootCluster?.showResources,
+    rootCluster.features?.advancedAccessWorkflows,
+    rootCluster.showResources,
     userPreferences.unifiedResourcePreferences.availableResourceMode,
   ]);
 
@@ -176,7 +171,7 @@ export function UnifiedResources(props: {
   const isRootCluster = props.clusterUri === rootClusterUri;
   const canAddResources = isRootCluster && loggedInUser?.acl?.tokens.create;
   let discoverUrl: string;
-  if (isRootCluster && rootCluster) {
+  if (isRootCluster) {
     discoverUrl = `https://${rootCluster.proxyHost}/web/discover`;
   }
 

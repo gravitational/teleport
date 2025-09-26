@@ -38,7 +38,7 @@ import {
 } from './IdentityListItem';
 
 export function ActiveCluster(props: {
-  activeCluster: Cluster;
+  activeCluster: Cluster | undefined;
   activeColor: WorkspaceColor;
   deviceTrustStatus: DeviceTrustStatus;
   onChangeColor(color: WorkspaceColor): void;

@@ -279,8 +279,8 @@ async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
 
 function AppButton(props: {
   app: App;
-  cluster: Cluster | undefined;
-  rootCluster: Cluster | undefined;
+  cluster: Cluster;
+  rootCluster: Cluster;
   connectWithVnet(targetPort?: number): void;
   setUpGateway(targetPort?: number): void;
   onLaunchUrl(): void;
@@ -291,17 +291,14 @@ function AppButton(props: {
       <AwsLaunchButton
         width={buttonWidth}
         awsRoles={props.app.awsRoles}
-        getLaunchUrl={arn => {
-          if (!props.cluster || !props.rootCluster) {
-            return '';
-          }
-          return getAwsAppLaunchUrl({
+        getLaunchUrl={arn =>
+          getAwsAppLaunchUrl({
             app: props.app,
             rootCluster: props.rootCluster,
             cluster: props.cluster,
             arn,
-          });
-        }}
+          })
+        }
         onLaunchUrl={props.onLaunchUrl}
       />
     );

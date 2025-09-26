@@ -115,14 +115,11 @@ export function useVersions() {
   const cluster = ctx.clustersService.findCluster(
     workspaceContext.rootClusterUri
   );
+  const { proxyVersion } = cluster;
   const { appVersion, isLocalBuild } =
     ctx.mainProcessClient.getRuntimeSettings();
 
-  return {
-    proxyVersion: cluster?.proxyVersion || '',
-    appVersion,
-    isLocalBuild,
-  };
+  return { proxyVersion, appVersion, isLocalBuild };
 }
 
 function getMajorVersion(version: string): number {

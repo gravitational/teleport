@@ -17,7 +17,7 @@
  */
 
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
+import { ClusterUri, RootClusterUri } from 'teleterm/ui/uri';
 
 const commands = {
   'tsh-install': {
@@ -93,9 +93,8 @@ const commands = {
       const cluster = ctx.clustersService.findCluster(args.clusterUri);
       ctx.modalsService.openRegularDialog({
         kind: 'cluster-logout',
-        clusterUri: args.clusterUri,
-        clusterTitle:
-          cluster?.name || routing.parseClusterName(args.clusterUri),
+        clusterUri: cluster.uri,
+        clusterTitle: cluster.name,
       });
     },
   },
@@ -107,13 +106,6 @@ const commands = {
       const { clusterUri } = args;
       const rootCluster =
         ctx.clustersService.findRootClusterByResource(clusterUri);
-      if (!rootCluster) {
-        ctx.notificationsService.notifyError({
-          title: `Could not open cluster`,
-          description: `Cluster ${clusterUri} not found.`,
-        });
-        return;
-      }
       await ctx.workspacesService.setActiveWorkspace(rootCluster.uri);
       const documentsService =
         ctx.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
