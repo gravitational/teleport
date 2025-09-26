@@ -1,3 +1,5 @@
+import { useTheme } from 'styled-components';
+
 import Flex from 'design/Flex';
 
 import cfg from 'e-teleport/config';
@@ -9,6 +11,8 @@ import useLogin, { State } from 'teleport/Login/useLogin';
 import history from 'teleport/services/history';
 
 import mcLogo from '../Main/mcLogo/mcLogo.svg';
+import spacexLogoDark from '../Main/spacexLogo/spacexLogoDark.svg';
+import spacexLogoLight from '../Main/spacexLogo/spacexLogoLight.svg';
 
 export function LoginContainer() {
   const state = useLogin() as State;
@@ -41,6 +45,8 @@ export function Login({
   showMotd,
   acknowledgeMotd,
 }: State) {
+  const theme = useTheme();
+
   // while we are checking if a session is valid, we don't return anything
   // to prevent flickering. The check only happens for a frame or two so
   // we avoid rendering a loader/indicator since that will flicker as well
@@ -48,7 +54,23 @@ export function Login({
     return null;
   }
 
-  const isCustomForm = cfg.oss.customTheme === 'mc';
+  let isCustomForm = false;
+
+  let logo = <LogoHero />;
+  switch (cfg.oss.customTheme) {
+    case 'mc':
+      logo = <LogoHero customSrc={mcLogo} />;
+      isCustomForm = true;
+      break;
+    case 'spacex':
+      logo = (
+        <LogoHero
+          customSrc={theme.name === 'dark' ? spacexLogoDark : spacexLogoLight}
+        />
+      );
+      isCustomForm = true;
+      break;
+  }
 
   const title = isCustomForm ? 'Sign in' : 'Sign in to Teleport';
   const ssoTitle = isCustomForm
@@ -57,11 +79,7 @@ export function Login({
 
   return (
     <>
-      {cfg.oss.customTheme === 'mc' ? (
-        <LogoHero customSrc={mcLogo} />
-      ) : (
-        <LogoHero />
-      )}
+      {logo}
       {showMotd ? (
         <Motd message={motd} onClick={acknowledgeMotd} />
       ) : (
