@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // getSuiteFromProxy fetches cryptosuite config from the given remote proxy.
@@ -77,6 +78,7 @@ type KeypairMessageParams struct {
 	EnvName           string
 	EncodedPrivateKey string
 	StaticKeyPath     string
+	TokenExample      string
 }
 
 var keypairMessageTemplate = template.Must(template.New("keypair_message").Parse(`
@@ -84,7 +86,11 @@ To register the keypair with Teleport, include this public key in the token's
 'spec.bound_keypair.onboarding.initial_public_key' field:
 
 	{{ .PublicKey }}
-{{ if .StaticKeyPath }}
+
+Refer to this token example as a reference:
+
+{{ .TokenExample }}
+{{- if .StaticKeyPath }}
 Note that you must also set 'spec.bound_keypair.recovery.mode' to 'insecure'
 to use static keys.
 
@@ -101,10 +107,60 @@ Configure your bot to use this static key by inserting the following private key
 value into the bot's environment, ideally via a platform-specific keystore if
 available:
 	export {{ .EnvName }}={{ .EncodedPrivateKey }}
-{{ end }}
+{{ end -}}
 `))
 
+func generateExampleToken(params KeypairMessageParams, indent string) (string, error) {
+	token := &types.ProvisionTokenV2{
+		Version: types.V2,
+		Kind:    types.KindToken,
+		Metadata: types.Metadata{
+			Name: "example-token",
+		},
+		Spec: types.ProvisionTokenSpecV2{
+			Roles:      []types.SystemRole{types.RoleBot},
+			BotName:    "example-bot",
+			JoinMethod: types.JoinMethodBoundKeypair,
+			BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
+				Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+					InitialPublicKey: params.PublicKey,
+				},
+				Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{},
+			},
+		},
+	}
+
+	if params.EncodedPrivateKey != "" {
+		// EncodedPrivateKey is always set if a static key is used, even if we
+		// only write the unencoded key to a file
+		token.Spec.BoundKeypair.Recovery.Mode = "insecure"
+	}
+
+	w := strings.Builder{}
+	if err := utils.WriteYAML(&w, token); err != nil {
+		return "", trace.Wrap(err, "generating example token spec")
+	}
+
+	if indent == "" {
+		return w.String(), nil
+	}
+
+	indented := strings.Builder{}
+	for line := range strings.Lines(w.String()) {
+		indented.WriteString(indent + line)
+	}
+
+	return indented.String(), nil
+}
+
 func printKeypair(params KeypairMessageParams, format string) error {
+	example, err := generateExampleToken(params, "\t")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	params.TokenExample = example
+
 	switch format {
 	case teleport.Text:
 		if err := keypairMessageTemplate.Execute(os.Stdout, params); err != nil {
