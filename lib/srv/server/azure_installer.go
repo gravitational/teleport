@@ -23,8 +23,10 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -49,12 +51,14 @@ type AzureRunRequest struct {
 	ScriptName      string
 	PublicProxyAddr string
 	ClientID        string
+	InstallSuffix   string
+	UpdateGroup     string
 }
 
 // Run runs a command on a set of virtual machines and then blocks until the
 // commands have completed.
 func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
-	script, err := getInstallerScript(req.ScriptName, req.PublicProxyAddr, req.ClientID)
+	script, err := getInstallerScript(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -78,14 +82,14 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 	return trace.Wrap(g.Wait())
 }
 
-func getInstallerScript(installerName, publicProxyAddr, clientID string) (string, error) {
-	installerURL, err := url.Parse(fmt.Sprintf("https://%s/v1/webapi/scripts/installer/%v", publicProxyAddr, installerName))
+func getInstallerScript(req AzureRunRequest) (string, error) {
+	installerURL, err := url.Parse(fmt.Sprintf("https://%s/v1/webapi/scripts/installer/%v", req.PublicProxyAddr, req.ScriptName))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if clientID != "" {
+	if req.ClientID != "" {
 		q := installerURL.Query()
-		q.Set("azure-client-id", clientID)
+		q.Set("azure-client-id", req.ClientID)
 		installerURL.RawQuery = q.Encode()
 	}
 
@@ -98,5 +102,20 @@ func getInstallerScript(installerName, publicProxyAddr, clientID string) (string
 	// No big deal if rand.Read fails, the script is still valid.
 	_, _ = rand.Read(nonce)
 	script := fmt.Sprintf("curl -s -L %s| bash -s $@ #%x", installerURL, nonce)
+
+	var envVars []string
+	if req.InstallSuffix != "" {
+		safeInstallSuffix := shsprintf.EscapeDefaultContext(req.InstallSuffix)
+		envVars = append(envVars, fmt.Sprintf("TELEPORT_INSTALL_SUFFIX=%q", safeInstallSuffix))
+	}
+	if req.UpdateGroup != "" {
+		safeUpdateGroup := shsprintf.EscapeDefaultContext(req.UpdateGroup)
+		envVars = append(envVars, fmt.Sprintf("TELEPORT_UPDATE_GROUP=%q", safeUpdateGroup))
+	}
+
+	if len(envVars) > 0 {
+		script = fmt.Sprintf("export %s; %s", strings.Join(envVars, " "), script)
+	}
+
 	return script, nil
 }
