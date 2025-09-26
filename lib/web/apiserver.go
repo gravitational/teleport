@@ -886,7 +886,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Returns the CA Certs
 	// Deprecated, use the `webapi/auth/export` endpoint.
-	// Returning other clusters (trusted cluster) CA certs would leak wether the TrustedCluster exists or not.
+	// Returning other clusters (trusted cluster) CA certs would leak whether the TrustedCluster exists or not.
 	// Given that this is a public/unauthorized endpoint, we should refrain from exposing that kind of information.
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
 	h.GET("/webapi/auth/export", h.authExportPublic)

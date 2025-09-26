@@ -3606,7 +3606,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
 		azureIdentity:                    req.RouteToApp.AzureIdentity,
 		gcpServiceAccount:                req.RouteToApp.GCPServiceAccount,
-		checker:                          checker,
+		checker:                          services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to generateUserCerts.
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
 		loginIP:                a.context.Identity.GetIdentity().LoginIP,

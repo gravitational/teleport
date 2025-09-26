@@ -50,7 +50,7 @@ const (
 type ExportFunc func(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error)
 
 // contextLike lets us abstract over the difference between basic contexts and context-like values such
-// as control stream senders or resource watchers. the exporter uses a contextLike value to decide wether
+// as control stream senders or resource watchers. the exporter uses a contextLike value to decide whether
 // or not auth connectivity appears healthy. during normal runtime, we end up using the inventory control
 // stream send handle.
 type contextLike interface {

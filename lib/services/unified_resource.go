@@ -774,7 +774,7 @@ func (c *UnifiedResourceCache) getGitServers(ctx context.Context) (all []types.S
 }
 
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
-// wether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
+// whether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
 // not be accessed after the closure completes.
 func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedResourceCache) error) error {
 	c.rw.RLock()

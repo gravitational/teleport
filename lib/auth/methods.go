@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -56,7 +58,7 @@ const (
 // authenticateUserLogin implements the bulk of user login authentication.
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
-func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
+func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessChecker, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -108,10 +110,51 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUserState(userState)
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+
+	var checker *services.SplitAccessChecker
+	// scoped and unscoped logins use different access checkers and different underlying role types. the scope
+	// parameter is untrusted user input, but we reject attempts to login to a scope for which a user has no
+	// assigned privileges.
+	if req.Scope != "" {
+		// req.Scope is untrusted user input, so perform strong validation before proceeding.
+		if err := scopes.StrongValidate(req.Scope); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// set up scope pin (invalid until populated)
+		scopePin := &scopesv1.Pin{
+			Scope: req.Scope,
+		}
+
+		// populate the scope pin with the user's assigned scoped roles
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, user.GetName(), scopePin); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// build the user's access info based on the scope pin and userState
+		accessInfo := services.ScopePinnedAccessInfoFromUserState(userState, scopePin)
+
+		// create a scoped access checker "at" the requested scope. Note that this is not what is typically done for
+		// ordinary access checks. Ordinary access checks should always start with an access checker at the root scope
+		// and descend to the resource scope iteratively. In the case of login/cert-gen however, we want to bring all
+		// scoped roles into the access checker that apply to all possible resources the resulting identity may have
+		// access to.
+		scopedChecker, err := services.RiskyNewScopedAccessCheckerAtScope(ctx, req.Scope, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		checker = services.NewScopedSplitAccessChecker(scopedChecker)
+	} else {
+		// this is an unscoped login attempt, so the user's capabilities are determined solely by their user state.
+		accessInfo := services.AccessInfoFromUserState(userState)
+
+		unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		checker = services.NewUnscopedSplitAccessChecker(unscopedChecker)
 	}
 
 	// Verify if the MFA device is locked.
@@ -149,7 +192,7 @@ type authAuditProps struct {
 	username       string
 	clientMetadata *authclient.ForwardedClientMetadata
 	mfaDevice      *types.MFADevice
-	checker        services.AccessChecker
+	checker        *services.SplitAccessChecker
 	authErr        error
 	userOrigin     apievents.UserOrigin
 }
@@ -201,7 +244,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		privateKeyPolicy, err := props.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		privateKeyPolicy, err := props.checker.Common().PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -223,9 +266,10 @@ var (
 )
 
 type verifyMFADeviceLocksParams struct {
-	// Checker used to verify locks.
-	// Optional, created via a [UserState] fetch if nil.
-	Checker services.AccessChecker
+	// Checker is used to verify locks. Lock verification varies depending on whether the checker is
+	// scoped or unscoped, so we use a split checker. If no checker is provided, a default unscoped
+	// checker is created from the user backend state.
+	Checker *services.SplitAccessChecker
 
 	// ClusterLockingMode used to verify locks.
 	// Optional, acquired from [Server.GetAuthPreference] if nil.
@@ -272,11 +316,11 @@ func (a *Server) authenticateUser(
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+			unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			p.Checker = checker
+			p.Checker = services.NewUnscopedSplitAccessChecker(unscopedChecker)
 		}
 
 		if p.ClusterLockingMode == "" {
@@ -728,7 +772,8 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		}
 		clientIP = host
 	}
-	if checker.PinSourceIP() && clientIP == "" {
+
+	if checker.Common().PinSourceIP() && clientIP == "" {
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
