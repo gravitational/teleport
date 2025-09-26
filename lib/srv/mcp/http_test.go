@@ -162,7 +162,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		require.Equal(t, libevents.MCPSessionRequestEvent, lastEvent.GetType())
 		require.Equal(t, libevents.MCPSessionRequestFailureCode, lastEvent.GetCode())
 		require.False(t, lastEvent.Success)
-		require.Equal(t, lastEvent.Error, "HTTP 404 Not Found")
+		require.Equal(t, "HTTP 404 Not Found", lastEvent.Error)
 	})
 }
 

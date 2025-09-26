@@ -51,15 +51,21 @@ func (s *Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.
 
 	waitConn := utils.NewCloserConn(conn)
 	listener := listenerutils.NewSingleUseListener(waitConn)
-	if err := http.Serve(listener, handler); err != nil && !utils.IsOKNetworkError(err) {
-		waitConn.Close()
-		return trace.Wrap(err)
-	}
 	go func() {
-		// Make sure handler returns if ctx is canceled.
+		// Make sure connection is closed when ctx is canceled.
 		<-ctx.Done()
 		waitConn.Close()
 	}()
+
+	httpServer := &http.Server{
+		Handler: handler,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
+	}
+	if err := httpServer.Serve(listener); err != nil && !utils.IsOKNetworkError(err) {
+		return trace.Wrap(err)
+	}
 	waitConn.Wait()
 	return nil
 }

@@ -105,10 +105,6 @@ func (c *SessionCtx) getAccessState(authPref types.AuthPreference) services.Acce
 }
 
 func (c *SessionCtx) generateJWTAndTraits(ctx context.Context, auth AuthClient) (err error) {
-	if len(c.jwt) != 0 {
-		return nil
-	}
-
 	c.jwt, c.traitsForRewriteHeaders, err = appcommon.GenerateJWTAndTraits(ctx, &c.Identity, c.App, auth)
 	return trace.Wrap(err)
 }
@@ -244,11 +240,12 @@ const (
 func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, replyDirection) {
 	s.idTracker.PushRequest(req)
 	reply, authErr := s.processClientRequestNoAudit(ctx, req)
+	s.emitRequestEvent(ctx, req, authErr)
+
+	// Not forwarding to server. Just send the auth error to client.
 	if authErr != nil {
-		s.emitRequestEvent(ctx, req, authErr)
 		return reply, replyToClient
 	}
-	s.emitRequestEvent(ctx, req, nil)
 	return reply, replyToServer
 }
 
