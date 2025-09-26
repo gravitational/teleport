@@ -78,6 +78,8 @@ message ListBotInstancesV2Request {
     // A search term used to filter the results. If non-empty, it's used to
     // match against supported fields.
     string search_term = 2;
+    // A Teleport predicate language query used to filter the results.
+    string query = 3;
   }
 }
 
