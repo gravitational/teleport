@@ -210,16 +210,25 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		Parameters:   params,
 	})
 	if err != nil {
-		invalidParamErrorMessage := fmt.Sprintf("InvalidParameters: document %s does not support parameters", req.DocumentName)
-		_, hasSSHDConfigParam := params[ParamSSHDConfigPath]
-		if !strings.Contains(err.Error(), invalidParamErrorMessage) || !hasSSHDConfigParam {
+		// This might happen when teleport sends Parameters that are not part of the Document.
+		const invalidParamErrorMessage = "InvalidParameters"
+		if !strings.Contains(err.Error(), invalidParamErrorMessage) {
 			return trace.Wrap(err)
 		}
 
-		// This might happen when teleport sends Parameters that are not part of the Document.
-		// One example is when it uses the default SSM Document awslib.EC2DiscoverySSMDocument
-		// and Parameters include "sshdConfigPath" (only sent when installTeleport=false).
-		//
+		// The env param was added in v18.2.x, so older versions of the Document will reject it.
+		// Handle this error gracefully and ask the user to update the SSM Document.
+		_, hasEnvParam := params[ParamEnvVars]
+		if hasEnvParam {
+			return trace.BadParameter("%q param is missing in the SSM Document %s (%s), refer to https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-manual/ to update the document to the latest version: %v", ParamEnvVars, req.DocumentName, req.Region, err)
+		}
+
+		// The sshdConfigPath param only exists for non-agent installations of teleport (ie, openssh agents).
+		// If the SSM Document does not support the sshdConfigPath param, but it was sent, the command will fail with an InvalidParameters error.
+		_, hasSSHDConfigParam := params[ParamSSHDConfigPath]
+		if !hasSSHDConfigParam {
+			return trace.Wrap(err)
+		}
 		// As a best effort, we try to call ssm.SendCommand again but this time without the "sshdConfigPath" param
 		// We must not remove the Param "sshdConfigPath" beforehand because customers might be using custom SSM Documents for ec2 auto discovery.
 		delete(params, ParamSSHDConfigPath)

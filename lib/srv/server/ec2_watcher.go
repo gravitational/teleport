@@ -21,12 +21,14 @@ package server
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -226,6 +228,8 @@ func matchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 				Matcher:             matcher,
 				Region:              region,
 				Document:            matcher.SSM.DocumentName,
+				InstallSuffix:       matcher.Params.Suffix,
+				UpdateGroup:         matcher.Params.UpdateGroup,
 				EC2Client:           ec2Client,
 				Labels:              matcher.Tags,
 				Integration:         matcher.Integration,
@@ -242,6 +246,8 @@ type ec2FetcherConfig struct {
 	Matcher             types.AWSMatcher
 	Region              string
 	Document            string
+	InstallSuffix       string
+	UpdateGroup         string
 	EC2Client           ec2.DescribeInstancesAPIClient
 	Labels              types.Labels
 	Integration         string
@@ -303,6 +309,8 @@ const (
 	ParamScriptName = "scriptName"
 	// ParamSSHDConfigPath is the path to the OpenSSH config file sent in the SSM Document
 	ParamSSHDConfigPath = "sshdConfigPath"
+	// ParamEnvVars is a parameter that contains environment variables to set before running the installation script.
+	ParamEnvVars = "env"
 )
 
 // awsEC2APIChunkSize is the max number of instances SSM will send commands to at a time
@@ -342,6 +350,22 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 			ParamScriptName:     cfg.Matcher.Params.ScriptName,
 			ParamSSHDConfigPath: cfg.Matcher.Params.SSHDConfig,
 		}
+	}
+
+	var envVars []string
+
+	// InstallSuffix and UpdateGroup only contains alphanumeric characters and hyphens.
+	// Escape them anyway as another layer of safety.
+	if cfg.InstallSuffix != "" {
+		safeInstallSuffix := shsprintf.EscapeDefaultContext(cfg.InstallSuffix)
+		envVars = append(envVars, "TELEPORT_INSTALL_SUFFIX="+safeInstallSuffix)
+	}
+	if cfg.UpdateGroup != "" {
+		safeUpdateGroup := shsprintf.EscapeDefaultContext(cfg.UpdateGroup)
+		envVars = append(envVars, "TELEPORT_UPDATE_GROUP="+safeUpdateGroup)
+	}
+	if len(envVars) > 0 {
+		parameters["env"] = strings.Join(envVars, " ")
 	}
 
 	fetcher := ec2InstanceFetcher{
