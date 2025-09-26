@@ -90,15 +90,15 @@ overall security posture will depend on the correct and secure integration of th
 
 ### Proto Specification
 
-A new service called `TransportServiceV2` will be introduced. `TransportServiceV2` will replace the existing
-`TransportService`. The `ProxySSH` RPC of `TransportService` will be deprecated in favor of `TransportServiceV2`'s
-`ProxySSH` RPC, which provides in-band MFA enforcement during SSH session establishment. The new RPC supports both
+A new service called `TransportService` will be introduced. `TransportService` will replace the existing
+`TransportService` in the v1 package. The `ProxySSH` RPC of the v1 `TransportService` will be deprecated in favor of the v2
+package's `TransportService`'s `ProxySSH` RPC, which provides in-band MFA enforcement during SSH session establishment. The new RPC supports both
 MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA challenges as needed.
 
 ```proto
 // api/proto/teleport/transport/v2/transport_service.proto
 
-// TransportServiceV2 provides methods to proxy connections to various Teleport instances.
+// TransportService provides methods to proxy connections to various Teleport instances.
 //
 // All connections operate on top of a bidirectional stream which transports raw payloads from higher level protocols
 // (i.e. SSH). This service supports in-band multi-factor authentication (MFA) enforcement. MFA challenges and
@@ -106,7 +106,7 @@ MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA 
 // MFA-required and MFA-optional flows, and the client determines if MFA is needed by inspecting the first response from
 // the server. After any required MFA and the client's initial request, either side may freely send data in any order
 // until the stream is terminated.
-service TransportServiceV2 {
+service TransportService {
   // ProxySSH establishes an SSH connection to the target host over a bidirectional stream. Upon stream establishment,
   // the server will send an MFAAuthenticateChallenge as the first message if MFA is required. If MFA is not required,
   // the server will not send a challenge and the client can send the dial_target directly. All SSH and agent frames are
@@ -256,7 +256,7 @@ facilitate migration, any client invoking the deprecated `ProxySSH` RPC will rec
 release.
 
 After the transition period, the deprecated RPC will be removed and clients will be required to use the new
-`TransportServiceV2` RPCs exclusively.
+`TransportService` RPCs exclusively.
 
 #### Direct Server SSH Access Deprecation
 
@@ -273,8 +273,8 @@ All audit events for SSH sessions established via in-band MFA will continue to i
 
 ### Observability
 
-The `TransportServiceV2` will follow the established convention of using OpenTelemetry's auto-instrumentation, as this
-is already implemented for `TransportService`. No changes to observability patterns are needed.
+The `TransportService` in the v2 package will follow the established convention of using OpenTelemetry's auto-instrumentation, as this
+is already implemented for the v1 `TransportService`. No changes to observability patterns are needed.
 
 ### Product Usage
 
@@ -299,17 +299,17 @@ period and while receiving appropriate deprecation notices.
 
 #### Phase 1
 
-1. Create `TransportServiceV2` in `api/proto/teleport/transport/v2/transport_service.proto`.
-1. Generate `TransportServiceV2` Go code using `protoc`.
-1. Implement `TransportServiceV2` in `lib/srv/transport/transportv2/`.
-1. Deprecate `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
-1. Ensure server can handle clients using the deprecated `TransportService` RPCs, while supporting the new
-   `TransportServiceV2` RPCs.
-1. Update client/tsh code in `api/client/proxy/client.go` to use `TransportServiceV2`. Client should fallback to
-   `TransportService` if `TransportServiceV2` is not available.
+1. Create `TransportService` in `api/proto/teleport/transport/v2/transport_service.proto`.
+1. Generate `TransportService` Go code using `protoc`.
+1. Implement the v2 `TransportService` in `lib/srv/transport/transportv2/`.
+1. Deprecate the v1 `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
+1. Ensure server can handle clients using the deprecated v1 `TransportService` RPCs, while supporting the new
+   v2 `TransportService` RPCs.
+1. Update client/tsh code in `api/client/proxy/client.go` to use the v2 `TransportService`. Client should fallback to
+   the v1 `TransportService` if the v2 service is not available.
 1. Update clients so they handle MFA challenges and responses as a part of the SSH session establishment process.
 1. Add deprecation notices to SSH banner for clients connecting directly.
-1. Add tests to verify backward compatibility with the deprecated `TransportService` RPCs.
+1. Add tests to verify backward compatibility with the deprecated v1 `TransportService` RPCs.
 1. Update documentation to reflect the new architecture and deprecation of direct node access.
 
 #### Phase 2
