@@ -29,6 +29,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
@@ -896,4 +897,70 @@ func (s *AWSOIDCService) Ping(ctx context.Context, req *integrationpb.PingReques
 		Arn:       resp.ARN,
 		UserId:    resp.UserID,
 	}, nil
+}
+
+func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
+	s.logger.DebugContext(ctx, "Deleting DiscoveryConfig associated with integration", "integration", ig.GetName())
+
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbDelete, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// remove AWS matchers from DiscoveryConfigs that reference this integration
+	for config, err := range clientutils.Resources(ctx, s.backend.ListDiscoveryConfigs) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Filter out AWS matchers that reference our integration
+		var filteredAWSMatchers []types.AWSMatcher
+		for _, awsMatcher := range config.Spec.AWS {
+			if awsMatcher.Integration == ig.GetName() {
+				s.logger.DebugContext(ctx, "Removing AWS matcher referencing integration from discovery config",
+					"discovery_config", config.GetName(), "integration", ig.GetName())
+			} else {
+				filteredAWSMatchers = append(filteredAWSMatchers, awsMatcher)
+			}
+		}
+
+		// delete DiscoveryConfig if no matchers exist
+		if len(filteredAWSMatchers) == 0 &&
+			len(config.Spec.Azure) == 0 &&
+			len(config.Spec.GCP) == 0 &&
+			len(config.Spec.Kube) == 0 &&
+			config.Spec.AccessGraph == nil {
+			if err := s.backend.DeleteDiscoveryConfig(ctx, config.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+
+			continue
+		}
+
+		// Update the DiscoveryConfig if any AWS matchers were removed
+		if len(filteredAWSMatchers) != len(config.Spec.AWS) {
+			config.Spec.AWS = filteredAWSMatchers
+			if _, err := s.backend.UpdateDiscoveryConfig(ctx, config); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	// delete AWS Access AppServers associated with this integration
+	for app, err := range clientutils.Resources(ctx, s.backend.ListApps) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if app.GetIntegration() == ig.GetName() {
+			s.logger.DebugContext(ctx, "Deleting AWS Access app server associated with integration",
+				"app_server", app.GetName(), "integration", ig.GetName())
+			if err := s.backend.DeleteApp(ctx, app.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+
+			continue
+		}
+	}
+
+	return nil
 }
