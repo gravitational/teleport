@@ -174,8 +174,6 @@ export class MockMainProcessClient implements MainProcessClient {
     return this.frontendAppInit.promise;
   }
 
-  refreshClusterList() {}
-
   async selectDirectoryForDesktopSession() {
     return '';
   }

@@ -189,9 +189,6 @@ export default function createMainProcessClient(): MainProcessClient {
     signalUserInterfaceReadiness(args: { success: boolean }) {
       ipcRenderer.send(WindowsManagerIpc.SignalUserInterfaceReadiness, args);
     },
-    refreshClusterList() {
-      ipcRenderer.send(MainProcessIpc.RefreshClusterList);
-    },
     selectDirectoryForDesktopSession(args: {
       desktopUri: string;
       login: string;
