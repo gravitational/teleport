@@ -3041,7 +3041,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.Equal(t, "hello once more\n", string(out))
 }
 
-func TestTargetMetadata(t *testing.T) {
+func TestEventMetadata(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
