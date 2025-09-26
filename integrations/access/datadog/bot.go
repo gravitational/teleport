@@ -166,29 +166,50 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 		return nil, nil
 	}
 
-	// Fetch all on-call teams
-	oncallTeams, err := b.datadog.GetOncallTeams(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var oncallUserIDs []string
-	for _, oncallTeam := range oncallTeams.Data {
-		// Filter the list of teams to only the teams that match the datadog annotation.
-		if !slices.Contains(teamNames, oncallTeam.Attributes.Handle) &&
-			!slices.Contains(teamNames, oncallTeam.Attributes.Name) {
-			continue
+	var teamIDs []string
+	var total int
+	var page int
+	for {
+		resp, err := b.datadog.ListTeamsPage(ctx, page)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		// Collect users that are on-call for the specified team.
-		for _, oncallUser := range oncallTeam.Relationships.OncallUsers.Data {
-			oncallUserIDs = append(oncallUserIDs, oncallUser.ID)
+
+		total = total + resp.Meta.Pagination.Size
+		page++
+
+		// Filter the list of teams to only the teams that match the datadog annotation.
+		for _, teamData := range resp.Data {
+			if !slices.Contains(teamNames, teamData.Attributes.Handle) &&
+				!slices.Contains(teamNames, teamData.Attributes.Name) {
+				continue
+			}
+			teamIDs = append(teamIDs, teamData.ID)
+		}
+
+		// Break if all teams have been listed or all team IDs have been identified.
+		if total >= resp.Meta.Pagination.Total || len(teamIDs) == len(teamNames) {
+			break
 		}
 	}
 
 	var oncallUserEmails []string
-	for _, user := range oncallTeams.Included {
-		if slices.Contains(oncallUserIDs, user.ID) {
-			oncallUserEmails = append(oncallUserEmails, user.Attributes.Email)
+	for _, teamID := range teamIDs {
+		resp, err := b.datadog.GetTeamOncall(ctx, teamID)
+		if err != nil {
+			log.WarnContext(ctx, "failed to get on-call users", "team_id", teamID)
+			continue
+		}
+
+		var oncallUserIDs []string
+		for _, oncallUser := range resp.Data.Relationships.Responders.Data {
+			oncallUserIDs = append(oncallUserIDs, oncallUser.ID)
+		}
+
+		for _, user := range resp.Included {
+			if slices.Contains(oncallUserIDs, user.ID) {
+				oncallUserEmails = append(oncallUserEmails, user.Attributes.Email)
+			}
 		}
 	}
 	return oncallUserEmails, nil

@@ -61,14 +61,9 @@ func NewFakeDatadog(concurrency int) *FakeDatadog {
 
 	// Ignore api version for tests
 	const apiPrefix = "/" + datadog.APIVersion
-	const unstablePrefix = "/" + datadog.APIUnstable
 	router.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, apiPrefix) {
 			http.StripPrefix(apiPrefix, router).ServeHTTP(w, r)
-			return
-		}
-		if strings.HasPrefix(r.URL.Path, unstablePrefix) {
-			http.StripPrefix(unstablePrefix, router).ServeHTTP(w, r)
 			return
 		}
 		http.NotFound(w, r)
@@ -81,6 +76,18 @@ func NewFakeDatadog(concurrency int) *FakeDatadog {
 				{
 					Attributes: datadog.PermissionsAttributes{
 						Name:       datadog.IncidentWritePermissions,
+						Restricted: false,
+					},
+				},
+				{
+					Attributes: datadog.PermissionsAttributes{
+						Name:       datadog.TeamsManagePermissions,
+						Restricted: false,
+					},
+				},
+				{
+					Attributes: datadog.PermissionsAttributes{
+						Name:       datadog.OnCallReadPermissions,
 						Restricted: false,
 					},
 				},
@@ -142,7 +149,45 @@ func NewFakeDatadog(concurrency int) *FakeDatadog {
 		panicIf(err)
 	})
 
-	router.GET("/on-call/teams", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	router.GET("/team", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		rw.Header().Add("Content-Type", "application/json")
+
+		oncallTeams, found := mock.GetOncallTeams()
+		if !found {
+			rw.WriteHeader(http.StatusNotFound)
+			err := json.NewEncoder(rw).Encode(&datadog.ErrorResult{Errors: []string{"Teams not found"}})
+			panicIf(err)
+			return
+		}
+
+		var teams []datadog.TeamsData
+		for team := range oncallTeams {
+			teams = append(teams, datadog.TeamsData{
+				Metadata: datadog.Metadata{
+					ID: team,
+				},
+				Attributes: datadog.TeamsAttributes{
+					Name:   team,
+					Handle: team,
+				},
+			})
+		}
+
+		body := datadog.ListTeamsBody{
+			Data: teams,
+			Meta: datadog.ListMetadata{
+				Pagination: datadog.PaginationMetadata{
+					Size:  len(teams),
+					Total: len(teams),
+				},
+			},
+		}
+
+		err := json.NewEncoder(rw).Encode(body)
+		panicIf(err)
+	})
+
+	router.GET("/on-call/teams/:team_id/on-call", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		rw.Header().Add("Content-Type", "application/json")
 
 		oncallTeams, found := mock.GetOncallTeams()
@@ -153,41 +198,43 @@ func NewFakeDatadog(concurrency int) *FakeDatadog {
 			return
 		}
 
+		oncallUsers, ok := oncallTeams[ps.ByName("team_id")]
+		if !ok {
+			rw.WriteHeader(http.StatusNotFound)
+			err := json.NewEncoder(rw).Encode(&datadog.ErrorResult{Errors: []string{"On-call Teams not found"}})
+			panicIf(err)
+			return
+		}
+
 		body := datadog.OncallTeamsBody{
-			Data:     []datadog.OncallTeamsData{},
+			Data:     datadog.OncallTeamsData{},
 			Included: []datadog.OncallTeamsIncluded{},
 		}
 
-		for team, users := range oncallTeams {
-			oncallUsers := make([]datadog.OncallUsersData, 0, len(users))
-
-			for _, user := range users {
-				userID := strconv.FormatUint(atomic.AddUint64(&mock.userIDCounter, 1), 10)
-				oncallUsers = append(oncallUsers, datadog.OncallUsersData{
-					Metadata: datadog.Metadata{
-						ID: userID,
-					},
-				})
-				body.Included = append(body.Included, datadog.OncallTeamsIncluded{
-					Metadata: datadog.Metadata{
-						ID: userID,
-					},
-					Attributes: datadog.OncallTeamsIncludedAttributes{
-						Email: user,
-					},
-				})
-			}
-
-			body.Data = append(body.Data, datadog.OncallTeamsData{
-				Attributes: datadog.OncallTeamsAttributes{
-					Handle: team,
-				},
-				Relationships: datadog.OncallTeamsRelationships{
-					OncallUsers: datadog.OncallUsers{
-						Data: oncallUsers,
-					},
+		oncallUsersData := make([]datadog.OncallUsersData, 0, len(oncallUsers))
+		for _, user := range oncallUsers {
+			userID := strconv.FormatUint(atomic.AddUint64(&mock.userIDCounter, 1), 10)
+			oncallUsersData = append(oncallUsersData, datadog.OncallUsersData{
+				Metadata: datadog.Metadata{
+					ID: userID,
 				},
 			})
+			body.Included = append(body.Included, datadog.OncallTeamsIncluded{
+				Metadata: datadog.Metadata{
+					ID: userID,
+				},
+				Attributes: datadog.OncallTeamsIncludedAttributes{
+					Email: user,
+				},
+			})
+		}
+
+		body.Data = datadog.OncallTeamsData{
+			Relationships: datadog.OncallTeamsRelationships{
+				Responders: datadog.Responders{
+					Data: oncallUsersData,
+				},
+			},
 		}
 
 		err := json.NewEncoder(rw).Encode(body)
