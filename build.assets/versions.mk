@@ -9,8 +9,6 @@ GOLANGCI_LINT_VERSION ?= v2.7.2
 # NOTE: Remember to update engines.node in package.json to match the major version.
 NODE_VERSION ?= 24.13.0
 
-# Run lint-rust check locally before merging code after you bump this.
-RUST_VERSION ?= 1.81.0
 WASM_OPT_VERSION ?= 0.116.1
 LIBBPF_VERSION ?= 1.2.2
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
