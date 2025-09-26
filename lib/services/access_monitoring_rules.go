@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -93,6 +94,10 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 		return trace.BadParameter("accessMonitoringRule condition is missing")
 	}
 
+	if err := validateSchedules(accessMonitoringRule.GetSpec().GetSchedules()); err != nil {
+		return trace.Wrap(err, "validating spec.schedules")
+	}
+
 	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
 		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
 	}
@@ -135,6 +140,65 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 	}
 
 	return nil
+}
+
+func validateSchedules(schedules map[string]*accessmonitoringrulesv1.Schedule) error {
+	for name, schedule := range schedules {
+		if schedule.GetTime() == nil {
+			return trace.BadParameter("spec.schedules[%s].time is required", name)
+		}
+
+		if err := validateTimeSchedule(schedule.GetTime()); err != nil {
+			return trace.Wrap(err, "validating spec.schedules[%s].time", name)
+		}
+	}
+	return nil
+}
+
+func validateTimeSchedule(schedule *accessmonitoringrulesv1.TimeSchedule) error {
+	if len(schedule.GetShifts()) == 0 {
+		return trace.BadParameter("at least one shift is required")
+	}
+
+	for _, shift := range schedule.GetShifts() {
+		if err := validateShift(shift); err != nil {
+			return trace.Wrap(err, "shift is invalid")
+		}
+	}
+	return nil
+}
+
+func validateShift(shift *accessmonitoringrulesv1.TimeSchedule_Shift) error {
+	if _, ok := types.ParseWeekday(shift.GetWeekday()); !ok {
+		return trace.BadParameter("failed to parse weekday: %v", shift.GetWeekday())
+	}
+
+	start, err := clockTime(time.Time{}, shift.GetStart())
+	if err != nil {
+		return trace.Wrap(err, "invalid start time")
+	}
+
+	end, err := clockTime(time.Time{}, shift.GetEnd())
+	if err != nil {
+		return trace.Wrap(err, "invalid end time")
+	}
+
+	if !start.Before(end) {
+		return trace.BadParameter("start time must be before end time")
+	}
+	return nil
+}
+
+func clockTime(timestamp time.Time, hourMinute string) (time.Time, error) {
+	const hourMinuteFormat = "15:04" // 24-hour HH:MM format
+
+	parsed, err := time.ParseInLocation(hourMinuteFormat, hourMinute, timestamp.Location())
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+
+	return time.Date(timestamp.Year(), timestamp.Month(), timestamp.Day(),
+		parsed.Hour(), parsed.Minute(), 0, 0, timestamp.Location()), nil
 }
 
 // MarshalAccessMonitoringRule marshals AccessMonitoringRule resource to JSON.

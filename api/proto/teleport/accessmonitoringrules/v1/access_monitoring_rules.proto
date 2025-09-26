@@ -67,6 +67,10 @@ message AccessMonitoringRuleSpec {
   // subjects, the desired_state may be set to `reviewed` to indicate that the
   // Access Request should be automatically reviewed.
   string desired_state = 7;
+
+  // schedules specifies a map of schedules that can be used to configure the
+  // access monitoring rule conditions.
+  map<string, Schedule> schedules = 8;
 }
 
 // Notification contains configurations for plugin notification rules.
@@ -85,6 +89,29 @@ message AutomaticReview {
   // decision specifies the proposed state of the access review. This can be
   // either 'APPROVED' or 'DENIED'.
   string decision = 2;
+}
+
+// Schedule specifies a schedule that can be used to configure rule conditions.
+message Schedule {
+  // TimeSchedule specifies an in-line schedule.
+  TimeSchedule time = 1;
+}
+
+// TimeSchedule specifies an in-line schedule.
+message TimeSchedule {
+  // Shifts contains a set of shifts that make up the schedule.
+  // Shifts are configured in UTC.
+  repeated Shift shifts = 1;
+
+  // Shift contains the weekday, start time, and end time of a shift.
+  message Shift {
+    // Weekday specifies the day of the week, e.g., "Sunday", "Monday", "Tuesday".
+    string weekday = 1;
+    // Start specifies the start time in the format HH:MM, e.g., "12:30".
+    string start = 2;
+    // End specifies the end time in the format HH:MM, e.g., "12:30".
+    string end = 3;
+  }
 }
 
 // CreateAccessMonitoringRuleRequest is the request for CreateAccessMonitoringRule.
