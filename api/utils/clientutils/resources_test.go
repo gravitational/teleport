@@ -290,7 +290,7 @@ func TestCollectWithFallbackk(t *testing.T) {
 				return nil, "", trace.BadParameter("")
 			},
 			fallbackFunc: func(context.Context) ([]string, error) {
-				panic("enexpected call")
+				panic("unexpected call")
 			},
 			err: trace.BadParameter(""),
 		},
