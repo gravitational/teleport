@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teleport-relay.fullname" . }}
+  labels:
+    {{- include "teleport-relay.labels" . | nindent 4 }}
+    {{- with .Values.extraLabels.service }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.annotations.service }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ required "service.type must be set in chart values" .Values.service.type | quote }}
+  ports:
+    - name: transport
+      port: 443
+      targetPort: transport
+      protocol: TCP
+    - name: tunnel
+      port: 3042
+      targetPort: tunnel
+      protocol: TCP
+  selector:
+    {{- include "teleport-relay.selectorLabels" . | nindent 4 }}
+  {{- with .Values.service.spec }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
