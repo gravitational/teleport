@@ -19,6 +19,7 @@ package web
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	yaml "github.com/ghodss/yaml"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	tslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -411,6 +413,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 		sort = &s
 	}
 
+	//nolint:staticcheck // SA1019. Kept for backward compatibility.
 	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), &machineidv1.ListBotInstancesRequest{
 		FilterBotName:    r.URL.Query().Get("bot_name"),
 		PageSize:         int32(pageSize),
@@ -423,11 +426,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 	}
 
 	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
-		latestHeartbeats := instance.GetStatus().GetLatestHeartbeats()
-		heartbeat := instance.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-		if len(latestHeartbeats) > 0 {
-			heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
-		}
+		heartbeat := services.GetBotInstanceLatestHeartbeat(instance)
 
 		uiInstance := BotInstance{
 			InstanceId: instance.Spec.InstanceId,
@@ -440,6 +439,70 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 			uiInstance.VersionLatest = heartbeat.Version
 			uiInstance.ActiveAtLatest = heartbeat.RecordedAt.AsTime().Format(time.RFC3339)
 			uiInstance.OSLatest = heartbeat.Os
+		}
+
+		return uiInstance
+	})
+
+	return ListBotInstancesResponse{
+		BotInstances:  uiInstances,
+		NextPageToken: instances.NextPageToken,
+	}, nil
+}
+
+// listBotInstancesV2 returns a list of bot instances for a given cluster site.
+func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	request := &machineidv1.ListBotInstancesV2Request{
+		PageToken: r.URL.Query().Get("page_token"),
+		SortField: r.URL.Query().Get("sort_field"),
+		Filter: &machineidv1.ListBotInstancesV2Request_Filters{
+			BotName:    r.URL.Query().Get("bot_name"),
+			SearchTerm: r.URL.Query().Get("search"),
+			Query:      r.URL.Query().Get("query"),
+		},
+	}
+
+	if r.URL.Query().Has("page_size") {
+		pageSize, err := strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
+		if err != nil {
+			return nil, trace.BadParameter("invalid page size")
+		}
+		request.PageSize = int32(pageSize)
+	}
+
+	if r.URL.Query().Has("sort_dir") {
+		sortDir := r.URL.Query().Get("sort_dir")
+		request.SortDesc = strings.ToLower(sortDir) == "desc"
+	}
+
+	instances, err := clt.BotInstanceServiceClient().ListBotInstancesV2(r.Context(), request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
+		heartbeat := services.GetBotInstanceLatestHeartbeat(instance)
+		authentication := services.GetBotInstanceLatestAuthentication(instance)
+
+		uiInstance := BotInstance{
+			InstanceId: instance.GetSpec().GetInstanceId(),
+			BotName:    instance.GetSpec().GetBotName(),
+		}
+
+		if authentication != nil {
+			uiInstance.JoinMethodLatest = authentication.GetJoinMethod()
+		}
+
+		if heartbeat != nil {
+			uiInstance.HostNameLatest = heartbeat.GetHostname()
+			uiInstance.VersionLatest = heartbeat.GetVersion()
+			uiInstance.ActiveAtLatest = heartbeat.GetRecordedAt().AsTime().Format(time.RFC3339)
+			uiInstance.OSLatest = heartbeat.GetOs()
 		}
 
 		return uiInstance

@@ -34,10 +34,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BotInstanceService_GetBotInstance_FullMethodName    = "/teleport.machineid.v1.BotInstanceService/GetBotInstance"
-	BotInstanceService_ListBotInstances_FullMethodName  = "/teleport.machineid.v1.BotInstanceService/ListBotInstances"
-	BotInstanceService_DeleteBotInstance_FullMethodName = "/teleport.machineid.v1.BotInstanceService/DeleteBotInstance"
-	BotInstanceService_SubmitHeartbeat_FullMethodName   = "/teleport.machineid.v1.BotInstanceService/SubmitHeartbeat"
+	BotInstanceService_GetBotInstance_FullMethodName     = "/teleport.machineid.v1.BotInstanceService/GetBotInstance"
+	BotInstanceService_ListBotInstances_FullMethodName   = "/teleport.machineid.v1.BotInstanceService/ListBotInstances"
+	BotInstanceService_ListBotInstancesV2_FullMethodName = "/teleport.machineid.v1.BotInstanceService/ListBotInstancesV2"
+	BotInstanceService_DeleteBotInstance_FullMethodName  = "/teleport.machineid.v1.BotInstanceService/DeleteBotInstance"
+	BotInstanceService_SubmitHeartbeat_FullMethodName    = "/teleport.machineid.v1.BotInstanceService/SubmitHeartbeat"
 )
 
 // BotInstanceServiceClient is the client API for BotInstanceService service.
@@ -48,8 +49,12 @@ const (
 type BotInstanceServiceClient interface {
 	// GetBotInstance returns the specified BotInstance resource.
 	GetBotInstance(ctx context.Context, in *GetBotInstanceRequest, opts ...grpc.CallOption) (*BotInstance, error)
+	// Deprecated: Do not use.
 	// ListBotInstances returns a page of BotInstance resources.
+	// Deprecated: Use ListBotInstancesV2 instead
 	ListBotInstances(ctx context.Context, in *ListBotInstancesRequest, opts ...grpc.CallOption) (*ListBotInstancesResponse, error)
+	// ListBotInstancesV2 returns a page of BotInstance resources.
+	ListBotInstancesV2(ctx context.Context, in *ListBotInstancesV2Request, opts ...grpc.CallOption) (*ListBotInstancesResponse, error)
 	// DeleteBotInstance hard deletes the specified BotInstance resource.
 	DeleteBotInstance(ctx context.Context, in *DeleteBotInstanceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SubmitHeartbeat submits a heartbeat for a BotInstance.
@@ -74,10 +79,21 @@ func (c *botInstanceServiceClient) GetBotInstance(ctx context.Context, in *GetBo
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *botInstanceServiceClient) ListBotInstances(ctx context.Context, in *ListBotInstancesRequest, opts ...grpc.CallOption) (*ListBotInstancesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListBotInstancesResponse)
 	err := c.cc.Invoke(ctx, BotInstanceService_ListBotInstances_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *botInstanceServiceClient) ListBotInstancesV2(ctx context.Context, in *ListBotInstancesV2Request, opts ...grpc.CallOption) (*ListBotInstancesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListBotInstancesResponse)
+	err := c.cc.Invoke(ctx, BotInstanceService_ListBotInstancesV2_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -112,8 +128,12 @@ func (c *botInstanceServiceClient) SubmitHeartbeat(ctx context.Context, in *Subm
 type BotInstanceServiceServer interface {
 	// GetBotInstance returns the specified BotInstance resource.
 	GetBotInstance(context.Context, *GetBotInstanceRequest) (*BotInstance, error)
+	// Deprecated: Do not use.
 	// ListBotInstances returns a page of BotInstance resources.
+	// Deprecated: Use ListBotInstancesV2 instead
 	ListBotInstances(context.Context, *ListBotInstancesRequest) (*ListBotInstancesResponse, error)
+	// ListBotInstancesV2 returns a page of BotInstance resources.
+	ListBotInstancesV2(context.Context, *ListBotInstancesV2Request) (*ListBotInstancesResponse, error)
 	// DeleteBotInstance hard deletes the specified BotInstance resource.
 	DeleteBotInstance(context.Context, *DeleteBotInstanceRequest) (*emptypb.Empty, error)
 	// SubmitHeartbeat submits a heartbeat for a BotInstance.
@@ -133,6 +153,9 @@ func (UnimplementedBotInstanceServiceServer) GetBotInstance(context.Context, *Ge
 }
 func (UnimplementedBotInstanceServiceServer) ListBotInstances(context.Context, *ListBotInstancesRequest) (*ListBotInstancesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListBotInstances not implemented")
+}
+func (UnimplementedBotInstanceServiceServer) ListBotInstancesV2(context.Context, *ListBotInstancesV2Request) (*ListBotInstancesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListBotInstancesV2 not implemented")
 }
 func (UnimplementedBotInstanceServiceServer) DeleteBotInstance(context.Context, *DeleteBotInstanceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteBotInstance not implemented")
@@ -197,6 +220,24 @@ func _BotInstanceService_ListBotInstances_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BotInstanceService_ListBotInstancesV2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBotInstancesV2Request)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BotInstanceServiceServer).ListBotInstancesV2(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BotInstanceService_ListBotInstancesV2_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BotInstanceServiceServer).ListBotInstancesV2(ctx, req.(*ListBotInstancesV2Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _BotInstanceService_DeleteBotInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteBotInstanceRequest)
 	if err := dec(in); err != nil {
@@ -247,6 +288,10 @@ var BotInstanceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListBotInstances",
 			Handler:    _BotInstanceService_ListBotInstances_Handler,
+		},
+		{
+			MethodName: "ListBotInstancesV2",
+			Handler:    _BotInstanceService_ListBotInstancesV2_Handler,
 		},
 		{
 			MethodName: "DeleteBotInstance",

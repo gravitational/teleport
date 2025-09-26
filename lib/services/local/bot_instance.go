@@ -18,8 +18,6 @@ package local
 
 import (
 	"context"
-	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -28,9 +26,11 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 const (
@@ -96,60 +96,44 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, botName, instan
 // If an non-empty search term is provided, only instances with a value containing the term in supported fields are fetched.
 // Supported search fields include; bot name, instance id, hostname (latest), tbot version (latest), join method (latest).
 // Sorting by bot name in ascending order is supported - an error is returned for any other sort type.
-func (b *BotInstanceService) ListBotInstances(ctx context.Context, botName string, pageSize int, lastKey string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error) {
-	if sort != nil && (sort.Field != "bot_name" || sort.IsDesc != false) {
-		return nil, "", trace.BadParameter("unsupported sort, only bot_name:asc is supported, but got %q (desc = %t)", sort.Field, sort.IsDesc)
+func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int, lastKey string, options *services.ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error) {
+	if options.GetSortField() != "" && options.GetSortField() != "bot_name" {
+		return nil, "", trace.CompareFailed("unsupported sort, only bot_name field is supported, but got %q", options.GetSortField())
+	}
+	if options.GetSortDesc() {
+		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
 	}
 
 	var service *generic.ServiceWrapper[*machineidv1.BotInstance]
-	if botName == "" {
+	if options.GetFilterBotName() == "" {
 		// If botName is empty, return instances for all bots by not using a service prefix
 		service = b.service
 	} else {
-		service = b.service.WithPrefix(botName)
+		service = b.service.WithPrefix(options.GetFilterBotName())
 	}
 
-	if search == "" {
+	var exp typical.Expression[*expression.Environment, bool]
+	if options.GetFilterQuery() != "" {
+		parser, err := expression.NewBotInstanceExpressionParser()
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		exp, err = parser.Parse(options.GetFilterQuery())
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	if options.GetFilterSearchTerm() == "" && exp == nil {
 		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
 		return r, nextToken, trace.Wrap(err)
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-		return matchBotInstance(item, botName, search)
+		return services.MatchBotInstance(item, "", options.GetFilterSearchTerm(), exp)
 	})
 
 	return r, nextToken, trace.Wrap(err)
-}
-
-func matchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
-	// If updating this, ensure it's consistent with the cache search logic in `lib/cache/bot_instance.go`.
-
-	if botName != "" && b.Spec.BotName != botName {
-		return false
-	}
-
-	if search == "" {
-		return true
-	}
-
-	latestHeartbeats := b.GetStatus().GetLatestHeartbeats()
-	heartbeat := b.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-	if len(latestHeartbeats) > 0 {
-		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
-	}
-
-	values := []string{
-		b.Spec.BotName,
-		b.Spec.InstanceId,
-	}
-
-	if heartbeat != nil {
-		values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
-	}
-
-	return slices.ContainsFunc(values, func(val string) bool {
-		return strings.Contains(strings.ToLower(val), strings.ToLower(search))
-	})
 }
 
 // DeleteBotInstance deletes a specific bot instance matching the given bot name

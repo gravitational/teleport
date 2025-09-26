@@ -62,6 +62,7 @@ export const makeDatabase = (
   hostname: '',
   addr: '',
   labels: [],
+  gcpProjectId: '',
   ...props,
 });
 
