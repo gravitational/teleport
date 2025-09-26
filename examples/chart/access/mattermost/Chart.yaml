@@ -1,4 +1,4 @@
-.version: &version "18.2.2"
+.version: &version "18.2.3-dev.relay.2"
 
 apiVersion: v2
 name: teleport-plugin-mattermost
