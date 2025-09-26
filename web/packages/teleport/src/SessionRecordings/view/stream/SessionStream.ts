@@ -332,6 +332,8 @@ export class SessionStream<
       // mark loading as false as soon as we get any batch event so we can start playing again
       this.loading = false;
 
+      this.pushBatchToBuffer(parsed.events);
+
       if (this.state === PlayerState.Loading) {
         if (this.wasPlayingBeforeSeek) {
           this.play();
@@ -339,8 +341,6 @@ export class SessionStream<
           this.setState(PlayerState.Paused);
         }
       }
-
-      this.pushBatchToBuffer(parsed.events);
 
       const hasEnd =
         parsed.events[parsed.events.length - 1].type === this.endEventType;
