@@ -83,7 +83,6 @@ export default class AppContext implements IAppContext {
   private _unexpectedVnetShutdownListener:
     | UnexpectedVnetShutdownListener
     | undefined;
-  private logger = new Logger('AppContext');
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
@@ -201,50 +200,6 @@ export default class AppContext implements IAppContext {
     return this._unexpectedVnetShutdownListener;
   }
 
-  /** Logs out of the cluster and disposes related resources. */
-  async logoutWithCleanup(clusterUri: RootClusterUri): Promise<void> {
-    await this.clustersService.logout(clusterUri);
-    // This function checks for updates, do not wait for it.
-    this.mainProcessClient
-      .maybeRemoveAppUpdatesManagingCluster(clusterUri)
-      .catch(err => {
-        this.logger.error('Failed to remove managing cluster', err);
-      });
-
-    if (this.workspacesService.getRootClusterUri() === clusterUri) {
-      const [firstConnectedWorkspace] = this.workspacesService
-        .getConnectedWorkspacesClustersUri()
-        .filter(c => c !== clusterUri);
-      if (firstConnectedWorkspace) {
-        await this.workspacesService.setActiveWorkspace(
-          firstConnectedWorkspace
-        );
-      } else {
-        await this.workspacesService.setActiveWorkspace(null);
-      }
-    }
-
-    // Remove connections, they depend on the workspace.
-    this.connectionTracker.removeItemsBelongingToRootCluster(clusterUri);
-
-    this.workspacesService.removeWorkspace(clusterUri);
-
-    // If there are active ssh connections to the agent, killing it will take a few seconds. To work
-    // around this, kill the agent only after removing the workspace. Removing the workspace closes
-    // ssh tabs, so it should terminate connections to the cluster from the app.
-    await this.connectMyComputerService.killAgentAndRemoveData(clusterUri);
-
-    await this.clustersService.removeClusterGateways(clusterUri);
-
-    const {
-      params: { rootClusterId },
-    } = routing.parseClusterUri(clusterUri);
-    await this.mainProcessClient.removeKubeConfig({
-      relativePath: rootClusterId,
-      isDirectory: true,
-    });
-  }
-
   private notifyMainProcessAboutClusterListChanges() {
     // Debounce the notifications sent to the main process so that we don't unnecessarily send more
     // than one notification per frame. The main process doesn't need to be notified absolutely
@@ -263,4 +218,52 @@ export default class AppContext implements IAppContext {
       refreshClusterList
     );
   }
+}
+
+/** Disposes cluster-related resources and then logs out. */
+export async function logoutWithCleanup(
+  ctx: IAppContext,
+  clusterUri: RootClusterUri
+): Promise<void> {
+  const logger = new Logger('logoutWithCleanup');
+  // This function checks for updates, do not wait for it.
+  ctx.mainProcessClient
+    .maybeRemoveAppUpdatesManagingCluster(clusterUri)
+    .catch(err => {
+      logger.error('Failed to remove managing cluster', err);
+    });
+
+  if (ctx.workspacesService.getRootClusterUri() === clusterUri) {
+    const [firstConnectedWorkspace] = ctx.workspacesService
+      .getConnectedWorkspacesClustersUri()
+      .filter(c => c !== clusterUri);
+    if (firstConnectedWorkspace) {
+      await ctx.workspacesService.setActiveWorkspace(firstConnectedWorkspace);
+    } else {
+      await ctx.workspacesService.setActiveWorkspace(null);
+    }
+  }
+
+  // Remove connections first, they depend both on the cluster and the workspace.
+  ctx.connectionTracker.removeItemsBelongingToRootCluster(clusterUri);
+  // Remove the workspace next, because it depends on the cluster.
+  ctx.workspacesService.removeWorkspace(clusterUri);
+
+  // If there are active ssh connections to the agent, killing it will take a few seconds. To work
+  // around this, kill the agent only after removing the workspace. Removing the workspace closes
+  // ssh tabs, so it should terminate connections to the cluster from the app.
+  await ctx.connectMyComputerService.killAgentAndRemoveData(clusterUri);
+
+  await ctx.clustersService.removeClusterGateways(clusterUri);
+
+  const {
+    params: { rootClusterId },
+  } = routing.parseClusterUri(clusterUri);
+  await ctx.mainProcessClient.removeKubeConfig({
+    relativePath: rootClusterId,
+    isDirectory: true,
+  });
+
+  // Remove the cluster, it does not depend on anything.
+  await ctx.clustersService.logout(clusterUri);
 }

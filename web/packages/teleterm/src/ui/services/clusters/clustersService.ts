@@ -184,6 +184,13 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     ]);
   }
 
+  /**
+   * Synchronizes root clusters.
+   *
+   * This should only be called before creating workspaces.
+   * If called afterward, a cluster might be removed without first removing
+   * its associated workspace, resulting in an invalid state.
+   */
   async syncRootClustersAndCatchErrors(abortSignal?: AbortSignal) {
     let clusters: Cluster[];
 

@@ -84,8 +84,6 @@ export interface IAppContext {
    * process (renderer).
    */
   unexpectedVnetShutdownListener: UnexpectedVnetShutdownListener | undefined;
-  /** Logs out from the cluster, and performs related resources cleanup. */
-  logoutWithCleanup(clusterUri: RootClusterUri): Promise<void>;
 }
 
 export type UnexpectedVnetShutdownListener = (

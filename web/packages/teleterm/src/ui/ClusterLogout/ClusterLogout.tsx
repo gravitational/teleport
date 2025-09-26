@@ -30,6 +30,8 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
+import { logoutWithCleanup } from '../appContext';
+
 export function ClusterLogout({
   clusterUri,
   onClose,
@@ -43,7 +45,7 @@ export function ClusterLogout({
 }) {
   const ctx = useAppContext();
   const [{ status, statusText }, removeCluster] = useAsync(() =>
-    ctx.logoutWithCleanup(clusterUri)
+    logoutWithCleanup(ctx, clusterUri)
   );
 
   async function removeClusterAndClose(): Promise<void> {
