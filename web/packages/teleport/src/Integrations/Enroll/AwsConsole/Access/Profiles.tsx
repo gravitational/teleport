@@ -43,6 +43,7 @@ export function Profiles({
   refetch,
   syncAll,
   setSyncAll,
+  isRefetching,
 }: {
   data: RolesAnywhereProfile[];
   filters: ProfilesFilterOption[];
@@ -50,6 +51,7 @@ export function Profiles({
   refetch: () => void;
   syncAll: boolean;
   setSyncAll: Dispatch<SetStateAction<boolean>>;
+  isRefetching: boolean;
 } & Omit<FetchingConfig, 'onFetchMore'>) {
   return (
     <Validation>
@@ -64,14 +66,16 @@ export function Profiles({
           </Flex>
           <Flex alignItems="center" gap={3}>
             <ButtonPrimary
+              disabled={isRefetching}
               gap={2}
               fill="minimal"
               intent="neutral"
               size="small"
               onClick={refetch}
+              minWidth="100px"
             >
               <Icons.Refresh size="small" />
-              Refresh
+              {isRefetching ? 'Refreshing' : 'Refresh'}
             </ButtonPrimary>
             <ButtonPrimary
               gap={2}
@@ -81,7 +85,7 @@ export function Profiles({
               target="blank"
               href={rolesAnywhereCreateProfile}
             >
-              Create AWS Roles Anywhere Profiles
+              Create AWS Profiles
               <Icons.NewTab size="small" />
             </ButtonPrimary>
             <Flex gap={1}>
@@ -92,7 +96,7 @@ export function Profiles({
                 }}
                 size="large"
               />
-              <P1>Import All Profiles</P1>
+              <P1>Import All</P1>
             </Flex>
           </Flex>
         </Flex>

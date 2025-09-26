@@ -28,6 +28,7 @@ import (
 const (
 	fontSize   = 14.0
 	lineHeight = 1.2
+	charRatio  = 0.602 // Menlo mono font character width/height ratio
 )
 
 // VtStateToSvg converts a terminal state to an SVG representation
@@ -35,14 +36,21 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 	var buf bytes.Buffer
 
 	cols, rows := state.Cols, state.Rows
-	charWidth := 100.0 / (float64(cols) + 2.0)
-	rowHeight := fontSize * lineHeight
-	pixelWidth := int((float64(cols) + 2.0) * (fontSize * 0.6))
-	pixelHeight := int((float64(rows) + 1.0) * rowHeight)
+
+	charWidthPx := fontSize * charRatio
+	rowHeightPx := fontSize * lineHeight
+	pixelWidth := int((float64(cols) + 2.0) * charWidthPx)
+	pixelHeight := int((float64(rows) + 1.0) * rowHeightPx)
 
 	closeHeader := writeSVGHeader(&buf, pixelWidth, pixelHeight)
-	renderBackgrounds(&buf, state.PrimaryBuffer, cols, rows, charWidth, rowHeight)
-	renderText(&buf, state.PrimaryBuffer, cols, rows, charWidth)
+
+	var cursor *cursorPos
+	if state.CursorVisible {
+		cursor = &cursorPos{x: state.CursorX, y: state.CursorY}
+	}
+
+	renderBackgrounds(&buf, state.PrimaryBuffer, cols, rows, charWidthPx, rowHeightPx, cursor)
+	renderText(&buf, state.PrimaryBuffer, cols, rows, charWidthPx, rowHeightPx, cursor)
 
 	buf.WriteString(closeHeader())
 
@@ -52,30 +60,23 @@ func VtStateToSvg(state *vt10x.TerminalState) []byte {
 // writeSVGHeader writes the SVG header and styles to the buffer.
 // It returns a function that closes the SVG tags when called.
 func writeSVGHeader(buf *bytes.Buffer, width, height int) func() string {
-	x := 1.0 * 100.0 / (float64(width) / fontSize / 0.6)
-	y := 0.5 * 100.0 / (float64(height) / fontSize / lineHeight)
+	xOffset := fontSize * 0.6
+	yOffset := fontSize * lineHeight * 0.5
 
 	fmt.Fprintf(buf, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" font-size="%.0f" class="terminal">`,
 		width, height, fontSize)
-
-	buf.WriteString("<style>")
-	buf.WriteString(".b{font-weight:bold}")
-	buf.WriteString(".i{font-style:italic}")
-	buf.WriteString(".u{text-decoration:underline}")
-	buf.WriteString("</style>")
-
-	fmt.Fprintf(buf, `<rect width="100%%" height="100%%" class="bg-default"/><svg x="%.3f%%" y="%.3f%%">`,
-		x, y)
+	fmt.Fprintf(buf, `<rect width="100%%" height="100%%" class="bg-default"/><svg x="%.1f" y="%.1f">`,
+		xOffset, yOffset)
 
 	return func() string {
 		return "</svg></svg>"
 	}
 }
 
-func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidth, rowHeight float64) {
+func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidthPx, rowHeightPx float64, cursor *cursorPos) {
 	type bgRect struct {
-		x, y, w float64
-		color   vt10x.Color
+		x, y, w, h float64
+		color      vt10x.Color
 	}
 	var rects []bgRect
 
@@ -84,56 +85,42 @@ func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int
 			continue
 		}
 
-		isEmpty := true
-		for x := 0; x < len(buffer[y]); x++ {
-			glyph := buffer[y][x]
-			if glyph.BG != vt10x.DefaultBG || (glyph.Char != 0 && glyph.Char != ' ') {
-				isEmpty = false
-				break
-			}
-		}
-
-		if isEmpty {
-			continue
-		}
-
-		yPos := 100.0 * float64(y) / (float64(rows) + 1.0)
+		yPos := float64(y) * rowHeightPx
 		var currentRect *bgRect
 
 		for x := 0; x < len(buffer[y]); x++ {
 			glyph := buffer[y][x]
+			attrs := getTextAttrs(glyph, cursor, x, y)
 
-			// Handle reverse video by swapping colors
-			bg := glyph.BG
-			if vt10x.IsReverse(glyph.Mode) {
-				bg = glyph.FG
-			}
-
-			if bg == vt10x.DefaultBG {
+			if attrs.background == vt10x.DefaultBG {
 				currentRect = nil
 				continue
 			}
 
-			xPos := 100.0 * float64(x) / (float64(cols) + 2.0)
+			xPos := float64(x) * charWidthPx
 
-			if currentRect != nil && currentRect.color == bg && currentRect.y == yPos {
-				currentRect.w += charWidth
+			if currentRect != nil && currentRect.color == attrs.background && currentRect.y == yPos {
+				currentRect.w += charWidthPx
 			} else {
-				newRect := bgRect{x: xPos, y: yPos, w: charWidth, color: bg}
+				newRect := bgRect{
+					x:     xPos,
+					y:     yPos,
+					w:     charWidthPx,
+					h:     rowHeightPx,
+					color: attrs.background,
+				}
 				rects = append(rects, newRect)
 				currentRect = &rects[len(rects)-1]
 			}
 		}
 	}
 
-	// Render all background rectangles
 	if len(rects) > 0 {
-		buf.WriteString(`<g>`)
+		buf.WriteString(`<g shape-rendering="crispEdges">`)
 		for _, rect := range rects {
-			fmt.Fprintf(buf, `<rect x="%.3f%%" y="%.3f%%" width="%.3f%%" height="%.3f"`,
-				rect.x, rect.y, rect.w, rowHeight)
+			fmt.Fprintf(buf, `<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"`,
+				rect.x, rect.y, rect.w, rect.h)
 
-			// Handle color - use class for 16 colors, inline style for extended colors
 			if rect.color < 16 {
 				fmt.Fprintf(buf, ` class="bg-%d"`, rect.color)
 			} else {
@@ -146,111 +133,104 @@ func renderBackgrounds(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int
 	}
 }
 
-func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidth float64) {
+func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charWidthPx, rowHeightPx float64, cursor *cursorPos) {
 	buf.WriteString(`<text>`)
 
 	for y := 0; y < len(buffer); y++ {
-		isEmpty := true
+		// Check if the entire row has any non-space content
+		hasContent := false
 		for x := 0; x < len(buffer[y]); x++ {
-			if buffer[y][x].Char != 0 && buffer[y][x].Char != ' ' {
-				isEmpty = false
+			glyph := buffer[y][x]
+			isCursor := cursor != nil && cursor.x == x && cursor.y == y
+			if (glyph.Char != 0 && glyph.Char != ' ') || isCursor {
+				hasContent = true
 				break
 			}
 		}
 
-		if isEmpty {
+		if !hasContent {
 			continue
 		}
 
-		yPos := 100.0 * float64(y) / (float64(rows) + 1.0)
-		fmt.Fprintf(buf, `<tspan y="%.3f%%" dy="1em">`, yPos)
+		yPos := float64(y) * rowHeightPx
+		fmt.Fprintf(buf, `<tspan y="%.1f" dy="1em">`, yPos)
 
-		type span struct {
-			x    float64
-			text strings.Builder
-			fg   vt10x.Color
-			mode int16
-		}
+		col := 0
+		for col < len(buffer[y]) {
+			glyph := buffer[y][col]
+			isCursor := cursor != nil && cursor.x == col && cursor.y == y
 
-		var spans []span
-		var currentSpan *span
-
-		var lastX = -1
-		for x := 0; x < len(buffer[y]); x++ {
-			glyph := buffer[y][x]
-
-			if glyph.Char == 0 {
+			// Skip spaces completely (unless it's the cursor position)
+			if glyph.Char == ' ' || (glyph.Char == 0 && !isCursor) {
+				col++
 				continue
 			}
 
-			// Handle reverse video
-			fg := glyph.FG
-			if vt10x.IsReverse(glyph.Mode) {
-				fg = glyph.BG
-				if fg == vt10x.DefaultBG {
-					fg = vt10x.Color(7)
+			startCol := col
+			attrs := getTextAttrs(glyph, cursor, col, y)
+			var text strings.Builder
+
+			// Collect consecutive non-space characters with same attributes
+			for col < len(buffer[y]) {
+				currentGlyph := buffer[y][col]
+				currentIsCursor := cursor != nil && cursor.x == col && cursor.y == y
+
+				// Stop if we hit a space or null (unless cursor)
+				if currentGlyph.Char == ' ' || (currentGlyph.Char == 0 && !currentIsCursor) {
+					break
 				}
-			}
 
-			// Check if we need a new span
-			needNewSpan := currentSpan == nil ||
-				currentSpan.fg != fg ||
-				currentSpan.mode != glyph.Mode ||
-				(lastX >= 0 && x > lastX+1) // Gap in text
+				// Stop if attributes change
+				currentAttrs := getTextAttrs(currentGlyph, cursor, col, y)
+				if currentAttrs != attrs {
+					break
+				}
 
-			if needNewSpan {
-				xPos := 100.0 * float64(x) / (float64(cols) + 2.0)
-				newSpan := span{x: xPos, fg: fg, mode: glyph.Mode}
-				spans = append(spans, newSpan)
-				currentSpan = &spans[len(spans)-1]
-			}
+				// Add the character
+				charToRender := currentGlyph.Char
+				if currentIsCursor && charToRender == 0 {
+					charToRender = ' '
+				}
 
-			// Add character to current span
-			if glyph.Char != ' ' || (lastX >= 0 && x == lastX+1) {
-				spanPtr := &spans[len(spans)-1]
-				switch glyph.Char {
+				switch charToRender {
 				case '\'':
-					spanPtr.text.WriteString("&#39;")
+					text.WriteString("&#39;")
 				case '"':
-					spanPtr.text.WriteString("&quot;")
+					text.WriteString("&quot;")
 				case '&':
-					spanPtr.text.WriteString("&amp;")
+					text.WriteString("&amp;")
 				case '>':
-					spanPtr.text.WriteString("&gt;")
+					text.WriteString("&gt;")
 				case '<':
-					spanPtr.text.WriteString("&lt;")
+					text.WriteString("&lt;")
 				default:
-					spanPtr.text.WriteRune(glyph.Char)
+					text.WriteRune(charToRender)
 				}
-				lastX = x
-			}
-		}
 
-		for _, s := range spans {
-			buf.WriteString(`<tspan x="`)
-			fmt.Fprintf(buf, "%.3f%%", s.x)
-			buf.WriteString(`"`)
+				col++
+			}
+
+			xPos := float64(startCol) * charWidthPx
+			fmt.Fprintf(buf, `<tspan x="%.1f"`, xPos)
 
 			var classes []string
 			var style string
 
-			if s.fg == vt10x.DefaultFG {
-				// No class needed for the default foreground, inherits from parent
-			} else if s.fg < 16 {
-				// Basic 16 ANSI colors - use class for theming
-				classes = append(classes, fmt.Sprintf("fg-%d", s.fg))
+			if attrs.foreground == vt10x.DefaultFG {
+				// No class needed for default foreground
+			} else if attrs.foreground < 16 {
+				classes = append(classes, fmt.Sprintf("fg-%d", attrs.foreground))
 			} else {
-				// Extended colors (256 palette or RGB) - use inline style
-				style = fmt.Sprintf("fill:%s", colorToHex(s.fg))
+				style = fmt.Sprintf("fill:%s", colorToHex(attrs.foreground))
 			}
 
-			if vt10x.IsBold(s.mode) {
+			if attrs.bold {
 				classes = append(classes, "b")
 			}
-			if vt10x.IsItalic(s.mode) {
+			if attrs.italic {
 				classes = append(classes, "i")
 			}
-			if vt10x.IsUnderline(s.mode) {
+			if attrs.underline {
 				classes = append(classes, "u")
 			}
 
@@ -267,7 +247,7 @@ func renderText(buf *bytes.Buffer, buffer [][]vt10x.Glyph, cols, rows int, charW
 			}
 
 			buf.WriteString(`>`)
-			buf.WriteString(s.text.String())
+			buf.WriteString(text.String())
 			buf.WriteString(`</tspan>`)
 		}
 
@@ -301,4 +281,58 @@ func colorToHex(color vt10x.Color) string {
 	b := color & 0xFF
 
 	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+}
+
+type cursorPos struct {
+	x, y int
+}
+
+type textAttrs struct {
+	foreground vt10x.Color
+	background vt10x.Color
+	bold       bool
+	italic     bool
+	underline  bool
+}
+
+func getTextAttrs(glyph vt10x.Glyph, cursor *cursorPos, x, y int) textAttrs {
+	fg := glyph.FG
+	bg := glyph.BG
+	mode := glyph.Mode
+
+	isCursor := cursor != nil && cursor.x == x && cursor.y == y
+
+	if vt10x.IsBold(mode) && fg < 8 { // Brighten foreground if bold
+		fg = fg + 8
+	}
+
+	if vt10x.IsBlink(mode) && bg < 8 { // Brighten background if blink
+		bg = bg + 8
+	}
+
+	// inverse if either reverse mode OR cursor, but not both
+	shouldInverse := vt10x.IsReverse(mode) != isCursor
+
+	if shouldInverse {
+		newFg := bg
+		newBg := fg
+
+		if newFg == vt10x.DefaultBG {
+			newFg = vt10x.Color(0)
+		}
+		if newBg == vt10x.DefaultFG {
+			newBg = vt10x.Color(7)
+		}
+
+		fg = newFg
+		bg = newBg
+	}
+
+	return textAttrs{
+		foreground: fg,
+		background: bg,
+		bold:       vt10x.IsBold(mode),
+		italic:     vt10x.IsItalic(mode),
+		underline:  vt10x.IsUnderline(mode),
+	}
 }

@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -190,9 +191,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 				SetupVersionEnvVar+"="+rev.Version,
 				SetupFlagsEnvVar+"="+strings.Join(rev.Flags.Strings(), "\n"),
 			)
-			if enableSELinux {
-				cmd.Env = append(cmd.Env, SetupSELinuxSSHEnvVar+"=true")
-			}
+			cmd.Env = append(cmd.Env, SetupSELinuxSSHEnvVar+"="+strconv.FormatBool(enableSELinux))
 			cfg.Log.InfoContext(ctx, "Executing new teleport-update binary to update configuration.")
 			defer cfg.Log.InfoContext(ctx, "Finished executing new teleport-update binary.")
 			return trace.Wrap(cmd.Run())

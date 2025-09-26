@@ -22,8 +22,10 @@ import { useEffect } from 'react';
 
 import { render } from 'design/utils/testing';
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeAccessRequest,
+  makeLoggedInUser,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { SelectorMenu } from 'teleterm/ui/AccessRequests/SelectorMenu';
@@ -40,18 +42,19 @@ import { AccessRequestsContextProvider } from './AccessRequestsContext';
 
 test('assuming or dropping a request refreshes resources', async () => {
   const appContext = new MockAppContext();
+  const accessRequest = makeAccessRequest();
   const cluster = makeRootCluster({
     features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
+    loggedInUser: makeLoggedInUser({ activeRequests: [accessRequest.id] }),
   });
   appContext.addRootCluster(cluster);
   jest.spyOn(appContext.clustersService, 'dropRoles');
   const refreshListener = jest.fn();
-  const accessRequest = makeAccessRequest();
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.get(cluster.uri).loggedInUser.assumedRequests = {
-      [accessRequest.id]: accessRequest,
-    };
-  });
+  appContext.tshd.getAccessRequest = () => {
+    return new MockedUnaryCall({
+      request: accessRequest,
+    });
+  };
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -80,6 +83,61 @@ test('assuming or dropping a request refreshes resources', async () => {
     [accessRequest.id]
   );
   expect(refreshListener).toHaveBeenCalledTimes(1);
+});
+
+test('assumed request are always visible, even if getAccessRequests no longer returns them', async () => {
+  const requestA = makeAccessRequest({
+    id: '67bea2b6-9390-43a5-af47-c391561dbfba',
+    resources: [],
+    roles: ['access-a'],
+  });
+  const requestB = makeAccessRequest({
+    id: '34488748-0c91-463e-ac93-a5dd21eeec8a',
+    resources: [],
+    roles: ['access-b'],
+  });
+  const appContext = new MockAppContext();
+  const cluster = makeRootCluster({
+    features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
+    loggedInUser: makeLoggedInUser({
+      activeRequests: [requestB.id, 'request-with-details-not-available'],
+    }),
+  });
+  appContext.addRootCluster(cluster);
+
+  appContext.tshd.getAccessRequests = () => {
+    return new MockedUnaryCall({ requests: [requestA] });
+  };
+  appContext.tshd.getAccessRequest = ({ accessRequestId }) => {
+    if (accessRequestId !== requestB.id) {
+      throw new Error(`Request ${accessRequestId} not found`);
+    }
+    return new MockedUnaryCall({ request: requestB });
+  };
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <ResourcesContextProvider>
+        <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
+          <AccessRequestsContextProvider rootClusterUri={cluster.uri}>
+            <SelectorMenu />
+          </AccessRequestsContextProvider>
+        </MockWorkspaceContextProvider>
+      </ResourcesContextProvider>
+    </MockAppContextProvider>
+  );
+
+  const accessRequestsMenu = await screen.findByTitle('Access Requests');
+  await userEvent.click(accessRequestsMenu);
+
+  // Even though getAccessRequests only returned requestA, the UI always displays the assumed requests:
+  // - requestB, which details exists in the useAssumedRequests cache
+  // - request-with-details-not-available, which is shown using only its ID (details missing)
+  expect(await screen.findByText('access-a')).toBeInTheDocument();
+  expect(await screen.findByText('access-b')).toBeInTheDocument();
+  expect(
+    await screen.findByText('request-with-details-not-available')
+  ).toBeInTheDocument();
 });
 
 function RequestRefreshSubscriber(props: {

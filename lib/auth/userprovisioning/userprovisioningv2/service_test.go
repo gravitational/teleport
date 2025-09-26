@@ -126,7 +126,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 			},
 		}
 
-		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User", "UserRoles")))
 
 	case <-time.After(15 * time.Second):
 		t.Fatalf("timed out waiting for static host user create event")
@@ -156,7 +156,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 			},
 		}
 
-		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User", "UserRoles")))
 	case <-time.After(15 * time.Second):
 		t.Fatalf("timed out waiting for static host user update event")
 	}
@@ -184,7 +184,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 			},
 		}
 
-		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User", "UserRoles")))
 	case <-time.After(15 * time.Second):
 		t.Fatalf("timed out waiting for static host user upsert event")
 	}
@@ -212,7 +212,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 			},
 		}
 
-		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User", "UserRoles")))
 	case <-time.After(15 * time.Second):
 		t.Fatalf("timed out waiting for static host user delete event")
 	}

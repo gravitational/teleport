@@ -89,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -2693,8 +2692,8 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 			Limit:      1,
 			Order:      types.EventOrderDescending,
 		})
-		assert.NoError(t, err)
-		assert.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
+		require.NoError(t, err)
+		require.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
 	}, 5*time.Second, 200*time.Millisecond)
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
@@ -5530,9 +5529,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 				SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 				StartKey:      start,
 			})
-			if !assert.NoError(t, err) {
-				return
-			}
+			require.NoError(t, err)
 
 			results = append(results, resp.Resources...)
 			start = resp.NextKey
@@ -5543,9 +5540,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		// Note: this number should be updated in case we add more resources to
 		// the setup loop.
-		if !assert.Len(t, results, 20) {
-			return
-		}
+		require.Len(t, results, 20)
 		resultsC <- results
 	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources")
 
@@ -6357,9 +6352,9 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		assert.NoError(t, err)
-		assert.Empty(t, resp.NextKey)
-		assert.Len(t, resp.Resources, 6)
+		require.NoError(t, err)
+		require.Empty(t, resp.NextKey)
+		require.Len(t, resp.Resources, 6)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
@@ -6388,8 +6383,8 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		assert.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
-		assert.Nil(t, resp)
+		require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
+		require.Nil(t, resp)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// Validate that an error is returned when a subset of kinds are requested.
@@ -6502,21 +6497,19 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 	withMatchingAccountAssignment := withAccountAssignment(types.Allow,
 		validAccountID, validPermissionSetARN)
 
-	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test-account",
-				Labels: map[string]string{
-					types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-				},
+	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "test-account",
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:   validAccountID,
-				Arn:  "some:account:arn",
-				Name: "Test Account",
-			},
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:   validAccountID,
+			Arn:  "some:account:arn",
+			Name: "Test Account",
 		},
 	})
 	require.NoError(t, err)
@@ -6527,8 +6520,7 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 
 	inlineEventually(t,
 		func() bool {
-			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(accounts) == 1
 		},
@@ -10504,26 +10496,23 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 		},
 	}
 
-	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx,
-		services.IdentityCenterAccount{
-			Account: &identitycenterv1.Account{
-				Kind:    types.KindIdentityCenterAccount,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: accountID,
-					Labels: map[string]string{
-						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-					},
-				},
-				Spec: &identitycenterv1.AccountSpec{
-					Id:                accountID,
-					Arn:               "aws:arn:test:account",
-					Name:              "Test Account",
-					Description:       "An account for testing",
-					PermissionSetInfo: permissionSets,
-				},
+	_, err := srv.AuthServer.AuthServer.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: accountID,
+			Labels: map[string]string{
+				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
 			},
-		})
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:                accountID,
+			Arn:               "aws:arn:test:account",
+			Name:              "Test Account",
+			Description:       "An account for testing",
+			PermissionSetInfo: permissionSets,
+		},
+	})
 	require.NoError(t, err)
 
 	// GIVEN a role that allows access to all permission sets on the target
@@ -10552,8 +10541,7 @@ func TestFilterIdentityCenterPermissionSets(t *testing.T) {
 	// EXPECT that the IC Account has made it to the cache
 	inlineEventually(t,
 		func() bool {
-			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(
-				ctx, 100, &pagination.PageRequestToken{})
+			testAssignments, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
 			require.NoError(t, err)
 			return len(testAssignments) == 1
 		},

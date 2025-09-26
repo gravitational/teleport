@@ -45,20 +45,18 @@ func TestNodes(t *testing.T) {
 				return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 			},
 			create: withKeepalive(p.presenceS.UpsertNode),
-			list: func(ctx context.Context) ([]types.Server, error) {
+			list: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
 				return p.presenceS.GetNodes(ctx, apidefaults.Namespace)
-			},
+			}),
 			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
 				return p.cache.GetNode(ctx, apidefaults.Namespace, name)
 			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
-				return p.cache.GetNodes(ctx, apidefaults.Namespace)
-			},
-			update: withKeepalive(p.presenceS.UpsertNode),
+			cacheList: getAllAdapter(func(ctx context.Context) ([]types.Server, error) { return p.cache.GetNodes(ctx, apidefaults.Namespace) }),
+			update:    withKeepalive(p.presenceS.UpsertNode),
 			deleteAll: func(ctx context.Context) error {
 				return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
 			},
-		})
+		}, withSkipPaginationTest())
 	})
 
 	t.Run("ListResources", func(t *testing.T) {
@@ -72,59 +70,46 @@ func TestNodes(t *testing.T) {
 				return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 			},
 			create: withKeepalive(p.presenceS.UpsertNode),
-			list: func(ctx context.Context) ([]types.Server, error) {
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindNode,
+					Limit:        int32(pageSize),
+					StartKey:     pageToken,
 				}
 
 				var out []types.Server
-				for {
-					resp, err := p.presenceS.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.Server))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
+				resp, err := p.presenceS.ListResources(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
 
-				return out, nil
+				for _, s := range resp.Resources {
+					out = append(out, s.(types.Server))
+				}
+
+				return out, resp.NextKey, nil
 			},
 			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
 				return p.cache.GetNode(ctx, apidefaults.Namespace, name)
 			},
-			cacheList: func(ctx context.Context, pageSize int) ([]types.Server, error) {
+			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindNode,
 					Limit:        int32(pageSize),
+					StartKey:     pageToken,
 				}
 
 				var out []types.Server
-				for {
-					resp, err := p.cache.ListResources(ctx, req)
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					for _, s := range resp.Resources {
-						out = append(out, s.(types.Server))
-					}
-
-					req.StartKey = resp.NextKey
-
-					if req.StartKey == "" {
-						break
-					}
+				resp, err := p.cache.ListResources(ctx, req)
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
 
-				return out, nil
+				for _, s := range resp.Resources {
+					out = append(out, s.(types.Server))
+				}
+
+				return out, resp.NextKey, nil
 			},
 			update: withKeepalive(p.presenceS.UpsertNode),
 			deleteAll: func(ctx context.Context) error {

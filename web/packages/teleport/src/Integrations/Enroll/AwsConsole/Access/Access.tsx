@@ -16,28 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+} from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { useHistory, useLocation } from 'react-router';
 
-import { CardTile, ResourceIcon } from 'design';
+import { Box, CardTile, Indicator, ResourceIcon } from 'design';
 import * as Alerts from 'design/Alert';
 import { Alert } from 'design/Alert';
-import Box from 'design/Box';
 import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
-import { Indicator } from 'design/Indicator';
+import * as Icons from 'design/Icon';
 import { H2, H3, P2 } from 'design/Text';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import { Guide } from 'teleport/Integrations/Enroll/AwsConsole/Access/Guide';
 import { Profiles } from 'teleport/Integrations/Enroll/AwsConsole/Access/Profiles';
-import { ProfilesFilterOption } from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
+import {
+  makeProfilesFilterOption,
+  ProfilesFilterOption,
+} from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
+import { Guide } from 'teleport/Integrations/Enroll/AwsConsole/Guide';
 import { rolesAnywhereCreateProfile } from 'teleport/Integrations/Enroll/awsLinks';
 import { ApiError } from 'teleport/services/api/parseError';
 import {
+  IntegrationAwsRa,
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
@@ -47,64 +54,121 @@ export function Access() {
   const ctx = useTeleport();
   const integrationsAccess = ctx.storeUser.getIntegrationsAccess();
   const canEnroll = integrationsAccess.create;
-  const clusterId = ctx.storeUser.getClusterId();
-  const resourceRoute = cfg.getUnifiedResourcesRoute(clusterId);
 
   const history = useHistory();
   const location = useLocation<{
     integrationName?: string;
     trustAnchorArn?: string;
-    syncRoleArn?: string;
     syncProfileArn?: string;
+    syncRoleArn?: string;
+    edit?: boolean;
   }>();
 
   const {
     integrationName = '',
     trustAnchorArn = '',
-    syncRoleArn = '',
     syncProfileArn = '',
+    syncRoleArn = '',
+    edit = false,
   } = location.state;
-  const [syncAll, setSyncAll] = useState(true);
+  const [syncAll, setSyncAll] = useState(!edit);
   const [filters, setFilters] = useState<ProfilesFilterOption[]>([]);
+  // initialFilters is used in the edit flow to reset filters if import all is un-toggled
+  const [initialFilters, setInitialFilters] = useState<ProfilesFilterOption[]>(
+    []
+  );
+  // initialComplete & foundProfiles allows us to show a custom view for zero profiles,
+  // vs. showing the table view when the user has filtered down to zero
+  const initialComplete = useRef(false);
+  const [foundProfiles, setFoundProfiles] = useState(false);
 
-  // todo (michellescripts) list profiles as written today fails
-  //   meeting with marcoandredinis next week to correct
-  const { status, error, data, isFetching, refetch } = useQuery({
-    enabled: canEnroll,
-    queryKey: ['profiles', filters],
-    gcTime: 0,
-    queryFn: () =>
-      integrationService.awsRolesAnywhereProfiles({
-        integrationName: integrationName,
-        filters,
-      }),
-    placeholderData: keepPreviousData,
-    staleTime: 30_000, // Cached pages are valid for 30 seconds
+  const [intervalMs, setIntervalMs] = useState<number | false>(
+    edit ? false : 2000
+  );
+  const results = useQueries({
+    queries: [
+      // The integration endpoint is used for editing an existing subscription. It is only enabled if editing and here
+      // is no refetch logic, the response is used to set existing filters if they exist on the integration.
+      {
+        queryKey: ['integration'],
+        enabled: edit,
+        gcTime: 0,
+        placeholderData: keepPreviousData,
+        refetchInterval: false,
+        queryFn: () =>
+          integrationService
+            .fetchIntegration<IntegrationAwsRa>(integrationName)
+            .then(data => {
+              setFilters(
+                makeProfilesFilterOption(data.spec.profileSyncConfig.filters)
+              );
+              setInitialFilters(
+                makeProfilesFilterOption(data.spec.profileSyncConfig.filters)
+              );
+              return data;
+            }),
+      },
+      // The profiles endpoint is called immediately after creation. Because the integration may not yet be ready, we
+      // add refetchInterval which is set via intervalMs when we receive a 404 response. If a success or non-404
+      // response is received, retries will end.
+      {
+        queryKey: ['profiles', filters],
+        gcTime: 0,
+        placeholderData: keepPreviousData,
+        refetchInterval: intervalMs,
+        queryFn: () =>
+          integrationService
+            .awsRolesAnywhereProfiles({
+              integrationName: integrationName,
+              filters,
+            })
+            .then(data => {
+              setIntervalMs(false);
+              if (!initialComplete.current) {
+                setFoundProfiles(data.profiles && data?.profiles.length > 0);
+                initialComplete.current = true;
+              }
+
+              return data;
+            }),
+      },
+    ],
   });
 
-  // todo (michellescripts) create as written today fails
-  //   meeting with marcoandredinis next week to correct
-  const submitSync = useMutation({
+  const [integrationResp, profilesResp] = results;
+  const { status: editStatus, error: editError } = integrationResp;
+  const { status, error, data, isFetching, refetch, isRefetching } =
+    profilesResp;
+
+  // Set retry logic for profiles not found errors
+  const isNotFoundErr =
+    error instanceof ApiError && error.response.status === 404;
+  if (error && !isNotFoundErr && intervalMs != false) {
+    // if the error returned is not a 404, stop the retry
+    setIntervalMs(false);
+  }
+
+  const update = useMutation({
     mutationFn: () =>
       integrationService
-        .createIntegration({
-          name: integrationName,
-          subKind: IntegrationKind.AWSRa,
+        .updateIntegration(integrationName, {
+          kind: IntegrationKind.AwsRa,
           awsRa: {
-            trustAnchorArn: trustAnchorArn,
+            trustAnchorARN: trustAnchorArn,
             profileSyncConfig: {
-              enabled: true, // must be true for creation
+              enabled: true, // must be true for enable step; otherwise profiles won't sync
               profileArn: syncProfileArn,
-              profileAcceptsRoleSessionName: false, // not necessary for creation
               roleArn: syncRoleArn,
-              profileNameFilters:
-                filters.length > 0 ? filters.map(f => f.value) : ['*'],
+              filters: filters.length > 0 ? filters.map(f => f.value) : ['*'],
             },
           },
         })
         .then(data => data),
     onSuccess: () => {
-      //   todo (michellescripts) redirect to success view in follow up PR
+      history.push(
+        cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'next'),
+        { integrationName: integrationName }
+      );
     },
     onError: (e: ApiError) => {
       // Set validity on invalid filter based on API error
@@ -129,12 +193,24 @@ export function Access() {
     if (syncAll) {
       setFilters([]);
     }
+
+    // if editing, when clearing sync all reset to the initial filters
+    if (!syncAll && edit) {
+      setFilters(initialFilters);
+    }
   }, [syncAll]);
 
   if (!canEnroll) {
     return (
       <FeatureBox>
-        <Alert kind="info" mt={4}>
+        <Alert
+          kind="info"
+          mt={4}
+          secondaryAction={{
+            content: 'Back',
+            onClick: history.goBack,
+          }}
+        >
           You do not have permission to enroll integrations. Missing role
           permissions: <code>integrations.create</code>
         </Alert>
@@ -142,94 +218,106 @@ export function Access() {
     );
   }
 
-  if (!integrationName || !trustAnchorArn || !syncRoleArn || !syncProfileArn) {
+  if (
+    integrationName === '' ||
+    trustAnchorArn === '' ||
+    syncProfileArn === '' ||
+    syncRoleArn === ''
+  ) {
     return (
       <FeatureBox>
-        <Alert kind="info" mt={4}>
-          Missing form data, please go back and restart enrollment.
-        </Alert>
-        <ButtonPrimary
-          onClick={() =>
-            history.push(
-              cfg.getIntegrationEnrollRoute(
-                IntegrationKind.AWSRa,
-                'integration'
-              )
-            )
-          }
-          width="100px"
+        <Alert
+          kind="info"
+          mt={4}
+          secondaryAction={{
+            content: 'Back',
+            onClick: history.goBack,
+          }}
         >
-          Back
-        </ButtonPrimary>
+          Missing form data, please try again.
+        </Alert>
       </FeatureBox>
     );
   }
 
-  const nothingToSync =
-    status === 'success' && (!data.profiles || data.profiles.length === 0);
+  if (editStatus === 'error' && editError) {
+    return (
+      <Alerts.Danger
+        details={editError.message}
+        secondaryAction={{
+          content: 'Back',
+          onClick: history.goBack,
+        }}
+      >
+        Unable to edit integration: {editError.name}
+      </Alerts.Danger>
+    );
+  }
+
   return (
     <>
       <Flex mt={3} justifyContent="space-between" alignItems="center">
         <H2>Configure Access</H2>
         <InfoGuideButton
           config={{
-            guide: <Guide resourcesRoute={resourceRoute} />,
+            guide: <Guide />,
           }}
         />
       </Flex>
-      <P2 mb={3}>
-        Import and synchronize AWS IAM Roles Anywhere Profiles into Teleport.
-        Imported Profiles will be available as Resources with each Role
-        available as an account.
-      </P2>
-      {status === 'error' && (
+      <Box>
+        <P2 mb={3}>
+          Import and synchronize AWS IAM Roles Anywhere Profiles into Teleport.
+          Imported Profiles will be available as Resources with each Role
+          available as an account.
+        </P2>
+      </Box>
+      {!edit && status !== 'success' && intervalMs && (
+        <Alerts.Info details="It may take a moment for your integration to be ready before configuring access. This page will reload when ready.">
+          We&#39;re creating your integration
+        </Alerts.Info>
+      )}
+      {status === 'error' && !isNotFoundErr && (
         <Alerts.Danger details={error.message}>
           Error: {error.name}
         </Alerts.Danger>
       )}
-      {status === 'pending' && (
+      {/* only show the indicator for the first fetch */}
+      {status === 'pending' && !initialComplete && (
         <Box data-testid="loading" textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {nothingToSync && <ProfilesEmptyState />}
-      {status === 'success' && data.profiles.length > 0 && (
+      {status === 'success' && !foundProfiles && <ProfilesEmptyState />}
+      {foundProfiles && (
         <Profiles
-          data={data.profiles}
-          fetchStatus={isFetching ? 'loading' : ''}
+          data={data?.profiles}
+          fetchStatus={isFetching || isRefetching ? 'loading' : ''}
           filters={filters}
           setFilters={setFilters}
           refetch={refetch}
           syncAll={syncAll}
           setSyncAll={setSyncAll}
+          isRefetching={isRefetching}
         />
       )}
-      {submitSync.error && (
-        <Alerts.Danger details={submitSync.error?.message} mt={2}>
-          Error: {submitSync.error.name}
+      {update.error && (
+        <Alerts.Danger details={update.error?.message} mt={2}>
+          Error: {update.error.name}
         </Alerts.Danger>
       )}
       <Flex gap={3} mt={3}>
         <ButtonPrimary
           width="200px"
-          onClick={() => submitSync.mutate()}
-          disabled={nothingToSync}
+          onClick={() => update.mutate()}
+          disabled={status !== 'success'}
         >
-          Enable Sync
+          {edit ? 'Update Sync' : 'Enable Sync'}
         </ButtonPrimary>
-        <ButtonSecondary
-          onClick={() =>
-            history.push(
-              cfg.getIntegrationEnrollRoute(
-                IntegrationKind.AWSRa,
-                'integration'
-              )
-            )
-          }
-          width="100px"
-        >
-          Back
-        </ButtonSecondary>
+        {edit && (
+          <ButtonSecondary onClick={history.goBack} width="100px">
+            Cancel
+          </ButtonSecondary>
+        )}
       </Flex>
     </>
   );
@@ -241,15 +329,18 @@ function ProfilesEmptyState() {
       <ResourceIcon name="awsidentityandaccessmanagementiam" width="164px" />
       <Flex flexDirection="column" alignItems="center">
         <H3 mb={1}>No AWS IAM Roles Anywhere Profiles Found</H3>
-        <P2>Create AWS IAM Roles Anywhere Profiles in your AWS console</P2>
       </Flex>
       <Flex gap={3}>
-        <ButtonPrimary as="a" target="blank" href={rolesAnywhereCreateProfile}>
-          Create AWS Roles Anywhere Profiles
+        <ButtonPrimary
+          gap={2}
+          as="a"
+          target="blank"
+          href={rolesAnywhereCreateProfile}
+        >
+          Create AWS Profiles
+          <Icons.NewTab size="small" />
         </ButtonPrimary>
-        <ButtonBorder intent="primary">
-          Refresh AWS Roles Anywhere Profiles
-        </ButtonBorder>
+        <ButtonBorder intent="primary">Refresh AWS Profiles</ButtonBorder>
       </Flex>
     </CardTile>
   );

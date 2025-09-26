@@ -87,7 +87,7 @@ func TestValidateInferenceModel(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			m := proto.CloneOf(valid)
 			tc.fn(m)
-			assert.ErrorIs(t, ValidateInferenceModel(m), trace.BadParameter(tc.msg))
+			assert.ErrorIs(t, ValidateInferenceModel(m), &trace.BadParameterError{Message: tc.msg})
 		})
 	}
 }
@@ -141,7 +141,7 @@ func TestValidateInferenceSecret(t *testing.T) {
 		t.Run(tc.msg, func(t *testing.T) {
 			s := proto.CloneOf(valid)
 			tc.fn(s)
-			assert.ErrorIs(t, ValidateInferenceSecret(s), trace.BadParameter(tc.msg))
+			assert.ErrorIs(t, ValidateInferenceSecret(s), &trace.BadParameterError{Message: tc.msg})
 		})
 	}
 }

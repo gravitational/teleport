@@ -22,18 +22,19 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/sync/errgroup"
+	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	"github.com/gravitational/teleport/lib/utils/log"
 )
@@ -53,6 +54,8 @@ type workerConfig struct {
 	// getTargetHealthTimeout is the timeout to wait for an initial health
 	// check before returning the target health to callers of GetTargetHealth.
 	getTargetHealthTimeout time.Duration
+	// metricType is the resource type (db, k8s, etc) use in Prometheus metrics.
+	metricType string
 }
 
 // checkAndSetDefaults checks the worker config and sets defaults.
@@ -97,6 +100,7 @@ func newUnstartedWorker(ctx context.Context, cfg workerConfig) (*worker, error) 
 		log:                       cfg.Log,
 		target:                    cfg.Target,
 		getTargetHealthTimeout:    cfg.getTargetHealthTimeout,
+		metricType:                cfg.metricType,
 	}
 	if w.healthCheckCfg != nil {
 		w.setTargetInit(ctx)
@@ -150,10 +154,9 @@ type worker struct {
 	// getTargetHealthTimeout is the timeout to wait for an initial health
 	// check before returning the target health to callers of GetTargetHealth.
 	getTargetHealthTimeout time.Duration
+	// metricType is the resource type (db, k8s, etc) use in Prometheus metrics.
+	metricType string
 }
-
-// dialFunc dials an address on the given network.
-type dialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 // GetTargetHealth returns the worker's target health.
 func (w *worker) GetTargetHealth() *types.TargetHealth {
@@ -217,6 +220,10 @@ func (w *worker) run() {
 		case newCfg := <-w.healthCheckConfigUpdateCh:
 			w.updateHealthCheckConfig(w.closeContext, newCfg)
 		case <-w.closeContext.Done():
+			w.mu.RLock()
+			targetHealthStatus := w.targetHealth.Status
+			w.mu.RUnlock()
+			w.decrementPreviousMetric(targetHealthStatus)
 			return
 		}
 	}
@@ -226,7 +233,6 @@ func (w *worker) run() {
 func (w *worker) startHealthCheckInterval(ctx context.Context) {
 	w.log.InfoContext(ctx, "Health checker started",
 		"health_check_config", w.healthCheckCfg.name,
-		"protocol", w.healthCheckCfg.protocol,
 		"interval", log.StringerAttr(w.healthCheckCfg.interval),
 		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
@@ -264,25 +270,31 @@ func (w *worker) nextHealthCheck() <-chan time.Time {
 // updates the worker's health check result history, and possibly updates the
 // target health.
 func (w *worker) checkHealth(ctx context.Context) {
-	initializing := w.lastResultCount == 0
-	dialErr := w.dialEndpoints(ctx)
+	ctx, cancel := context.WithTimeout(ctx, w.healthCheckCfg.timeout)
+	defer cancel()
+
+	// check target health
+	var curErr error
+	w.lastResolvedEndpoints, curErr = w.target.CheckHealth(ctx)
+
 	if ctx.Err() == context.Canceled {
 		return
 	}
-	if (dialErr == nil) == (w.lastResultErr == nil) {
+	initializing := w.lastResultCount == 0
+	if (curErr == nil) == (w.lastResultErr == nil) {
 		w.lastResultCount++
 	} else {
 		// the passing/failing result streak has ended, so reset the count
 		w.lastResultCount = 1
 	}
-	w.lastResultErr = dialErr
+	w.lastResultErr = curErr
 
 	if w.lastResultErr != nil {
 		w.log.DebugContext(ctx, "Failed health check",
 			"error", w.lastResultErr,
 		)
 	}
-	// update target health when we exactly reach the threshold or initialize
+	// update target health when we initialize or exactly reach the threshold
 	if initializing || w.getThreshold(w.healthCheckCfg) == w.lastResultCount {
 		w.setThresholdReached(ctx)
 	}
@@ -310,7 +322,6 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	}
 	w.log.DebugContext(ctx, "Updated health check config",
 		"health_check_config", w.healthCheckCfg.name,
-		"protocol", w.healthCheckCfg.protocol,
 		"interval", log.StringerAttr(w.healthCheckCfg.interval),
 		"timeout", log.StringerAttr(w.healthCheckCfg.timeout),
 		"healthy_threshold", w.healthCheckCfg.healthyThreshold,
@@ -333,41 +344,6 @@ func (w *worker) updateHealthCheckConfig(ctx context.Context, newCfg *healthChec
 	if newThreshold < oldThreshold && w.lastResultCount >= newThreshold {
 		w.setThresholdReached(ctx)
 	}
-}
-
-func (w *worker) dialEndpoints(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, w.healthCheckCfg.timeout)
-	defer cancel()
-	endpoints, err := w.target.ResolverFn(ctx)
-	if err != nil {
-		return trace.Wrap(err, "failed to resolve target endpoints")
-	}
-	w.lastResolvedEndpoints = endpoints
-	switch len(endpoints) {
-	case 0:
-		return trace.NotFound("resolved zero target endpoints")
-	case 1:
-		return w.dialEndpoint(ctx, endpoints[0])
-	default:
-		group, ctx := errgroup.WithContext(ctx)
-		group.SetLimit(10)
-		for _, ep := range endpoints {
-			group.Go(func() error {
-				return trace.Wrap(w.dialEndpoint(ctx, ep))
-			})
-		}
-		return group.Wait()
-	}
-}
-
-func (w *worker) dialEndpoint(ctx context.Context, endpoint string) error {
-	conn, err := w.target.dialFn(ctx, "tcp", endpoint)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// an error while closing the connection could indicate an RST packet from
-	// the endpoint - that's a health check failure.
-	return trace.Wrap(conn.Close())
 }
 
 // getThreshold returns the appropriate threshold to compare against the last
@@ -436,20 +412,25 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 			"reason", reason,
 			"message", message,
 		)
+		resourceHealthyGauge.WithLabelValues(w.metricType).Inc()
 	case types.TargetHealthStatusUnhealthy:
 		w.log.WarnContext(ctx, "Target became unhealthy",
 			"reason", reason,
 			"message", message,
 		)
+		resourceUnhealthyGauge.WithLabelValues(w.metricType).Inc()
 	case types.TargetHealthStatusUnknown:
 		w.log.DebugContext(ctx, "Target health status is unknown",
 			"reason", reason,
 			"message", message,
 		)
+		resourceUnknownGauge.WithLabelValues(w.metricType).Inc()
 	}
+	w.decrementPreviousMetric(oldHealth.Status)
 	now := w.clock.Now()
 	w.targetHealth = types.TargetHealth{
 		Address:             strings.Join(w.lastResolvedEndpoints, ","),
+		Protocol:            string(w.target.GetProtocol()),
 		Status:              string(newStatus),
 		TransitionTimestamp: &now,
 		TransitionReason:    string(reason),
@@ -457,9 +438,6 @@ func (w *worker) setTargetHealthStatus(ctx context.Context, newStatus types.Targ
 	}
 	if w.lastResultErr != nil {
 		w.targetHealth.TransitionError = w.lastResultErr.Error()
-	}
-	if w.healthCheckCfg != nil {
-		w.targetHealth.Protocol = string(w.healthCheckCfg.protocol)
 	}
 }
 
@@ -493,3 +471,60 @@ func (w *worker) waitForInitCheckLocked(timeout time.Duration) {
 		}
 	}
 }
+
+// decrementPreviousMetric decrements the previous health metric.
+func (w *worker) decrementPreviousMetric(previousHealthStatus string) {
+	// Decrement previous state when not the initial state.
+	// Avoids decrementing the "unknown" gauge below zero.
+	if previousHealthStatus != "" {
+		switch types.TargetHealthStatus(previousHealthStatus) {
+		case types.TargetHealthStatusHealthy:
+			resourceHealthyGauge.WithLabelValues(w.metricType).Dec()
+		case types.TargetHealthStatusUnhealthy:
+			resourceUnhealthyGauge.WithLabelValues(w.metricType).Dec()
+		case types.TargetHealthStatusUnknown:
+			resourceUnknownGauge.WithLabelValues(w.metricType).Dec()
+		}
+	}
+}
+
+func init() {
+	metrics.RegisterPrometheusCollectors(
+		resourceHealthyGauge,
+		resourceUnhealthyGauge,
+		resourceUnknownGauge,
+	)
+}
+
+var (
+	// teleport_resources_health_status_healthy
+	resourceHealthyGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricHealthy,
+			Help:      "Number of healthy resources",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+	// teleport_resources_health_status_unhealthy
+	resourceUnhealthyGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricUnhealthy,
+			Help:      "Number of unhealthy resources",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+	// teleport_resources_health_status_unknown
+	resourceUnknownGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: teleport.MetricResourcesHealthStatus,
+			Name:      teleport.MetricUnknown,
+			Help:      "Number of resources in an unknown health state",
+		},
+		[]string{teleport.TagType}, // db|k8s|etc
+	)
+)

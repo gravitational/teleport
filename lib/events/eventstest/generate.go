@@ -276,6 +276,7 @@ func GenerateTestDBSession(params DBSessionParams) []apievents.AuditEvent {
 		DatabaseMetadata: databaseMetadata,
 		StartTime:        startTime,
 		EndTime:          endTime,
+		Participants:     []string{userMetadata.User},
 	}
 
 	genEvents := []apievents.AuditEvent{&sessionStart}

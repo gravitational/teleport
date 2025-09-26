@@ -70,6 +70,8 @@ type Session struct {
 	PostgresPID uint32
 	// UserAgent identifies the type of client used on the session.
 	UserAgent string
+	// ClientIP is the client IP address.
+	ClientIP string
 }
 
 // String returns string representation of the session parameters.

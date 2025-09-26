@@ -872,7 +872,7 @@ func (s *IssuanceService) getAllWorkloadIdentities(
 	workloadIdentities := []*workloadidentityv1pb.WorkloadIdentity{}
 	page := ""
 	for {
-		pageItems, nextPage, err := s.cache.ListWorkloadIdentities(ctx, 0, page)
+		pageItems, nextPage, err := s.cache.ListWorkloadIdentities(ctx, 0, page, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

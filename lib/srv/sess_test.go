@@ -785,7 +785,7 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.OpenSession(t.Context(), sshChanOpen, scx)
+	err := reg.JoinSession(t.Context(), sshChanOpen, scx, sess.ID(), types.SessionPeerMode)
 	require.NoError(t, err)
 }
 
@@ -854,7 +854,7 @@ func TestSessionRecordingModes(t *testing.T) {
 				for _, e := range srv.Events() {
 					delete(eventsNotReceived, e.GetType())
 				}
-				assert.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
+				require.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
 			}, time.Second*5, time.Millisecond*500, "Some events not received")
 		})
 	}

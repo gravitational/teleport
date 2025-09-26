@@ -202,6 +202,7 @@ export enum DiscoverEventResource {
   DatabaseCassandraSelfHosted = 'DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED',
   DatabaseElasticSearchSelfHosted = 'DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED',
   DatabaseRedisElasticache = 'DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE',
+  DatabaseRedisElastiCacheServerless = 'DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE_SERVERLESS',
   DatabaseRedisMemoryDb = 'DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB',
   DatabaseRedisAzureCache = 'DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE',
   DatabaseRedisClusterSelfHosted = 'DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED',
@@ -226,6 +227,8 @@ export enum DiscoverEventResource {
   Ec2Instance = 'DISCOVER_RESOURCE_EC2_INSTANCE',
 
   SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
+
+  MCPStdio = 'DISCOVER_RESOURCE_MCP_STDIO',
 }
 
 export enum DiscoverEventStatus {

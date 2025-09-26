@@ -52,12 +52,14 @@ const (
 	// EventProtocol specifies protocol that was captured
 	EventProtocol = "proto"
 	// EventProtocolsSSH specifies SSH as a type of captured protocol
-	EventProtocolSSH = "ssh"
+	EventProtocolSSH = apievents.EventProtocolSSH
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
-	EventProtocolKube = "kube"
+	EventProtocolKube = apievents.EventProtocolKube
 	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
 	// as a type of captured protocol
-	EventProtocolTDP = "tdp"
+	EventProtocolTDP = apievents.EventProtocolTDP
+	// EventProtocolDB specifies database as a type of captured protocol
+	EventProtocolDB = apievents.EventProtocolDB
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
@@ -925,6 +927,12 @@ const (
 	// MCPSessionNotificationEvent is emitted when a notification is sent by
 	// client during a MCP session.
 	MCPSessionNotificationEvent = "mcp.session.notification"
+	// MCPSessionListenSSEStream is emitted when the client sends a GET request for
+	// listening server notifications via an SSE stream.
+	MCPSessionListenSSEStream = "mcp.session.listen_sse_stream"
+	// MCPSessionInvalidHTTPRequest is a blanket event for all requests that we
+	// do not understand (usually out of MCP spec).
+	MCPSessionInvalidHTTPRequest = "mcp.session.invalid_http_request"
 
 	// BoundKeypairRecovery is emitted when a bound keypair token is used to
 	// perform a recovery.
@@ -1169,7 +1177,7 @@ type SearchSessionEventsRequest struct {
 	// set to its value. Otherwise leave empty.
 	StartKey string
 	// Cond can be used to pass additional expression to query, can be empty.
-	Cond *types.WhereExpr
+	Cond *utils.ToFieldsConditionConfig
 	// SessionID is optional parameter to return session events only to given session.
 	SessionID string
 }

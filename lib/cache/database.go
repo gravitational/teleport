@@ -154,7 +154,7 @@ func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2
 
 		if rg.ReadCache() {
 			for database := range rg.store.resources(databaseNameIndex, start, end) {
-				if !yield(database, nil) {
+				if !yield(database.Copy(), nil) {
 					return
 				}
 			}

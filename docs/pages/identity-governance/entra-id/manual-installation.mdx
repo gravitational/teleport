@@ -1,9 +1,11 @@
 ---
-title: Manual Entra ID integration configuration
-description: Describes how to manually set up Entra ID for Teleport Entra ID integration.
-labels:
+title: Configure the Entra ID Integration using Azure Portal
+description: Describes how to manually set up Entra ID for the Teleport Entra ID integration.
+tags:
  - how-to
  - identity-governance
+ - azure
+ - privileged-access
 ---
 
 This guide shows manual Entra ID configuration steps to set up Teleport Entra ID integration.
@@ -11,10 +13,11 @@ See [getting started with Entra ID integration](getting-started.mdx) for a guide
 
 The set up is based on the [OIDC IdP authentication method](entra-id.mdx#choosing-the-microsoft-graph-api-authentication-method).
 
+{/* lint ignore page-structure remark-lint */}
+
 ## Prerequisites
 
-- Teleport Identity Governance enabled for your Teleport cluster. Optionally, Identity Security should
-also be enabled if you choose to enable Identity Security integration.
+- Teleport Identity Governance enabled for your Teleport cluster.
 - Your user must have privileged administrator permissions in the Microsoft Entra ID tenant.
 
 ## Step 1/5. Create enterprise application
@@ -83,14 +86,16 @@ The following permissions need to be added to the application.
 
 ## Step 5/5. Install the Entra ID plugin
 
-Now run the `tctl plugins install entraid` command.
+Now run the `tctl plugins install entraid` command, including the name of the
+<Var name="Access List owner"/>:
 
 ```code
 $ tctl plugins install entraid \
     --name entra-id-default \
     --auth-connector-name entra-id \
-    --default-owner=<Var name="Access List Owner"/> \
-    –-manual-setup
+    --default-owner=<Var name="Access List owner"/> \
+    --no-access-graph \
+    --manual-setup
 ```
 
 The `--name` flag specifies the resource name of the Entra ID plugin. 
@@ -108,6 +113,6 @@ After you enter these values, Entra ID plugin will be installed with the OIDC Id
 
 - [Configure Access](configure-access.mdx) for Entra ID users.
 - Learn more about [Access List](../access-lists/access-lists.mdx) management.
-- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/azuread.mdx). 
+- Take a deeper look into setting up [Entra ID auth connector](../../zero-trust-access/sso/entra-id.mdx). 
 - Learn how the [Identity Security integration with Entra ID](../../identity-security/integrations/entra-id.mdx) works. 
 - See [FAQs](faq.mdx) related to the Teleport Entra ID integration. 

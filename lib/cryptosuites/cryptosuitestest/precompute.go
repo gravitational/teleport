@@ -69,7 +69,7 @@ func precomputeTestKeys(ctx context.Context, bitSize int) {
 const testKeysNumber = 25
 
 // testKeysNumber is the number of RSA 4096 keys generated in tests.
-const testKeysNumber4096 = 3
+const testKeysNumber4096 = 10
 
 func generateTestKeys(ctx context.Context, bitSize int) <-chan *rsa.PrivateKey {
 	count := testKeysNumber

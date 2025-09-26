@@ -1,7 +1,7 @@
 ---
 title: Enterprise License File
 description: How to manage your Teleport Enterprise license file.
-labels:
+tags:
  - conceptual
  - platform-wide
 ---
@@ -139,7 +139,7 @@ license:
    risk of an Auth Service instance looking up a nonexistent license file:
 
    ```code
-   $ kubectl create secret generic license --from-file license.pem --dry-run=client -o yaml | kubectl replace -n <Var name="teleport-namespace" /> -f -   
+   $ kubectl create secret generic license --from-file license.pem --dry-run=client -o yaml | kubectl replace -n <Var name="teleport-namespace" /> -f -
    ```
 
 ## When your license expires
@@ -190,3 +190,21 @@ following error:
 ```text
 SAML: this feature requires Teleport Enterprise
 ```
+
+## Automatic license updates
+
+By default, self-hosted Teleport Enterprise clusters will periodically check
+whether there have been any changes to their subscription. If a change is
+detected, then the cluster will automatically fetch an updated license without
+user interaction.
+
+In order for this functionality to work:
+
+- the cluster must be running Teleport 16.4.11 or later
+- the cluster must have outbound connectivity to https://api.teleport.sh
+- the customer must have license updates enabled on their account
+
+It can take up to 15 minutes for a change on the backend to be detected by the
+cluster. There is no way to disable this functionality, but the cluster will
+continue to function even if network access to api.teleport.sh is not available
+(so long as the license remains valid).

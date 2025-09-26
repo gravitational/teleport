@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -57,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -1181,11 +1179,9 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
-	require.NoError(t, err)
-	localAdmin, err := storage.ReadLocalIdentity(
+	localAdmin, err := storage.ReadLocalIdentityForRole(
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
-		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+		types.RoleAdmin,
 	)
 	require.NoError(t, err)
 	localAdminTLS, err := localAdmin.TLSConfig(nil)

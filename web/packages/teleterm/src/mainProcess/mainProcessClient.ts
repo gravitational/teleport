@@ -26,7 +26,6 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { createConfigServiceClient } from '../services/config';
 import { openTabContextMenu } from './contextMenus/tabContextMenu';
 import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
-import { deserializeError } from './ipcSerializer';
 import {
   AgentProcessState,
   ChildProcessAddresses,
@@ -234,9 +233,6 @@ export default function createMainProcessClient(): MainProcessClient {
     },
     subscribeToAppUpdateEvents: listener => {
       const ipcListener = (_, updateEvent: AppUpdateEvent) => {
-        if (updateEvent.kind === 'error') {
-          updateEvent.error = deserializeError(updateEvent.error);
-        }
         listener(updateEvent);
       };
 
@@ -251,6 +247,20 @@ export default function createMainProcessClient(): MainProcessClient {
       return {
         cleanup: () =>
           ipcRenderer.removeListener(RendererIpc.OpenAppUpdateDialog, listener),
+      };
+    },
+    subscribeToIsInBackgroundMode: listener => {
+      const ipcListener = (_, { isInBackgroundMode }) => {
+        listener({ isInBackgroundMode });
+      };
+
+      ipcRenderer.addListener(RendererIpc.IsInBackgroundMode, ipcListener);
+      return {
+        cleanup: () =>
+          ipcRenderer.removeListener(
+            RendererIpc.IsInBackgroundMode,
+            ipcListener
+          ),
       };
     },
   };

@@ -55,7 +55,6 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16
 
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
-# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
     cd libfido2 && \
     [ "$(git rev-parse HEAD)" = 'f87c19c9487c0131531314d9ccb475ea5325794e' ] && \
@@ -181,8 +180,6 @@ RUN apt-get -y update && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
     tee /etc/apt/sources.list.d/hashicorp.list > /dev/null && \
     apt-get update && apt-get install terraform -y --no-install-recommends && \
-    # Manually install the wasm-opt binary from the binaryen package on ARM64.
-    if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
@@ -228,9 +225,10 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustup target add wasm32-unknown-unknown && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu i686-unknown-linux-gnu; fi
 
-ARG WASM_PACK_VERSION
-# Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
+ARG WASM_OPT_VERSION
+ARG WASM_BINDGEN_VERSION
+# Install wasm-bindgen-ci and wasm-opt for bulding rust webassembly module.
+RUN cargo install --locked wasm-opt@${WASM_OPT_VERSION} wasm-bindgen-cli@${WASM_BINDGEN_VERSION}
 
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
@@ -278,7 +276,6 @@ RUN scversion='v0.10.0' && \
     shellcheck --version
 
 # Install helm.
-# Keep the version below synced with devbox.json
 RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \

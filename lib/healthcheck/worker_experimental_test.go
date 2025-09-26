@@ -1,5 +1,3 @@
-//go:build go1.24 && enablesynctest
-
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -70,21 +68,21 @@ func TestGetTargetHealth(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(t.Context())
-			synctest.Run(func() {
-				defer cancel()
-				worker, err := newWorker(ctx, workerConfig{
+			synctest.Test(t, func(t *testing.T) {
+				worker, err := newWorker(t.Context(), workerConfig{
 					HealthCheckCfg: test.healthCheckConfig,
 					Target: Target{
+						HealthChecker: &TargetDialer{
+							Resolver: func(ctx context.Context) ([]string, error) {
+								return []string{"localhost:1234"}, nil
+							},
+							dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
+								time.Sleep(5*time.Second - time.Nanosecond)
+								synctest.Wait()
+								return fakeConn{}, test.dialErr
+							},
+						},
 						GetResource: func() types.ResourceWithLabels { return nil },
-						ResolverFn: func(ctx context.Context) ([]string, error) {
-							return []string{"localhost:1234"}, nil
-						},
-						dialFn: func(ctx context.Context, network, addr string) (net.Conn, error) {
-							time.Sleep(5*time.Second - time.Nanosecond)
-							synctest.Wait()
-							return fakeConn{}, test.dialErr
-						},
 					},
 				})
 				assert.NoError(t, err)

@@ -684,8 +684,8 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				var err error
 				expected, err = w.GetUnifiedResources(ctx)
-				assert.NoError(t, err)
-				assert.Len(t, expected, resourceCount)
+				require.NoError(t, err)
+				require.Len(t, expected, resourceCount)
 			}, 10*time.Second, 100*time.Millisecond)
 
 			t.Run("resource iterator", func(t *testing.T) {
@@ -978,10 +978,8 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err := w.GetUnifiedResources(ctx)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.ElementsMatch(t, duplicatedServerNames, slices.Collect(types.ResourceNames(res)))
+		require.NoError(t, err)
+		require.ElementsMatch(t, duplicatedServerNames, slices.Collect(types.ResourceNames(res)))
 	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted except for HA servers")
 
 	// delete all remaining (db, kube, app, desktop) servers
@@ -1004,10 +1002,8 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		res, err := w.GetUnifiedResources(ctx)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.Empty(t, res)
+		require.NoError(t, err)
+		require.Empty(t, res)
 	}, 5*time.Second, 100*time.Millisecond, "Timed out waiting for unified resources to be deleted")
 }
 
@@ -1041,35 +1037,34 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 
 	accountID := t.Name()
 
-	icAcct, err := svc.CreateIdentityCenterAccount(ctx, services.IdentityCenterAccount{
-		Account: &identitycenterv1.Account{
-			Kind:    types.KindIdentityCenterAccount,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: t.Name(),
-				Labels: map[string]string{
-					types.OriginLabel: common.OriginAWSIdentityCenter,
+	icAcct, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		Kind:    types.KindIdentityCenterAccount,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: t.Name(),
+			Labels: map[string]string{
+				types.OriginLabel: common.OriginAWSIdentityCenter,
+			},
+		},
+		Spec: &identitycenterv1.AccountSpec{
+			Id:          accountID,
+			Arn:         "arn:aws:sso:::account/" + accountID,
+			Name:        "Test AWS Account",
+			Description: "Used for testing",
+			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
+				{
+					Name: "Alpha",
+					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
+				},
+				{
+					Name: "Beta",
+					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
 				},
 			},
-			Spec: &identitycenterv1.AccountSpec{
-				Id:          accountID,
-				Arn:         "arn:aws:sso:::account/" + accountID,
-				Name:        "Test AWS Account",
-				Description: "Used for testing",
-				PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-					{
-						Name: "Alpha",
-						Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
-					},
-					{
-						Name: "Beta",
-						Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
-					},
-				},
-			},
-		}})
+		},
+	})
 	require.NoError(t, err, "creating Identity Center Account")
-	return icAcct.Account
+	return icAcct
 }
 
 func TestOktaAppServers(t *testing.T) {

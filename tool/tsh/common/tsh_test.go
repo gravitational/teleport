@@ -1248,19 +1248,23 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	stage1Hostname := "test-stage-1"
 	node := makeTestSSHNode(t, rootAuthAddr, withHostname(stage1Hostname), withSSHLabel("env", "stage"))
-	sshHostID := node.Config.HostUUID
+	sshHostID, err := node.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	stage2Hostname := "test-stage-2"
 	node2 := makeTestSSHNode(t, rootAuthAddr, withHostname(stage2Hostname), withSSHLabel("env", "stage"))
-	sshHostID2 := node2.Config.HostUUID
+	sshHostID2, err := node2.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	prodHostname := "test-prod-1"
 	nodeProd := makeTestSSHNode(t, rootAuthAddr, withHostname(prodHostname), withSSHLabel("env", "prod"))
-	sshHostID3 := nodeProd.Config.HostUUID
+	sshHostID3, err := nodeProd.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	leafHostname := "leaf-node"
 	leafNode := makeTestSSHNode(t, leafAuthAddr, withHostname(leafHostname), withSSHLabel("animal", "llama"))
-	sshLeafHostID := leafNode.Config.HostUUID
+	sshLeafHostID, err := leafNode.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	hasNodes := func(asrv *auth.Server, hostIDs ...string) func() bool {
 		return func() bool {
@@ -2033,15 +2037,18 @@ func TestSSHAccessRequest(t *testing.T) {
 
 	sshHostname := "test-ssh-server"
 	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	sshHostID := node.Config.HostUUID
+	sshHostID, err := node.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	sshHostname2 := "test-ssh-server-2"
 	node2 := makeTestSSHNode(t, authAddr, withHostname(sshHostname2), withSSHLabel("access", "true"))
-	sshHostID2 := node2.Config.HostUUID
+	sshHostID2, err := node2.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	sshHostnameNoAccess := "test-ssh-server-no-access"
 	nodeNoAccess := makeTestSSHNode(t, authAddr, withHostname(sshHostnameNoAccess), withSSHLabel("access", "false"))
-	sshHostIDNoAccess := nodeNoAccess.Config.HostUUID
+	sshHostIDNoAccess, err := nodeNoAccess.WaitForHostID(ctx)
+	require.NoError(t, err)
 
 	hasNodes := func(hostIDs ...string) func() bool {
 		return func() bool {
@@ -2455,9 +2462,9 @@ func TestSSHCommands(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
+
 	}, 10*time.Second, 100*time.Millisecond)
 
 	tmpHomePath := t.TempDir()
@@ -2682,15 +2689,12 @@ func TestKubeCredentialsLock(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			gotNames := map[string]struct{}{}
 			for ks, err := range authServer.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				if !assert.NoError(t, err) {
-					return
-				}
+				require.NoError(t, err)
 
 				gotNames[ks.GetCluster().GetName()] = struct{}{}
-
 			}
 
-			assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+			require.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
 		}, 15*time.Second, 100*time.Millisecond)
 
 		var ssoCalls atomic.Int32
@@ -2989,8 +2993,8 @@ func TestSSHHeadless(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
-		assert.Len(t, found, 1)
+		require.NoError(t, err)
+		require.Len(t, found, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	go func() {
@@ -3111,8 +3115,8 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
-		assert.Len(t, found, 1)
+		require.NoError(t, err)
+		require.Len(t, found, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	proxyAddr, err := server.ProxyWebAddr()
@@ -5569,7 +5573,8 @@ func TestShowSessions(t *testing.T) {
 		"db_protocol": "postgres",
 		"db_uri": "",
 		"session_start": "0001-01-01T00:00:00Z",
-		"session_stop": "0001-01-01T00:00:00Z"
+		"session_stop": "0001-01-01T00:00:00Z",
+		"participants": ["someParticipant"]
     } ]`
 	sessions := []events.AuditEvent{
 		&events.SessionEnd{
@@ -5606,8 +5611,9 @@ func TestShowSessions(t *testing.T) {
 			DatabaseMetadata: events.DatabaseMetadata{
 				DatabaseProtocol: "postgres",
 			},
-			StartTime: time.Time{},
-			EndTime:   time.Time{},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
 		},
 	}
 	var buf bytes.Buffer
@@ -6186,34 +6192,28 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 	)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
 
 		leafNodes, err := leafServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, leafNodes, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, leafNodes, 1)
 
 		rootDatabases, err := rootServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootDatabases, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootDatabases, 1)
 
 		leafDatabases, err := leafServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, leafDatabases, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, leafDatabases, 1)
 
 		rootApps, err := rootServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootApps, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootApps, 1)
 
 		leafApps, err := leafServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, leafApps, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, leafApps, 1)
 
 		rootNode = rootNodes[0].(*types.ServerV2)
 		leafNode = leafNodes[0].(*types.ServerV2)
@@ -6749,9 +6749,8 @@ func TestResolve(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, found, 2) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, found, 2)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	tmpHomePath := t.TempDir()
@@ -7050,9 +7049,8 @@ func TestSCP(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, found, 2) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, found, 2)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	tmpHomePath := t.TempDir()
@@ -7623,8 +7621,8 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 			command:   []string{"echo", "hello", ">", "test.txt"},
 			assertRun: assert.NoError,
 			assertCommandEffect: func(t *testing.T, testFile string) bool {
-				return assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-					assert.FileExists(collect, testFile)
+				return assert.EventuallyWithT(t, func(t *assert.CollectT) {
+					assert.FileExists(t, testFile)
 				}, 3*time.Second, 100*time.Millisecond)
 			},
 		},

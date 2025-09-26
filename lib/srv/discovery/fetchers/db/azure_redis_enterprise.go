@@ -32,7 +32,7 @@ import (
 
 // newAzureRedisEnterpriseFetcher creates a fetcher for Azure Redis Enterprise.
 func newAzureRedisEnterpriseFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher[*azure.RedisEnterpriseDatabase, azure.RedisEnterpriseClient](config, &azureRedisEnterprisePlugin{})
+	return newAzureFetcher(config, &azureRedisEnterprisePlugin{})
 }
 
 type azureRedisEnterprisePlugin struct{}

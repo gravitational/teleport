@@ -1,147 +1,253 @@
 ---
 title: Using the tsh Command Line Tool
 description: This reference shows you how to use Teleport's tsh tool to authenticate to a cluster, explore your infrastructure, and connect to a resource.
-labels:
+tags:
  - conceptual
  - zero-trust
 ---
 
-This guide will show you how to use the Teleport client tool, `tsh`.
+This guide shows you how to use the Teleport client tool `tsh` to connect to
+infrastructure resources in your cluster.
 
 You will learn how to:
 
-- Log in to an interactive shell on remote cluster nodes.
-- Copy files to and from cluster nodes.
-- Connect to SSH clusters behind firewalls without any open ports using SSH
-  reverse tunnels.
-- Explore a cluster and execute commands on specific nodes in the cluster.
-- Share interactive shell sessions with colleagues or join someone else's session.
+- List, access, and interact with Teleport-connected resources.
+- Share interactive shell sessions with colleagues or join someone else's
+  session.
 - List and replay recorded interactive sessions.
 
-In addition to this document, you can always simply type `tsh` into your
-terminal for the CLI reference.
+In addition to this document, you can type `tsh` into your terminal for
+the CLI reference, or explore the [`tsh` CLI
+Reference](../reference/cli/tsh.mdx#tsh-login) in the documentation.
 
-## Introduction
-
-For the impatient, here's an example of how a user would typically use
-[`tsh`](../reference/cli/tsh.mdx):
-
-<Tabs>
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-
-```code
-# Log into a Teleport cluster. This command retrieves the user's certificates
-# and saves them into ~/.tsh/teleport.example.com
-$ tsh login --proxy=teleport.example.com
-
-# SSH into a Node as usual
-$ tsh ssh user@node
-
-# `tsh ssh` takes the same arguments as the OpenSSH client:
-$ tsh ssh -o ForwardAgent=yes user@node
-$ tsh ssh -o AddKeysToAgent=yes user@node
-
-# You can even create a convenient symlink:
-$ ln -s /path/to/tsh /path/to/ssh
-
-# ... and now your 'ssh' command is calling Teleport's `tsh ssh`
-$ ssh user@host
-
-# This command removes SSH certificates from a user's machine:
-$ tsh logout
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-# Login into a Teleport cluster. This command retrieves the user's certificates
-# and saves them into ~/.tsh/mytenant.teleport.sh
-$ tsh login --proxy=mytenant.teleport.sh
-
-# SSH into a Node as usual
-$ tsh ssh user@node
-
-# `tsh ssh` takes the same arguments as the OpenSSH client:
-$ tsh ssh -o ForwardAgent=yes user@node
-$ tsh ssh -o AddKeysToAgent=yes user@node
-
-# You can even create a convenient symlink:
-$ ln -s /path/to/tsh /path/to/ssh
-
-# ... and now your 'ssh' command is calling Teleport's `tsh ssh`
-$ ssh user@host
-
-# This command removes SSH certificates from a user's machine:
-$ tsh logout
-```
-
-</TabItem>
-
-</Tabs>
-
-In other words, Teleport was designed to be fully compatible with existing
-SSH-based workflows and does not require users to learn anything new, other than
-to call [`tsh login`](../reference/cli/tsh.mdx#tsh-login) in the beginning.
+You can also use `tsh` to manage Access Requests. For instructions, see
+[Request Access to Roles and Resources](./request-access.mdx).
 
 ## Installing tsh
 
 Follow the instructions below to install the `tsh` binary.
 
-We recommend installing `tsh` of the same major version as the version used in
-your Teleport cluster.
+1. Determine the version of `tsh` to install. We recommend installing the same
+   major version as the version used in your Teleport cluster. Either:
 
-To find the version number, either:
+   - In the Web UI, select your username in the upper right, then click **Help &
+     Support**. You will see the version of your Teleport cluster under
+     **Cluster Information**.
 
-- In the Web UI, select your username in the upper right, then click
-  **Help & Support**. You will see the version of your Teleport
-  cluster under **CLUSTER INFORMATION**.
+   - Use `curl` and `jq`. Replace <Var name="teleport.example.com" />
+     with your Proxy Service address (e.g. `mytenant.teleport.sh` for Teleport
+     Enterprise Cloud):
+   
+     ```code
+     $ curl https://<Var name="teleport.example.com" />/webapi/find | jq '.server_version'
+     "(=teleport.version=)"
+     ```
 
-- Use `curl` and `jq`. Replace <Var name="teleport.example.com" />
-  with your Proxy Service address (e.g. `mytenant.teleport.sh` for Teleport
-  Enterprise Cloud):
+1. Install a package the includes `tsh`:
 
-  ```code
-  $ curl https://<Var name="teleport.example.com" />/webapi/find | jq '.server_version'
-  "(=teleport.version=)"
-  ```
+   (!docs/pages/includes/install-tsh.mdx!)
 
-(!docs/pages/includes/install-tsh.mdx!)
+## Basic usage
 
-## User identities
+`tsh` allows you to view infrastructure resources that you can access in
+Teleport and connect to those resources. This section shows you the main
+workflow for using `tsh` to access an infrastructure resource.
 
-A user identity in Teleport exists in the scope of a cluster. The member nodes
-of a cluster may have multiple OS users on them. A Teleport administrator
-assigns allowed logins to every Teleport user account.
+### Log in to Teleport 
 
-When logging into a remote node, you will have to specify both the Teleport
-login and the OS login. A Teleport identity will have to be passed via the
-`--user` flag while the OS login will be passed as `login@host` using syntax
-compatible with the traditional `ssh` command.
+Log in to your Teleport cluster, assigning <Var name="teleport.example.com" />
+to the domain name of the Teleport Proxy Service in your cluster and 
+<Var name="myuser" /> to your Teleport username:
+
+```code
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="myuser" />
+```
+
+This command retrieves the user's certificates and saves them into 
+`~/.tsh/<Var name="teleport.example.com" />`.
+
+### List resources that you can access
+
+In a Teleport cluster, all Teleport Agents periodically ping the cluster's Auth
+Service and update their status. This allows Teleport users to see which
+Teleport-protected resources are online.
+
+This command lists all connected servers in the cluster that you have permission
+to access:
+
+```code
+$ tsh ls
+
+# Node Name     Address            Labels
+# ---------     -------            ------
+# turing        ⟵ Tunnel          os=linux
+# graviton      10.1.0.7:3022      os=osx
+```
+
+You can use `tsh` commands to list other kinds of resources. For more
+information, see the `tsh` reference entries for the following resource types:
+
+|Resource|Command|
+|---|---|
+|[Applications](../reference/cli/tsh.mdx#tsh-apps-ls)|`tsh apps ls`|
+|[Databases](../reference/agent-services/database-access-reference/cli.mdx#tsh-db-ls)|`tsh db ls`|
+|[Kubernetes clusters](../reference/cli/tsh.mdx#tsh-kube-ls)|`tsh kube ls`|
+|[Servers](../reference/cli/tsh.mdx#tsh-ls)|`tsh ls`|
+
+Windows desktops are available to list in Teleport Connect and the Teleport Web
+UI.
+
+`tsh <resource> ls` commands can apply a filter based on the resource's
+labels.  For example, to only show servers with the `os` label set to `osx`,
+you can run the following command:
+
+```code
+$ tsh ls os=osx
+
+# Nodename      Address            Labels
+# ---------     -------            ------
+# graviton      10.1.0.7:3022      os=osx
+```
+
+<details>
+<summary>Not seeing resources?</summary>
+
+(!docs/pages/includes/node-logins.mdx!)
+
+</details>
+
+### Connect to a resource
+
+Once you have determined a resource to connect to, the next step is to access
+the resource with `tsh`, which handles authentication to your Teleport cluster
+and routing traffic to and from local clients.
+
+You can only connect to a Windows desktop using the Teleport Web UI or Teleport
+Connect.
+
+Select a resource type for instructions on connecting to the resource with
+`tsh`:
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+<TabItem label="Servers">
+
+Run the `tsh ssh` command to connect to a server, specifying the login to assume
+on the server you are connecting to. The following command connects to the
+server `mynode` as user `root`:
 
 ```code
-# Authenticate against the "work" cluster as joe and then
-# log into the node as root:
-$ tsh ssh --proxy=work.example.com --user=joe root@node
+$ tsh ssh root@mynode
+```
+
+`tsh ssh` takes the same arguments and flags as the OpenSSH client. For more
+information on connecting to servers, see [Connecting to SSH
+servers](#connecting-to-ssh-servers).
+
+</TabItem>
+<TabItem label="Applications">
+
+You can access web applications registered with Teleport through Teleport
+Connect and the Teleport Web UI. 
+
+You can also use `tsh` to start a local proxy server and connect to your
+application with your client of choice. The local proxy manages Teleport-issued
+certificates automatically. This example connects to the app `myapp`:
+
+```code
+$ tsh proxy app myapp
+```
+
+You can avoid the need to manually start the local proxy for application clients
+by using VNet. See [Using VNet](./vnet.mdx) for instructions.
+
+For APIs protected with Teleport, use `tsh apps login` to receive a certificate
+authorized to access the application, which in this example, is `grafana`:
+
+ ```code
+ $ tsh apps login grafana
+ ```
+
+You can then access the application with a command like the following:
+
+```code
+$ curl \
+  --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
+  --key /Users/alice/.tsh/keys/teleport.example.com/alice \
+  https://grafana.teleport.example.com:3080
+```
+
+Since the local proxy manages Teleport-issued application certificates
+automatically, we recommend that you use it instead of `tsh apps login` unless
+it is necessary to manually reference TLS credentials.
+
+For cloud APIs protected by Teleport, you can use the following `tsh` commands
+to execute a single API client command or start a local proxy that API client
+applications can proxy traffic through:
+
+|Cloud API|Single command|Local proxy|
+|---|---|---|
+|AWS|`tsh aws`|[tsh proxy aws](../reference/cli/tsh.mdx#tsh-proxy-aws)|
+|Azure|[tsh az](../reference/agent-services/application-access.mdx#tsh-az)|[tsh proxy azure](../reference/cli/tsh.mdx#tsh-proxy-azure)|
+|Google-Cloud|[tsh gcloud](../reference/cli/tsh.mdx#tsh-gcloud)|[tsh proxy gcloud](../reference/cli/tsh.mdx#tsh-proxy-gcloud)|
+
+</TabItem>
+<TabItem label="Databases">
+
+To receive a certificate from Teleport signed for your database user and connect
+to the database, run the following command, assuming `mydb` is the name of the
+database registered with Teleport and `my-database-user` is the name of your
+database user:
+
+```code
+$ tsh db connect --db-user=my-database-user mydb
+```
+
+Once you have finished your database session, you can remove the certificate for
+the database by running the following command:
+
+```code
+$ tsh db logout
+```
+
+Some databases require `tsh` to start a local proxy server to forward traffic
+from your workstation. `tsh db connect` starts the local proxy if it needs to,
+but you can also start the proxy yourself. This is useful for running graphical
+database clients. For example, you can start a local proxy with an authenticated
+tunnel using the following command:
+
+```code
+$ tsh proxy db --tunnel mydb
+```
+
+For more information, see [GUI Clients](gui-clients.mdx).
+
+</TabItem>
+<TabItem label="Kubernetes clusters">
+
+To access a Teleport-connected Kubernetes cluster, run the following command to
+update your kubeconfig with a certificate signed by Teleport. The following
+command logs in to the cluster mycluster:
+
+```code
+$ tsh kube login mycluster
+```
+
+Once you have logged into the cluster, run `tsh kubectl` to execute `kubectl`
+commands. Teleport can allow or deny access to specific Kubernetes cluster
+resources. `tsh kubectl` detects whether the command has failed due to
+insufficient permissions and, if so, submits an Access Request for the target
+Kubernetes resource.
+
+For example, the following command executes the `date` command in pod `my-pod`
+and submits an Access Request if the user does not have permissions to access
+that pod:
+
+```code
+$ tsh kubectl exec my-pod -- date
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-# Authenticate against the "work" cluster as joe and then
-# log into the node as root:
-$ tsh ssh --proxy=mytenant.teleport.sh --user=joe root@node
-```
-
-</TabItem>
-
 </Tabs>
-
-[CLI Docs - tsh ssh](../reference/cli/tsh.mdx#tsh-ssh)
 
 ## Logging in
 
@@ -294,23 +400,6 @@ $ tsh status
 
 [CLI Docs - tsh status](../reference/cli/tsh.mdx#tsh-status)
 
-### SSH agent support
-
-If there is an [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) running,
-`tsh login` will store the user certificate in the agent. This can be verified
-via:
-
-```code
-$ ssh-add -L
-```
-
-The SSH agent can be used to feed the certificate to other SSH clients, for example
-to OpenSSH (`ssh`).
-
-If you wish to disable SSH agent integration, pass `--no-use-local-ssh-agent`
-to `tsh`. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment
-variable to `false` in your shell profile to make this permanent.
-
 ### Identity files
 
 [`tsh login`](../reference/cli/tsh.mdx#tsh-login) can also save the user certificate into a
@@ -427,91 +516,29 @@ Now `jenkins.pem` can be copied to the Jenkins server and passed to the `-i`
 `tctl auth sign` is an admin's equivalent of `tsh login --out` and allows for
 unrestricted certificate TTL values.
 
-## Exploring the cluster
+## Connecting to SSH servers
 
-In a Teleport cluster, all Nodes periodically ping the cluster's Auth Service
-and update their status. This allows Teleport users to see which Nodes are
-online with the `tsh ls` command:
+This section provides detailed information about using `tsh` to connect to SSH
+servers registered with your Teleport cluster.
 
-```code
-# This command lists all Nodes in the cluster you logged into via "tsh login":
-$ tsh ls
+### User identities
 
-# Node Name     Address            Labels
-# ---------     -------            ------
-# turing        ⟵ Tunnel          os=linux
-# graviton      10.1.0.7:3022      os=osx
-```
+A user identity in Teleport exists in the scope of a cluster. The member nodes
+of a cluster may have multiple OS users on them. A Teleport administrator
+assigns allowed logins to every Teleport user account.
 
-[CLI Docs - tsh ls](../reference/cli/tsh.mdx#tsh-ls)
+When logging into a remote node, you will have to specify both the Teleport
+login and the OS login. A Teleport identity will have to be passed via the
+`--user` flag while the OS login will be passed as `login@host` using syntax
+compatible with the traditional `ssh` command.
 
-`tsh ls` can apply a filter based on the node labels.
-
-```code
-# Only show Nodes with os label set to 'osx':
-$ tsh ls os=osx
-
-# Nodename      Address            Labels
-# ---------     -------            ------
-# graviton      10.1.0.7:3022      os=osx
-```
-
-[CLI Docs -tsh ls](../reference/cli/tsh.mdx#tsh-ls)
-
-<details>
-<summary>Not seeing Nodes?</summary>
-
-(!docs/pages/includes/node-logins.mdx!)
-
-</details>
-
-## Interactive shell
-
-To launch an interactive shell on a remote Node or to execute a command, use
-`tsh ssh`.
-
-`tsh` tries to mimic the `ssh` experience as much as possible, so it supports
-the most popular `ssh` flags like `-p`, `-l` or `-L`. For example, if you have
-the following alias defined in your `~/.bashrc`: `alias ssh="tsh ssh"` then you
-can continue using familiar SSH syntax:
-
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+The following command authenticates against the 
+<Var name="teleport.example.com" /> cluster and logs into the server `node` as
+`root`:
 
 ```code
-# Have this alias configured, perhaps via ~/.bashrc
-$ alias ssh="/usr/local/bin/tsh ssh"
-
-# Login in to a cluster and retrieve your SSH certificate:
-$ tsh --proxy=proxy.example.com login
-
-# These commands execute `tsh ssh` under the hood:
-$ ssh user@node
-$ ssh -p 6122 user@node ls
-$ ssh -o ForwardAgent=yes user@node
-$ ssh -o AddKeysToAgent=yes user@node
+$ tsh ssh --proxy=<Var name="teleport.example.com" /> --user=joe root@node
 ```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-# Have this alias configured, perhaps via ~/.bashrc
-$ alias ssh="/usr/local/bin/tsh ssh"
-
-# Login in to a cluster and retrieve your SSH certificate:
-$ tsh --proxy=mytenant.teleport.sh login
-
-# These commands execute `tsh ssh` under the hood:
-$ ssh user@node
-$ ssh -p 6122 user@node ls
-$ ssh -o ForwardAgent=yes user@node
-$ ssh -o AddKeysToAgent=yes user@node
-```
-
-</TabItem>
-
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ### Proxy ports
 
@@ -525,10 +552,6 @@ $ tsh --proxy=proxy.example.com:5000 <subcommand>
 ```
 
 This `tsh` command will use port `5000` of the Proxy Service.
-
-</TabItem>
-
-</Tabs>
 
 ### Port forwarding
 
@@ -566,6 +589,24 @@ This command:
 - Binds the local port `5000` to port `80` on `google.com`.
 - Executes `curl` command locally, which results in `curl` hitting `google.com:80` via `node`.
 
+### SSH agent support
+
+If there is an [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) running,
+`tsh login` will store the user certificate in the agent. This can be verified
+via:
+
+```code
+$ ssh-add -L
+```
+
+The SSH agent can be used to feed the certificate to other SSH clients, for example
+to OpenSSH (`ssh`).
+
+If you wish to disable SSH agent integration, pass `--no-use-local-ssh-agent`
+to `tsh`. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment
+variable to `false` in your shell profile to make this permanent.
+
+
 ### SSH jump host
 
 While implementing `ProxyJump` for Teleport, we have extended the feature to `tsh`.
@@ -593,7 +634,7 @@ Known limitations:
 - Only one jump host is supported (`-J` supports chaining that Teleport does not utilize) and `tsh` will return with error in the case of two jump hosts, i.e. `-J proxy-1.example.com,proxy-2.example.com` will not work.
 - When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh profile, and port forwarding is used instead of the existing Teleport proxy subsystem.
 
-### Resolving Node names
+### Resolving server names
 
 `tsh` supports multiple methods to resolve remote Node names.
 
@@ -634,69 +675,7 @@ you can always run:
 $ tsh logout
 ```
 
-## Copying files
-
-To securely copy files to and from cluster Nodes, use the `tsh scp` command. It
-is designed to mimic OpenSSH's `scp` command as much as possible:
-
-```code
-$ tsh scp example.txt root@node:/path/to/dest
-```
-
-Again, you may want to create a bash alias like `alias scp="tsh --proxy=work
-scp"` and use the familiar syntax:
-
-```code
-$ scp -P 61122 -r files root@node:/path/to/dest
-```
-
-Teleport supports both the SCP and SFTP protocols.
-OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
-if desired.
-
-## Sharing sessions
-
-Suppose you are trying to troubleshoot a problem on a remote server. Sometimes
-it makes sense to ask another team member for help. Traditionally, this could be
-done by letting them know which host you're on, having them SSH in, start a
-terminal multiplexer like `screen`, and join a session there.
-
-Teleport makes this more convenient. Let's log in to a server named `luna`
-and ask Teleport for our current session status:
-
-```code
-$ tsh ssh luna
-# on host luna
-$ teleport status
-
-# User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
-# Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
-Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
-```
-
-Now you can invite another user account to the `work` cluster. You can share the
-URL for access through a web browser, or you can share the session ID, and the
-other user can join you through their terminal by typing:
-
-```code
-$ tsh join <session_ID>
-```
-
-<Admonition
-  type="tip"
-  title="Lacking permission?"
->
-  Joining sessions requires special permissions that need to be set up by your cluster administrator.
-  Refer them to the [Moderated Sessions guide](../zero-trust-access/authentication/joining-sessions.mdx) for more information on configuring join permissions.
-</Admonition>
-
-You can also list active sessions with the `tsh sessions ls` command.
-
-<Admonition type="note" scope={["oss", "enterprise"]}>
-  Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
-</Admonition>
-
-## Connecting to SSH clusters behind firewalls
+### Connecting to SSH clusters behind firewalls
 
 Teleport supports creating clusters of servers located behind firewalls
 **without any open listening TCP ports**.  This works by creating reverse SSH
@@ -745,7 +724,7 @@ firewall without open ports. This works because the `production` cluster
 establishes a reverse SSH tunnel back into the Proxy Service called `work`, and
 this tunnel is used to establish inbound SSH connections.
 
-## X11 forwarding
+### X11 forwarding
 
 In order to run graphical programs within an SSH session, such as an IDE like
 Virtual Studio Code, you'll need to request X11 forwarding for the session with
@@ -777,80 +756,124 @@ $ tsh status
   Extensions:         permit-X11-forwarding
 ```
 
+
+## Interacting with SSH servers
+
+In this section, you will find details on interacting with SSH servers with
+`tsh`.
+
+### Interactive shell
+
+To launch an interactive shell on a remote Node or to execute a command, use
+`tsh ssh`.
+
+`tsh` tries to mimic the `ssh` experience as much as possible, so it supports
+the most popular `ssh` flags like `-p`, `-l` or `-L`. For example, if you have
+the following alias defined in your `~/.bashrc`: `alias ssh="tsh ssh"` then you
+can continue using familiar SSH syntax:
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+```code
+# Have this alias configured, perhaps via ~/.bashrc
+$ alias ssh="/usr/local/bin/tsh ssh"
+
+# Login in to a cluster and retrieve your SSH certificate:
+$ tsh --proxy=proxy.example.com login
+
+# These commands execute `tsh ssh` under the hood:
+$ ssh user@node
+$ ssh -p 6122 user@node ls
+$ ssh -o ForwardAgent=yes user@node
+$ ssh -o AddKeysToAgent=yes user@node
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+```code
+# Have this alias configured, perhaps via ~/.bashrc
+$ alias ssh="/usr/local/bin/tsh ssh"
+
+# Login in to a cluster and retrieve your SSH certificate:
+$ tsh --proxy=mytenant.teleport.sh login
+
+# These commands execute `tsh ssh` under the hood:
+$ ssh user@node
+$ ssh -p 6122 user@node ls
+$ ssh -o ForwardAgent=yes user@node
+$ ssh -o AddKeysToAgent=yes user@node
+```
+
+</TabItem>
+</Tabs>
+
+### Copying files
+
+To securely copy files to and from cluster Nodes, use the `tsh scp` command. It
+is designed to mimic OpenSSH's `scp` command as much as possible:
+
+```code
+$ tsh scp example.txt root@node:/path/to/dest
+```
+
+Again, you may want to create a bash alias like `alias scp="tsh --proxy=work
+scp"` and use the familiar syntax:
+
+```code
+$ scp -P 61122 -r files root@node:/path/to/dest
+```
+
+Teleport supports both the SCP and SFTP protocols.
+OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
+if desired.
+
+### Sharing sessions
+
+Suppose you are trying to troubleshoot a problem on a remote server. Sometimes
+it makes sense to ask another team member for help. Traditionally, this could be
+done by letting them know which host you're on, having them SSH in, start a
+terminal multiplexer like `screen`, and join a session there.
+
+Teleport makes this more convenient. Let's log in to a server named `luna`
+and ask Teleport for our current session status:
+
+```code
+$ tsh ssh luna
+# on host luna
+$ teleport status
+
+# User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
+# Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
+Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
+```
+
+Now you can invite another user account to the `work` cluster. You can share the
+URL for access through a web browser, or you can share the session ID, and the
+other user can join you through their terminal by typing:
+
+```code
+$ tsh join <session_ID>
+```
+
+<Admonition
+  type="tip"
+  title="Lacking permission?"
+>
+  Joining sessions requires special permissions that need to be set up by your cluster administrator.
+  Refer them to the [Moderated Sessions guide](../zero-trust-access/authentication/joining-sessions.mdx) for more information on configuring join permissions.
+</Admonition>
+
+You can also list active sessions with the `tsh sessions ls` command.
+
+<Admonition type="note" scope={["oss", "enterprise"]}>
+  Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
+</Admonition>
+
 ## Proxying Git commands
 
 (!docs/pages/connect-your-client/includes/tsh-git.mdx!)
-
-## Custom aliases and defaults
-
-You can configure `tsh` to define aliases, custom commands and command-specific flag defaults. Using aliases, you can run frequently used `tsh` commands more easily.
-
-Aliases are defined in configuration files using the following syntax:
-
-```yaml
-aliases:
-    "<alias>": "<command>"
-```
-
-The `<alias>` can only be a top-level subcommand. In other words, you can define `tsh mycommand` alias but not `tsh my command`.
-
-`tsh` loads two kinds of configuration files:
-
-- global: set via the `$TELEPORT_GLOBAL_TSH_CONFIG` env var if not provided it will default to `/etc/tsh.yaml` on non-Windows operating systems.
-- user-specific: `$TELEPORT_HOME/config/config.yaml`, which by default resolves to `~/.tsh/config/config.yaml`.
-
-`tsh` merges the user-specific config with the global config. In case of conflicts (i.e. same alias defined in both files), the user-specific config has higher priority.
-
-In either of those files you can add define an alias such as:
-
-```yaml
-aliases:
-    "l": "tsh login --auth=okta"
-```
-
-From now on, `tsh l` will resolve to `tsh login --auth=okta`.
-
-You can also change the defaults for regular `tsh` commands:
-
-```yaml
-aliases:
-    "status": "tsh status --format=json"
-```
-
-Calling external programs other than `tsh` is also possible:
-
-```yaml
-aliases:
-    "connect": "bash -c 'tsh login $0 && tsh ssh $1'"
-```
-
-The example above demonstrates the usage of variables `$0` and `$1`. They represent arguments provided to the alias. With the definition above, `tsh connect foo bar` resolves to `bash -c 'tsh login foo && tsh ssh bar'`.
-
-The alias can use as many arguments as needed. If the alias is invoked with too few arguments, `tsh` will report an error. Conversely, providing additional arguments is *not* an error. `tsh` will append any additional arguments to the end of an alias definition.
-
-Given the configuration:
-
-```yaml
-aliases:
-    "example": "bash -c 'echo first=$0 $0-$1 $3'"
-```
-
-`tsh example 0 1 unused-2 3 unused-4` will expand to `bash -c 'echo first=0 0-1 3 unused-2 unused-4'`.
-
-You can also add the `$TSH` variable to an alias definition. When invoking the alias, `tsh` will expand this to the absolute path to current `tsh` executable. This can be useful if there are multiple `tsh` versions installed, or the currently used version is not in `PATH`.
-
-```yaml
-aliases:
-    "status": "$TSH status --format=json"
-```
-
-The alias substitution happens before the command line flags are fully parsed. This means that it is not affected by the `--debug` flag. To troubleshoot your aliases, set the `TELEPORT_DEBUG=1` environment variable instead. This will cause the `tsh` logs to be printed to the console:
-
-```code
-$ TELEPORT_DEBUG=1 tsh status
-DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
-...
-```
 
 ## Debug logs
 
@@ -983,7 +1006,12 @@ add_headers:
 
 ### Aliases
 
-Aliases allow you to define custom commands or change the default flag values for existing commands using the following syntax:
+You can configure `tsh` to define aliases, custom commands and command-specific
+flag defaults. Using aliases, you can run frequently used `tsh` commands more
+easily. 
+
+Aliases allow you to define custom commands or change the default flag values
+for existing commands using the following syntax in `tsh` configuration files:
 
 ```yaml
 aliases:
@@ -1106,7 +1134,7 @@ proxy_templates:
 In the configuration above, `query` accepts an predicate expression.  This has
 priority over search but will be ignored if a host is provided.  See the
 [predicate language
-documentation](../reference/predicate-language.mdx#resource-filtering) for
+documentation](../reference/access-controls/predicate-language.mdx#resource-filtering) for
 predicate expression examples.
 
 `tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the

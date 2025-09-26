@@ -922,6 +922,8 @@ const (
 	DiscoveryAppIgnore = TeleportNamespace + "/ignore"
 	// DiscoveryPublicAddr specifies the public address for a discovered app created from a Kubernetes service.
 	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
+	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
+	DiscoveryDescription = TeleportNamespace + "/description"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -1235,6 +1237,9 @@ const (
 
 	// GitHubOrgLabel is the label for GitHub organization.
 	GitHubOrgLabel = TeleportInternalLabelPrefix + "github-org"
+
+	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
+	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
 )
 
 const (

@@ -170,6 +170,20 @@ clusters will be allowed to operate on.
 allowed to operate on cluster-scoped resources (only when `argocd.namespaces`
 is non-empty).
 
+### `argocd.clusterNameTemplate`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`argocd.clusterNameTemplate` determines the format of cluster names
+in Argo CD. It is a Go template string that supports the following variables:
+
+  - \{\{.ClusterName\}\} - Name of the Teleport cluster
+  - \{\{.KubeName\}\} - Name of the Kubernetes cluster resource
+
+By default, the following template will be used: "\{\{.ClusterName\}\}-\{\{.KubeName\}\}".
+
 ## `persistence`
 
 `persistence` controls how the tbot agent stores its data.
@@ -217,7 +231,7 @@ Ignored if `tbotConfig` is set.
 | `string` | `"kubernetes"` |
 
 `joinMethod` describes how tbot joins the Teleport cluster.
-See [the join method reference](../../reference/join-methods.mdx) for a list fo supported values and detailed explanations.
+See [the join method reference](../../reference/deployment/join-methods.mdx) for a list fo supported values and detailed explanations.
 Ignored if `tbotConfig` is set.
 
 ## `token`

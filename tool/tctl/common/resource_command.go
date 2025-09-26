@@ -477,18 +477,11 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	// TODO(bernardjkim) consider using UpsertTrustedClusterV2 in VX.0.0
 	out, err := client.UpsertTrustedCluster(ctx, tc)
 	if err != nil {
-		// If force is used and UpsertTrustedCluster returns trace.AlreadyExists,
-		// this means the user tried to upsert a cluster whose exact match already
-		// exists in the backend, nothing needs to occur other than happy message
-		// that the trusted cluster has been created.
-		if rc.force && trace.IsAlreadyExists(err) {
-			out = tc
-		} else {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
+
 	if out.GetName() != tc.GetName() {
-		fmt.Printf("WARNING: trusted cluster %q resource has been renamed to match remote cluster name %q\n", name, out.GetName())
+		fmt.Printf("WARNING: trusted cluster resource %q has been renamed to match root cluster name %q. this will become an error in future teleport versions, please update your configuration to use the correct name.\n", name, out.GetName())
 	}
 	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, rc.force))
 	return nil
@@ -2691,10 +2684,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &namespaceCollection{namespaces: []types.Namespace{types.DefaultNamespace()}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
-			trustedClusters, err := client.GetTrustedClusters(ctx)
+			trustedClusters, err := stream.Collect(clientutils.Resources(ctx, client.ListTrustedClusters))
 			if err != nil {
-				return nil, trace.Wrap(err)
+				// TODO(okraport) DELETE IN v21.0.0
+				if trace.IsNotImplemented(err) {
+					trustedClusters, err = client.GetTrustedClusters(ctx)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+				} else {
+					return nil, trace.Wrap(err)
+				}
 			}
+
 			return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
 		}
 		trustedCluster, err := client.GetTrustedCluster(ctx, rc.ref.Name)
@@ -3505,6 +3507,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		instances, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
+			// TODO(nicholasmarais1158) Use ListBotInstancesV2 instead.
+			//nolint:staticcheck // SA1019
 			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
 				PageSize:  int32(limit),
 				PageToken: pageToken,
