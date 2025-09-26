@@ -52,6 +52,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	if err != nil {
 		return trace.Wrap(err, "creating HTTP transport")
 	}
+	// TODO(greedy52) support JWT for SSE transport.
 	session, err := s.makeSessionHandler(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "setting up session handler")

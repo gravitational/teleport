@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -35,6 +36,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -62,10 +64,20 @@ import (
 func TestAppAccess(t *testing.T) {
 	// Enable MCP test servers.
 	sseServerURL := mcptest.MustStartSSETestServer(t)
-	extraApps := []servicecfg.App{{
-		Name: "test-sse",
-		URI:  "mcp+sse+" + sseServerURL,
-	}}
+	streamableHTTPServer := mcpserver.NewTestStreamableHTTPServer(mcptest.NewServer())
+	streamableHTTPServerURL := fmt.Sprintf("mcp+%s/mcp", streamableHTTPServer.URL)
+	t.Cleanup(streamableHTTPServer.Close)
+
+	extraApps := []servicecfg.App{
+		{
+			Name: "test-sse",
+			URI:  "mcp+sse+" + sseServerURL,
+		},
+		{
+			Name: "test-http",
+			URI:  streamableHTTPServerURL,
+		},
+	}
 
 	// Reusing the pack as much as we can.
 	pack := SetupWithOptions(t, AppTestOptions{
