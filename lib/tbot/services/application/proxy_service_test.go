@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/internal"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -53,7 +53,7 @@ type proxyReqRes struct {
 func TestE2E_ApplicationProxyService(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 
 	// Spin up a test HTTP server
 	receivedRequestsCh := make(chan proxyReqRes, 1)
