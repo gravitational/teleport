@@ -127,10 +127,14 @@ message ProxySSHRequest {
   // Validation: The server MUST validate that exactly one field in the oneof payload is set per message.
   // If zero or more than one field is set, the server MUST reject the message and terminate the stream with an error.
   oneof payload {
-    TargetHost dial_target = 1;              // Sent by client as the first message
-    MFAAuthenticateResponse mfa_response = 2; // Sent by client after receiving MFA challenge (if required)
-    Frame ssh = 3;                           // SSH payload
-    Frame agent = 4;                         // SSH Agent payload
+    // Sent by client as the first message
+    TargetHost dial_target = 1;
+    // Sent by client after receiving MFA challenge (if required)
+    MFAAuthenticateResponse mfa_response = 2;
+    // SSH payload
+    Frame ssh = 3;
+    // SSH Agent payload
+    Frame agent = 4;
   }
 }
 
@@ -141,10 +145,14 @@ message ProxySSHResponse {
   // - ClusterDetails if MFA is not required
   // After MFA (or if not required), server sends ClusterDetails and then SSH/agent frames.
   oneof payload {
-    MFAAuthenticateChallenge mfa_challenge = 1; // Sent by server if MFA is required
-    ClusterDetails details = 2;                 // Sent by server if MFA is not required, and after MFA if required
-    Frame ssh = 3;                              // SSH payload
-    Frame agent = 4;                            // SSH Agent payload
+    // Sent by server if MFA is required
+    MFAAuthenticateChallenge mfa_challenge = 1;
+    // Sent by server if MFA is not required, and after MFA if required
+    ClusterDetails details = 2;
+    // SSH payload
+    Frame ssh = 3;
+    // SSH Agent payload
+    Frame agent = 4;
   }
 }
 ```
@@ -241,19 +249,17 @@ the SSH session establishment process.
 ```proto
 // MFAService is responsible for handling MFA challenges and responses.
 service MFAService {
-   // ... other MFA related RPCs from the Auth service ...
+  // ... other MFA related RPCs from the Auth service ...
 
-   // ValidateAuthenticateChallenge validates an MFA challenge response from a client.
+  // ValidateAuthenticateChallenge validates an MFA challenge response from a client.
   rpc ValidateAuthenticateChallenge(ValidateAuthenticateChallengeRequest) returns (ValidateAuthenticateChallengeResponse);
 }
 
 message ValidateAuthenticateChallengeRequest {
   // The MFAAuthenticateResponse sent by the client in response to an MFA challenge.
   MFAAuthenticateResponse MFAResponse = 1;
-
   // ChallengeExtensions are the extensions sent in the original MFA challenge. These must match the extensions in the response.
   teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 2;
-
   // User is the user the MFA challenge is being validated for. If passwordless, no username is required.
   string User = 3;
 }
@@ -261,10 +267,8 @@ message ValidateAuthenticateChallengeRequest {
 message ValidateAuthenticateChallengeResponse {
   // User is the user the MFA challenge was validated for.
   string User = 1;
-
   // Device is the MFA device that was used to successfully complete the MFA challenge.
   teleport.mfa.v1.MFADevice Device = 2;
-
   // AllowReuse indicates if the MFA response can be reused for subsequent challenges within a short time window.
   teleport.mfa.v1.ChallengeAllowReuse AllowReuse = 3;
 }
@@ -302,20 +306,23 @@ The transition period will last at least 2 major releases to allow clients suffi
 
 #### ProxySSH RPC Deprecation
 
-The `TransportService` and its `ProxySSH` RPC will be deprecated but remain supported during the transition period. To
-facilitate migration, any client invoking the deprecated `ProxySSH` RPC will receive a warning message indicating that
-`ProxySSH` is deprecated and they will need to upgrade their client in order to continue using SSH features in a future
-release.
+The `ProxySSH` RPC in the v1 `TransportService` will be deprecated but remain available during the transition period to
+ensure backward compatibility. Clients using the deprecated `ProxySSH` RPC will receive a warning message indicating
+that this RPC is deprecated and will be removed in a future release. Users are advised to upgrade their clients to use
+the new v2 `TransportService` RPCs to maintain access to SSH features.
 
-After the transition period, the deprecated RPC will be removed and clients will be required to use the new
-`TransportService` RPCs exclusively.
+After the transition period, support for the deprecated `ProxySSH` RPC will be removed, and only the new v2
+`TransportService` RPCs will be supported.
 
-#### Direct Server SSH Access Deprecation
+#### Direct SSH Access Deprecation
 
-Direct SSH access to nodes will be supported during the transition period but will be removed afterwards. During the
-transition period, any direct SSH connection attempts to nodes will receive a deprecation notice via the SSH banner
-(pre-auth). This notice will inform users that direct SSH access is deprecated and will be removed in a future release,
-advising them to use an updated client that connects via the Proxy.
+Direct SSH access to nodes will also be deprecated but supported during the transition period. During this time, users
+attempting direct SSH connections to nodes will receive a deprecation notice via the SSH banner (pre-auth), informing
+them that direct SSH access is deprecated and will be removed in a future release. Users should migrate to updated
+clients that connect via the Proxy service.
+
+After the transition period, direct SSH access to nodes will be fully removed, and all SSH sessions must be established
+through the Proxy.
 
 ### Audit Events
 
@@ -355,6 +362,7 @@ period and while receiving appropriate deprecation notices.
 1. Create `TransportService` in `api/proto/teleport/transport/v2/transport_service.proto`.
 1. Generate `TransportService` Go code using `protoc`.
 1. Implement the v2 `TransportService` in `lib/srv/transport/transportv2/`.
+1. Ensure Proxy is authorized to invoke the new `MFAService` RPCs and the existing `EvaluateSSHAccess` RPC.
 1. Deprecate the v1 `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
 1. Ensure server can handle clients using the deprecated v1 `TransportService` RPCs, while supporting the new v2
    `TransportService` RPCs.
@@ -366,7 +374,7 @@ period and while receiving appropriate deprecation notices.
 1. Update clients so they handle MFA challenges and responses as a part of the SSH session establishment process.
 1. Add deprecation notices to SSH banner for clients connecting directly.
 1. Add tests to verify backward compatibility with the deprecated v1 `TransportService` RPCs.
-1. Update documentation to reflect the new architecture and deprecation of direct node access. å
+1. Update documentation to reflect the new architecture and deprecation of direct node access.
 
 #### Phase 2
 
