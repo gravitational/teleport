@@ -45,7 +45,7 @@ TOML configuration keys are the same as CLI args. Teleport and Fluentd variables
 
 You could use `--dry-run` argument if you want event handler to simulate event export (it will not connect to Fluentd). `--exit-on-last-event` can be used to terminate service after the last event is processed.
 
-`--skip-session-types` is `['print']` by default. Please note that if you enable forwarding of print events (`--skip-session-types=''`) the `Data` field would also be sent.
+`--skip-session-types` is `['print', 'desktop.recording']` by default. Please note that if you enable forwarding of these events (`--skip-session-types=''`) the recorded data would also be sent.
 
 ## Advanced topics
 
