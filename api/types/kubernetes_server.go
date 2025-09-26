@@ -318,14 +318,11 @@ func (k *KubernetesServerV3) IsEqual(i KubeServer) bool {
 }
 
 // GetTargetHealth gets health details for a target Kubernetes cluster.
-func (s *KubernetesServerV3) GetTargetHealth() TargetHealth {
-	if s.Status == nil {
-		s.Status = &KubernetesServerStatusV3{}
+func (s *KubernetesServerV3) GetTargetHealth() *TargetHealth {
+	if s == nil || s.Status == nil {
+		return nil
 	}
-	if s.Status.TargetHealth == nil {
-		return TargetHealth{}
-	}
-	return *s.Status.TargetHealth
+	return s.Status.TargetHealth
 }
 
 // SetTargetHealth sets health details for a target Kubernetes cluster.
