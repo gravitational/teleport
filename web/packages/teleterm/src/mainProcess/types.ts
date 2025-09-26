@@ -16,10 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import type { ClusterStoreUpdate } from 'teleterm/mainProcess/clusterStore';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { FileStorage } from 'teleterm/services/fileStorage';
+import { CloneableAbortSignal } from 'teleterm/services/tshd';
 import { Document } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -229,6 +233,15 @@ export type MainProcessClient = {
   ): {
     cleanup: () => void;
   };
+  addCluster(proxyAddress: string): Promise<Cluster>;
+  syncCluster(clusterUri: RootClusterUri): Promise<void>;
+  syncRootClusters(options: {
+    abortSignal: CloneableAbortSignal;
+  }): Promise<Cluster[]>;
+  logoutCluster(clusterUri: RootClusterUri): Promise<void>;
+  subscribeToClusterStore(listener: (value: ClusterStoreUpdate) => void): {
+    cleanup: () => void;
+  };
 };
 
 export type ChildProcessAddresses = {
@@ -355,6 +368,11 @@ export enum MainProcessIpc {
   ChangeAppUpdatesManagingCluster = 'main-process-change-app-updates-managing-cluster',
   MaybeRemoveAppUpdatesManagingCluster = 'main-process-maybe-remove-app-updates-managing-cluster',
   SupportsAppUpdates = 'main-process-supports-app-updates',
+  InitClusterStoreSubscription = 'main-process-init-cluster-store-subscription',
+  SyncCluster = 'main-process-sync-cluster',
+  AddCluster = 'main-process-add-cluster',
+  SyncRootClusters = 'main-process-sync-root-clusters',
+  Logout = 'main-process-logout',
 }
 
 export enum WindowsManagerIpc {
