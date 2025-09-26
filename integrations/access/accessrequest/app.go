@@ -593,7 +593,12 @@ func (a *App) tryApproveRequest(ctx context.Context, reqID string, req types.Acc
 		return trace.Wrap(err)
 	}
 
-	if !slices.Contains(oncallUsers, req.GetUser()) {
+	// Ignore casing when matching users.
+	for index, oncallUser := range oncallUsers {
+		oncallUsers[index] = strings.ToLower(oncallUser)
+	}
+
+	if !slices.Contains(oncallUsers, strings.ToLower(req.GetUser())) {
 		log.DebugContext(ctx, "Skipping approval because user is not on-call")
 		return nil
 	}
