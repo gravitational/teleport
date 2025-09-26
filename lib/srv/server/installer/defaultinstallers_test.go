@@ -52,7 +52,7 @@ set +x
 TELEPORT_BINARY=/usr/local/bin/teleport
 [ -z "${TELEPORT_INSTALL_SUFFIX:-}" ] || TELEPORT_BINARY=/opt/teleport/${TELEPORT_INSTALL_SUFFIX}/bin/teleport
 
-sudo -E $TELEPORT_BINARY install autodiscover-node --public-proxy-addr=teleport.example.com:443 --teleport-package=teleport-ent --repo-channel=stable/cloud --auto-upgrade=true --azure-client-id= $@`
+sudo -E "$TELEPORT_BINARY" install autodiscover-node --public-proxy-addr=teleport.example.com:443 --teleport-package=teleport-ent --repo-channel=stable/cloud --auto-upgrade=true --azure-client-id= $@`
 
 // TestNewDefaultInstaller is a minimal
 func TestNewDefaultInstaller(t *testing.T) {
