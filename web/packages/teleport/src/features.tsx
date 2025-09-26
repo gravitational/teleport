@@ -503,7 +503,38 @@ export class FeatureDiscover implements TeleportFeature {
     getLink() {
       return cfg.routes.discover;
     },
-    searchableTags: ['new', 'add', 'enroll', 'resources'],
+    searchableTags: [
+      'new',
+      'add',
+      'enroll',
+      'resources',
+      'discover',
+      'saml',
+      'idp',
+      'grafana',
+      'entra',
+      'aws',
+      'kubernetes',
+      'node',
+      'ssh',
+      'linux',
+      'ubuntu',
+      'centos',
+      'debian',
+      'windows',
+      'desktop',
+      'ec2',
+      'eks',
+      'rds',
+      'mysql',
+      'postgresql',
+      'mariadb',
+      'dynamodb',
+      'cassandra',
+      'azure',
+      'cockroachdb',
+      'mongodb',
+    ],
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -808,7 +839,14 @@ export class FeatureHelpAndSupport implements TeleportFeature {
     getLink() {
       return cfg.routes.support;
     },
-    searchableTags: ['help', 'support', NavTitle.HelpAndSupport],
+    searchableTags: [
+      'help',
+      'support',
+      'contacts',
+      'security',
+      'business',
+      'version',
+    ],
   };
 }
 
