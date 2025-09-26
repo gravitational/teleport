@@ -309,9 +309,12 @@ func TestUnifiedResourceCacheIterateResources(t *testing.T) {
 		HostID:   uuid.NewString(),
 		Cluster:  kubeCluster,
 	})
-	health = kubeServer.GetTargetHealth()
-	health.Status = "unknown"
-	kubeServer.SetTargetHealth(health)
+	kubeHealth := kubeServer.GetTargetHealth()
+	if kubeHealth == nil {
+		kubeHealth = &types.TargetHealth{}
+	}
+	kubeHealth.Status = "unknown"
+	kubeServer.SetTargetHealth(kubeHealth)
 	require.NoError(t, err)
 	_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
@@ -553,7 +556,7 @@ func TestUnifiedResourceCacheIteration(t *testing.T) {
 					if err != nil {
 						return err
 					}
-					kubeServer.SetTargetHealth(types.TargetHealth{Status: status})
+					kubeServer.SetTargetHealth(&types.TargetHealth{Status: status})
 					_, err = c.UpsertKubernetesServer(ctx, kubeServer)
 					if err != nil {
 						return err

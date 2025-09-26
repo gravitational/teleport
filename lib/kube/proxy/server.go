@@ -541,13 +541,13 @@ func (t *TLSServer) stopHealthCheck(cluster types.KubeCluster) error {
 }
 
 // getTargetHealth returns the health of a Kubernetes cluster.
-func (t *TLSServer) getTargetHealth(ctx context.Context, cluster types.KubeCluster) types.TargetHealth {
+func (t *TLSServer) getTargetHealth(ctx context.Context, cluster types.KubeCluster) *types.TargetHealth {
 	health, err := t.HealthCheckManager.GetTargetHealth(cluster)
 	if err == nil {
-		return *health
+		return health
 	}
 	if trace.IsNotFound(err) {
-		return types.TargetHealth{
+		return &types.TargetHealth{
 			Status:           string(types.TargetHealthStatusUnknown),
 			TransitionReason: string(types.TargetHealthTransitionReasonDisabled),
 			Message:          "The target health checker was not found",
@@ -558,7 +558,7 @@ func (t *TLSServer) getTargetHealth(ctx context.Context, cluster types.KubeClust
 		"kube_cluster", log.StringerAttr(cluster),
 		"error", err,
 	)
-	return types.TargetHealth{
+	return &types.TargetHealth{
 		Status:           string(types.TargetHealthStatusUnknown),
 		TransitionReason: string(types.TargetHealthTransitionReasonInternalError),
 		TransitionError:  err.Error(),

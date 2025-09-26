@@ -59,9 +59,9 @@ type KubeServer interface {
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 	// GetTargetHealth gets health details for a target Kubernetes cluster.
-	GetTargetHealth() TargetHealth
+	GetTargetHealth() *TargetHealth
 	// SetTargetHealth sets health details for a target Kubernetes cluster.
-	SetTargetHealth(h TargetHealth)
+	SetTargetHealth(h *TargetHealth)
 	// GetTargetHealthStatus gets the health status of a target Kubernetes cluster.
 	GetTargetHealthStatus() TargetHealthStatus
 	// SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
@@ -221,9 +221,14 @@ func (s *KubernetesServerV3) CheckAndSetDefaults() error {
 	if s.Spec.Cluster == nil {
 		return trace.BadParameter("missing kube server Cluster")
 	}
-
 	if err := s.Spec.Cluster.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+	if s.Status == nil {
+		s.Status = &KubernetesServerStatusV3{}
+	}
+	if s.Status.TargetHealth == nil {
+		s.Status.TargetHealth = &TargetHealth{}
 	}
 
 	return nil
@@ -319,10 +324,7 @@ func (k *KubernetesServerV3) IsEqual(i KubeServer) bool {
 
 // GetTargetHealth gets health details for a target Kubernetes cluster.
 func (s *KubernetesServerV3) GetTargetHealth() *TargetHealth {
-	if s == nil || s.Status == nil {
-		return nil
-	}
-	return s.Status.TargetHealth
+	return s.GetStatus().GetTargetHealth()
 }
 
 // SetTargetHealth sets health details for a target Kubernetes cluster.
@@ -335,10 +337,11 @@ func (s *KubernetesServerV3) SetTargetHealth(h *TargetHealth) {
 
 // GetTargetHealthStatus gets the health status of a target Kubernetes cluster.
 func (s *KubernetesServerV3) GetTargetHealthStatus() TargetHealthStatus {
-	if s.Status == nil || s.Status.TargetHealth == nil {
+	health := s.GetStatus().GetTargetHealth()
+	if health == nil {
 		return ""
 	}
-	return TargetHealthStatus(s.Status.TargetHealth.Status)
+	return TargetHealthStatus(health.Status)
 }
 
 // SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
@@ -350,6 +353,22 @@ func (s *KubernetesServerV3) SetTargetHealthStatus(status TargetHealthStatus) {
 		s.Status.TargetHealth = &TargetHealth{}
 	}
 	s.Status.TargetHealth.Status = string(status)
+}
+
+// GetStatus gets the Kubernetes server status.
+func (s *KubernetesServerV3) GetStatus() *KubernetesServerStatusV3 {
+	if s == nil {
+		return nil
+	}
+	return s.Status
+}
+
+// GetTargetHealth gets the health of a Kubernetes cluster.
+func (s *KubernetesServerStatusV3) GetTargetHealth() *TargetHealth {
+	if s == nil {
+		return nil
+	}
+	return s.TargetHealth
 }
 
 // KubeServers represents a list of kube servers.
