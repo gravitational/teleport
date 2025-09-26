@@ -791,7 +791,7 @@
     },
     {
       "source": "/admin-guides/teleport-policy/crown-jewels/",
-      "destination": "/identity-security/crown-jewels/",
+      "destination": "/identity-security/usage/crown-jewels/",
       "permanent": true
     },
     {
@@ -841,17 +841,17 @@
     },
     {
       "source": "/admin-guides/teleport-policy/policy-connections/",
-      "destination": "/identity-security/policy-connections/",
+      "destination": "/identity-security/usage/graph-explorer/",
       "permanent": true
     },
     {
       "source": "/admin-guides/teleport-policy/policy-how-to-use/",
-      "destination": "/identity-security/how-to-use/",
+      "destination": "/identity-security/usage/",
       "permanent": true
     },
     {
       "source": "/identity-security/policy-how-to-use/",
-      "destination": "/identity-security/how-to-use/",
+      "destination": "/identity-security/usage/",
       "permanent": true
     },
     {
@@ -2312,6 +2312,21 @@
     {
       "source": "/zero-trust-access/management/guides/scim/sailpoint/",
       "destination": "/identity-governance/scim/sailpoint/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/how-to-use/",
+      "destination": "/identity-security/usage/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/policy-connections/",
+      "destination": "/identity-security/usage/graph-explorer/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/crown-jewels/",
+      "destination": "/identity-security/usage/crown-jewels/",
       "permanent": true
     }
   ]
