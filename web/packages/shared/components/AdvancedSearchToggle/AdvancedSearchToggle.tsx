@@ -38,8 +38,11 @@ export function AdvancedSearchToggle(props: {
       px={props.px}
       className={props.className}
     >
-      <Toggle isToggled={props.isToggled} onToggle={props.onToggle} />
-      <Text typography="body3">Advanced</Text>
+      <Toggle isToggled={props.isToggled} onToggle={props.onToggle}>
+        <Text typography="body3" ml={2}>
+          Advanced
+        </Text>
+      </Toggle>
       <IconTooltip trigger="click">
         <PredicateDocumentation />
       </IconTooltip>
