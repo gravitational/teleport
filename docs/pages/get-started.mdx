@@ -1,261 +1,208 @@
 ---
 title: "Get Started with Teleport"
-description: "Shows you how to set up a Teleport Enterprise (Cloud) account and protect your first resource with Teleport."
+description: "Learn how to deploy a cluster, connect infrastructure, set up access controls, and review audit logs."
 tocDepth: 3
+template: no-toc
 tags:
- - platform-wide
- - get-started
+  - get-started
 ---
 
-Teleport Enterprise helps organizations provide secure access to their
-infrastructure with minimal configuration and cluster management. 
+import Button from '@site/src/components/Button';
+import Icon from '@site/src/components/Icon';
+import TeleportEditionsGrid from '@site/src/components/Pages/GetStarted/TeleportEditionsGrid';
+import TeleportEditionCard from '@site/src/components/Pages/GetStarted/TeleportEditionCard';
+import FeatureMatrixBanner from '@site/src/components/Pages/GetStarted/FeatureMatrixBanner';
 
-After you start a [free trial](https://goteleport.com/signup) of Teleport
-Enterprise (Cloud), you can set up role-based access control (RBAC), enable
-single sign-on, and prevent unauthorized use of organization resources.
+Teleport is an identity-based access platform that secures servers, Kubernetes clusters, databases, internal applications, and desktops using short-lived certificates, detailed audit logging, and fine-grained role-based access controls tied to your SSO provider (e.g., Okta, GitHub, Google Workspace).
 
-This guide explains how to register a local server with a Teleport Enterprise
-(Cloud) account. After you register the server, you can access it through the
-Teleport Web UI in a browser or using the terminal. You can also record your
-sessions, so you can review them later.
+This guide walks you through four essential steps to get you up and running.
 
-<Admonition type="tip">
+## 1. Deploy a Teleport cluster
 
-You can also set up a Teleport cluster on a self-hosted virtual machine with
-Teleport Community Edition. For instructions, read [Run a Self-Hosted Demo
-Cluster](linux-demo.mdx).
+There are several editions of Teleport that differ in their feature sets, deployment options, and support.
 
-</Admonition>
+Before choosing one, ask yourself:
 
-## How it works
+- Am I looking to evaluate Teleport quickly or explore the full feature set without provisioning infrastructure? → **Enterprise Cloud (14-day trial)**
+- Do I need to deploy and manage Teleport in my own environment for compliance reasons? → **Enterprise Self-Hosted**
+- Do I prefer to self-host Teleport locally to test features or use it for free? → **Community Edition**
 
-With Teleport Enterprise (Cloud), the Teleport Auth Service and Teleport Proxy
-Service are managed for you as cloud-based services. These services provide you
-with immediate access to a scalable and fault-tolerant certificate authority and
-reverse proxy that you don't need to manage or maintain. You can focus on
-enrolling the resources you want to protect and configuring secure role-based
-access for private and public networks across the globe.
+<TeleportEditionsGrid>
+  <TeleportEditionCard
+    title="Enterprise Cloud"
+    iconName="teleportEnterpriseCloud"
+    href="https://goteleport.com/signup/"
+    subtitle="Managed and hosted by Teleport"
+    id="enterprise-cloud"
+  >
+    <p>We handle infrastructure, upgrades, and certificates. Each customer receives a dedicated .teleport.sh subdomain. This option will take you directly to the signup page.</p>
+  </TeleportEditionCard>
 
-## Prerequisites
+  <TeleportEditionCard
+    title="Enterprise Self-Hosted"
+    iconName="teleportEnterpriseSelfHosted"
+    href="https://goteleport.com/contact-us/"
+    subtitle="Hosted and managed by you"
+    id="enterprise-self-hosted"
+  >
+    <p>A paid plan for organizations requiring strict compliance, with features like FIPS support. A valid license is required, so use this option to speak with our team.</p>
+  </TeleportEditionCard>
 
-- A Teleport Enterprise (Cloud) account. You can sign up for a free trial at the
-  following page:
+  <TeleportEditionCard
+    title="Community Edition"
+    iconName="teleportCommunity"
+    href="../linux-demo/"
+    subtitle="Free and open source"
+    id="community-edition"
+  >
+    <p>Includes core features like secure SSH, Kubernetes, databases, and app access. Best for hobbyists, homelabs, or small teams securing small-scale infrastructure.</p>
+  </TeleportEditionCard>
+</TeleportEditionsGrid>
 
-  https://goteleport.com/signup/
+<FeatureMatrixBanner
+  title="Quickly compare Teleport editions and see which edition works best for your organization"
+  buttonText="Teleport Feature Matrix"
+  buttonHref="../feature-matrix"
+/>
 
-  After you sign up, you receive an email invitation to activate your account.
-  Use this account to authenticate your identity when you access the Teleport
-  Enterprise (Cloud) cluster.
+## Step 2 - Enroll resources
 
-- For following this guide, Docker installed on your workstation. 
+After deploying your Teleport cluster, the next step is to enroll the infrastructure resources you want to secure.
 
-  This guide illustrates how to register a server with Teleport Enterprise Cloud
-  using a Docker container and the Teleport SSH Service. Docker is only required
-  for the local demo environment used in this guide. You can find installation
-  instructions for Docker on [Docker's
-  website](https://docs.docker.com/get-docker/). If you want to register servers
-  in Teleport without using Docker, see the getting started guide for
-  [server access](enroll-resources/server-access/getting-started.mdx).
+Teleport supports a wide range of resource types, including Linux servers, MCP servers, Kubernetes clusters, databases, internal web apps, and cloud provider APIs. Each enrolled resource connects back to your cluster via a secure reverse tunnel, enabling identity-aware access with full session visibility and control.
 
-- The `tsh` client tool. `tsh` is included in the same packages and archives as
-  the `teleport` binary. See the [Installation Guide](installation/installation.mdx) for how
-  to install Teleport on your operating system.
-  
-  This guide only requires the `tsh` client tool to access a server from a
-  terminal. If you don't install the `tsh` client tool, you can access the
-  server in Teleport Enterprise (Cloud) using the Web UI through your browser.
+### Using the Web UI
 
-## Step 1/5. Spin up a server
+You can enroll a resource through the Teleport Web UI via our guided setups.
 
-To spin up a new server using Docker:
+![Enroll a resource](../img/get-started/get-started-enroll-resources@2x.png)
 
-1. Open a terminal on your workstation.
+For example, to enroll an Ubuntu Linux server:
+1. Click on the Enroll New Resource button, or go to `Add New` > `Resource` in the left sidebar.
+2. Choose Ubuntu from the list of resources
+3. Opt to add labels for filtering or restricting access later (optional).
+4. Run the install script that Teleport provides on your Ubuntu server to install the Teleport SSH Service. 
 
-1. Start a Docker container on your workstation to prepare a server that you want enroll 
-as a resource in your Teleport Enterprise (Cloud) cluster:
-   
-   ```code
-   $ docker run --interactive --tty ubuntu:24.04 /bin/bash
-   ```
-   
-   This command starts a new shell session in a container running Ubuntu 24.04.
+Now you'll see your Ubuntu server listed under `Resources` in your Teleport Web UI. Click on the Connect button to SSH into the server.
 
-1. Run the following command to install `curl` and `telnet` from the package management repository:
-   
-   ```code
-   $ apt update && apt install -y curl telnet
-   ```
-   
-   The script that installs Teleport in this guide requires both `curl` and `telnet` to be installed.
-   
-   Keep the new shell open in your terminal.
+### Using CLI tooling
 
-## Step 2/5. Install the Teleport SSH Service
+You can also enroll resources using the Teleport CLI as our [Server Access Getting Started Guide](./enroll-resources/server-access/getting-started.mdx) demonstrates.
 
-To install the Teleport SSH Service on your server:
+### Guides
 
-1. Open a browser and go to the address for your Teleport cluster. For example,
-   if your Teleport account is `example`, open `https://example.teleport.sh`.
+If you'd like to see how other resource types are enrolled, here are some guides you can explore after finishing the Getting Started walkthrough.
 
-1. Sign in with the credentials you used to activate your Teleport account.
-   
-   The first time you sign in, you are prompted to add your first resource: 
-   
-   ![Add your first resource](../img/cloud/getting-started/add-my-first-resource@2x.png)
+<TileGrid
+  tiles={[
+       {
+      icon: <Icon name="applications" size="xl" />,
+      to: "../../enroll-resources/application-access/",
+      name: "Applications",
+    },
+    {
+      icon: <Icon name="linuxServers" size="xl" />,
+      to: "../../enroll-resources/server-access/",
+      name: "Linux Servers",
+    },
+    {
+      icon: <Icon name="databases" size="xl" />,
+      to: "../../enroll-resources/database-access/",
+      name: "Databases",
+    },
+    {
+      icon: <Icon name="kubernetesClusters" size="xl" />,
+      to: "../../enroll-resources/kubernetes-access/",
+      name: "Kubernetes Clusters",
+    },
+    {
+      icon: <Icon name="windowsDesktops" size="xl" />,
+      to: "../../enroll-resources/desktop-access/",
+      name: "Windows Desktops",
+    },
+    {
+      icon: <Icon name="autoDiscovery" size="xl" />,
+      to: "../../enroll-resources/auto-discovery/",
+      name: "Auto-Discovery of Resources",
+    },
+    {
+      icon: <Icon name="cloudProviders" size="xl" />,
+      to: "../../enroll-resources/application-access/cloud-apis/",
+      name: "Cloud Providers",
+    },
+    {
+      icon: <Icon name="mcpAndAi" size="xl" />,
+      to: "../../enroll-resources/mcp-access/",
+      name: "MCP and AI Agents",
+    },
+  ]}
+/>
 
-1. Click **Add my first resource**, and you will see the option to enroll
-   resources in your Teleport cluster.
+## Step 3 - Set Up Access Controls
 
-1. Type *server* in the search box to filter the list of resources:
-   
-   ![Select resource type](../img/cloud/getting-started/choose-resource@2x.png)
+You've deployed your Teleport cluster and connected infrastructure. Now it's time to set up access controls to secure your infrastructure. Teleport uses **Role-Based Access Control (RBAC)** to determine who can access what across your infrastructure. 
 
-1. Click **Ubuntu 18.04+** to register the server in the Docker container.
-   
-   After you select the resource type, the Web UI prompts you for your
-   multi-factor authentication device, then displays a script to install and
-   configure the Teleport SSH Service. For example:
-   
-   ![Configure resource](../img/cloud/getting-started/paste-script@2x.png)
-   
-1. The Teleport installation script uses `sudo`, which is not installed on your
-   Docker container. Before copying the command to run the installation script,
-   you need to alias `sudo` in the container terminal shell session.
+Every Teleport user is assigned one or more roles. These roles define the user's permissions, such as:
 
-   In the terminal with the container shell session, alias `sudo` by running 
-the following command:
-   
-   ```code
-   $ alias sudo=""
-   ```
+- What infrastructure resources they can access
+- Whether they can request temporary access
+- Whether they can edit cluster settings or view session recordings
 
-1. Copy the command to run the installation script from the Teleport Web UI and paste it 
-into the container shell session.
-   
-   Leave the script running in the shell. After Teleport is installed on the server, 
-   you'll see a message in the Web UI that your new Teleport instance was successfully detected:
-   
-   ![Connected successfully](../img/cloud/getting-started/successfully-connected@2x.png)
-   
-   To continue, click **Next**.
+You can assign roles when creating users or manage them later in the Teleport Web UI.
 
-1. Confirm that you want to authenticate as the `root` user and click **Next**:
-   
-   ![Choose your user](../img/cloud/getting-started/set-up-access@2x.png)
+### Preset roles
 
-1. Respond to the MFA prompt again, then click **Test Connection** to verify
-   access to the server.
-   
-   ![Start session](../img/cloud/getting-started/test-connection@2x.png)
+If you visit the Teleport Web UI and navigate to `Zero Trust Access` > `Roles`, you will see that there are already a number of preset roles to help you get started.
 
-## Step 3/5. Start a session
+Here are a few of the roles you will see:
 
-To start a session on the server you just added to Teleport:
+| **Role**                      | **Description**                                                                 |
+|------------------------------|---------------------------------------------------------------------------------|
+| `access`                     | Grants access to infrastructure resources.                                     |
+| `editor`                     | Allows editing cluster configuration (e.g., roles, connectors).                |
+| `auditor`                    | Grants read-only access to audit logs, events, and session recordings.         |
 
-1. Click **Start Session** to start an interactive session.
-   
-   You should see a terminal prompt in a new browser window. Your Teleport 
-   account routes your SSH connection through the Teleport Proxy Service, which
-   connects to your container through a reverse tunnel. 
-   Reverse tunnels allow Teleport to manage access to resources like Kubernetes 
-   clusters and remote desktops, even if these resources are running on private networks.
-      
-   If you get an error connecting to your container, interrupt the `teleport` process in 
-   the container shell with **Ctrl-C**, then run `teleport start` to restart the process.
-       
-1. Execute some commands in your terminal. 
+<details>
+<summary>View the full list of preset roles including Enterprise</summary>
 
-1. Enter the `exit` command to end the remote interactive session. Close the
-   browser tab.
+(!docs/pages/includes/preset-roles-table.mdx!)
 
-1. In the last step of **Enroll New Resource**, click **Finish**.
+</details>
 
-1. Click **Browse existing resources** to see your new server listed in the Teleport Web UI.
+### Custom roles
 
-## Step 4/5. Play back your session
+Organizations often require custom roles to enforce least-privilege access and follow internal security policies. By creating custom roles, you can align Teleport's access controls with your company's structure and security policies.
 
-As Teleport proxies SSH connections to registered servers, it records the
-commands that users execute during their sessions so operators can play them
-back later to investigate issues.
+For instructions on creating custom roles and assigning roles to users, follow along with our [Getting Started with Teleport Access Controls](./zero-trust-access/rbac-get-started/role-demo.mdx) demo guide. 
 
-To play back a session in the Teleport Web UI:
+For mapping SSO users to roles, refer to our guide on [Configuring Single Sign-On](./zero-trust-access/sso/sso.mdx#how-teleport-uses-sso) for more information.
 
-1. Find the left sidebar and navigate to **Audit > Session Recordings**.
+### Access Lists (Teleport Identity Governance)
 
-1. In the sidebar, under **Activity**, click **Session Recordings**.
-   
-   You will see the recording for your interactive session from the previous
-   step listed.  For example:
-   
-   ![Session
-   recordings](../img/cloud/getting-started/session-recordings@2x.png)
+Once you're comfortable with basic RBAC, you can explore Access Lists, a Teleport feature designed for more scalable, long-lived access delegation. 
 
-1. Click **Play** to see a full recording of your session.
+Access Lists let administrators define and manage groups of users, automatically grant roles and traits to those users upon login, and enforce regular audit reviews of membership. This builds on your RBAC foundation by introducing centralized, long-term access workflows. 
 
-## Step 5/5. Access the server from the command line
+You can learn how to create and assign Access Lists in the [Getting Started with Access Lists guide](./identity-governance/access-lists/guide.mdx).
 
-To access the server using commands in a terminal:
+## Step 4 - Monitor Audit Logs
 
-1. Open a new terminal window.
+Teleport logs cluster activity by emitting various events into its audit log. This can be viewed in the Teleport Web UI by clicking on `Audit` > `Audit Log` in the left sidebar. Here you'll see events like successful logins along with metadata such as event type, remote IP address, timestamp, and the identity involved.
 
-1. Sign in to your Teleport cluster by running the `tsh login` command  with the
-   URL of your cluster and the name of your Teleport user, assigning 
-   <Var name="example" /> to your account subdomain and <Var name="username" /> to
-   your Teleport username:
-   
-   ```code
-   $ tsh login --proxy=<Var name="example" />.teleport.sh --user=<Var name="username" />
-   ```
-   
-   When prompted, authenticate using your password, authenticator app, or hardware key.
-   The command displays information about your Teleport cluster and account. For example:
-   
-   ```code
-   > Profile URL:      https://example.teleport.sh:443
-     Logged in as:       admin@teleport.example.com
-     Cluster:            example.teleport.sh
-     Roles:              access, auditor, editor
-     Logins:             root
-     Kubernetes:         enabled
-     Valid until:        2023-07-08 01:35:20 -0700 PDT [valid for 12h0m0s]
-     Extensions:         login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
-   ```
+![View audit log](../img/get-started/get-started-audit-log@2x.png)
 
-1. List the servers your Teleport user can access. 
-   
-   ```code
-   $ tsh ls
-   ```
+In addition to recording structured events in its audit log, Teleport can also capture full session recordings for SSH, desktop, or Kubernetes shell sessions. These can be viewed by clicking on `Audit` > `Session Recordings` in the left sidebar. There, you can click the `Play` button to see a full recording of a session.
 
-   You should see the name of the container you just registered. For example:
-    
-   ```code
-   Node Name    Address    Labels
-   ------------ ---------  ----------------------------------------------------------------------------------------
-   b6c1072b5af5 ⟵ Tunnel  
-   ```
+For a more in-depth look at how Teleport's audit system works, including event types and descriptions, storage options, and exporting events, see our [Audit Events and Records guide](./reference/deployment/monitoring/audit.mdx).
 
-1. Access your server as the `root` user, assigning <Var name="node-name" /> to
-   the name of the server as displayed by `tsh ls`:
 
-   ```code
-   $ tsh ssh root@<Var name="node-name" />
-   ```
+### What to explore next?
 
-## Next steps
+You've now explored the core steps of getting started with Teleport. However, this is only skimming the surface of what Teleport has to offer.  You can use the search above to locate content that best fits your specific situation or scroll through our many product use cases listed on our [documentation homepage](./index.mdx).
 
-This guide introduced how you can use Teleport Enterprise (Cloud) to protect your
-infrastructure by demonstrating how to register a server with your Teleport
-cluster. 
+Here are a few places to start:
 
-You can provide secure access to more of your infrastructure through Teleport by
-deploying one or more Teleport **Agents** and configuring role-based access
-control for users. 
-
-Agents proxy traffic to all of your infrastructure resources—including servers,
-databases, Kubernetes clusters, cloud provider APIs, and Windows desktops.
-Role-based access control ensures that only authorized users are allowed access
-to those resources.
-
-To learn more information about deploying agents, see [Deploy Teleport Agents 
-with Terraform](zero-trust-access/infrastructure-as-code/terraform-provider/terraform-getting-started.mdx).
+- Explore just-in-time access with [Access Requests](./identity-governance/access-requests/access-requests.mdx)
+- Automate onboarding using [Terraform](./zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx) or the [Kubernetes Operator](./zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator.mdx)
+- Integrate Teleport with your [SSO provider](./zero-trust-access/sso/sso.mdx) or even configure Teleport as an [IDP](./identity-governance/idps/idps.mdx)
+- Learn how to use [Teleport's API libraries](./zero-trust-access/api/api.mdx) to automate setup tasks such as registering agents with an external service discovery API, generating roles from an external RBAC system, or writing [Access Request plugins](./identity-governance/access-request-plugins/access-request-plugins.mdx)**.**
