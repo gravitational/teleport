@@ -984,9 +984,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		boundPublicKey = newPubKey
 	}
 
-	certs, botInstanceID, err := a.generateCertsBot(
-		ctx,
-		ptv2,
+	params := makeBotCertsParams(
 		req.JoinRequest,
 		&boundkeypair.Claims{
 			PublicKey:     boundPublicKey,
@@ -995,6 +993,7 @@ func (a *Server) RegisterUsingBoundKeypairMethod(
 		},
 		nil, // TODO: workload id claims
 	)
+	certs, botInstanceID, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
