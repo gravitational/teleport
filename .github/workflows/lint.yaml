@@ -186,8 +186,7 @@ jobs:
       - name: Set up Rust
         run: |
           echo "Setting up Rust version ${RUST_VERSION}"
-          rustup toolchain install ${RUST_VERSION} --component rustfmt,clippy
-          rustup override set ${RUST_VERSION}
+          rustup component add rustfmt clippy
           rustc --version
           cargo --version
           rustfmt --version
