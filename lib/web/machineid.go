@@ -463,6 +463,7 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 		Filter: &machineidv1.ListBotInstancesV2Request_Filters{
 			BotName:    r.URL.Query().Get("bot_name"),
 			SearchTerm: r.URL.Query().Get("search"),
+			Query:      r.URL.Query().Get("query"),
 		},
 	}
 
@@ -486,18 +487,22 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 
 	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
 		heartbeat := services.GetBotInstanceLatestHeartbeat(instance)
+		authentication := services.GetBotInstanceLatestAuthentication(instance)
 
 		uiInstance := BotInstance{
-			InstanceId: instance.Spec.InstanceId,
-			BotName:    instance.Spec.BotName,
+			InstanceId: instance.GetSpec().GetInstanceId(),
+			BotName:    instance.GetSpec().GetBotName(),
+		}
+
+		if authentication != nil {
+			uiInstance.JoinMethodLatest = authentication.GetJoinMethod()
 		}
 
 		if heartbeat != nil {
-			uiInstance.JoinMethodLatest = heartbeat.JoinMethod
-			uiInstance.HostNameLatest = heartbeat.Hostname
-			uiInstance.VersionLatest = heartbeat.Version
-			uiInstance.ActiveAtLatest = heartbeat.RecordedAt.AsTime().Format(time.RFC3339)
-			uiInstance.OSLatest = heartbeat.Os
+			uiInstance.HostNameLatest = heartbeat.GetHostname()
+			uiInstance.VersionLatest = heartbeat.GetVersion()
+			uiInstance.ActiveAtLatest = heartbeat.GetRecordedAt().AsTime().Format(time.RFC3339)
+			uiInstance.OSLatest = heartbeat.GetOs()
 		}
 
 		return uiInstance

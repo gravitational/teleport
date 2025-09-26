@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/trace"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // BotInstance is an interface for the BotInstance service.
@@ -81,19 +83,27 @@ func UnmarshalBotInstance(data []byte, opts ...MarshalOption) (*machineidv1.BotI
 	return UnmarshalProtoResource[*machineidv1.BotInstance](data, opts...)
 }
 
-func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string) bool {
+func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string, exp typical.Expression[*expression.Environment, bool]) bool {
 	if botName != "" && b.GetSpec().GetBotName() != botName {
 		return false
 	}
 
-	if search == "" {
-		return true
+	heartbeat := GetBotInstanceLatestHeartbeat(b)
+	authentication := GetBotInstanceLatestAuthentication(b)
+
+	if exp != nil {
+		if match, err := exp.Evaluate(&expression.Environment{
+			Metadata:             b.GetMetadata(),
+			Spec:                 b.GetSpec(),
+			LatestHeartbeat:      heartbeat,
+			LatestAuthentication: authentication,
+		}); err != nil || !match {
+			return false
+		}
 	}
 
-	latestHeartbeats := b.GetStatus().GetLatestHeartbeats()
-	heartbeat := b.Status.InitialHeartbeat // Use initial heartbeat as a fallback
-	if len(latestHeartbeats) > 0 {
-		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
+	if search == "" {
+		return true
 	}
 
 	values := []string{
@@ -111,8 +121,7 @@ func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string)
 }
 
 // GetBotInstanceLatestHeartbeat returns the most recent heartbeat for the
-// given bot instance. The initial heartbeat is returned as a fallback if no
-// latest heartbeats exist.
+// given bot instance.
 func GetBotInstanceLatestHeartbeat(botInstance *machineidv1.BotInstance) *machineidv1.BotInstanceStatusHeartbeat {
 	heartbeat := botInstance.GetStatus().GetInitialHeartbeat()
 	latestHeartbeats := botInstance.GetStatus().GetLatestHeartbeats()
@@ -120,6 +129,17 @@ func GetBotInstanceLatestHeartbeat(botInstance *machineidv1.BotInstance) *machin
 		heartbeat = latestHeartbeats[len(latestHeartbeats)-1]
 	}
 	return heartbeat
+}
+
+// GetBotInstanceLatestAuthentication returns the most recent authentication for
+// the given bot instance.
+func GetBotInstanceLatestAuthentication(botInstance *machineidv1.BotInstance) *machineidv1.BotInstanceStatusAuthentication {
+	authentication := botInstance.GetStatus().GetInitialAuthentication()
+	latestAuthentications := botInstance.GetStatus().GetLatestAuthentications()
+	if len(latestAuthentications) > 0 {
+		authentication = latestAuthentications[len(latestAuthentications)-1]
+	}
+	return authentication
 }
 
 type ListBotInstancesRequestOptions struct {
@@ -135,6 +155,8 @@ type ListBotInstancesRequestOptions struct {
 	// A search term used to filter the results. If non-empty, it's used to
 	// match against supported fields.
 	FilterSearchTerm string
+	// A Teleport predicate language query used to filter the results.
+	FilterQuery string
 }
 
 func (o *ListBotInstancesRequestOptions) GetSortField() string {
@@ -163,4 +185,11 @@ func (o *ListBotInstancesRequestOptions) GetFilterSearchTerm() string {
 		return ""
 	}
 	return o.FilterSearchTerm
+}
+
+func (o *ListBotInstancesRequestOptions) GetFilterQuery() string {
+	if o == nil {
+		return ""
+	}
+	return o.FilterQuery
 }
