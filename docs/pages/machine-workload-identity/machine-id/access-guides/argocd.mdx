@@ -2,6 +2,7 @@
 title: Machine ID with Argo CD
 description: How to use Machine ID to enable Argo CD to connect to external Kubernetes clusters
 tags:
+ - ci-cd
  - how-to
  - mwi
  - infrastructure-identity
@@ -281,8 +282,8 @@ restrictive privileges than the Argo control plane has generally. This can be
 used to create a permission boundary where applications deployed to the same
 cluster, but in different projects, cannot read or modify each other's resources.
 
-In order to use Argo CD impersonation with Teleport Kubernetes Access, your bot
-must have a role where `kubernetes_users` contains a wildcard. For example:
+In order to use Argo CD impersonation with Teleport, your bot must have a role
+where `kubernetes_users` contains a wildcard. For example:
 
 ```yaml
 kind: role
@@ -307,8 +308,8 @@ operate on application-scoped resources. Because your role has permission to
 impersonate many users, it's ambiguous which one Teleport should use by default.
 
 When `kubernetes_users` contains a wildcard, and no specific user is being
-impersonated, Kubernetes Access will fall back to sending your bot's Teleport
-username by default. You should therefore create a RoleBinding or
+impersonated, the Teleport Kubernetes Service will fall back to sending your
+bot's Teleport username by default. You should therefore create a RoleBinding or
 ClusterRoleBinding, in the **target cluster**, granting your bot user the
 broader permissions needed by the Argo CD control plane.
 
@@ -320,8 +321,8 @@ $ kubectl create clusterrolebinding example-bot-edit \
 
 <Admonition type="warning">
 When using impersonation to create a permission boundary between Argo CD
-projects, remember that Kubernetes Access will automatically impersonate any
-groups listed in `kubernetes_groups` by default.
+projects, remember that the Teleport Kubernetes Service will automatically
+impersonate any groups listed in `kubernetes_groups` by default.
 
 You should ensure that your bot user does not have any roles which contain
 `kubernetes_groups`, otherwise the privilege isolation provided by impersonating

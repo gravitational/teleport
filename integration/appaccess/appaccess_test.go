@@ -35,6 +35,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -586,7 +587,7 @@ func testAuditEvents(p *Pack, t *testing.T) {
 	require.Contains(t, body, p.rootMessage)
 
 	// session start event
-	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) bool {
 		expectedEvent := &apievents.AppSessionStart{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionStartEvent,
@@ -600,16 +601,16 @@ func testAuditEvents(p *Pack, t *testing.T) {
 			},
 			PublicAddr: p.rootAppPublicAddr,
 		}
-		require.Empty(t, cmp.Diff(
+		return len(cmp.Diff(
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time"),
-		))
+		)) == 0
 	})
 
 	// session chunk event
-	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) bool {
 		expectedEvent := &apievents.AppSessionChunk{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionChunkEvent,
@@ -622,13 +623,13 @@ func testAuditEvents(p *Pack, t *testing.T) {
 				AppName:       p.rootAppName,
 			},
 		}
-		require.Empty(t, cmp.Diff(
+		return len(cmp.Diff(
 			expectedEvent,
 			event,
 			cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
 			cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "Time", "Index"),
 			cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
-		))
+		)) == 0
 	})
 }
 
@@ -1075,7 +1076,7 @@ func testServersHA(p *Pack, t *testing.T) {
 	}
 
 	// asserts that the response has error.
-	responseWithError := func(t *testing.T, status int, err error) {
+	responseWithError := func(t *assert.CollectT, status int, err error) {
 		if status > 0 {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusFound, status)
@@ -1085,7 +1086,7 @@ func testServersHA(p *Pack, t *testing.T) {
 		require.Error(t, err)
 	}
 	// asserts that the response has no errors.
-	responseWithoutError := func(t *testing.T, status int, err error) {
+	responseWithoutError := func(t *assert.CollectT, status int, err error) {
 		if status > 0 {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, status)
@@ -1095,12 +1096,14 @@ func testServersHA(p *Pack, t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	makeRequests := func(t *testing.T, pack *Pack, httpCookies, wsCookies []*http.Cookie, responseAssertion func(*testing.T, int, error)) {
-		status, _, err := pack.MakeRequest(httpCookies, http.MethodGet, "/")
-		responseAssertion(t, status, err)
+	makeRequests := func(t *testing.T, pack *Pack, httpCookies, wsCookies []*http.Cookie, responseAssertion func(*assert.CollectT, int, error)) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			status, _, err := pack.MakeRequest(httpCookies, http.MethodGet, "/")
+			responseAssertion(t, status, err)
 
-		_, err = pack.makeWebsocketRequest(wsCookies, "/")
-		responseAssertion(t, 0, err)
+			_, err = pack.makeWebsocketRequest(wsCookies, "/")
+			responseAssertion(t, 0, err)
+		}, 10*time.Second, 200*time.Millisecond)
 	}
 
 	for name, test := range testCases {

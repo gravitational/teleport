@@ -60,7 +60,6 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const sessionRecorderID = "session-recorder"
@@ -358,46 +357,19 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 
 // OpenSession either joins an existing active session or starts a new session.
 func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
-	session := scx.getSession()
-	if session != nil && !session.isStopped() {
-		scx.Logger.InfoContext(ctx, "Joining existing session", "session_id", session.id)
-		mode := types.SessionParticipantMode(scx.env[teleport.EnvSSHJoinMode])
-		if mode == "" {
-			mode = types.SessionPeerMode
-		}
-
-		switch mode {
-		case types.SessionModeratorMode, types.SessionObserverMode, types.SessionPeerMode:
-		default:
-			return trace.BadParameter("Unrecognized session participant mode: %v", mode)
-		}
-
-		// Update the in-memory data structure that a party member has joined.
-		if err := session.join(ch, scx, mode); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	}
-
 	if scx.JoinOnly {
 		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
 	}
 
-	sid := scx.SessionID()
-	if sid.IsZero() {
-		return trace.BadParameter("session ID is not set")
-	}
-
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition
-	sess, p, err := newSession(ctx, sid, s, scx, ch, sessionTypeInteractive)
+	sess, p, err := newSession(ctx, s, scx, ch, sessionTypeInteractive)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	scx.setSession(ctx, sess, ch)
 	s.addSession(sess)
-	scx.Logger.InfoContext(ctx, "Creating interactive session", "session_id", sid)
+	scx.Logger.InfoContext(ctx, "Creating interactive session", "session_id", sess.id)
 
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
@@ -408,26 +380,46 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	return nil
 }
 
-// OpenExecSession opens a non-interactive exec session.
-func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
-	sessionID := scx.SessionID()
-
-	if sessionID.IsZero() {
-		sessionID = rsession.NewID()
-		scx.Logger.Log(ctx, logutils.TraceLevel, "Session not found, creating a new session", "session_id", sessionID)
-	} else {
-		// Use passed session ID. Assist uses this "feature" to record
-		// the execution output.
-		scx.Logger.Log(ctx, logutils.TraceLevel, "Session found, reusing it", "session_id", sessionID)
+// JoinSession joins an existing interactive session.
+func (s *SessionRegistry) JoinSession(ctx context.Context, ch ssh.Channel, scx *ServerContext, sid string, mode types.SessionParticipantMode) error {
+	// make sure whatever session is requested is a valid session
+	id, err := rsession.ParseID(sid)
+	if err != nil {
+		return trace.BadParameter("invalid session ID %s", sid)
 	}
 
+	session, ok := s.findSession(*id)
+	if !ok || session.isStopped() {
+		return trace.NotFound("session not found or no longer running")
+	}
+
+	scx.Logger.InfoContext(ctx, "Joining existing session", "session_id", session.id)
+
+	switch mode {
+	case types.SessionModeratorMode, types.SessionObserverMode, types.SessionPeerMode:
+	default:
+		return trace.BadParameter("Unrecognized session participant mode: %q", mode)
+	}
+
+	scx.setSession(ctx, session, ch)
+
+	// Update the in-memory data structure that a party member has joined.
+	if err := session.join(ch, scx, mode); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// OpenExecSession opens a non-interactive exec session.
+func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition.
-	sess, _, err := newSession(ctx, sessionID, s, scx, channel, sessionTypeNonInteractive)
+	sess, _, err := newSession(ctx, s, scx, channel, sessionTypeNonInteractive)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.Logger.InfoContext(ctx, "Creating exec session", "session_id", sessionID)
+	scx.Logger.InfoContext(ctx, "Creating exec session", "session_id", sess.id)
 
 	approved, err := s.isApprovedFileTransfer(scx)
 	if err != nil {
@@ -624,8 +616,23 @@ func (s *SessionRegistry) notifyFileTransferRequestUnderLock(req *FileTransferRe
 func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.TerminalParams, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
-		s.logger.DebugContext(ctx, "Unable to update window size, no session found in context.")
-		return nil
+		sid, _ := scx.GetJoinParams()
+		if sid == "" {
+			s.logger.DebugContext(ctx, "Unable to update window size, no session found in context.")
+			return nil
+		}
+
+		id, err := rsession.ParseID(sid)
+		if err != nil {
+			return trace.BadParameter("invalid session ID %s", sid)
+		}
+
+		var ok bool
+		session, ok = s.findSession(*id)
+		if !ok {
+			s.logger.DebugContext(ctx, "Unable to update window size, no session found in context.")
+			return nil
+		}
 	}
 
 	// Build the resize event.
@@ -808,7 +815,7 @@ const (
 )
 
 // newSession creates a new session with a given ID within a given context.
-func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *ServerContext, ch ssh.Channel, sessType sessionType) (*session, *party, error) {
+func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch ssh.Channel, sessType sessionType) (*session, *party, error) {
 	var sessionRecordingMode constants.SessionRecordingMode
 	switch {
 	case scx.Identity.AccessPermit != nil:
@@ -823,7 +830,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
 		Kind: types.SSHSessionKind,
-		ID:   id,
+		ID:   rsession.NewID(),
 		TerminalParams: rsession.TerminalParams{
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,
@@ -853,9 +860,9 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	sess := &session{
 		logger: slog.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, r.Srv.Component()),
-			"session_id", id,
+			"session_id", rsess.ID,
 		),
-		id:              id,
+		id:              rsess.ID,
 		registry:        r,
 		parties:         make(map[rsession.ID]*party),
 		participants:    make(map[rsession.ID]*party),
@@ -874,7 +881,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 			cluster: scx.Identity.OriginClusterName,
 		},
 		displayParticipantRequirements: utils.AsBool(scx.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
-		serverMeta:                     scx.srv.TargetMetadata(),
+		serverMeta:                     scx.srv.EventMetadata(),
 	}
 
 	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
@@ -1432,7 +1439,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Emitter:               s.emitter,
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             s.id.String(),
-		ServerID:              scx.srv.HostUUID(),
+		ServerID:              scx.srv.ID(),
 		ServerHostname:        scx.srv.GetInfo().GetHostname(),
 		Login:                 scx.Identity.Login,
 		User:                  scx.Identity.TeleportUser,
@@ -1650,7 +1657,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Emitter:               s.emitter,
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             string(s.id),
-		ServerID:              scx.srv.HostUUID(),
+		ServerID:              scx.srv.ID(),
 		ServerHostname:        scx.srv.GetInfo().GetHostname(),
 		Login:                 scx.Identity.Login,
 		User:                  scx.Identity.TeleportUser,
@@ -2359,7 +2366,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		Kind:         string(types.SSHSessionKind),
 		State:        types.SessionState_SessionStatePending,
 		Hostname:     s.serverMeta.ServerHostname,
-		Address:      s.serverMeta.ServerID,
+		Address:      s.scx.srv.ID(),
 		ClusterName:  s.scx.ClusterName,
 		Login:        s.login,
 		HostUser:     teleportUser,
@@ -2375,7 +2382,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
-		HostID:         s.registry.Srv.ID(),
+		HostID:         s.registry.Srv.HostUUID(),
 		TargetSubKind:  s.serverMeta.ServerSubKind,
 		InitialCommand: initialCommand,
 	}

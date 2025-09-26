@@ -17,10 +17,7 @@
 package cache
 
 import (
-	"context"
 	"testing"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -35,18 +32,9 @@ func TestNetworkRestrictions(t *testing.T) {
 		newResource: func(name string) (types.NetworkRestrictions, error) {
 			return types.NewNetworkRestrictions(), nil
 		},
-		create: p.restrictions.SetNetworkRestrictions,
-		list: func(ctx context.Context) ([]types.NetworkRestrictions, error) {
-			restrictions, err := p.restrictions.GetNetworkRestrictions(ctx)
-			return []types.NetworkRestrictions{restrictions}, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.NetworkRestrictions, error) {
-			restrictions, err := p.cache.GetNetworkRestrictions(ctx)
-			if trace.IsNotFound(err) {
-				return nil, nil
-			}
-			return []types.NetworkRestrictions{restrictions}, trace.Wrap(err)
-		},
+		create:    p.restrictions.SetNetworkRestrictions,
+		list:      singletonListAdapter(p.restrictions.GetNetworkRestrictions),
+		cacheList: singletonListAdapter(p.cache.GetNetworkRestrictions),
 		deleteAll: p.restrictions.DeleteNetworkRestrictions,
 	}, withSkipPaginationTest()) // skip pagination test because NetworkRestrictions is a singleton resource
 }

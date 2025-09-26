@@ -1,0 +1,66 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.relaytunnel.v1alpha;
+
+import "google/rpc/status.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha;relaytunnelv1alpha";
+
+// sent by the client at the beginning of the control stream, the first and only
+// stream opened by the client at the beginning of the connection
+message ClientHello {
+  // a value from the api/types.TunnelType go enum, describing which tunnel the
+  // client wants to open
+  string tunnel_type = 1;
+}
+
+// sent by the server in the control stream, as a response to the ClientHello
+// message; if the status is not "ok" (or missing) the stream and connection are
+// going to be terminated
+message ServerHello {
+  google.rpc.Status status = 1;
+
+  // these are the same values that would be returned by
+  // DiscoveryService.Discover
+  string relay_group = 2;
+  int32 target_connection_count = 4;
+
+  // previously defined (but unused) in dev builds using the same protobuf
+  // package
+  reserved 3;
+  reserved "tunnel_public_addr";
+}
+
+// sent by the client in the control stream
+message ClientControl {
+  // no fields needed for now, but the server should still read (and discard)
+  // messages from the client in the control stream
+}
+
+// sent by the server in the control stream
+message ServerControl {
+  // the relay server is going to shut down soon, so the client should consider
+  // opening a new connection to maintain its tunnel connection count
+  bool terminating = 2;
+
+  // previously defined (but unused) in dev builds using the same protobuf
+  // package
+  reserved 1;
+  reserved "known_relays";
+}

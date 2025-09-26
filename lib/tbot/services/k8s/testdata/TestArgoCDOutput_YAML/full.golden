@@ -17,3 +17,4 @@ namespaces:
   - prod
   - dev
 cluster_resources: true
+cluster_name_template: '{{.KubeName}}'

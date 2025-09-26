@@ -102,17 +102,21 @@ func (s *KubernetesSigner) SignServiceAccountJWT(pod, namespace, serviceAccount,
 			// The Kubernetes JWKS join method rejects tokens valid more than 30 minutes.
 			Expiry: jwt.NewNumericDate(now.Add(29 * time.Minute)),
 		},
-		Kubernetes: &tokenclaims.KubernetesSubClaim{
-			Namespace: namespace,
-			ServiceAccount: &tokenclaims.ServiceAccountSubClaim{
-				Name: serviceAccount,
-				UID:  uuid.New().String(),
-			},
-			Pod: &tokenclaims.PodSubClaim{
-				Name: pod,
-				UID:  uuid.New().String(),
-			},
-		},
+		Kubernetes: kubeClaims(pod, namespace, serviceAccount),
 	}
 	return s.signWithClaims(claims)
+}
+
+func kubeClaims(pod, namespace, serviceAccount string) *tokenclaims.KubernetesSubClaim {
+	return &tokenclaims.KubernetesSubClaim{
+		Namespace: namespace,
+		ServiceAccount: &tokenclaims.ServiceAccountSubClaim{
+			Name: serviceAccount,
+			UID:  uuid.New().String(),
+		},
+		Pod: &tokenclaims.PodSubClaim{
+			Name: pod,
+			UID:  uuid.New().String(),
+		},
+	}
 }

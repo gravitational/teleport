@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"fmt"
+	"iter"
 	"log/slog"
 	"os"
 	"slices"
@@ -241,17 +242,50 @@ func defaultResource153Ops[T types.Resource153]() *resourceOps[T] {
 	}
 }
 
+// getAllAdapter adapts collection getters that do not support pagination to conform to [testFuncs] interface
+// TODO(okraport): delete this once all APIs are paginated.
+func getAllAdapter[T any](fn func(context.Context) ([]T, error)) func(context.Context, int, string) ([]T, string, error) {
+	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
+		out, err := fn(ctx)
+		return out, "", trace.Wrap(err)
+	}
+}
+
+// singletonListAdapter adapts a singleton getter to conform to [testFuncs] interface
+func singletonListAdapter[T any](fn func(context.Context) (T, error)) func(context.Context, int, string) ([]T, string, error) {
+	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
+		out, err := fn(ctx)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, "", nil
+			}
+			return nil, "", trace.Wrap(err)
+		}
+		return []T{out}, "", nil
+	}
+}
+
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T any] struct {
 	newResource func(string) (T, error)
 	create      func(context.Context, T) error
-	list        func(context.Context) ([]T, error)
+	list        func(context.Context, int, string) ([]T, string, error)
+	Range       func(context.Context, string, string) iter.Seq2[T, error]
 	cacheGet    func(context.Context, string) (T, error)
-	cacheList   func(context.Context, int) ([]T, error)
+	cacheList   func(context.Context, int, string) ([]T, string, error)
+	cacheRange  func(context.Context, string, string) iter.Seq2[T, error]
 	update      func(context.Context, T) error
 	delete      func(context.Context, string) error
 	deleteAll   func(context.Context) error
 	resource    *resourceOps[T]
+}
+
+func (f *testFuncs[T]) listAll(ctx context.Context) ([]T, error) {
+	return stream.Collect(clientutils.Resources(ctx, f.list))
+}
+
+func (f *testFuncs[T]) cacheListAll(ctx context.Context) ([]T, error) {
+	return stream.Collect(clientutils.Resources(ctx, f.cacheList))
 }
 
 func (t *testPack) Close() {
@@ -1338,14 +1372,6 @@ func withSkipPaginationTest() optionsFunc {
 	}
 }
 
-// defaultTestPageSize is the default page size used in tests.
-// to test the cache pagination logic.
-// The test setup creates defaultTestPageSize + 1 items and forwards the
-// defaultTestPageSize to the cache.cacheList(context.Context, pageSize method.
-// where the test implementation needs to forward the pageSize to the
-// resource list request/call.
-const defaultTestPageSize = 2
-
 // testResources is a wrapper for testing resources conforming to types.Resource
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
 	funcs.resource = defaultResourceOps[T]()
@@ -1393,8 +1419,8 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 
 	assertCacheContents := func(expected []T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			out, err := funcs.cacheList(ctx, 0)
-			require.NoError(t, err)
+			out, err := funcs.cacheListAll(ctx)
+			assert.NoError(t, err)
 
 			// If the cache is expected to be empty, then test explicitly for
 			// *that* rather than do an equality test. An equality test here
@@ -1410,7 +1436,7 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 	}
 
 	// Check that the resource is now in the backend.
-	out, err := funcs.list(ctx)
+	out, err := funcs.listAll(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
@@ -1450,7 +1476,7 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 
 	// Check that the resource is in the backend and only one exists (so an
 	// update occurred).
-	out, err = funcs.list(ctx)
+	out, err = funcs.listAll(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
@@ -1899,7 +1925,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:              newKubeWaitingContainer(t),
 		types.KindNotification:                      types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:                types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t)),
+		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t, "test")),
 		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
@@ -2479,12 +2505,14 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 	return notification
 }
 
-func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
+func newAccessMonitoringRule(t *testing.T, name string) *accessmonitoringrulesv1.AccessMonitoringRule {
 	t.Helper()
 	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
-		Kind:     types.KindAccessMonitoringRule,
-		Version:  types.V1,
-		Metadata: &headerv1.Metadata{},
+		Kind:    types.KindAccessMonitoringRule,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Notification: &accessmonitoringrulesv1.Notification{
 				Name: "test",
@@ -2615,7 +2643,10 @@ func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Even
 
 func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	t.Helper()
-	totalItems := defaultTestPageSize + 1
+
+	const defaultTestPageSize = 2
+	const numberOfFullPages = 2
+	const totalItemCount = (numberOfFullPages * defaultTestPageSize) + 1
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -2631,69 +2662,111 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 		}
 	}()
 
-	// Generate and create test resources
-	names := make(map[string]struct{}, totalItems)
-	for i := range totalItems {
+	// Generate resources
+	for i := range totalItemCount {
 		name := fmt.Sprintf("resources-%d", i)
 		r, err := funcs.newResource(name)
 		require.NoError(t, err)
 		require.NoError(t, funcs.create(ctx, r))
-		names[name] = struct{}{}
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		out, err := funcs.cacheList(ctx, totalItems)
-		require.NoError(t, err)
-		require.Len(t, out, totalItems)
-		all, err := funcs.list(ctx)
-		require.NoError(t, err)
-		require.Len(t, all, totalItems)
-	}, time.Second*3, time.Millisecond*100)
-
-	out, err := funcs.cacheList(ctx, defaultTestPageSize)
+	// Fetch all of the created items from the upstream:
+	expected, err := funcs.listAll(ctx)
 	require.NoError(t, err)
+	require.Len(t, expected, totalItemCount)
 
-	seen := make(map[string]bool, totalItems)
-	for _, item := range out {
-		name := funcs.resource.Name(item)
-		if seen[name] {
-			t.Fatalf("duplicate resource returned in pagination: %q", name)
-		}
-		if _, expected := names[name]; !expected {
-			t.Fatalf("unexpected resource returned: %q", name)
-		}
-		seen[name] = true
+	cmpOpts := funcs.resource.cmpOpts
+
+	// Wait for all the resources to be replicated to the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		items, _ := funcs.cacheListAll(ctx)
+		assert.Len(t, items, len(expected))
+	}, 15*time.Second, 100*time.Millisecond)
+
+	page1, page2Start, err := funcs.cacheList(ctx, defaultTestPageSize, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, defaultTestPageSize)
+	assert.NotEmpty(t, page2Start)
+
+	page2, page3Start, err := funcs.cacheList(ctx, defaultTestPageSize, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, defaultTestPageSize)
+	assert.NotEmpty(t, page3Start)
+
+	page3, end, err := funcs.cacheList(ctx, defaultTestPageSize, page3Start)
+	require.NoError(t, err)
+	assert.Len(t, page3, 1)
+	assert.Empty(t, end)
+
+	var listed []T
+	listed = append(listed, page1...)
+	listed = append(listed, page2...)
+	listed = append(listed, page3...)
+
+	// All items have been returned as expected
+	assert.Empty(t, cmp.Diff(expected, listed, cmpOpts...))
+
+	// Small pages
+	pageSmall, pageSmallNext, err := funcs.cacheList(ctx, 1, "")
+	require.NoError(t, err)
+	assert.Len(t, pageSmall, 1)
+	assert.NotEmpty(t, pageSmallNext)
+
+	if funcs.Range != nil && funcs.cacheRange != nil {
+		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
+		require.NoError(t, err)
+		assert.Len(t, out, len(page1))
+		assert.Empty(t, cmp.Diff(page1, out, cmpOpts...))
+
+		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected))
+		assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+
+		out, err = stream.Collect(funcs.cacheRange(ctx, page2Start, ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected)-defaultTestPageSize)
+		assert.Empty(t, cmp.Diff(expected, append(page1, out...), cmpOpts...))
+
+		// invalidate the cache, cover upstream fallback
+		p.cache.ok = false
+		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
+		require.NoError(t, err)
+		assert.Len(t, out, len(expected))
+		assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
 	}
-	// Remove all resource from the backend to has fresh state
+
+	// invalidate the cache, cover upstream fallback
+	p.cache.ok = false
+	out, err := funcs.cacheListAll(ctx)
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+
 	require.NoError(t, funcs.deleteAll(ctx))
 
 	// Wait for the cache to be empty.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Check that the cache is now empty.
-		out, err = funcs.cacheList(ctx, defaultTestPageSize)
-		require.NoError(t, err)
-		require.Empty(t, out)
-	}, time.Second*3, time.Millisecond*100)
+		items, err := funcs.cacheListAll(ctx)
+		assert.NoError(t, err)
+		assert.Empty(t, items)
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 type resourcesLister interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
-func listAllResource(t *testing.T, lister resourcesLister, kind string, pageSize int) ([]types.ResourceWithLabels, error) {
-	return stream.Collect(clientutils.Resources(
-		t.Context(),
-		func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
-			resp, err := lister.ListResources(t.Context(), proto.ListResourcesRequest{
-				ResourceType: kind,
-				Limit:        int32(pageSize),
-				StartKey:     startKey,
-			})
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-			return resp.Resources, resp.NextKey, nil
-		}))
+func listResource(ctx context.Context, lister resourcesLister, kind string, pageSize int, pageToken string) ([]types.ResourceWithLabels, string, error) {
+	resp, err := lister.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: kind,
+		Limit:        int32(pageSize),
+		StartKey:     pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.Resources, resp.NextKey, nil
 }
 
 // NewTestCA returns new test authority with a test key as a public and

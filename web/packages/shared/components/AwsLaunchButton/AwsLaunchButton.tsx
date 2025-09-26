@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ComponentPropsWithRef } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonBorder, Flex, Text } from 'design';
@@ -195,7 +195,7 @@ type Props = {
   awsRoles: AwsRole[];
   getLaunchUrl(arn: string): string;
   onLaunchUrl?(arn: string): void;
-  width?: string;
+  width?: ComponentPropsWithRef<typeof ButtonBorder>['width'];
   isAwsIdentityCenterApp?: boolean;
 };
 

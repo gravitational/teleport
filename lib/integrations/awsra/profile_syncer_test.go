@@ -38,18 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-/*
-This file uses the experimental testing/synctest package introduced with Go 1.24:
-
-    https://go.dev/blog/synctest
-
-When editing this file, you should set GOEXPERIMENT=synctest for your editor/LSP
-to ensure that the language server doesn't fail to recognize the package.
-
-This file is also protected by a build tag to ensure that `go test` doesn't fail
-for users who haven't set the environment variable.
-*/
-
 func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
 	cache := &mockCache{}
 	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{

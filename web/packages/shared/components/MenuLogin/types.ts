@@ -18,6 +18,7 @@
 
 import { ComponentPropsWithRef, ComponentType, CSSProperties } from 'react';
 
+import { Flex } from 'design';
 import { ButtonBorder } from 'design/Button';
 
 export type LoginItem = {
@@ -54,7 +55,15 @@ export type MenuLoginProps = {
   textTransform?: string;
   placeholder?: string;
   required?: boolean;
-  width?: string;
+  /**
+   * Width of the displayed menu. If alignButtonWidthToMenu is true, then this is also the width of
+   * the button.
+   */
+  width?: ComponentPropsWithRef<typeof Flex>['width'];
+  /**
+   * Width of just the button. Ignored if alignButtonWidthToMenu is true.
+   */
+  buttonWidth?: ComponentPropsWithRef<typeof ButtonBorder>['width'];
   ButtonComponent?: ComponentType<ComponentPropsWithRef<typeof ButtonBorder>>;
   buttonText?: string;
   style?: CSSProperties;

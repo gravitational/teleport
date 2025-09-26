@@ -42,14 +42,17 @@ curl -sSf "$INSTALL_SCRIPT_URL" -o "$TEMP_INSTALLER_SCRIPT"
 
 chmod +x "$TEMP_INSTALLER_SCRIPT"
 
-sudo "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
+sudo -E "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
 rm "$TEMP_INSTALLER_SCRIPT"
 
 
 echo "Configuring the Teleport agent"
 
 set +x
-sudo /usr/local/bin/teleport install autodiscover-node --public-proxy-addr=teleport.example.com:443 --teleport-package=teleport-ent --repo-channel=stable/cloud --auto-upgrade=true --azure-client-id= $@`
+TELEPORT_BINARY=/usr/local/bin/teleport
+[ -z "${TELEPORT_INSTALL_SUFFIX:-}" ] || TELEPORT_BINARY=/opt/teleport/${TELEPORT_INSTALL_SUFFIX}/bin/teleport
+
+sudo -E "$TELEPORT_BINARY" install autodiscover-node --public-proxy-addr=teleport.example.com:443 --teleport-package=teleport-ent --repo-channel=stable/cloud --auto-upgrade=true --azure-client-id= $@`
 
 // TestNewDefaultInstaller is a minimal
 func TestNewDefaultInstaller(t *testing.T) {

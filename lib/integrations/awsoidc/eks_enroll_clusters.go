@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 const (
@@ -75,8 +76,8 @@ const (
 )
 
 var (
-	agentRepoURL        = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
-	agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
+	agentRepoURL        = teleportassets.HelmRepoURL()
+	agentStagingRepoURL = teleportassets.HelmStagingRepoURL()
 )
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
@@ -738,10 +739,19 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	return nil
 }
 
-func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]string {
-	labels := make(map[string]string)
-	maps.Copy(labels, extraLabels)
-	maps.Copy(labels, kubeCluster.GetStaticLabels())
+func kubeAgentLabels(kubeCluster types.KubeCluster, resourceID string, extraLabels map[string]string) map[string]any {
+	// Labels property in the `teleport-kube-agent` chart is defined as object.
+	// Object values are of map[string]any type, so we need to use `any`.
+	labels := make(map[string]any)
+
+	for k, v := range extraLabels {
+		labels[k] = v
+	}
+
+	for k, v := range kubeCluster.GetStaticLabels() {
+		labels[k] = v
+	}
+
 	labels[types.InternalResourceIDLabel] = resourceID
 
 	return labels

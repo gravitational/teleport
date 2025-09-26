@@ -4885,6 +4885,8 @@ message OneOf {
     events.BoundKeypairRecovery BoundKeypairRecovery = 220;
     events.BoundKeypairRotation BoundKeypairRotation = 221;
     events.BoundKeypairJoinStateVerificationFailed BoundKeypairJoinStateVerificationFailed = 222;
+    events.MCPSessionListenSSEStream MCPSessionListenSSEStream = 223;
+    events.MCPSessionInvalidHTTPRequest MCPSessionInvalidHTTPRequest = 224;
   }
 }
 
@@ -8714,6 +8716,16 @@ message MCPSessionEnd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Status contains common command or operation status fields.
+  //
+  // The protocol spec states that the MCP server may refuse the clients from
+  // terminating the session.
+  // https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#session-management
+  Status Status = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // MCPJSONRPCMessage includes details of a MCP request or notification.
@@ -8802,6 +8814,92 @@ message MCPSessionNotification {
   MCPJSONRPCMessage message = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "message,omitempty"
+  ];
+  // Status contains information whether the request is successful or not.
+  Status status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// MCPSessionListenSSEStream is emitted when client sends a GET request to a
+// streamable HTTP MCP server for listening server notifications via a SSE
+// stream.
+message MCPSessionListenSSEStream {
+  // Metadata is a common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata app = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status contains information whether the request is successful or not.
+  Status status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// MCPSessionInvalidHTTPRequest is a blanket event for all requests that we do
+// not understand (usually out of MCP spec).
+message MCPSessionInvalidHTTPRequest {
+  // Metadata is a common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata app = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Path is relative path in the URL.
+  string path = 5 [(gogoproto.jsontag) = "path"];
+  // Method is the request HTTP method, like GET/POST/DELETE/etc.
+  string method = 6 [(gogoproto.jsontag) = "method"];
+  // RawQuery are the encoded query values.
+  string raw_query = 7 [(gogoproto.jsontag) = "raw_query"];
+  // Body is the request HTTP body.
+  bytes body = 8 [(gogoproto.jsontag) = "body"];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
   ];
 }
 

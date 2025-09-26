@@ -253,15 +253,17 @@ type Server struct {
 	enableSELinux bool
 }
 
-// TargetMetadata returns metadata about the server.
-func (s *Server) TargetMetadata() apievents.ServerMetadata {
+// EventMetadata returns metadata about the server.
+func (s *Server) EventMetadata() apievents.ServerMetadata {
+	serverInfo := s.GetInfo()
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
-		ServerNamespace: s.GetNamespace(),
-		ServerID:        s.ID(),
-		ServerAddr:      s.Addr(),
-		ServerLabels:    s.getAllLabels(),
-		ServerHostname:  s.hostname,
+		ServerNamespace: serverInfo.GetNamespace(),
+		ServerID:        serverInfo.GetName(),
+		ServerAddr:      serverInfo.GetAddr(),
+		ServerLabels:    serverInfo.GetAllLabels(),
+		ServerHostname:  serverInfo.GetHostname(),
+		ServerSubKind:   serverInfo.GetSubKind(),
 	}
 }
 
@@ -1088,16 +1090,6 @@ func (s *Server) getDynamicLabels() map[string]types.CommandLabelV2 {
 	return types.LabelsToV2(s.dynamicLabels.Get())
 }
 
-// getAllLabels return a combination of static and dynamic labels.
-func (s *Server) getAllLabels() map[string]string {
-	lmap := make(map[string]string)
-	maps.Copy(lmap, s.getStaticLabels())
-	for key, cmd := range s.getDynamicLabels() {
-		lmap[key] = cmd.Result
-	}
-	return lmap
-}
-
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
 	return s.getBasicInfo()
@@ -1637,21 +1629,6 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	})
 
 	for {
-		// update scx with the session ID:
-		if !s.proxyMode {
-			err := scx.CreateOrJoinSession(ctx, s.reg)
-			if err != nil {
-				scx.Logger.ErrorContext(ctx, "Unable to update context", "error", err)
-
-				// write the error to channel and close it
-				s.writeStderr(ctx, trackingChan, fmt.Sprintf("unable to update context: %v", err))
-				_, err := trackingChan.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
-				if err != nil {
-					scx.Logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
-				}
-				return
-			}
-		}
 		select {
 		case creq := <-scx.SubsystemResultCh:
 			// this means that subsystem has finished executing and
@@ -2445,7 +2422,7 @@ func (s *Server) parseSubsystemRequest(ctx context.Context, req *ssh.Request, se
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),
-				ServerMetadata: serverContext.GetServer().TargetMetadata(),
+				ServerMetadata: serverContext.GetServer().EventMetadata(),
 				Error:          err.Error(),
 			})
 			return nil, trace.Wrap(err)
