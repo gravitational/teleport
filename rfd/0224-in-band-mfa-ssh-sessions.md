@@ -369,8 +369,10 @@ period and while receiving appropriate deprecation notices.
 1. Add new `MFAService` in `api/proto/teleport/mfa/v1/mfa_service.proto` and implement the
    `ValidateAuthenticateChallenge` RPC.
 1. Migrate existing MFA related RPCs from the Auth service to the new `MFAService`.
-1. Update client/tsh code in `api/client/proxy/client.go` to use the v2 `TransportService`. Client should fallback to
-   the v1 `TransportService` if the v2 service is not available.
+1. Update client/tsh code to use the v2 `TransportService`. Client should fallback to the v1 `TransportService` if the
+   v2 service is not available.
+1. Update web terminal code to use the v2 `TransportService`. Client should fallback to the v1 `TransportService` if the
+   v2 service is not available.
 1. Update clients so they handle MFA challenges and responses as a part of the SSH session establishment process.
 1. Add deprecation notices to SSH banner for clients connecting directly.
 1. Add tests to verify backward compatibility with the deprecated v1 `TransportService` RPCs.
