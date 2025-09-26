@@ -56,6 +56,7 @@ func TestKubernetesV2Output_YAML(t *testing.T) {
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
 				},
+				ContextNameTemplate: "{{.KubeName}}",
 			},
 		},
 		{
@@ -84,6 +85,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{Name: "foo", Labels: map[string]string{}},
 					},
+					ContextNameTemplate: "{{.KubeName}}",
 				}
 			},
 		},
@@ -97,6 +99,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 							"foo": "bar",
 						}},
 					},
+					ContextNameTemplate: "{{.KubeName}}",
 				}
 			},
 		},
@@ -108,6 +111,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{Name: "foo"},
 					},
+					ContextNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "no destination configured for output",
@@ -116,7 +120,8 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			name: "missing selectors",
 			in: func() *OutputV2Config {
 				return &OutputV2Config{
-					Destination: destination.NewMemory(),
+					Destination:         destination.NewMemory(),
+					ContextNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "at least one selector must be provided",
@@ -129,6 +134,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 					Selectors: []*KubernetesSelector{
 						{},
 					},
+					ContextNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "selectors: one of 'name' and 'labels' must be specified",
@@ -146,9 +152,23 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 							},
 						},
 					},
+					ContextNameTemplate: "{{.KubeName}}",
 				}
 			},
 			wantErr: "selectors: only one of 'name' and 'labels' may be specified",
+		},
+		{
+			name: "invalid context_name_template",
+			in: func() *OutputV2Config {
+				return &OutputV2Config{
+					Destination: destination.NewMemory(),
+					Selectors: []*KubernetesSelector{
+						{Name: "foo", Labels: map[string]string{}},
+					},
+					ContextNameTemplate: "{{.InvalidVariable}}",
+				}
+			},
+			wantErr: "can't evaluate field InvalidVariable",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

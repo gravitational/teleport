@@ -357,7 +357,7 @@ func (s *OutputV2Service) render(
 	if s.cfg.DisableExecPlugin {
 		// If they've disabled the exec plugin, we just write the credentials
 		// directly into the kubeconfig.
-		kubeCfg, err = generateKubeConfigV2WithoutPlugin(status)
+		kubeCfg, err = s.generateKubeConfigV2WithoutPlugin(status)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -369,7 +369,7 @@ func (s *OutputV2Service) render(
 			return trace.Wrap(err)
 		}
 
-		kubeCfg, err = generateKubeConfigV2WithPlugin(status, destinationDir.Path, executablePath)
+		kubeCfg, err = s.generateKubeConfigV2WithPlugin(status, destinationDir.Path, executablePath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -400,7 +400,7 @@ func encodePathComponent(input string) string {
 // generateKubeConfigWithPlugin creates a Kubernetes config object with the
 // given cluster config, using the `tbot kube credentials` auth helper plugin to
 // fetch refreshed certificate data at runtime.
-func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, executablePath string) (*clientcmdapi.Config, error) {
+func (o *OutputV2Service) generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, executablePath string) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Implementation note: tsh/kube.go generates a kubeconfig with all
@@ -442,7 +442,10 @@ func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, exe
 	}
 
 	for i, cluster := range ks.kubernetesClusterNames {
-		contextName := kubeconfig.ContextName(ks.teleportClusterName, cluster)
+		contextName, err := kubeconfig.ContextNameFromTemplate(o.cfg.ContextNameTemplate, ks.teleportClusterName, cluster)
+		if err != nil {
+			return nil, trace.Wrap(err, "templating context name")
+		}
 
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
@@ -476,7 +479,7 @@ func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, exe
 	return config, nil
 }
 
-func generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Config, error) {
+func (o *OutputV2Service) generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Configure the cluster.
@@ -496,7 +499,10 @@ func generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Co
 	}
 
 	for i, cluster := range ks.kubernetesClusterNames {
-		contextName := kubeconfig.ContextName(ks.teleportClusterName, cluster)
+		contextName, err := kubeconfig.ContextNameFromTemplate(o.cfg.ContextNameTemplate, ks.teleportClusterName, cluster)
+		if err != nil {
+			return nil, trace.Wrap(err, "templating context name")
+		}
 
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
