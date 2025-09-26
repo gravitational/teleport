@@ -22,10 +22,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestProcessStateGetState(t *testing.T) {
