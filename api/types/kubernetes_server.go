@@ -319,6 +319,9 @@ func (k *KubernetesServerV3) IsEqual(i KubeServer) bool {
 
 // GetTargetHealth gets health details for a target Kubernetes cluster.
 func (s *KubernetesServerV3) GetTargetHealth() TargetHealth {
+	if s.Status == nil {
+		s.Status = &KubernetesServerStatusV3{}
+	}
 	if s.Status.TargetHealth == nil {
 		return TargetHealth{}
 	}
@@ -335,7 +338,7 @@ func (s *KubernetesServerV3) SetTargetHealth(h TargetHealth) {
 
 // GetTargetHealthStatus gets the health status of a target Kubernetes cluster.
 func (s *KubernetesServerV3) GetTargetHealthStatus() TargetHealthStatus {
-	if s.Status.TargetHealth == nil {
+	if s.Status == nil || s.Status.TargetHealth == nil {
 		return ""
 	}
 	return TargetHealthStatus(s.Status.TargetHealth.Status)
@@ -343,6 +346,9 @@ func (s *KubernetesServerV3) GetTargetHealthStatus() TargetHealthStatus {
 
 // SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
 func (s *KubernetesServerV3) SetTargetHealthStatus(status TargetHealthStatus) {
+	if s.Status == nil {
+		s.Status = &KubernetesServerStatusV3{}
+	}
 	if s.Status.TargetHealth == nil {
 		s.Status.TargetHealth = &TargetHealth{}
 	}
