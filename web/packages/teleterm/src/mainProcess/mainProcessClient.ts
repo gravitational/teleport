@@ -18,6 +18,7 @@
 
 import { ipcRenderer } from 'electron';
 
+import type { Message, MessageAck } from 'teleterm/mainProcess/awaitableSender';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
@@ -262,6 +263,35 @@ export default function createMainProcessClient(): MainProcessClient {
             ipcListener
           ),
       };
+    },
+  };
+}
+
+/** Receives and confirms messages sent through `AwaitableSender`.*/
+function makeAwaitableReceiver<T>(listener: (value: T) => void): {
+  port: MessagePort;
+  close: () => void;
+} {
+  // The order of ports doesn't matter.
+  const { port1, port2 } = new MessageChannel();
+
+  port1.onmessage = (event: MessageEvent<Message>) => {
+    const msg = event.data;
+    if (msg.type !== 'data') {
+      return;
+    }
+    listener(msg.payload as T);
+    const ack: MessageAck = { type: 'ack', id: msg.id };
+    port1.postMessage(ack);
+  };
+
+  port1.start();
+
+  return {
+    port: port2,
+    close: () => {
+      port1.close();
+      port2.close();
     },
   };
 }
