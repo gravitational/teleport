@@ -85,6 +85,7 @@ export class SessionStream<
   private requestId = 0;
   private state: PlayerState = PlayerState.Loading;
   private wasPlayingBeforeSeek = false;
+  private playbackSpeed = 0.5;
 
   constructor(
     private ws: WebSocket,
@@ -126,7 +127,7 @@ export class SessionStream<
     this.setState(PlayerState.Playing);
 
     if (this.pausedTime > 0) {
-      this.startTime = performance.now() - this.pausedTime;
+      this.startTime = performance.now() - this.pausedTime / this.playbackSpeed;
       this.pausedTime = 0;
     } else if (!this.startTime) {
       this.startTime = performance.now();
@@ -165,7 +166,7 @@ export class SessionStream<
         this.animationFrameId = null;
       }
 
-      this.startTime = performance.now() - time;
+      this.startTime = performance.now() - time / this.playbackSpeed;
       this.currentTime = time;
 
       if (
@@ -191,7 +192,7 @@ export class SessionStream<
       this.player.clear();
     }
 
-    this.startTime = performance.now() - time;
+    this.startTime = performance.now() - time / this.playbackSpeed;
 
     // play all events up until the requested time
     this.playEventsUpUntil(time);
@@ -217,11 +218,29 @@ export class SessionStream<
       this.animationFrameId = null;
     }
 
-    this.pausedTime = performance.now() - this.startTime;
+    this.pausedTime = (performance.now() - this.startTime) * this.playbackSpeed;
     this.currentTime = this.pausedTime;
     this.wasPlayingBeforeSeek = false;
 
     this.player.onPause();
+  }
+
+  setSpeed(speed: number) {
+    if (speed <= 0) {
+      return;
+    }
+
+    const wasPlaying = this.state === PlayerState.Playing;
+
+    if (wasPlaying) {
+      this.pause();
+    }
+
+    this.playbackSpeed = speed;
+
+    if (wasPlaying) {
+      this.play();
+    }
   }
 
   private playEvents = () => {
@@ -229,7 +248,8 @@ export class SessionStream<
       return;
     }
 
-    const currentTime = performance.now() - this.startTime;
+    const currentTime =
+      (performance.now() - this.startTime) * this.playbackSpeed;
 
     this.currentTime = currentTime;
 
