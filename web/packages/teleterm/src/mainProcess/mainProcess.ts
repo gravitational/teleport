@@ -77,6 +77,8 @@ import {
 } from '../services/config';
 import { downloadAgent, FileDownloader, verifyAgent } from './agentDownloader';
 import { AgentRunner } from './agentRunner';
+import { AwaitableSender } from './awaitableSender';
+import { ClusterStore } from './clusterStore';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import {
@@ -127,6 +129,7 @@ export default class MainProcess {
     autoUpdateService: AutoUpdateClient;
   }>;
   private readonly appUpdater: AppUpdater;
+  public clusterStore: ClusterStore;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
@@ -150,6 +153,13 @@ export default class MainProcess {
         );
       }
     );
+
+    this.updateAboutPanelIfNeeded();
+    this.setAppMenu();
+    this.initTshd();
+    this.initSharedProcess();
+    this.initResolvingChildProcessAddresses();
+    this.initIpc();
 
     const getClusterVersions = async () => {
       const { autoUpdateService } = await this.getTshdClients();
@@ -177,6 +187,10 @@ export default class MainProcess {
       },
       process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
     );
+
+    this.getTshdClients().then(clients => {
+      this.clusterStore = new ClusterStore(clients.terminalService);
+    });
   }
 
   /**
@@ -187,9 +201,7 @@ export default class MainProcess {
    * create might throw an error if spawning a child process fails, see initTshd for more details.
    */
   static create(opts: Options) {
-    const instance = new MainProcess(opts);
-    instance.init();
-    return instance;
+    return new MainProcess(opts);
   }
 
   async dispose(): Promise<void> {
@@ -207,15 +219,6 @@ export default class MainProcess {
       ),
       this.agentRunner.killAll(),
     ]);
-  }
-
-  private init() {
-    this.updateAboutPanelIfNeeded();
-    this.setAppMenu();
-    this.initTshd();
-    this.initSharedProcess();
-    this.initResolvingChildProcessAddresses();
-    this.initIpc();
   }
 
   async getTshdClients(): Promise<{
@@ -692,6 +695,23 @@ export default class MainProcess {
     ipcMain.handle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
       this.appUpdater.quitAndInstall()
     );
+
+    ipcMain.handle(MainProcessIpc.AddCluster, (ev, proxyAddress) =>
+      this.clusterStore.add(proxyAddress)
+    );
+
+    ipcMain.handle(MainProcessIpc.SyncRootClusters, () =>
+      this.clusterStore.syncRootClusters()
+    );
+
+    ipcMain.handle(MainProcessIpc.SyncCluster, (_, args) =>
+      this.clusterStore.sync(args.clusterUri)
+    );
+
+    ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {
+      const port = ev.ports[0];
+      void this.clusterStore.useSender(new AwaitableSender(port));
+    });
 
     subscribeToTerminalContextMenuEvent(this.configService);
     subscribeToTabContextMenuEvent(
