@@ -61,7 +61,7 @@ func IsRemotePath(input string) bool {
 	//
 	// If we get something like "foo:bar", we have no way to tell if that's local
 	// path "foo:bar" or remote path "bar" on host "foo". We'll assume it's the
-	// former, as the latter can also be written as "./foo:bar".
+	// host:path variant, as the other can also be written as "./foo:bar".
 	return slashIndex == -1 || colonIndex < slashIndex
 }
 
