@@ -5199,6 +5199,15 @@ func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]types.Trust
 	return a.authServer.GetTrustedClusters(ctx)
 }
 
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (a *ServerWithRoles) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListTrustedClusters(ctx, limit, start)
+}
+
 func (a *ServerWithRoles) GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

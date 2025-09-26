@@ -2300,6 +2300,22 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 	return trustedClusters, nil
 }
 
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (c *Client) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	resp, err := c.grpc.ListTrustedClusters(ctx, &proto.ListTrustedClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	tcs := make([]types.TrustedCluster, len(resp.TrustedClusters))
+	for i := range resp.TrustedClusters {
+		tcs[i] = resp.TrustedClusters[i]
+	}
+	return tcs, resp.NextPageToken, nil
+}
+
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
 func (c *Client) UpsertTrustedCluster(ctx context.Context, trusedCluster types.TrustedCluster) (types.TrustedCluster, error) {
 	trustedCluster, ok := trusedCluster.(*types.TrustedClusterV2)
