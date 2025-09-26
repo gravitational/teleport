@@ -98,9 +98,9 @@ type KeygenFunc func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (c
 
 // BoundKeypairParams are parameters specific to bound-keypair joining.
 type BoundKeypairParams struct {
-	// InitialJoinSecret is a one-time-use joining token for use on first join.
+	// RegistrationSecret is a one-time-use joining token for use on first join.
 	// May be unset if a keypair was registered with Auth out of band.
-	InitialJoinSecret string
+	RegistrationSecret string
 
 	// PreviousJoinState is the previous join state document provided by Auth
 	// alongside the previous set of certs. If this is initial registration, it
@@ -970,7 +970,7 @@ func registerUsingBoundKeypairMethod(
 
 	initReq := &proto.RegisterUsingBoundKeypairInitialRequest{
 		JoinRequest:       registerUsingTokenRequestForParams(token, hostKeys, params),
-		InitialJoinSecret: bkParams.InitialJoinSecret,
+		InitialJoinSecret: bkParams.RegistrationSecret,
 		PreviousJoinState: bkParams.PreviousJoinState,
 	}
 

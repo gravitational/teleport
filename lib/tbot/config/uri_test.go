@@ -121,7 +121,7 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 					TokenValue: "some-token",
 					JoinMethod: types.JoinMethodBoundKeypair,
 					BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
-						RegistrationSecret: "secret",
+						RegistrationSecretValue: "secret",
 					},
 				},
 				ProxyServer: "example.com:1234",
@@ -206,7 +206,7 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 					TokenValue: "token",
 					JoinMethod: types.JoinMethodBoundKeypair,
 					BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
-						RegistrationSecret: "secret2",
+						RegistrationSecretValue: "secret2",
 					},
 				},
 			},
