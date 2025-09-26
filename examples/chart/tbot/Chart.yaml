@@ -1,4 +1,4 @@
-.version: &version "18.2.2"
+.version: &version "18.2.3-dev.relay.1"
 
 name: tbot
 apiVersion: v2
