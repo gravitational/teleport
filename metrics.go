@@ -313,6 +313,10 @@ const (
 	// TagVersion is a prometheus label for version of Teleport built
 	TagVersion = "version"
 
+	// TagOS is a prometheus label for indicating the Operating System
+	// where agent is running (e.g. Darwin, Linux).
+	TagOS = "os"
+
 	// TagGitref is a prometheus label for the gitref of Teleport built
 	TagGitref = "gitref"
 
