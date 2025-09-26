@@ -726,6 +726,16 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
+				"relay_group": {
+					Description: "the name of the Relay group that the server is connected to",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"relay_ids": {
+					Description: "the list of Relay host IDs that the server is connected to",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
 				"rotation": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"current_id": {
@@ -10401,6 +10411,50 @@ func CopyServerV2FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["relay_group"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ServerV2.Spec.relay_group"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.relay_group", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.RelayGroup = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["relay_ids"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ServerV2.Spec.relay_ids"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.relay_ids", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.RelayIds = make([]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"ServerV2.Spec.relay_ids", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.RelayIds[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -11466,6 +11520,81 @@ func CopyServerV2ToTerraform(ctx context.Context, obj *github_com_gravitational_
 								}
 								v.Unknown = false
 								tf.Attrs["github"] = v
+							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["relay_group"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ServerV2.Spec.relay_group"})
+						} else {
+							v, ok := tf.Attrs["relay_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"ServerV2.Spec.relay_group", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.relay_group", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.RelayGroup) == ""
+							}
+							v.Value = string(obj.RelayGroup)
+							v.Unknown = false
+							tf.Attrs["relay_group"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["relay_ids"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ServerV2.Spec.relay_ids"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.relay_ids", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["relay_ids"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RelayIds)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RelayIds))
+									}
+								}
+								if obj.RelayIds != nil {
+									t := o.ElemType
+									if len(obj.RelayIds) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RelayIds))
+									}
+									for k, a := range obj.RelayIds {
+										v, ok := tf.Attrs["relay_ids"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"ServerV2.Spec.relay_ids", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"ServerV2.Spec.relay_ids", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = string(a) == ""
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.RelayIds) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["relay_ids"] = c
 							}
 						}
 					}
