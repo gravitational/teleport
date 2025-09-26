@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -126,6 +127,12 @@ type Clusters interface {
 
 	// GetTrustedClusters returns all TrustedClusters in the backend.
 	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
+
+	// ListTrustedClusters returns a page of Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
+
+	// RangeTrustedClusters returns Trusted Cluster resources within the range [start, end).
+	RangeTrustedClusters(ctx context.Context, start, end string) iter.Seq2[types.TrustedCluster, error]
 
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
