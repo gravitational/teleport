@@ -20,18 +20,26 @@ package main
 
 import (
 	"context"
+	"crypto"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
+	"text/template"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
@@ -59,30 +67,53 @@ func getSuiteFromProxy(proxyAddr string, insecure bool) cryptosuites.GetSuiteFun
 // specified.
 type KeypairDocument struct {
 	PublicKey string `json:"public_key"`
+
+	PrivateKey string `json:"private_key,omitempty"`
 }
 
-// printKeypair prints the current keypair from the given client state using the
-// specified format.
-func printKeypair(state *boundkeypair.ClientState, format string) error {
-	publicKeyBytes, err := state.ToPublicKeyBytes()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+// KeypairMessageParams are parameters used with `keypairMessageTemplate`
+type KeypairMessageParams struct {
+	PublicKey         string
+	EnvName           string
+	EncodedPrivateKey string
+	StaticKeyPath     string
+}
 
-	keyString := strings.TrimSpace(string(publicKeyBytes))
+var keypairMessageTemplate = template.Must(template.New("keypair_message").Parse(`
+To register the keypair with Teleport, include this public key in the token's
+'spec.bound_keypair.onboarding.initial_public_key' field:
 
+	{{ .PublicKey }}
+{{ if .StaticKeyPath }}
+Note that you must also set 'spec.bound_keypair.recovery.mode' to 'insecure'
+to use static keys.
+
+The static key has been written to: {{ .StaticKeyPath }}
+
+Configure your bot to use this static key by setting the following 'tbot.yaml'
+field:
+	onboarding:
+	  join_method: bound_keypair
+	  bound_keypair:
+	    static_private_key_path: {{ .StaticKeyPath }}
+{{ else if .EncodedPrivateKey }}
+Configure your bot to use this static key by inserting the following private key
+value into the bot's environment, ideally via a platform-specific keystore if
+available:
+	export {{ .EnvName }}={{ .EncodedPrivateKey }}
+{{ end }}
+`))
+
+func printKeypair(params KeypairMessageParams, format string) error {
 	switch format {
 	case teleport.Text:
-		// TODO: maybe just print out an example token resource to copy and paste? Or a tctl command.
-		fmt.Printf(
-			"\nTo register the keypair with Teleport, include this public key in the token's\n"+
-				"`spec.bound_keypair.onboarding.initial_public_key`:\n\n"+
-				"\t%s\n\n",
-			keyString,
-		)
+		if err := keypairMessageTemplate.Execute(os.Stdout, params); err != nil {
+			return trace.Wrap(err)
+		}
 	case teleport.JSON:
 		bytes, err := json.Marshal(&KeypairDocument{
-			PublicKey: keyString,
+			PublicKey:  params.PublicKey,
+			PrivateKey: params.EncodedPrivateKey,
 		})
 		if err != nil {
 			return trace.Wrap(err, "generating json")
@@ -90,14 +121,113 @@ func printKeypair(state *boundkeypair.ClientState, format string) error {
 
 		fmt.Printf("%s\n", string(bytes))
 	default:
-		return trace.BadParameter("unsupported output format %s; keypair has been generated", format)
+		return trace.BadParameter("unsupported output format %s; keypair has not been generated", format)
 	}
 
 	return nil
 }
 
+// printKeypairFromState prints the current keypair from the given client state using the
+// specified format.
+func printKeypairFromState(state *boundkeypair.FSClientState, format string) error {
+	publicKeyBytes, err := state.ToPublicKeyBytes()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyString := strings.TrimSpace(string(publicKeyBytes))
+	return trace.Wrap(printKeypair(KeypairMessageParams{
+		PublicKey: keyString,
+	}, format))
+}
+
+// generateStaticKeypair generates a static keypair, used when --static is set
+func generateStaticKeypair(ctx context.Context, globals *cli.GlobalArgs, cmd *cli.KeypairCreateCommand) error {
+	var key crypto.Signer
+	var err error
+
+	if cmd.StaticPath != "" {
+		bytes, err := os.ReadFile(cmd.StaticPath)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "could not read from static key path %s", cmd.StaticPath)
+		}
+
+		parsed, err := keys.ParsePrivateKey(bytes)
+		if err != nil {
+			return trace.Wrap(err, "could not parse existing key at static key path %s", cmd.StaticPath)
+		}
+
+		// MarshalPrivateKey expects an actual signer impl, so unpack it.
+		key = parsed.Signer
+		log.InfoContext(ctx, "Loaded existing static key from path", "path", cmd.StaticPath)
+	}
+
+	if key == nil || cmd.Overwrite {
+		if key != nil {
+			log.WarnContext(
+				ctx,
+				"An existing static key was found at the specified path and will be overwritten",
+				"static_path", cmd.StaticPath,
+			)
+		}
+
+		key, err = cryptosuites.GenerateKey(
+			ctx,
+			getSuiteFromProxy(cmd.ProxyServer, globals.Insecure),
+			cryptosuites.BoundKeypairJoining,
+		)
+		if err != nil {
+			return trace.Wrap(err, "generating keypair")
+		}
+	} else {
+		log.InfoContext(ctx, "An existing static key was found at the given path and will be printed. To generate a new key, pass --overwrite")
+	}
+
+	privateKeyBytes, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return trace.Wrap(err, "marshaling private key")
+	}
+
+	encodedPrivateKey := base64.StdEncoding.EncodeToString(privateKeyBytes)
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return trace.Wrap(err, "creating ssh public key")
+	}
+
+	publicKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
+	publicKeyString := strings.TrimSpace(string(publicKeyBytes))
+
+	if cmd.StaticPath != "" {
+		if err := os.WriteFile(cmd.StaticPath, privateKeyBytes, botfs.DefaultMode); err != nil {
+			return trace.Wrap(err, "writing static key to %s", cmd.StaticPath)
+		}
+
+		log.InfoContext(
+			ctx,
+			"A static keypair has been written to the specified static key path",
+			"path", cmd.StaticPath,
+		)
+	}
+
+	return trace.Wrap(printKeypair(KeypairMessageParams{
+		PublicKey:         publicKeyString,
+		EnvName:           onboarding.BoundKeypairStaticKeyEnv,
+		EncodedPrivateKey: encodedPrivateKey,
+		StaticKeyPath:     cmd.StaticPath,
+	}, cmd.Format))
+}
+
 // onKeypairCreate command handles `tbot keypair create`
 func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *cli.KeypairCreateCommand) error {
+	if cmd.Static {
+		return trace.Wrap(generateStaticKeypair(ctx, globals, cmd))
+	}
+
+	if cmd.Storage == "" {
+		return trace.BadParameter("a storage path must be provided with --storage")
+	}
+
 	dest, err := config.DestinationFromURI(cmd.Storage)
 	if err != nil {
 		return trace.Wrap(err, "parsing storage URI")
@@ -114,7 +244,7 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 	if err == nil {
 		if !cmd.Overwrite {
 			log.InfoContext(ctx, "Existing client state found, printing existing public key. To generate a new key, pass --overwrite")
-			return trace.Wrap(printKeypair(state, cmd.Format))
+			return trace.Wrap(printKeypairFromState(state, cmd.Format))
 		} else {
 			log.WarnContext(ctx, "Overwriting existing client state and generating a new keypair.")
 		}
@@ -139,5 +269,5 @@ func onKeypairCreateCommand(ctx context.Context, globals *cli.GlobalArgs, cmd *c
 		"storage", dest.String(),
 	)
 
-	return trace.Wrap(printKeypair(state, cmd.Format))
+	return trace.Wrap(printKeypairFromState(state, cmd.Format))
 }
