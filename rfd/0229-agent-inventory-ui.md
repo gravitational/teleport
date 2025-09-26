@@ -35,7 +35,9 @@ various query parameters for pagination and filtering, including:
 
 - `search`: Filter by hostname.
 - `versions`: Filter to only return agents running the specified Teleport version(s).
+- `services`: Filter to only return agents running the specified service(s).
 - `upgraders`: Filter to only return agents using the specified external upgrader(s).
+- `updaterGroup`: Filter to only return agents in the specified updater group.
 
 The response will be a JSON object containing the page of agents requested.
 
@@ -49,6 +51,7 @@ The response will be a JSON object containing the page of agents requested.
       "hostname": "server1",
       "version": "16.1.3",
       "services": ["ssh", "db", "desktop"],
+      "updaterGroup": "group1",
     },
     {
       "serverId": "2",
@@ -56,12 +59,14 @@ The response will be a JSON object containing the page of agents requested.
       "version": "16.5.4",
       "services": ["kube"],
       "upgrader": "Upgrader v2",
+      "updaterGroup": "group2",
     },
     {
       "serverId": "3",
       "hostname": "server3",
       "version": "16.1.3",
       "services": ["ssh"],
+      "updaterGroup": "group1",
     },
   ],
   "uniqueVersions": ["16.1.3", "16.5.4"],
@@ -90,6 +95,9 @@ fields in the cache and tallied up during initialization, and updated as needed 
 the unique version numbers of Teleport found running on agents will also be collected, as this will be to build the version
 filtering options in the Web UI.
 
+The cache will hook into the backend events watcher and watch for `Instances` events and update the cache accordingly whenever
+an update is detected (such as an instance no longer being connected).
+
 Any requests made for instances will be rejected until the `InstancesCache` is initialized and healthy.
 
 #### UX
@@ -97,20 +105,20 @@ Any requests made for instances will be rejected until the `InstancesCache` is i
 ![](assets/0229-agent-inventory-mockup.png)
 *The above mockup is not finalized and may differ slightly from the implemented feature.
 
-The new `Agent Inventory` page will be available in the Web UI under the `Zero Trust Access` navigation section. Users who don't
-have `list` permissions for the `instance` resource kind will not have permission to list instances and won't see the navigation
-item.
+The new `Agent Inventory` page will be available in the Web UI under the `Zero Trust Access` navigation section. 
 
 The top of the page will contain aggregate metrics including the total number of up-to-date and out-of-date agents, number of 
 agents using externally managed upgrades and their upgraders, and total active services.
 
-The list of agents will contain columns for hostname, version, services, and external upgrader (if any). Users will be able
-to filter agents by version, services, or upgrader. All filter options will be dropdowns containing checkbox lists that allow 
-the user can select one or more options. The `versions` filter will be a dropdown containing a checkbox list of 
-all the unique versions of Teleport found running on agents, based on the `uniqueVersions` field returned in the web response.
+The list of agents will be a paginated list with infinite scroll support, and contain columns for hostname,
+version, services, and external upgrader (if any). Users will be able to filter agents by version, services,
+upgrader, or updater group. All filter options will be dropdowns containing checkbox lists that allow the user 
+can select one or more options. The `versions` filter will be a dropdown containing a checkbox list of all the
+unique versions of Teleport found running on agents, based on the `uniqueVersions` field returned in the web response.
 
 If the page is loaded while the `InstancesCache` is still being initialized, the page will be empty and only show a banner message
-with the text "The agent inventory is not yet ready to be displayed, please check back in a few minutes."
+with the text "The agent inventory is not yet ready to be displayed, please check back in a few minutes." Users who don't
+have `list` permissions for the `instance` resource kind will see a banner informing them that they need permissions for `instance.list`.
 
 #### Security
 
