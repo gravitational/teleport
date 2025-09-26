@@ -800,6 +800,7 @@ type AuthServiceClient interface {
 	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -3022,6 +3023,7 @@ func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *e
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.AppV3List)
@@ -4348,6 +4350,7 @@ type AuthServiceServer interface {
 	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.

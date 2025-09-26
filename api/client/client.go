@@ -3376,6 +3376,7 @@ func (c *Client) GetApp(ctx context.Context, name string) (types.Application, er
 // service, use GetApplicationServers instead.
 // Deprecated: Prefer using [ListApps] or [Apps] instead.
 func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	items, err := c.grpc.GetApps(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
