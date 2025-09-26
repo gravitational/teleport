@@ -91,9 +91,10 @@ overall security posture will depend on the correct and secure integration of th
 ### Proto Specification
 
 A new service called `TransportService` will be introduced. `TransportService` will replace the existing
-`TransportService` in the v1 package. The `ProxySSH` RPC of the v1 `TransportService` will be deprecated in favor of the v2
-package's `TransportService`'s `ProxySSH` RPC, which provides in-band MFA enforcement during SSH session establishment. The new RPC supports both
-MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA challenges as needed.
+`TransportService` in the v1 package. The `ProxySSH` RPC of the v1 `TransportService` will be deprecated in favor of the
+v2 package's `TransportService`'s `ProxySSH` RPC, which provides in-band MFA enforcement during SSH session
+establishment. The new RPC supports both MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA
+challenges as needed.
 
 ```proto
 // api/proto/teleport/transport/v2/transport_service.proto
@@ -108,23 +109,24 @@ MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA 
 // until the stream is terminated.
 service TransportService {
   // ProxySSH establishes an SSH connection to the target host over a bidirectional stream. Upon stream establishment,
-  // the server will send an MFAAuthenticateChallenge as the first message if MFA is required. If MFA is not required,
-  // the server will not send a challenge and the client can send the dial_target directly. All SSH and agent frames are
-  // sent as raw bytes and are not interpreted by the proxy.
+  // the client MUST send a TargetHost (dial_target) as the first message. The server will then evaluate if MFA is required
+  // for the requested target. If MFA is required, the server will send an MFAAuthenticateChallenge as the next message.
+  // If MFA is not required, the server will send ClusterDetails and the client can proceed to send SSH/agent frames.
+  // All SSH and agent frames are sent as raw bytes and are not interpreted by the proxy.
   rpc ProxySSH(stream ProxySSHRequest) returns (stream ProxySSHResponse);
 }
 
 message ProxySSHRequest {
   // Only one of these fields should be set per message.
+  // - Client MUST send dial_target as the first message.
   // - If MFA is required, client sends MFAAuthenticateResponse after receiving challenge.
-  // - If MFA is not required, client sends dial_target directly.
   // - After connection is established, client sends SSH or agent frames as raw bytes.
   //
   // Validation: The server MUST validate that exactly one field in the oneof payload is set per message.
   // If zero or more than one field is set, the server MUST reject the message and terminate the stream with an error.
   oneof payload {
-    MFAAuthenticateResponse mfa_response = 1; // Sent by client after receiving MFA challenge (if required)
-    TargetHost dial_target = 2;              // Sent by client after successful MFA or if MFA is not required
+    TargetHost dial_target = 1;              // Sent by client as the first message
+    MFAAuthenticateResponse mfa_response = 2; // Sent by client after receiving MFA challenge (if required)
     Frame ssh = 3;                           // SSH payload
     Frame agent = 4;                         // SSH Agent payload
   }
@@ -134,11 +136,11 @@ message ProxySSHResponse {
   // Only one of these fields will be set per message.
   // The first message from the server will be:
   // - MFAAuthenticateChallenge if MFA is required (client must respond with MFAAuthenticateResponse)
-  // - ClusterDetails if MFA is not required (client can send dial_target immediately)
+  // - ClusterDetails if MFA is not required
   // After MFA (or if not required), server sends ClusterDetails and then SSH/agent frames.
   oneof payload {
-    MFAAuthenticateChallenge mfa_challenge = 1; // Sent by server as first message if MFA is required
-    ClusterDetails details = 2;                 // Sent by server as first message if MFA is not required, and after MFA if required
+    MFAAuthenticateChallenge mfa_challenge = 1; // Sent by server if MFA is required
+    ClusterDetails details = 2;                 // Sent by server if MFA is not required, and after MFA if required
     Frame ssh = 3;                              // SSH payload
     Frame agent = 4;                            // SSH Agent payload
   }
@@ -153,8 +155,7 @@ initializes, the server first checks if MFA is required for the session based on
 For sessions where MFA is required, the server begins by sending an MFA challenge as the initial message. The client
 must then respond with valid authentication factors before proceeding further. The session can only continue after
 successful MFA verification. If the MFA verification fails, the stream is immediately terminated. Similarly, any
-connectivity issues with the authentication service result in the session being denied. See
-[Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
+connectivity issues with the authentication service result in the session being denied. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
 
 In cases where MFA is optional, or after successful MFA verification, the server sends `ClusterDetails` to the client.
 At this point, the client can proceed with their `DialTarget` request, and the server establishes an SSH connection with
@@ -175,6 +176,7 @@ sequenceDiagram
    participant Node
 
    Client->>Proxy: Open ProxySSH stream
+   Client->>Proxy: TargetHost (dial_target)
 
    Proxy->>Proxy: Check MFA Requirement
 
@@ -191,7 +193,6 @@ sequenceDiagram
    end
 
    Proxy->>Client: ClusterDetails
-   Client->>Proxy: TargetHost (dial_target)
 
    Proxy->>Node: DialRequest (Permit)
    Node->>Proxy: DialResponse
@@ -273,8 +274,9 @@ All audit events for SSH sessions established via in-band MFA will continue to i
 
 ### Observability
 
-The `TransportService` in the v2 package will follow the established convention of using OpenTelemetry's auto-instrumentation, as this
-is already implemented for the v1 `TransportService`. No changes to observability patterns are needed.
+The `TransportService` in the v2 package will follow the established convention of using OpenTelemetry's
+auto-instrumentation, as this is already implemented for the v1 `TransportService`. No changes to observability patterns
+are needed.
 
 ### Product Usage
 
@@ -303,8 +305,8 @@ period and while receiving appropriate deprecation notices.
 1. Generate `TransportService` Go code using `protoc`.
 1. Implement the v2 `TransportService` in `lib/srv/transport/transportv2/`.
 1. Deprecate the v1 `TransportService`'s `ProxySSH` RPC in `api/proto/teleport/transport/v1/transport_service.proto`.
-1. Ensure server can handle clients using the deprecated v1 `TransportService` RPCs, while supporting the new
-   v2 `TransportService` RPCs.
+1. Ensure server can handle clients using the deprecated v1 `TransportService` RPCs, while supporting the new v2
+   `TransportService` RPCs.
 1. Update client/tsh code in `api/client/proxy/client.go` to use the v2 `TransportService`. Client should fallback to
    the v1 `TransportService` if the v2 service is not available.
 1. Update clients so they handle MFA challenges and responses as a part of the SSH session establishment process.
