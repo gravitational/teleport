@@ -1343,6 +1343,8 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
 		ClientID:        instances.ClientID,
+		InstallSuffix:   instances.InstallSuffix,
+		UpdateGroup:     instances.UpdateGroup,
 	}
 	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -1436,6 +1438,8 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
 		SSHKeyAlgo:      sshKeyAlgo,
+		InstallSuffix:   instances.InstallSuffix,
+		UpdateGroup:     instances.UpdateGroup,
 	}
 	if err := s.gcpInstaller.Run(s.ctx, req); err != nil {
 		return trace.Wrap(err)
