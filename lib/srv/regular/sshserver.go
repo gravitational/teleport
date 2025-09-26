@@ -1616,21 +1616,6 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	})
 
 	for {
-		// update scx with the session ID:
-		if !s.proxyMode {
-			err := scx.CreateOrJoinSession(ctx, s.reg)
-			if err != nil {
-				scx.Logger.ErrorContext(ctx, "Unable to update context", "error", err)
-
-				// write the error to channel and close it
-				s.writeStderr(ctx, trackingChan, fmt.Sprintf("unable to update context: %v", err))
-				_, err := trackingChan.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
-				if err != nil {
-					scx.Logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
-				}
-				return
-			}
-		}
 		select {
 		case creq := <-scx.SubsystemResultCh:
 			// this means that subsystem has finished executing and
