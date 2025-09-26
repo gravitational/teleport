@@ -505,10 +505,6 @@ func (s *Server) GetSELinuxEnabled() bool {
 
 // GetInfo returns a services.Server that represents the target server.
 func (s *Server) GetInfo() types.Server {
-	return s.getBasicInfo()
-}
-
-func (s *Server) getBasicInfo() *types.ServerV2 {
 	// Only set the address for non-tunnel nodes.
 	var addr string
 	if !s.targetServer.GetUseTunnel() {
