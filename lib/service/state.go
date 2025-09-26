@@ -106,6 +106,8 @@ func (f *processState) update(event Event) {
 	}
 
 	switch event.Name {
+	case TeleportStartingEvent:
+		f.process.logger.DebugContext(f.process.ExitContext(), "Teleport component is starting", "component", component)
 	// If a degraded event was received, always change the state to degraded.
 	case TeleportDegradedEvent:
 		s.state = stateDegraded

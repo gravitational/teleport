@@ -62,6 +62,7 @@ func (process *TeleportProcess) initWindowsDesktopService() {
 }
 
 func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog.Logger, conn *Connector) (retErr error) {
+	process.ExpectService(teleport.ComponentWindowsDesktop)
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentWindowsDesktop); err != nil {
 			logger.WarnContext(process.ExitContext(), "Failed closing imported file descriptors.")

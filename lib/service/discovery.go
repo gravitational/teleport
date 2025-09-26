@@ -45,6 +45,7 @@ func (process *TeleportProcess) initDiscovery() {
 
 func (process *TeleportProcess) initDiscoveryService() error {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDiscovery, process.id))
+	process.ExpectService(teleport.ComponentDiscovery)
 
 	conn, err := process.WaitForConnector(DiscoveryIdentityEvent, logger)
 	if conn == nil {

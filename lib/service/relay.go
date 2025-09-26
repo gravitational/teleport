@@ -52,6 +52,7 @@ func (process *TeleportProcess) runRelayService() error {
 	sublogger := func(subcomponent string) *slog.Logger {
 		return process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentRelay, process.id, subcomponent))
 	}
+	process.ExpectService(teleport.ComponentRelay)
 
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentRelay); err != nil {

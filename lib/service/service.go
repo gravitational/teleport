@@ -331,6 +331,12 @@ const (
 
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
+
+	// TeleportStartingEvent can be emitted when a service starts but is not ready yet.
+	// This helps with tracking that a service is expected to report ready.
+	// Without this else Teleport will report ready as soon as the first service
+	// is registered and ready, even when other services are still starting up.
+	TeleportStartingEvent = "TeleportStarting"
 )
 
 func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, error) {
@@ -753,6 +759,15 @@ func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
 			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
 		}
 	}
+}
+
+// ExpectService is used to advertise a service that should be running in the process.
+// Calling ExpectService while starting a service prevents the process from
+// turning ready while the service is not done starting.
+// After calling ExpectService for a component, one must call the OnHeartbeat callback
+// for the same component at least once to mark the service as running.
+func (process *TeleportProcess) ExpectService(component string) {
+	process.BroadcastEvent(Event{Name: TeleportStartingEvent, Payload: component})
 }
 
 func (process *TeleportProcess) findStaticIdentity(role types.SystemRole) (*state.Identity, error) {
@@ -2125,6 +2140,7 @@ func (process *TeleportProcess) initAuthService() error {
 	var err error
 	cfg := process.Config
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
+	process.ExpectService(teleport.ComponentAuth)
 
 	// Initialize the storage back-ends for keys, events and records
 	b, err := process.initAuthStorage()
@@ -3230,6 +3246,8 @@ func (process *TeleportProcess) initSSH() error {
 	relayInfoHolder := new(relaytunnel.InfoHolder)
 
 	process.RegisterCriticalFunc("ssh.node", func() error {
+		process.ExpectService(teleport.ComponentNode)
+
 		// restartingOnGracefulShutdown will be set to true before the function
 		// exits if the function is exiting because Teleport is gracefully
 		// shutting down as a consequence of internally-triggered reloading or
@@ -3911,6 +3929,7 @@ func (process *TeleportProcess) newProcessStateMachine() (*processState, error) 
 		eventCh := make(chan Event, 1024)
 		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
 		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportStartingEvent, eventCh)
 
 		for {
 			select {
@@ -4258,6 +4277,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 //  4. optionally proxy kubernetes connections
 //  5. optionally check for automatic upgrades for deployments created by AWS OIDC integrations
 func (process *TeleportProcess) initProxy() error {
+	process.ExpectService(teleport.ComponentProxy)
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
 		!process.Config.Proxy.DisableTLS &&
@@ -5660,6 +5680,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// Register TLS endpoint of the Kube proxy service
 		component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
+		process.ExpectService(component)
+
 		kubeServiceType := kubeproxy.ProxyService
 		if cfg.Proxy.Kube.LegacyKubeProxy {
 			kubeServiceType = kubeproxy.LegacyProxyService
@@ -6346,6 +6368,7 @@ var appDependEvents = []string{
 }
 
 func (process *TeleportProcess) initApps() {
+	process.ExpectService(teleport.ComponentApp)
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".

@@ -64,6 +64,7 @@ func (process *TeleportProcess) initKubernetes() {
 }
 
 func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn *Connector) (retErr error) {
+	process.ExpectService(teleport.ComponentKube)
 	// clean up unused descriptors passed for proxy, but not used by it
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentKube); err != nil {
