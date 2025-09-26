@@ -331,7 +331,7 @@ function ThumbnailError({ children }: PropsWithChildren) {
   );
 }
 
-function getRecordingTypeInfo(type: RecordingType): {
+export function getRecordingTypeInfo(type: RecordingType): {
   icon: ComponentType<IconProps>;
   label: string;
 } {
