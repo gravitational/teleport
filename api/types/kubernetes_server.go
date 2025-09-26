@@ -329,11 +329,11 @@ func (s *KubernetesServerV3) GetTargetHealth() TargetHealth {
 }
 
 // SetTargetHealth sets health details for a target Kubernetes cluster.
-func (s *KubernetesServerV3) SetTargetHealth(h TargetHealth) {
+func (s *KubernetesServerV3) SetTargetHealth(h *TargetHealth) {
 	if s.Status == nil {
 		s.Status = &KubernetesServerStatusV3{}
 	}
-	s.Status.TargetHealth = &h
+	s.Status.TargetHealth = h
 }
 
 // GetTargetHealthStatus gets the health status of a target Kubernetes cluster.
