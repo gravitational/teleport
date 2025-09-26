@@ -30,6 +30,7 @@ RUN apt-get -y update && \
         gzip \
         libc6-dev \
         libpam-dev \
+        libfido2-1 \
         locales \
         pkg-config \
         sudo \

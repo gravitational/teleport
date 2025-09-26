@@ -3,7 +3,7 @@ ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
 FROM debian:12 AS staging
 RUN apt-get update
 COPY fetch-debs ./
-RUN ./fetch-debs dumb-init libpam0g libaudit1 libcap-ng0
+RUN ./fetch-debs dumb-init libpam0g libaudit1 libcap-ng0 libfido2-1
 
 FROM debian:12 AS teleport
 # Install the teleport binary from an architecture-specific debian package. Note
