@@ -44,6 +44,7 @@ func (process *TeleportProcess) initKubernetes() {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id))
 
 	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
+	process.ExpectService(teleport.ComponentKube)
 	process.RegisterCriticalFunc("kube.init", func() error {
 		conn, err := process.WaitForConnector(KubeIdentityEvent, logger)
 		if conn == nil {
