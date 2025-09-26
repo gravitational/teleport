@@ -352,6 +352,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     }
 
     if (cluster.profileStatusError) {
+      // TODO(gzdunek): We should only sync the target cluster, not all of them.
       await this.clustersService.syncRootClustersAndCatchErrors(abortSignal);
       // Update the cluster.
       cluster = this.clustersService.findCluster(clusterUri);
