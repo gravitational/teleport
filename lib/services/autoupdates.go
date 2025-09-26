@@ -96,4 +96,7 @@ type AutoUpdateService interface {
 
 	// DeleteAllAutoUpdateAgentReports deletes all AutoUpdateAgentReport resources.
 	DeleteAllAutoUpdateAgentReports(ctx context.Context) error
+
+	// SetAutoUpdateBotReport overwrites the singleton auto-update bot report.
+	SetAutoUpdateBotReport(ctx context.Context, spec *autoupdate.AutoUpdateBotReportSpec) error
 }
