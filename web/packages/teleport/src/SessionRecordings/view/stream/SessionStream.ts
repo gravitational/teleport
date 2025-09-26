@@ -362,6 +362,14 @@ export class SessionStream<
 
       this.updateLoadedTimes(parsed.startTime, parsed.endTime);
 
+      if (this.state === PlayerState.Loading) {
+        if (this.wasPlayingBeforeSeek) {
+          this.play();
+        } else {
+          this.setState(PlayerState.Paused);
+        }
+      }
+
       return;
     }
 
