@@ -18,7 +18,14 @@
 
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 
-import { enableMapSet, produce } from 'immer';
+import {
+  applyPatches,
+  enableMapSet,
+  enablePatches,
+  Patch,
+  produce,
+  Producer,
+} from 'immer';
 
 import stateLogger from 'shared/libs/stores/logger';
 import Store from 'shared/libs/stores/store';
@@ -26,15 +33,37 @@ import Store from 'shared/libs/stores/store';
 import Logger from 'teleterm/logger';
 
 enableMapSet();
+enablePatches();
 
 export class ImmutableStore<T> extends Store<T> {
   protected logger = new Logger(this.constructor.name);
 
   // @ts-ignore
-  setState(nextState: (draftState: T) => T | void): void {
+  setState(nextState: Producer<T>): void {
     const prevState = this.state;
     this.state = produce(this.state, nextState);
     stateLogger.logState(this.constructor.name, prevState, 'with', this.state);
+
+    this._subs.forEach(cb => {
+      try {
+        cb();
+      } catch (error) {
+        this.logger.error(`Store failed to notify subscriber`, error);
+      }
+    });
+  }
+
+  setStateFromPatches(base: keyof T, patches: Patch[]): void {
+    const prevState = this.state;
+    this.state[base] = applyPatches(this.state[base], patches);
+    stateLogger.logState(
+      this.constructor.name,
+      prevState,
+      'with',
+      this.state,
+      'patches',
+      patches
+    );
 
     this._subs.forEach(cb => {
       try {

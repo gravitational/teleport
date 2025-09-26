@@ -264,6 +264,30 @@ export default function createMainProcessClient(): MainProcessClient {
           ),
       };
     },
+    subscribeToClusterStore(listener) {
+      const { port, close } = makeAwaitableReceiver(listener);
+      ipcRenderer.postMessage(
+        MainProcessIpc.InitClusterStoreSubscription,
+        undefined,
+        [port]
+      );
+
+      return {
+        cleanup: close,
+      };
+    },
+    addCluster: async (proxyAddress: string) => {
+      return await ipcRenderer.invoke(MainProcessIpc.AddCluster, proxyAddress);
+    },
+    syncRootClusters: async options => {
+      return await ipcRenderer.invoke(MainProcessIpc.SyncRootClusters, options);
+    },
+    syncCluster: (clusterUri: RootClusterUri) => {
+      return ipcRenderer.invoke(MainProcessIpc.SyncCluster, { clusterUri });
+    },
+    logoutCluster: (clusterUri: RootClusterUri) => {
+      return ipcRenderer.invoke(MainProcessIpc.Logout, { clusterUri });
+    },
   };
 }
 
