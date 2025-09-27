@@ -202,20 +202,20 @@ func generateStaticKeypair(ctx context.Context, globals *cli.GlobalArgs, cmd *cl
 	var key crypto.Signer
 	var err error
 
-	if cmd.StaticPath != "" {
-		bytes, err := os.ReadFile(cmd.StaticPath)
+	if cmd.StaticKeyPath != "" {
+		bytes, err := os.ReadFile(cmd.StaticKeyPath)
 		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err, "could not read from static key path %s", cmd.StaticPath)
+			return trace.Wrap(err, "could not read from static key path %s", cmd.StaticKeyPath)
 		}
 
 		parsed, err := keys.ParsePrivateKey(bytes)
 		if err != nil {
-			return trace.Wrap(err, "could not parse existing key at static key path %s", cmd.StaticPath)
+			return trace.Wrap(err, "could not parse existing key at static key path %s", cmd.StaticKeyPath)
 		}
 
 		// MarshalPrivateKey expects an actual signer impl, so unpack it.
 		key = parsed.Signer
-		log.InfoContext(ctx, "Loaded existing static key from path", "path", cmd.StaticPath)
+		log.InfoContext(ctx, "Loaded existing static key from path", "path", cmd.StaticKeyPath)
 	}
 
 	if key == nil || cmd.Overwrite {
@@ -223,7 +223,7 @@ func generateStaticKeypair(ctx context.Context, globals *cli.GlobalArgs, cmd *cl
 			log.WarnContext(
 				ctx,
 				"An existing static key was found at the specified path and will be overwritten",
-				"static_path", cmd.StaticPath,
+				"static_path", cmd.StaticKeyPath,
 			)
 		}
 
@@ -254,15 +254,15 @@ func generateStaticKeypair(ctx context.Context, globals *cli.GlobalArgs, cmd *cl
 	publicKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
 	publicKeyString := strings.TrimSpace(string(publicKeyBytes))
 
-	if cmd.StaticPath != "" {
-		if err := os.WriteFile(cmd.StaticPath, privateKeyBytes, botfs.DefaultMode); err != nil {
-			return trace.Wrap(err, "writing static key to %s", cmd.StaticPath)
+	if cmd.StaticKeyPath != "" {
+		if err := os.WriteFile(cmd.StaticKeyPath, privateKeyBytes, botfs.DefaultMode); err != nil {
+			return trace.Wrap(err, "writing static key to %s", cmd.StaticKeyPath)
 		}
 
 		log.InfoContext(
 			ctx,
 			"A static keypair has been written to the specified static key path",
-			"path", cmd.StaticPath,
+			"path", cmd.StaticKeyPath,
 		)
 	}
 
@@ -270,7 +270,7 @@ func generateStaticKeypair(ctx context.Context, globals *cli.GlobalArgs, cmd *cl
 		PublicKey:         publicKeyString,
 		EnvName:           onboarding.BoundKeypairStaticKeyEnv,
 		EncodedPrivateKey: encodedPrivateKey,
-		StaticKeyPath:     cmd.StaticPath,
+		StaticKeyPath:     cmd.StaticKeyPath,
 	}, cmd.Format))
 }
 
