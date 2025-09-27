@@ -132,6 +132,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
@@ -5680,6 +5681,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		// Create a health check manager.
+		healthCheckManager, err := healthcheck.NewManager(
+			process.ExitContext(),
+			healthcheck.ManagerConfig{
+				Component:               teleport.ComponentKube,
+				Events:                  accessPoint,
+				HealthCheckConfigReader: accessPoint,
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -5720,6 +5734,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 			InventoryHandle:          process.inventoryHandle,
 			ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
+			HealthCheckManager:       healthCheckManager,
 		})
 		if err != nil {
 			return trace.Wrap(err)

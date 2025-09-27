@@ -30,6 +30,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	authzapi "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
@@ -261,6 +263,64 @@ func (k *kubeDetails) getObjectGVK(resource apiResource) *schema.GroupVersionKin
 		apiGroup: resource.apiGroup,
 		version:  resource.apiGroupVersion,
 	}]
+}
+
+// CheckHealth checks the health of a Kubernetes cluster.
+func (k *kubeDetails) CheckHealth(ctx context.Context) ([]string, error) {
+	type operation struct {
+		verb     string
+		resource string
+		error    string
+	}
+	operations := []operation{
+		{
+			verb:     "impersonate",
+			resource: "users",
+			error:    "Unable to impersonate users in the Kubernetes cluster.",
+		},
+		{
+			verb:     "impersonate",
+			resource: "groups",
+			error:    "Unable to impersonate groups in the Kubernetes cluster.",
+		},
+		{
+			verb:     "impersonate",
+			resource: "serviceaccounts",
+			error:    "Unable to impersonate service accounts in the Kubernetes cluster.",
+		},
+		{
+			verb:     "get",
+			resource: "pods",
+			error:    "Unable to retrieve pods from the Kubernetes cluster.",
+		},
+	}
+
+	const errorGuide = "Please see the Kubernetes Access Troubleshooting guide, https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting."
+	addresses := []string{k.getTargetAddr()}
+	client := k.getKubeClient().AuthorizationV1().SelfSubjectAccessReviews()
+	for _, op := range operations {
+		resp, err := client.Create(ctx, &authzapi.SelfSubjectAccessReview{
+			Spec: authzapi.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authzapi.ResourceAttributes{
+					Verb:     op.verb,
+					Resource: op.resource,
+				},
+			},
+		}, metav1.CreateOptions{})
+		if err != nil {
+			return addresses, trace.Wrap(err, "%s %s", op.error, errorGuide)
+		}
+		if !resp.Status.Allowed {
+			return addresses, trace.AccessDenied("%s %s", op.error, errorGuide)
+		}
+	}
+
+	return addresses, nil
+}
+
+// GetProtocol returns the network protocol used for checking health.
+func (t *kubeDetails) GetProtocol() types.TargetHealthProtocol {
+	return types.TargetHealthProtocolHTTP
 }
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.

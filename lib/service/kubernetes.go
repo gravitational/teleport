@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
@@ -208,6 +209,19 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		publicAddr = cfg.Kube.PublicAddrs[0].String()
 	}
 
+	// Create a health check manager.
+	healthCheckManager, err := healthcheck.NewManager(
+		process.ExitContext(),
+		healthcheck.ManagerConfig{
+			Component:               teleport.ComponentKube,
+			Events:                  accessPoint,
+			HealthCheckConfigReader: accessPoint,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:                     apidefaults.Namespace,
@@ -242,6 +256,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		Log:                  process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 		InventoryHandle:      process.inventoryHandle,
+		HealthCheckManager:   healthCheckManager,
 	})
 	if err != nil {
 		return trace.Wrap(err)
