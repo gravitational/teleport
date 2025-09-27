@@ -998,7 +998,7 @@ func registerUsingBoundKeypairMethod(
 
 				joseSigner, err := jose.NewSigner(key, opts)
 				if err != nil {
-					return nil, trace.Wrap(err, "creating signer")
+					return nil, trace.Wrap(err, "creating signer (%T)", signer)
 				}
 
 				jws, err := joseSigner.Sign([]byte(kind.Challenge.Challenge))
