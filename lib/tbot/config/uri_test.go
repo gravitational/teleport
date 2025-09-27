@@ -212,7 +212,7 @@ func TestJoinURIApplyToConfig(t *testing.T) {
 			},
 			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "field: onboarding.token")
-				require.ErrorContains(tt, err, "field: onboarding.bound_keypair.initial_join_secret")
+				require.ErrorContains(tt, err, "field: onboarding.bound_keypair.registration_secret")
 				require.ErrorContains(tt, err, "field: proxy_server")
 
 				// Note: join method is already bound_keypair so no error will
