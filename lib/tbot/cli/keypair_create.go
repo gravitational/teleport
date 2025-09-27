@@ -24,12 +24,12 @@ import "github.com/gravitational/teleport"
 type KeypairCreateCommand struct {
 	*genericExecutorHandler[KeypairCreateCommand]
 
-	ProxyServer string
-	Storage     string
-	Overwrite   bool
-	Format      string
-	Static      bool
-	StaticPath  string
+	ProxyServer   string
+	Storage       string
+	Overwrite     bool
+	Format        string
+	Static        bool
+	StaticKeyPath string
 }
 
 // NewKeypairCreateCommand initializes the `keypair create` command and returns
@@ -45,7 +45,7 @@ func NewKeypairCreateCommand(parentCmd KingpinClause, action func(*KeypairCreate
 	cmd.Flag("overwrite", "If set, overwrite any existing keypair. If unset and a keypair already exists, its key will be printed for use.").BoolVar(&c.Overwrite)
 	cmd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.Format, teleport.Text, teleport.JSON)
 	cmd.Flag("static", "If set, create a static private key instead of writing a mutable key into bot storage. If --static-path is unset, the key will be printed to the terminal.").BoolVar(&c.Static)
-	cmd.Flag("static-path", "If set, writes the static private key to a file.").StringVar(&c.StaticPath)
+	cmd.Flag("static-key-path", "If set, writes the static private key to a file.").StringVar(&c.StaticKeyPath)
 
 	return c
 }
