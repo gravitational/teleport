@@ -238,7 +238,7 @@
                     "default": ""
                 }
             }
-        },        
+        },
         "tolerations": {
             "$id": "#/properties/tolerations",
             "type": "array",
@@ -392,7 +392,7 @@
                     "type": "array",
                     "default": "",
                     "examples": [
-                        ["print"]
+                        ["print", "desktop.recording"]
                     ]
                 }
             },
