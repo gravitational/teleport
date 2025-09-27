@@ -576,7 +576,7 @@ This usually means that the agent is offline or has disconnected. Check the
 agent logs and, if the issue persists, try restarting it or re-registering it
 with the cluster.`
 
-	if params.TargetServer.IsOpenSSHNode() || params.TargetServer.IsEICE() {
+	if params.TargetServer != nil && (params.TargetServer.IsOpenSSHNode() || params.TargetServer.IsEICE()) {
 		errorMessageTemplate = `Teleport proxy failed to connect to %q resource %q over %s:
 
   %v
