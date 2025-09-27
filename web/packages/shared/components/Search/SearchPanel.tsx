@@ -40,7 +40,7 @@ export function SearchPanel({
   updateSearch: (s: string) => void;
   pageIndicators?: { from: number; to: number; total: number };
   filter: ResourceFilter;
-  disableSearch: boolean;
+  disableSearch?: boolean;
   hideAdvancedSearch?: boolean;
   extraChildren?: JSX.Element;
 }) {

@@ -20,7 +20,7 @@ import { format } from 'date-fns/format';
 import { formatDistanceToNowStrict } from 'date-fns/formatDistanceToNowStrict';
 import { parseISO } from 'date-fns/parseISO';
 import { ReactElement } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 import Flex from 'design/Flex/Flex';
 import { ArrowFatLinesUp } from 'design/Icon/Icons/ArrowFatLinesUp';
@@ -32,26 +32,54 @@ import {
 import { ResourceIcon } from 'design/ResourceIcon';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
+import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import { useClusterVersion } from '../../useClusterVersion';
 import { JoinMethodIcon } from './JoinMethodIcon';
 
 export function Instance(props: {
-  id: string;
-  version?: string;
-  hostname?: string;
-  activeAt?: string;
-  method?: string;
-  os?: string;
+  data: {
+    id: string;
+    botName?: string;
+    version?: string;
+    hostname?: string;
+    activeAt?: string;
+    method?: string;
+    os?: string;
+  };
+  isSelectable?: boolean;
+  isSelected?: boolean;
+  onSelected?: () => void;
 }) {
-  const { id, version, hostname, activeAt, method, os } = props;
+  const {
+    data: { id, botName, version, hostname, activeAt, method, os },
+    isSelectable,
+    isSelected,
+    onSelected,
+  } = props;
 
   const hasHeartbeatData = !!version || !!hostname || !!method || !!os;
 
   return (
-    <Container>
+    <Container
+      $isSelectable={!!isSelectable}
+      $isSelected={!!isSelected}
+      onClick={() => onSelected?.()}
+      role="listitem"
+      tabIndex={0}
+      aria-label={`${botName}/${id}`}
+    >
       <TopRow>
-        <IdText typography="body2">{id}</IdText>
+        {botName ? (
+          <BotNameContainer alignItems={'center'} gap={1}>
+            <BotNameText>
+              {botName}/{shortenId(id)}
+            </BotNameText>
+            <CopyButton name={`${botName}/${id}`} />
+          </BotNameContainer>
+        ) : (
+          <IdText typography="body2">{id}</IdText>
+        )}
         {activeAt ? (
           <HoverTooltip
             placement="top"
@@ -104,13 +132,39 @@ export function Instance(props: {
   );
 }
 
-const Container = styled(Flex)`
+const Container = styled(Flex)<{
+  $isSelectable: boolean;
+  $isSelected: boolean;
+}>`
   flex-direction: column;
   padding: ${props => props.theme.space[3]}px;
   padding-top: ${p => p.theme.space[2]}px;
   padding-bottom: ${p => p.theme.space[2]}px;
   background-color: ${p => p.theme.colors.levels.surface};
   gap: ${p => p.theme.space[1]}px;
+
+  ${p =>
+    p.$isSelected
+      ? css`
+          border-left: ${p.theme.space[1]}px solid
+            ${p.theme.colors.interactive.solid.primary.default};
+          background-color: ${p.theme.colors.interactive.tonal.neutral[0]};
+        `
+      : ''}
+
+  ${p =>
+    p.$isSelectable
+      ? css`
+          cursor: pointer;
+
+          &:hover {
+            background-color: ${p.theme.colors.interactive.tonal.neutral[0]};
+          }
+          &:active {
+            background-color: ${p.theme.colors.interactive.tonal.neutral[1]};
+          }
+        `
+      : ''}
 `;
 
 const TopRow = styled(Flex)`
@@ -140,6 +194,15 @@ const TimeText = styled(Text).attrs({
 const IdText = styled(Text)`
   flex: 1;
   white-space: nowrap;
+`;
+
+const BotNameText = styled(Text)`
+  white-space: nowrap;
+`;
+
+const BotNameContainer = styled(Flex)`
+  flex: 1;
+  overflow: hidden;
 `;
 
 const HostnameText = styled(Text).attrs({
@@ -202,3 +265,7 @@ function Version(props: { version: string | undefined }) {
 const VersionContainer = styled.div`
   flex-shrink: 0;
 `;
+
+function shortenId(id: string) {
+  return id.substring(0, 7);
+}
