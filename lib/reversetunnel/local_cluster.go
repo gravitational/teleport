@@ -589,6 +589,27 @@ with the cluster.`
 	return fmt.Sprintf(errorMessageTemplate, params.ConnType, toAddr, connStr, err)
 }
 
+func getAgentlessErrorMessage(params reversetunnelclient.DialParams, connStr string, err error) string {
+	errorMessageTemplate := `Teleport proxy failed to connect to %q resource %q over %s:
+
+  %v
+
+This usually means that the resource is offline or network permissions block the connection.
+Check the resource health status and network permissions`
+
+	var toAddr string
+	if params.To != nil {
+		toAddr = params.To.String()
+	}
+
+	// Prefer providing the hostname over an address.
+	if params.TargetServer != nil {
+		toAddr = params.TargetServer.GetHostname()
+	}
+
+	return fmt.Sprintf(errorMessageTemplate, params.ConnType, toAddr, connStr, err)
+}
+
 func stringOrEmpty(addr net.Addr) string {
 	if addr == nil {
 		return ""
@@ -692,6 +713,9 @@ func (s *localCluster) getConn(params reversetunnelclient.DialParams) (conn net.
 	conn, directErr = s.dialDirect(params)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
+		if params.TargetServer.IsOpenSSHNode() || params.TargetServer.IsEICE() {
+			directMsg = getAgentlessErrorMessage(params, "direct dial", directErr)
+		}
 		s.logger.DebugContext(s.srv.ctx, "All attempted dial methods failed",
 			"target_addr", logutils.StringerAttr(params.To),
 			"tunnel_error", tunnelErr,
