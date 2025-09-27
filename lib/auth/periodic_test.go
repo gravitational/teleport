@@ -20,6 +20,7 @@ package auth
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
@@ -246,9 +247,9 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 				{Version: "15.0.0"},
 			},
 			expected: map[registeredAgent]int{
-				{"13.0.0", "false"}: 1,
-				{"14.0.0", "false"}: 1,
-				{"15.0.0", "false"}: 1,
+				{runtime.GOOS, "13.0.0", "false"}: 1,
+				{runtime.GOOS, "14.0.0", "false"}: 1,
+				{runtime.GOOS, "15.0.0", "false"}: 1,
 			},
 		},
 		{
@@ -265,12 +266,12 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 				{Version: "15.0.0"},
 			},
 			expected: map[registeredAgent]int{
-				{"13.0.0", "true"}:  2,
-				{"13.0.0", "false"}: 1,
-				{"14.0.0", "true"}:  2,
-				{"14.0.0", "false"}: 1,
-				{"15.0.0", "true"}:  2,
-				{"15.0.0", "false"}: 1,
+				{runtime.GOOS, "13.0.0", "true"}:  2,
+				{runtime.GOOS, "13.0.0", "false"}: 1,
+				{runtime.GOOS, "14.0.0", "true"}:  2,
+				{runtime.GOOS, "14.0.0", "false"}: 1,
+				{runtime.GOOS, "15.0.0", "true"}:  2,
+				{runtime.GOOS, "15.0.0", "false"}: 1,
 			},
 		},
 	}
@@ -279,7 +280,9 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 			periodic := newInstanceMetricsPeriodic()
 
 			for _, instance := range tt.instance {
-				periodic.VisitInstance(instance, new(proto.UpstreamInventoryAgentMetadata))
+				periodic.VisitInstance(instance, &proto.UpstreamInventoryAgentMetadata{
+					OS: runtime.GOOS,
+				})
 			}
 			require.Equal(t, tt.expected, periodic.RegisteredAgentsCount(), "tt=%q", tt.desc)
 		})
