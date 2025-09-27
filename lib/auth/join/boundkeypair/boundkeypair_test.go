@@ -175,6 +175,10 @@ func TestStaticClientState(t *testing.T) {
 	_, err = params.GetSigner(wrongPublicKeyString)
 	require.ErrorContains(t, err, "configured static private key does match the value requested by the server")
 
+	invalidSigner, err := params.RequestNewKeypair(t.Context(), getSuite)
+	require.Nil(t, invalidSigner)
+	require.ErrorContains(t, err, "static private keys do not support automatic rotation")
+
 	// no-op, but shouldn't return an error
 	require.NoError(t, static.Store(t.Context()))
 
