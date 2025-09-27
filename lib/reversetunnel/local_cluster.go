@@ -595,7 +595,7 @@ func getAgentlessErrorMessage(params reversetunnelclient.DialParams, connStr str
   %v
 
 This usually means that the resource is offline or network permissions block the connection.
-Check the resource health status and network permissions`
+Check the resource health status and network permissions.`
 
 	var toAddr string
 	if params.To != nil {
