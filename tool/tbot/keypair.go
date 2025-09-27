@@ -98,6 +98,7 @@ The static key has been written to: {{ .StaticKeyPath }}
 
 Configure your bot to use this static key by setting the following 'tbot.yaml'
 field:
+
 	onboarding:
 	  join_method: bound_keypair
 	  bound_keypair:
@@ -106,6 +107,7 @@ field:
 Configure your bot to use this static key by inserting the following private key
 value into the bot's environment, ideally via a platform-specific keystore if
 available:
+
 	export {{ .EnvName }}={{ .EncodedPrivateKey }}
 {{ end -}}
 `))
