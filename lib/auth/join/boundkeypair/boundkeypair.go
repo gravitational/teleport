@@ -544,7 +544,8 @@ func (s *StaticClientState) checkedSigner(expectPubKey []byte) (crypto.Signer, e
 		return nil, trace.BadParameter("configured static private key does match the value requested by the server, cannot continue")
 	}
 
-	return privateKey, nil
+	// Return the internal signer since `jose.NewSigner` does type checking
+	return privateKey.Signer, nil
 }
 
 // ToJoinParams returns join parameters for this static client state. It does

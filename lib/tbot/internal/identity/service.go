@@ -650,9 +650,6 @@ func initBoundKeypairClientState(
 	cfg Config,
 	joinSecret string,
 ) (boundkeypair.ClientState, error) {
-	var state boundkeypair.ClientState
-	var err error
-
 	staticKey, err := cfg.Onboarding.BoundKeypair.StaticPrivateKeyBytes()
 	if err != nil {
 		log.WarnContext(
@@ -661,11 +658,12 @@ func initBoundKeypairClientState(
 			"error", err,
 		)
 	} else if staticKey != nil {
-		state = boundkeypair.NewStaticClientState(staticKey)
+		log.InfoContext(ctx, "A static keypair was configured and will be used instead of mutable internal key storage")
+		return boundkeypair.NewStaticClientState(staticKey), nil
 	}
 
 	adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
-	state, err = boundkeypair.LoadClientState(ctx, adapter)
+	state, err := boundkeypair.LoadClientState(ctx, adapter)
 	if trace.IsNotFound(err) && joinSecret != "" {
 		log.InfoContext(ctx, "No existing client state found, will attempt "+
 			"to join with provided registration secret")
@@ -675,7 +673,7 @@ func initBoundKeypairClientState(
 			"no local credentials are available and no registration secret "+
 			"was provided. To continue, either generate a keypair with "+
 			"`tbot keypair create` and register it with Teleport, or "+
-			"generate a registration secret on Teleport and provide it with"+
+			"generate a registration secret on Teleport and provide it with "+
 			"the `--registration-secret` flag.")
 		return nil, trace.Wrap(err, "loading bound keypair client state")
 	}
