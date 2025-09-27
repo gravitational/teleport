@@ -145,8 +145,8 @@ export function ExternalAuditStorage() {
             </Text>
             <Text>
               The External Audit Storage integration will store all new audit
-              log events and session recordings on your own Amazon account, but
-              any audit logs and session recordings from before the change will
+              log events and session recordings on your own AWS account, but any
+              audit logs and session recordings from before the change will
               become inaccessible.
             </Text>
           </Box>

@@ -16,7 +16,6 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg from 'e-teleport/config';
 import useTeleportE from 'e-teleport/useTeleportE';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import { Header, HeaderSubtitle } from 'teleport/Discover/Shared';
 import {
   ExternalAuditStorage,
   IntegrationAwsOidc,
@@ -68,9 +67,10 @@ export function ConfigurePermissions() {
     );
   }
 
-  function handleContinuePreviousDraft() {
+  async function handleContinuePreviousDraft() {
     setPreviousDraft(null);
-    return continuePreviousDraft().then(() => nextStep());
+    await continuePreviousDraft();
+    return nextStep();
   }
 
   return (
@@ -82,7 +82,7 @@ export function ConfigurePermissions() {
           </DialogHeader>
           <DialogContent>
             {attemptDelete.status === 'failed' && (
-              <Alert kind="danger" children={attemptDelete.statusText} />
+              <Alert kind="danger">{attemptDelete.statusText}</Alert>
             )}
             <Text>
               There is an ongoing External Audit Storage integration with{' '}
@@ -116,47 +116,43 @@ export function ConfigurePermissions() {
         </Dialog>
       )}
 
-      <Header>Configure Permissions</Header>
-      <HeaderSubtitle>
-        Teleport needs to create S3 buckets, a Glue database, and an Athena
-        workgroup in your AWS account. This step will also attach a policy with
-        the necessary permissions to the IAM role used with your existing AWS
-        OIDC integration.
-      </HeaderSubtitle>
+      <Text mb="2">
+        Teleport needs to set up an Athena workgroup, a Glue database and table,
+        and S3 buckets for long-term and transient storage in your AWS account,
+        as well as attach a policy with permissions necessary for the IAM role
+        used with your existing AWS OIDC integration. All you need to do is
+        generate and copy a script, then paste it into AWS CloudShell.
+      </Text>
 
-      <>
-        <Text bold>Set up the infrastructure</Text>
-        <Text mb="4" mt="1">
-          Open{' '}
-          <Link target="_blank" href={AWS_CLOUD_SHELL_LINK}>
-            Amazon CloudShell
-          </Link>{' '}
-          copy/paste the following command to set up an Athena workgroup, a Glue
-          database and table, and S3 buckets for long-term and transient
-          storage.
-        </Text>
-        {attemptGenerate.status === 'failed' && (
-          <Alert kind="danger" children={attemptGenerate.statusText} />
-        )}
-        {attempt.status === 'failed' && (
-          <Alert kind="danger" children={attempt.statusText} />
-        )}
-        {script && attempt.status !== 'processing' && (
-          <TextSelectCopy mb="4" text={script} allowMultiline />
-        )}
-        {attempt.status === 'processing' && <Text>Loading...</Text>}
-        {!script && (
-          <ButtonPrimary
-            onClick={handleGenerate}
-            disabled={
-              attemptGenerate.status === 'processing' ||
-              attempt.status === 'processing'
-            }
-          >
-            Generate Script
-          </ButtonPrimary>
-        )}
-      </>
+      {attemptGenerate.status === 'failed' && (
+        <Alert kind="danger">{attemptGenerate.statusText}</Alert>
+      )}
+      {attempt.status === 'failed' && (
+        <Alert kind="danger">{attempt.statusText}</Alert>
+      )}
+      {script && attempt.status !== 'processing' && (
+        <>
+          <TextSelectCopy mb="2" text={script} allowMultiline />
+          <Text>
+            Paste the command in{' '}
+            <Link target="_blank" href={AWS_CLOUD_SHELL_LINK}>
+              AWS CloudShell
+            </Link>{' '}
+          </Text>
+        </>
+      )}
+      {attempt.status === 'processing' && <Text>Loading...</Text>}
+      {!script && (
+        <ButtonPrimary
+          onClick={handleGenerate}
+          disabled={
+            attemptGenerate.status === 'processing' ||
+            attempt.status === 'processing'
+          }
+        >
+          Generate Script
+        </ButtonPrimary>
+      )}
     </>
   );
 }

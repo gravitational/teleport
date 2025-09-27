@@ -35,9 +35,9 @@ export function TestConnection() {
     <>
       <Header>Test Connection</Header>
       <HeaderSubtitle>
-        Once the script has finished running in Amazon CloudShell, click the
-        "Test Connection" button to check that your integration is set up
-        correctly to store audit logs and session recordings.
+        Once the script has finished running in AWS CloudShell, click the
+        &quot;Test Connection&quot; button to check that your integration is set
+        up correctly to store audit logs and session recordings.
       </HeaderSubtitle>
       <Flex>
         <ButtonSecondary

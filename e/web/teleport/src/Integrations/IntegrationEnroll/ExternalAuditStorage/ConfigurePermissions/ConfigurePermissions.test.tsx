@@ -57,7 +57,6 @@ describe('configurePermissions', () => {
     await userEvent.click(screen.getByText('Generate Script'));
 
     expect(screen.queryByText(/Draft in progress/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Configure Permissions/)).toBeInTheDocument();
   });
 
   it('renders generate script button when script is null', async () => {
