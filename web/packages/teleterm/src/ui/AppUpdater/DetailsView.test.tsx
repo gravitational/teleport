@@ -29,7 +29,7 @@ test('download button is available when autoDownload is false', async () => {
   render(
     <DetailsView
       updateEvent={makeUpdateAvailableEvent(
-        makeUpdateInfo(false, '18.0.0', false),
+        makeUpdateInfo(false, '18.0.0', 'upgrade'),
         {
           enabled: true,
           version: '18.0.0',

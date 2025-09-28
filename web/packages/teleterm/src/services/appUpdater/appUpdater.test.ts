@@ -349,7 +349,7 @@ test('discards previous update if the latest check returns no update', async () 
   expect(setup.nativeUpdater.autoInstallOnAppQuit).toBeFalsy();
 });
 
-test('when the update is older than app isDowngrade is true', async () => {
+test('when the update is older than app updateKind equals downgrade', async () => {
   const setup = setUpAppUpdater({
     clusters: {
       reachableClusters: [
@@ -369,13 +369,13 @@ test('when the update is older than app isDowngrade is true', async () => {
     expect.objectContaining({
       kind: 'update-available',
       update: expect.objectContaining({
-        isDowngrade: true,
+        updateKind: 'downgrade',
       }),
     })
   );
 });
 
-test('when the update is newer than app isDowngrade is false', async () => {
+test('when the update is newer than app updateKind equals upgrade', async () => {
   const setup = setUpAppUpdater({
     clusters: {
       reachableClusters: [
@@ -395,7 +395,7 @@ test('when the update is newer than app isDowngrade is false', async () => {
     expect.objectContaining({
       kind: 'update-available',
       update: expect.objectContaining({
-        isDowngrade: false,
+        updateKind: 'upgrade',
       }),
     })
   );
