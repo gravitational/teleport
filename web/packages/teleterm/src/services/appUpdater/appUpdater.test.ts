@@ -27,7 +27,7 @@ import Logger, { NullService } from 'teleterm/logger';
 
 import { AppUpdateEvent, AppUpdater, AppUpdaterStorage } from './appUpdater';
 
-const mockedAppVersion = '15.0.0';
+const mockedAppVersion = '17.8.0';
 
 jest.mock('electron', () => ({
   app: {
@@ -347,4 +347,56 @@ test('discards previous update if the latest check returns no update', async () 
   await setup.appUpdater.dispose();
   // Check if the app is set to discard the first downloaded update on close.
   expect(setup.nativeUpdater.autoInstallOnAppQuit).toBeFalsy();
+});
+
+test('when the update is older than app updateKind equals downgrade', async () => {
+  const setup = setUpAppUpdater({
+    clusters: {
+      reachableClusters: [
+        {
+          clusterUri: '/clusters/foo',
+          toolsAutoUpdate: true,
+          toolsVersion: '17.7.5',
+          minToolsVersion: '16.0.0-aa',
+        },
+      ],
+      unreachableClusters: [],
+    },
+  });
+
+  await setup.appUpdater.checkForUpdates();
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'update-available',
+      update: expect.objectContaining({
+        updateKind: 'downgrade',
+      }),
+    })
+  );
+});
+
+test('when the update is newer than app updateKind equals upgrade', async () => {
+  const setup = setUpAppUpdater({
+    clusters: {
+      reachableClusters: [
+        {
+          clusterUri: '/clusters/foo',
+          toolsAutoUpdate: true,
+          toolsVersion: '19.7.5',
+          minToolsVersion: '16.0.0-aa',
+        },
+      ],
+      unreachableClusters: [],
+    },
+  });
+
+  await setup.appUpdater.checkForUpdates();
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'update-available',
+      update: expect.objectContaining({
+        updateKind: 'upgrade',
+      }),
+    })
+  );
 });
