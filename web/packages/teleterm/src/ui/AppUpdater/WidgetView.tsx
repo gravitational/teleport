@@ -284,19 +284,21 @@ function makeUpdaterContent({
         description: `Downloaded ${formatMB(updateEvent.progress.transferred)} of ${formatMB(updateEvent.progress.total)}`,
       };
     case 'update-available':
-      const { isDowngrade } = updateEvent.update;
+      const { updateKind } = updateEvent.update;
       if (updateEvent.autoDownload) {
         return {
-          description: isDowngrade
-            ? 'Downloading required version…'
-            : 'Update available. Starting download…',
+          description:
+            updateKind === 'upgrade'
+              ? 'Update available. Starting download…'
+              : 'Downloading required version…',
         };
       }
 
       return {
-        description: isDowngrade
-          ? 'Downgrade to required version'
-          : 'Update available',
+        description:
+          updateKind === 'upgrade'
+            ? 'Update available'
+            : 'Downgrade to required version',
         button: {
           name: 'Download',
           action: onDownload,

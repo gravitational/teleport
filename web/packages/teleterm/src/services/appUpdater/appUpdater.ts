@@ -379,8 +379,8 @@ export class AppUpdater {
 }
 
 export interface UpdateInfo extends ElectronUpdateInfo {
-  /** Indicates whether the update version is lower than the current app version. */
-  isDowngrade: boolean;
+  /** Indicates whether the update version is newer or older than the current app version. */
+  updateKind: 'upgrade' | 'downgrade';
 }
 
 export interface AppUpdaterStorage<
@@ -412,7 +412,10 @@ function registerEventHandlers(
   const onUpdateAvailable = (update: ElectronUpdateInfo) => {
     updateInfo = {
       ...update,
-      isDowngrade: compare(app.getVersion(), update.version) === 1,
+      updateKind:
+        compare(update.version, app.getVersion()) === 1
+          ? 'upgrade'
+          : 'downgrade',
     };
     emit({
       kind: 'update-available',
