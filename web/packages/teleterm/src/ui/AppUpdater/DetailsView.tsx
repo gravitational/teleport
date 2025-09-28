@@ -225,9 +225,9 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
   return (
     <Stack>
       <Text>
-        {props.update.isDowngrade
-          ? 'The app needs to be downgraded to match the required version.'
-          : 'A new version is available.'}
+        {props.update.updateKind === 'upgrade'
+          ? 'A new version is available.'
+          : 'The app needs to be downgraded to match the required version.'}
       </Text>
       <Flex gap={1} alignItems="center">
         {props.platform === 'darwin' ? (
