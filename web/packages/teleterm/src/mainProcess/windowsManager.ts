@@ -142,7 +142,6 @@ export class WindowsManager {
     // When true, the window should close rather than enter the background mode,
     // as that would block the quit process.
     let isAppQuitting = false;
-    autoUpdater.quitAndInstall();
     // Fired when the app initiates shutdown explicitly, via app.quit().
     app.on('before-quit', () => {
       isAppQuitting = true;
