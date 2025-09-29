@@ -533,8 +533,7 @@ func (t *TLSServer) startHealthCheck(cluster types.KubeCluster) error {
 
 // stopHealthCheck stops checking the health of a Kubernetes cluster.
 func (t *TLSServer) stopHealthCheck(cluster types.KubeCluster) error {
-	err := t.HealthCheckManager.RemoveTarget(cluster)
-	if err != nil && !trace.IsNotFound(err) {
+	if err := t.HealthCheckManager.RemoveTarget(cluster); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	return nil
