@@ -347,6 +347,94 @@ type updateBotRequestV2 struct {
 	MaxSessionTtl string                  `json:"max_session_ttl"`
 }
 
+// updateBotV3 updates a bot with provided roles, traits, max_session_ttl and
+// description.
+func (h *Handler) updateBotV3(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	var request updateBotRequestV3
+	if err := httplib.ReadResourceJSON(r, &request); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	botName := p.ByName("name")
+	if botName == "" {
+		return nil, trace.BadParameter("empty name")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mask, err := fieldmaskpb.New(&machineidv1.Bot{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	metadata := headerv1.Metadata{
+		Name: botName,
+	}
+	spec := machineidv1.BotSpec{}
+
+	if request.Roles != nil {
+		mask.Append(&machineidv1.Bot{}, "spec.roles")
+
+		spec.Roles = request.Roles
+	}
+
+	if request.Traits != nil {
+		mask.Append(&machineidv1.Bot{}, "spec.traits")
+
+		traits := make([]*machineidv1.Trait, len(request.Traits))
+		for i, trait := range request.Traits {
+			traits[i] = &machineidv1.Trait{
+				Name:   trait.Name,
+				Values: trait.Values,
+			}
+		}
+
+		spec.Traits = traits
+	}
+
+	if request.MaxSessionTtl != "" {
+		mask.Append(&machineidv1.Bot{}, "spec.max_session_ttl")
+
+		ttl, err := time.ParseDuration(request.MaxSessionTtl)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		spec.MaxSessionTtl = durationpb.New(ttl)
+	}
+
+	if request.Description != nil {
+		mask.Append(&machineidv1.Bot{}, "metadata.description")
+
+		metadata.Description = *request.Description
+	}
+
+	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
+		UpdateMask: mask,
+		Bot: &machineidv1.Bot{
+			Kind:     types.KindBot,
+			Version:  types.V1,
+			Metadata: &metadata,
+			Spec:     &spec,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to find existing bot")
+	}
+
+	return updated, nil
+}
+
+type updateBotRequestV3 struct {
+	Roles         []string                `json:"roles"`
+	Traits        []updateBotRequestTrait `json:"traits"`
+	MaxSessionTtl string                  `json:"max_session_ttl"`
+	Description   *string                 `json:"description"`
+}
+
 type updateBotRequestTrait struct {
 	Name   string   `json:"name"`
 	Values []string `json:"values"`
