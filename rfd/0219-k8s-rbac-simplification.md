@@ -7,8 +7,8 @@ state: draft
 
 ## Required Approvers
 
-- Engineering: @rosstimothy && @hugoShaka && @tigrato
-Product: klizhentas
+- Engineering: (@zmb3 || @rjones) && (@hugoShaka || @tigrato)
+Product: @klizhentas
 
 ## What
 
@@ -16,7 +16,7 @@ The purpose of this RFD is to propose a simplification of the Kubernetes
 RBAC (Role-Based Access Control) within the Teleport project.
 
 The goal is to streamline the user experience and reduce the complexity of
-getting up and running on day 1 and managing permissions later on.
+getting up and running on day 0 and managing permissions later on.
 
 ## Why
 
@@ -31,7 +31,7 @@ Simplifying the RBAC model will help improve usability and security.
 ### References
 
 A common issue currently is the un-intuitive result of complex rule sets and
-more critically, difficult to get setup on day 1.
+more critically, difficult to get setup on day 0.
 
 - @klizhentas struggling to setup a cluster following the `self-hosted` flow:
   (internal) <https://gravitational.slack.com/archives/C03SULRAAG3/p1715394587181739>
@@ -43,7 +43,7 @@ more critically, difficult to get setup on day 1.
 
 ## Goal
 
-Provide preset roles that can be used to get started quickly.
+Allow preset roles to be used to get started quickly.
 
 ## Proposal
 
@@ -137,8 +137,11 @@ required new ClusterRoles and ClusterRoleBindings.
 
 #### Helm Chart
 
-The Helm Chart will provide the ability to specify custom names for all
-resources, (clusterrole, clusterrolebinding) and for the Group.
+The Helm Chart will by default provision the new Kubernetes resources starting
+in v19.0.0. An option will be added to the chart to allow opting out of creating
+the default ClusterRoleBindings. All existing release branches will have this
+flag set to disable the new functionality to mimize breaking changes.
+
 
 Example:
 
@@ -148,29 +151,14 @@ authToken: foo
 proxyAddr: example.devteleport.com:443
 kubeClusterName: myCluster
 rbac:
-  accessClusterRoleBindingName: teleport:preset:edit
-  accessGroupName: teleport:preset:edit
-  editorClusterRoleBindingName: teleport:preset:cluster-admin
-  editorGroupName: teleport:preset:cluster-admin
-  auditorClusterRoleBindingName: teleport:preset:view
-  auditorGroupName: teleport:preset:view
+  defaultClusterRoleBindgings: true
 ```
-
-Note that if a user decides to change the preset names, they will not be able
-to use the preset Teleport roles out of the box, as they will need to update
-them to match the new names.
-In case of mismatch, whether it is a result of a failure to create the
-`ClusterRoleBinding` or if the user changed the names, the error message
-surfaced to the user includes instructions to resolve the issue (verify
-groups/bindings). We will also include a check to verify the setup as part of
-the upcomming Healthcheck feature to highlight any configuration issue to the
-admins.
 
 #### Provision Script
 
-To keep it simple and to follow the current pattern, the provision script
-will not allow custom names. It will create all the required resources with
-names matching the Teleport preset roles.
+For simplicity, the provision script will be updated to always create the
+Kubernetes resources, and will not provide a means for users to opt out of
+the new behavior.
 
 #### Auto Discovery
 
@@ -225,37 +213,11 @@ This will result in using the user's auth to test the connection instead of
 requiring the user to enter a subset or all of it's groups/users, knowing
 that the user cannot make add nor change any.
 
-#### Role Editor
-
-The Web UI Role Editor will move change the default `kubernetes_groups`
-field to be pre-populated with the `teleport:preset:access` value instead of
-`{{internal.kubernetes_groups}}`, which is the current default.
-
-- https://github.com/gravitational/teleport/blob/22eb8c6645909a26d1493d01d291e222a87b35e6/web/packages/teleport/src/Roles/RoleEditor/StandardEditor/Resources.tsx#L291-L321
-
 #### Error management
 
 The error messages when using `kubectl` will be improved to include a link to
 the documentation and more details on what is expected. This will help with
 initial custom setups that skipped the provided provisioning scripts.
-
-### Rollout
-
-As the proposed changes are about presets and documentation, they can be
-rolled out without waiting a new major version.
-
-We assume that existing clusters are already working, we will attempt to apply
-the new RBAC resources on a best effort basis. The healthcheck and error
-messages will help users understand the issue if they try to use the new
-presets in an older cluster that failed to be updated.
-
-New clusters being registered will be provisioned with the expected resources,
-either by auto-discovery, provision script or Helm chart.
-
-### Backport
-
-As the new presets do not require the new features offered in Role V8, they
-will be created as Role V7 to allow backporting to Teleport 16 and 17.
 
 ### User flow
 
@@ -293,9 +255,8 @@ will be created as Role V7 to allow backporting to Teleport 16 and 17.
     chart to create all required RBAC resources.
   - User configures the Teleport role with `kubernetes_resources` and
     `kubernetes_labels` to match or reduce the permissions granted by the
-    ClusterRole. The `kubernetes_groups` field is pre-populated to
-    `teleport:preset:access` in the Web UI and well documented in the Teleport
-    documentation for the YAML version.
+    ClusterRole.
+  - User applies the desired `kubernetes_groups` trait to the Teleport user.
 - Day 1 - Ongoing management:
   - User can reduce the scope of either Kubernetes or Teleport's roles by
     changing the counterpart
