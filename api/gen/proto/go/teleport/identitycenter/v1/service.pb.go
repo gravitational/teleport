@@ -40,11 +40,17 @@ const (
 // provisioning and account assignment info.
 // buf:lint:ignore PAGINATION_REQUIRED
 type PrincipalSummary struct {
-	state         protoimpl.MessageState                `protogen:"open.v1"`
-	PrincipalName string                                `protobuf:"bytes,1,opt,name=principal_name,json=principalName,proto3" json:"principal_name,omitempty"`
-	PrincipalType PrincipalType                         `protobuf:"varint,2,opt,name=principal_type,json=principalType,proto3,enum=teleport.identitycenter.v1.PrincipalType" json:"principal_type,omitempty"`
-	Assignment    *PrincipalSummary_AssignmentSummary   `protobuf:"bytes,3,opt,name=assignment,proto3" json:"assignment,omitempty"`
-	Provisioning  *PrincipalSummary_ProvisioningSummary `protobuf:"bytes,4,opt,name=provisioning,proto3" json:"provisioning,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PrincipalName holds the principal's name in Teleport
+	PrincipalName string `protobuf:"bytes,1,opt,name=principal_name,json=principalName,proto3" json:"principal_name,omitempty"`
+	// PrincipalType indicates the principal's type, either user or group
+	PrincipalType PrincipalType `protobuf:"varint,2,opt,name=principal_type,json=principalType,proto3,enum=teleport.identitycenter.v1.PrincipalType" json:"principal_type,omitempty"`
+	// Assignment holds summary details for the principal's account assignment
+	// state
+	Assignment *PrincipalSummary_AssignmentSummary `protobuf:"bytes,3,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	// Provisioning holds summary details about the principal's SCIM provisioning
+	// state
+	Provisioning *PrincipalSummary_ProvisioningSummary `protobuf:"bytes,4,opt,name=provisioning,proto3" json:"provisioning,omitempty"`
 	// AccountAssignments... Empty on listing
 	AccountAssignments []*AccountAssignmentRef `protobuf:"bytes,5,rep,name=account_assignments,json=accountAssignments,proto3" json:"account_assignments,omitempty"`
 	unknownFields      protoimpl.UnknownFields
@@ -119,9 +125,11 @@ func (x *PrincipalSummary) GetAccountAssignments() []*AccountAssignmentRef {
 // DescribePrincipalRequest holds the arguments for fetching a principal summary.
 // buf:lint:ignore PAGINATION_REQUIRED
 type DescribePrincipalRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PrincipalName string                 `protobuf:"bytes,1,opt,name=principal_name,json=principalName,proto3" json:"principal_name,omitempty"`
-	PrincipalType PrincipalType          `protobuf:"varint,2,opt,name=principal_type,json=principalType,proto3,enum=teleport.identitycenter.v1.PrincipalType" json:"principal_type,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PrincipalName is the Teleport name of the principal to describe
+	PrincipalName string `protobuf:"bytes,1,opt,name=principal_name,json=principalName,proto3" json:"principal_name,omitempty"`
+	// PrincipalType is the
+	PrincipalType PrincipalType `protobuf:"varint,2,opt,name=principal_type,json=principalType,proto3,enum=teleport.identitycenter.v1.PrincipalType" json:"principal_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -170,73 +178,29 @@ func (x *DescribePrincipalRequest) GetPrincipalType() PrincipalType {
 	return PrincipalType_PRINCIPAL_TYPE_UNSPECIFIED
 }
 
-// ListPrincipalAccountAssignmentsRequest
-type ListPrincipalAccountAssignmentsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+// ListPrincipalsRequest holds the arguments for a list principals response
+type ListPrincipalsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// PageSize is the requested maximum page size
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// PageToken if the page-start token for paged results.
+	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// ListUsers indicates that the client wants to include user principals in the
+	// returned list.
+	ListUsers bool `protobuf:"varint,3,opt,name=list_users,json=listUsers,proto3" json:"list_users,omitempty"`
+	// ListAccessLists indicates that the client wants to include Access List/
+	// Group principals in the returned list.
+	ListAccessLists bool `protobuf:"varint,4,opt,name=list_access_lists,json=listAccessLists,proto3" json:"list_access_lists,omitempty"`
+	// Pattern is a glob or regex filter for filtering the returned list by the
+	// principal's Teleport name
+	Pattern       string `protobuf:"bytes,5,opt,name=pattern,proto3" json:"pattern,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListPrincipalAccountAssignmentsRequest) Reset() {
-	*x = ListPrincipalAccountAssignmentsRequest{}
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListPrincipalAccountAssignmentsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListPrincipalAccountAssignmentsRequest) ProtoMessage() {}
-
-func (x *ListPrincipalAccountAssignmentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListPrincipalAccountAssignmentsRequest.ProtoReflect.Descriptor instead.
-func (*ListPrincipalAccountAssignmentsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *ListPrincipalAccountAssignmentsRequest) GetPageSize() int32 {
-	if x != nil {
-		return x.PageSize
-	}
-	return 0
-}
-
-func (x *ListPrincipalAccountAssignmentsRequest) GetPageToken() string {
-	if x != nil {
-		return x.PageToken
-	}
-	return ""
-}
-
-// ListPrincipalsRequest holds the arguments for a list principals response
-type ListPrincipalsRequest struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	PageSize        int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken       string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	ListUsers       bool                   `protobuf:"varint,3,opt,name=list_users,json=listUsers,proto3" json:"list_users,omitempty"`
-	ListAccessLists bool                   `protobuf:"varint,4,opt,name=list_access_lists,json=listAccessLists,proto3" json:"list_access_lists,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
 func (x *ListPrincipalsRequest) Reset() {
 	*x = ListPrincipalsRequest{}
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[3]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -248,7 +212,7 @@ func (x *ListPrincipalsRequest) String() string {
 func (*ListPrincipalsRequest) ProtoMessage() {}
 
 func (x *ListPrincipalsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[3]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -261,7 +225,7 @@ func (x *ListPrincipalsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPrincipalsRequest.ProtoReflect.Descriptor instead.
 func (*ListPrincipalsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListPrincipalsRequest) GetPageSize() int32 {
@@ -292,6 +256,13 @@ func (x *ListPrincipalsRequest) GetListAccessLists() bool {
 	return false
 }
 
+func (x *ListPrincipalsRequest) GetPattern() string {
+	if x != nil {
+		return x.Pattern
+	}
+	return ""
+}
+
 // ListPrincipalsResponse holds a page of principal status objects
 type ListPrincipalsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -305,7 +276,7 @@ type ListPrincipalsResponse struct {
 
 func (x *ListPrincipalsResponse) Reset() {
 	*x = ListPrincipalsResponse{}
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[4]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -317,7 +288,7 @@ func (x *ListPrincipalsResponse) String() string {
 func (*ListPrincipalsResponse) ProtoMessage() {}
 
 func (x *ListPrincipalsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[4]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -330,7 +301,7 @@ func (x *ListPrincipalsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPrincipalsResponse.ProtoReflect.Descriptor instead.
 func (*ListPrincipalsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{4}
+	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListPrincipalsResponse) GetNextPageToken() string {
@@ -361,7 +332,7 @@ type ResetPrincipalRequest struct {
 
 func (x *ResetPrincipalRequest) Reset() {
 	*x = ResetPrincipalRequest{}
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[5]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -373,7 +344,7 @@ func (x *ResetPrincipalRequest) String() string {
 func (*ResetPrincipalRequest) ProtoMessage() {}
 
 func (x *ResetPrincipalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[5]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -386,7 +357,7 @@ func (x *ResetPrincipalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetPrincipalRequest.ProtoReflect.Descriptor instead.
 func (*ResetPrincipalRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{5}
+	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ResetPrincipalRequest) GetPrincipalName() string {
@@ -413,7 +384,7 @@ type ResetPrincipalResponse struct {
 
 func (x *ResetPrincipalResponse) Reset() {
 	*x = ResetPrincipalResponse{}
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[6]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -425,7 +396,7 @@ func (x *ResetPrincipalResponse) String() string {
 func (*ResetPrincipalResponse) ProtoMessage() {}
 
 func (x *ResetPrincipalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[6]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -438,10 +409,11 @@ func (x *ResetPrincipalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResetPrincipalResponse.ProtoReflect.Descriptor instead.
 func (*ResetPrincipalResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{6}
+	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{5}
 }
 
-// AssignmentSummary
+// AssignmentSummary holds summary details about a principal's account
+// assignment state
 type PrincipalSummary_AssignmentSummary struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        ProvisioningState      `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.identitycenter.v1.ProvisioningState" json:"status,omitempty"`
@@ -453,7 +425,7 @@ type PrincipalSummary_AssignmentSummary struct {
 
 func (x *PrincipalSummary_AssignmentSummary) Reset() {
 	*x = PrincipalSummary_AssignmentSummary{}
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[7]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -465,7 +437,7 @@ func (x *PrincipalSummary_AssignmentSummary) String() string {
 func (*PrincipalSummary_AssignmentSummary) ProtoMessage() {}
 
 func (x *PrincipalSummary_AssignmentSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[7]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +474,8 @@ func (x *PrincipalSummary_AssignmentSummary) GetError() string {
 	return ""
 }
 
-// ProvisioningSummary
+// ProvisioningSummary holds summary details about a principal's SCIM
+// provisioning state assignment state
 type PrincipalSummary_ProvisioningSummary struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        v1.ProvisioningState   `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.provisioning.v1.ProvisioningState" json:"status,omitempty"`
@@ -514,7 +487,7 @@ type PrincipalSummary_ProvisioningSummary struct {
 
 func (x *PrincipalSummary_ProvisioningSummary) Reset() {
 	*x = PrincipalSummary_ProvisioningSummary{}
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[8]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -526,7 +499,7 @@ func (x *PrincipalSummary_ProvisioningSummary) String() string {
 func (*PrincipalSummary_ProvisioningSummary) ProtoMessage() {}
 
 func (x *PrincipalSummary_ProvisioningSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[8]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -588,18 +561,15 @@ const file_teleport_identitycenter_v1_service_proto_rawDesc = "" +
 	"\x05error\x18\x03 \x01(\tR\x05error\"\x93\x01\n" +
 	"\x18DescribePrincipalRequest\x12%\n" +
 	"\x0eprincipal_name\x18\x01 \x01(\tR\rprincipalName\x12P\n" +
-	"\x0eprincipal_type\x18\x02 \x01(\x0e2).teleport.identitycenter.v1.PrincipalTypeR\rprincipalType\"d\n" +
-	"&ListPrincipalAccountAssignmentsRequest\x12\x1b\n" +
-	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
-	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"\x9e\x01\n" +
+	"\x0eprincipal_type\x18\x02 \x01(\x0e2).teleport.identitycenter.v1.PrincipalTypeR\rprincipalType\"\xb8\x01\n" +
 	"\x15ListPrincipalsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1d\n" +
 	"\n" +
 	"list_users\x18\x03 \x01(\bR\tlistUsers\x12*\n" +
-	"\x11list_access_lists\x18\x04 \x01(\bR\x0flistAccessLists\"\x8e\x01\n" +
+	"\x11list_access_lists\x18\x04 \x01(\bR\x0flistAccessLists\x12\x18\n" +
+	"\apattern\x18\x05 \x01(\tR\apattern\"\x8e\x01\n" +
 	"\x16ListPrincipalsResponse\x12&\n" +
 	"\x0fnext_page_token\x18\x01 \x01(\tR\rnextPageToken\x12L\n" +
 	"\n" +
@@ -626,38 +596,37 @@ func file_teleport_identitycenter_v1_service_proto_rawDescGZIP() []byte {
 	return file_teleport_identitycenter_v1_service_proto_rawDescData
 }
 
-var file_teleport_identitycenter_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_identitycenter_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_identitycenter_v1_service_proto_goTypes = []any{
-	(*PrincipalSummary)(nil),                       // 0: teleport.identitycenter.v1.PrincipalSummary
-	(*DescribePrincipalRequest)(nil),               // 1: teleport.identitycenter.v1.DescribePrincipalRequest
-	(*ListPrincipalAccountAssignmentsRequest)(nil), // 2: teleport.identitycenter.v1.ListPrincipalAccountAssignmentsRequest
-	(*ListPrincipalsRequest)(nil),                  // 3: teleport.identitycenter.v1.ListPrincipalsRequest
-	(*ListPrincipalsResponse)(nil),                 // 4: teleport.identitycenter.v1.ListPrincipalsResponse
-	(*ResetPrincipalRequest)(nil),                  // 5: teleport.identitycenter.v1.ResetPrincipalRequest
-	(*ResetPrincipalResponse)(nil),                 // 6: teleport.identitycenter.v1.ResetPrincipalResponse
-	(*PrincipalSummary_AssignmentSummary)(nil),     // 7: teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary
-	(*PrincipalSummary_ProvisioningSummary)(nil),   // 8: teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary
-	(PrincipalType)(0),                             // 9: teleport.identitycenter.v1.PrincipalType
-	(*AccountAssignmentRef)(nil),                   // 10: teleport.identitycenter.v1.AccountAssignmentRef
-	(ProvisioningState)(0),                         // 11: teleport.identitycenter.v1.ProvisioningState
-	(v1.ProvisioningState)(0),                      // 12: teleport.provisioning.v1.ProvisioningState
+	(*PrincipalSummary)(nil),                     // 0: teleport.identitycenter.v1.PrincipalSummary
+	(*DescribePrincipalRequest)(nil),             // 1: teleport.identitycenter.v1.DescribePrincipalRequest
+	(*ListPrincipalsRequest)(nil),                // 2: teleport.identitycenter.v1.ListPrincipalsRequest
+	(*ListPrincipalsResponse)(nil),               // 3: teleport.identitycenter.v1.ListPrincipalsResponse
+	(*ResetPrincipalRequest)(nil),                // 4: teleport.identitycenter.v1.ResetPrincipalRequest
+	(*ResetPrincipalResponse)(nil),               // 5: teleport.identitycenter.v1.ResetPrincipalResponse
+	(*PrincipalSummary_AssignmentSummary)(nil),   // 6: teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary
+	(*PrincipalSummary_ProvisioningSummary)(nil), // 7: teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary
+	(PrincipalType)(0),                           // 8: teleport.identitycenter.v1.PrincipalType
+	(*AccountAssignmentRef)(nil),                 // 9: teleport.identitycenter.v1.AccountAssignmentRef
+	(ProvisioningState)(0),                       // 10: teleport.identitycenter.v1.ProvisioningState
+	(v1.ProvisioningState)(0),                    // 11: teleport.provisioning.v1.ProvisioningState
 }
 var file_teleport_identitycenter_v1_service_proto_depIdxs = []int32{
-	9,  // 0: teleport.identitycenter.v1.PrincipalSummary.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
-	7,  // 1: teleport.identitycenter.v1.PrincipalSummary.assignment:type_name -> teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary
-	8,  // 2: teleport.identitycenter.v1.PrincipalSummary.provisioning:type_name -> teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary
-	10, // 3: teleport.identitycenter.v1.PrincipalSummary.account_assignments:type_name -> teleport.identitycenter.v1.AccountAssignmentRef
-	9,  // 4: teleport.identitycenter.v1.DescribePrincipalRequest.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
+	8,  // 0: teleport.identitycenter.v1.PrincipalSummary.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
+	6,  // 1: teleport.identitycenter.v1.PrincipalSummary.assignment:type_name -> teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary
+	7,  // 2: teleport.identitycenter.v1.PrincipalSummary.provisioning:type_name -> teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary
+	9,  // 3: teleport.identitycenter.v1.PrincipalSummary.account_assignments:type_name -> teleport.identitycenter.v1.AccountAssignmentRef
+	8,  // 4: teleport.identitycenter.v1.DescribePrincipalRequest.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
 	0,  // 5: teleport.identitycenter.v1.ListPrincipalsResponse.principals:type_name -> teleport.identitycenter.v1.PrincipalSummary
-	9,  // 6: teleport.identitycenter.v1.ResetPrincipalRequest.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
-	11, // 7: teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary.status:type_name -> teleport.identitycenter.v1.ProvisioningState
-	12, // 8: teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary.status:type_name -> teleport.provisioning.v1.ProvisioningState
+	8,  // 6: teleport.identitycenter.v1.ResetPrincipalRequest.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
+	10, // 7: teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary.status:type_name -> teleport.identitycenter.v1.ProvisioningState
+	11, // 8: teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary.status:type_name -> teleport.provisioning.v1.ProvisioningState
 	1,  // 9: teleport.identitycenter.v1.IdentityCenterService.DescribePrincipal:input_type -> teleport.identitycenter.v1.DescribePrincipalRequest
-	3,  // 10: teleport.identitycenter.v1.IdentityCenterService.ListPrincipals:input_type -> teleport.identitycenter.v1.ListPrincipalsRequest
-	5,  // 11: teleport.identitycenter.v1.IdentityCenterService.ResetPrincipal:input_type -> teleport.identitycenter.v1.ResetPrincipalRequest
+	2,  // 10: teleport.identitycenter.v1.IdentityCenterService.ListPrincipals:input_type -> teleport.identitycenter.v1.ListPrincipalsRequest
+	4,  // 11: teleport.identitycenter.v1.IdentityCenterService.ResetPrincipal:input_type -> teleport.identitycenter.v1.ResetPrincipalRequest
 	0,  // 12: teleport.identitycenter.v1.IdentityCenterService.DescribePrincipal:output_type -> teleport.identitycenter.v1.PrincipalSummary
-	4,  // 13: teleport.identitycenter.v1.IdentityCenterService.ListPrincipals:output_type -> teleport.identitycenter.v1.ListPrincipalsResponse
-	6,  // 14: teleport.identitycenter.v1.IdentityCenterService.ResetPrincipal:output_type -> teleport.identitycenter.v1.ResetPrincipalResponse
+	3,  // 13: teleport.identitycenter.v1.IdentityCenterService.ListPrincipals:output_type -> teleport.identitycenter.v1.ListPrincipalsResponse
+	5,  // 14: teleport.identitycenter.v1.IdentityCenterService.ResetPrincipal:output_type -> teleport.identitycenter.v1.ResetPrincipalResponse
 	12, // [12:15] is the sub-list for method output_type
 	9,  // [9:12] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
@@ -677,7 +646,7 @@ func file_teleport_identitycenter_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_identitycenter_v1_service_proto_rawDesc), len(file_teleport_identitycenter_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

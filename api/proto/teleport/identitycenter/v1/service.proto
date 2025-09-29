@@ -39,23 +39,34 @@ service IdentityCenterService {
 // provisioning and account assignment info.
 // buf:lint:ignore PAGINATION_REQUIRED
 message PrincipalSummary {
-  // AssignmentSummary
+  // AssignmentSummary holds summary details about a principal's account
+  // assignment state
   message AssignmentSummary {
     ProvisioningState status = 1;
     string external_id = 2;
     string error = 3;
   }
 
-  // ProvisioningSummary
+  // ProvisioningSummary holds summary details about a principal's SCIM
+  // provisioning state assignment state
   message ProvisioningSummary {
     teleport.provisioning.v1.ProvisioningState status = 1;
     string external_id = 2;
     string error = 3;
   }
 
+  // PrincipalName holds the principal's name in Teleport
   string principal_name = 1;
+
+  // PrincipalType indicates the principal's type, either user or group
   PrincipalType principal_type = 2;
+
+  // Assignment holds summary details for the principal's account assignment
+  // state
   AssignmentSummary assignment = 3;
+
+  // Provisioning holds summary details about the principal's SCIM provisioning
+  // state
   ProvisioningSummary provisioning = 4;
 
   // AccountAssignments... Empty on listing
@@ -65,22 +76,31 @@ message PrincipalSummary {
 // DescribePrincipalRequest holds the arguments for fetching a principal summary.
 // buf:lint:ignore PAGINATION_REQUIRED
 message DescribePrincipalRequest {
+  // PrincipalName is the Teleport name of the principal to describe
   string principal_name = 1;
-  PrincipalType principal_type = 2;
-}
 
-// ListPrincipalAccountAssignmentsRequest
-message ListPrincipalAccountAssignmentsRequest {
-  int32 page_size = 1;
-  string page_token = 2;
+  // PrincipalType is the
+  PrincipalType principal_type = 2;
 }
 
 // ListPrincipalsRequest holds the arguments for a list principals response
 message ListPrincipalsRequest {
+  // PageSize is the requested maximum page size
   int32 page_size = 1;
+  // PageToken if the page-start token for paged results.
   string page_token = 2;
+
+  // ListUsers indicates that the client wants to include user principals in the
+  // returned list.
   bool list_users = 3;
+
+  // ListAccessLists indicates that the client wants to include Access List/
+  // Group principals in the returned list.
   bool list_access_lists = 4;
+
+  // Pattern is a glob or regex filter for filtering the returned list by the
+  // principal's Teleport name
+  string pattern = 5;
 }
 
 // ListPrincipalsResponse holds a page of principal status objects
