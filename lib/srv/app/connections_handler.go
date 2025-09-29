@@ -285,6 +285,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		AccessPoint:      c.cfg.AccessPoint,
 		EnableDemoServer: c.cfg.MCPDemoServer,
 		CipherSuites:     c.cfg.CipherSuites,
+		AuthClient:       c.cfg.AuthClient,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -614,7 +615,7 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		case app.IsTCP():
 			return nil, trace.Wrap(err)
 		case app.IsMCP():
-			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, err))
+			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, app, err))
 		default:
 			c.setConnAuth(tlsConn, err)
 		}
