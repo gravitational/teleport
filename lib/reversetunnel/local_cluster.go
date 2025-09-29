@@ -577,12 +577,12 @@ agent logs and, if the issue persists, try restarting it or re-registering it
 with the cluster.`
 
 	if params.TargetServer != nil && (params.TargetServer.IsOpenSSHNode() || params.TargetServer.IsEICE()) {
-		errorMessageTemplate = `Teleport proxy failed to connect to %q resource %q over %s:
+		errorMessageTemplate = `Teleport proxy failed to connect to %q server %q over %s:
 
   %v
 
-This usually means that the resource is offline or network permissions block the connection.
-Check the resource health status and network permissions.`
+This usually means that the server is offline or network permissions block the SSH connection.
+Check the server health status, SSHD service and network permissions.`
 	}
 
 	var toAddr string
