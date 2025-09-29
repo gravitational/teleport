@@ -218,7 +218,7 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 
 	r.logger.DebugContext(ctx, "Generating report")
 
-	byVersion := make(map[string]*autoupdate.AutoUpdateBotReportSpecGroupVersion)
+	groups := make(map[string]*autoupdate.AutoUpdateBotReportSpecGroup)
 
 	var nextToken string
 	for {
@@ -237,16 +237,32 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 		}
 
 		for _, inst := range instances {
+			// Take the version information from the latest heartbeat.
 			heartbeats := inst.GetStatus().GetLatestHeartbeats()
 			if len(heartbeats) == 0 {
 				continue
 			}
 			latest := heartbeats[len(heartbeats)-1]
 
-			version := byVersion[latest.GetVersion()]
+			// If the bot did not send an ExternalUpdater, it does not properly
+			// support managed updates - so we put it in the no-group ("") group.
+			var groupName string
+			if ui := latest.GetUpdaterInfo(); latest.ExternalUpdater != "" && ui != nil {
+				groupName = ui.UpdateGroup
+			}
+
+			group, ok := groups[groupName]
+			if !ok {
+				group = &autoupdate.AutoUpdateBotReportSpecGroup{
+					Versions: make(map[string]*autoupdate.AutoUpdateBotReportSpecGroupVersion),
+				}
+				groups[groupName] = group
+			}
+
+			version := group.Versions[latest.GetVersion()]
 			if version == nil {
 				version = &autoupdate.AutoUpdateBotReportSpecGroupVersion{}
-				byVersion[latest.GetVersion()] = version
+				group.Versions[latest.GetVersion()] = version
 			}
 			version.Count++
 		}
@@ -258,12 +274,7 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 
 	err := r.store.SetAutoUpdateBotReport(ctx, &autoupdate.AutoUpdateBotReportSpec{
 		Timestamp: timestamppb.New(r.clock.Now()),
-		Groups: map[string]*autoupdate.AutoUpdateBotReportSpecGroup{
-			// We currently bucket all bots into a single "unmanaged" update group.
-			"": &autoupdate.AutoUpdateBotReportSpecGroup{
-				Versions: byVersion,
-			},
-		},
+		Groups:    groups,
 	})
 	if err != nil {
 		return trace.Wrap(err, "storing report")
