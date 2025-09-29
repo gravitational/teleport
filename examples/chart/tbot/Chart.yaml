@@ -1,4 +1,4 @@
-.version: &version "17.7.6"
+.version: &version "17.7.7"
 
 name: tbot
 apiVersion: v2

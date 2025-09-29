@@ -1,5 +1,16 @@
 # Changelog
 
+## 17.7.7 (09/29/25)
+
+* Fixed auto-approvals in the Datadog Incident Management integration by updating the on-call API client. [#59669](https://github.com/gravitational/teleport/pull/59669)
+* Fixed auto-approvals in the Datadog Incident Management integration to ignore case sensitivity in user emails. [#59669](https://github.com/gravitational/teleport/pull/59669)
+* Fixed `tsh play` not returning an error when playing a session fails. [#59626](https://github.com/gravitational/teleport/pull/59626)
+* Fixed an issue in Teleport Connect where clicking 'Restart' to apply an update could close the window without actually restarting the app. [#59593](https://github.com/gravitational/teleport/pull/59593)
+* Introduced `application-proxy` service to `tbot` for HTTP proxying to applications protected by Teleport. [#59588](https://github.com/gravitational/teleport/pull/59588)
+* Fixed persistence of `metadata.description` field for the Bot resource. [#59571](https://github.com/gravitational/teleport/pull/59571)
+* Fixed a crash in Teleport's Windows Desktop Service introduced in 17.7.3. Compaction of certain shared directory read/write audit events could result in a stack overflow error. [#59514](https://github.com/gravitational/teleport/pull/59514)
+* Enabled Oracle Cloud joining in Machine ID's `tbot` client. [#59041](https://github.com/gravitational/teleport/pull/59041)
+
 ## 17.7.6 (09/23/25)
 
 * Made the check for a running Teleport process in the install-node.sh script more robust. [#59495](https://github.com/gravitational/teleport/pull/59495)
