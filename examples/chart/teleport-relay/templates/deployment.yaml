@@ -159,7 +159,7 @@ spec:
             {{- end }}
             {{- if .Values.tls.existingCASecretName }}
             - name: SSL_CERT_FILE
-              value: /etc/teleport-tls-ca/ca.pem
+              value: /etc/teleport-tls-ca.pem
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
@@ -218,8 +218,9 @@ spec:
               name: join-sa-token
             {{- end }}
             {{- if .Values.tls.existingCASecretName }}
-            - mountPath: /etc/teleport-tls-ca
+            - mountPath: /etc/teleport-tls-ca.pem
               name: teleport-tls-ca
+              subPath: {{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName | quote }}
             {{- end }}
             {{- with .Values.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}

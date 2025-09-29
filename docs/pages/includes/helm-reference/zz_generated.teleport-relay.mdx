@@ -779,11 +779,14 @@ Teleport using a command like:
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
-<Admonition type="warning" title="Root CA filename">
+### `tls.existingCASecretKeyName`
 
-  The key containing the root CA in the secret must be `ca.pem`.
+| Type | Default |
+|------|---------|
+| `string` | `"ca.pem"` |
 
-</Admonition>
+`tls.existingCASecretKeyName` determines which key in the CA secret
+will be used as a trusted CA bundle file.
 
 ## `insecureSkipProxyTLSVerify`
 
