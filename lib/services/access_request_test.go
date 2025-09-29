@@ -708,7 +708,7 @@ func TestReviewThresholds(t *testing.T) {
 					propose:         approve,
 					assumeStartTime: clock.Now().UTC().Add(10000 * time.Hour),
 					errCheck: func(tt require.TestingT, err error, i ...any) {
-						require.ErrorContains(tt, err, "assume start time must be prior to access expiry time", i...)
+						require.ErrorContains(tt, err, "assume start time must be prior to max duration time", i...)
 					},
 				},
 			},
@@ -2128,8 +2128,8 @@ func TestCalculatePendingRequestTTL(t *testing.T) {
 
 	tests := []struct {
 		desc string
-		// accessExpiryTTL == max access duration.
-		accessExpiryTTL time.Duration
+		// maxDuration == max access duration.
+		maxDuration time.Duration
 		// when the access request expires in the PENDING state.
 		requestPendingExpiryTTL time.Time
 		assertion               require.ErrorAssertionFunc
@@ -2137,52 +2137,52 @@ func TestCalculatePendingRequestTTL(t *testing.T) {
 	}{
 		{
 			desc:                    "valid: requested ttl < access expiry",
-			accessExpiryTTL:         requestTTL - (3 * day),
+			maxDuration:             requestTTL - (3 * day),
 			requestPendingExpiryTTL: now.Add(requestTTL - (4 * day)),
 			expectedDuration:        requestTTL - (4 * day),
 			assertion:               require.NoError,
 		},
 		{
 			desc:                    "valid: requested ttl == access expiry",
-			accessExpiryTTL:         requestTTL - (3 * day),
+			maxDuration:             requestTTL - (3 * day),
 			requestPendingExpiryTTL: now.Add(requestTTL - (3 * day)),
 			expectedDuration:        requestTTL - (3 * day),
 			assertion:               require.NoError,
 		},
 		{
 			desc:                    "valid: requested ttl == default request ttl",
-			accessExpiryTTL:         requestTTL,
+			maxDuration:             requestTTL,
 			requestPendingExpiryTTL: now.Add(requestTTL),
 			expectedDuration:        requestTTL,
 			assertion:               require.NoError,
 		},
 		{
 			desc:             "valid: no TTL request defaults to the const requestTTL if access expiry is larger",
-			accessExpiryTTL:  requestTTL + (3 * day),
+			maxDuration:      requestTTL + (3 * day),
 			expectedDuration: requestTTL,
 			assertion:        require.NoError,
 		},
 		{
 			desc:             "valid: no TTL request defaults to accessExpiry if const requestTTL is larger",
-			accessExpiryTTL:  requestTTL - (3 * day),
+			maxDuration:      requestTTL - (3 * day),
 			expectedDuration: requestTTL - (3 * day),
 			assertion:        require.NoError,
 		},
 		{
 			desc:                    "invalid: requested ttl > access expiry",
-			accessExpiryTTL:         requestTTL - (3 * day),
+			maxDuration:             requestTTL - (3 * day),
 			requestPendingExpiryTTL: now.Add(requestTTL - (2 * day)),
 			assertion:               require.Error,
 		},
 		{
 			desc:                    "invalid: requested ttl > default request TTL",
-			accessExpiryTTL:         requestTTL + (1 * day),
+			maxDuration:             requestTTL + (1 * day),
 			requestPendingExpiryTTL: now.Add(requestTTL + (1 * day)),
 			assertion:               require.Error,
 		},
 		{
 			desc:                    "invalid: requested ttl < now",
-			accessExpiryTTL:         requestTTL - (3 * day),
+			maxDuration:             requestTTL - (3 * day),
 			requestPendingExpiryTTL: now.Add(-(3 * day)),
 			assertion:               require.Error,
 		},
@@ -2213,7 +2213,7 @@ func TestCalculatePendingRequestTTL(t *testing.T) {
 			request, err := types.NewAccessRequest("some-id", "foo", "bar")
 			require.NoError(t, err)
 			request.SetExpiry(tt.requestPendingExpiryTTL)
-			request.SetAccessExpiry(now.Add(tt.accessExpiryTTL))
+			request.SetMaxDuration(now.Add(tt.maxDuration))
 
 			ttl, err := validator.calculatePendingRequestTTL(request, now)
 			tt.assertion(t, err)
@@ -3129,7 +3129,6 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 
 			err = validator.validate(context.Background(), req, identity)
 			require.NoError(t, err)
-			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetMaxDuration())
 			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
 			require.Equal(t, now.Add(tt.expectedPendingTTL), req.Expiry())
@@ -3180,7 +3179,7 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 
 	err = validator.validate(context.Background(), req, identity)
 	require.NoError(t, err)
-	require.Equal(t, now.Add(requestedMaxDuration), req.GetAccessExpiry())
+	require.Equal(t, time.Time{}, req.GetAccessExpiry())
 	require.Equal(t, now.Add(requestedMaxDuration), req.GetMaxDuration())
 	require.Equal(t, now.Add(defaultSessionTTL), req.GetSessionTLL())
 	require.Equal(t, now.Add(requestedPendingTTL), req.Expiry())

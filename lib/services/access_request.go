@@ -490,7 +490,7 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 	req.SetReviews(append(req.GetReviews(), rev))
 
 	if rev.AssumeStartTime != nil {
-		if err := types.ValidateAssumeStartTime(*rev.AssumeStartTime, req.GetAccessExpiry(), req.GetCreationTime()); err != nil {
+		if err := types.ValidateAssumeStartTime(*rev.AssumeStartTime, req.GetMaxDuration(), req.GetCreationTime()); err != nil {
 			return trace.Wrap(err)
 		}
 		req.SetAssumeStartTime(*rev.AssumeStartTime)
@@ -514,7 +514,7 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author U
 		req.SetPromotedAccessListName(rev.GetAccessListName())
 		req.SetPromotedAccessListTitle(rev.GetAccessListTitle())
 	}
-	req.SetExpiry(req.GetAccessExpiry())
+	req.SetExpiry(req.GetMaxDuration())
 	return nil
 }
 
@@ -1364,15 +1364,9 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 			maxAccessDuration = sessionTTL
 		}
 
-		// This is the final adjusted access expiry where both max duration
-		// and session TTL were taken into consideration.
-		accessExpiry := now.Add(maxAccessDuration)
-		// Adjusted max access duration is equal to the access expiry time.
-		req.SetMaxDuration(accessExpiry)
-
-		// Setting access expiry before calling `calculatePendingRequestTTL`
-		// matters since the func relies on this adjusted expiry.
-		req.SetAccessExpiry(accessExpiry)
+		// This is the final adjusted max duration where both max duration and session TTL
+		// were taken into consideration.
+		req.SetMaxDuration(now.Add(maxAccessDuration))
 
 		// Calculate the expiration time of the Access Request (how long it
 		// will await approval).
@@ -1384,7 +1378,7 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 
 		if req.GetAssumeStartTime() != nil {
 			assumeStartTime := *req.GetAssumeStartTime()
-			if err := types.ValidateAssumeStartTime(assumeStartTime, accessExpiry, req.GetCreationTime()); err != nil {
+			if err := types.ValidateAssumeStartTime(assumeStartTime, req.GetMaxDuration(), req.GetCreationTime()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -1487,7 +1481,7 @@ func (m *RequestValidator) maxDurationForRole(roleName string) time.Duration {
 // approval). request TTL is capped to the smaller value between the const requestTTL and the
 // access request access expiry.
 func (m *RequestValidator) calculatePendingRequestTTL(r types.AccessRequest, now time.Time) (time.Duration, error) {
-	accessExpiryTTL := r.GetAccessExpiry().Sub(now)
+	accessExpiryTTL := r.GetMaxDuration().Sub(now)
 
 	// If no expiration provided, use default.
 	expiry := r.Expiry()

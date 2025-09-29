@@ -123,7 +123,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		}
 
 		if params.AssumeStartTime != nil {
-			if err := types.ValidateAssumeStartTime(*params.AssumeStartTime, req.GetAccessExpiry(), req.GetCreationTime()); err != nil {
+			if err := types.ValidateAssumeStartTime(*params.AssumeStartTime, req.GetMaxDuration(), req.GetCreationTime()); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			req.SetAssumeStartTime(*params.AssumeStartTime)
