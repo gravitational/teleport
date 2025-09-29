@@ -104,6 +104,14 @@ spec:
                   mode:
                     description: Mode defines state of the client tools auto update.
                     type: string
+                  strategies:
+                    description: 'Custom strategies for modifying behavior when updates
+                      are applied. For example: protecting against client tool downgrades
+                      or ignoring patch updates.'
+                    items:
+                      x-kubernetes-int-or-string: true
+                    nullable: true
+                    type: array
                 type: object
             type: object
           status:

@@ -151,6 +151,56 @@ func TestSequentialUpdate(t *testing.T) {
 	}
 }
 
+// TestUpdateStrategy runs test cluster with defined strategy. We set the "no-downgrade" strategy
+// and set to the cluster latest version then older version to check that update is ignored.
+func TestUpdateStrategy(t *testing.T) {
+	ctx := context.Background()
+
+	rootServer, _, installDir := bootstrapTestServer(t)
+
+	// Assign alias to the login command for test cluster.
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Fetch compiled test binary and install to tools dir [v1.0.0].
+	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
+	require.NoError(t, updater.Update(ctx, testVersions[0]))
+	tshPath, err := updater.ToolPath("tsh", testVersions[0])
+	require.NoError(t, err)
+
+	strategy := autoupdatev1pb.AutoUpdateToolsStrategy_AUTO_UPDATE_TOOLS_STRATEGY_NO_DOWNGRADE
+
+	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[3], strategy)
+
+	cmd := exec.CommandContext(ctx, tshPath,
+		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
+	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Run())
+
+	// Run version command to verify that login command executed auto update and
+	// tsh was upgraded to [testVersion].
+	cmd = exec.CommandContext(ctx, tshPath, "version")
+	out, err := cmd.Output()
+	require.NoError(t, err)
+	matchVersion(t, string(out), testVersions[3])
+
+	// Set to the cluster downgraded version, update in such case must be ignored.
+	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[2], strategy)
+	cmd = exec.CommandContext(ctx, tshPath,
+		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
+	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Run())
+
+	cmd = exec.CommandContext(ctx, tshPath, "version")
+	out, err = cmd.Output()
+	require.NoError(t, err)
+	matchVersion(t, string(out), testVersions[3])
+}
+
 // TestLoginWithUpdaterAndProfile runs test cluster with disabled managed updates for client tools,
 // verifies that if we set env variable during login we keep using updated version.
 //
@@ -428,12 +478,13 @@ func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string, string
 	return rootServer, homeDir, installDir
 }
 
-func setupManagedUpdates(t *testing.T, server *auth.Server, muMode string, muVersion string) {
+func setupManagedUpdates(t *testing.T, server *auth.Server, muMode string, muVersion string, strategies ...autoupdatev1pb.AutoUpdateToolsStrategy) {
 	t.Helper()
 	ctx := context.Background()
 	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
 		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
-			Mode: muMode,
+			Mode:       muMode,
+			Strategies: strategies,
 		},
 	})
 	require.NoError(t, err)
