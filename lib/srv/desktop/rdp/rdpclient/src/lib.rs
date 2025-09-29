@@ -51,6 +51,7 @@ mod license;
 mod network_client;
 mod piv;
 mod rdpdr;
+mod server;
 mod ssl;
 mod util;
 mod x11;

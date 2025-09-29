@@ -120,6 +120,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.100"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
+
+[[package]]
 name = "ascii-canvas"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -513,7 +519,7 @@ dependencies = [
  "bitflags 2.9.3",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools",
  "lazy_static",
  "lazycell",
  "log",
@@ -631,6 +637,12 @@ name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
+
+[[package]]
+name = "bytemuck"
+version = "1.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3995eaeebcdf32f91f980d360f78732ddc061097ab4e39991ae7a6ace9194677"
 
 [[package]]
 name = "byteorder"
@@ -816,6 +828,25 @@ name = "critical-section"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7059fff8937831a9ae6f0fe4d658ffabf58f2ca96aa9dec1c889f936f705f216"
+
+[[package]]
+name = "crossbeam-deque"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
+dependencies = [
+ "crossbeam-epoch",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-epoch"
+version = "0.9.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+dependencies = [
+ "crossbeam-utils",
+]
 
 [[package]]
 name = "crossbeam-utils"
@@ -1983,6 +2014,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "ironrdp-acceptor"
+version = "0.7.0"
+source = "git+https://github.com/Devolutions/IronRDP?rev=b0e7aacb3a9910b69c5788c9104aee4482e6cd57#b0e7aacb3a9910b69c5788c9104aee4482e6cd57"
+dependencies = [
+ "ironrdp-async",
+ "ironrdp-connector",
+ "ironrdp-core",
+ "ironrdp-pdu",
+ "ironrdp-svc",
+ "tracing",
+]
+
+[[package]]
+name = "ironrdp-ainput"
+version = "0.4.0"
+source = "git+https://github.com/Devolutions/IronRDP?rev=b0e7aacb3a9910b69c5788c9104aee4482e6cd57#b0e7aacb3a9910b69c5788c9104aee4482e6cd57"
+dependencies = [
+ "bitflags 2.9.3",
+ "ironrdp-core",
+ "ironrdp-dvc",
+ "num-derive",
+ "num-traits",
+]
+
+[[package]]
 name = "ironrdp-async"
 version = "0.7.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=b0e7aacb3a9910b69c5788c9104aee4482e6cd57#b0e7aacb3a9910b69c5788c9104aee4482e6cd57"
@@ -2127,6 +2183,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "ironrdp-server"
+version = "0.8.0"
+source = "git+https://github.com/Devolutions/IronRDP?rev=b0e7aacb3a9910b69c5788c9104aee4482e6cd57#b0e7aacb3a9910b69c5788c9104aee4482e6cd57"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "ironrdp-acceptor",
+ "ironrdp-ainput",
+ "ironrdp-async",
+ "ironrdp-cliprdr",
+ "ironrdp-core",
+ "ironrdp-displaycontrol",
+ "ironrdp-dvc",
+ "ironrdp-graphics",
+ "ironrdp-pdu",
+ "ironrdp-rdpsnd",
+ "ironrdp-svc",
+ "ironrdp-tokio",
+ "qoicoubeh",
+ "rayon",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+ "visibility",
+ "zstd-safe",
+]
+
+[[package]]
 name = "ironrdp-session"
 version = "0.6.0"
 source = "git+https://github.com/Devolutions/IronRDP?rev=b0e7aacb3a9910b69c5788c9104aee4482e6cd57#b0e7aacb3a9910b69c5788c9104aee4482e6cd57"
@@ -2206,15 +2291,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2279,7 +2355,7 @@ dependencies = [
  "ascii-canvas",
  "bit-set",
  "ena",
- "itertools 0.11.0",
+ "itertools",
  "lalrpop-util",
  "petgraph",
  "pico-args",
@@ -2335,7 +2411,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e310b3a6b5907f99202fcdb4960ff45b93735d7c7d96b760fcff8db2dc0e103d"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -3054,6 +3130,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "qoicoubeh"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9b82aa3fef8a980075775b8c46f874823b5b4a15de327d2dbb3b6fd818480ba"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "qoim"
 version = "0.1.0"
 dependencies = [
@@ -3142,6 +3227,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayon"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "368f01d005bf8fd9b1206fb6fa653e6c4a81ceb1466406b81792d87c5677a58f"
+dependencies = [
+ "either",
+ "rayon-core",
+]
+
+[[package]]
+name = "rayon-core"
+version = "1.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
+dependencies = [
+ "crossbeam-deque",
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "rc2"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3154,6 +3259,7 @@ dependencies = [
 name = "rdp-client"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bitflags 2.9.3",
  "boring",
  "byteorder",
@@ -3168,6 +3274,7 @@ dependencies = [
  "ironrdp-pdu",
  "ironrdp-rdpdr",
  "ironrdp-rdpsnd",
+ "ironrdp-server",
  "ironrdp-session",
  "ironrdp-svc",
  "ironrdp-tls",
@@ -4418,6 +4525,17 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "visibility"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d674d135b4a8c1d7e813e2f8d1c9a58308aee4a680323066025e53132218bd91"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.96",
+]
 
 [[package]]
 name = "walkdir"

@@ -22,6 +22,7 @@ lto = "thin"
 [workspace.dependencies]
 # Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
 # ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
+ironrdp-server = { git = "https://github.com/Devolutions/IronRDP", rev = "b0e7aacb3a9910b69c5788c9104aee4482e6cd57", features = ["__bench"] }
 ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "b0e7aacb3a9910b69c5788c9104aee4482e6cd57" }
 ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "b0e7aacb3a9910b69c5788c9104aee4482e6cd57" }
 ironrdp-core = { git = "https://github.com/Devolutions/IronRDP", rev = "b0e7aacb3a9910b69c5788c9104aee4482e6cd57" }

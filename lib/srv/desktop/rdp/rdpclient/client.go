@@ -360,6 +360,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 		for {
 			for e, er := dial.PollForEvent(); e != nil || er != nil; e, er = dial.PollForEvent() {
 			}
+			start := time.Now()
 			if err := damage.SubtractChecked(dial, dmg, xfixes.RegionNone, parts).Check(); err != nil {
 				return trace.Wrap(err)
 			}
@@ -419,11 +420,21 @@ func (c *Client) runLocal(ctx context.Context) error {
 					return trace.Wrap(err)
 				}
 			}
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.NewTimer(40 * time.Millisecond).C:
+			duration := time.Now().Sub(start)
+			if duration < 40*time.Millisecond {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.NewTimer(40*time.Millisecond - duration).C:
+				}
+			} else {
+				select {
+				case <-ctx.Done():
+					return nil
+				default:
+				}
 			}
+
 			i++
 			if i%25 == 0 {
 				c.cfg.Logger.DebugContext(ctx, fmt.Sprintf("Average encooding time %dms, compression rate: %d%%", totalDuration.Milliseconds()/i, compressedSize*100/totalSize))

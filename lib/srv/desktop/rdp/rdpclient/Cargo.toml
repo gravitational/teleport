@@ -9,6 +9,7 @@ publish.workspace = true
 crate-type = ["staticlib"]
 
 [dependencies]
+anyhow = "1.0.100"
 bitflags = "2.9.3"
 boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 byteorder = "1.5.0"
@@ -26,6 +27,7 @@ ironrdp-dvc.workspace = true
 ironrdp-displaycontrol.workspace = true
 ironrdp-tls.workspace = true
 ironrdp-tokio.workspace = true
+ironrdp-server.workspace = true
 iso7816 = "0.1.4"
 iso7816-tlv = "0.4.4"
 log = "0.4.27"
