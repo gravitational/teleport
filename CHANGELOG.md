@@ -1,5 +1,31 @@
 # Changelog
 
+## 18.2.3 (09/29/25)
+
+* Fixed auto-approvals in the Datadog Incident Management integration by updating the on-call API client. [#59668](https://github.com/gravitational/teleport/pull/59668)
+* Fixed auto-approvals in the Datadog Incident Management integration to ignore case sensitivity in user emails. [#59668](https://github.com/gravitational/teleport/pull/59668)
+* Database recordings now show the session summary if it is available. [#59634](https://github.com/gravitational/teleport/pull/59634)
+* Added automatic `@<project-id>.iam` suffix to GCP Postgres usernames (Teleport Connect). [#59629](https://github.com/gravitational/teleport/pull/59629)
+* Fixed `tsh play` not returning an error when playing a session fails. [#59625](https://github.com/gravitational/teleport/pull/59625)
+* Fixed an issue in Teleport Connect where clicking 'Restart' to apply an update could close the window without actually restarting the app. [#59592](https://github.com/gravitational/teleport/pull/59592)
+* Added automatic `@<project-id>.iam` suffix to GCP Postgres usernames (tsh, web UI). [#59590](https://github.com/gravitational/teleport/pull/59590)
+* Introduced `application-proxy` service to `tbot` for HTTP proxying to applications protected by Teleport. [#59587](https://github.com/gravitational/teleport/pull/59587)
+* MWI: Added support for customizing cluster names with a template to the `kubernetes/argo-cd` output. [#59575](https://github.com/gravitational/teleport/pull/59575)
+* Fixed persistence of `metadata.description` field for the Bot resource. [#59570](https://github.com/gravitational/teleport/pull/59570)
+* Fixed a crash in Teleport's Windows Desktop Service introduced in 18.2.0. Compaction of certain shared directory read/write audit events could result in a stack overflow error. [#59515](https://github.com/gravitational/teleport/pull/59515)
+* Added `tctl tokens configure-kube` helper command to easily trust Kubernetes clusters and allow secure repeatable joining. [#59497](https://github.com/gravitational/teleport/pull/59497)
+* Made the check for a running Teleport process in the install-node.sh script more robust. [#59496](https://github.com/gravitational/teleport/pull/59496)
+* Fixed `tctl edit` producing an error when trying to modify a Bot resource. [#59480](https://github.com/gravitational/teleport/pull/59480)
+* Added support for generating VSCode and Claude Code MCP servers configurations to the `tsh mcp config` and `tsh mcp db config` commands. [#59473](https://github.com/gravitational/teleport/pull/59473)
+* Fixed a bug where session IDs were tied to the client connection, resulting in issues when combined with multiplexed connection features (OpenSSH ControlPath/ControlMaster/ControlPersist). [#59472](https://github.com/gravitational/teleport/pull/59472)
+* Improved app access error messages in case of network error. [#59468](https://github.com/gravitational/teleport/pull/59468)
+* Fixed database IAM configurator potentially getting stuck and never recovering (#59290). [#59417](https://github.com/gravitational/teleport/pull/59417)
+* Added tbot copy-binaries command to simplify using tbot as a Kubernetes sidecar. [#59404](https://github.com/gravitational/teleport/pull/59404)
+* Fixed `tsh config` binary path after managed updates. [#59384](https://github.com/gravitational/teleport/pull/59384)
+* Updated Entra ID integration to support group filters. [#59378](https://github.com/gravitational/teleport/pull/59378)
+* Fixed regression allowing SAML apps to be included when filtering resources by 'Applications' in the Web UI. [#59327](https://github.com/gravitational/teleport/pull/59327)
+* Allow controlling the description of auto-discovered Kubernetes apps with an annotation. [#58817](https://github.com/gravitational/teleport/pull/58817)
+
 ## 18.2.2 (09/19/25)
 
 * Fixed a regression in Teleport Connect for Windows that caused the executable to be unsigned. [#59302](https://github.com/gravitational/teleport/pull/59302)
@@ -761,4 +787,3 @@ or `alpn-ping` as upgrade types was left as a fallback until v17.
 
 Teleport v18 removes the legacy upgrade mode entirely including the use of the
 `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE` environment variable.
-
