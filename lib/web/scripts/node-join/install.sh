@@ -418,8 +418,18 @@ download() {
 get_download_filename() { echo "${1##*/}"; }
 # gets the pid of any running teleport process (and converts newlines to spaces)
 get_teleport_pid() {
-    check_exists_fatal pgrep xargs
-    pgrep -f "teleport start" | xargs echo
+    check_exists_fatal pgrep xargs basename readlink
+    TELEPORT_PIDS=""
+    POTENTIAL_PIDS=$(pgrep -f "teleport start" | xargs echo)
+    # filter PIDS to look for teleport as base process
+    for PID in ${POTENTIAL_PIDS}; do
+        if [ -f /proc/${PID}/exe ]; then
+            EXE=$(basename $(readlink /proc/${PID}/exe))
+            if [[ "${EXE}" == "teleport" ]]; then TELEPORT_PIDS="${PID} ${TELEPORT_PIDS}"; fi
+        fi
+    done
+    # return filtered list of pids with whitespace trimmed from the end
+    echo ${TELEPORT_PIDS%%[[:space::]*}
 }
 # returns a command which will start teleport using the config
 get_teleport_start_command() {
