@@ -24,12 +24,14 @@ import { JsonObject } from 'teleport/types';
 
 export const getBotSuccess = (overrides?: {
   name?: ApiBot['metadata']['name'];
+  description?: ApiBot['metadata']['description'];
   roles?: ApiBot['spec']['roles'];
   traits?: ApiBot['spec']['traits'];
   max_session_ttl?: ApiBot['spec']['max_session_ttl'];
 }) => {
   const {
     name = 'test-bot-name',
+    description = "This is the bot's description.",
     roles = ['admin', 'user'],
     traits = [
       {
@@ -51,6 +53,7 @@ export const getBotSuccess = (overrides?: {
       metadata: {
         name,
         description: '',
+        description,
         labels: new Map(),
         namespace: '',
         revision: '',

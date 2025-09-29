@@ -147,6 +147,9 @@ describe('BotDetails', () => {
     expect(panel).toBeInTheDocument();
 
     expect(within(panel!).getByText('test-bot-name')).toBeInTheDocument();
+    expect(
+      within(panel!).getByText("This is the bot's description.")
+    ).toBeInTheDocument();
     expect(within(panel!).getByText('12h')).toBeInTheDocument();
   });
 
