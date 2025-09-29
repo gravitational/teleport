@@ -169,11 +169,17 @@ func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) *http.Request 
 	// Defaults to the endpoint defined in the app if client is not providing it.
 	// By spec, streamable HTTP should use a single endpoint except the
 	// ".well-known" used for OAuth.
+	// https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http
 	if t.targetURI.Path != "" && (r.URL.Path == "" || r.URL.Path == "/") {
 		r.URL.Path = t.targetURI.Path
 	}
 
-	// Add in JWT headers.
+	// Add in JWT headers. By default, JWT is not put into "Authorization"
+	// headers since the auth token can also come from the client and Teleport
+	// just pass it through. If the remote MCP server does verify the auth token
+	// signed by Teleport, the server can take the token from the
+	// "teleport-jwt-assertion" header or use a rewrite setting to set the JWT
+	// as "Bearer" in "Authorization".
 	r.Header.Set(teleport.AppJWTHeader, t.jwt)
 	// Add headers from rewrite configuration.
 	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), t.App.GetRewrite(), t.logger)

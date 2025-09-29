@@ -39,11 +39,14 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils"
+	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func Test_handleStreamableHTTP(t *testing.T) {
+	t.Parallel()
+
 	remoteMCPServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
 	remoteMCPHTTPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -86,7 +89,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 	// Run MCP handler behind a listener.
 	var wg sync.WaitGroup
 	t.Cleanup(wg.Wait)
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener := listenerutils.NewInMemoryListener()
 	require.NoError(t, err)
 	defer listener.Close()
 	go func() {
@@ -108,44 +111,46 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		ctx := t.Context()
 		emitter.Reset()
 		mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
-			"http://"+listener.Addr().String(),
+			"http://memory",
+			mcpclienttransport.WithHTTPBasicClient(listener.MakeHTTPClient()),
 			mcpclienttransport.WithContinuousListening(),
 		)
 		require.NoError(t, err)
 		client := mcpclient.NewClient(mcpClientTransport)
 		require.NoError(t, client.Start(ctx))
 
-		// Initialize client, then call a tool.
+		// Initialize client, then call a tool. Note that the order can be
+		// undeterministic as the listen request is sent from a go-routine by
+		// mcp-go client.
+		getEventCode := func(e apievents.AuditEvent) string {
+			return e.GetCode()
+		}
 		_, err = mcptest.InitializeClient(ctx, client)
 		require.NoError(t, err)
 		mcptest.MustCallServerTool(t, ctx, client)
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			require.ElementsMatch(t, []string{
+				libevents.MCPSessionStartCode,
+				libevents.MCPSessionRequestCode, // "initialize"
+				libevents.MCPSessionNotificationCode,
+				libevents.MCPSessionListenSSEStreamCode,
+				libevents.MCPSessionRequestCode, // "tools/call"
+			}, sliceutils.Map(emitter.Events(), getEventCode))
+		}, 2*time.Second, time.Millisecond*100, "waiting for events")
 
 		// Close client and wait for end event.
 		require.NoError(t, client.Close())
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			require.Equal(t, libevents.MCPSessionEndEvent, emitter.LastEvent().GetType())
-		}, time.Second, time.Millisecond*100, "waiting for end event")
-
-		// Verify audit codes. Note that the order can be undeterministic as the
-		// listen request is sent from a go-routine by mcp-go client.
-		eventCodes := sliceutils.Map(emitter.Events(), func(e apievents.AuditEvent) string {
-			return e.GetCode()
-		})
-		require.ElementsMatch(t, []string{
-			libevents.MCPSessionStartCode,
-			libevents.MCPSessionRequestCode, // "initialize"
-			libevents.MCPSessionNotificationCode,
-			libevents.MCPSessionListenSSEStreamCode,
-			libevents.MCPSessionRequestCode, // "tools/call"
-			libevents.MCPSessionEndCode,
-		}, eventCodes)
+		}, 2*time.Second, time.Millisecond*100, "waiting for end event")
 	})
 
 	t.Run("endpoint not found", func(t *testing.T) {
 		ctx := t.Context()
 		emitter.Reset()
 		mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
-			fmt.Sprintf("http://%s/notfound", listener.Addr().String()),
+			"http://memory/notfound",
+			mcpclienttransport.WithHTTPBasicClient(listener.MakeHTTPClient()),
 		)
 		require.NoError(t, err)
 
