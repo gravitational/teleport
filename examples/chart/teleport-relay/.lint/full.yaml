@@ -1,0 +1,340 @@
+relayGroup: a
+
+publicHostnames:
+  - b
+
+targetConnectionCount: 3
+
+proxyAddr: c
+
+enterprise: true
+
+joinParams:
+  method: d
+  tokenName: e
+
+teleportClusterName: f
+
+joinTokenSecret:
+  create: true
+  name: g
+
+proxyProtocol: true
+
+log:
+  level: INFO
+  format: json
+
+preStopDelay: ""
+shutdownDelay: ""
+
+terminationGracePeriodSeconds: 90
+
+highAvailability:
+  replicaCount: 0
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+resources:
+  h:
+    - i: j
+
+service:
+  type: LoadBalancer
+  spec:
+    k:
+      - l: m
+    n: o
+
+serviceAccount:
+  create: true
+  name: p
+
+extraLabels:
+  config:
+    q: r
+    s: "4"
+  deployment:
+    q: r
+    s: "4"
+  pod:
+    q: r
+    s: "4"
+  podDisruptionBudget:
+    q: r
+    s: "4"
+  secret:
+    q: r
+    s: "4"
+  service:
+    q: r
+    s: "4"
+  serviceAccount:
+    q: r
+    s: "4"
+
+annotations:
+  config:
+    q: r
+    s: "4"
+  deployment:
+    q: r
+    s: "4"
+  pod:
+    q: r
+    s: "4"
+  podDisruptionBudget:
+    q: r
+    s: "4"
+  secret:
+    q: r
+    s: "4"
+  service:
+    q: r
+    s: "4"
+  serviceAccount:
+    q: r
+    s: "4"
+
+image: public.ecr.aws/gravitational/teleport-distroless
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
+
+imagePullSecrets:
+  - null
+  - 4
+  - foo: bar
+
+imagePullPolicy: IfNotPresent
+
+topologySpreadConstraints: []
+
+disableTopologySpreadConstraints: false
+
+# affinity(object) -- sets the affinities for any pods created by the chart. See
+# [the Kubernetes
+# documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+# for more details.
+affinity:
+  x:
+    - null
+    - 4
+    - foo: bar
+  y: 3
+
+# tolerations(list) -- sets the tolerations for any pods created by the chart.
+# See [the Kubernetes
+# documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+# for more details.
+tolerations:
+  - null
+  - 4
+  - foo: bar
+
+# teleportConfig(object) -- contains YAML teleport configuration to pass to the
+# Teleport pods. The configuration will be merged with the chart-generated
+# configuration and will take precedence in case of conflict.
+#
+# See the [Teleport Configuration Reference](../../reference/deployment/config.mdx) for the list of supported fields.
+teleportConfig:
+  foo_service:
+    bar: baz
+
+# extraArgs(list) -- contains extra arguments to pass to `teleport start` for
+# the main Teleport container.
+extraArgs:
+  - a
+  - b
+
+# extraEnv(list) -- contains extra environment variables to set in the main
+# Teleport container.
+#
+# For example:
+# ```yaml
+# extraEnv:
+#   - name: HTTPS_PROXY
+#     value: "http://username:password@my.proxy.host:3128"
+# ```
+extraEnv:
+  - null
+  - 4
+  - foo: bar
+
+# extraVolumes(list) -- contains extra volumes to mount into the Teleport pods.
+# See [the Kubernetes volume
+# documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
+# details.
+#
+# For example:
+# ```yaml
+# extraVolumes:
+# - name: myvolume
+#   secret:
+#     secretName: testSecret
+# ```
+extraVolumes: []
+
+# extraVolumeMounts(list) -- contains extra volumes mounts for the main Teleport
+# container. See [the Kubernetes volume
+# documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
+# details.
+#
+# For example:
+# ```yaml
+# extraVolumesMounts:
+# - name: myvolume
+#   mountPath: /path/on/host
+# ```
+extraVolumeMounts: []
+
+# dnsConfig(object) -- contains custom Pod DNS Configuration for the agent pods.
+# This value is useful if you need to reduce the DNS load: set "ndots" to 0 and
+# only use FQDNs to refer to remote hosts.
+#
+# See [the Kubernetes pod DNS documentation
+# ](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config)
+# for more information.
+#
+# For example:
+# ```yaml
+#  nameservers:
+#    - 1.2.3.4
+#  searches:
+#    - ns1.svc.cluster-domain.example
+#    - my.dns.search.suffix
+#  options:
+#    - name: ndots
+#      value: "2"
+# ```
+dnsConfig: {}
+
+# dnsPolicy(string) -- sets the Pod's DNS Policy
+#
+# See [the Kubernetes pod DNS documentation
+# ](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy)
+# for more information.
+dnsPolicy: ""
+
+# hostAliases -- sets Host aliases in the Teleport Pod. See [the Kubernetes
+# hosts file
+# documentation](https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/)
+# for more details.
+#
+# For example:
+# ```yaml
+# hostAliases:
+#   - ip: "127.0.0.1"
+#     hostnames:
+#       - "foo.local"
+#       - "bar.local"
+#   - ip: "10.1.2.3"
+#     hostnames:
+#       - "foo.remote"
+#       - "bar.remote"
+# ```
+hostAliases: []
+
+# tls -- contains settings for mounting your own TLS material in the agent pod.
+tls:
+  # tls.existingCASecretName(string) -- sets the `SSL_CERT_FILE` environment
+  # variable to load a trusted CA or bundle in PEM format into Teleport pods.
+  # The injected CA will be used to validate TLS communications with the Proxy
+  # Service.
+  #
+  # You must create a secret containing the CA certs in the same namespace as
+  # Teleport using a command like:
+  #
+  # ```code
+  # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+  # ```
+  #
+  # <Admonition type="warning" title="Root CA filename">
+  #
+  #   The key containing the root CA in the secret must be `ca.pem`.
+  #
+  # </Admonition>
+  existingCASecretName: ""
+
+# insecureSkipProxyTLSVerify(bool) -- disables TLS verification of the TLS
+# certificate presented by the Proxy Service.
+#
+# This can be used for joining a Teleport instance to a Teleport cluster which
+# does not have valid TLS certificates for testing.
+#
+# <Admonition type="warning">
+#
+#   Using a self-signed TLS certificate and disabling TLS verification is OK for
+#   testing, but is not viable when running a production Teleport cluster as it
+#   will drastically reduce security. You must configure valid TLS certificates
+#   on your Teleport cluster for production workloads.
+#
+#   One option might be to use Teleport's built-in [ACME
+#   support](../../reference/helm-reference/teleport-cluster.mdx#acme) or enable
+#   [cert-manager
+#   support](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanager).
+#
+# </Admonition>
+insecureSkipProxyTLSVerify: false
+
+# securityContext(object) -- sets the container security context for any pods
+# created by the chart. See [the Kubernetes
+# documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+# for more details.
+#
+# The default value is compatible with [the restricted
+# PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
+#
+# To unset the security context, set it to `null` or `~`.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# podSecurityContext(object) -- sets the pod security context for any pods
+# created by the chart. See [the Kubernetes
+# documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
+# for more details.
+#
+# To unset the security context, set it to `null` or `~`.
+podSecurityContext:
+  fsGroup: 65532
+
+# priorityClassName(string) -- sets the priority class used by any pods created by the chart.
+# The user is responsible for creating the `PriorityClass` resource before deploying the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+# for more details.
+priorityClassName: ""
+
+# nameOverride(string) -- optionally overrides the name of the chart, used
+# together with the release name when giving a name to resources.
+nameOverride: ""
+# fullnameOverride(string) -- optionally overrides the full name of resources.
+fullnameOverride: ""
+
+# teleportVersionOverride(string) -- controls the Teleport Kubernetes Operator
+# image version deployed by the chart.
+#
+# Normally, the version of the Teleport Kubernetes Operator matches the version
+# of the chart. If you install chart version 15.0.0, you'll use Teleport version
+# 15.0.0. Upgrading the agent is done by upgrading the chart.
+#
+# <Admonition type="warning">
+#
+#   `teleportVersionOverride` is intended for development and MUST NOT be used
+#   to control the Teleport version in a typical deployment. This chart is
+#   designed to run a specific Teleport version. You will face compatibility
+#   issues trying to run a different Teleport version with it.
+#
+#   If you want to run Teleport version `X.Y.Z`, you should use `helm install
+#   --version X.Y.Z` instead.
+#
+# </Admonition>
+teleportVersionOverride: ""

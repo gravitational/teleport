@@ -1326,7 +1326,7 @@ lint-helm:
 		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot; do \
+	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot; do \
 		if [ -d $${CHART}/.lint ]; then \
 			for VALUES in $${CHART}/.lint/*.yaml; do \
 				export HELM_TEMP=$$(mktemp); \
@@ -1335,6 +1335,7 @@ lint-helm:
 				helm lint --quiet --strict $${CHART} -f $${VALUES} || exit 1; \
 				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
 				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
+				echo; \
 			done \
 		else \
 			export HELM_TEMP=$$(mktemp); \
