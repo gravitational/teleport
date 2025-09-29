@@ -1,0 +1,288 @@
+should match the snapshot (full):
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      annotations:
+        q: r
+        s: "4"
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-relay
+        app.kubernetes.io/version: 19.0.0-dev
+        helm.sh/chart: teleport-relay-19.0.0-dev
+        q: r
+        s: "4"
+      name: RELEASE-NAME-teleport-relay
+    spec:
+      replicas: 0
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-relay
+      template:
+        metadata:
+          annotations:
+            checksum/config: 68a156a9716edc59bc3f26916e713980520fb6cbb60d9e3f2a700aa1f2eddbe3
+            q: r
+            s: "4"
+          labels:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: teleport-relay
+            app.kubernetes.io/version: 19.0.0-dev
+            helm.sh/chart: teleport-relay-19.0.0-dev
+            q: r
+            s: "4"
+        spec:
+          affinity:
+            "true": 3
+            x:
+            - null
+            - 4
+            - foo: bar
+          automountServiceAccountToken: false
+          containers:
+          - args:
+            - start
+            - a
+            - b
+            command:
+            - /usr/bin/dumb-init
+            - --
+            - /usr/local/bin/teleport
+            env:
+            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+              value: "true"
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/teleport-join-sa-token/join-sa-token
+            - null
+            - 4
+            - foo: bar
+            image: public.ecr.aws/gravitational/teleport-ent-distroless:19.0.0-dev
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /healthz
+                port: diagnostics
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diagnostics
+              protocol: TCP
+            - containerPort: 3040
+              name: transport
+              protocol: TCP
+            - containerPort: 3041
+              name: peer
+              protocol: TCP
+            - containerPort: 3042
+              name: tunnel
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diagnostics
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            resources:
+              h:
+              - i: j
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsGroup: 65532
+              runAsNonRoot: true
+              runAsUser: 65532
+              seccompProfile:
+                type: RuntimeDefault
+            volumeMounts:
+            - mountPath: /var/lib/teleport
+              name: data
+            - mountPath: /etc/teleport.yaml
+              name: config
+              subPath: teleport.yaml
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+            - mountPath: /var/run/secrets/teleport-join-sa-token
+              name: join-sa-token
+          imagePullSecrets:
+          - null
+          - 4
+          - foo: bar
+          securityContext:
+            fsGroup: 65532
+          serviceAccountName: p
+          terminationGracePeriodSeconds: 90
+          tolerations:
+          - null
+          - 4
+          - foo: bar
+          topologySpreadConstraints:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: teleport-relay
+            maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: teleport-relay
+            maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
+          volumes:
+          - configMap:
+              name: RELEASE-NAME-teleport-relay
+            name: config
+          - name: auth-token
+            secret:
+              secretName: g
+          - emptyDir: {}
+            name: data
+          - name: join-sa-token
+            projected:
+              sources:
+              - serviceAccountToken:
+                  audience: f
+                  expirationSeconds: 600
+                  path: join-sa-token
+should match the snapshot (simple):
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-relay
+        app.kubernetes.io/version: 19.0.0-dev
+        helm.sh/chart: teleport-relay-19.0.0-dev
+      name: RELEASE-NAME-teleport-relay
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: teleport-relay
+      template:
+        metadata:
+          annotations:
+            checksum/config: 779aedf5557a3913d9c2011b966c8dcba03d188478927cf5fb1ae039fe1592e0
+          labels:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: teleport-relay
+            app.kubernetes.io/version: 19.0.0-dev
+            helm.sh/chart: teleport-relay-19.0.0-dev
+        spec:
+          automountServiceAccountToken: false
+          containers:
+          - args:
+            - start
+            command:
+            - /usr/bin/dumb-init
+            - --
+            - /usr/local/bin/teleport
+            env:
+            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+              value: "true"
+            image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+            imagePullPolicy: IfNotPresent
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                  - /usr/local/bin/teleport
+                  - wait
+                  - duration
+                  - 30s
+            livenessProbe:
+              failureThreshold: 6
+              httpGet:
+                path: /healthz
+                port: diagnostics
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            name: teleport
+            ports:
+            - containerPort: 3000
+              name: diagnostics
+              protocol: TCP
+            - containerPort: 3040
+              name: transport
+              protocol: TCP
+            - containerPort: 3041
+              name: peer
+              protocol: TCP
+            - containerPort: 3042
+              name: tunnel
+              protocol: TCP
+            readinessProbe:
+              failureThreshold: 12
+              httpGet:
+                path: /readyz
+                port: diagnostics
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 1
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsGroup: 65532
+              runAsNonRoot: true
+              runAsUser: 65532
+              seccompProfile:
+                type: RuntimeDefault
+            volumeMounts:
+            - mountPath: /var/lib/teleport
+              name: data
+            - mountPath: /etc/teleport.yaml
+              name: config
+              subPath: teleport.yaml
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+          securityContext:
+            fsGroup: 65532
+          serviceAccountName: RELEASE-NAME-teleport-relay
+          terminationGracePeriodSeconds: 90
+          topologySpreadConstraints:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: teleport-relay
+            maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/instance: RELEASE-NAME
+                app.kubernetes.io/name: teleport-relay
+            maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
+          volumes:
+          - configMap:
+              name: RELEASE-NAME-teleport-relay
+            name: config
+          - name: auth-token
+            secret:
+              secretName: RELEASE-NAME-teleport-relay
+          - emptyDir: {}
+            name: data
