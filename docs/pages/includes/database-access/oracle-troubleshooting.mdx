@@ -169,14 +169,14 @@ The following error indicates that the login procedure has failed:
 ORA-17430: Must be logged on to the server.
 ```
 
-This is most commonly caused by the Oracle database enforcing native encryption or checksumming on a TCPS endpoint. 
+This is most commonly caused by the Oracle database enforcing native encryption or data-integrity checksums on a TCPS endpoint. 
 Teleport uses TLS for transport security, and does not support native Oracle encryption.
 
 To disable the redundant encryption requirement for the TCPS endpoint, add the following line to your `sqlnet.ora` file:
 
 `SQLNET.IGNORE_ANO_ENCRYPTION_FOR_TCPS=TRUE`
 
-Make sure to use an up-to-date version of the Oracle database. In older versions, this setting may not disable checksumming, which will lead to continued failures.
+Make sure to use an up-to-date version of the Oracle database. In older versions, this setting may not disable data-integrity checksums, which will lead to continued failures.
 
 ### Invalid username
 
