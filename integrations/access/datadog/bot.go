@@ -197,7 +197,7 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 	for _, teamID := range teamIDs {
 		resp, err := b.datadog.GetTeamOncall(ctx, teamID)
 		if err != nil {
-			log.WarnContext(ctx, "failed to get on-call users", "team_id", teamID)
+			log.WithField("team_id", teamID).Warn("failed to get on-call users")
 			continue
 		}
 
