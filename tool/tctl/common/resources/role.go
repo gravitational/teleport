@@ -58,7 +58,7 @@ func (r *roleCollection) WriteText(w io.Writer, verbose bool) error {
 }
 
 func printActions(rules []types.Rule) string {
-	pairs := []string{}
+	pairs := make([]string, 0, len(rules))
 	for _, rule := range rules {
 		pairs = append(pairs, fmt.Sprintf("%v:%v", strings.Join(rule.Resources, ","), strings.Join(rule.Verbs, ",")))
 	}
