@@ -897,7 +897,7 @@ export default class Codec {
   }
 
   // | message type (35) | data_length uint32 | data []byte |
-  decodeX11Frame(buffer: ArrayBuffer): X11Frame {
+  decodeX11Frame(buffer: ArrayBufferLike): X11Frame {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += BYTE_LEN; // eat message type

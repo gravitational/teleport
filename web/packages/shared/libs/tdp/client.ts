@@ -519,8 +519,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     });
   }
 
-  handleRdpFastPathPDU(buffer: ArrayBufferLike) {
-    let rdpFastPathPDU = this.codec.decodeRdpFastPathPDU(buffer);
+  handleRdpFastPathPdu(buffer: ArrayBufferLike) {
+    let rdpFastPathPDU = this.codec.decodeRdpFastPathPdu(buffer);
 
     // This should never happen but let's catch it with an error in case it does.
     if (!this.fastPathProcessor) {
@@ -528,7 +528,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
 
     this.fastPathProcessor.process(
-      rdpFastPathPdu,
+      rdpFastPathPDU,
       this,
       (bmpFrame: BitmapFrame) => {
         this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
