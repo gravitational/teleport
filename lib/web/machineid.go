@@ -223,134 +223,21 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 // updateBot updates a bot with provided roles. The only supported change via this endpoint today is roles.
 // TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV2
 // MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
-func (h *Handler) updateBot(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	var request updateBotRequest
-	if err := httplib.ReadResourceJSON(r, &request); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	botName := p.ByName("name")
-	if botName == "" {
-		return nil, trace.BadParameter("empty name")
-	}
-
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	mask, err := fieldmaskpb.New(&machineidv1.Bot{}, "spec.roles")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
-		UpdateMask: mask,
-		Bot: &machineidv1.Bot{
-			Kind:    types.KindBot,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: botName,
-			},
-			Spec: &machineidv1.BotSpec{
-				Roles: request.Roles,
-			},
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "unable to find existing bot")
-	}
-
-	return updated, nil
-}
-
-type updateBotRequest struct {
-	Roles []string `json:"roles"`
+func (h *Handler) updateBotV1(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	return h.updateBotV3(w, r, p, sctx, cluster)
 }
 
 // updateBotV2 updates a bot with provided roles, traits and max_session_ttl.
+// TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV2
+// MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
 func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	var request updateBotRequestV2
-	if err := httplib.ReadResourceJSON(r, &request); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	botName := p.ByName("name")
-	if botName == "" {
-		return nil, trace.BadParameter("empty name")
-	}
-
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	mask, err := fieldmaskpb.New(&machineidv1.Bot{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	spec := machineidv1.BotSpec{}
-
-	if request.Roles != nil {
-		mask.Append(&machineidv1.Bot{}, "spec.roles")
-
-		spec.Roles = request.Roles
-	}
-
-	if request.Traits != nil {
-		mask.Append(&machineidv1.Bot{}, "spec.traits")
-
-		traits := make([]*machineidv1.Trait, len(request.Traits))
-		for i, trait := range request.Traits {
-			traits[i] = &machineidv1.Trait{
-				Name:   trait.Name,
-				Values: trait.Values,
-			}
-		}
-
-		spec.Traits = traits
-	}
-
-	if request.MaxSessionTtl != "" {
-		mask.Append(&machineidv1.Bot{}, "spec.max_session_ttl")
-
-		ttl, err := time.ParseDuration(request.MaxSessionTtl)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		spec.MaxSessionTtl = durationpb.New(ttl)
-	}
-
-	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
-		UpdateMask: mask,
-		Bot: &machineidv1.Bot{
-			Kind:    types.KindBot,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: botName,
-			},
-			Spec: &spec,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "unable to find existing bot")
-	}
-
-	return updated, nil
+	return h.updateBotV3(w, r, p, sctx, cluster)
 }
 
-type updateBotRequestV2 struct {
-	Roles         []string                `json:"roles"`
-	Traits        []updateBotRequestTrait `json:"traits"`
-	MaxSessionTtl string                  `json:"max_session_ttl"`
-}
-
-// updateBotV3 updates a bot with provided roles, traits, max_session_ttl and
+// updateBot updates a bot with provided roles, traits, max_session_ttl and
 // description.
 func (h *Handler) updateBotV3(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	var request updateBotRequestV3
+	var request updateBotRequest
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -428,7 +315,7 @@ func (h *Handler) updateBotV3(w http.ResponseWriter, r *http.Request, p httprout
 	return updated, nil
 }
 
-type updateBotRequestV3 struct {
+type updateBotRequest struct {
 	Roles         []string                `json:"roles"`
 	Traits        []updateBotRequestTrait `json:"traits"`
 	MaxSessionTtl string                  `json:"max_session_ttl"`
