@@ -204,6 +204,8 @@ export const HappyWithLongValues: Story = {
       handlers: [
         getBotSuccess({
           name: 'ansibleworkeransibleworkeransibleworkeransibleworkeransibleworkeransibleworker',
+          description:
+            'This is a bot. This is a bot. This is a bot. This is a bot. This is a bot.',
           roles: [
             'rolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerolerole',
           ],

@@ -243,12 +243,16 @@ export function BotDetails() {
                     <MonoText>{data.name}</MonoText>
                     <CopyButton name={data.name} />
                   </Flex>
+                  <GridLabel>Description</GridLabel>
+                  <span>{data.description || '-'}</span>
                   <GridLabel>Max session duration</GridLabel>
-                  {data.max_session_ttl
-                    ? formatDuration(data.max_session_ttl, {
-                        separator: ' ',
-                      })
-                    : '-'}
+                  <span>
+                    {data.max_session_ttl
+                      ? formatDuration(data.max_session_ttl, {
+                          separator: ' ',
+                        })
+                      : '-'}
+                  </span>
                 </Grid>
               </PanelContentContainer>
             </Panel>
