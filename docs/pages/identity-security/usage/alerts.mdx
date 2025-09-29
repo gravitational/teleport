@@ -1,0 +1,140 @@
+---
+title: Identity Activity Center Alerts
+sidebar_label: Alerts
+description: Describes the pre-built security detections that trigger alerts in Teleport Identity Activity Center.
+tags:
+ - identity-security
+ - alerts
+ - detections
+---
+
+# Identity Activity Center Alerts
+
+The Identity Activity Center provides 50 pre-built security detections that automatically create alerts for suspicious identity-related activities across your infrastructure. These detections monitor events from Teleport and integrated services like AWS, GitHub, and Okta to identify potential security risks.
+
+## Overview
+
+Identity Activity Center alerts help you detect and respond to security threats by monitoring for:
+- Unusual authentication patterns
+- Privilege escalations
+- Configuration changes that affect security
+- Account compromises
+- Policy violations
+
+All detections are pre-configured and currently cannot be modified. The severity levels (Critical, High, Medium, Low) are defined by the Identity Security Team based on the potential impact of each detection.
+
+![Alerts](../../../img/access-graph/alerts.png)
+
+
+## Detection Categories
+
+### AWS Detections
+
+Identity Activity Center monitors your AWS infrastructure for critical security events:
+
+**Critical & High Severity:**
+- Root account activities (console login, access key creation, general activity)
+- Security settings deletions (CloudTrail, GuardDuty, flow logs)
+- EBS encryption disabled
+- DB snapshots made public
+- Exposed credential policy modifications
+- Login profile updates
+
+**Medium & Low Severity:**
+- IAM user creation
+- DB snapshot attribute modifications
+- AWS key deletion or disabling
+
+### GitHub Detections
+
+Monitor your GitHub organizations and repositories for security-relevant changes:
+
+**Critical & High Severity:**
+- Organization security updates (SAML, 2FA, OAuth restrictions)
+- Protected branch policy overrides or deletions
+- Repository access and visibility changes
+- Secret scanning alerts
+- Organization member updates
+
+**Medium & Low Severity:**
+- Repository member updates
+- Organization moderator additions
+- Integration installations
+
+**Advanced Security Detections:**
+The system includes 26 sub-types of GitHub advanced security change detections that monitor for modifications to security features like Dependabot alerts.
+
+### Okta Detections
+
+Track identity and access management events in your Okta environment:
+
+**High Severity:**
+- Admin MFA disabled
+- All MFA factors reset
+- OAuth token reuse patterns
+- Rate limit violations
+- Sign-on policy evaluations
+- IDP lifecycle changes
+- API token creation/revocation
+- Security threat events
+
+**Medium Severity:**
+- Excessive MFA failures
+- Multiple password reset attempts
+- Dormant account access
+- Support-initiated password or MFA resets
+
+### Teleport Detections
+
+Monitor Teleport-specific security events:
+
+**High Severity:**
+- Root SSH session initiation
+- Authentication without MFA for local accounts
+- Unusual authentication failure patterns
+- Role creation/updates/deletions
+- Connector updates
+- Unusual session commands
+
+### Cross-Platform Detections
+
+**Impossible Travel Detection** (GitHub, Okta, Teleport):
+- Severity: High
+- Triggers when login attempts occur from multiple geographic locations within a timeframe that makes legitimate travel physically impossible
+
+## Alert Management
+
+### Current Capabilities
+- View alerts across all integrated systems
+- Filter by severity level
+- Investigate related events
+
+### Planned Features
+- Alert resolution workflows
+- Acknowledgment and muting capabilities
+- Forwarding alerts to external services 
+- Custom detection creation
+
+## Frequently Asked Questions
+
+### Can I write my own detections?
+No, detections are currently pre-configured per integration and cannot be customized.
+
+### Can I resolve an alert?
+Not currently, but we plan to add workflows to resolve, acknowledge, and mute alert types in future updates.
+
+### What determines the severity level?
+Severity levels are defined by the Identity Security Team based on the potential security impact. Feedback on severity assignments is welcome.
+
+### Can I forward these events to another service?
+This feature is planned for future release.
+
+### How can I request new detection types?
+For new detection requests based on customer needs, reach out to the Identity Security Team. Customer feedback is welcomed and helps prioritize new detection development.
+
+
+## Next Steps
+
+- Navigate to **Identity Security** > **Alerts** in the Teleport Web UI to view active alerts
+- Review the [Investigate](./investigate.mdx) documentation to learn about exploring identity-related activity
+- Configure [integrations](../integrations/integrations.mdx) to expand detection coverage
