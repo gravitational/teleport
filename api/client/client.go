@@ -5029,10 +5029,6 @@ func (c *Client) GenerateAzureOIDCToken(ctx context.Context, integration string)
 	return resp.GetToken(), nil
 }
 
-func (c *Client) IdentityCenterClient() identitycenterpb.IdentityCenterServiceClient {
-	return identitycenterpb.NewIdentityCenterServiceClient(c.conn)
-}
-
 // PluginsClient returns an unadorned Plugins client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
