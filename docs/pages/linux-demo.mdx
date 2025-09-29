@@ -272,7 +272,7 @@ In this step, we'll create a new Teleport user, `teleport-admin`, which is
 allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
 `ec2-user`.
 
-1. If you following this guide on a local container, open another terminal and
+1. If you are following this guide on a local container, open another terminal and
    access your container:
 
    ```code
@@ -313,7 +313,7 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
      use [host user creation](enroll-resources/server-access/guides/host-user-creation.mdx).
    
      If you do not have the permission to create new users on the Linux host, run
-     `tctl users add teleport $(whoami)` to explicitly allow Teleport to
+     `tctl users update teleport-admin --logins=root,ubuntu,ec2-user,$(whoami)` to explicitly allow Teleport to
      authenticate as the user that you have currently logged in as.
    
    </Admonition>
