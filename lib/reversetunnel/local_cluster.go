@@ -582,7 +582,7 @@ with the cluster.`
   %v
 
 This usually means that the server is offline or network permissions block the SSH connection.
-Check the network permissions, verify that the instance is running and the SSHD service is active.`
+Check the network permissions, verify that the instance is running and the sshd service is active.`
 	}
 
 	var toAddr string
