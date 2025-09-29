@@ -33,11 +33,13 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -336,9 +338,18 @@ func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Reques
 }
 
 func getTrustedClusters(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	trustedClusters, err := clt.GetTrustedClusters(ctx)
+
+	trustedClusters, err := stream.Collect(clientutils.Resources(ctx, clt.ListTrustedClusters))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// TODO(okraport) DELETE IN v21.0.0
+		if trace.IsNotImplemented(err) {
+			trustedClusters, err = clt.GetTrustedClusters(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return ui.NewTrustedClusters(trustedClusters)
@@ -677,6 +688,8 @@ type resourcesAPIGetter interface {
 	GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error)
 	// GetTrustedClusters returns all TrustedClusters in the backend.
 	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
+	// ListTrustedClusters returns a page of Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
 	// ListResources returns a paginated list of resources.
