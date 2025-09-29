@@ -1406,8 +1406,8 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
             color_depth: 32,
             // Try to congiure the client to use remotefx only. This should never fail in practice, but just in
             // case we'll log an error and fall back to defaults.
-            codecs: client_codecs_capabilities(&["remotefx"]).unwrap_or({
-                error!("Failed to configure client for remotefx");
+            codecs: client_codecs_capabilities(&["remotefx"]).unwrap_or_else(|err| {
+                error!("Failed to configure client for remotefx: {}", err);
                 BitmapCodecs::default()
             }),
         }),
