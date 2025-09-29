@@ -19,8 +19,10 @@ package repl
 import (
 	"iter"
 	"strings"
+	"text/tabwriter"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
 )
 
@@ -161,18 +163,58 @@ type evaluator interface {
 type queryEvaluator string
 
 func (query queryEvaluator) eval(r *REPL) (string, bool) {
+	const maxBufferedRows = 100
 	start := time.Now()
-	result, err := r.myConn.Execute(string(query))
+	var (
+		res      mysql.Result
+		rowCount int
+	)
+	defer res.Close()
+	writer := tabwriter.NewWriter(r.Terminal, 5, 0, 1, ' ', 0)
+	err := r.myConn.ExecuteSelectStreaming(string(query), &res,
+		func(row []mysql.FieldValue) error {
+			for _, item := range row {
+				if _, err := writer.Write([]byte(item.String() + "\t")); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			if _, err := writer.Write([]byte(lineBreak)); err != nil {
+				return trace.Wrap(err)
+			}
+			rowCount++
+			if rowCount%maxBufferedRows == 0 {
+				return trace.Wrap(writer.Flush())
+			}
+			return nil
+		},
+		func(result *mysql.Result) error {
+			headers := make([]string, 0, len(result.Resultset.Fields))
+			dashes := make([]string, 0, cap(headers))
+			for _, f := range result.Resultset.Fields {
+				headers = append(headers, string(f.Name))
+				dashes = append(dashes, strings.Repeat("-", len(f.Name)))
+			}
+			headerLine := lineBreak + strings.Join(headers, "\t")
+			sepLine := lineBreak + strings.Join(dashes, "\t")
+			if _, err := writer.Write([]byte(headerLine + sepLine + lineBreak)); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		},
+	)
 	if err != nil {
 		return errorReplyPrefix + err.Error(), false
 	}
-	defer result.Close()
+	if err := writer.Flush(); err != nil {
+		return errorReplyPrefix + err.Error(), false
+	}
+
 	if r.disableQueryTimings {
-		return formatResult(result, nil), false
+		return summarizeResult(&res, rowCount, nil), false
 	}
 
 	elapsed := time.Since(start)
-	return formatResult(result, &elapsed), false
+	return summarizeResult(&res, rowCount, &elapsed), false
 }
 
 // commandEvaluator executes a command.
