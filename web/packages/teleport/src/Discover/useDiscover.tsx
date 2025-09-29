@@ -59,6 +59,7 @@ import { getDiscoverInfoGuideConfig, getOverview } from './Overview/Overview';
 import { viewConfigs } from './resourceViewConfigs';
 import { SelectResourceSpec } from './SelectResource/resources';
 import { EViewConfigs } from './types';
+import { Desktop } from 'teleport/services/desktops/types';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -613,12 +614,17 @@ export type SamlMeta = BaseMeta & {
   samlMicrosoftEntraId?: SamlMicrosoftEntraId;
 };
 
+export type DesktopMeta = BaseMeta & {
+  desktop: Desktop
+};
+
 export type AgentMeta =
   | DbMeta
   | NodeMeta
   | KubeMeta
   | EksMeta
   | SamlMeta
-  | AppMeta;
+  | AppMeta
+  | DesktopMeta;
 
 export type State = ReturnType<typeof useDiscover>;

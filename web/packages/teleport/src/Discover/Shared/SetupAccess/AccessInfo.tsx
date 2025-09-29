@@ -179,7 +179,7 @@ type AccessKind =
   | 'ssoUserAndNoTraits'
   | 'ssoUserButHasTraits';
 
-export type TraitKind = 'Kubernetes' | 'OS' | 'ConnDiag' | 'Database' | 'ARN';
+export type TraitKind = 'Kubernetes' | 'OS' | 'ConnDiag' | 'Database' | 'ARN' | 'Desktop';
 
 type Props = {
   accessKind: AccessKind;

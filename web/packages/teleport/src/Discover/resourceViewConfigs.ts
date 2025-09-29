@@ -19,6 +19,7 @@
 import { AwsMangementConsole } from 'teleport/Discover/AwsMangementConsole';
 import { ConnectMyComputerResource } from 'teleport/Discover/ConnectMyComputer';
 import { DatabaseResource } from 'teleport/Discover/Database';
+import { DesktopResource } from 'teleport/Discover/Desktop';
 import { KubernetesResource } from 'teleport/Discover/Kubernetes';
 import { ServerResource } from 'teleport/Discover/Server';
 
@@ -30,4 +31,5 @@ export const viewConfigs: ResourceViewConfig[] = [
   DatabaseResource,
   KubernetesResource,
   ConnectMyComputerResource,
+  DesktopResource,
 ];

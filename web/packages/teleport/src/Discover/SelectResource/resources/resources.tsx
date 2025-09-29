@@ -199,6 +199,15 @@ export const WINDOWS_DESKTOPS: SelectResourceSpec[] = [
     unguidedLink:
       'https://goteleport.com/docs/enroll-resources/desktop-access/getting-started/',
   },
+  {
+    id: DiscoverGuideId.WindowsDesktopDynamic,
+    name: 'Dynamic Windows Desktop',
+    kind: ResourceKind.Desktop,
+    keywords: ['windows', 'desktop', 'dynamic'],
+    icon: 'windows',
+    event: DiscoverEventResource.WindowsDesktopDynamic,
+    hasAccess: false,
+  }
 ];
 
 export const KUBERNETES: SelectResourceSpec[] = [

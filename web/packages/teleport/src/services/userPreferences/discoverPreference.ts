@@ -48,6 +48,7 @@ export enum DiscoverGuideId {
   // Windows Desktops:
   WindowsDesktopsActiveDirectory = 'windows-desktops-active-directory',
   WindowsDesktopsLocal = 'windows-desktops-local',
+  WindowsDesktopDynamic = 'windows-desktop-dynamic',
 
   // Kubernetes:
   Kubernetes = 'kubernetes',

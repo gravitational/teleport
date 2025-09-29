@@ -27,6 +27,7 @@ import {
   type DbMeta,
   type KubeMeta,
   type NodeMeta,
+  type DesktopMeta,
 } from 'teleport/Discover/useDiscover';
 import { arrayStrDiff } from 'teleport/lib/util';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
@@ -121,6 +122,16 @@ export function useUserTraits() {
       throw new Error(
         `resource kind is application, but there is no handler defined`
       );
+
+    case ResourceKind.Desktop:
+      if (!wantAutoDiscover) {
+        const desktop = (agentMeta as DesktopMeta).desktop;
+        staticTraits.windowsLogins = arrayStrDiff(
+          desktop.logins,
+          dynamicTraits.windowsLogins
+        );
+      }
+      break;
 
     default:
       throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
@@ -228,6 +239,18 @@ export function useUserTraits() {
         throw new Error(
           `resource kind is application, but there is no handler defined`
         );
+
+      case ResourceKind.Desktop:
+        const newDynamicWindowsLogins = new Set<string>();
+        traitOpts.windowsLogins.forEach(o => {
+          if (!staticTraits.windowsLogins.includes(o.value)) {
+            newDynamicWindowsLogins.add(o.value);
+          }
+        });
+
+        nextStep({ windowsLogins: [...newDynamicWindowsLogins] }, numStepsToIncrement);
+        break;
+
       default:
         throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
     }
@@ -312,6 +335,17 @@ export function useUserTraits() {
         throw new Error(
           `resource kind is application, but there is no handler defined`
         );
+
+      case ResourceKind.Desktop:
+        const desktop = (meta as DesktopMeta).desktop;
+        updateAgentMeta({
+          ...meta,
+          desktop: {
+            ...desktop,
+            logins: [...staticTraits.windowsLogins, ...newDynamicTraits.windowsLogins],
+          },
+        });
+        break;
 
       default:
         throw new Error(`resource kind ${resourceSpec.kind} is not handled`);
