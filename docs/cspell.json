@@ -420,6 +420,7 @@
     "cond",
     "configmap",
     "configmaps",
+    "configurator",
     "connectionupgrade",
     "connectorname",
     "connstring",
