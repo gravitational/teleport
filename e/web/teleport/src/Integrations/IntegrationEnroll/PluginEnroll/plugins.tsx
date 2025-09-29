@@ -1612,14 +1612,16 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             </Link>{' '}
             documentation. Name it <Mark>Teleport</Mark> and assign the{' '}
             <Mark>Datadog Standard Role</Mark>, or any Role that has the{' '}
-            <Mark>Incidents Write</Mark> permission.
+            <Mark>Incidents Write</Mark>, <Mark>Teams Manage</Mark>, and{' '}
+            <Mark>On-Call</Mark> permissions.
           </li>
           <li>
             After creating the service account, create a service account
             application key. You're welcome to limit the scope of the
             application key, but ensure that the scope includes{' '}
-            <Mark>user_access_read</Mark> and <Mark>incident_write</Mark>. Copy
-            and paste the key into <Mark>Datadog Application Key</Mark> field on
+            <Mark>user_access_read</Mark>, <Mark>incident_write</Mark>,{' '}
+            <Mark>teams_read</Mark>, and <Mark>on_call_read</Mark>. Copy and
+            paste the key into <Mark>Datadog Application Key</Mark> field on
             this screen.
           </li>
         </ol>
@@ -1641,6 +1643,25 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
           {
             title: 'incident_write',
             description: 'Create, view, and manage incidents in Datadog.',
+          },
+        ],
+      },
+      {
+        category: 'Teams',
+        permissions: [
+          {
+            title: 'teams_read',
+            description: 'Read Teams data.',
+          },
+        ],
+      },
+      {
+        category: 'On-Call',
+        permissions: [
+          {
+            title: 'on_call_read',
+            description:
+              'View On-Call teams, schedules, escalation policies and overrides.',
           },
         ],
       },
