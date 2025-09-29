@@ -20,6 +20,7 @@ package authz
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 
@@ -34,6 +35,7 @@ type ScopedAuthorizer interface {
 	// AuthorizeScoped authorizes a scoped identity. Note that this a prototype implementation and
 	// does not have feature parity with standard Authorize. Scopes are a work in progress feature.
 	AuthorizeScoped(ctx context.Context) (*ScopedContext, error)
+	AuthorizeSplit(ctx context.Context) (*SplitContext, error)
 }
 
 // NewScopedAuthorizer returns a new scoped authorizer
@@ -45,6 +47,28 @@ func NewScopedAuthorizer(opts AuthorizerOpts) (ScopedAuthorizer, error) {
 	}
 
 	return newAuthorizer(opts)
+}
+
+func (a *authorizer) AuthorizeSplit(ctx context.Context) (splitCtx *SplitContext, err error) {
+	authCtx, err := a.Authorize(ctx)
+	var scopedAuthCtx *ScopedContext
+	if err != nil {
+		if !errors.Is(err, ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+
+		scopedAuthCtx, err = a.AuthorizeScoped(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &SplitContext{
+			CheckerContext: services.NewScopedSplitAccessCheckerContext(scopedAuthCtx.CheckerContext),
+		}, nil
+	}
+	return &SplitContext{
+		CheckerContext: services.NewUnscopedSplitAccessCheckerContext(authCtx.Checker),
+	}, nil
 }
 
 // AuthorizeScoped authorizes a scoped identity. This function should generally only be called by methods that
@@ -115,4 +139,8 @@ func scopedContextForLocalUser(ctx context.Context, user LocalUser, reader servi
 // ScopedContext is a scope-enabled authorization context.
 type ScopedContext struct {
 	CheckerContext *services.ScopedAccessCheckerContext
+}
+
+type SplitContext struct {
+	CheckerContext *services.SplitAccessCheckerContext
 }

@@ -147,6 +147,17 @@ func (c *Cache) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListSco
 	return state.roles.ListScopedRoles(ctx, req)
 }
 
+// ListScopedRolesWithFilter returns a paginated list of scoped roles filtered by the provided filter function. This
+// method is used internally to implement access-controls on the ListScopedRoles grpc method.
+func (c *Cache) ListScopedRolesWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest, filter func(*scopedaccessv1.ScopedRole) bool) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	state, err := c.read(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return state.roles.ListScopedRolesWithFilter(ctx, req, filter)
+}
+
 // GetScopedRoleAssignment retrieves a scoped role assignment by name.
 func (c *Cache) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.GetScopedRoleAssignmentRequest) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
 	state, err := c.read(ctx)
@@ -165,6 +176,18 @@ func (c *Cache) ListScopedRoleAssignments(ctx context.Context, req *scopedaccess
 	}
 
 	return state.assignments.ListScopedRoleAssignments(ctx, req)
+}
+
+// ListScopedRoleAssignmentsWithFilter returns a paginated list of scoped role assignments filtered by the provided
+// filter function. This method is used internally to implement access-controls on the ListScopedRoleAssignments grpc
+// method.
+func (c *Cache) ListScopedRoleAssignmentsWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest, filter func(*scopedaccessv1.ScopedRoleAssignment) bool) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
+	state, err := c.read(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return state.assignments.ListScopedRoleAssignmentsWithFilter(ctx, req, filter)
 }
 
 // PopulatePinnedAssignmentsForUser populates the provided scope pin with all relevant assignments related to the

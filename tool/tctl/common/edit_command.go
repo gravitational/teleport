@@ -130,12 +130,14 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 	rc.Initialize(e.app, nil, e.config)
 
-	// Prompt for admin action MFA if required, before getting any
-	// resources with secrets and before the update/editor below.
-	if mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/); err == nil {
-		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
-		return trace.Wrap(err)
+	if !rc.SkipPreemptiveMFA() {
+		// Prompt for admin action MFA if required, before getting any
+		// resources with secrets and before the update/editor below.
+		if mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/); err == nil {
+			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+		} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+			return trace.Wrap(err)
+		}
 	}
 
 	err = rc.Get(ctx, client)

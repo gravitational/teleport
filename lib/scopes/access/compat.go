@@ -27,6 +27,25 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// scopedRoleConditionsToRoleConditions converts scoped role conditions to classic role conditions. This is a
+// straightforward conversion because scoped role conditions are a subset of classic role conditions.
+func scopedRoleConditionsToRoleConditions(src *scopedaccessv1.ScopedRoleConditions) types.RoleConditions {
+	var rules []types.Rule
+	if len(src.GetRules()) > 0 {
+		rules = make([]types.Rule, 0, len(src.GetRules()))
+		for _, r := range src.GetRules() {
+			rules = append(rules, types.Rule{
+				Resources: r.GetResources(),
+				Verbs:     r.GetVerbs(),
+			})
+		}
+	}
+
+	return types.RoleConditions{
+		Rules: rules,
+	}
+}
+
 // ScopedRoleToRole converts a scoped role to an equivalent classic role. Scoped roles do not implement their
 // own access-control logic for the most part, and instead rely on converting to classic roles for the final
 // step of evaluation. This functiona also accepts the assigned scope as a parameter because we conventionally
@@ -34,8 +53,9 @@ import (
 // role evaluation logic.
 func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (types.Role, error) {
 	role, err := types.NewRoleWithVersion(sr.GetMetadata().GetName()+"@"+assignedScope, types.V8, types.RoleSpecV6{
-		// scoped role features are not yet implemented. all scoped roles
-		// are currently effectively an empty role.
+		// scoped roles support allow blocks, but not deny blocks.
+		Allow: scopedRoleConditionsToRoleConditions(sr.GetSpec().GetAllow()),
+		// no scoped role options have been implemented yet. all options blocks are default/placeholder values.
 		Options: types.RoleOptions{
 			// CertificateFormat is always set to "standard" for scoped roles. We don't anticipate needing to change
 			// this in the future, but if we did alternative options for controlling the parameter via some other
