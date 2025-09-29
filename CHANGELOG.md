@@ -1,5 +1,12 @@
 # Changelog
 
+## 16.5.18 (09/29/25)
+
+* Fixed auto-approvals in the Datadog Incident Management integration by updating the on-call API client. [#59670](https://github.com/gravitational/teleport/pull/59670)
+* Fixed auto-approvals in the Datadog Incident Management integration to ignore case sensitivity in user emails. [#59670](https://github.com/gravitational/teleport/pull/59670)
+* Fixed `tsh play` not returning an error when playing a session fails. [#59627](https://github.com/gravitational/teleport/pull/59627)
+* Fixed persistence of `metadata.description` field for the Bot resource. [#59572](https://github.com/gravitational/teleport/pull/59572)
+
 ## 16.5.17 (09/23/25)
 
 * Made the check for a running Teleport process in the install-node.sh script more robust. [#59494](https://github.com/gravitational/teleport/pull/59494)
