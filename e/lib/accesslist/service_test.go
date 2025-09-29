@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	"github.com/gravitational/teleport/lib/utils/clocki"
 )
 
 const (
@@ -520,7 +519,8 @@ func TestService_GetAccessList(t *testing.T) {
 }
 
 func TestService_GetAccessListsToReview(t *testing.T) {
-	c := initSvc(t)
+	clock := clockwork.NewFakeClock()
+	c := initSvc(t, withClock(clock))
 
 	getResp, err := c.svc.GetAccessLists(c.userCtx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
@@ -565,24 +565,24 @@ func TestService_GetAccessListsToReview(t *testing.T) {
 	// Provide a7 before a6 since a6 depends on a7 for ownership relationship.
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{a1, a2, a3, a4, a5, a7, a6, nonReviewable1, nonReviewable2}, []*accesslist.AccessListMember{a7m1})
 
-	c.setDate(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
+	setDate(clock, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	resp, err = c.svc.GetAccessListsToReview(c.ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
 	require.NoError(t, err)
 	require.Empty(t, resp.AccessLists)
 
-	c.setDate(time.Date(2024, 1, 18, 0, 0, 0, 0, time.UTC))
+	setDate(clock, time.Date(2024, 1, 18, 0, 0, 0, 0, time.UTC))
 
 	resp, err = c.svc.GetAccessListsToReview(c.ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a5, a6}, mustFromProtoAll(t, resp.AccessLists...), cmpOpts...))
 
-	c.setDate(time.Date(2024, 2, 2, 0, 0, 0, 0, time.UTC))
+	setDate(clock, time.Date(2024, 2, 2, 0, 0, 0, 0, time.UTC))
 
 	resp, err = c.svc.GetAccessListsToReview(c.ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a5, a6}, mustFromProtoAll(t, resp.AccessLists...), cmpOpts...))
-	c.setDate(time.Date(2024, 2, 16, 0, 0, 0, 0, time.UTC))
+	setDate(clock, time.Date(2024, 2, 16, 0, 0, 0, 0, time.UTC))
 
 	resp, err = c.svc.GetAccessListsToReview(c.ownerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
 	require.NoError(t, err)
@@ -831,7 +831,7 @@ type testSvcComponents struct {
 	userDenyAllCtx   context.Context
 	ownerCtx         context.Context
 	svc              *Service
-	clock            clocki.FakeClock
+	clock            clockwork.Clock
 	emitter          *eventstest.ChannelEmitter
 	usageEvents      *usageEventsClient
 	usageReporter    *usageReporter
@@ -841,6 +841,7 @@ type testSvcComponents struct {
 
 type testSvcOptions struct {
 	disabledReconcilers bool
+	clock               clockwork.Clock
 }
 
 type svcOpts func(*testSvcOptions)
@@ -851,14 +852,22 @@ func withDisabledReconcilers() svcOpts {
 	}
 }
 
+func withClock(clock clockwork.Clock) svcOpts {
+	return func(o *testSvcOptions) {
+		o.clock = clock
+	}
+}
+
 func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
-	var options testSvcOptions
+	options := testSvcOptions{
+		clock: clockwork.NewFakeClock(),
+	}
 	for _, opt := range opts {
 		opt(&options)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
-	clock := clockwork.NewFakeClock()
+	clock := options.clock
 	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
@@ -1047,7 +1056,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	usageEvents := &usageEventsClient{}
 	usageReporter := &usageReporter{}
 	svc, err := NewService(
-		ctx,
+		t.Context(),
 		ServiceConfig{
 			Authorizer:         authorizer,
 			AccessLists:        storage,
@@ -1117,9 +1126,10 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	}
 }
 
-func (c *testSvcComponents) setDate(date time.Time) {
-	now := c.clock.Now()
-	c.clock.Advance(date.Sub(now))
+func setDate(clock *clockwork.FakeClock, date time.Time) {
+	now := clock.Now()
+	clock.Advance(date.Sub(now))
+
 }
 
 func TestService_CountAccessListMembers(t *testing.T) {
@@ -2389,7 +2399,8 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 }
 
 func TestService_CreateAccessListReview(t *testing.T) {
-	c := initSvc(t)
+	clock := clockwork.NewFakeClock()
+	c := initSvc(t, withClock(clock))
 
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
@@ -2611,11 +2622,12 @@ func TestService_ListAccessListReviews(t *testing.T) {
 }
 
 func TestService_DeleteAccessListReviews(t *testing.T) {
-	c := initSvc(t)
+	clock := clockwork.NewFakeClock()
+	c := initSvc(t, withClock(clock))
 
 	// Set the clock to a fixed date. This will ensure that the expected days past calculation later on
 	// will be predictable.
-	c.clock.Advance(c.clock.Since(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)))
+	clock.Advance(c.clock.Since(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)))
 
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
@@ -2629,7 +2641,7 @@ func TestService_DeleteAccessListReviews(t *testing.T) {
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2, a3}, nil)
 
 	// Advance the clock so that the new reviews are past the review date.
-	c.clock.Advance(time.Hour * 24 * 366) // 24 hours past the access list review date.
+	clock.Advance(time.Hour * 24 * 366) // 24 hours past the access list review date.
 
 	require.Empty(t, listAllAccessListReviews(c.userCtx, t, c.svc, a1.GetName(), 1))
 	require.Empty(t, listAllAccessListReviews(c.userCtx, t, c.svc, a2.GetName(), 1))

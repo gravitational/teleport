@@ -250,8 +250,17 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 	}
 
 	if !cfg.disableReconcilers {
-		go s.runAccessListIneligibleReconciler(ctx)
-		go s.runAccessListStatusReconciler(ctx)
+		go func() {
+			if err := s.runAccessListIneligibleReconciler(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				s.logger.ErrorContext(ctx, "Access List ineligible reconciler exited with error.", "error", err)
+			}
+		}()
+
+		go func() {
+			if err := s.runAccessListStatusReconciler(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				s.logger.ErrorContext(ctx, "Access List status reconciler exited with error.", "error", err)
+			}
+		}()
 	}
 
 	return s, nil
@@ -2334,6 +2343,9 @@ func (s *Service) runAccessListIneligibleReconciler(ctx context.Context) error {
 			},
 		)
 		if err != nil {
+			if ctx.Err() != nil {
+				return trace.Wrap(ctx.Err())
+			}
 			s.logger.ErrorContext(ctx, "Error running access list ineligible reconciler", "error", err)
 			select {
 			case <-s.clock.After(30 * time.Second):
@@ -2368,8 +2380,7 @@ func (s *Service) runAccessListStatusReconciler(ctx context.Context) error {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				reconciler.Run(ctx)
-				return nil
+				return trace.Wrap(reconciler.Run(ctx))
 			},
 		)
 		if err != nil {

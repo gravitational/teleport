@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 // IneligibleStatusReconcilerConfig is the configuration for the IneligibleStatusReconciler.
@@ -54,22 +55,16 @@ type Cache interface {
 func NewIneligibleStatusReconciler(ctx context.Context, cfg IneligibleStatusReconcilerConfig) (*IneligibleStatusReconciler, error) {
 	watcher, err := cfg.Cache.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
-			{
-				Kind: types.KindUser,
-			},
-			{
-				Kind: types.KindAccessList,
-			},
-			{
-				Kind: types.KindAccessListMember,
-			},
+			{Kind: types.KindUser},
+			{Kind: types.KindAccessList},
+			{Kind: types.KindAccessListMember},
 		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := waitForInitOp(watcher); err != nil {
+	if err := waitForInitOp(ctx, watcher); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -82,9 +77,11 @@ func NewIneligibleStatusReconciler(ctx context.Context, cfg IneligibleStatusReco
 	}, nil
 }
 
-func waitForInitOp(watcher types.Watcher) error {
+func waitForInitOp(ctx context.Context, watcher types.Watcher) error {
 	for {
 		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
 		case p := <-watcher.Events():
 			if p.Type == types.OpInit {
 				return nil
@@ -120,7 +117,12 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 	reconcileC := make(chan struct{}, 1)
 	// add initial one minute  then set the expiration based on the next member expiration
 	// or forceReconcileDuration, whichever is sooner.
-	wakeTimer := r.clock.NewTimer(time.Minute)
+	wakeTimer := interval.New(interval.Config{
+		FirstDuration: time.Minute,
+		Duration:      forceReconcileDuration,
+		Clock:         r.clock,
+	})
+	defer wakeTimer.Stop()
 
 	queueReconcileFn := func() {
 		select {
@@ -137,10 +139,10 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case <-r.watcher.Done():
 			return trace.Wrap(r.watcher.Error())
-		case <-wakeTimer.Chan():
+		case <-wakeTimer.Next():
 		case <-reconcileC:
 		}
 
@@ -151,14 +153,13 @@ func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
 			// the list, so we need to reprocess it slilghtly.
 			// we sleep for a bit to avoid spinning too much
 			// when we get a lot of these errors because of a lot of updates.
-			const waitTime = 15 * time.Second
-			drainAndResetTimer(wakeTimer, waitTime)
+			wakeTimer.ResetTo(15 * time.Second)
 			continue
 		} else if err != nil {
 			r.logger.WarnContext(ctx, "Failed to reconcile memberships", "error", err)
 		}
 		// The reconciliationLoop returns the earliest expiration time across all access list members
-		drainAndResetTimer(wakeTimer, min(max(nextExpiration, time.Second), forceReconcileDuration))
+		wakeTimer.ResetTo(min(nextExpiration, forceReconcileDuration))
 	}
 }
 
@@ -174,19 +175,6 @@ func (r *IneligibleStatusReconciler) runTriggerLoop(ctx context.Context, queueRe
 		}
 		queueReconcile()
 	}
-}
-
-func drainAndResetTimer(t clockwork.Timer, timeout time.Duration) {
-	if !t.Stop() {
-		// drain the channel if it's not empty
-		// draining an already fired timer results in a deadlock
-		// so we need to wrap it in a select
-		select {
-		case <-t.Chan():
-		default:
-		}
-	}
-	t.Reset(timeout)
 }
 
 // Close closes the reconciler.

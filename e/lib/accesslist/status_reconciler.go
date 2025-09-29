@@ -104,7 +104,7 @@ func newStatusReconciler(config statusReconcilerConfig) (*statusReconciler, erro
 }
 
 // Run the reconciliation loop. This methods blocks till the context is canceled.
-func (r *statusReconciler) Run(ctx context.Context) {
+func (r *statusReconciler) Run(ctx context.Context) error {
 	startupDelay := retryutils.SeventhJitter(statusReconcilerStartupSeventhJitter)
 	r.Logger.DebugContext(ctx, "Delaying access_list statuses reconciler startup", "delay", logutils.StringerAttr(startupDelay))
 
@@ -133,7 +133,7 @@ func (r *statusReconciler) Run(ctx context.Context) {
 				}
 			}
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		}
 	}
 }

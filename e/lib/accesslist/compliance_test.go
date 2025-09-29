@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -85,14 +86,15 @@ func TestReportCompliance(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			c := initSvc(t)
+			clock := clockwork.NewFakeClock()
+			c := initSvc(t, withClock(clock))
 
 			// Create all of the access lists.
 			createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents,
 				test.accessLists, nil)
 
 			// Advance the time to the specified time.
-			c.clock.Advance(test.currentTime.Sub(c.clock.Now()))
+			clock.Advance(test.currentTime.Sub(c.clock.Now()))
 
 			require.NoError(t, c.svc.reportComplianceMetrics(c.userCtx))
 
