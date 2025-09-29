@@ -17,7 +17,9 @@ package batcher_test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils/batcher"
@@ -37,7 +39,9 @@ func TestStateManage(t *testing.T) {
 		},
 	}
 
-	sm := batcher.NewStateMonitor(config)
+	sm, err := batcher.NewStateMonitor(config)
+	require.NoError(t, err)
+	defer sm.Stop()
 
 	sm.UpdateState(50)
 	require.Equal(t, 0, enterStormCount)
@@ -61,5 +65,63 @@ func TestStateManage(t *testing.T) {
 
 	sm.UpdateState(100)
 	require.Equal(t, 2, enterStormCount)
+	require.Equal(t, 1, exitStormCount)
+}
+
+func TestStateMonitor_IdleTimer(t *testing.T) {
+	fc := clockwork.NewFakeClock()
+
+	enterStormCount := 0
+	exitStormCount := 0
+	exitCh := make(chan struct{}, 1)
+
+	cfg := batcher.StateConfig{
+		Threshold:             100,
+		OverloadedIdleTimeout: 10 * time.Second,
+		Clock:                 fc,
+		OnEnterOverloaded: func() {
+			enterStormCount++
+		},
+		OnExitOverloaded: func() {
+			exitStormCount++
+			select {
+			case exitCh <- struct{}{}:
+			default:
+			}
+		},
+	}
+
+	sm, err := batcher.NewStateMonitor(cfg)
+	require.NoError(t, err)
+	sm.Start(t.Context())
+	defer sm.Stop()
+
+	sm.UpdateState(200)
+	require.Equal(t, batcher.StateOverloaded, sm.GetState())
+	require.Equal(t, 1, enterStormCount)
+	require.Equal(t, 0, exitStormCount)
+
+	fc.Advance(500 * time.Millisecond)
+	require.Equal(t, batcher.StateOverloaded, sm.GetState())
+	require.Equal(t, 0, exitStormCount)
+
+	sm.UpdateState(150)
+	require.Equal(t, batcher.StateOverloaded, sm.GetState())
+
+	// Advance another 700ms not new events but this state is still overloaded.
+	fc.Advance(700 * time.Millisecond)
+	require.Equal(t, batcher.StateOverloaded, sm.GetState())
+	require.Equal(t, 0, exitStormCount)
+
+	require.NoError(t, fc.BlockUntilContext(t.Context(), 1))
+	fc.Advance(21 * time.Second)
+
+	select {
+	case <-exitCh:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("expected OnExitOverloaded to fire after idle timeout")
+	}
+
+	require.Equal(t, batcher.StateNormal, sm.GetState())
 	require.Equal(t, 1, exitStormCount)
 }

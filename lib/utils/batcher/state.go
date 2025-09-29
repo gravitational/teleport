@@ -16,7 +16,14 @@
 
 package batcher
 
-import "sync"
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+)
 
 // State represents the current processing mode based on batch volume.
 type State int
@@ -48,19 +55,42 @@ type StateConfig struct {
 	// Is not provided, no action is taken on state transition.
 	OnEnterOverloaded func()
 
-	// OnExitOverloaded is called when transitioning from Overloaded to Normal state.
-	// This callback is invoked when batch size drops below threshold/2.
+	// OnExitOverloaded is called when transitioning from the Overloaded state back to the Normal state.
 	//
-	// WARN: For simplicity there is not timer-based transition back to Normal state,
-	// it only happens when batch size drops below threshold/2.
-	// So if the last batch is larger and there are no new events, the state will remain Overloaded.
-	// Is not provided, no action is taken on state transition.
+	// This callback is invoked in either of the following cases:
+	//   - When the batch size drops below half of the configured Threshold.
+	//   - In background goroutine when the OverloadedIdleTimeout period elapses without
+	//     receiving any new events, causing the state to automatically revert to Normal.
+	//
+	// If not provided, no action is taken on state transition.
 	OnExitOverloaded func()
 
 	// Threshold is the batch size threshold for state transitions.
 	// Normal -> Overloaded: when batchSize >= Threshold
 	// Overloaded -> Normal: when batchSize < Threshold/2
 	Threshold int
+
+	// OverloadedIdleTimeout is the quiet-period after which the monitor will (if still in
+	// StateOverloaded) automatically return to StateNormal even if no new batches arrive.
+	// If zero, the timer-based transition is disabled and the state will only return
+	// to Normal via an explicit size drop (< Threshold/2).
+	OverloadedIdleTimeout time.Duration
+
+	// Clock is used to control time. If nil, the system clock is used.
+	Clock clockwork.Clock
+}
+
+func (cfg *StateConfig) CheckAndSetDefaults() error {
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.Threshold == 0 {
+		cfg.Threshold = 100
+	}
+	if cfg.OverloadedIdleTimeout != 0 && cfg.OverloadedIdleTimeout < time.Second {
+		return trace.BadParameter("OverloadedIdleTimeout must be at least 1s")
+	}
+	return nil
 }
 
 // StateMonitor monitors batch sizes and manages state transitions based on configured thresholds.
@@ -69,15 +99,23 @@ type StateMonitor struct {
 
 	mu    sync.RWMutex
 	state State
+
+	lastReceived time.Time
+	stop         chan struct{}
 }
 
 // NewStateMonitor creates a new StateMonitor with the given configuration.
 // The monitor starts in Normal state by default.
-func NewStateMonitor(config StateConfig) *StateMonitor {
+func NewStateMonitor(config StateConfig) (*StateMonitor, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &StateMonitor{
 		state:       StateNormal,
 		StateConfig: config,
-	}
+		stop:        make(chan struct{}),
+	}, nil
 }
 
 // GetState returns the current state of the monitor.
@@ -87,12 +125,45 @@ func (sm *StateMonitor) GetState() State {
 	return sm.state
 }
 
+func (sm *StateMonitor) Start(ctx context.Context) {
+	if sm.OverloadedIdleTimeout == 0 {
+		return
+	}
+	go sm.monitorIdle(ctx)
+}
+
+func (sm *StateMonitor) monitorIdle(ctx context.Context) {
+	ticker := sm.Clock.NewTicker(sm.OverloadedIdleTimeout)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sm.stop:
+			return
+		case <-ticker.Chan():
+			sm.mu.Lock()
+			if sm.state == StateOverloaded && sm.lastReceived.Add(sm.OverloadedIdleTimeout).Before(sm.Clock.Now()) {
+				sm.state = StateNormal
+				sm.mu.Unlock()
+				if sm.OnExitOverloaded != nil {
+					sm.OnExitOverloaded()
+				}
+			} else {
+				sm.mu.Unlock()
+			}
+		}
+	}
+}
+
 // UpdateState evaluates the current batch size and updates the state if necessary.
 func (sm *StateMonitor) UpdateState(batchSize int) State {
 	sm.mu.Lock()
 	oldState := sm.state
 	newState := sm.evaluateState(batchSize)
 	sm.state = newState
+	sm.lastReceived = sm.Clock.Now()
 	sm.mu.Unlock()
 
 	if oldState != newState {
@@ -120,4 +191,9 @@ func (sm *StateMonitor) evaluateState(batchSize int) State {
 		return StateNormal
 	}
 	return sm.state
+}
+
+// Stop stops any internal timers used by the StateMonitor.
+func (sm *StateMonitor) Stop() {
+	close(sm.stop)
 }
