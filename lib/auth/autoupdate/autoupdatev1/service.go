@@ -55,6 +55,9 @@ type Cache interface {
 
 	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReport from the backend.
 	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
+
+	// GetAutoUpdateBotReport gets the singleton AutoUpdateBotReport from the backend.
+	GetAutoUpdateBotReport(ctx context.Context) (*autoupdate.AutoUpdateBotReport, error)
 }
 
 // ServiceConfig holds configuration options for the auto update gRPC service.
@@ -1043,6 +1046,24 @@ func (s *Service) DeleteAutoUpdateAgentReport(ctx context.Context, req *autoupda
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
+}
+
+// GetAutoUpdateBotReport gets the singleton AutoUpdateBotReport.
+func (s *Service) GetAutoUpdateBotReport(ctx context.Context, _ *autoupdate.GetAutoUpdateBotReportRequest) (*autoupdate.AutoUpdateBotReport, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateBotReport, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	report, err := s.backend.GetAutoUpdateBotReport(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return report, nil
 }
 
 func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {

@@ -40,6 +40,9 @@ type AutoUpdateServiceGetter interface {
 
 	// ListAutoUpdateAgentReports returns an AutoUpdateAgentReports page.
 	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
+
+	// GetAutoUpdateBotReport gets the singleton auto-update bot report.
+	GetAutoUpdateBotReport(ctx context.Context) (*autoupdate.AutoUpdateBotReport, error)
 }
 
 // AutoUpdateService stores the autoupdate service.

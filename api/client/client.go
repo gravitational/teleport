@@ -3149,6 +3149,16 @@ func (c *Client) UpsertAutoUpdateAgentReport(ctx context.Context, report *autoup
 	return resp, nil
 }
 
+// GetAutoUpdateBotReport gets the singleton auto-update bot report.
+func (c *Client) GetAutoUpdateBotReport(ctx context.Context) (*autoupdatev1pb.AutoUpdateBotReport, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateBotReport(ctx, &autoupdatev1pb.GetAutoUpdateBotReportRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})

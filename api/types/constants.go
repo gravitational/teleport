@@ -358,6 +358,9 @@ const (
 	// KindAutoUpdateBotReport is the resource that tracks connected bots.
 	KindAutoUpdateBotReport = "autoupdate_bot_report"
 
+	// MetaNameAutoUpdateBotReport is the name of the singleton auto update bot report.
+	MetaNameAutoUpdateBotReport = "autoupdate-bot-report"
+
 	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
 	MetaNameAutoUpdateConfig = "autoupdate-config"
 

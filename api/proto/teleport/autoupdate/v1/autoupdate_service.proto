@@ -96,6 +96,9 @@ service AutoUpdateService {
 
   // DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
   rpc DeleteAutoUpdateAgentReport(DeleteAutoUpdateAgentReportRequest) returns (google.protobuf.Empty);
+
+  // GetAutoUpdateBotReport returns the singleton AutoUpdateBotReport resource.
+  rpc GetAutoUpdateBotReport(GetAutoUpdateBotReportRequest) returns (AutoUpdateBotReport);
 }
 
 // Request for GetAutoUpdateConfig.
@@ -237,3 +240,6 @@ message DeleteAutoUpdateAgentReportRequest {
   // Name is the name of the AutoUpdateAgentReport to be deleted.
   string name = 1;
 }
+
+// Request for GetAutoUpdateBotReport.
+message GetAutoUpdateBotReportRequest {}

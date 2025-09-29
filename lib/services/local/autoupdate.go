@@ -346,7 +346,7 @@ func itemFromAutoUpdateVersion(version *autoupdate.AutoUpdateVersion) (*backend.
 
 // GetAutoUpdateBotReport gets the singleton auto-update bot report.
 func (s *AutoUpdateService) GetAutoUpdateBotReport(ctx context.Context) (*autoupdate.AutoUpdateBotReport, error) {
-	report, err := s.botReport.GetResource(ctx, "latest")
+	report, err := s.botReport.GetResource(ctx, types.MetaNameAutoUpdateBotReport)
 	return report, trace.Wrap(err)
 }
 
@@ -356,7 +356,7 @@ func (s *AutoUpdateService) SetAutoUpdateBotReport(ctx context.Context, spec *au
 		Kind:    types.KindAutoUpdateBotReport,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: "latest",
+			Name: types.MetaNameAutoUpdateBotReport,
 		},
 		Spec: spec,
 	})

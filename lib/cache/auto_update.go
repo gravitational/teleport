@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -267,7 +268,7 @@ func (c *Cache) GetAutoUpdateAgentReport(ctx context.Context, name string) (*aut
 
 	getter := genericGetter[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
 		cache:       c,
-		collection:  c.collections.autoUpdateReports,
+		collection:  c.collections.autoUpdateAgentReports,
 		index:       autoUpdateAgentReportNameIndex,
 		upstreamGet: c.Config.AutoUpdateService.GetAutoUpdateAgentReport,
 	}
@@ -282,7 +283,7 @@ func (c *Cache) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pa
 
 	lister := genericLister[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
 		cache:        c,
-		collection:   c.collections.autoUpdateReports,
+		collection:   c.collections.autoUpdateAgentReports,
 		index:        autoUpdateAgentReportNameIndex,
 		upstreamList: c.Config.AutoUpdateService.ListAutoUpdateAgentReports,
 		nextToken: func(t *autoupdatev1.AutoUpdateAgentReport) string {
@@ -291,4 +292,58 @@ func (c *Cache) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pa
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+type autoUpdateBotReportIndex string
+
+const autoUpdateBotReportNameIndex autoUpdateBotReportIndex = "name"
+
+func newAutoUpdateBotReportCollection(upstream services.AutoUpdateServiceGetter, w types.WatchKind) (*collection[*autoupdatev1.AutoUpdateBotReport, autoUpdateBotReportIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter AutoUpdateServiceGetter")
+	}
+
+	return &collection[*autoupdatev1.AutoUpdateBotReport, autoUpdateBotReportIndex]{
+		store: newStore(
+			types.KindAutoUpdateBotReport,
+			proto.CloneOf[*autoupdatev1.AutoUpdateBotReport],
+			map[autoUpdateBotReportIndex]func(*autoupdatev1.AutoUpdateBotReport) string{
+				autoUpdateBotReportNameIndex: func(r *autoupdatev1.AutoUpdateBotReport) string {
+					return r.GetMetadata().Name
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*autoupdatev1.AutoUpdateBotReport, error) {
+			report, err := upstream.GetAutoUpdateBotReport(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return []*autoupdatev1.AutoUpdateBotReport{report}, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *autoupdatev1.AutoUpdateBotReport {
+			return &autoupdatev1.AutoUpdateBotReport{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetAutoUpdateBotReport(ctx context.Context) (*autoupdatev1.AutoUpdateBotReport, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateBotReport")
+	defer span.End()
+
+	getter := genericGetter[*autoupdatev1.AutoUpdateBotReport, autoUpdateBotReportIndex]{
+		cache:      c,
+		collection: c.collections.autoUpdateBotReports,
+		index:      autoUpdateBotReportNameIndex,
+		upstreamGet: func(ctx context.Context, _ string) (*autoupdate.AutoUpdateBotReport, error) {
+			return c.Config.AutoUpdateService.GetAutoUpdateBotReport(ctx)
+		},
+	}
+	out, err := getter.get(ctx, types.MetaNameAutoUpdateBotReport)
+	return out, trace.Wrap(err)
 }

@@ -58,6 +58,7 @@ const (
 	AutoUpdateService_UpdateAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/UpdateAutoUpdateAgentReport"
 	AutoUpdateService_UpsertAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/UpsertAutoUpdateAgentReport"
 	AutoUpdateService_DeleteAutoUpdateAgentReport_FullMethodName  = "/teleport.autoupdate.v1.AutoUpdateService/DeleteAutoUpdateAgentReport"
+	AutoUpdateService_GetAutoUpdateBotReport_FullMethodName       = "/teleport.autoupdate.v1.AutoUpdateService/GetAutoUpdateBotReport"
 )
 
 // AutoUpdateServiceClient is the client API for AutoUpdateService service.
@@ -116,6 +117,8 @@ type AutoUpdateServiceClient interface {
 	UpsertAutoUpdateAgentReport(ctx context.Context, in *UpsertAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*AutoUpdateAgentReport, error)
 	// DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
 	DeleteAutoUpdateAgentReport(ctx context.Context, in *DeleteAutoUpdateAgentReportRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GetAutoUpdateBotReport returns the singleton AutoUpdateBotReport resource.
+	GetAutoUpdateBotReport(ctx context.Context, in *GetAutoUpdateBotReportRequest, opts ...grpc.CallOption) (*AutoUpdateBotReport, error)
 }
 
 type autoUpdateServiceClient struct {
@@ -366,6 +369,16 @@ func (c *autoUpdateServiceClient) DeleteAutoUpdateAgentReport(ctx context.Contex
 	return out, nil
 }
 
+func (c *autoUpdateServiceClient) GetAutoUpdateBotReport(ctx context.Context, in *GetAutoUpdateBotReportRequest, opts ...grpc.CallOption) (*AutoUpdateBotReport, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AutoUpdateBotReport)
+	err := c.cc.Invoke(ctx, AutoUpdateService_GetAutoUpdateBotReport_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AutoUpdateServiceServer is the server API for AutoUpdateService service.
 // All implementations must embed UnimplementedAutoUpdateServiceServer
 // for forward compatibility.
@@ -422,6 +435,8 @@ type AutoUpdateServiceServer interface {
 	UpsertAutoUpdateAgentReport(context.Context, *UpsertAutoUpdateAgentReportRequest) (*AutoUpdateAgentReport, error)
 	// DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
 	DeleteAutoUpdateAgentReport(context.Context, *DeleteAutoUpdateAgentReportRequest) (*emptypb.Empty, error)
+	// GetAutoUpdateBotReport returns the singleton AutoUpdateBotReport resource.
+	GetAutoUpdateBotReport(context.Context, *GetAutoUpdateBotReportRequest) (*AutoUpdateBotReport, error)
 	mustEmbedUnimplementedAutoUpdateServiceServer()
 }
 
@@ -503,6 +518,9 @@ func (UnimplementedAutoUpdateServiceServer) UpsertAutoUpdateAgentReport(context.
 }
 func (UnimplementedAutoUpdateServiceServer) DeleteAutoUpdateAgentReport(context.Context, *DeleteAutoUpdateAgentReportRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoUpdateAgentReport not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) GetAutoUpdateBotReport(context.Context, *GetAutoUpdateBotReportRequest) (*AutoUpdateBotReport, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAutoUpdateBotReport not implemented")
 }
 func (UnimplementedAutoUpdateServiceServer) mustEmbedUnimplementedAutoUpdateServiceServer() {}
 func (UnimplementedAutoUpdateServiceServer) testEmbeddedByValue()                           {}
@@ -957,6 +975,24 @@ func _AutoUpdateService_DeleteAutoUpdateAgentReport_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AutoUpdateService_GetAutoUpdateBotReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAutoUpdateBotReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).GetAutoUpdateBotReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_GetAutoUpdateBotReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).GetAutoUpdateBotReport(ctx, req.(*GetAutoUpdateBotReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AutoUpdateService_ServiceDesc is the grpc.ServiceDesc for AutoUpdateService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1059,6 +1095,10 @@ var AutoUpdateService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAutoUpdateAgentReport",
 			Handler:    _AutoUpdateService_DeleteAutoUpdateAgentReport_Handler,
+		},
+		{
+			MethodName: "GetAutoUpdateBotReport",
+			Handler:    _AutoUpdateService_GetAutoUpdateBotReport_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

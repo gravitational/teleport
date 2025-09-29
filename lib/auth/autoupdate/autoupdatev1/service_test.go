@@ -350,6 +350,18 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbDelete},
 			builtinRole:  &authz.BuiltinRole{Role: types.RoleAuth},
 		},
+		// Autoupdate bot report check
+		{
+			name: "GetAutoUpdateBotReport",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			kind:         types.KindAutoUpdateBotReport,
+			allowedVerbs: []string{types.VerbRead},
+		},
 	}
 
 	for _, tt := range testCases {
