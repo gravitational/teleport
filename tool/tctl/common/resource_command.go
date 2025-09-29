@@ -310,6 +310,16 @@ func (rc *ResourceCommand) GetRef() services.Ref {
 	return rc.ref
 }
 
+// SkipPreemptiveMFA returns true if the resource command should skip the preemptive MFA ceremony. This is a temporary
+// workaround to ensure `tctl edit` works with scoped permissions, which do not currently support MFA.
+func (rc *ResourceCommand) SkipPreemptiveMFA() bool {
+	// TODO(fspmarshall/scopes): get rid of the need for this exception.
+	skipKinds := []string{scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment}
+	return slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+		return slices.Contains(skipKinds, r.Kind)
+	})
+}
+
 // Get prints one or many resources of a certain type
 func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
 	// Some resources require MFA to list with secrets. Check if we are trying to
@@ -394,12 +404,14 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 
 // Create updates or inserts one or many resources
 func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client) (err error) {
-	// Prompt for admin action MFA if required, allowing reuse for multiple resource creations.
-	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
-	if err == nil {
-		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
-		return trace.Wrap(err)
+	if !rc.SkipPreemptiveMFA() {
+		// Prompt for admin action MFA if required, allowing reuse for multiple resource creations.
+		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+		if err == nil {
+			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+		} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+			return trace.Wrap(err)
+		}
 	}
 
 	var reader io.Reader

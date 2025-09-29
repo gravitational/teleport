@@ -36,6 +36,20 @@ type ScopedAccessReader interface {
 	ScopedRoleAssignmentReader
 }
 
+// CachedScopedAccessReader extends ScopedAccessReader with cache-specific methods.
+type CachedScopedAccessReader interface {
+	ScopedAccessReader
+
+	// ListScopedRolesWithFilter returns a paginated list of scoped roles filtered by the provided filter function. This
+	// method is used internally to implement access-controls on the ListScopedRoles grpc method.
+	ListScopedRolesWithFilter(context.Context, *scopedaccessv1.ListScopedRolesRequest, func(*scopedaccessv1.ScopedRole) bool) (*scopedaccessv1.ListScopedRolesResponse, error)
+
+	// ListScopedRoleAssignmentsWithFilter returns a paginated list of scoped role assignments filtered by the provided
+	// filter function. This method is used internally to implement access-controls on the ListScopedRoleAssignments grpc
+	// method.
+	ListScopedRoleAssignmentsWithFilter(context.Context, *scopedaccessv1.ListScopedRoleAssignmentsRequest, func(*scopedaccessv1.ScopedRoleAssignment) bool) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error)
+}
+
 // ScopedAccessWriter provides an interface for writing scoped access resources.
 type ScopedAccessWriter interface {
 	ScopedRoleWriter

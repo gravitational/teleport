@@ -893,6 +893,14 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.Au
 func (g *GRPCServer) GetClusterAlerts(ctx context.Context, query *types.GetClusterAlertsRequest) (*authpb.GetClusterAlertsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
+		if errors.Is(err, authz.ErrScopedIdentity) {
+			// NOTE: scoped alerts do not currently exist. a lot of client logic wants to incidentally load cluster alerts
+			// as part of other operations. ordinarily we just return an access deneied when a scoped identity is used to
+			// call an API that doesn't support scoping yet, but doing so here would complicate client logic a lot. it is
+			// therefore preferable to instead consider a scoped invocation a valid call that just happens to not match
+			// any alerts.
+			return &authpb.GetClusterAlertsResponse{}, nil
+		}
 		return nil, trail.ToGRPC(err)
 	}
 
@@ -1274,7 +1282,7 @@ func (g *GRPCServer) UpdatePluginData(ctx context.Context, params *types.PluginD
 }
 
 func (g *GRPCServer) Ping(ctx context.Context, req *authpb.PingRequest) (*authpb.PingResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5719,10 +5727,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	)
 
 	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
-		Authorizer: cfg.Authorizer,
-		Reader:     cfg.AuthServer.ScopedAccessCache,
-		Writer:     cfg.AuthServer.scopedAccessBackend,
-		Logger:     logger,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Reader:           cfg.AuthServer.ScopedAccessCache,
+		Writer:           cfg.AuthServer.scopedAccessBackend,
+		Logger:           logger,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped access control service")
@@ -6079,6 +6087,26 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			authServer: g.AuthServer,
 			context:    *authContext,
 			alog:       g.AuthServer,
+		},
+	}, nil
+}
+
+type scopedGRPCContext struct {
+	*ServerWithRoles
+}
+
+// scopedAuthenticate functions similarly to authenticate but supports scoped identities. It returns an initialized auth server
+// that has been set up with a scoped access checker, which may be based off of either a scoped or unscoped identity.
+func (g *GRPCServer) scopedAuthenticate(ctx context.Context) (*scopedGRPCContext, error) {
+	authContext, err := g.ScopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &scopedGRPCContext{
+		ServerWithRoles: &ServerWithRoles{
+			authServer:    g.AuthServer,
+			scopedContext: authContext,
+			alog:          g.AuthServer,
 		},
 	}, nil
 }
