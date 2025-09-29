@@ -82,6 +82,12 @@ type ServerWithRoles struct {
 	alog       events.AuditLogSessionStreamer
 	// context holds authorization context
 	context authz.Context
+
+	// scopedContext is an authz context that may or may not be scoped, some methods which have been
+	// converted to support scoped identities will be supplied with this context instead of the standard
+	// context field above. Only one of the two is non-nil at a time, so care must be taken to ensure
+	// that the correct one is used for a given method.
+	scopedContext *authz.ScopedContext
 }
 
 // CloseContext is closed when the auth server shuts down
