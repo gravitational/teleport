@@ -85,7 +85,21 @@ issuer=O=teleport.example.com, CN=teleport.example.com, serialNumber=20012986230
 ...
 ```
 
-The `issuer` field in the server certificate must match the `Subject` of the Teleport Database CA certificate.
+You can also inspect the Oracle wallet directly using the `orapki` utility to verify the server certificate.
+
+```bash
+# Prompt for wallet password
+orapki wallet display -complete -wallet /path/to/wallet
+```
+
+The "User Certificates" section of the output should contain the server's certificate. Its `Issuer` should match the `Subject` of the Teleport Database CA.
+
+```
+User Certificates:
+Subject:        CN=oracle.example.com
+Issuer:         SERIALNUMBER=200129862304303044762346177566738813560,CN=teleport.example.com,O=teleport.example.com
+Serial Number:  ...
+```
 
 #### Wrong client certificate
 
@@ -113,6 +127,22 @@ O=teleport.example.com, CN=teleport.example.com, serialNumber=183359545647055551
 ```
 
 Ensure that the Teleport Database User CA certificate has been added to the correct wallet and that the Oracle server configuration references this wallet.
+
+You can also inspect the Oracle wallet directly using the `orapki` utility to verify that the Teleport Database User CA is trusted.
+
+```bash
+# Prompt for wallet password
+orapki wallet display -complete -wallet /path/to/wallet
+```
+
+The "Trusted Certificates" section of the output should contain the Teleport Database User CA. Its `Subject` should match the `Subject` of the Teleport Database User CA.
+
+```
+Trusted Certificates:
+Subject:        SERIALNUMBER=183359545647055551607366887578713393931,CN=teleport.example.com,O=teleport.example.com
+Issuer:         SERIALNUMBER=183359545647055551607366887578713393931,CN=teleport.example.com,O=teleport.example.com
+Serial Number:  ...
+```
 
 #### Wrong TLS version
 
