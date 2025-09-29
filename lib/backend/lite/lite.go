@@ -37,7 +37,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/mattn/go-sqlite3"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -140,7 +141,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 // Config.
 func (cfg *Config) ConnectionURI() string {
 	params := url.Values{}
-	params.Set("_busy_timeout", strconv.Itoa(cfg.BusyTimeout))
+	params.Set("_pragma", "busy_timeout("+strconv.Itoa(cfg.BusyTimeout)+")")
 	// The _txlock parameter is parsed by go-sqlite to determine if (all)
 	// transactions should be started with `BEGIN DEFERRED` (the default, same
 	// as `BEGIN`), `BEGIN IMMEDIATE` or `BEGIN EXCLUSIVE`.
@@ -177,10 +178,10 @@ func (cfg *Config) ConnectionURI() string {
 	// correctly handle the possibility of the transaction being restarted.
 	params.Set("_txlock", "immediate")
 	if cfg.Sync != "" {
-		params.Set("_sync", cfg.Sync)
+		params.Add("_pragma", "synchronous("+cfg.Sync+")")
 	}
 	if cfg.Journal != "" {
-		params.Set("_journal", cfg.Journal)
+		params.Add("_pragma", "journal_mode("+cfg.Journal+")")
 	}
 
 	u := url.URL{
@@ -224,7 +225,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		setPermissions = true
 	}
 
-	db, err := sql.Open("sqlite3", cfg.ConnectionURI())
+	db, err := sql.Open("sqlite", cfg.ConnectionURI())
 	if err != nil {
 		return nil, trace.Wrap(err, "error opening URI: %v", connectionURI)
 	}
@@ -1093,33 +1094,33 @@ func isClosedError(err error) bool {
 }
 
 func isConstraintError(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrConstraint
+	return e.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY
 }
 
 func isLockedError(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrBusy
+	return e.Code() == sqlite3.SQLITE_BUSY
 }
 
 func isInterrupt(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrInterrupt
+	return e.Code() == sqlite3.SQLITE_INTERRUPT
 }
 
 func isReadonlyError(err error) bool {
-	var e sqlite3.Error
+	var e *sqlite.Error
 	if ok := errors.As(err, &e); !ok {
 		return false
 	}
-	return e.Code == sqlite3.ErrReadonly
+	return e.Code() == sqlite3.SQLITE_READONLY
 }
