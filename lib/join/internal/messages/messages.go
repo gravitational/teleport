@@ -225,7 +225,7 @@ type HostResult struct {
 	HostID string
 }
 
-// HostResult holds results for bot joining.
+// BotResult holds results for bot joining.
 type BotResult struct {
 	embedResponse
 
