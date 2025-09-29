@@ -124,6 +124,10 @@ func (r *Handler) SupportedCommands() []string {
 	if r.deleteHandler != nil {
 		verbs = append(verbs, "rm")
 	}
+	if r.updateHandler != nil {
+		verbs = append(verbs, "update")
+	}
+
 	return verbs
 }
 
