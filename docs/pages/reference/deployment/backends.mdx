@@ -220,7 +220,7 @@ the dataset to be at least 488 MiB. An additional 20-40% safety margin is recomm
 Given an existing resource you can estimate its size with the following command:
 
 ```sh
-tctl get <Var name="resource" /> | base64  -w 0 | awk '{ total += length($0) } END { print total * 2 }'
+tctl get <Var name="resource" /> --format=json | awk '{ total += length($0) } END { print total * 2 }'
 ```
 
 ## PostgreSQL
