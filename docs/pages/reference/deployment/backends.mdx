@@ -210,8 +210,10 @@ Refer to [etcd's maintenance guide](https://etcd.io/docs/v3.6/op-guide/maintenan
 
 #### Example disk sizing
 
-For a cluster with 50k resources, each 2 KiB in size and retention history of 5 revisions we would expect
-the dataset to be at least 488 MiB. An additional 20-40% safety margin is recommended for metadata and fragmentation overhead.
+For a cluster with 50k resources, with average size of 2 KiB and retention history of 5 revisions we would expect
+the dataset to be at least 488 MiB.
+
+An additional 20-40% safety margin is recommended for metadata and fragmentation overhead.
 
 Given an existing resource you can estimate its size with the following command:
 
