@@ -25,6 +25,7 @@
 * Updated Entra ID integration to support group filters. [#59378](https://github.com/gravitational/teleport/pull/59378)
 * Fixed regression allowing SAML apps to be included when filtering resources by 'Applications' in the Web UI. [#59327](https://github.com/gravitational/teleport/pull/59327)
 * Allow controlling the description of auto-discovered Kubernetes apps with an annotation. [#58817](https://github.com/gravitational/teleport/pull/58817)
+* Fixed an issue that prevented connecting to agents over peered tunnels when proxy peering was enabled. [#59556](https://github.com/gravitational/teleport/pull/59556)
 
 ## 18.2.2 (09/19/25)
 
