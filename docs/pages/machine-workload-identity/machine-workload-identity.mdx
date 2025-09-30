@@ -1,48 +1,328 @@
 ---
 title: "Teleport Machine & Workload Identity"
 description: "Provides information on Zero Trust Access & Flexible Workload Identity."
+template: "landing-page"
 tags:
  - mwi
  - infrastructure-identity
 ---
 
-Teleport Machine & Workload Identity offers two complementary sets of capabilities for non-human entities in your infrastructure:
+import LandingHero, { LandingHeroProps } from '@site/src/components/Pages/Landing/LandingHero';
+import Integrations, { IntegrationsProps } from "@site/src/components/Pages/Homepage/Integrations";
+import UseCasesList, { UseCasesListProps } from "@site/src/components/Pages/Landing/UseCasesList";
 
-- **Zero Trust Access for machines**: 
-Enables machines (like CI/CD pipelines) to securely authenticate with your Teleport cluster to access protected resources and configure the cluster itself.
-- **Flexible Workload Identities**: 
-Issues short-lived cryptographic identities to workloads, compatible with the SPIFFE standard, enabling secure workload-to-workload communication and third-party API authentication.
+import mwiImg from '@version/docs/img/machine-id/mwi-hero.png';
+import bookOpenSvg from "@site/src/components/Icon/teleport-svg/book-open.svg";
+import identificationBadgeSvg from "@site/src/components/Icon/teleport-svg/identification-badge.svg";
+import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.svg";
+import verifySvg from "@site/src/components/Icon/teleport-svg/verify.svg";
+import awsSvg from "@site/src/components/Icon/teleport-svg/aws.svg";
+import azureSvg from "@site/src/components/Icon/svg/azure2.svg";
+import azureDevOpsSvg from "@site/src/components/Icon/teleport-svg/azure.svg";
+import bitbucketSvg from "@site/src/components/Icon/svg/bitbucket.svg";
+import circleCISvg from "@site/src/components/Icon/svg/circleci2.svg";
+import gcpSvg from "@site/src/components/Icon/teleport-svg/gcp.svg";
+import gitlabSvg from "@site/src/components/Icon/svg/gitlab.svg";
+import jenkinsSvg from "@site/src/components/Icon/teleport-svg/jenkins.svg";
+import kubernetesSvg from "@site/src/components/Icon/svg/kubernetes2.svg";
+import linuxSvg from "@site/src/components/Icon/svg/linux.svg";
+import arrowRightSvg from "@site/src/components/Icon/teleport-svg/arrow-right.svg";
+import terraformSvg from "@site/src/components/Icon/svg/terraform.svg";
+import ansibleSvg from "@site/src/components/Icon/svg/ansible.svg";
+import terminalSvg from "@site/src/components/Icon/teleport-svg/terminal.svg";
+import databaseSvg from "@site/src/components/Icon/teleport-svg/database.svg";
+import appWindowSvg from "@site/src/components/Icon/teleport-svg/app-window.svg";
+import certificateSvg from "@site/src/components/Icon/teleport-svg/certificate.svg";
+import cloudSvg from "@site/src/components/Icon/teleport-svg/cloud.svg";
+import teleportSvg from "@site/src/components/Icon/teleport-svg/teleport.svg";
 
-## Secure service-to-service authentication
+<LandingHero
+  title="Machine & Workload Identity"
+  image={mwiImg}
+>
 
-Establish a root certificate authority within your Teleport cluster that issues short-lived JWTs and X509 certificates to workloads. These identities ([SPIFFE](../machine-workload-identity/workload-identity/spiffe.mdx) Verifiable Identity Documents or SVIDs) contain the workload's identity encoded as a URI (SPIFFE ID).
+Use Teleport to replace long-lived secrets with identity-based authentication for your machines and workloads.
 
-Key benefits:
+## Introduction to Machine & Workload Identity
 
-- Eliminates long-lived shared secrets
-- Establishes a universal form of identity for workloads
-- Simplifies infrastructure by reducing authentication methods
+Teleport Machine & Workload Identity replaces static secrets across your infrastructure with short-lived certificates that are automatically issued and renewed for your Non-Human Identities (NHI).
 
-The tbot agent manages identity requests and renewals, authenticating to the Teleport cluster using supported join methods. Workloads receive identities either through filesystem/Kubernetes secrets or via the SPIFFE Workload API.
+[What Teleport can do for non-human infrastructure access](./introduction.mdx)
 
-## Zero Trust Access for machines
+</LandingHero>
 
-Teleport provides machines with an identity ("bot") that can authenticate to the Teleport cluster. Bots are similar to human users with access controlled by roles and activities recorded in audit logs.
+<UseCasesList
+  title="Popular use cases around Machine & Workload Identity"
+  useCases={[
+    {
+      title: "Secure CI/CD pipelines with identity-based auth",
+      description: "Replace long-lived secrets in CI/CD pipelines",
+      href: "./mwi-ci-cd/",
+    },  
+    {
+      title: "Guard infrastructure as code with short-lived certs",
+      description: "Manage IaC workflows in Terraform and Pulumi",
+      href: "./iac-mwi/",
+    },
+    {
+      title: "Configure workload-to-workload authentication",
+      description: "Set up service-to-service authentication with mTLS",
+      href: "./workload-mwi/",
+    },  
+    {
+      title: "Manage AI agent identities with role-based access",
+      description: "Use RBAC to manage autonomous agents and processes",
+      href: "./ai-agents-mwi/",
+    },
+    {
+      title: "Configure hybrid & multi-cloud authentication",
+      description: "Set up universal identities across cloud platforms",
+      href: "./hybrid-multi-mwi/",
+    },
+  ]}
+/>
 
-Bots authenticate using join tokens that specify which bot user they grant access to and what proof (join method) is needed. Each tbot client connection creates a server-side Bot Instance to track installations over time.
+{/* lint ignore page-structure remark-lint */}
 
-## Key differences
+## Getting started with Machine & Workload Identity
 
-**Flexible Workload Identities**: Issues SPIFFE-compatible identities for various authentication purposes; doesn't use Teleport Proxy for workload-to-workload communication
+The following steps will help you get started with Machine and Workload Identity. At the core of this flow is tbot, a lightweight agent that runs on your machines and workloads to automatically issue and renew short-lived certificates. This gives your systems secure, identity-based access to infrastructure and cloud providers without relying on static secrets.
 
-**Zero Trust Access for machines**: Issues Teleport-specific credentials for accessing resources secured by Teleport; requires using the Teleport Proxy
+<Integrations
+  title={null}
+  secondaryTitle="Step 1: Deploy tbot across your infrastructure"
+  integrations={[
+    {
+      title: 'AWS',
+      href: './machine-id/deployment/aws/',
+      iconColor: '#FF99001A',
+      iconComponent: awsSvg,
+    },
+    {
+      title: 'Azure',
+      href: './machine-id/deployment/azure/',
+      iconColor: '#0078D41A',
+      iconComponent: azureSvg,
+    },
+    {
+      title: 'Azure DevOps',
+      href: './machine-id/deployment/azure-devops/',
+      iconColor: '#0078D41A',
+      iconComponent: azureDevOpsSvg,
+    },
+    {
+      title: 'Bitbucket Pipelines',
+      href: './machine-id/deployment/bitbucket/',
+      iconColor: '#0078D41A',
+      iconComponent: bitbucketSvg,
+    },
+    {
+      title: 'CircleCI',
+      href: './machine-id/deployment/circleci/',
+      iconColor: '#0000001A',
+      iconComponent: circleCISvg,
+    },
+    {
+      title: 'Google Cloud',
+      href: './machine-id/deployment/gcp/',
+      iconColor: '#06AC381A',
+      iconComponent: gcpSvg,
+    },
+    {
+      title: 'Gitlab CI',
+      href: './machine-id/deployment/gitlab/',
+      iconColor: '#FF99001A',
+      iconComponent: gitlabSvg,
+    },
+    {
+      title: 'Jenkins',
+      href: 'machine-id/deployment/jenkins/',
+      iconColor: '#EA43351A',
+      iconComponent: jenkinsSvg,
+    },
+    {
+      title: 'Kubernetes',
+      href: './machine-id/deployment/kubernetes/',
+      iconColor: '#0078D41A',
+      iconComponent: kubernetesSvg,
+    }, 
+     {
+      title: 'Linux',
+      href: './machine-id/deployment/linux/',
+      iconColor: '#FF99001A',
+      iconComponent: linuxSvg,
+    }, 
+     {
+      title: 'Linux (TPM)',
+      href: './machine-id/deployment/linux-tpm/',
+      iconColor: '#FF99001A',
+      iconComponent: linuxSvg,
+    }, 
+    {
+      title: 'View all Integrations',
+      href: './machine-id/deployment#deployment-guides',
+      iconComponent: arrowRightSvg,
+    },
+  ]}
+    additionalLinks={{
+    title: "References:",
+    links: [
+    {
+      title: "The architecture behind the bots",
+      href: "./machine-id/introduction/"
+    },
+    {
+      title: "View all tbot guides",
+      href: "./machine-id/deployment/"
+    }
+  ]
+  }}
+  desktopColumnsCount={6}
+  noBackgroundColor={true}
+  narrowPadding={true}
+/>
 
-| Feature | Flexible Workload Identities | Zero Trust Access for machines |
-|---------|------------------------------|--------------------------------|
-| Purpose | Authenticate workloads to other workloads or third-party APIs | Authenticate bots to Teleport to access infrastructure |
-| Standards | SPIFFE (SVIDs, Workload API, mTLS, JWT) | Teleport-native X.509 credentials |
-| Proxy Usage | No Teleport Proxy involved | Access goes through the Teleport Proxy |
-| Use Case Focus | Service-to-service authentication | Infrastructure and configuration access |
-| Credential Delivery | Filesystem or SPIFFE API via tbot | Artifacts written to disk via tbot |
+<Integrations
+  title={null}
+  secondaryTitle="Step 2: Configure tbot to generate short-lived credentials for resource access"
+  layout="row"
+  integrations={[
+    {
+      title: 'Ansible',
+      description: 'Access enrolled Linux hosts via SSH.',
+      href: './machine-id/access-guides/ansible/',
+      iconColor: '#0000001A',
+      iconComponent: ansibleSvg,
+    },
+    {
+      title: 'Terraform',
+      description: 'Use Terraform with Machine ID on a dedicated server.',
+      href: './machine-id/infrastructure-as-code/terraform-provider/dedicated-server/',
+      iconColor: '#512FC91A',
+      iconComponent: terraformSvg,
+    },
+    {
+      title: 'Kubernetes',
+      description: 'Access an enrolled Kubernetes cluster.',
+      href: './machine-id/access-guides/kubernetes/',
+      iconColor: '#0078D41A',
+      iconComponent: kubernetesSvg,
+    },
+    {
+      title: 'SSH servers',
+      description: 'Access Linux servers using OpenSSH.',
+      href: './machine-id/access-guides/ssh/',
+      iconColor: '#F1F2F4',
+      iconComponent: terminalSvg,
+    },    
+    {
+      title: 'Databases',
+      description: 'Access databases enrolled in Teleport.',
+      href: './machine-id/access-guides/databases/',
+      iconColor: '#F1F2F4',
+      iconComponent: databaseSvg,
+    },    
+    {
+      title: 'HTTP & TCP applications',
+      description: 'Access enrolled applications.',
+      href: './machine-id/access-guides/applications/',
+      iconColor: '#F1F2F4',
+      iconComponent: appWindowSvg,
+    },    
+    {
+      title: 'tctl',
+      description: 'Use Teleport CLI tool for custom flows.',
+      href: './machine-id/access-guides/tctl/',
+      iconColor: '#F1F2F4',
+      iconComponent: teleportSvg,
+    },    
+    {
+      title: 'SpaceLift',
+      description: 'Present a Spacelift-signed ID token',
+      href: '../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift/',
+      iconColor: '#F1F2F4',
+      iconComponent: certificateSvg,
+    },    
+    {
+      title: 'Terraform Cloud',
+      description: 'HCP Terraform or Terraform Enterprise',
+      href: '../zero-trust-access/infrastructure-as-code/terraform-provider/ci-or-cloud/',
+      iconColor: '#F1F2F4',
+      iconComponent: cloudSvg,
+    },
+  ]}
+  additionalLinks={{
+    title: "Getting started",
+    links: [
+    {
+      title: "Issuing certs for NHI remote server access",
+      href: "./machine-id/getting-started/"
+    },
+    {
+      title: "Frequently Asked Questions",
+      href: "./machine-id/faq/"
+    },
+  ]
+  }}
+  desktopColumnsCount={3}
+  noBackgroundColor={true}
+  narrowPadding={true}
+/>
 
-<DocCardList />
+<Integrations
+  title={null}
+  secondaryTitle="Step 3: Secure workload and cloud authentication with SPIFFE compatible identities"
+  layout="row"
+  integrations={[
+    {
+      title: 'AWS OIDC Federation',
+      description: 'Authenticate to AWS with short-lived JWTs.',
+      href: './workload-identity/aws-oidc-federation/',
+      iconColor: '#FF99001A',
+      iconComponent: awsSvg,
+    },
+    {
+      title: 'AWS Roles Anywhere',
+      description: 'Authenticate to AWS with short-lived X.509 certificates.',
+      href: './workload-identity/aws-roles-anywhere/',
+      iconColor: '#FF99001A',
+      iconComponent: awsSvg,
+    },
+    {
+      title: 'Azure Federated Credentials',
+      description: 'Authenticate to Azure with short-lived JWTs.',
+      href: './workload-identity/azure-federated-credentials/',
+      iconColor: '#0078D41A',
+      iconComponent: azureSvg,
+    },
+    {
+      title: 'GCP Workload Identity Federation',
+      description: 'Authenticate to GCP with short-lived JWTs.',
+      href: './workload-identity/gcp-workload-identity-federation-jwt/',
+      iconColor: '#06AC381A',
+      iconComponent: gcpSvg,
+    },
+    {
+      title: 'tsh',
+      description: 'Manually issue SPIFFE SVIDs with Teleport CLI tool tsh.',
+      href: './workload-identity/tsh/',
+      iconColor: '#512FC91A',
+      iconComponent: teleportSvg,
+    },
+  ]}
+  additionalLinks={{
+    title: "References",
+    links: [
+    {
+      title: "SPIFFE, Trust Domains, and SVIDs",
+      href: "./workload-identity/spiffe/"
+    },
+    {
+      title: "About JWT SVIDs",
+      href: "./workload-identity/jwt-svids/"
+    },
+  ]
+  }}
+  desktopColumnsCount={2}
+  noBackgroundColor={true}
+/>
