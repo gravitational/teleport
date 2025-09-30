@@ -113,7 +113,7 @@ func NewAutoUpdateVersionReporter(cfg AutoUpdateVersionReporterConfig) (*AutoUpd
 func (r *AutoUpdateVersionReporter) Run(ctx context.Context) error {
 	// The runLeader method will do its own retrying around acquiring the
 	// semaphore. This retries the whole operation (e.g. after the lease is
-	// lost.
+	// lost).
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 		First:  30 * time.Second,
 		Driver: retryutils.NewExponentialDriver(30 * time.Second),
@@ -259,8 +259,8 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 				groups[groupName] = group
 			}
 
-			version := group.Versions[latest.GetVersion()]
-			if version == nil {
+			version, ok := group.Versions[latest.GetVersion()]
+			if !ok {
 				version = &autoupdate.AutoUpdateBotReportSpecGroupVersion{}
 				group.Versions[latest.GetVersion()] = version
 			}
