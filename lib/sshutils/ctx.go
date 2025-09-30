@@ -30,9 +30,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 )
 
@@ -136,28 +133,6 @@ func (a *AgentChannel) Close() error {
 	return trace.NewAggregate(
 		a.ch.CloseWrite(),
 		a.ch.Close())
-}
-
-// ParseSessionParams parses session parameters.
-func ParseSessionParams(data []byte) (*tracessh.SessionParams, error) {
-	var params tracessh.SessionParams
-	if err := ssh.Unmarshal(data, &params); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if params.JoinSessionID != "" {
-		if _, err := session.ParseID(params.JoinSessionID); err != nil {
-			return nil, trace.Wrap(err, "failed to parse join session ID: %v", params.JoinSessionID)
-		}
-
-		switch params.JoinMode {
-		case types.SessionModeratorMode, types.SessionObserverMode, types.SessionPeerMode:
-		default:
-			return nil, trace.BadParameter("Unrecognized session participant mode: %q", params.JoinMode)
-		}
-	}
-
-	return &params, nil
 }
 
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel

@@ -401,14 +401,10 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 	}
 
 	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
-	var sessionParams *tracessh.SessionParams
-	if len(nch.ExtraData()) > 0 {
-		var err error
-		sessionParams, err = sshutils.ParseSessionParams(nch.ExtraData())
-		if err != nil {
-			s.reply.RejectWithAcceptError(ctx, nch, err)
-			return
-		}
+	sessionParams, err := tracessh.ParseSessionParams(nch.ExtraData())
+	if err != nil {
+		s.reply.RejectWithAcceptError(ctx, nch, err)
+		return
 	}
 
 	if s.remoteClient == nil {

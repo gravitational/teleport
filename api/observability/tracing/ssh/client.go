@@ -19,10 +19,10 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strings"
 	"sync"
 	"sync/atomic"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -190,6 +190,33 @@ type SessionParams struct {
 	ModeratedSessionID string
 }
 
+// ParseSessionParams parses session parameters. If the provided data is
+// empty, nil params will be returned with a nil error.
+func ParseSessionParams(data []byte) (*SessionParams, error) {
+	if data == nil {
+		return nil, nil
+	}
+
+	var params SessionParams
+	if err := ssh.Unmarshal(data, &params); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if params.JoinSessionID != "" {
+		if _, err := uuid.Parse(params.JoinSessionID); err != nil {
+			return nil, trace.Wrap(err, "failed to parse join session ID: %v", params.JoinSessionID)
+		}
+
+		switch params.JoinMode {
+		case types.SessionModeratorMode, types.SessionObserverMode, types.SessionPeerMode:
+		default:
+			return nil, trace.BadParameter("Unrecognized session participant mode: %q", params.JoinMode)
+		}
+	}
+
+	return &params, nil
+}
+
 // NewSession creates a new SSH session with the given (optional) params. This session is
 // passed a tracing context so that spans may be correlated properly over the ssh connection.
 func (c *Client) NewSession(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
@@ -220,8 +247,9 @@ func (c *Client) NewSession(ctx context.Context, sessionParams *SessionParams) (
 	}
 
 	// If we are connected to a Teleport server, send session params in the session request.
+	// If the server does not support session parameters in the extra data, it will be ignored.
 	var sessionData []byte
-	if sessionParams != nil && strings.HasPrefix(string(wrapper.ServerVersion()), "SSH-2.0-Teleport") {
+	if sessionParams != nil && c.capability == tracingSupported {
 		sessionData = ssh.Marshal(sessionParams)
 	}
 

@@ -1115,17 +1115,13 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 // all the "exec", "subsystem" and "shell" requests.
 func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
-	var sessionParams *tracessh.SessionParams
-	if len(nch.ExtraData()) > 0 {
-		var err error
-		sessionParams, err = sshutils.ParseSessionParams(nch.ExtraData())
-		if err != nil {
-			s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
-			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
-			}
-			return
+	sessionParams, err := tracessh.ParseSessionParams(nch.ExtraData())
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
 		}
+		return
 	}
 
 	// Create context for this channel. This context will be closed when the

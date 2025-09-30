@@ -1445,14 +1445,11 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 
 		// SessionParams are not passed by old clients (<v19) or OpenSSH clients.
-		var sessionParams *tracessh.SessionParams
-		if len(nch.ExtraData()) > 0 {
-			sessionParams, err = sshutils.ParseSessionParams(nch.ExtraData())
-			if err != nil {
-				s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
-				s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
-				return
-			}
+		sessionParams, err := tracessh.ParseSessionParams(nch.ExtraData())
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+			s.rejectChannel(ctx, nch, ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
+			return
 		}
 
 		ch, requests, err := nch.Accept()
