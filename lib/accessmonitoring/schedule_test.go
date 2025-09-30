@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-
 	"github.com/stretchr/testify/require"
+
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 )
 
 func TestClockTime(t *testing.T) {
