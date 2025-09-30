@@ -197,10 +197,11 @@ impl Client {
         });
         let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
 
-        let mut connector = ironrdp_connector::ClientConnector::new(connector_config.clone(), server_socket_addr)
-            .with_static_channel(drdynvc_client) // require for resizing
-            .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
-            .with_static_channel(rdpdr); // required for smart card + directory sharing
+        let mut connector =
+            ironrdp_connector::ClientConnector::new(connector_config.clone(), server_socket_addr)
+                .with_static_channel(drdynvc_client) // require for resizing
+                .with_static_channel(Rdpsnd::new(Box::new(NoopRdpsndBackend {}))) // required for rdpdr to work
+                .with_static_channel(rdpdr); // required for smart card + directory sharing
 
         if params.allow_clipboard {
             connector = connector.with_static_channel(Cliprdr::new(Box::new(

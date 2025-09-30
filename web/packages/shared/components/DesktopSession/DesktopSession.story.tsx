@@ -212,6 +212,10 @@ function emitFrame(client: TdpClient, spec: ClientScreenSpec) {
   const frame: BitmapFrame = {
     left: 0,
     top: 0,
+    dirty_x: 0,
+    dirty_y: 0,
+    dirty_width: imageData.width,
+    dirty_height: imageData.height,
     image_data: imageData,
   };
 

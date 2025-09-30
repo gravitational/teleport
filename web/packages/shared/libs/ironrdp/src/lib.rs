@@ -73,7 +73,6 @@ pub fn init_wasm_log(log_level: &str) {
 pub struct BitmapFrame {
     top: u16,
     left: u16,
-
     dirty_x: u16,
     dirty_y: u16,
     dirty_width: u16,
@@ -229,7 +228,14 @@ impl FastPathProcessor {
             match output {
                 ActiveStageOutput::GraphicsUpdate(updated_region) => {
                     // Apply the updated region to the canvas.
-                    self.apply_image_to_canvas(self.image.data(), updated_region, cb_context, draw_cb, self.image.width(), self.image.height())?;
+                    self.apply_image_to_canvas(
+                        self.image.data(),
+                        updated_region,
+                        cb_context,
+                        draw_cb,
+                        self.image.width(),
+                        self.image.height(),
+                    )?;
                 }
                 ActiveStageOutput::ResponseFrame(frame) => {
                     // Send the response frame back to the server.
@@ -310,13 +316,15 @@ impl FastPathProcessor {
         image_width: u16,
         image_height: u16,
     ) -> Result<(), JsValue> {
-        let image_data = create_image_data_from_image_and_region(&image_data,
-             &InclusiveRectangle {
+        let image_data = create_image_data_from_image_and_region(
+            image_data,
+            &InclusiveRectangle {
                 left: 0,
                 top: 0,
                 right: image_width - 1,
                 bottom: image_height - 1,
-            })?;
+            },
+        )?;
 
         let bitmap_frame = BitmapFrame {
             top: 0,
