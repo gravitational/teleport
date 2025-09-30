@@ -19,7 +19,6 @@ package clientcache
 import (
 	"context"
 	"log/slog"
-	"slices"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -197,84 +196,4 @@ func (c *Cache) getFromCache(k key) *client.ClusterClient {
 
 	clt := c.clients[k]
 	return clt
-}
-
-// NoCache is a client cache implementation that returns a new client
-// on each call to Get.
-//
-// ClearForRoot and Clear still work as expected.
-type NoCache struct {
-	mu            sync.Mutex
-	newClientFunc NewClientFunc
-	clients       []noCacheClient
-}
-
-type noCacheClient struct {
-	k      key
-	client *client.ClusterClient
-}
-
-func NewNoCache(newClientFunc NewClientFunc) *NoCache {
-	return &NoCache{
-		newClientFunc: newClientFunc,
-	}
-}
-
-func (c *NoCache) Get(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error) {
-	clusterClient, err := c.newClientFunc(ctx, profileName, leafClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	newClient, err := clusterClient.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.mu.Lock()
-	c.clients = append(c.clients, noCacheClient{
-		k:      key{profile: profileName, leafCluster: leafClusterName},
-		client: newClient,
-	})
-	c.mu.Unlock()
-
-	return newClient, nil
-}
-
-func (c *NoCache) ClearForRoot(profileName string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	var (
-		errors []error
-	)
-
-	c.clients = slices.DeleteFunc(c.clients, func(ncc noCacheClient) bool {
-		belongsToCluster := ncc.k.profile == profileName
-
-		if belongsToCluster {
-			if err := ncc.client.Close(); err != nil {
-				errors = append(errors, err)
-			}
-		}
-
-		return belongsToCluster
-	})
-
-	return trace.NewAggregate(errors...)
-}
-
-func (c *NoCache) Clear() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	var errors []error
-	for _, ncc := range c.clients {
-		if err := ncc.client.Close(); err != nil {
-			errors = append(errors, err)
-		}
-	}
-	c.clients = nil
-
-	return trace.NewAggregate(errors...)
 }

@@ -258,11 +258,8 @@ func testGatewayCertRenewal(ctx context.Context, t *testing.T, params gatewayCer
 		Clock:            fakeClock,
 		Storage:          storage,
 		TshdEventsClient: tshdEventsClient,
-		CreateClientCacheFunc: func(newClient clientcache.NewClientFunc) (daemon.ClientCache, error) {
-			return clientcache.NewNoCache(newClient), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -890,11 +887,8 @@ func testTeletermAppGatewayTargetPortValidation(t *testing.T, pack *appaccess.Pa
 		daemonService, err := daemon.New(daemon.Config{
 			Storage:          storage,
 			TshdEventsClient: tshdEventsClient,
-			CreateClientCacheFunc: func(newClient clientcache.NewClientFunc) (daemon.ClientCache, error) {
-				return clientcache.NewNoCache(newClient), nil
-			},
-			KubeconfigsDir: t.TempDir(),
-			AgentsDir:      t.TempDir(),
+			KubeconfigsDir:   t.TempDir(),
+			AgentsDir:        t.TempDir(),
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() {
