@@ -203,7 +203,7 @@ func TestEmitInstancesMetric(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%s/%v", tc.version, tc.automaticUpdates), func(t *testing.T) {
 			metric := gauge.WithLabelValues(tc.version, strconv.FormatBool(tc.automaticUpdates))
-			require.Equal(t, tc.expectedValue, testutil.ToFloat64(metric))
+			require.InEpsilon(t, tc.expectedValue, testutil.ToFloat64(metric), 0)
 		})
 	}
 
