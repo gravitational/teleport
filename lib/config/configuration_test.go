@@ -3899,6 +3899,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							Azure: &AzureInstallParams{
 								ClientID: "abcd1234",
 							},
+							Suffix: "blue",
 						},
 					},
 				},
@@ -3917,6 +3918,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 							Azure: &types.AzureInstallerParams{
 								ClientID: "abcd1234",
 							},
+							Suffix: "blue",
 						},
 						Regions:        []string{"*"},
 						ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -4751,6 +4753,7 @@ func TestDiscoveryConfig(t *testing.T) {
 								"method":     "iam",
 							},
 							"script_name": "installer-custom",
+							"suffix":      "blue",
 						},
 						"ssm": cfgMap{
 							"document_name": "hello_document",
@@ -4773,6 +4776,7 @@ func TestDiscoveryConfig(t *testing.T) {
 					ScriptName:      "installer-custom",
 					InstallTeleport: true,
 					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+					Suffix:          "blue",
 				},
 				SSM: &types.AWSSSM{DocumentName: "hello_document"},
 				AssumeRole: &types.AssumeRole{
