@@ -140,6 +140,35 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 					Description: "notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
 				},
+				"schedules": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.MapNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"time": {
+						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"shifts": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"end": {
+									Description: "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"start": {
+									Description: "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"weekday": {
+									Description: "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "Shifts contains a set of shifts that make up the schedule. Shifts are configured in UTC.",
+							Optional:    true,
+						}}),
+						Description: "TimeSchedule specifies an in-line schedule.",
+						Optional:    true,
+					}}),
+					Description: "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
+					Optional:    true,
+				},
 				"states": {
 					Description: "states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.",
 					Optional:    true,
@@ -554,6 +583,133 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 									t = string(v.Value)
 								}
 								obj.DesiredState = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["schedules"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Map)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github.com/hashicorp/terraform-plugin-framework/types.Map"})
+							} else {
+								obj.Schedules = make(map[string]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+										} else {
+											var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule
+											if !v.Null && !v.Unknown {
+												tf := v
+												t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.Schedule{}
+												obj := t
+												{
+													a, ok := tf.Attrs["time"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+														} else {
+															obj.Time = nil
+															if !v.Null && !v.Unknown {
+																tf := v
+																obj.Time = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule{}
+																obj := obj.Time
+																{
+																	a, ok := tf.Attrs["shifts"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+																		} else {
+																			obj.Shifts = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule_Shift, len(v.Elems))
+																			if !v.Null && !v.Unknown {
+																				for k, a := range v.Elems {
+																					v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																					if !ok {
+																						diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+																					} else {
+																						var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule_Shift
+																						if !v.Null && !v.Unknown {
+																							tf := v
+																							t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accessmonitoringrules_v1.TimeSchedule_Shift{}
+																							obj := t
+																							{
+																								a, ok := tf.Attrs["weekday"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																									} else {
+																										var t string
+																										if !v.Null && !v.Unknown {
+																											t = string(v.Value)
+																										}
+																										obj.Weekday = t
+																									}
+																								}
+																							}
+																							{
+																								a, ok := tf.Attrs["start"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																									} else {
+																										var t string
+																										if !v.Null && !v.Unknown {
+																											t = string(v.Value)
+																										}
+																										obj.Start = t
+																									}
+																								}
+																							}
+																							{
+																								a, ok := tf.Attrs["end"]
+																								if !ok {
+																									diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end"})
+																								} else {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																									} else {
+																										var t string
+																										if !v.Null && !v.Unknown {
+																											t = string(v.Value)
+																										}
+																										obj.End = t
+																									}
+																								}
+																							}
+																						}
+																						obj.Shifts[k] = t
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+											obj.Schedules[k] = t
+										}
+									}
+								}
 							}
 						}
 					}
@@ -1174,6 +1330,217 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 							v.Value = string(obj.DesiredState)
 							v.Unknown = false
 							tf.Attrs["desired_state"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["schedules"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.MapType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules", "github.com/hashicorp/terraform-plugin-framework/types.MapType"})
+							} else {
+								c, ok := tf.Attrs["schedules"].(github_com_hashicorp_terraform_plugin_framework_types.Map)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.Map{
+
+										ElemType: o.ElemType,
+										Elems:    make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules))
+									}
+								}
+								if obj.Schedules != nil {
+									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+									for k, a := range obj.Schedules {
+										v, ok := tf.Attrs["schedules"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										if !ok {
+											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+												AttrTypes: o.AttrTypes,
+												Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+											}
+										} else {
+											if v.Attrs == nil {
+												v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+											}
+										}
+										if a == nil {
+											v.Null = true
+										} else {
+											obj := a
+											tf := &v
+											{
+												a, ok := tf.AttrTypes["time"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time"})
+												} else {
+													o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if !ok {
+														diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+													} else {
+														v, ok := tf.Attrs["time"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if obj.Time == nil {
+															v.Null = true
+														} else {
+															obj := obj.Time
+															tf := &v
+															{
+																a, ok := tf.AttrTypes["shifts"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts"})
+																} else {
+																	o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																	if !ok {
+																		diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																	} else {
+																		c, ok := tf.Attrs["shifts"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																		if !ok {
+																			c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																				ElemType: o.ElemType,
+																				Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts)),
+																				Null:     true,
+																			}
+																		} else {
+																			if c.Elems == nil {
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts))
+																			}
+																		}
+																		if obj.Shifts != nil {
+																			o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																			if len(obj.Shifts) != len(c.Elems) {
+																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts))
+																			}
+																			for k, a := range obj.Shifts {
+																				v, ok := tf.Attrs["shifts"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																				if !ok {
+																					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																						AttrTypes: o.AttrTypes,
+																						Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																					}
+																				} else {
+																					if v.Attrs == nil {
+																						v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																					}
+																				}
+																				if a == nil {
+																					v.Null = true
+																				} else {
+																					obj := a
+																					tf := &v
+																					{
+																						t, ok := tf.AttrTypes["weekday"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday"})
+																						} else {
+																							v, ok := tf.Attrs["weekday"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																							if !ok {
+																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																								if err != nil {
+																									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", err})
+																								}
+																								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																								if !ok {
+																									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																								}
+																								v.Null = string(obj.Weekday) == ""
+																							}
+																							v.Value = string(obj.Weekday)
+																							v.Unknown = false
+																							tf.Attrs["weekday"] = v
+																						}
+																					}
+																					{
+																						t, ok := tf.AttrTypes["start"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start"})
+																						} else {
+																							v, ok := tf.Attrs["start"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																							if !ok {
+																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																								if err != nil {
+																									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.shifts.start", err})
+																								}
+																								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																								if !ok {
+																									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																								}
+																								v.Null = string(obj.Start) == ""
+																							}
+																							v.Value = string(obj.Start)
+																							v.Unknown = false
+																							tf.Attrs["start"] = v
+																						}
+																					}
+																					{
+																						t, ok := tf.AttrTypes["end"]
+																						if !ok {
+																							diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end"})
+																						} else {
+																							v, ok := tf.Attrs["end"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																							if !ok {
+																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																								if err != nil {
+																									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.shifts.end", err})
+																								}
+																								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																								if !ok {
+																									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																								}
+																								v.Null = string(obj.End) == ""
+																							}
+																							v.Value = string(obj.End)
+																							v.Unknown = false
+																							tf.Attrs["end"] = v
+																						}
+																					}
+																				}
+																				v.Unknown = false
+																				c.Elems[k] = v
+																			}
+																			if len(obj.Shifts) > 0 {
+																				c.Null = false
+																			}
+																		}
+																		c.Unknown = false
+																		tf.Attrs["shifts"] = c
+																	}
+																}
+															}
+														}
+														v.Unknown = false
+														tf.Attrs["time"] = v
+													}
+												}
+											}
+										}
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.Schedules) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["schedules"] = c
+							}
 						}
 					}
 				}
