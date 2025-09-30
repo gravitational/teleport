@@ -28,6 +28,8 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      serviceAccountName: {{ include "event-handler.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
