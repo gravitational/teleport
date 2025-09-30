@@ -18,7 +18,9 @@
 
 package readyz
 
-import "sync"
+import (
+	"sync"
+)
 
 // Reporter can be used by a service to report its status.
 type Reporter interface {
@@ -30,6 +32,8 @@ type Reporter interface {
 }
 
 type reporter struct {
+	registry *Registry
+
 	mu     *sync.Mutex
 	status *ServiceStatus
 }
@@ -44,6 +48,8 @@ func (r *reporter) ReportReason(status Status, reason string) {
 
 	r.status.Status = status
 	r.status.Reason = reason
+	r.status.updatedAt = r.registry.clock.Now()
+	r.registry.notifyWatchersLocked()
 }
 
 // NoopReporter returns a no-op Reporter that can be used when no real reporter
