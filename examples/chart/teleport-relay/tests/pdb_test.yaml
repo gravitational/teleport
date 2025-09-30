@@ -1,0 +1,27 @@
+suite: Test PodDisruptionBudget
+templates:
+  - pdb.yaml
+tests:
+  - it: should match the snapshot (simple)
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: should match the snapshot (full)
+    values:
+      - ../.lint/full.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: creates a pdb when the pdb feature is enabled
+    set:
+      highAvailability.podDisruptionBudget.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+  - it: does not create a pdb when the pdb feature is disabled
+    set:
+      highAvailability.podDisruptionBudget.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

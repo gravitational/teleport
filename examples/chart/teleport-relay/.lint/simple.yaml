@@ -1,0 +1,10 @@
+joinParams:
+  tokenName: a
+  method: b
+
+proxyAddr: c
+
+relayGroup: d
+
+publicHostnames:
+  - e

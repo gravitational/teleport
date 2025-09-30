@@ -1,0 +1,23 @@
+should match the snapshot (full):
+  1: |
+    apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      annotations:
+        q: r
+        s: "4"
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-relay
+        app.kubernetes.io/version: 19.0.0-dev
+        helm.sh/chart: teleport-relay-19.0.0-dev
+        q: r
+        s: "4"
+      name: RELEASE-NAME-teleport-relay
+    spec:
+      minAvailable: 1
+      selector:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/name: teleport-relay
+        matchLabels: null
