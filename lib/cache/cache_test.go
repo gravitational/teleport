@@ -1935,7 +1935,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAutoUpdateVersion:                 types.Resource153ToLegacy(newAutoUpdateVersion(t)),
 		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
 		types.KindAutoUpdateAgentReport:             types.Resource153ToLegacy(newAutoUpdateAgentReport(t, "test")),
-		types.KindAutoUpdateBotInstanceReport:               types.Resource153ToLegacy(newAutoUpdateBotInstanceReport(t)),
+		types.KindAutoUpdateBotInstanceReport:       types.Resource153ToLegacy(newAutoUpdateBotInstanceReport(t)),
 		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
 		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
