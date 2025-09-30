@@ -193,7 +193,7 @@ type SessionParams struct {
 // ParseSessionParams parses session parameters. If the provided data is
 // empty, nil params will be returned with a nil error.
 func ParseSessionParams(data []byte) (*SessionParams, error) {
-	if data == nil {
+	if len(data) == 0 {
 		return nil, nil
 	}
 
