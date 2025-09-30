@@ -109,7 +109,13 @@ value into the bot's environment, ideally via a platform-specific keystore if
 available:
 
 	export {{ .EnvName }}={{ .EncodedPrivateKey }}
-{{ end -}}
+{{ end }}
+Note that bots joined with static tokens do not support keypair rotation and
+will be unable to join if a rotation is requested server-side via the token's
+'rotate_after' field. Additionally, 'insecure' recovery mode must be used, as
+shown above. Read more at:
+
+	https://goteleport.com/docs/reference/machine-workload-identity/machine-id/bound-keypair/concepts/#recovery
 `))
 
 func generateExampleToken(params KeypairMessageParams, indent string) (string, error) {
