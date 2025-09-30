@@ -93,7 +93,7 @@ func (c *Client) DialContext(ctx context.Context, n, addr string) (net.Conn, err
 	)
 	defer span.End()
 
-	// create a new connWrapper to propagate the span ctx to child (ssh.OpenChannel).
+	// create a new wrapper to propagate tracing span context.
 	wrapper := &clientWrapper{
 		capability: c.capability,
 		Conn:       c.Client.Conn,
@@ -186,7 +186,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 	)
 	defer span.End()
 
-	// create a new clientWrapper to propagate the span ctx to child (ssh.ChannelRequest).
+	// create a new wrapper to propagate tracing span context.
 	wrapper := &clientWrapper{
 		capability: c.capability,
 		Conn:       c.Client.Conn,
