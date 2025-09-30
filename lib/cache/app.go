@@ -77,9 +77,22 @@ func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.App
 		upstreamRange: c.Config.Apps.Apps,
 		// TODO(tross): DELETE IN v21.0.0
 		fallbackGetter: c.Config.Apps.GetApps,
-		spanName:       "cache/Apps",
 	}
-	return ranger.Range(ctx, start, end)
+
+	return func(yield func(types.Application, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/Apps")
+		defer span.End()
+
+		for app, err := range ranger.Range(ctx, start, end) {
+			if !yield(app, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
 }
 
 // ListApps returns a page of application resources.

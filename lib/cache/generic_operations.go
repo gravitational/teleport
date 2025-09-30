@@ -152,17 +152,12 @@ type genericRanger[T any, I comparable] struct {
 	upstreamRange func(context.Context, string, string) iter.Seq2[T, error]
 	// fallbackGetter is an optional fallback if upstream does not implment ranging getters.
 	fallbackGetter func(context.Context) ([]T, error)
-	// spanName is the name of the span to use for the tracer.
-	spanName string
 }
 
 // Range retrieves a stream of items from the configured cache collection within the range [start, end).
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
 func (g genericRanger[T, I]) Range(ctx context.Context, start, end string) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
-		ctx, span := g.cache.Tracer.Start(ctx, g.spanName)
-		defer span.End()
-
 		var zero T
 		rg, err := acquireReadGuard(g.cache, g.collection)
 		if err != nil {

@@ -148,9 +148,22 @@ func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2
 		upstreamRange: c.Config.Databases.RangeDatabases,
 		// TODO(lokraszewski): DELETE IN v21.0.0
 		fallbackGetter: c.Config.Databases.GetDatabases,
-		spanName:       "cache/RangeDatabases",
 	}
-	return ranger.Range(ctx, start, end)
+
+	return func(yield func(types.Database, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeDatabases")
+		defer span.End()
+
+		for db, err := range ranger.Range(ctx, start, end) {
+			if !yield(db, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
 }
 
 type databaseServerIndex string
