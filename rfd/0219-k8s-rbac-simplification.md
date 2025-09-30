@@ -140,7 +140,7 @@ required new ClusterRoles and ClusterRoleBindings.
 The Helm Chart will by default provision the new Kubernetes resources starting
 in v19.0.0. An option will be added to the chart to allow opting out of creating
 the default ClusterRoleBindings. All existing release branches will have this
-flag set to disable the new functionality to mimize breaking changes.
+flag set to disable the new functionality to minimize breaking changes.
 
 
 Example:
@@ -151,8 +151,23 @@ authToken: foo
 proxyAddr: example.devteleport.com:443
 kubeClusterName: myCluster
 rbac:
-  defaultClusterRoleBindgings: true
+  defaultClusterRoleBindings: true
 ```
+
+The ClusterRoleBindings created by the chart will be prefixed with the
+chart release and the namespace to allow multiple deployments in the
+same Kubernetes cluster not to conflict since ClusterRoleBinding resources
+are global and not namespaced.
+
+```yaml
+
+{{- if .Values.rbac.defaultClusterRoleBindings -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:metadata:
+  name: {{ .Release.Name }}-{{ .Release.Namespace }}-preset-edit
+```
+
 
 #### Provision Script
 
