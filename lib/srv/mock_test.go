@@ -27,6 +27,7 @@ import (
 	"os/user"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -148,6 +149,7 @@ func newMockServer(t *testing.T) *mockServer {
 		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
+		HostUUID:       uuid.NewString(),
 	}
 
 	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
