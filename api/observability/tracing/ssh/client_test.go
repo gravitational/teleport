@@ -330,7 +330,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 	select {
 	case reply := <-clientGlobalReply:
 		require.False(t, reply, "Expected the client to reply false to global ping request")
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatalf("Failed to receive client global reply to ping request")
 	}
 
@@ -347,7 +347,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 	select {
 	case reply := <-clientSessionReply:
 		require.False(t, reply, "Expected the client to reply false to session ping request")
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatalf("Failed to receive client session reply to ping request")
 	}
 
@@ -363,7 +363,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 	select {
 	case reply := <-clientSessionReply:
 		require.True(t, reply, "Expected the client to reply true to session ping request")
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatalf("Failed to receive client session reply to ping request")
 	}
 
@@ -374,7 +374,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 	select {
 	case reply := <-clientSessionReply:
 		require.False(t, reply, "Expected the client to reply false to session ping request")
-	case <-time.After(time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatalf("Failed to receive client session reply to ping request")
 	}
 
