@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev"
+.version: &version "19.0.0-dev.rhammonds.rustupgrade.1"
 
 name: teleport-kube-agent
 apiVersion: v2
