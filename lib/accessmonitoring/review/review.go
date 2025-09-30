@@ -241,6 +241,8 @@ func (handler *Handler) getMatchingRule(
 	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
 
 	for _, rule := range handler.rules.Get() {
+		env.Schedules = accessmonitoring.ScheduleDict(rule.GetSpec().GetSchedules())
+
 		conditionMatch, err := accessmonitoring.EvaluateCondition(rule.GetSpec().GetCondition(), env)
 		if err != nil {
 			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",
