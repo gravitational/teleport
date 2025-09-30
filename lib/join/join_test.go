@@ -92,10 +92,8 @@ func TestJoin(t *testing.T) {
 	t.Cleanup(func() { proxyListener.Close() })
 	proxy.runGRPCServer(t, proxyListener)
 
-	node := newFakeNode(t)
-
 	t.Run("invalid token", func(t *testing.T) {
-		_, err := node.join(
+		_, _, err := join(
 			t.Context(),
 			proxyListener.Addr(),
 			insecure.NewCredentials(),
@@ -119,8 +117,7 @@ func TestJoin(t *testing.T) {
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						RemoteAddr: "127.0.0.1",
 					},
-					NodeName: "node",
-					Role:     "Instance",
+					Role: "Instance",
 				},
 				evt,
 				protocmp.Transform(),
@@ -133,7 +130,7 @@ func TestJoin(t *testing.T) {
 
 	t.Run("join and rejoin", func(t *testing.T) {
 		// Node joins by connecting to the proxy's gRPC service.
-		joinResult, err := node.join(
+		joinResult, signer, err := join(
 			t.Context(),
 			proxyListener.Addr(),
 			insecure.NewCredentials(),
@@ -142,8 +139,8 @@ func TestJoin(t *testing.T) {
 		// Make sure the result contains a host ID and expected certificate roles.
 		require.NoError(t, err)
 		require.NotNil(t, joinResult.HostID)
-		require.NotEmpty(t, *joinResult.HostID)
-		cert, err := x509.ParseCertificate(joinResult.TLSCert)
+		require.NotEmpty(t, joinResult.HostID)
+		cert, err := x509.ParseCertificate(joinResult.Certificates.TLSCert)
 		require.NoError(t, err)
 		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 		require.NoError(t, err)
@@ -162,16 +159,16 @@ func TestJoin(t *testing.T) {
 		//
 		// It should get back its original host ID and the combined roles of
 		// its original certificate and the new token.
-		creds, err := clientCreds(node.hostKeys.tls, joinResult)
+		creds, err := clientCreds(signer, joinResult.Certificates)
 		require.NoError(t, err)
-		rejoinResult, err := node.join(
+		rejoinResult, _, err := join(
 			t.Context(),
 			authService.TLS.Listener.Addr(),
 			creds,
 			token2.GetName(),
 		)
 		require.NoError(t, err)
-		cert, err = x509.ParseCertificate(rejoinResult.TLSCert)
+		cert, err = x509.ParseCertificate(rejoinResult.Certificates.TLSCert)
 		require.NoError(t, err)
 		identity, err = tlsca.FromSubject(cert.Subject, cert.NotAfter)
 		require.NoError(t, err)
@@ -193,7 +190,7 @@ func TestJoin(t *testing.T) {
 
 	t.Run("join and rejoin with bad token", func(t *testing.T) {
 		// Node joins by connecting to the proxy's gRPC service.
-		joinResult, err := node.join(
+		joinResult, signer, err := join(
 			t.Context(),
 			proxyListener.Addr(),
 			insecure.NewCredentials(),
@@ -202,9 +199,9 @@ func TestJoin(t *testing.T) {
 		require.NoError(t, err)
 
 		// Node the tries to rejoin with valid certs but an invalid token.
-		creds, err := clientCreds(node.hostKeys.tls, joinResult)
+		creds, err := clientCreds(signer, joinResult.Certificates)
 		require.NoError(t, err)
-		_, err = node.join(
+		_, _, err = join(
 			t.Context(),
 			authService.TLS.Listener.Addr(),
 			creds,
@@ -228,8 +225,7 @@ func TestJoin(t *testing.T) {
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						RemoteAddr: "127.0.0.1",
 					},
-					NodeName: "node",
-					Role:     "Instance",
+					Role: "Instance",
 				},
 				evt,
 				protocmp.Transform(),
@@ -291,28 +287,46 @@ func (p *fakeProxy) join(t *testing.T) {
 	require.NoError(t, err)
 	joinClient := joinv1.NewClient(unauthenticatedAuthClt.JoinV1Client())
 
+	// Initiate the join request and get a client stream.
 	stream, err := joinClient.Join(t.Context())
 	require.NoError(t, err)
 
-	hostKeys, err := genHostKeys()
-	require.NoError(t, err)
+	// Send the ClientInit messaage.
 	require.NoError(t, stream.Send(&messages.ClientInit{
-		TokenName:    "token1",
-		SystemRole:   types.RoleProxy.String(),
-		PublicTLSKey: hostKeys.tlsPubKey,
-		PublicSSHKey: hostKeys.sshPubKey,
-		HostParams: &messages.HostParams{
-			HostName:             "proxy",
-			AdditionalPrincipals: []string{"proxy"},
+		TokenName:  "token1",
+		SystemRole: types.RoleInstance.String(),
+	}))
+
+	// Wait for the ServerInit response.
+	serverInit, err := messages.RecvResponse[*messages.ServerInit](stream)
+	require.NoError(t, err)
+
+	require.Equal(t, string(types.JoinMethodToken), serverInit.JoinMethod)
+
+	// Generate host keys with the suite from the ServerInit message.
+	hostKeys, err := genHostKeys(t.Context(), serverInit.SignatureAlgorithmSuite)
+	require.NoError(t, err)
+
+	// Send the TokenInit message.
+	require.NoError(t, stream.Send(&messages.TokenInit{
+		ClientParams: messages.ClientParams{
+			HostParams: &messages.HostParams{
+				PublicKeys: messages.PublicKeys{
+					PublicTLSKey: hostKeys.tlsPubKey,
+					PublicSSHKey: hostKeys.sshPubKey,
+				},
+				HostName:             "proxy",
+				AdditionalPrincipals: []string{"proxy"},
+			},
 		},
 	}))
-	resp, err := stream.Recv()
+
+	// Wait for the result from the server.
+	result, err := messages.RecvResponse[*messages.HostResult](stream)
 	require.NoError(t, err)
 
-	require.IsType(t, (*messages.Result)(nil), resp)
-	result := resp.(*messages.Result)
-
-	p.authenticatedAuthCreds, err = clientCreds(hostKeys.tls, result)
+	// Save the host credentials we got from the successful join.
+	p.authenticatedAuthCreds, err = clientCreds(hostKeys.tls, result.Certificates)
 	require.NoError(t, err)
 }
 
@@ -343,67 +357,75 @@ func (p *fakeProxy) runGRPCServer(t *testing.T, l net.Listener) {
 	})
 }
 
-type fakeNode struct {
-	hostKeys *hostKeys
-}
-
-func newFakeNode(t *testing.T) *fakeNode {
-	hostKeys, err := genHostKeys()
-	require.NoError(t, err)
-	return &fakeNode{
-		hostKeys: hostKeys,
-	}
-}
-
-func (n *fakeNode) join(
+func join(
 	ctx context.Context,
 	addr net.Addr,
 	creds credentials.TransportCredentials,
 	token string,
-) (*messages.Result, error) {
+) (*messages.HostResult, crypto.Signer, error) {
 	conn, err := grpc.NewClient(addr.String(),
 		grpc.WithTransportCredentials(creds),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer conn.Close()
 	joinClient := joinv1.NewClient(joinv1proto.NewJoinServiceClient(conn))
 
+	// Initiate the join request.
 	stream, err := joinClient.Join(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
+	// Send the ClientInit message.
 	err = stream.Send(&messages.ClientInit{
-		TokenName:    token,
-		PublicTLSKey: n.hostKeys.tlsPubKey,
-		PublicSSHKey: n.hostKeys.sshPubKey,
-		SystemRole:   types.RoleInstance.String(),
-		HostParams: &messages.HostParams{
-			HostName: "node",
-		},
+		TokenName:  token,
+		SystemRole: types.RoleInstance.String(),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	resp, err := stream.Recv()
+	// Wait for the ServerInit response.
+	serverInit, err := messages.RecvResponse[*messages.ServerInit](stream)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	result, ok := resp.(*messages.Result)
-	if !ok {
-		return nil, trace.Errorf("expected *messages.Result, got %T", resp)
+	// Generate host keys with the suite from the ServerInit message.
+	hostKeys, err := genHostKeys(ctx, serverInit.SignatureAlgorithmSuite)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
-	return result, nil
+
+	// Send the TokenInit message with the host keys.
+	if err := stream.Send(&messages.TokenInit{
+		ClientParams: messages.ClientParams{
+			HostParams: &messages.HostParams{
+				PublicKeys: messages.PublicKeys{
+					PublicTLSKey: hostKeys.tlsPubKey,
+					PublicSSHKey: hostKeys.sshPubKey,
+				},
+				HostName: "node",
+			},
+		},
+	}); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Wait for the result.
+	result, err := messages.RecvResponse[*messages.HostResult](stream)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return result, hostKeys.tls, nil
 }
 
-func clientCreds(tlsKey crypto.PrivateKey, result *messages.Result) (credentials.TransportCredentials, error) {
+func clientCreds(tlsKey crypto.PrivateKey, certs messages.Certificates) (credentials.TransportCredentials, error) {
 	caPool := x509.NewCertPool()
-	for _, caCertDER := range result.TLSCACerts {
+	for _, caCertDER := range certs.TLSCACerts {
 		caCert, err := x509.ParseCertificate(caCertDER)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -412,7 +434,7 @@ func clientCreds(tlsKey crypto.PrivateKey, result *messages.Result) (credentials
 	}
 	return credentials.NewTLS(&tls.Config{
 		Certificates: []tls.Certificate{{
-			Certificate: [][]byte{result.TLSCert},
+			Certificate: [][]byte{certs.TLSCert},
 			PrivateKey:  tlsKey,
 		}},
 		RootCAs:    caPool,
@@ -427,8 +449,8 @@ type hostKeys struct {
 	sshPubKey []byte
 }
 
-func genHostKeys() (*hostKeys, error) {
-	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+func genHostKeys(ctx context.Context, suite types.SignatureAlgorithmSuite) (*hostKeys, error) {
+	signer, err := cryptosuites.GenerateKey(ctx, cryptosuites.StaticAlgorithmSuite(suite), cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

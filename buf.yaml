@@ -86,6 +86,8 @@ breaking:
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
+    # TODO(nklaassen): Remove ignore once the new join API is stable.
+    - api/proto/teleport/join/v1
 
 plugins:
   - plugin:
