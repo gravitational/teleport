@@ -20,7 +20,7 @@ package machineidv1
 import (
 	"context"
 	"log/slog"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -46,7 +46,8 @@ type AutoUpdateVersionReporter struct {
 	semaphores types.Semaphores
 	hostUUID   string
 
-	leader atomic.Bool
+	mu       sync.Mutex
+	leaderCh chan struct{}
 }
 
 // AutoUpdateReportStore is used to write the report.
@@ -104,6 +105,7 @@ func NewAutoUpdateVersionReporter(cfg AutoUpdateVersionReporterConfig) (*AutoUpd
 		store:      cfg.Store,
 		semaphores: cfg.Semaphores,
 		hostUUID:   cfg.HostUUID,
+		leaderCh:   make(chan struct{}),
 	}, nil
 }
 
@@ -186,9 +188,11 @@ func (r *AutoUpdateVersionReporter) runLeader(ctx context.Context) error {
 	}
 
 	defer func() {
-		r.leader.Store(false)
-		r.logger.DebugContext(ctx, "No longer the leader")
+		r.mu.Lock()
+		r.leaderCh = make(chan struct{})
+		r.mu.Unlock()
 
+		r.logger.DebugContext(ctx, "No longer the leader")
 		lease.Stop()
 
 		if err := lease.Wait(); err != nil {
@@ -196,7 +200,10 @@ func (r *AutoUpdateVersionReporter) runLeader(ctx context.Context) error {
 		}
 	}()
 
-	r.leader.Store(true)
+	r.mu.Lock()
+	close(r.leaderCh)
+	r.mu.Unlock()
+
 	r.logger.DebugContext(ctx, "Acquired semaphore and became the leader")
 
 	select {
@@ -211,7 +218,7 @@ func (r *AutoUpdateVersionReporter) runLeader(ctx context.Context) error {
 // not the current elected leader. This method is typically called by the auth
 // server's runPeriodicOperations method.
 func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
-	if !r.leader.Load() {
+	if !r.IsLeader() {
 		r.logger.DebugContext(ctx, "Not the leader, ignoring trigger to generate report")
 		return nil
 	}
@@ -281,4 +288,23 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// LeaderCh returns a channel that will be closed when this instance of the
+// reporter becomes the leader. It is used to block in tests.
+func (r *AutoUpdateVersionReporter) LeaderCh() <-chan struct{} {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.leaderCh
+}
+
+// IsLeader returns whether this instance of the reporter is the current leader.
+func (r *AutoUpdateVersionReporter) IsLeader() bool {
+	select {
+	case <-r.LeaderCh():
+		return true
+	default:
+		return false
+	}
 }

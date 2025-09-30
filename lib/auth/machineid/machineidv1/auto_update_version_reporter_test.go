@@ -34,8 +34,6 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	sema := &testSemaphores{acquired: make(chan struct{})}
-
 	autoUpdateService, err := local.NewAutoUpdateService(backend)
 	require.NoError(t, err)
 
@@ -74,7 +72,7 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 		Logger:     logtest.NewLogger(),
 		Store:      autoUpdateService,
 		Cache:      botInstanceService,
-		Semaphores: sema,
+		Semaphores: &testSemaphores{},
 		HostUUID:   uuid.NewString(),
 	})
 	require.NoError(t, err)
@@ -82,7 +80,7 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	// Run the leader election process. Wait for the semaphore to be acquired.
 	require.NoError(t, reporter.Run(ctx))
 	select {
-	case <-sema.acquired:
+	case <-reporter.LeaderCh():
 	case <-time.After(1 * time.Second):
 		t.Fatal("timeout waiting for semaphore to be acquired")
 	}
@@ -126,13 +124,8 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	}
 }
 
-type testSemaphores struct {
-	types.Semaphores
-
-	acquired chan struct{}
-}
+type testSemaphores struct{ types.Semaphores }
 
 func (s *testSemaphores) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
-	close(s.acquired)
 	return &types.SemaphoreLease{}, nil
 }
