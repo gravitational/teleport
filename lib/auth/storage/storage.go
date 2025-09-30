@@ -382,6 +382,31 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend sta
 	return hostID, trace.Wrap(err)
 }
 
+// PersistAssignedHostID writes an assigned host ID to state storage and the
+// host_uuid file. This should not be called in the same process as
+// ReadOrGenerateHostID, it is intended to persist a host UUID assigned by the
+// Auth service that was not generated locally. With the new auth-assigned host
+// persisted to storage to maintain compatibility with any other processes that
+// UUID flow the agent doesn't even need to read the host ID, it is only
+// may read it.
+func (p *ProcessStorage) PersistAssignedHostID(ctx context.Context, cfg *servicecfg.Config, hostID string) error {
+	if p.stateStorage != nil {
+		if _, err := p.stateStorage.Put(
+			ctx,
+			backend.Item{
+				Key:   backend.NewKey(hostid.FileName),
+				Value: []byte(hostID),
+			},
+		); err != nil {
+			return trace.Wrap(err, "persisting host ID to state storage")
+		}
+	}
+	if err := hostid.WriteFile(cfg.DataDir, hostID); err != nil {
+		return trace.Wrap(err, "persisting host ID to file")
+	}
+	return nil
+}
+
 // persistHostIDToStorages writes the host ID to local data and to
 // Kubernetes Secret if this process is running on a Kubernetes Cluster.
 func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, hostID string, kubeBackend stateBackend) error {
