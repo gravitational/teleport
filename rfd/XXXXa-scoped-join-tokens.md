@@ -8,6 +8,7 @@ state: draft
 ## Required approvers
 
 - Engineering: @fspmarshall && @rosstimothy
+- Security: @rob-picard-teleport
 
 ## What
 
