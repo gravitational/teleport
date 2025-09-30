@@ -6,6 +6,7 @@
 * Fixed auto-approvals in the Datadog Incident Management integration to ignore case sensitivity in user emails. [#59670](https://github.com/gravitational/teleport/pull/59670)
 * Fixed `tsh play` not returning an error when playing a session fails. [#59627](https://github.com/gravitational/teleport/pull/59627)
 * Fixed persistence of `metadata.description` field for the Bot resource. [#59572](https://github.com/gravitational/teleport/pull/59572)
+* Fixed an issue that prevented connecting to agents over peered tunnels when proxy peering was enabled. [#59558](https://github.com/gravitational/teleport/pull/59558)
 
 ## 16.5.17 (09/23/25)
 
