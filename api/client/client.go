@@ -3149,10 +3149,10 @@ func (c *Client) UpsertAutoUpdateAgentReport(ctx context.Context, report *autoup
 	return resp, nil
 }
 
-// GetAutoUpdateBotReport gets the singleton auto-update bot report.
-func (c *Client) GetAutoUpdateBotReport(ctx context.Context) (*autoupdatev1pb.AutoUpdateBotReport, error) {
+// GetAutoUpdateBotInstanceReport gets the singleton auto-update bot report.
+func (c *Client) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdatev1pb.AutoUpdateBotInstanceReport, error) {
 	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.GetAutoUpdateBotReport(ctx, &autoupdatev1pb.GetAutoUpdateBotReportRequest{})
+	resp, err := client.GetAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.GetAutoUpdateBotInstanceReportRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -352,14 +352,14 @@ func TestServiceAccess(t *testing.T) {
 		},
 		// Autoupdate bot report check
 		{
-			name: "GetAutoUpdateBotReport",
+			name: "GetAutoUpdateBotInstanceReport",
 			allowedStates: []authz.AdminActionAuthState{
 				authz.AdminActionAuthUnauthorized,
 				authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified,
 				authz.AdminActionAuthMFAVerifiedWithReuse,
 			},
-			kind:         types.KindAutoUpdateBotReport,
+			kind:         types.KindAutoUpdateBotInstanceReport,
 			allowedVerbs: []string{types.VerbRead},
 		},
 	}

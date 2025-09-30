@@ -233,6 +233,6 @@ message Event {
     // PluginV1 is a resource for Teleport plugins.
     types.PluginV1 plugin = 84;
     // AutoUpdateAgentReport is a resource for counting connected bot instances.
-    teleport.autoupdate.v1.AutoUpdateBotReport AutoUpdateBotReport = 85;
+    teleport.autoupdate.v1.AutoUpdateBotInstanceReport AutoUpdateBotInstanceReport = 85;
   }
 }

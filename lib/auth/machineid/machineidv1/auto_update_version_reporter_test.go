@@ -106,27 +106,27 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	require.NoError(t, reporter.Report(ctx))
 
 	// Check the report records the bots.
-	report, err := autoUpdateService.GetAutoUpdateBotReport(ctx)
+	report, err := autoUpdateService.GetAutoUpdateBotInstanceReport(ctx)
 	require.NoError(t, err)
 
 	diff := cmp.Diff(
-		&autoupdatev1pb.AutoUpdateBotReportSpec{
+		&autoupdatev1pb.AutoUpdateBotInstanceReportSpec{
 			Timestamp: timestamppb.New(clock.Now()),
-			Groups: map[string]*autoupdatev1pb.AutoUpdateBotReportSpecGroup{
+			Groups: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup{
 				"prod": {
-					Versions: map[string]*autoupdatev1pb.AutoUpdateBotReportSpecGroupVersion{
+					Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
 						"18.1.0": {Count: 1},
 					},
 				},
 				"stage": {
-					Versions: map[string]*autoupdatev1pb.AutoUpdateBotReportSpecGroupVersion{
+					Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
 						"19.0.0-dev": {Count: 1},
 					},
 				},
 
 				// Unmanaged (no-group) group.
 				"": {
-					Versions: map[string]*autoupdatev1pb.AutoUpdateBotReportSpecGroupVersion{
+					Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
 						"18.0.0": {Count: 1},
 						"18.1.0": {Count: 1},
 					},

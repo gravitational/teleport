@@ -1594,7 +1594,7 @@ const (
 	roleCountKey
 	accessListReminderNotificationsKey
 	autoUpdateAgentReportKey
-	autoUpdateBotReportKey
+	autoUpdateBotInstanceReportKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1691,7 +1691,7 @@ func (a *Server) runPeriodicOperations() {
 			// No jitter here, this is intentional and required for accurate tracking across auths.
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
-			Key:           autoUpdateBotReportKey,
+			Key:           autoUpdateBotInstanceReportKey,
 			Duration:      constants.AutoUpdateAgentReportPeriod,
 			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.SeventhJitter,
@@ -1822,7 +1822,7 @@ func (a *Server) runPeriodicOperations() {
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
 			case autoUpdateAgentReportKey:
 				go a.reportAgentVersions(a.closeCtx)
-			case autoUpdateBotReportKey:
+			case autoUpdateBotInstanceReportKey:
 				go a.botVersionReporter.Report(a.closeCtx)
 			}
 		}

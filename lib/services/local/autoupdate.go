@@ -33,20 +33,20 @@ import (
 )
 
 const (
-	autoUpdateConfigPrefix       = "auto_update_config"
-	autoUpdateVersionPrefix      = "auto_update_version"
-	autoUpdateAgentRolloutPrefix = "auto_update_agent_rollout"
-	autoUpdateAgentReportPrefix  = "auto_update_agent_report"
-	autoUpdateBotReportPrefix    = "auto_update_bot_report"
+	autoUpdateConfigPrefix            = "auto_update_config"
+	autoUpdateVersionPrefix           = "auto_update_version"
+	autoUpdateAgentRolloutPrefix      = "auto_update_agent_rollout"
+	autoUpdateAgentReportPrefix       = "auto_update_agent_report"
+	autoUpdateBotInstanceReportPrefix = "auto_update_bot_instance_report"
 )
 
 // AutoUpdateService is responsible for managing AutoUpdateConfig and AutoUpdateVersion singleton resources.
 type AutoUpdateService struct {
-	config      *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
-	version     *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
-	rollout     *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentRollout]
-	agentReport *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentReport]
-	botReport   *generic.ServiceWrapper[*autoupdate.AutoUpdateBotReport]
+	config            *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
+	version           *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
+	rollout           *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentRollout]
+	agentReport       *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentReport]
+	botInstanceReport *generic.ServiceWrapper[*autoupdate.AutoUpdateBotInstanceReport]
 }
 
 // NewAutoUpdateService returns a new AutoUpdateService.
@@ -108,24 +108,24 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	botReport, err := generic.NewServiceWrapper(
-		generic.ServiceConfig[*autoupdate.AutoUpdateBotReport]{
+	botInstanceReport, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*autoupdate.AutoUpdateBotInstanceReport]{
 			Backend:       b,
-			ResourceKind:  types.KindAutoUpdateBotReport,
-			BackendPrefix: backend.NewKey(autoUpdateBotReportPrefix),
-			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateBotReport],
-			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateBotReport],
+			ResourceKind:  types.KindAutoUpdateBotInstanceReport,
+			BackendPrefix: backend.NewKey(autoUpdateBotInstanceReportPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateBotInstanceReport],
+			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateBotInstanceReport],
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &AutoUpdateService{
-		config:      config,
-		version:     version,
-		rollout:     rollout,
-		agentReport: agentReport,
-		botReport:   botReport,
+		config:            config,
+		version:           version,
+		rollout:           rollout,
+		agentReport:       agentReport,
+		botInstanceReport: botInstanceReport,
 	}, nil
 }
 
@@ -344,19 +344,19 @@ func itemFromAutoUpdateVersion(version *autoupdate.AutoUpdateVersion) (*backend.
 	return item, nil
 }
 
-// GetAutoUpdateBotReport gets the singleton auto-update bot report.
-func (s *AutoUpdateService) GetAutoUpdateBotReport(ctx context.Context) (*autoupdate.AutoUpdateBotReport, error) {
-	report, err := s.botReport.GetResource(ctx, types.MetaNameAutoUpdateBotReport)
+// GetAutoUpdateBotInstanceReport gets the singleton auto-update bot report.
+func (s *AutoUpdateService) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdate.AutoUpdateBotInstanceReport, error) {
+	report, err := s.botInstanceReport.GetResource(ctx, types.MetaNameAutoUpdateBotInstanceReport)
 	return report, trace.Wrap(err)
 }
 
-// SetAutoUpdateBotReport overwrites the singleton auto-update bot report.
-func (s *AutoUpdateService) SetAutoUpdateBotReport(ctx context.Context, spec *autoupdate.AutoUpdateBotReportSpec) error {
-	_, err := s.botReport.UpsertResource(ctx, &autoupdate.AutoUpdateBotReport{
-		Kind:    types.KindAutoUpdateBotReport,
+// SetAutoUpdateBotInstanceReport overwrites the singleton auto-update bot report.
+func (s *AutoUpdateService) SetAutoUpdateBotInstanceReport(ctx context.Context, spec *autoupdate.AutoUpdateBotInstanceReportSpec) error {
+	_, err := s.botInstanceReport.UpsertResource(ctx, &autoupdate.AutoUpdateBotInstanceReport{
+		Kind:    types.KindAutoUpdateBotInstanceReport,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: types.MetaNameAutoUpdateBotReport,
+			Name: types.MetaNameAutoUpdateBotInstanceReport,
 		},
 		Spec: spec,
 	})

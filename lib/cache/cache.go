@@ -201,7 +201,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindAutoUpdateAgentReport},
-		{Kind: types.KindAutoUpdateBotReport},
+		{Kind: types.KindAutoUpdateBotInstanceReport},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProvisioningPrincipalState},
 		{Kind: types.KindIdentityCenterAccount},

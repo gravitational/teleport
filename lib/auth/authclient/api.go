@@ -1276,8 +1276,8 @@ type Cache interface {
 	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReports from the backend.
 	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
 
-	// GetAutoUpdateBotReport gets the singleton AutoUpdateBotReport from the backend.
-	GetAutoUpdateBotReport(ctx context.Context) (*autoupdate.AutoUpdateBotReport, error)
+	// GetAutoUpdateBotInstanceReport gets the singleton AutoUpdateBotInstanceReport from the backend.
+	GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdate.AutoUpdateBotInstanceReport, error)
 
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)

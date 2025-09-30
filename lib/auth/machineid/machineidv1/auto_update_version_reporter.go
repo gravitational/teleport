@@ -36,8 +36,8 @@ import (
 )
 
 // AutoUpdateVersionReporter aggregates bot instance version numbers into an
-// `autoupdate_bot_report` resource periodically. We run a single leader-elected
-// instance of the reporter per cluster.
+// `autoupdate_bot_instancenreport` resource periodically. We run a single
+// leader-elected instance of the reporter per cluster.
 type AutoUpdateVersionReporter struct {
 	clock      clockwork.Clock
 	logger     *slog.Logger
@@ -52,7 +52,7 @@ type AutoUpdateVersionReporter struct {
 
 // AutoUpdateReportStore is used to write the report.
 type AutoUpdateReportStore interface {
-	SetAutoUpdateBotReport(ctx context.Context, report *autoupdate.AutoUpdateBotReportSpec) error
+	SetAutoUpdateBotInstanceReport(ctx context.Context, report *autoupdate.AutoUpdateBotInstanceReportSpec) error
 }
 
 // AutoUpdateVersionReporterConfig holds configuration for a version reporter.
@@ -225,7 +225,7 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 
 	r.logger.DebugContext(ctx, "Generating report")
 
-	groups := make(map[string]*autoupdate.AutoUpdateBotReportSpecGroup)
+	groups := make(map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup)
 
 	var nextToken string
 	for {
@@ -260,15 +260,15 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 
 			group, ok := groups[groupName]
 			if !ok {
-				group = &autoupdate.AutoUpdateBotReportSpecGroup{
-					Versions: make(map[string]*autoupdate.AutoUpdateBotReportSpecGroupVersion),
+				group = &autoupdate.AutoUpdateBotInstanceReportSpecGroup{
+					Versions: make(map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion),
 				}
 				groups[groupName] = group
 			}
 
 			version, ok := group.Versions[latest.GetVersion()]
 			if !ok {
-				version = &autoupdate.AutoUpdateBotReportSpecGroupVersion{}
+				version = &autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{}
 				group.Versions[latest.GetVersion()] = version
 			}
 			version.Count++
@@ -279,7 +279,7 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 		}
 	}
 
-	err := r.store.SetAutoUpdateBotReport(ctx, &autoupdate.AutoUpdateBotReportSpec{
+	err := r.store.SetAutoUpdateBotInstanceReport(ctx, &autoupdate.AutoUpdateBotInstanceReportSpec{
 		Timestamp: timestamppb.New(r.clock.Now()),
 		Groups:    groups,
 	})
