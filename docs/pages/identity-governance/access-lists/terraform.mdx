@@ -266,7 +266,7 @@ resource "teleport_access_list_member" "db_access_staging_dbas" {
 
 ## Step 5/6. (optional) Give access to a Okta group
 
-The Okta integration allows [synchronizing Okta groups and apps](../okta/app-and-group-sync.mdx) as
+The Okta integration allows [synchronizing Okta groups and apps](../integrations/okta/app-and-group-sync.mdx) as
 Teleport Access Lists. 
 
 To give permissions to the Okta group represented as an Access List in Teleport, navigate to the Okta
@@ -294,7 +294,7 @@ resource "teleport_access_list_member" "db_access_staging_okta_group" {
 
 ## Step 6/6. (optional) Give access to an Entra ID group
 
-Entra ID integration allows [synchronizing groups](../entra-id/entra-id.mdx) as
+Entra ID integration allows [synchronizing groups](../integrations/entra-id/entra-id.mdx) as
 Teleport Access Lists. 
 
 To give permissions to Entra ID group represented as Access List in Teleport navigate to the Entra
@@ -327,8 +327,8 @@ resource "teleport_access_list_member" "db_access_staging_entra_id_group" {
 
 This is usually not the case. Any Access List can be imported, but Access Lists created in the UI
 are not static type, so their members can't be managed with Terraform. The same applies to Access
-Lists created by an integration (e.g. [Okta](../okta/app-and-group-sync.mdx) or [Entra
-ID](../entra-id/entra-id.mdx)). An existing static list created by another Terraform setup (with
+Lists created by an integration (e.g. [Okta](../integrations/okta/app-and-group-sync.mdx) or [Entra
+ID](../integrations/entra-id/entra-id.mdx)). An existing static list created by another Terraform setup (with
 a different state) could be imported and then its members can be managed by Terraform, but that's
 rather a rare use-case.
 
