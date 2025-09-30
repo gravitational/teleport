@@ -77,6 +77,8 @@ We can reduce the frequency of Teleport major releases from every ~4 months to o
 down the number of supported releases from N-2 to N-1. That would extend the support window for major
 releases from ~12 months to ~24 months at the expense of supporting fewer major versions. Reducing
 the number of versions also means it takes fewer upgrade cycles to get to the most recent version of Teleport.
+No changes will be made to the upgrade guide. Users may upgrade their cluster from any N-1 version to any
+N version.
 
 This satisfies customer desire for major releases to be supported for a longer period of time
 without impacting our current upgrade process or component compatibility guarantees. However, it
@@ -87,21 +89,37 @@ changes to the public API. We've often relied on this four month release cycle t
 on APIs that don't work or cause issues for one reason or another. With yearly major releases this
 becomes a less viable solution and a stronger emphasis must be put both on backward and forward compatibility. 
 
+Examples of forward compatibility issues that we've seen in the past:
+
+- Using a boolean instead of a string or an enum - https://protobuf.dev/best-practices/dos-donts/#bad-bools
+- Strict validation over a closed set of values prevents adding new ones
+- Making new fields mandatory
+
+Examples of backward compatibility issues that we've seen in the past:
+- Removing a deprecated API too soon
+- Changing the behavior of an existing API
+- Altering validation of existing fields of a resource
+
 Going forward, solutions to problems should attempt to preserve compatibility at all costs and
 rely less on all customers adhering to our upgrade procedure. Instead of relying on versions of
 clients, and that the Auth server will reject outdated clients we should put a stronger emphasis
 on negotiating compatibility. If clients and servers in our control can inform each other about
 what features they support in some manner then both can mutually agree on which features and APIs
-can be safely used.
+can be safely used. An example of this can be seen with the capabilities exchanged during instance
+heartbeat hello messages: https://github.com/gravitational/teleport/blob/6d4961aed1eef6b360e05facdbcd997fb95593d4/api/proto/teleport/legacy/client/proto/inventory.proto#L136-L181.
 
 To address the stability concerns, all new features *MUST* only be added to the most recent major version.
 The previous major version goes into maintenance mode the moment a new major version is released.
 In other words, even though we will now support two major releases, N and N-1, new features *MUST* only
 be included in version N. N-1 will continue to receive bug fixes and security patches, but not new features.
 
+The Test Plan should also be performed more frequently to help ensure stability of releases. Additionally,
+when the Cloud framework permits, release branches compatibility, performance, and stability should be
+automatically tested on a periodic cadence (i.e. nightly, weekly).
+
 ### Toolchain Implications
 
-Extending support of a Teleport means that it may outlive releases of toolchains used to build Teleport.
+Extending support of a Teleport release means that it may outlive releases of toolchains used to build Teleport.
 Go releases are supported for ~12 months. They release a new major version every ~6 months, and are EOL
 when two newer major releases exist.
 
@@ -128,7 +146,6 @@ The currently documented supported releases are the following.
 | v18.x   | July 3, 2025      | August 2026    | v17.0.0               |
 | v17.x   | November 16, 2024 | February 2026  | v16.0.0               |
 | v16.x   | June 14, 2024     | October 2025   | v15.0.0               |
-
 
 To migrate to the extended support described above, v16, the current
 N-2 release, will become EOL at the end of October 2025 without the
