@@ -51,6 +51,8 @@ export const traitsPreset = [
   'logins',
   'windows_logins',
   'github_orgs',
+  'mcp_tools',
+  'default_relay_addr',
 ] as const;
 
 /**

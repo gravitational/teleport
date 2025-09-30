@@ -445,6 +445,8 @@ const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {
   host_user_gid: 'The group ID to use for auto-host-users',
   host_user_uid: 'The user ID to use for auto-host-users',
   github_orgs: 'List of allowed GitHub organizations for git command proxy',
+  mcp_tools: 'List of allowed MCP tools',
+  default_relay_addr: 'The relay address that clients should use by default',
 };
 
 function Trait(props: { traitName: string }) {
