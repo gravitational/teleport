@@ -118,7 +118,7 @@ func Okta(ctx context.Context, plugin *types.PluginV1, deps Dependencies) (Deleg
 		userMonitor, err := oktausermonitor.New(oktausermonitor.Config{
 			Logger:     deps.Logger,
 			AuthServer: deps.ParentProcess.GetAuthServer(),
-			Events:     deps.ParentProcess.GetAuthServer().Cache,
+			Events:     deps.ParentProcess.GetAuthServer(),
 			Backend:    deps.ParentProcess.GetBackend(),
 		})
 		if err != nil {

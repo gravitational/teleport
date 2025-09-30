@@ -42,7 +42,9 @@ type Config struct {
 	AuthServer *auth.Server
 
 	// Events is the event monitor. This will allow us to monitor for access list membership
-	// and user definition changes.
+	// and user definition changes. Events can create watchers from the cache
+	// so it is safe to fetch resources both from cache or backend when
+	// reacting to its events.
 	Events types.Events
 	// Backend is the backend used for locking to ensure only one user monitor
 	Backend backend.Backend
@@ -313,6 +315,9 @@ func (u *UserMonitor) watchEvents(ctx context.Context) error {
 }
 
 func (u *UserMonitor) processResource(ctx context.Context, resource types.Resource, op types.OpType) error {
+	// in processResource and all the other UserMonitor functions, we can
+	// safely read resources like users, ULS, roles and accesslists from the
+	// cache because the UserMonitor reacts to events from the cache.
 	if resource == nil {
 		return trace.BadParameter("resource is empty")
 	}
@@ -415,7 +420,7 @@ func (u *UserMonitor) processRoleChange(ctx context.Context, roleName string) er
 
 // rebuildAndProcessUser will process a user by rebuilding the user if necessary and processing it.
 func (u *UserMonitor) rebuildAndProcessUser(ctx context.Context, name string) error {
-	uls, err := u.authServer.UserLoginStates.GetUserLoginState(ctx, name)
+	uls, err := u.authServer.GetUserLoginState(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
