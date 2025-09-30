@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 type (
@@ -48,14 +49,38 @@ func Join(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if params.ID.HostUUID != "" {
+		return nil, trace.BadParameter("HostUUID must not be provided to Join, it will be assigned by the Auth server")
+	}
+	if params.ID.Role != types.RoleInstance && params.ID.Role != types.RoleBot {
+		return nil, trace.BadParameter("Only Instance and Bot roles may be used for direct join attempts")
+	}
 	slog.InfoContext(ctx, "Trying to join with the new join service")
 	result, err := joinNew(ctx, params)
 	if trace.IsNotImplemented(err) {
 		// Fall back to joining via legacy service.
 		slog.InfoContext(ctx, "Falling back to joining via the legacy join service", "error", err)
-		result, err := authjoin.Register(ctx, params)
+		// Non-bots must generate their own host UUID when joining via legacy service.
+		if params.ID.Role != types.RoleBot {
+			hostID, err := hostid.Generate(ctx, params.JoinMethod)
+			if err != nil {
+				return nil, trace.Wrap(err, "generating host ID")
+			}
+			params.ID.HostUUID = hostID
+		}
+		result, err := LegacyJoin(ctx, params)
 		return result, trace.Wrap(err)
 	}
+	return result, trace.Wrap(err)
+}
+
+// LegacyJoin is used to join the cluster via the legacy service with client-chosen host UUIDs.
+func LegacyJoin(ctx context.Context, params JoinParams) (*JoinResult, error) {
+	if params.ID.Role != types.RoleBot && params.ID.HostUUID == "" {
+		return nil, trace.BadParameter("HostUUID is required for LegacyJoin")
+	}
+	//nolint:staticcheck // SA1019 falling back to deprecated method for compatibility.
+	result, err := authjoin.Register(ctx, params)
 	return result, trace.Wrap(err)
 }
 
