@@ -8996,8 +8996,7 @@ func TestListSnowflakeSessions(t *testing.T) {
 
 	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
 	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 	opts := []cmp.Option{
 		cmpopts.SortSlices(func(a, b types.WebSession) bool {
 			return a.GetName() < b.GetName()
