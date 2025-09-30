@@ -429,7 +429,7 @@ get_teleport_pid() {
         fi
     done
     # return filtered list of pids with whitespace trimmed from the end
-    echo ${TELEPORT_PIDS%%[[:space::]*}
+    echo ${TELEPORT_PIDS%%[[:space:]]*}
 }
 # returns a command which will start teleport using the config
 get_teleport_start_command() {
