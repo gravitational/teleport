@@ -70,58 +70,16 @@ func newAppCollection(upstream services.Applications, w types.WatchKind) (*colle
 
 // Apps returns application resources within the range [start, end).
 func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	return func(yield func(types.Application, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/Apps")
-		defer span.End()
-
-		rg, err := acquireReadGuard(c, c.collections.apps)
-		if err != nil {
-			yield(nil, err)
-			return
-		}
-		defer rg.Release()
-
-		if rg.ReadCache() {
-			for a := range rg.store.resources(appNameIndex, start, end) {
-				if !yield(a.Copy(), nil) {
-					return
-				}
-			}
-			return
-		}
-
-		// Release the read guard early since all future reads will be
-		// performed against the upstream.
-		rg.Release()
-
-		for app, err := range c.Config.Apps.Apps(ctx, start, end) {
-			if err != nil {
-				// TODO(tross): DELETE IN v21.0.0
-				if trace.IsNotImplemented(err) {
-					apps, err := c.Config.Apps.GetApps(ctx)
-					if err != nil {
-						yield(nil, err)
-						return
-					}
-
-					for _, app := range apps {
-						if !yield(app, nil) {
-							return
-						}
-					}
-
-					return
-				}
-
-				yield(nil, err)
-				return
-			}
-
-			if !yield(app, nil) {
-				return
-			}
-		}
+	ranger := genericRanger[types.Application, appIndex]{
+		cache:         c,
+		collection:    c.collections.apps,
+		index:         appNameIndex,
+		upstreamRange: c.Config.Apps.Apps,
+		// TODO(tross): DELETE IN v21.0.0
+		fallbackGetter: c.Config.Apps.GetApps,
+		spanName:       "cache/Apps",
 	}
+	return ranger.Range(ctx, start, end)
 }
 
 // ListApps returns a page of application resources.
