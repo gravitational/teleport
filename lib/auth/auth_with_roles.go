@@ -5803,11 +5803,12 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 		}
 	}
 
-	sessions, err := a.authServer.GetSnowflakeSessions(ctx)
+	out, err := iterstream.Collect(a.authServer.RangeSnowflakeSessions(ctx, "", ""))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sessions, nil
+
+	return out, nil
 }
 
 // ListSnowflakeSessions returns a page of Snowflake web sessions.
@@ -5837,7 +5838,11 @@ func (a *ServerWithRoles) ListSnowflakeSessions(ctx context.Context, limit int, 
 			},
 		),
 	)
-	return out, next, trace.Wrap(err)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, next, nil
 }
 
 // CreateAppSession creates an application web session. Application web

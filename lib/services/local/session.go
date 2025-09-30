@@ -74,20 +74,11 @@ func (s *IdentityService) ListAppSessions(ctx context.Context, pageSize int, pag
 // GetSnowflakeSessions gets all Snowflake web sessions.
 // Deprecated: Prefer paginated variant such as [IdentityService.ListSnowflakeSessions]
 func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
-	startKey := backend.ExactKey(snowflakePrefix, sessionsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	out, err := stream.Collect(s.rangeSessions(ctx, "", "", "", snowflakePrefix, sessionsPrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out := make([]types.WebSession, len(result.Items))
-	for i, item := range result.Items {
-		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out[i] = session
-	}
 	return out, nil
 }
 
