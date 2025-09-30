@@ -190,8 +190,9 @@ type SessionParams struct {
 	ModeratedSessionID string
 }
 
-// ParseSessionParams parses session parameters. If the provided data is
-// empty, nil params will be returned with a nil error.
+// ParseSessionParams [ssh.Unmarshal] session parameters which have been [ssh.Marshal]ed by the client
+// and provided as extra data in the session channel request. If the provided data is empty, nil params
+// will be returned with a nil error.
 func ParseSessionParams(data []byte) (*SessionParams, error) {
 	if len(data) == 0 {
 		return nil, nil
