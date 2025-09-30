@@ -2,9 +2,10 @@ package entraid
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"path"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,89 +20,70 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+type accessListWithMembers struct {
+	*accesslist.AccessList
+	Members []*accesslist.AccessListMember
+}
+
+// GetKind returns a fake resource kind printed in the [services.Reconciler] logs.
+func (a *accessListWithMembers) GetKind() string {
+	return types.KindAccessList + "+" + types.KindAccessListMember
+}
+
 func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 	usersByEntraID map[entraUniqueID]types.User,
 	groupsMap map[string]*msgraph.Group,
 	groupMembersMap map[string][]msgraph.GroupMember,
-	teleportAccessLists map[string]*accesslist.AccessList,
+	teleportAccessListsWithMembersMap map[string]*accessListWithMembers,
 ) error {
-	entraAccessLists := convertEntraAccessLists(ctx, groupsMap, r.tenantID, r.defaultOwners)
+	entraAccessListWithMembersMap := convertEntraAccessListsWithMembers(ctx, usersByEntraID, groupsMap, groupMembersMap, r.tenantID, r.defaultOwners)
 
-	for name, dst := range entraAccessLists {
-		src, ok := teleportAccessLists[name]
-		if !ok {
-			continue
-		}
-		preserveAccessListMetadata(dst, src)
-	}
+	// It's crucial to sort the members for the CompareResources func in the Reconciler.
+	sortMembers(teleportAccessListsWithMembersMap)
+	sortMembers(entraAccessListWithMembersMap)
 
-	alReconciler, err := services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessList]{
-		Matcher:             matchByLabel[*accesslist.AccessList],
-		GetCurrentResources: func() map[string]*accesslist.AccessList { return teleportAccessLists },
-		GetNewResources:     func() map[string]*accesslist.AccessList { return entraAccessLists },
-		OnCreate: func(ctx context.Context, al *accesslist.AccessList) error {
-			_, err := r.accessListSvc.UpsertAccessList(ctx, al)
-			return trace.Wrap(err)
-		},
-		OnUpdate: func(ctx context.Context, incoming *accesslist.AccessList, existing *accesslist.AccessList) error {
-			_, err := r.accessListSvc.UpsertAccessList(ctx, incoming)
-			return trace.Wrap(err)
-		},
-		OnDelete: func(ctx context.Context, al *accesslist.AccessList) error {
-			err := r.accessListSvc.DeleteAccessList(ctx, al.GetName())
-			return trace.Wrap(err)
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	preserveFields(entraAccessListWithMembersMap, teleportAccessListsWithMembersMap)
 
-	accessListValues := make([]*accesslist.AccessList, 0, len(teleportAccessLists))
-	for _, al := range teleportAccessLists {
-		accessListValues = append(accessListValues, al)
-	}
-	teleportMembers, err := listTeleportAccessListMembers(ctx, r.accessListSvc, accessListValues)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var alsWithNestedMembers []*accessListWithMembers
+	onUpsert := func(ctx context.Context, a *accessListWithMembers) error {
+		hasNestedMember := slices.ContainsFunc(a.Members, func(m *accesslist.AccessListMember) bool {
+			return m.Spec.MembershipKind == accesslist.MembershipKindList
+		})
 
-	entraMembers, err := convertEntraAccessListMembers(ctx, usersByEntraID, entraAccessLists, groupMembersMap)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, src := range teleportMembers {
-		if dst, ok := entraMembers[src.GetName()]; ok {
-			preserveAccessListMemberMetadata(dst, src)
-		}
-	}
-
-	memberReconciler, err := services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessListMember]{
-		Matcher:             matchByLabel[*accesslist.AccessListMember],
-		GetCurrentResources: func() map[string]*accesslist.AccessListMember { return teleportMembers },
-		GetNewResources:     func() map[string]*accesslist.AccessListMember { return entraMembers },
-		OnCreate: func(ctx context.Context, m *accesslist.AccessListMember) error {
-			_, err := r.accessListSvc.UpsertAccessListMember(ctx, m)
-			return trace.Wrap(err)
-		},
-		OnUpdate: func(ctx context.Context, incoming *accesslist.AccessListMember, existing *accesslist.AccessListMember) error {
-			_, err := r.accessListSvc.UpsertAccessListMember(ctx, incoming)
-			return trace.Wrap(err)
-		},
-		OnDelete: func(ctx context.Context, m *accesslist.AccessListMember) error {
-			err := r.accessListSvc.DeleteAccessListMember(ctx, m.Spec.AccessList, m.Spec.Name)
-			// As access lists are reconciled before members,
-			// an access list removed from entra can get removed before we try to unassign members.
-			// In such cases, simply ignore the "access list not found" error
-			if trace.IsNotFound(err) {
-				return nil
+		// If access list has a nested member, don't upsert it with members, because some
+		// of the member list may not be provisioned yet. It will be upserted with members
+		// on a second pass when all access lists are already upserted.
+		if hasNestedMember {
+			if _, err := r.accessListSvc.UpsertAccessList(ctx, a.AccessList); err != nil {
+				return trace.Wrap(err)
 			}
+			alsWithNestedMembers = append(alsWithNestedMembers, a)
+			return nil
+		}
+		_, _, err := r.accessListSvc.UpsertAccessListWithMembers(ctx, a.AccessList, a.Members)
+		return trace.Wrap(err)
+	}
+
+	alReconciler, err := services.NewReconciler(services.ReconcilerConfig[*accessListWithMembers]{
+		Matcher:             func(a *accessListWithMembers) bool { return matchByLabel(a.AccessList) },
+		GetCurrentResources: func() map[string]*accessListWithMembers { return teleportAccessListsWithMembersMap },
+		GetNewResources:     func() map[string]*accessListWithMembers { return entraAccessListWithMembersMap },
+		OnCreate: func(ctx context.Context, a *accessListWithMembers) error {
+			return trace.Wrap(onUpsert(ctx, a))
+		},
+		OnUpdate: func(ctx context.Context, incoming, existing *accessListWithMembers) error {
+			return trace.Wrap(onUpsert(ctx, incoming))
+		},
+		OnDelete: func(ctx context.Context, a *accessListWithMembers) error {
+			// DeleteAccessList will also delete its members.
+			err := r.accessListSvc.DeleteAccessList(ctx, a.AccessList.GetName())
 			return trace.Wrap(err)
 		},
 	})
@@ -109,147 +91,112 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 		return trace.Wrap(err)
 	}
 
-	err = trace.NewAggregate(alReconciler.Reconcile(ctx), memberReconciler.Reconcile(ctx))
-	if err != nil {
-		return trace.Wrap(err)
+	var reconcileErrs []error
+
+	if err := alReconciler.Reconcile(ctx); err != nil {
+		reconcileErrs = append(reconcileErrs, trace.Wrap(err))
 	}
 
-	r.importedGroups = len(entraAccessLists)
+	// Now all access lists are upserted, we can do a second pass and upsert all members for
+	// access lists with nested members.
+	// BTW, there is no need to do the same thing for potential nested owners as all owners are
+	// overwritten with r.defaultOwners.
+	for _, a := range alsWithNestedMembers {
+		if _, _, err := r.accessListSvc.UpsertAccessListWithMembers(ctx, a.AccessList, a.Members); err != nil {
+			reconcileErrs = append(reconcileErrs, trace.Wrap(err))
+		}
+	}
+
+	if len(reconcileErrs) > 0 {
+		return trace.NewAggregate(reconcileErrs...)
+	}
+
+	r.importedGroups = len(entraAccessListWithMembersMap)
 	return nil
 }
 
-func (r *DirectoryReconciler) listEntraGroupsAndMembers(
-	ctx context.Context,
-	entraGroupMatcher func(g *msgraph.Group) bool,
-) (map[string]*msgraph.Group, map[string][]msgraph.GroupMember, error) {
+func listTeleportAccessListsWithMembers(ctx context.Context, svc accessListAccessPoint) (map[string]*accessListWithMembers, error) {
+	aclsWithMembersMap := make(map[string]*accessListWithMembers)
 
-	groupsMap, err := listEntraGroups(ctx, r.graphClient, entraGroupMatcher)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "failed to list Entra ID groups")
-	}
-
-	groupMembersMap, err := listEntraGroupsMembers(ctx, r.graphClient, groupsMap)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "failed to list Entra ID group members")
-	}
-
-	return groupsMap, groupMembersMap, nil
-}
-
-func listTeleportAccessLists(ctx context.Context, svc accessListAccessPoint) (map[string]*accesslist.AccessList, error) {
-	result := map[string]*accesslist.AccessList{}
-
-	var accessLists []*accesslist.AccessList
-	var pageToken string
-	var err error
-	for {
-		accessLists, pageToken, err = svc.ListAccessLists(ctx, 0 /* use the default page size*/, pageToken)
+	for al, err := range clientutils.Resources(ctx, svc.ListAccessLists) {
 		if err != nil {
-			return nil, trace.Wrap(err, "listing teleport entra users")
+			return nil, trace.Wrap(err, "listing access lists")
 		}
-
-		for _, al := range accessLists {
-			if matchByLabel(al) {
-				result[al.GetName()] = al
-			}
-		}
-
-		if pageToken == "" {
-			break
-		}
-	}
-
-	return result, nil
-}
-
-func convertEntraAccessLists(ctx context.Context, groupsMap map[string]*msgraph.Group, tenantID string, defaultOwners []accesslist.Owner) map[string]*accesslist.AccessList {
-	result := map[string]*accesslist.AccessList{}
-	for _, g := range groupsMap {
-		al, err := convertGroup(g, tenantID, defaultOwners)
-		if err == nil {
-			result[al.GetName()] = al
-		} else {
-			slog.ErrorContext(ctx, "failed to convert Entra ID group to Teleport access list", "error", err)
-		}
-	}
-
-	return result
-}
-
-func listTeleportAccessListMembers(ctx context.Context, svc accessListAccessPoint, als []*accesslist.AccessList) (map[string]*accesslist.AccessListMember, error) {
-	result := map[string]*accesslist.AccessListMember{}
-
-	var members []*accesslist.AccessListMember
-	var pageToken string
-	var err error
-	for _, al := range als {
-		for {
-			members, pageToken, err = svc.ListAccessListMembers(ctx, al.GetName(), 0 /* use the default page size */, pageToken)
-			if err != nil {
-				return nil, trace.Wrap(err, "listing teleport access list members")
-			}
-			for _, alm := range members {
-				if matchByLabel(alm) {
-					result[memberMapKey(alm)] = alm
-				}
-			}
-			if pageToken == "" {
-				break
-			}
-		}
-	}
-
-	return result, nil
-}
-
-// NB: this enriches Access Lists passed in `als` with their child Access Lists.
-func convertEntraAccessListMembers(ctx context.Context, entraUsersByID map[entraUniqueID]types.User,
-	als map[string]*accesslist.AccessList,
-	groupMembersMap map[string][]msgraph.GroupMember,
-) (map[string]*accesslist.AccessListMember, error) {
-	result := map[string]*accesslist.AccessListMember{}
-	accesslistsById := map[entraUniqueID]*accesslist.AccessList{}
-
-	for _, al := range als {
-		id, ok := al.GetLabel(types.EntraUniqueIDLabel)
-		if !ok {
+		if !matchByLabel(al) {
 			continue
 		}
-		accesslistsById[entraUniqueID(id)] = al
-	}
-	// TODO(justinas): look into batching this if possible.
-	for _, al := range als {
-		id, ok := al.GetLabel(types.EntraUniqueIDLabel)
-		if !ok {
-			return nil, trace.BadParameter("access list %v missing Entra ID unique ID label", al.GetName())
+		listMembersFn := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+			r, token, err := svc.ListAccessListMembers(ctx, al.GetName(), pageSize, pageToken)
+			return r, token, trace.Wrap(err)
 		}
-		for _, member := range groupMembersMap[id] {
-			alm, err := convertGroupMember(ctx, member, al, entraUsersByID, accesslistsById)
+		var members []*accesslist.AccessListMember
+		for m, err := range clientutils.Resources(ctx, listMembersFn) {
 			if err != nil {
-				var id string
-				if member.GetID() != nil {
-					id = *member.GetID()
-				}
+				return nil, trace.Wrap(err, "listing access list %q members", al.GetName())
+			}
+			members = append(members, m)
+		}
+		aclsWithMembersMap[al.GetName()] = &accessListWithMembers{
+			AccessList: al,
+			Members:    members,
+		}
+	}
+
+	return aclsWithMembersMap, nil
+}
+
+func convertEntraAccessListsWithMembers(
+	ctx context.Context,
+	usersByEntraID map[entraUniqueID]types.User,
+	groupsMap map[string]*msgraph.Group,
+	groupMembersMap map[string][]msgraph.GroupMember,
+	tenantID string,
+	defaultOwners []accesslist.Owner,
+) map[string]*accessListWithMembers {
+	aclsWithMembersMap := make(map[string]*accessListWithMembers)
+	accessListsById := make(map[entraUniqueID]*accesslist.AccessList)
+
+	for _, g := range groupsMap {
+		entraUniqueID, al, err := convertGroup(g, tenantID, defaultOwners)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to convert Entra ID group to Teleport access list", "error", err)
+			continue
+		}
+		aclsWithMembersMap[al.GetName()] = &accessListWithMembers{AccessList: al}
+		accessListsById[entraUniqueID] = al
+	}
+
+	for entraUniqueID, accessList := range accessListsById {
+		var members []*accesslist.AccessListMember
+		for _, member := range groupMembersMap[string(entraUniqueID)] {
+			m, err := convertGroupMember(ctx, member, accessList, usersByEntraID, accessListsById)
+			if err != nil {
+				id := strval(member.GetID())
 				slog.WarnContext(ctx, "error while converting group member", "member", id, "error", err)
 				continue
 			}
-			if alm == nil {
+			if m == nil {
 				slog.WarnContext(ctx, "unsupported group member, skipping")
 				continue
 			}
-			result[memberMapKey(alm)] = alm
+			members = append(members, m)
 		}
+		aclsWithMembersMap[accessList.GetName()].Members = members
 	}
-	return result, nil
+
+	return aclsWithMembersMap
 }
 
-func convertGroup(in *msgraph.Group, tenantID string, defaultOwners []accesslist.Owner) (*accesslist.AccessList, error) {
+func convertGroup(in *msgraph.Group, tenantID string, defaultOwners []accesslist.Owner) (entraUniqueID, *accesslist.AccessList, error) {
+	if in == nil {
+		return "", nil, trace.BadParameter("provided Entra ID group is nil")
+	}
 	if in.DisplayName == nil {
-		return nil, trace.BadParameter("expected Entra ID group to have a non-empty display name")
+		return "", nil, trace.BadParameter("expected Entra ID group to have a non-empty display name")
 	}
 	displayName := *in.DisplayName
 	if in.ID == nil {
-		return nil, trace.BadParameter("expected Entra ID group to have a non-empty ID")
+		return "", nil, trace.BadParameter("expected Entra ID group to have a non-empty ID")
 	}
 	id := *in.ID
 
@@ -268,7 +215,7 @@ func convertGroup(in *msgraph.Group, tenantID string, defaultOwners []accesslist
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", nil, trace.Wrap(err)
 	}
 	out.SetStaticLabels(map[string]string{
 		types.EntraTenantIDLabel:    tenantID,
@@ -276,7 +223,7 @@ func convertGroup(in *msgraph.Group, tenantID string, defaultOwners []accesslist
 		types.EntraDisplayNameLabel: displayName,
 	})
 	out.SetOrigin(types.OriginEntraID)
-	return out, nil
+	return entraUniqueID(id), out, nil
 }
 
 // convertGroupMember converts an Entra group member to an AccessListMember.
@@ -359,14 +306,6 @@ func accessListName(displayName string, id string) string {
 	// This is necessary because access list names are used as keys in the backend
 	// and must be unique and deterministic.
 	return uuid.NewSHA1(uuidNamespace, []byte(p)).String()
-}
-
-func preserveAccessListMemberMetadata(dst, src *accesslist.AccessListMember) {
-	dst.Spec.Joined = src.Spec.Joined
-}
-
-func memberMapKey(member *accesslist.AccessListMember) string {
-	return fmt.Sprintf("%s/%s", member.Spec.AccessList, member.GetName())
 }
 
 func listEntraGroups(ctx context.Context, graphClient GraphClient, filterMatches func(g *msgraph.Group) bool) (map[string]*msgraph.Group, error) {
@@ -498,7 +437,49 @@ func unwindGroupMembership(groups map[string]*msgraph.Group, groupMembers map[st
 	return groupToMembership
 }
 
-func preserveAccessListMetadata(dst, src *accesslist.AccessList) {
+func sortMembers(m map[string]*accessListWithMembers) {
+	for _, a := range m {
+		slices.SortFunc(a.Members, func(x, y *accesslist.AccessListMember) int {
+			return strings.Compare(x.GetName(), y.GetName())
+		})
+	}
+}
+
+type memberKey struct {
+	Name       string
+	AccessList string
+}
+
+func newMemberKey(m *accesslist.AccessListMember) memberKey {
+	return memberKey{
+		Name:       m.GetName(),
+		AccessList: m.Spec.AccessList,
+	}
+}
+
+func preserveFields(dst, src map[string]*accessListWithMembers) {
+	for k, dst := range dst {
+		if src, ok := src[k]; ok {
+			preserveAccessListFields(dst.AccessList, src.AccessList)
+		}
+	}
+
+	dstMembersMap := make(map[memberKey]*accesslist.AccessListMember)
+	for _, a := range dst {
+		for _, m := range a.Members {
+			dstMembersMap[newMemberKey(m)] = m
+		}
+	}
+	for _, a := range src {
+		for _, src := range a.Members {
+			if dst, ok := dstMembersMap[newMemberKey(src)]; ok {
+				preserveAccessListMemberFields(dst, src)
+			}
+		}
+	}
+}
+
+func preserveAccessListFields(dst, src *accesslist.AccessList) {
 	dst.Status = src.Status
 	dst.Metadata.Revision = src.Metadata.Revision
 	dst.Spec.Audit = src.Spec.Audit
@@ -513,4 +494,15 @@ func preserveAccessListMetadata(dst, src *accesslist.AccessList) {
 		}
 		dst.Spec.Grants.Traits[k] = utils.Deduplicate(append(dstVal, v...))
 	}
+}
+
+func preserveAccessListMemberFields(dst, src *accesslist.AccessListMember) {
+	dst.Spec.Joined = src.Spec.Joined
+}
+
+func strval(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }

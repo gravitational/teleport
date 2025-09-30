@@ -119,6 +119,8 @@ func startEntraIDService(ctx context.Context, process *service.TeleportProcess, 
 	}
 
 	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
+		Clock:          process.Clock,
+		Logger:         logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraIDDirectoryReconciler, process.GetID())),
 		GraphClient:    graphClient,
 		UserSvc:        authServer,
 		AccessListSvc:  authServer,

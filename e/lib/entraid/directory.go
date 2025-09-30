@@ -3,9 +3,11 @@ package entraid
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -26,6 +28,8 @@ type accessListAccessPoint interface {
 	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	DeleteAccessList(context.Context, string) error
 
+	UpsertAccessListWithMembers(ctx context.Context, accessList *accesslist.AccessList, membersIn []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
@@ -39,6 +43,8 @@ type samlService interface {
 // to synchronize Entra ID users and groups into the Teleport cluster
 // as users and access lists.
 type DirectoryReconciler struct {
+	clock         clockwork.Clock
+	logger        *slog.Logger
 	graphClient   GraphClient
 	userSvc       userAccessPoint
 	samlService   samlService
@@ -67,6 +73,8 @@ type DirectoryReconciler struct {
 
 // DirectoryReconcilerConfig specifies dependencies and parameters for instantiating DirectoryReconciler.
 type DirectoryReconcilerConfig struct {
+	Clock  clockwork.Clock
+	Logger *slog.Logger
 	// GraphClient is the instantiated Microsoft Graph API client.
 	GraphClient GraphClient
 	// UserSvc is the service used to read and modify Teleport users.
@@ -90,6 +98,12 @@ type DirectoryReconcilerConfig struct {
 
 // Validate ensures that required values are set.
 func (cfg *DirectoryReconcilerConfig) Validate() error {
+	if cfg.Clock == nil {
+		return trace.BadParameter("Clock is required")
+	}
+	if cfg.Logger == nil {
+		return trace.BadParameter("Logger is required")
+	}
 	if cfg.GraphClient == nil {
 		return trace.BadParameter("GraphClient is required")
 	}
@@ -127,6 +141,8 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 	}
 
 	return &DirectoryReconciler{
+		clock:          cfg.Clock,
+		logger:         cfg.Logger,
 		graphClient:    cfg.GraphClient,
 		userSvc:        cfg.UserSvc,
 		accessListSvc:  cfg.AccessListSvc,
@@ -142,7 +158,6 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 // Reconcile does a one-time reconciliation of users and access lists
 // from Entra ID to Teleport.
 func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
-	var filterError error
 	useLocalGroupMatcher := false
 	entraGroupMatcher := groupFilterMatcher(r.groupsFilter)
 	if _, err := filter.New(r.groupsFilter); err != nil {
@@ -153,35 +168,57 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) error {
 			// may not understand the newer filter type, the reconciliation
 			// should only apply to the already-synced groups.
 			useLocalGroupMatcher = true
-			filterError = trace.WrapWithMessage(err, unknwonFilterErrMsg)
+			r.logger.ErrorContext(ctx, "Unknown group filter encountered, filters will be skipped and reconciliation will be limited to the existing Entra ID groups", "error", err.Error())
 		default:
 			return trace.Wrap(err)
 		}
 	}
 
-	teleportAccessListMap, err := listTeleportAccessLists(ctx, r.accessListSvc)
+	teleportAccessListsWithMembersMap, err := listTeleportAccessListsWithMembers(ctx, r.accessListSvc)
 	if err != nil {
-		return trace.Wrap(trace.NewAggregate(err, filterError))
-	}
-	if useLocalGroupMatcher {
-		entraGroupMatcher = groupLocalMatcher(teleportAccessListMap)
-	}
-	groupsMap, groupMembersMap, err := r.listEntraGroupsAndMembers(ctx, entraGroupMatcher)
-	if err != nil {
-		return trace.Wrap(trace.NewAggregate(err, filterError))
+		return trace.Wrap(err)
 	}
 
+	if useLocalGroupMatcher {
+		entraGroupMatcher = groupLocalMatcher(teleportAccessListsWithMembersMap)
+	}
+
+	start := r.clock.Now()
+	groupsMap, err := listEntraGroups(ctx, r.graphClient, entraGroupMatcher)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	took := r.clock.Since(start)
+	r.logger.DebugContext(ctx, "Finished listing Entra ID groups", "took", took.String())
+
+	start = r.clock.Now()
+	groupMembersMap, err := listEntraGroupsMembers(ctx, r.graphClient, groupsMap)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	took = r.clock.Since(start)
+	r.logger.DebugContext(ctx, "Finished listing Entra ID group members", "took", took.String())
+
+	start = r.clock.Now()
 	usersByEntraID, err := r.reconcileUsers(ctx, groupsMap, groupMembersMap)
 	if err != nil {
-		return trace.Wrap(trace.NewAggregate(err, filterError))
+		return trace.Wrap(err)
 	}
+	took = r.clock.Since(start)
+	r.logger.DebugContext(ctx, "Finished reconciling Entra ID and Teleport users", "took", took.String())
 
-	err = trace.NewAggregate(
-		r.reconcileAccessLists(ctx, usersByEntraID, groupsMap, groupMembersMap, teleportAccessListMap),
-		filterError,
-	)
+	start = r.clock.Now()
+	if err := r.reconcileAccessLists(ctx,
+		usersByEntraID,
+		groupsMap, groupMembersMap,
+		teleportAccessListsWithMembersMap,
+	); err != nil {
+		return trace.Wrap(err)
+	}
+	took = r.clock.Since(start)
+	r.logger.DebugContext(ctx, "Finished reconciling Entra ID groups and Teleport access lists", "took", took.String())
 
-	return trace.Wrap(err)
+	return nil
 }
 
 // ImportedUsers returns the total number of users imported as of the most recent reconciliation.
@@ -269,7 +306,7 @@ func groupFilterMatcher(
 // groupLocalMatcher matches group with an existing
 // Entra ID Access List in Teleport.
 func groupLocalMatcher(
-	inACLMap map[string]*accesslist.AccessList,
+	inACLMap map[string]*accessListWithMembers,
 ) func(g *msgraph.Group) bool {
 	return func(g *msgraph.Group) bool {
 		aclName := accessListName(*g.DisplayName, *g.ID)
@@ -277,6 +314,3 @@ func groupLocalMatcher(
 		return ok
 	}
 }
-
-var unknwonFilterErrMsg string = "Unknown group filter encountered, filters will be " +
-	"skipped and reconciliation will be limited to the existing Entra ID groups"

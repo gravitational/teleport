@@ -2,14 +2,11 @@ package entraid
 
 import (
 	"context"
-	"maps"
-	"slices"
 	"sort"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -20,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
@@ -28,7 +26,9 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/plugins/filter"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type fakeGraphClient struct {
@@ -175,7 +175,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	teamCEntra := entraGroup(t, uuid.NewString(), "Team C")
 	graphClient.groups = append(graphClient.groups, teamCEntra)
 
-	teamCTeleport, err := convertGroup(teamCEntra, env.cfg.TenantID, env.cfg.DefaultOwners)
+	_, teamCTeleport, err := convertGroup(teamCEntra, env.cfg.TenantID, env.cfg.DefaultOwners)
 	teamCTeleport.Spec.Grants.Roles = []string{"access"}
 	require.NoError(t, err)
 
@@ -260,9 +260,7 @@ func TestDirectoryReconciler(t *testing.T) {
 			"http://schemas.microsoft.com/identity/claims/displayname":        {"Alice Smith"},
 		}, aliceTeleport.GetTraits())
 
-		teamATeleportExpected, err := convertGroup(teamAEntra, env.cfg.TenantID, env.cfg.DefaultOwners)
-		require.NoError(t, err)
-		teamATeleport, err := env.aclSvc.GetAccessList(ctx, teamATeleportExpected.GetName())
+		teamATeleport := requireAccessListForEntraGroupExists(t, env.aclSvc, teamAEntra)
 		require.NoError(t, err)
 		require.Equal(t, "Team A", teamATeleport.Spec.Title)
 		require.Equal(t, types.OriginEntraID, teamATeleport.GetAllLabels()[types.OriginLabel])
@@ -620,11 +618,9 @@ func TestUserSync(t *testing.T) {
 			entraUser(t, "u3", "carol@example.com"),
 		}
 
-		expectedGroups := []*msgraph.Group{
-			entraGroup(t, "g1", "apple"),
-			entraGroup(t, "g2", "banana"),
-		}
-		graphClient.groups = expectedGroups
+		g1 := entraGroup(t, "g1", "apple")
+		g2 := entraGroup(t, "g2", "banana")
+		graphClient.groups = []*msgraph.Group{g1, g2}
 
 		graphClient.groupMembers = map[string][]msgraph.GroupMember{
 			"g1": {
@@ -648,19 +644,15 @@ func TestUserSync(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, users, 2)
 
-		acls, err := listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
-		require.NoError(t, err)
-		require.Len(t, acls, 2)
+		requireAccessListCount(t, env.aclSvc, 2)
+		al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
+		al2 := requireAccessListForEntraGroupExists(t, env.aclSvc, g2)
 
-		expected := convertEntraAccessLists(t.Context(), entraGroupsMap(t, expectedGroups), env.cfg.TenantID, env.cfg.DefaultOwners)
-		require.Empty(t, cmp.Diff(expected, acls, cmpOpts...), "access list(s) doesn't match")
-
-		aclM, err := listTeleportAccessListMembers(ctx, env.cfg.AccessListSvc, slices.Collect(maps.Values(acls)))
-		require.NoError(t, err)
-		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "bob@example.com"))
-		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "carol@example.com"))
-		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "bob@example.com"))
-		require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "carol@example.com"))
+		requireMembersCount(t, env.aclSvc, 4)
+		requireMemberExists(t, env.aclSvc, al1, "bob@example.com")
+		requireMemberExists(t, env.aclSvc, al1, "carol@example.com")
+		requireMemberExists(t, env.aclSvc, al2, "bob@example.com")
+		requireMemberExists(t, env.aclSvc, al2, "carol@example.com")
 	})
 }
 
@@ -815,11 +807,10 @@ func TestGroupFilters(t *testing.T) {
 
 			require.NoError(t, r.Reconcile(ctx))
 
-			accessListsFromBackend, err := listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
-			require.NoError(t, err)
-
-			entraAccessList := convertEntraAccessLists(t.Context(), entraGroupsMap(t, tc.expected), env.cfg.TenantID, env.cfg.DefaultOwners)
-			require.Empty(t, cmp.Diff(entraAccessList, accessListsFromBackend, cmpOpts...), "access list(s) doesn't match")
+			requireAccessListCount(t, env.aclSvc, len(tc.expected))
+			for _, g := range tc.expected {
+				requireAccessListForEntraGroupExists(t, env.aclSvc, g)
+			}
 		})
 	}
 }
@@ -893,11 +884,10 @@ func TestInvalidGroupIsSkipped(t *testing.T) {
 
 			require.NoError(t, r.Reconcile(ctx))
 
-			accessListsFromBackend, err := listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
-			require.NoError(t, err)
-
-			expected := convertEntraAccessLists(t.Context(), entraGroupsMap(t, tc.expectedGroups), env.cfg.TenantID, env.cfg.DefaultOwners)
-			require.Empty(t, cmp.Diff(expected, accessListsFromBackend, cmpOpts...), "access list(s) doesn't match")
+			requireAccessListCount(t, env.aclSvc, len(tc.expectedGroups))
+			for _, g := range tc.expectedGroups {
+				requireAccessListForEntraGroupExists(t, env.aclSvc, g)
+			}
 		})
 	}
 }
@@ -916,12 +906,11 @@ func TestUnknownFilter(t *testing.T) {
 		entraUser(t, "u1", "alice@example.com"),
 		entraUser(t, "u2", "bob@example.com"),
 	}
-	entraGroups := []*msgraph.Group{
-		entraGroup(t, "g1", "apple"),
-		entraGroup(t, "g2", "admin"),
-		entraGroup(t, "g3", "banana"),
-		entraGroup(t, "g4", "carrot"),
-	}
+	g1 := entraGroup(t, "g1", "apple")
+	g2 := entraGroup(t, "g2", "admin")
+	g3 := entraGroup(t, "g3", "banana")
+	g4 := entraGroup(t, "g4", "carrot")
+	entraGroups := []*msgraph.Group{g1, g2, g3, g4}
 	graphClient.groups = entraGroups
 	members := map[string][]msgraph.GroupMember{
 		"g1": {entraUser(t, "u1", "alice@example.com")},
@@ -936,16 +925,16 @@ func TestUnknownFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, r.Reconcile(ctx))
 
-	accessListsFromBackend, err := listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
-	require.NoError(t, err)
-	expected := convertEntraAccessLists(t.Context(), entraGroupsMap(t, entraGroups), env.cfg.TenantID, env.cfg.DefaultOwners)
-	require.Empty(t, cmp.Diff(expected, accessListsFromBackend, cmpOpts...), "access list(s) doesn't match")
+	requireAccessListCount(t, env.aclSvc, 4)
+	al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
+	al2 := requireAccessListForEntraGroupExists(t, env.aclSvc, g2)
+	al3 := requireAccessListForEntraGroupExists(t, env.aclSvc, g3)
+	_ = requireAccessListForEntraGroupExists(t, env.aclSvc, g4)
 
-	aclM, err := listTeleportAccessListMembers(ctx, env.cfg.AccessListSvc, slices.Collect(maps.Values(expected)))
-	require.NoError(t, err)
-	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "alice@example.com"))
-	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "alice@example.com"))
-	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g3"), "bob@example.com"))
+	requireMembersCount(t, env.aclSvc, 3)
+	requireMemberExists(t, env.aclSvc, al1, "alice@example.com")
+	requireMemberExists(t, env.aclSvc, al2, "alice@example.com")
+	requireMemberExists(t, env.aclSvc, al3, "bob@example.com")
 
 	// Now update the filter with an unknown filter type
 	// and test reconciliation only happens for groups
@@ -955,13 +944,9 @@ func TestUnknownFilter(t *testing.T) {
 	// Of the 4 test groups we started with, mock that
 	// group g2 is deleted, but two new groups g5 and g6
 	// are added in Entra ID.
-	newGroup := []*msgraph.Group{
-		entraGroup(t, "g1", "apple"),
-		entraGroup(t, "g3", "banana"),
-		entraGroup(t, "g4", "carrot"),
-		entraGroup(t, "g5", "drum"),
-		entraGroup(t, "g6", "eagle"),
-	}
+	g5 := entraGroup(t, "g5", "drum")
+	g6 := entraGroup(t, "g6", "eagle")
+	newGroup := []*msgraph.Group{g1, g3, g4, g5, g6}
 	graphClient.groups = newGroup
 	// g1 group gets one additional member
 	members["g1"] = []msgraph.GroupMember{entraUser(t, "u1", "alice@example.com"), entraUser(t, "u2", "bob@example.com")}
@@ -978,60 +963,72 @@ func TestUnknownFilter(t *testing.T) {
 	r, err = NewDirectoryReconciler(env.cfg)
 	require.NoError(t, err)
 	err = r.Reconcile(ctx)
-	require.ErrorContains(t, err, "Unknown group filter")
+	require.NoError(t, err)
 
 	// If the group was deleted in entra, it must be deleted in Teleport.
 	// If group member was added to already-synced group, that must be reflected.
 	// As a result: g2 should be deleted, g5 and g6 should not be added,
 	// a new member should be added to group g1.
-	expectedGroups := []*msgraph.Group{
-		entraGroup(t, "g1", "apple"),
-		entraGroup(t, "g3", "banana"),
-		entraGroup(t, "g4", "carrot"),
-	}
 
-	accessListsFromBackend, err = listTeleportAccessLists(ctx, env.cfg.AccessListSvc)
+	requireAccessListCount(t, env.aclSvc, 3)
+	al1 = requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
+	al3 = requireAccessListForEntraGroupExists(t, env.aclSvc, g3)
+	_ = requireAccessListForEntraGroupExists(t, env.aclSvc, g4)
+
+	requireMembersCount(t, env.aclSvc, 3)
+	requireMemberExists(t, env.aclSvc, al1, "alice@example.com")
+	requireMemberExists(t, env.aclSvc, al1, "bob@example.com")
+	requireMemberExists(t, env.aclSvc, al3, "bob@example.com")
+}
+
+func TestNestedMembership(t *testing.T) {
+	ctx := t.Context()
+	graphClient := newFakeGraphClient()
+	env := newDirectoryReconcilerEnv(t, graphClient, nil /* custom saml connector */)
+
+	graphClient.users = []*msgraph.User{
+		entraUser(t, "u1", "alice@example.com"),
+		entraUser(t, "u2", "bob@example.com"),
+	}
+	g1 := entraGroup(t, "g1", "apple")
+	g2 := entraGroup(t, "g2", "admin")
+	g3 := entraGroup(t, "g3", "banana")
+	g4 := entraGroup(t, "g4", "carrot")
+	entraGroups := []*msgraph.Group{g1, g2, g3, g4}
+	graphClient.groups = entraGroups
+	graphClient.groupMembers = map[string][]msgraph.GroupMember{
+		"g1": {g2},
+		"g2": {g3},
+		"g3": {g4},
+	}
+	env.cfg.GraphClient = graphClient
+
+	r, err := NewDirectoryReconciler(env.cfg)
 	require.NoError(t, err)
-	expected = convertEntraAccessLists(t.Context(), entraGroupsMap(t, expectedGroups), env.cfg.TenantID, env.cfg.DefaultOwners)
-	require.Empty(t, cmp.Diff(expected, accessListsFromBackend, cmpOpts...), "access list(s) doesn't match")
+	require.NoError(t, r.Reconcile(ctx))
 
-	aclM, err = listTeleportAccessListMembers(ctx, env.cfg.AccessListSvc, slices.Collect(maps.Values(expected)))
-	require.NoError(t, err)
-	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "alice@example.com"))
-	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g3"), "bob@example.com"))
-	// new g1 member
-	require.True(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g1"), "bob@example.com"))
-	// g2 group was deleted, so the members shouldn't exist
-	require.False(t, memberExists(t, aclM, aclIDFromGroupID(t, expected, "g2"), "alice@example.com"))
-}
+	requireAccessListCount(t, env.aclSvc, 4)
+	al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
+	al2 := requireAccessListForEntraGroupExists(t, env.aclSvc, g2)
+	al3 := requireAccessListForEntraGroupExists(t, env.aclSvc, g3)
+	al4 := requireAccessListForEntraGroupExists(t, env.aclSvc, g4)
 
-func aclIDFromGroupID(t *testing.T, in map[string]*accesslist.AccessList, gid string) string {
-	t.Helper()
-	for _, a := range in {
-		if id, ok := a.Metadata.GetStaticLabels()[types.EntraUniqueIDLabel]; ok {
-			if id == gid {
-				return a.GetName()
-			}
-		}
+	requireMembersCount(t, env.aclSvc, 3)
+	requireMemberExists(t, env.aclSvc, al1, al2.GetName())
+	requireMemberExists(t, env.aclSvc, al2, al3.GetName())
+	requireMemberExists(t, env.aclSvc, al3, al4.GetName())
+
+	// Let's create a cycle, by g4, going back to g1 and expect a reconciliation error.
+
+	graphClient.groupMembers = map[string][]msgraph.GroupMember{
+		"g1": {g2},
+		"g2": {g3},
+		"g3": {g4},
+		"g4": {g1},
 	}
 
-	return ""
-}
-
-var cmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-	cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-	cmpopts.IgnoreFields(accesslist.Status{}, "OwnerOf"),
-	cmpopts.IgnoreFields(accesslist.Status{}, "MemberOf"),
-}
-
-func entraGroupsMap(t *testing.T, groups []*msgraph.Group) map[string]*msgraph.Group {
-	t.Helper()
-	result := make(map[string]*msgraph.Group, len(groups))
-	for _, g := range groups {
-		result[*g.ID] = g
-	}
-	return result
+	err = r.Reconcile(ctx)
+	require.ErrorContains(t, err, "is already included as a Member or Owner in")
 }
 
 type directoryReconcilerEnv struct {
@@ -1091,6 +1088,8 @@ func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, conne
 	}
 
 	cfg := DirectoryReconcilerConfig{
+		Clock:          clockwork.NewRealClock(),
+		Logger:         logtest.NewLogger(),
 		GraphClient:    graphClient,
 		UserSvc:        identitySvc,
 		AccessListSvc:  alSvc,
@@ -1147,12 +1146,43 @@ func entraUser(t *testing.T, id, mail string) *msgraph.User {
 	}
 }
 
-func memberExists(t *testing.T, in map[string]*accesslist.AccessListMember, acl, user string) bool {
+func requireAccessListCount(t *testing.T, srv services.AccessListsGetter, cnt int) {
 	t.Helper()
-	for _, a := range in {
-		if a.Spec.AccessList == acl && a.GetName() == user {
-			return true
+	lists, err := srv.GetAccessLists(t.Context())
+	require.NoError(t, err)
+	require.Len(t, lists, cnt)
+}
+
+func requireAccessListForEntraGroupExists(t *testing.T, srv services.AccessListsGetter, g *msgraph.Group) *accesslist.AccessList {
+	t.Helper()
+
+	lists, err := srv.GetAccessLists(t.Context())
+	require.NoError(t, err)
+
+	var found []*accesslist.AccessList
+	for _, al := range lists {
+		uid := al.GetAllLabels()[types.EntraUniqueIDLabel]
+		displayName := al.GetAllLabels()[types.EntraDisplayNameLabel]
+		if *g.ID == uid && *g.DisplayName == displayName {
+			found = append(found, al)
 		}
 	}
-	return false
+	require.Len(t, found, 1)
+	return found[0]
+}
+
+func requireMembersCount(t *testing.T, srv services.AccessListsGetter, cnt int) {
+	t.Helper()
+	actualCnt := 0
+	for _, err := range clientutils.Resources(t.Context(), srv.ListAllAccessListMembers) {
+		require.NoError(t, err)
+		actualCnt++
+	}
+	require.Equal(t, cnt, actualCnt)
+}
+
+func requireMemberExists(t *testing.T, srv services.AccessListsGetter, accessList *accesslist.AccessList, member string) {
+	t.Helper()
+	_, err := srv.GetAccessListMember(t.Context(), accessList.GetName(), member)
+	require.NoError(t, err)
 }

@@ -116,8 +116,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 // Run runs the service indefinitely (until the context is canceled), retrying if needed.
 func (s *Service) Run(ctx context.Context) error {
 	for {
-		err := s.runWithLock(ctx)
-		s.log.ErrorContext(ctx, "Entra ID service failed", "error", err)
+		if err := s.runWithLock(ctx); err != nil {
+			s.log.ErrorContext(ctx, "Entra ID service failed", "error", err)
+		}
 
 		select {
 		case <-ctx.Done():
@@ -171,7 +172,8 @@ func (s *Service) runWithLock(ctx context.Context) error {
 
 	g, ctx := errgroup.WithContext(lease)
 	g.Go(func() error {
-		return trace.Wrap(s.runDirectoryReconciler(ctx))
+		s.runDirectoryReconciler(ctx)
+		return nil
 	})
 	g.Go(func() error {
 		return trace.Wrap(s.runAccessGraphSync(ctx))
@@ -180,14 +182,18 @@ func (s *Service) runWithLock(ctx context.Context) error {
 }
 
 // runDirectoryReconciler periodically runs the directory reconciler until the context is canceled.
-func (s *Service) runDirectoryReconciler(ctx context.Context) error {
+func (s *Service) runDirectoryReconciler(ctx context.Context) {
 	ticker := s.clock.NewTicker(syncInterval)
 	defer ticker.Stop()
 	for {
+		start := s.clock.Now()
+		s.log.InfoContext(ctx, "Starting Entra directory sync")
 		err := s.directoryReconciler.Reconcile(ctx)
 		if err != nil {
-			s.log.ErrorContext(ctx, "Entra directory reconciler failed.", "error", err)
+			s.log.ErrorContext(ctx, "Entra directory sync failed", "error", err)
 		}
+		took := s.clock.Since(start)
+		s.log.InfoContext(ctx, "Entra directory sync finished", "took", took.String(), "imported_users", s.directoryReconciler.ImportedUsers(), "imported_groups", s.directoryReconciler.ImportedGroups())
 
 		code, msg := getErrorDetails(err)
 		if s.pluginStatusSink != nil {
@@ -205,7 +211,7 @@ func (s *Service) runDirectoryReconciler(ctx context.Context) error {
 		}
 		select {
 		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
+			return
 		case <-ticker.Chan():
 		}
 	}

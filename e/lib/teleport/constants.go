@@ -47,6 +47,8 @@ const (
 
 	// ComponentEntraID is the Entra ID service component.
 	ComponentEntraID = "entra-id"
+	// ComponentEntraIDDirectoryReconciler is the Entra ID directory reconciler component.
+	ComponentEntraIDDirectoryReconciler = "entra-id:directory-reconciler"
 
 	// ComponentNetIQ is the NetIQ service component.
 	ComponentNetIQ = "netiq"
