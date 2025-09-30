@@ -1719,17 +1719,10 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("application %q has been deleted\n", rc.ref.Name)
 	case types.KindDatabase:
-		databases, err := stream.Collect(clientutils.Resources(ctx, client.ListDatabases))
+		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+		databases, err := clientutils.CollectWithFallback(ctx, client.ListDatabases, client.GetDatabases)
 		if err != nil {
-			// TODO(okraport) DELETE IN v21.0.0
-			if trace.IsNotImplemented(err) {
-				databases, err = client.GetDatabases(ctx)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			} else {
-				return trace.Wrap(err)
-			}
+			return trace.Wrap(err)
 		}
 		resDesc := "database"
 		databases = filterByNameOrDiscoveredName(databases, rc.ref.Name)
@@ -2509,17 +2502,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &appCollection{apps: []types.Application{app}}, nil
 	case types.KindDatabase:
-		databases, err := stream.Collect(clientutils.Resources(ctx, client.ListDatabases))
+		// TODO(okraport): DELETE IN v21.0.0, replace with regular Collect
+		databases, err := clientutils.CollectWithFallback(ctx, client.ListDatabases, client.GetDatabases)
+
 		if err != nil {
-			// TODO(okraport) DELETE IN v21.0.0
-			if trace.IsNotImplemented(err) {
-				databases, err = client.GetDatabases(ctx)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				return nil, trace.Wrap(err)
-			}
+			return nil, trace.Wrap(err)
 		}
 
 		if rc.ref.Name == "" {
@@ -2592,31 +2579,29 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &windowsDesktopCollection{desktops: desktops}, nil
 		}
 
-		var collection windowsDesktopCollection
-		var startKey string
-		for {
-			resp, err := client.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{StartKey: startKey})
-			if err != nil {
-				// TODO(tross) DELETE IN v21.0.0
-				if trace.IsNotImplemented(err) {
-					desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-
-					return &windowsDesktopCollection{desktops: desktops}, nil
+		// TODO(tross): DELETE IN v21.0.0, replace with regular Collect
+		desktops, err := clientutils.CollectWithFallback(
+			ctx,
+			func(ctx context.Context, limit int, token string) ([]types.WindowsDesktop, string, error) {
+				resp, err := client.ListWindowsDesktops(ctx,
+					types.ListWindowsDesktopsRequest{
+						StartKey: token,
+						Limit:    limit,
+					})
+				if err != nil {
+					return nil, "", trace.Wrap(err)
 				}
+				return resp.Desktops, resp.NextKey, nil
+			},
+			func(ctx context.Context) ([]types.WindowsDesktop, error) {
+				return client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+			},
+		)
 
-				return nil, trace.Wrap(err)
-			}
-
-			collection.desktops = append(collection.desktops, resp.Desktops...)
-			startKey = resp.NextKey
-			if resp.NextKey == "" {
-				break
-			}
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return &collection, nil
+		return &windowsDesktopCollection{desktops: desktops}, nil
 	case types.KindToken:
 		if rc.ref.Name == "" {
 			tokens, err := client.GetTokens(ctx)
