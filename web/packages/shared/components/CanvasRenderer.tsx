@@ -238,7 +238,10 @@ function makeBitmapFrameRenderer(
       for (let i = 0; i < bitmapBuffer.length; i++) {
         if (bitmapBuffer[i].image_data.data.length != 0) {
           const bmpFrame = bitmapBuffer[i];
+          ctx.strokeStyle = "rgba(255,0,0,1)";
+          ctx.lineWidth = 2;
           ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
+          ctx.strokeRect(bmpFrame.left, bmpFrame.top, bmpFrame.image_data.width, bmpFrame.image_data.height);
         }
       }
       bitmapBuffer = [];
