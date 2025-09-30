@@ -104,7 +104,6 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 }
 
 // Server handles forwarding client connections to MCP servers.
-// TODO(greedy52) add server metrics.
 type Server struct {
 	cfg ServerConfig
 
