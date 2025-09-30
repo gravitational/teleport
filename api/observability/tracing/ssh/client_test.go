@@ -49,7 +49,7 @@ func TestIsTracingSupported(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 
-			srv := newServer(t, tt.expectedCapability, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+			srv := newServer(t, tt.srvVersion, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 				go ssh.DiscardRequests(requests)
 
 				for {
@@ -69,10 +69,6 @@ func TestIsTracingSupported(t *testing.T) {
 					}
 				}
 			})
-
-			if tt.srvVersion != "" {
-				srv.config.ServerVersion = tt.srvVersion
-			}
 
 			conn, chans, reqs := srv.GetClient(t)
 			client := NewClient(conn, chans, reqs)
@@ -101,7 +97,7 @@ func TestSetEnvs(t *testing.T) {
 	// used to collect individual envs requests
 	envReqC := make(chan envReqParams, 3)
 
-	srv := newServer(t, tracingSupported, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+	srv := newServer(t, tracingSupportedVersion, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 		for {
 			select {
 			case <-ctx.Done():
@@ -262,8 +258,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 	clientGlobalReply := make(chan bool, 1)
 	clientSessionReply := make(chan bool, 1)
 
-	srv := newServer(t, tracingSupported, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
-
+	srv := newServer(t, tracingSupportedVersion, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 		// Send a ping request when the client connection is established.
 		ok, _, err := conn.SendRequest(pingRequest, true, nil)
 		assert.NoError(t, err, "server failed to send global ping request")

@@ -66,17 +66,17 @@ func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-cha
 	return sconn, nc, r
 }
 
-func newServer(t *testing.T, tracingCap tracingCapability, handler func(*ssh.ServerConn, <-chan ssh.NewChannel, <-chan *ssh.Request)) *server {
+const (
+	tracingSupportedVersion   = "SSH-2.0-Teleport"
+	tracingUnsupportedVersion = "SSH-2.0"
+)
+
+func newServer(t *testing.T, version string, handler func(*ssh.ServerConn, <-chan ssh.NewChannel, <-chan *ssh.Request)) *server {
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	cSigner := generateSigner(t)
 	hSigner := generateSigner(t)
-
-	version := "SSH-2.0-Teleport"
-	if tracingCap != tracingSupported {
-		version = "SSH-2.0"
-	}
 
 	config := &ssh.ServerConfig{
 		NoClientAuth:  true,
@@ -301,7 +301,12 @@ func TestClient(t *testing.T) {
 				ctx:              ctx,
 			}
 
-			srv := newServer(t, tt.tracingSupported, handler.handle)
+			version := tracingSupportedVersion
+			if tt.tracingSupported != tracingSupported {
+				version = tracingUnsupportedVersion
+			}
+
+			srv := newServer(t, version, handler.handle)
 
 			tp := sdktrace.NewTracerProvider()
 			conn, chans, reqs := srv.GetClient(t)
