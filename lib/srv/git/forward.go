@@ -411,7 +411,7 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, trace.NotFound("missing remote client"))
 		return
 	}
-	remoteSession, err := s.remoteClient.NewSession(ctx, sessionParams)
+	remoteSession, err := s.remoteClient.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, err)
 		return

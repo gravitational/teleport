@@ -92,7 +92,7 @@ func executeCommand(tb testing.TB, clt *tracessh.Client, command string, executi
 
 			ctx := context.Background()
 
-			se, err := clt.NewSession(ctx, nil)
+			se, err := clt.NewSession(ctx)
 			assert.NoError(tb, err)
 			defer se.Close()
 

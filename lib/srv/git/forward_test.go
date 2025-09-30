@@ -80,7 +80,7 @@ func TestForwardServer(t *testing.T) {
 			verifyRemoteHost:   ssh.InsecureIgnoreHostKey(),
 			wantNewClientError: false,
 			verifyWithClient: func(t *testing.T, ctx context.Context, client *tracessh.Client, m *mockGitHostingService) {
-				session, err := client.NewSession(ctx, nil)
+				session, err := client.NewSession(ctx)
 				require.NoError(t, err)
 				defer session.Close()
 
@@ -112,7 +112,7 @@ func TestForwardServer(t *testing.T) {
 			verifyWithClient: func(t *testing.T, ctx context.Context, client *tracessh.Client, m *mockGitHostingService) {
 				m.exitCode = 1
 
-				session, err := client.NewSession(ctx, nil)
+				session, err := client.NewSession(ctx)
 				require.NoError(t, err)
 				defer session.Close()
 
@@ -163,7 +163,7 @@ func TestForwardServer(t *testing.T) {
 			},
 			verifyWithClient: func(t *testing.T, ctx context.Context, client *tracessh.Client, m *mockGitHostingService) {
 				// Connection is accepted but anything following fails.
-				_, err := client.NewSession(ctx, nil)
+				_, err := client.NewSession(ctx)
 				require.Error(t, err)
 			},
 		},
@@ -185,7 +185,7 @@ func TestForwardServer(t *testing.T) {
 			verifyRemoteHost:   ssh.InsecureIgnoreHostKey(),
 			wantNewClientError: false,
 			verifyWithClient: func(t *testing.T, ctx context.Context, client *tracessh.Client, m *mockGitHostingService) {
-				session, err := client.NewSession(ctx, nil)
+				session, err := client.NewSession(ctx)
 				require.NoError(t, err)
 				defer session.Close()
 

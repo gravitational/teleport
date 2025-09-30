@@ -309,7 +309,7 @@ func (c *Config) setDefaults() {
 // configured destination path over SFTP or HTTP depending on the Config.
 // moderatedSessionID must be provided for filetransfers in a moderated session.
 func (c *Config) TransferFiles(ctx context.Context, sshClient *tracessh.Client, moderatedSessionID string) error {
-	s, err := sshClient.NewSession(ctx, &tracessh.SessionParams{
+	s, err := sshClient.NewSessionWithParams(ctx, &tracessh.SessionParams{
 		// File transfers in a moderated session require this variable
 		// to check for approval on the ssh server
 		ModeratedSessionID: moderatedSessionID,

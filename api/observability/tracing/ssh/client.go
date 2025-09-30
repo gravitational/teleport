@@ -217,9 +217,15 @@ func ParseSessionParams(data []byte) (*SessionParams, error) {
 	return &params, nil
 }
 
-// NewSession creates a new SSH session with the given (optional) params. This session is
+// NewSession creates a new SSH session. This session is passed a tracing context so that
+// spans may be correlated properly over the ssh connection.
+func (c *Client) NewSession(ctx context.Context) (*Session, error) {
+	return c.NewSessionWithParams(ctx, nil)
+}
+
+// NewSessionWithParams creates a new SSH session with the given (optional) params. This session is
 // passed a tracing context so that spans may be correlated properly over the ssh connection.
-func (c *Client) NewSession(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
+func (c *Client) NewSessionWithParams(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 
 	ctx, span := tracer.Start(
