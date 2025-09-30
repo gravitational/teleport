@@ -10,6 +10,7 @@
 * Fixed persistence of `metadata.description` field for the Bot resource. [#59571](https://github.com/gravitational/teleport/pull/59571)
 * Fixed a crash in Teleport's Windows Desktop Service introduced in 17.7.3. Compaction of certain shared directory read/write audit events could result in a stack overflow error. [#59514](https://github.com/gravitational/teleport/pull/59514)
 * Enabled Oracle Cloud joining in Machine ID's `tbot` client. [#59041](https://github.com/gravitational/teleport/pull/59041)
+* Fixed an issue that prevented connecting to agents over peered tunnels when proxy peering was enabled. [#59557](https://github.com/gravitational/teleport/pull/59557)
 
 ## 17.7.6 (09/23/25)
 
