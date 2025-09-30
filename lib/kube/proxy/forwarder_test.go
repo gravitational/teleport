@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -1340,6 +1341,16 @@ func (m *mockSemaphoreClient) GetRole(ctx context.Context, name string) (types.R
 
 	return role, nil
 }
+
+type mockHealthCheckManager struct{}
+
+func (m *mockHealthCheckManager) Start(ctx context.Context) error               { return nil }
+func (m *mockHealthCheckManager) AddTarget(target healthcheck.Target) error     { return nil }
+func (m *mockHealthCheckManager) RemoveTarget(r types.ResourceWithLabels) error { return nil }
+func (m *mockHealthCheckManager) GetTargetHealth(r types.ResourceWithLabels) (*types.TargetHealth, error) {
+	return nil, nil
+}
+func (m *mockHealthCheckManager) Close() error { return nil }
 
 func TestKubernetesConnectionLimit(t *testing.T) {
 	ctx := t.Context()

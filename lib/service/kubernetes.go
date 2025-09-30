@@ -204,11 +204,6 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		return trace.Wrap(err)
 	}
 
-	var publicAddr string
-	if len(cfg.Kube.PublicAddrs) > 0 {
-		publicAddr = cfg.Kube.PublicAddrs[0].String()
-	}
-
 	// Create a health check manager.
 	healthCheckManager, err := healthcheck.NewManager(
 		process.ExitContext(),
@@ -220,6 +215,14 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if err := healthCheckManager.Start(process.ExitContext()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var publicAddr string
+	if len(cfg.Kube.PublicAddrs) > 0 {
+		publicAddr = cfg.Kube.PublicAddrs[0].String()
 	}
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
@@ -298,6 +301,9 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		}
 		if asyncEmitter != nil {
 			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+		}
+		if healthCheckManager != nil {
+			warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 		}
 		warnOnErr(process.ExitContext(), listener.Close(), logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)

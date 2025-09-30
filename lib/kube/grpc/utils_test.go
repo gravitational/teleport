@@ -240,6 +240,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		},
 	)
 	require.NoError(t, err)
+	err = healthCheckManager.Start(ctx)
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,

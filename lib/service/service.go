@@ -4824,6 +4824,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		alpnServer               *alpnproxy.Proxy
 		reverseTunnelALPNServer  *alpnproxy.Proxy
 		clientTLSConfigGenerator *auth.ClientTLSConfigGenerator
+		healthCheckManager       healthcheck.Manager
 		// initShutdownMtx ensures that shutdown only occurs after the full
 		// setup has been completed.
 		//
@@ -4899,6 +4900,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
 			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
+			}
 		} else {
 			logger.InfoContext(process.ExitContext(), "Shutting down gracefully")
 			ctx := payloadContext(payload)
@@ -4963,6 +4967,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
+			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 			}
 		}
 		if peerQUICTransport != nil {
@@ -5682,15 +5689,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		// Create a health check manager.
-		healthCheckManager, err := healthcheck.NewManager(
+		healthCheckManager, err = healthcheck.NewManager(
 			process.ExitContext(),
 			healthcheck.ManagerConfig{
-				Component:               teleport.ComponentKube,
+				Component:               component,
 				Events:                  accessPoint,
 				HealthCheckConfigReader: accessPoint,
 			},
 		)
 		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := healthCheckManager.Start(process.ExitContext()); err != nil {
 			return trace.Wrap(err)
 		}
 

@@ -37,12 +37,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/healthcheck"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -200,26 +198,12 @@ func TestMTLSClientCAs(t *testing.T) {
 }
 
 func TestGetServerInfo(t *testing.T) {
-	ctx := t.Context()
-
 	ap := &mockAccessPoint{
 		cas: make(map[string]types.CertAuthority),
 	}
 
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
-
-	// Create a health check manager.
-	healthCheckManager, err := healthcheck.NewManager(
-		ctx,
-		healthcheck.ManagerConfig{
-			Component:               teleport.ComponentKube,
-			Events:                  ap,
-			HealthCheckConfigReader: ap,
-		},
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
 
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
@@ -233,7 +217,7 @@ func TestGetServerInfo(t *testing.T) {
 			TLS:                  &tls.Config{},
 			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-			HealthCheckManager:   healthCheckManager,
+			HealthCheckManager:   &mockHealthCheckManager{},
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},

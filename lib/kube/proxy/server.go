@@ -357,11 +357,6 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 		return trace.Wrap(err)
 	}
 
-	// Start the health check manager to monitor kube cluster health.
-	if err := t.HealthCheckManager.Start(t.closeContext); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// startStaticClusterHeartbeats starts the heartbeat process for static clusters.
 	// static clusters can be specified via kubeconfig or clusterName for Teleport agent
 	// running in Kubernetes.
@@ -423,16 +418,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster.GetName()))
-
-		// Stop the kube health checker.
-		if err := t.stopHealthCheck(kubeCluster); err != nil {
-			t.log.WarnContext(ctx, "Failed to stop the kube health checker",
-				"kube_cluster", log.StringerAttr(kubeCluster),
-				"error", err,
-			)
-			errs = append(errs, err)
-		}
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 
@@ -539,6 +525,29 @@ func (t *TLSServer) stopHealthCheck(cluster types.KubeCluster) error {
 	return nil
 }
 
+// startHeartbeatAndHealthCheck starts heart beats and health checks.
+func (t *TLSServer) startHeartbeatAndHealthCheck(cluster types.KubeCluster) error {
+	if err := t.startHeartbeat(cluster.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := t.startHealthCheck(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// stopHeartbeatAndHealthCheck stops heart beats and health checks.
+func (t *TLSServer) stopHeartbeatAndHealthCheck(cluster types.KubeCluster) error {
+	var errs []error
+	if err := t.stopHealthCheck(cluster); err != nil {
+		errs = append(errs, err)
+	}
+	if err := t.stopHeartbeat(cluster.GetName()); err != nil {
+		errs = append(errs, err)
+	}
+	return trace.NewAggregate(errs...)
+}
+
 // getTargetHealth returns the health of a Kubernetes cluster.
 func (t *TLSServer) getTargetHealth(ctx context.Context, cluster types.KubeCluster) *types.TargetHealth {
 	health, err := t.HealthCheckManager.GetTargetHealth(cluster)
@@ -633,15 +642,12 @@ func (t *TLSServer) startStaticClustersHeartbeat() error {
 		t.KubeServiceType == LegacyProxyService {
 		t.log.DebugContext(t.closeContext, "Starting kubernetes_service heartbeats and health checks")
 		for _, kc := range t.fwd.kubeClusters() {
-			if err := t.startHealthCheck(kc); err != nil {
-				return trace.Wrap(err)
-			}
-			if err := t.startHeartbeat(kc.GetName()); err != nil {
+			if err := t.startHeartbeatAndHealthCheck(kc); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	} else {
-		t.log.DebugContext(t.closeContext, "No local kube credentials on proxy, will not start kubernetes_service heartbeats")
+		t.log.DebugContext(t.closeContext, "No local kube credentials on proxy, will not start kubernetes_service heartbeats and health checks")
 	}
 
 	return nil

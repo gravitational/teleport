@@ -221,14 +221,9 @@ func (s *KubernetesServerV3) CheckAndSetDefaults() error {
 	if s.Spec.Cluster == nil {
 		return trace.BadParameter("missing kube server Cluster")
 	}
+
 	if err := s.Spec.Cluster.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if s.Status == nil {
-		s.Status = &KubernetesServerStatusV3{}
-	}
-	if s.Status.TargetHealth == nil {
-		s.Status.TargetHealth = &TargetHealth{}
 	}
 
 	return nil
@@ -339,7 +334,7 @@ func (s *KubernetesServerV3) SetTargetHealth(h *TargetHealth) {
 func (s *KubernetesServerV3) GetTargetHealthStatus() TargetHealthStatus {
 	health := s.GetStatus().GetTargetHealth()
 	if health == nil {
-		return ""
+		return TargetHealthStatusUnknown
 	}
 	return TargetHealthStatus(health.Status)
 }
