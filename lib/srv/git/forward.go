@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -451,6 +452,7 @@ type sessionContext struct {
 	channel       ssh.Channel
 	remoteSession *tracessh.Session
 	waitExec      chan error
+	sessionID     rsession.ID
 }
 
 func newSessionContext(serverCtx *srv.ServerContext, ch ssh.Channel, remoteSession *tracessh.Session) *sessionContext {
@@ -459,7 +461,15 @@ func newSessionContext(serverCtx *srv.ServerContext, ch ssh.Channel, remoteSessi
 		channel:       ch,
 		remoteSession: remoteSession,
 		waitExec:      make(chan error, 1),
+		sessionID:     rsession.NewID(),
 	}
+}
+
+func (c *sessionContext) GetSessionMetadata() apievents.SessionMetadata {
+	// Overwrite with our own session ID.
+	metadata := c.ServerContext.GetSessionMetadata()
+	metadata.SessionID = c.sessionID.String()
+	return metadata
 }
 
 // dispatch executes an incoming request. If successful, it returns the ok value
@@ -556,7 +566,7 @@ func (s *ForwardServer) makeGitCommandEvent(sctx *sessionContext, command string
 			RemoteAddr: sctx.ServerConn.RemoteAddr().String(),
 			LocalAddr:  sctx.ServerConn.LocalAddr().String(),
 		},
-		ServerMetadata: s.TargetMetadata(),
+		ServerMetadata: s.EventMetadata(),
 	}
 	if err != nil {
 		event.Metadata.Code = events.GitCommandFailureCode
@@ -653,7 +663,7 @@ func makeRemoteSigner(ctx context.Context, cfg *ForwardServerConfig, identityCtx
 func (s *ForwardServer) Context() context.Context {
 	return s.cfg.ParentContext
 }
-func (s *ForwardServer) TargetMetadata() apievents.ServerMetadata {
+func (s *ForwardServer) EventMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
 		ServerNamespace: s.cfg.TargetServer.GetNamespace(),

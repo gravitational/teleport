@@ -383,6 +383,15 @@ renewal_interval: 15m
 # invocation of `kubectl`. Defaults to `false`.
 disable_exec_plugin: false
 
+# context_name_template determines the format of context names in the generated
+# kubeconfig. It is a Go template string that supports the following variables:
+#
+#   - {{.ClusterName}} - Name of the Teleport cluster
+#   - {{.KubeName}} - Name of the Kubernetes cluster resource
+#
+# By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}"
+context_name_template: "{{.KubeName}}"
+
 # name optionally overrides the name of the service used in logs and the `/readyz`
 # endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
 # symbols.
@@ -485,6 +494,15 @@ namespaces:
 # cluster-scoped resources within the target clusters. This option is only
 # applicable when `namespaces` is non-empty.
 cluster_resources: true
+
+# cluster_name_template determines the format of cluster names in Argo CD. It is
+# a Go template string that supports the following variables:
+#
+#   - {{.ClusterName}} - Name of the Teleport cluster
+#   - {{.KubeName}} - Name of the Kubernetes cluster resource
+#
+# By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}"
+cluster_name_template: "{{.KubeName}}"
 
 # The following configuration fields are available across most output types.
 # Note that `roles` and `destination` are not supported for this output type.

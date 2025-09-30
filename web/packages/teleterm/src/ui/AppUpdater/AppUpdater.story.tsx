@@ -67,6 +67,7 @@ export interface StoryProps {
     | 'Enabled client updates - v16 cluster'
     | 'Disabled client updates - v17 cluster';
   clusterBarSetToManageUpdates: boolean;
+  updateKind: 'Upgrade' | 'Downgrade';
   nonTeleportCdn: boolean;
 }
 
@@ -76,7 +77,7 @@ const meta: Meta<StoryProps> = {
   argTypes: {
     envVar: {
       control: { type: 'radio' },
-      options: ['Off', 'Set to version (v15)', 'Unset'],
+      options: ['Off', 'Set to version - v15', 'Unset'],
       description: '`TELEPORT_TOOLS_VERSION` value',
     },
     clusterFoo: {
@@ -104,6 +105,12 @@ const meta: Meta<StoryProps> = {
     clusterBarSetToManageUpdates: {
       control: { type: 'boolean' },
       description: 'Whether cluster "bar" is manually set to control updates',
+    },
+    updateKind: {
+      control: { type: 'radio' },
+      options: ['Upgrade', 'Downgrade'],
+      description:
+        'Indicates whether the update version is newer or older than the current application version.',
     },
     step: {
       control: { type: 'radio' },
@@ -133,6 +140,7 @@ const meta: Meta<StoryProps> = {
     clusterFoo: 'Enabled client updates - v18 cluster',
     clusterBar: 'Does not exist',
     clusterBarSetToManageUpdates: false,
+    updateKind: 'Upgrade',
     step: 'Update available',
     platform: 'darwin',
     nonTeleportCdn: false,
@@ -236,7 +244,8 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
 
   const updateInfo = makeUpdateInfo(
     storyProps.nonTeleportCdn,
-    status.enabled ? status.version : ''
+    status.enabled ? status.version : '',
+    storyProps.updateKind === 'Upgrade' ? 'upgrade' : 'downgrade'
   );
 
   switch (storyProps.step) {

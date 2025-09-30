@@ -29,6 +29,7 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
@@ -328,20 +329,38 @@ func ValidateTokenWithJWKS(
 	}, nil
 }
 
+// NewKubernetesOIDCTokenValidator constructs a KubernetesOIDCTokenValidator.
+func NewKubernetesOIDCTokenValidator() (*KubernetesOIDCTokenValidator, error) {
+	validator, err := oidc.NewCachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims](clockwork.NewRealClock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &KubernetesOIDCTokenValidator{
+		validator: validator,
+	}, nil
+}
+
+// KubernetesOIDCTokenValidator is a validator that can validate Kubernetes
+// projected service account tokens against an external OIDC compatible IdP.
+type KubernetesOIDCTokenValidator struct {
+	validator *oidc.CachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims]
+}
+
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using an
 // OIDC endpoint.
-func ValidateTokenWithOIDC(
+func (v *KubernetesOIDCTokenValidator) ValidateToken(
 	ctx context.Context,
 	issuerURL string,
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	claims, err := oidc.ValidateToken[*tokenclaims.OIDCServiceAccountClaims](
-		ctx,
-		issuerURL,
-		clusterName,
-		token,
-	)
+	validator, err := v.validator.GetValidator(ctx, issuerURL, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	claims, err := validator.ValidateToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating OIDC token")
 	}

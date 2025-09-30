@@ -41,7 +41,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/integrations/lib/backoff"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils/clocki"
@@ -251,7 +251,14 @@ func TestContinuousBackups(t *testing.T) {
 
 	// Remove table after tests are done.
 	t.Cleanup(func() {
-		back := backoff.NewDecorr(500*time.Millisecond, 20*time.Second, clockwork.NewRealClock())
+		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+			Driver: retryutils.NewExponentialDriver(500 * time.Millisecond),
+			First:  500 * time.Millisecond,
+			Max:    20 * time.Second,
+			Jitter: retryutils.HalfJitter,
+		})
+		require.NoError(t, err)
+
 		for {
 			err := deleteTable(context.Background(), b.svc, b.Config.TableName)
 			if err == nil {
@@ -259,7 +266,7 @@ func TestContinuousBackups(t *testing.T) {
 			}
 			inUse := &types.ResourceInUseException{}
 			if errors.As(err, &inUse) {
-				back.Do(context.Background())
+				<-retry.After()
 			} else {
 				assert.FailNow(t, "error deleting table", err)
 			}

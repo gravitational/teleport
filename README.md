@@ -321,28 +321,6 @@ Why is a specific version of a module imported?
 
 `go mod graph | grep $modname`
 
-### Devbox Build (experimental)
-
-**Note**: Devbox support is still experimental. It's very possible things may not work as intended.
-
-Teleport can be built using [devbox](https://www.jetpack.io/devbox). To use devbox, follow
-the instructions to install devbox [here](https://www.jetpack.io/devbox/docs/quickstart/) and
-then run:
-
-`devbox shell`
-
-This will install Teleport's various build dependencies and drop you into a shell with these
-dependencies. From here, you can build Teleport normally.
-
-#### flake.nix
-
-A nix flake is located in `build.assets/flake` that allows for installation of Teleport's less
-common build tooling. If this flake is updated, run:
-
-`devbox install`
-
-in order to make sure the changes in the flake are reflected in the local devbox shell.
-
 ## Why did We Build Teleport?
 
 The Teleport creators used to work together at Rackspace. We noticed that most cloud computing users struggle with setting up and configuring infrastructure security because popular tools, while flexible, are complex to understand and expensive to maintain. Additionally, most organizations use multiple infrastructure form factors such as several cloud providers, multiple cloud accounts, servers in colocation, and even smart devices. Some of those devices run on untrusted networks, behind third-party firewalls. This only magnifies complexity and increases operational overhead.

@@ -113,6 +113,7 @@ export { EnvelopeOpen } from './Icons/EnvelopeOpen';
 export { EqualizersVertical } from './Icons/EqualizersVertical';
 export { Expand } from './Icons/Expand';
 export { Facebook } from './Icons/Facebook';
+export { FastForward } from './Icons/FastForward';
 export { FilmStrip } from './Icons/FilmStrip';
 export { FingerprintSimple } from './Icons/FingerprintSimple';
 export { Floppy } from './Icons/Floppy';

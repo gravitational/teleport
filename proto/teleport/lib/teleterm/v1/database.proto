@@ -45,6 +45,8 @@ message Database {
   repeated Label labels = 8;
   // target_health of the "db_server" that is serving this database.
   TargetHealth target_health = 9;
+  // gcp_project_id is optional project ID set for GCP Project databases.
+  string gcp_project_id = 10;
 }
 
 // DatabaseServer (db_server) describes a database heartbeat signal

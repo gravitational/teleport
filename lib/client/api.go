@@ -2579,6 +2579,10 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
+	if err := player.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -5561,6 +5565,12 @@ func (tc *TeleportClient) DialMCPServer(ctx context.Context, appName string) (ne
 	}
 	if !apps[0].IsMCP() {
 		return nil, trace.BadParameter("app %q is not a MCP server", appName)
+	}
+
+	// TODO(greedy52) support streamable HTTP for "tsh mcp connect" before
+	// release.
+	if transport := types.GetMCPServerTransportType(apps[0].GetURI()); transport == types.MCPTransportHTTP {
+		return nil, trace.NotImplemented("MCP support for %s is not yet implemented", transport)
 	}
 
 	cert, err := tc.issueMCPCertWithMFA(ctx, apps[0])

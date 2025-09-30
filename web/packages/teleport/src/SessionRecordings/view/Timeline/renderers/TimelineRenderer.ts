@@ -27,7 +27,6 @@ import { LEFT_PADDING } from '../constants';
 import { EventsRenderer } from './EventsRenderer';
 import { FramesRenderer } from './FramesRenderer';
 import { ProgressLineRenderer } from './ProgressLineRenderer';
-import { ResizeEventsRenderer } from './ResizeEventsRenderer';
 import type {
   TimelineCanvasRenderer,
   TimelineRenderContext,
@@ -71,7 +70,6 @@ export class TimelineRenderer {
   private readonly eventsRenderer: EventsRenderer;
   private readonly framesRenderer: FramesRenderer;
   private readonly progressLineRenderer: ProgressLineRenderer;
-  private readonly resizeEventsRenderer: ResizeEventsRenderer;
   private readonly timeMarkersRenderer: TimeMarkersRenderer;
   private readonly renderers: TimelineCanvasRenderer[];
 
@@ -122,17 +120,10 @@ export class TimelineRenderer {
       this.metadata
     );
 
-    this.resizeEventsRenderer = new ResizeEventsRenderer(
-      this.ctx,
-      this.theme,
-      this.metadata
-    );
-
     this.renderers = [
       this.framesRenderer,
       this.timeMarkersRenderer,
       this.eventsRenderer,
-      this.resizeEventsRenderer,
       this.progressLineRenderer,
     ];
 
