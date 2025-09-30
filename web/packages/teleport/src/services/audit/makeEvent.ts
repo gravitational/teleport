@@ -255,7 +255,7 @@ export const formatters: Formatters = {
     format: ({ user, exitError, ...rest }) =>
       `User [${user}] command execution on node ${
         rest['server_hostname'] || rest['addr.local']
-      } failed [${exitError}] within session [${sid}]`,
+      } failed [${exitError}] within a session [${sid}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
     type: 'github.created',
