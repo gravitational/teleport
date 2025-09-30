@@ -1258,7 +1258,6 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	t.Run("teleterm db gateways cert renewal", func(t *testing.T) {
-		t.Log("Flaky tests detector please trigger :~)")
 		testTeletermDbGatewaysCertRenewal(t, pack)
 	})
 }
@@ -1317,7 +1316,6 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	})
 
 	t.Run("teleterm app gateways cert renewal", func(t *testing.T) {
-		t.Log("Flaky tests detector please trigger :~)")
 		t.Run("without per-session MFA", func(t *testing.T) {
 			makeTC := func(t *testing.T) (*libclient.TeleportClient, mfa.WebauthnLoginFunc) {
 				user, _ := pack.CreateUser(t)
