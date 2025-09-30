@@ -191,10 +191,25 @@ To access the app, [start VNet](../../../connect-your-client/vnet.mdx) and point
 client towards the target port:
 
 ```code
+# Use 8080 for the HTTP server.
 $ curl -I http://tcp-app.teleport.example.com:8080
 HTTP/1.1 200 OK
 
+# Use 5432 for postgres.
 $ psql postgres://postgres@tcp-app.teleport.example.com:5432/postgres
+```
+
+Without VNet, use `tsh proxy app` and specify the target port after the listening port. All
+connections made to the proxy will be routed to that target port.
+
+```code
+# Use 12345 as the listening port and 8080 as the target port.
+$ tsh proxy app tcp-app --port 12345:8080
+Proxying connections to tcp-app:8080 on 127.0.0.1:12345
+
+# Use a random listening port and 5432 as the target port.
+$ tsh proxy app tcp-app --port 0:5432
+Proxying connections to tcp-app:5432 on 127.0.0.1:65060
 ```
 
 <Admonition type="warning">
