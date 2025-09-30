@@ -388,11 +388,15 @@ period and while receiving appropriate deprecation notices.
 1. Add new `MFAService` in `api/proto/teleport/mfa/v1/mfa_service.proto` and implement the service in `lib/auth/mfa/`.
 1. Ensure Proxy is authorized to invoke the new `MFAService` RPCs and the `EvaluateSSHAccess` RPC.
 1. Migrate existing MFA related RPCs from the Auth service to the new `MFAService`.
-1. Update client/tsh code to use the v2 `TransportService`. Client should fallback to the v1 `TransportService` if the
-   v2 service is not available.
-1. Update web terminal code to use the v2 `TransportService`. Client should fallback to the v1 `TransportService` if the
-   v2 service is not available.
-1. Update clients so they handle MFA challenges and responses as a part of the SSH session establishment process.
+1. Update `tsh ssh` client to use the v2 `TransportService` and `MFAService`. Remove per-session MFA certificate
+   generation and use standard client certificate when dialing. Client should fallback to the v1 `TransportService` if
+   the v2 service is not available.
+1. Update `tsh vnet` client to use the v2 `TransportService` and `MFAService`. Remove per-session MFA certificate
+   generation and use standard client certificate when dialing. Client should fallback to the v1 `TransportService` if
+   the v2 service is not available.
+1. Update web terminal client to use the v2 `TransportService` and `MFAService`. Remove per-session MFA certificate
+   generation and use standard client certificate when dialing. Client should fallback to the v1 `TransportService` if
+   the v2 service is not available.
 1. Add tests to verify backward compatibility with the deprecated v1 `TransportService` RPCs.
 1. Update documentation to reflect the new architecture and deprecation of direct node access.
 1. Implement `TransportService` v2 support in the Relay service.
