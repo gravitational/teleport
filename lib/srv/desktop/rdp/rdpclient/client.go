@@ -409,7 +409,6 @@ func (c *Client) runLocal(ctx context.Context) error {
 					return trace.Wrap(err)
 				}
 				duration := time.Now().Sub(start)
-				totalDuration += duration
 				totalSize += len(replay.Data)
 				compressedSize += buf.Len()
 				if duration > 20*time.Millisecond {
@@ -421,6 +420,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 				}
 			}
 			duration := time.Now().Sub(start)
+			totalDuration += duration
 			if duration < 40*time.Millisecond {
 				select {
 				case <-ctx.Done():
