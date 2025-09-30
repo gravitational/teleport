@@ -1826,6 +1826,14 @@ type InstallParams struct {
 	// Valid values: script, eice.
 	// Optional.
 	EnrollMode string `yaml:"enroll_mode"`
+	// Suffix indicates the installation suffix for the teleport installation.
+	// Set this value if you want multiple installations of Teleport.
+	// See --install-suffix flag in teleport-update program.
+	Suffix string `yaml:"suffix,omitempty"`
+	// UpdateGroup indicates the update group for the teleport installation.
+	// This value is used to group installations in order to update them in batches.
+	// See --group flag in teleport-update program.
+	UpdateGroup string `yaml:"update_group,omitempty"`
 }
 
 const (
@@ -1843,6 +1851,8 @@ func (ip *InstallParams) parse() (*types.InstallerParams, error) {
 		InstallTeleport: true,
 		SSHDConfig:      ip.SSHDConfig,
 		EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_UNSPECIFIED,
+		Suffix:          ip.Suffix,
+		UpdateGroup:     ip.UpdateGroup,
 	}
 
 	switch ip.EnrollMode {
