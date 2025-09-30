@@ -2547,6 +2547,10 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
+	if err := player.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
