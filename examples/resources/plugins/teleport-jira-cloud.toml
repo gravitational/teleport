@@ -1,25 +1,34 @@
 # Example Jira plugin configuration TOML file
 [teleport]
 # Proxy Service domain and HTTPS port
-auth_server = "myinstance.teleport.sh:443"
+# e.g., example.teleport.sh:443
+auth_server = "" 
 # Teleport identity file location
-identity = "/var/lib/teleport/plugins/jira/identity"
+identity = ""
 # Refresh identity file on a periodic basis.
 refresh_identity = true
 
 [jira]
-url = "https://[my-jira].atlassian.net"    # JIRA URL
-username = "bot@example.com"               # JIRA username
-api_token = "token"                        # JIRA API token
-project = "TAR"                            # JIRA Project key
+# JIRA URL
+url = ""        
+# JIRA username
+username = ""   
+# JIRA API token
+api_token = ""  
+# JIRA Project key
+project = ""    
 
 [http]
 # URL on which webhook server is accessible externally, for example,
 # [https://]teleport-jira.example.com
-public_addr = "example.com" 
-https_key_file = "/var/lib/teleport/plugins/jira/server.key"  # TLS private key
-https_cert_file = "/var/lib/teleport/plugins/jira/server.crt" # TLS certificate
+public_addr = "" 
+# TLS private key
+https_key_file = ""  
+# TLS certificate
+https_cert_file = "" 
 
 [log]
-output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/jira.log"
-severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+# Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/jira.log"
+output = "stderr" 
+# Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+severity = "INFO" 
