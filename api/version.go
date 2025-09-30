@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.2.3"
+const Version = "18.2.4-dev.relay.1"
 
 const VersionMajor = 18
 const VersionMinor = 2
-const VersionPatch = 3
-const VersionPreRelease = ""
+const VersionPatch = 4
+const VersionPreRelease = "dev.relay.1"
 const VersionMetadata = ""

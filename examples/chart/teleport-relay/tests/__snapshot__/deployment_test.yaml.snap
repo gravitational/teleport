@@ -10,8 +10,8 @@ should match the snapshot (full):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-relay
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-relay-19.0.0-dev
+        app.kubernetes.io/version: 18.2.4-dev.relay.1
+        helm.sh/chart: teleport-relay-18.2.4-dev.relay.1
         q: r
         s: "4"
       name: RELEASE-NAME-teleport-relay
@@ -24,15 +24,15 @@ should match the snapshot (full):
       template:
         metadata:
           annotations:
-            checksum/config: 68a156a9716edc59bc3f26916e713980520fb6cbb60d9e3f2a700aa1f2eddbe3
+            checksum/config: 6a7098e8cecd111a2a94ca2d8e590e88312a342619b273ec181c059ea4c9eeae
             q: r
             s: "4"
           labels:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-relay
-            app.kubernetes.io/version: 19.0.0-dev
-            helm.sh/chart: teleport-relay-19.0.0-dev
+            app.kubernetes.io/version: 18.2.4-dev.relay.1
+            helm.sh/chart: teleport-relay-18.2.4-dev.relay.1
             q: r
             s: "4"
         spec:
@@ -60,7 +60,7 @@ should match the snapshot (full):
             - null
             - 4
             - foo: bar
-            image: public.ecr.aws/gravitational/teleport-ent-distroless:19.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-ent-distroless:18.2.4-dev.relay.1
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -168,8 +168,8 @@ should match the snapshot (simple):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-relay
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-relay-19.0.0-dev
+        app.kubernetes.io/version: 18.2.4-dev.relay.1
+        helm.sh/chart: teleport-relay-18.2.4-dev.relay.1
       name: RELEASE-NAME-teleport-relay
     spec:
       replicas: 2
@@ -180,13 +180,13 @@ should match the snapshot (simple):
       template:
         metadata:
           annotations:
-            checksum/config: 779aedf5557a3913d9c2011b966c8dcba03d188478927cf5fb1ae039fe1592e0
+            checksum/config: 7d6dd8e228e76d883b125e57741c83f7ffdaccce3909826c1df412bc22d568b3
           labels:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-relay
-            app.kubernetes.io/version: 19.0.0-dev
-            helm.sh/chart: teleport-relay-19.0.0-dev
+            app.kubernetes.io/version: 18.2.4-dev.relay.1
+            helm.sh/chart: teleport-relay-18.2.4-dev.relay.1
         spec:
           automountServiceAccountToken: false
           containers:
@@ -199,7 +199,7 @@ should match the snapshot (simple):
             env:
             - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+            image: public.ecr.aws/gravitational/teleport-distroless:18.2.4-dev.relay.1
             imagePullPolicy: IfNotPresent
             lifecycle:
               preStop:
