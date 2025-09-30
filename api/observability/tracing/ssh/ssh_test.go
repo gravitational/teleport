@@ -45,31 +45,6 @@ type server struct {
 	hSigner ssh.Signer
 }
 
-func (s *server) Run(errC chan error) {
-	for {
-		conn, err := s.listener.Accept()
-		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				errC <- err
-			}
-			return
-		}
-
-		go func() {
-			sconn, chans, reqs, err := ssh.NewServerConn(conn, s.config)
-			if err != nil {
-				errC <- err
-				return
-			}
-			s.handler(sconn, chans, reqs)
-		}()
-	}
-}
-
-func (s *server) Stop() error {
-	return s.listener.Close()
-}
-
 func generateSigner(t *testing.T) ssh.Signer {
 	_, private, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
@@ -117,7 +92,33 @@ func newServer(t *testing.T, tracingCap tracingCapability, handler func(*ssh.Ser
 		hSigner:  hSigner,
 	}
 
-	t.Cleanup(func() { require.NoError(t, srv.Stop()) })
+	errC := make(chan error, 1)
+	go func() {
+		defer close(errC)
+		for {
+			conn, err := srv.listener.Accept()
+			if err != nil {
+				if !errors.Is(err, net.ErrClosed) {
+					errC <- err
+				}
+				return
+			}
+
+			go func() {
+				sconn, chans, reqs, err := ssh.NewServerConn(conn, srv.config)
+				if err != nil {
+					errC <- err
+					return
+				}
+				srv.handler(sconn, chans, reqs)
+			}()
+		}
+	}()
+
+	t.Cleanup(func() {
+		require.NoError(t, srv.listener.Close())
+		require.NoError(t, <-errC)
+	})
 
 	return srv
 }
@@ -301,7 +302,6 @@ func TestClient(t *testing.T) {
 			}
 
 			srv := newServer(t, tt.tracingSupported, handler.handle)
-			go srv.Run(errChan)
 
 			tp := sdktrace.NewTracerProvider()
 			conn, chans, reqs := srv.GetClient(t)
