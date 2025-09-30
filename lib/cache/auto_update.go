@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -340,7 +339,7 @@ func (c *Cache) GetAutoUpdateBotReport(ctx context.Context) (*autoupdatev1.AutoU
 		cache:      c,
 		collection: c.collections.autoUpdateBotReports,
 		index:      autoUpdateBotReportNameIndex,
-		upstreamGet: func(ctx context.Context, _ string) (*autoupdate.AutoUpdateBotReport, error) {
+		upstreamGet: func(ctx context.Context, _ string) (*autoupdatev1.AutoUpdateBotReport, error) {
 			return c.Config.AutoUpdateService.GetAutoUpdateBotReport(ctx)
 		},
 	}
