@@ -23,13 +23,13 @@ types = ""
 # skip-event-types is a comma-separated list of audit log event types to skip.
 # For example, to forward all audit events except for new app deletion events,
 # you can include the following assignment:
-# skip-event-types = "app.delete"
-skip-event-types: []
+# skip-event-types = ["app.delete"]
+skip-event-types = []
 # skip-session-types is a comma-separated list of session recording event types to skip.
 # For example, to forward all session events except for malformed SQL packet
 # events, you can include the following assignment:
-# skip-session-types = "db.session.malformed_packet"
-skip-session-types: []
+# skip-session-types = ["db.session.malformed_packet"]
+skip-session-types = []
 
 [forward.fluentd]
 ca = "/home/bob/event-handler/ca.crt"
