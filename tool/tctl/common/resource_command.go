@@ -2331,10 +2331,18 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &namespaceCollection{namespaces: []types.Namespace{*ns}}, nil
 	case types.KindTrustedCluster:
 		if rc.ref.Name == "" {
-			trustedClusters, err := client.GetTrustedClusters(ctx)
+			trustedClusters, err := stream.Collect(clientutils.Resources(ctx, client.ListTrustedClusters))
 			if err != nil {
-				return nil, trace.Wrap(err)
+				if trace.IsNotImplemented(err) {
+					trustedClusters, err = client.GetTrustedClusters(ctx)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+				} else {
+					return nil, trace.Wrap(err)
+				}
 			}
+
 			return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
 		}
 		trustedCluster, err := client.GetTrustedCluster(ctx, rc.ref.Name)

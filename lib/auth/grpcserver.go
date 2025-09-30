@@ -3079,6 +3079,33 @@ func (g *GRPCServer) GetTrustedClusters(ctx context.Context, _ *emptypb.Empty) (
 	}, nil
 }
 
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (g *GRPCServer) ListTrustedClusters(ctx context.Context, req *authpb.ListTrustedClustersRequest) (*authpb.ListTrustedClustersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tcs, next, err := auth.ServerWithRoles.ListTrustedClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListTrustedClustersResponse{
+		TrustedClusters: make([]*types.TrustedClusterV2, 0, len(tcs)),
+		NextPageToken:   next,
+	}
+
+	for _, tc := range tcs {
+		tcV2, ok := tc.(*types.TrustedClusterV2)
+		if !ok {
+			return nil, trace.BadParameter("unsupported Trusted Cluster type %T", tc)
+		}
+		resp.TrustedClusters = append(resp.TrustedClusters, tcV2)
+	}
+	return resp, nil
+}
+
 // UpsertTrustedCluster upserts a Trusted Cluster.
 func (g *GRPCServer) UpsertTrustedCluster(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
 	auth, err := g.authenticate(ctx)

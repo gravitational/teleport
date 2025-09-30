@@ -186,6 +186,7 @@ const (
 	AuthService_DeleteAllServerInfos_FullMethodName                = "/proto.AuthService/DeleteAllServerInfos"
 	AuthService_GetTrustedCluster_FullMethodName                   = "/proto.AuthService/GetTrustedCluster"
 	AuthService_GetTrustedClusters_FullMethodName                  = "/proto.AuthService/GetTrustedClusters"
+	AuthService_ListTrustedClusters_FullMethodName                 = "/proto.AuthService/ListTrustedClusters"
 	AuthService_UpsertTrustedCluster_FullMethodName                = "/proto.AuthService/UpsertTrustedCluster"
 	AuthService_DeleteTrustedCluster_FullMethodName                = "/proto.AuthService/DeleteTrustedCluster"
 	AuthService_GetToken_FullMethodName                            = "/proto.AuthService/GetToken"
@@ -703,6 +704,8 @@ type AuthServiceClient interface {
 	GetTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// GetTrustedClusters gets all current Trusted Cluster resources.
 	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
+	// ListTrustedClusters returns a page of current Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, in *ListTrustedClustersRequest, opts ...grpc.CallOption) (*ListTrustedClustersResponse, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	UpsertTrustedCluster(ctx context.Context, in *types.TrustedClusterV2, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
@@ -2751,6 +2754,15 @@ func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *emptypb.
 	return out, nil
 }
 
+func (c *authServiceClient) ListTrustedClusters(ctx context.Context, in *ListTrustedClustersRequest, opts ...grpc.CallOption) (*ListTrustedClustersResponse, error) {
+	out := new(ListTrustedClustersResponse)
+	err := c.cc.Invoke(ctx, AuthService_ListTrustedClusters_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) UpsertTrustedCluster(ctx context.Context, in *types.TrustedClusterV2, opts ...grpc.CallOption) (*types.TrustedClusterV2, error) {
 	out := new(types.TrustedClusterV2)
 	err := c.cc.Invoke(ctx, AuthService_UpsertTrustedCluster_FullMethodName, in, out, opts...)
@@ -4217,6 +4229,8 @@ type AuthServiceServer interface {
 	GetTrustedCluster(context.Context, *types.ResourceRequest) (*types.TrustedClusterV2, error)
 	// GetTrustedClusters gets all current Trusted Cluster resources.
 	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
+	// ListTrustedClusters returns a page of current Trusted Cluster resources.
+	ListTrustedClusters(context.Context, *ListTrustedClustersRequest) (*ListTrustedClustersResponse, error)
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
 	UpsertTrustedCluster(context.Context, *types.TrustedClusterV2) (*types.TrustedClusterV2, error)
 	// DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.
@@ -4976,6 +4990,9 @@ func (UnimplementedAuthServiceServer) GetTrustedCluster(context.Context, *types.
 }
 func (UnimplementedAuthServiceServer) GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTrustedClusters not implemented")
+}
+func (UnimplementedAuthServiceServer) ListTrustedClusters(context.Context, *ListTrustedClustersRequest) (*ListTrustedClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListTrustedClusters not implemented")
 }
 func (UnimplementedAuthServiceServer) UpsertTrustedCluster(context.Context, *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertTrustedCluster not implemented")
@@ -8108,6 +8125,24 @@ func _AuthService_GetTrustedClusters_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ListTrustedClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTrustedClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ListTrustedClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ListTrustedClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ListTrustedClusters(ctx, req.(*ListTrustedClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_UpsertTrustedCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(types.TrustedClusterV2)
 	if err := dec(in); err != nil {
@@ -10672,6 +10707,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTrustedClusters",
 			Handler:    _AuthService_GetTrustedClusters_Handler,
+		},
+		{
+			MethodName: "ListTrustedClusters",
+			Handler:    _AuthService_ListTrustedClusters_Handler,
 		},
 		{
 			MethodName: "UpsertTrustedCluster",
