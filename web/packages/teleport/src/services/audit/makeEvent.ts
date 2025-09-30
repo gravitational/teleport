@@ -252,7 +252,7 @@ export const formatters: Formatters = {
   [eventCodes.EXEC_FAILURE]: {
     type: 'exec',
     desc: 'Command Execution Failed',
-    format: ({ user, exitError, ...rest }) =>
+    format: ({ user, exitError, sid, ...rest }) =>
       `User [${user}] command execution on node ${
         rest['server_hostname'] || rest['addr.local']
       } failed [${exitError}] within a session [${sid}]`,
