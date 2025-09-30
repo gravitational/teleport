@@ -140,7 +140,7 @@ func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken 
 	return out, next, trace.Wrap(err)
 }
 
-// genericRanger is a helper to retreive a stream from a cache collection.
+// genericRanger is a helper to retrieve a stream from a cache collection.
 type genericRanger[T any, I comparable] struct {
 	// cache to performe the primary read from.
 	cache *Cache
