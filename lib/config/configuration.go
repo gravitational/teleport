@@ -1612,6 +1612,8 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
 				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
 				installerParams.ScriptName = matcher.InstallParams.ScriptName
+				installerParams.Suffix = matcher.InstallParams.Suffix
+				installerParams.UpdateGroup = matcher.InstallParams.UpdateGroup
 				if matcher.InstallParams.Azure != nil {
 					installerParams.Azure = &types.AzureInstallerParams{
 						ClientID: matcher.InstallParams.Azure.ClientID,
@@ -1645,6 +1647,8 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
 				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
 				installerParams.ScriptName = matcher.InstallParams.ScriptName
+				installerParams.Suffix = matcher.InstallParams.Suffix
+				installerParams.UpdateGroup = matcher.InstallParams.UpdateGroup
 			}
 		}
 
