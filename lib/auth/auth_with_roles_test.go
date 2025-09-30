@@ -9009,7 +9009,7 @@ func TestListSnowflakeSessions(t *testing.T) {
 		session, err := client.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
 			Username:     user,
 			TokenTTL:     time.Minute * 15,
-			SessionToken: fmt.Sprintf("test-token-%s", user),
+			SessionToken: "test-token-" + user,
 		})
 		require.NoError(t, err)
 		return session
