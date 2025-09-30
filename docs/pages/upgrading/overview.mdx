@@ -17,13 +17,22 @@ Teleport cluster while preserving compatibility.
 
 (!docs/pages/includes/compatibility.mdx!)
 
+You can think of Teleport cluster components in three tiers:
+1. The Auth Service is expected to be the newest component in the cluster.
+   For this reason it should always be the first component that is upgraded.
+2. The Proxy Service is expected to run a version less than or equal to the
+   Auth Service. The Proxy Service should never run a version newer than the
+   Auth Service.
+3. Other Teleport agents (SSH Service, Database Service, etc.) should always
+   run a version less than or equal to the Proxy Service.
+
 In Teleport Enterprise Cloud, we manage the Auth Service and Proxy Service for
 you. You can determine the current version of these services by running the
 following command, where `mytenant` is the name of your Teleport Enterprise
 Cloud tenant:
 
 ```code
-$ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
+$ curl -s https://mytenant.teleport.sh/webapi/find | jq '.server_version'
 ```
 
 ## Upgrading a self-hosted Teleport cluster
