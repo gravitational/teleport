@@ -27,7 +27,7 @@ Each category below represents an integrated service where Teleport monitors for
 
 Teleport Identity Security monitors your AWS infrastructure for critical security events:
 
-#### Critical and high severity:
+#### Critical and high severity
 - Root account activities (console login, access key creation, general activity)
 - Security settings deletions (CloudTrail, GuardDuty, flow logs)
 - EBS encryption disabled
@@ -35,7 +35,7 @@ Teleport Identity Security monitors your AWS infrastructure for critical securit
 - Exposed credential policy modifications
 - Login profile updates
 
-#### Medium and low severity:
+#### Medium and low severity
 - IAM user creation
 - DB snapshot attribute modifications
 - AWS key deletion or disabling
@@ -46,19 +46,19 @@ Set up AWS detections: [AWS Settings](../integrations/aws-sync.mdx)
 
 Monitor your GitHub organizations and repositories for security-relevant changes:
 
-#### Critical and high severity:
+#### Critical and high severity
 - Organization security updates (SAML, MFA, OAuth restrictions)
 - Protected branch policy overrides or deletions
 - Repository access and visibility changes
 - Secret scanning alerts
 - Organization member updates
 
-#### Medium and low severity:
+#### Medium and low severity
 - Repository member updates
 - Organization moderator additions
 - Integration installations
 
-#### Advanced Security Detections:
+#### Advanced Security Detections
 The system includes 26 sub-types of GitHub advanced security change detections that monitor for modifications to security features like Dependabot alerts.
 
 Set up GitHub detections: [GitHub Settings](../integrations/github.mdx)
@@ -67,7 +67,7 @@ Set up GitHub detections: [GitHub Settings](../integrations/github.mdx)
 
 Track identity and access management events in your Okta environment:
 
-#### High severity:
+#### High severity
 - Admin MFA disabled
 - All MFA factors reset
 - OAuth token reuse patterns
@@ -77,7 +77,7 @@ Track identity and access management events in your Okta environment:
 - API token creation/revocation
 - Security threat events
 
-#### Medium severity:
+#### Medium severity
 - Excessive MFA failures
 - Multiple password reset attempts
 - Dormant account access
@@ -87,7 +87,7 @@ Track identity and access management events in your Okta environment:
 
 Monitor Teleport-specific security events:
 
-#### High severity:
+#### High severity
 - Root SSH session initiation
 - Authentication without MFA for local accounts
 - Unusual authentication failure patterns
@@ -99,7 +99,7 @@ Set up Teleport detections: [Teleport Settings](../integrations/teleport.mdx)
 
 ### Cross-platform detections
 
-#### Impossible travel detection (GitHub, Okta, Teleport):
+#### Impossible travel detection (GitHub, Okta, Teleport)
 - Severity: High
 - Triggers when login attempts occur from multiple geographic locations within a timeframe that makes legitimate travel physically impossible
 
