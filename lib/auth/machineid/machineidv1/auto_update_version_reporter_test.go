@@ -81,6 +81,7 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	}
 	createBotInstance(t, "", []string{"17.0.0", "18.0.0"})
 	createBotInstance(t, "", []string{"18.1.0"})
+	createBotInstance(t, "", []string{"18.1.0"})
 	createBotInstance(t, "prod", []string{"18.1.0"})
 	createBotInstance(t, "stage", []string{"19.0.0-dev"})
 
@@ -128,7 +129,7 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 				"": {
 					Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
 						"18.0.0": {Count: 1},
-						"18.1.0": {Count: 1},
+						"18.1.0": {Count: 2},
 					},
 				},
 			},
