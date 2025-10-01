@@ -241,8 +241,21 @@ func (handler *Handler) getMatchingRule(
 	var reviewRule *accessmonitoringrulesv1.AccessMonitoringRule
 
 	for _, rule := range handler.rules.Get() {
-		env.Schedules = accessmonitoring.ScheduleDict(rule.GetSpec().GetSchedules())
 
+		// Check if creation time is within rule schedules.
+		isInSchedules, err := accessmonitoring.InSchedules(rule.GetSpec().GetSchedules(), env.CreationTime)
+		if err != nil {
+			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",
+				"error", err,
+				"rule", rule.GetMetadata().GetName(),
+			)
+			continue
+		}
+		if len(rule.GetSpec().GetSchedules()) != 0 && !isInSchedules {
+			continue
+		}
+
+		// Check if environment matches rule conditions.
 		conditionMatch, err := accessmonitoring.EvaluateCondition(rule.GetSpec().GetCondition(), env)
 		if err != nil {
 			handler.Logger.WarnContext(ctx, "Failed to evaluate access monitoring rule",
@@ -251,7 +264,6 @@ func (handler *Handler) getMatchingRule(
 			)
 			continue
 		}
-
 		if !conditionMatch {
 			continue
 		}
