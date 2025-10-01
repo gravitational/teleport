@@ -2386,12 +2386,12 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		Invited:        s.scx.GetSessionParams().Invited,
 	}
 
+	// Don't propagate the session tracker if:
+	// - This is a proxy forwarding server for a Teleport Node (tracking is handled by the target node server)
+	// - this is a non-interactive session
+	// - the session was initiated by a bot
 	svc := s.registry.SessionTrackerService
-	// Only propagate the session tracker when the recording mode and component are in sync
-	// AND the sesssion is interactive
-	// AND the session was not initiated by a bot
-	if (s.registry.Srv.Component() == teleport.ComponentNode && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode())) ||
-		(s.registry.Srv.Component() == teleport.ComponentProxy && !services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode())) ||
+	if (s.registry.Srv.Component() == teleport.ComponentForwardingNode && !s.registry.Srv.GetInfo().IsOpenSSHNode()) ||
 		sessType == sessionTypeNonInteractive ||
 		s.scx.Identity.BotName != "" {
 		svc = nil
@@ -2445,6 +2445,11 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 
 // emitAuditEvent emits audit events.
 func (s *session) emitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	// Nodes discard audit events in cases when proxies are already emitting them.
+	if s.scx.srv.Component() == teleport.ComponentNode && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
+		return nil
+	}
+
 	return s.emitter.EmitAuditEvent(ctx, event)
 }
 
