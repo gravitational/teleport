@@ -16,9 +16,6 @@ spec:
     matchLabels:
       {{- include "teleport-relay.selectorLabels" . | nindent 6 }}
   {{- $replicaCount := int .Values.highAvailability.replicaCount }}
-  {{- if lt $replicaCount 0 }}
-    {{- fail "highAvailability.replicaCount must not be negative" }}
-  {{- end }}
   {{- if and (gt $replicaCount 0) (lt $replicaCount (int .Values.targetConnectionCount)) }}
     {{- fail "highAvailability.replicaCount must not be smaller than targetConnectionCount" }}
   {{- end }}
