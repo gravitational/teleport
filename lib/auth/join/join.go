@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
@@ -190,7 +191,7 @@ type RegisterParams struct {
 	BoundKeypairParams *BoundKeypairParams
 }
 
-func (r *RegisterParams) checkAndSetDefaults() error {
+func (r *RegisterParams) CheckAndSetDefaults() error {
 	if r.Clock == nil {
 		r.Clock = clockwork.NewRealClock()
 	}
@@ -263,7 +264,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	ctx, span := tracer.Start(ctx, "Register")
 	defer func() { tracing.EndSpan(span, err) }()
 
-	if err := params.checkAndSetDefaults(); err != nil {
+	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Read in the token. The token can either be passed in or come from a file
@@ -377,7 +378,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		if params.GetHostCredentials == nil {
 			slog.DebugContext(ctx, "Missing client, it is not possible to register through proxy.")
 			registerMethods = []registerMethod{registerThroughAuth}
-		} else if authServerIsProxy(params.AuthServers) {
+		} else if LooksLikeProxy(params.AuthServers) {
 			slog.DebugContext(ctx, "The first specified auth server appears to be a proxy.")
 			registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
 		}
@@ -398,9 +399,9 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	return nil, trace.NewAggregate(collectedErrs...)
 }
 
-// authServerIsProxy returns true if the first specified auth server
+// LooksLikeProxy returns true if the first specified auth server
 // to register with appears to be a proxy.
-func authServerIsProxy(servers []utils.NetAddr) bool {
+func LooksLikeProxy(servers []utils.NetAddr) bool {
 	if len(servers) == 0 {
 		return false
 	}
@@ -505,25 +506,7 @@ func registerThroughAuth(
 	ctx, span := tracer.Start(ctx, "registerThroughAuth")
 	defer func() { tracing.EndSpan(span, err) }()
 
-	var client *authclient.Client
-	// Build a client for the Auth Server with different certificate validation
-	// depending on the configured values for Insecure, CAPins and CAPath.
-	switch {
-	case params.Insecure:
-		slog.WarnContext(ctx, "Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
-		client, err = insecureRegisterClient(ctx, params)
-	case len(params.CAPins) != 0:
-		// CAPins takes precedence over CAPath
-		client, err = pinRegisterClient(ctx, params)
-	case params.CAPath != "":
-		client, err = caPathRegisterClient(ctx, params)
-	default:
-		// We fall back to insecure mode here - this is a little odd but is
-		// necessary to preserve the behavior of registration. At a later date,
-		// we may consider making this an error asking the user to provide
-		// Insecure, CAPins or CAPath.
-		client, err = insecureRegisterClient(ctx, params)
-	}
+	client, err := NewAuthClient(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err, "building auth client")
 	}
@@ -539,6 +522,7 @@ type AuthJoinClient interface {
 	joinServiceClient
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
 	Ping(ctx context.Context) (proto.PingResponse, error)
+	JoinV1Client() joinv1.JoinServiceClient
 }
 
 func registerThroughAuthClient(
@@ -590,6 +574,28 @@ func getHostAddresses(params RegisterParams) []string {
 	}
 
 	return utils.NetAddrsToStrings(params.AuthServers)
+}
+
+// NewAuthClient returns a new auth client built according to the register
+// params, preferring the authenticate the server via CA pins or a CA path and
+// falling back to an insecure connection, unless insecure mode was explicitly enabled.
+func NewAuthClient(ctx context.Context, params RegisterParams) (*authclient.Client, error) {
+	switch {
+	case params.Insecure:
+		slog.WarnContext(ctx, "Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
+		return insecureRegisterClient(ctx, params)
+	case len(params.CAPins) != 0:
+		// CAPins takes precedence over CAPath
+		return pinRegisterClient(ctx, params)
+	case params.CAPath != "":
+		return caPathRegisterClient(ctx, params)
+	default:
+		// We fall back to insecure mode here - this is a little odd but is
+		// necessary to preserve the behavior of registration. At a later date,
+		// we may consider making this an error asking the user to provide
+		// Insecure, CAPins or CAPath.
+		return insecureRegisterClient(ctx, params)
+	}
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
