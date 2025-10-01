@@ -51,7 +51,9 @@ discover the same EC2 instances without interfering with each other.
 
 #### Kubernetes Health Checks
 
-TODO(rosstimothy)
+The Kubernetes service will perform regular health checks for registered Kubernetes clusters. 
+Health status will be reported in the Teleport web UI and reflected in kube_server resources.
+Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
 
 ## Teleport Cloud
 
