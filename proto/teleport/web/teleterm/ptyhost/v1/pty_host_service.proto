@@ -22,16 +22,23 @@ package teleport.web.teleterm.ptyhost.v1;
 
 import "google/protobuf/struct.proto";
 
+// PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
 service PtyHost {
+  // CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
   rpc CreatePtyProcess(PtyCreate) returns (PtyId) {}
+  // ExhchangeEvents is a bidirectional stream that lets the client send input and resize requests
+  // to the PTY process and receive output from the PTY process.
   rpc ExchangeEvents(stream PtyClientEvent) returns (stream PtyServerEvent) {}
+  // GetCwd returns the current working directory of the given PTY process.
   rpc GetCwd(PtyId) returns (PtyCwd) {}
 }
 
+// PtyId identifies a particular PTY process.
 message PtyId {
   string id = 1;
 }
 
+// PtyCreate includes fields necessary to start a PTY process.
 message PtyCreate {
   string path = 3;
   repeated string args = 4;
@@ -43,6 +50,7 @@ message PtyCreate {
   bool use_conpty = 9;
 }
 
+// PtyClientEvent represents events sent from the terminal client to the PTY process.
 message PtyClientEvent {
   oneof event {
     PtyEventStart start = 2;
@@ -51,6 +59,7 @@ message PtyClientEvent {
   }
 }
 
+// PtyServerEvent represents events sent from the PTY process to the terminal client.
 message PtyServerEvent {
   oneof event {
     PtyEventData data = 1;
@@ -60,31 +69,40 @@ message PtyServerEvent {
   }
 }
 
+// PtyEventStart sent by the client makes the shared process attempt to spawn the PTY process
+// previously initialized with CreatePtyProcess.
 message PtyEventStart {
   uint32 columns = 2;
   uint32 rows = 3;
 }
 
+// PtyEventData is input sent by the client to the PTY process or output sent from the PTY process
+// to the client.
 message PtyEventData {
   string message = 2;
 }
 
+// PtyEventResize is a resize request sent from the client to the PTY process.
 message PtyEventResize {
   uint32 columns = 2;
   uint32 rows = 3;
 }
 
+// PtyEventOpen is sent by the PTY process after a successful start.
 message PtyEventOpen {}
 
+// PtyEventExit is sent by the PTY process on exit.
 message PtyEventExit {
   uint32 exit_code = 1;
   optional uint32 signal = 2;
 }
 
+// PtyEventStartError is sent by the PTY process when the shared process fails to start it.
 message PtyEventStartError {
   string message = 1;
 }
 
+// PtyCwd is the current working directory of a PTY process.
 message PtyCwd {
   string cwd = 1;
 }
