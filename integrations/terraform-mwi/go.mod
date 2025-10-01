@@ -6,15 +6,15 @@ require (
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.5.1
-	github.com/hashicorp/terraform-plugin-framework v1.15.1
+	github.com/hashicorp/terraform-plugin-framework v1.16.1
 	github.com/hashicorp/terraform-plugin-framework-timetypes v0.5.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.18.0
-	github.com/hashicorp/terraform-plugin-go v0.28.0
+	github.com/hashicorp/terraform-plugin-go v0.29.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.3
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/stretchr/testify v1.11.1
-	k8s.io/api v0.34.0
-	k8s.io/client-go v0.34.0
+	k8s.io/api v0.34.1
+	k8s.io/client-go v0.34.1
 )
 
 require (
@@ -266,7 +266,7 @@ require (
 	github.com/hashicorp/go-cty v1.5.0 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/go-plugin v1.6.3 // indirect
+	github.com/hashicorp/go-plugin v1.7.0 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
@@ -279,7 +279,7 @@ require (
 	github.com/hashicorp/terraform-plugin-docs v0.0.0-00010101000000-000000000000 // indirect
 	github.com/hashicorp/terraform-plugin-log v0.9.0 // indirect
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.37.0 // indirect
-	github.com/hashicorp/terraform-registry-address v0.2.5 // indirect
+	github.com/hashicorp/terraform-registry-address v0.4.0 // indirect
 	github.com/hashicorp/terraform-svchost v0.1.1 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02 // indirect
@@ -354,7 +354,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/ohler55/ojg v1.26.10 // indirect
-	github.com/oklog/run v1.0.0 // indirect
+	github.com/oklog/run v1.1.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/okta/okta-sdk-golang/v2 v2.20.0 // indirect
 	github.com/openai/openai-go v1.12.0 // indirect
@@ -498,9 +498,9 @@ require (
 	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250825161204-c5933d9347a5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5 // indirect
-	google.golang.org/grpc v1.75.0 // indirect
+	google.golang.org/grpc v1.75.1 // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1 // indirect
-	google.golang.org/protobuf v1.36.8 // indirect
+	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -511,7 +511,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	helm.sh/helm/v3 v3.18.6 // indirect
 	k8s.io/apiextensions-apiserver v0.34.0 // indirect
-	k8s.io/apimachinery v0.34.0 // indirect
+	k8s.io/apimachinery v0.34.1 // indirect
 	k8s.io/apiserver v0.34.0 // indirect
 	k8s.io/cli-runtime v0.34.0 // indirect
 	k8s.io/component-base v0.34.0 // indirect
