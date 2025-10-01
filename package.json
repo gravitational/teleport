@@ -87,7 +87,7 @@
     "react-dom": "^19.1.1",
     "react-error-boundary": "^6.0.0",
     "react-is": "^19.1.1",
-    "react-router": "5.3.4",
+    "react-router": "7.9.3",
     "react-router-dom": "5.3.4",
     "react-select": "^5.10.2",
     "react-transition-group": "^4.4.5",
