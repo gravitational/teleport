@@ -232,8 +232,9 @@ service in a future effort.
 // MFAService is responsible for handling MFA challenges and responses.
 service MFAService {
   // StartAuthenticateChallenge initiates an MFA challenge for a user and blocks until the challenge is resolved.
-  // Once the MFA challenge is successfully resolved, a response is returned with the result. If the challenge fails,
-  // an error is returned.
+  // The first message from the server will always be a unique challenge ID that the client must use to complete the
+  // challenge. Once the MFA challenge is successfully resolved, a response is returned with the result. If the
+  // challenge fails, an error is returned.
   rpc StartAuthenticateChallenge(StartAuthenticateChallengeRequest) returns (stream StartAuthenticateChallengeResponse);
 
   // CompleteAuthenticateChallenge is invoked by the user's client to complete the MFA challenge using the challenge ID
@@ -245,18 +246,16 @@ service MFAService {
 
 // Request to start an MFA challenge.
 message StartAuthenticateChallengeRequest {
-  // Unique challenge ID for the MFA challenge. If not provided, a new challenge ID will be generated.
-  string challenge_id = 1;
   // User for whom the challenge is being initiated.
-  string user = 2;
+  string user = 1;
   // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
-  ChallengeExtensions challenge_extensions = 3;
+  ChallengeExtensions challenge_extensions = 2;
   // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
-  string SSOClientRedirectURL = 4;
+  string SSOClientRedirectURL = 3;
   // ProxyAddress is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this address
   // is required to determine which URL to redirect the user to when there are multiple options.
-  string ProxyAddress = 5;
+  string ProxyAddress = 4;
 }
 
 // Response containing the details of the MFA challenge.
