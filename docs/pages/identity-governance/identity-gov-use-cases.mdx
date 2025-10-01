@@ -15,7 +15,7 @@ Each scenario links to detailed guides so you can quickly put these capabilities
 
 Teleport supports multiple identity options so you can plug into your existing stack or make Teleport your source of truth. 
 
-Integrate with IdPs like **AWS IAM Identity Center**, **Okta,** **Microsoft Entra ID**, or **SailPoint** to sync groups to Teleport roles. 
+Integrate with IdPs like **AWS IAM Identity Center** and **Okta** to sync groups to Teleport roles. 
 If you prefer, you can also run **Teleport as an identity provider**, issuing 
 short-lived credentials and federating access to downstream apps and services. 
 
@@ -23,9 +23,7 @@ These integrations enable centralized onboarding/off-boarding, group-to-role map
 
 - [**AWS IAM Identity Center**](./aws-iam-identity-center/aws-iam-identity-center.mdx)
 - [**Okta Integration**](./okta/okta.mdx)
-- [**Entra ID Integration**](./entra-id/getting-started.mdx)
 - [**Teleport Identity Provider**](./idps/idps.mdx)
-- [**SailPoint SCIM Integration**](./scim/sailpoint.mdx)
 
 ## Just-in-time Access Requests
 
@@ -63,5 +61,4 @@ prevent new certificate issuance, and are fully scoped and time-limited for safe
 [Access Request Configuration Guide](../identity-governance/access-requests/access-request-configuration.mdx).
 - To read more about the architecture of an Access Request plugin, and start writing your own, 
 read our [Access Request plugin development guide](../identity-governance/access-request-plugins/access-plugin.mdx).
-- Learn how [nested Access Lists](../identity-governance/access-lists/nested-access-lists.mdx) grants inheritance work.
-- Learn how [SCIM](./scim/scim.mdx) (System for Cross-domain Identity Management) integration supports automated user management.
+- Learn how [Access Lists](../identity-governance/access-lists/guide.mdx) works.
