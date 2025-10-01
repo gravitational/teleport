@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -92,6 +93,10 @@ type BoundKeypairOnboardingConfig struct {
 	// static value or an absolute path to a file containing the secret value.
 	RegistrationSecretValue string `yaml:"registration_secret,omitempty"`
 
+	// RegistrationSecretPath is a path to a registration secret to be read from
+	// a file.
+	RegistrationSecretPath string `yaml:"registration_secret_path,omitempty"`
+
 	// StaticPrivateKeyPath is a static private key, containing either a path to
 	// a private key file. Unlike keys managed automatically in the bot storage,
 	// this will be treated as immutable. It must be preregistered, does not
@@ -106,31 +111,49 @@ type BoundKeypairOnboardingConfig struct {
 // returned. If `TBOT_REGISTRATION_SECRET` is set and neither explicit config
 // value is set (CLI, YAML) that value will be returned.
 func (c *BoundKeypairOnboardingConfig) RegistrationSecret() (string, error) {
-	secret, err := utils.TryReadValueAsFile(c.RegistrationSecretValue)
-	if err != nil {
-		return "", trace.Wrap(err)
+	if c.RegistrationSecretValue != "" && c.RegistrationSecretPath != "" {
+		return "", trace.BadParameter("only one of 'registration_secret' and 'registration_secret_path' may be set")
 	}
 
 	env, envExists := os.LookupEnv(registrationSecretEnv)
 
-	// If the secret is nonempty (either directly configured or read from disk),
-	// we'll always return that regardless of whether an env var was set, but
-	// will warn if both are set.
-	if secret != "" {
+	switch {
+	case c.RegistrationSecretPath != "":
 		if envExists {
 			slog.WarnContext(
 				context.Background(),
-				"a registration secret was configured both in tbot's configuration file or CLI and in the environment, the explicit value will be used",
+				"'registration_secret_path' in tbot's configuration will override the value set in the environment",
+				"env", registrationSecretEnv,
+				"path", c.RegistrationSecretPath,
+			)
+		}
+
+		bytes, err := os.ReadFile(c.RegistrationSecretPath)
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+
+		slog.DebugContext(context.Background(), "loading registration secret from file", "path", c.RegistrationSecretPath)
+
+		return strings.TrimSpace(string(bytes)), nil
+	case c.RegistrationSecretValue != "":
+		if envExists {
+			slog.WarnContext(
+				context.Background(),
+				"'registration_secret' in tbot's configuration will override the value set in the environment",
 				"env", registrationSecretEnv,
 			)
 		}
 
-		return secret, nil
-	} else if envExists {
-		return env, nil
-	}
+		slog.DebugContext(context.Background(), "using registration secret from config file or CLI")
 
-	return "", nil
+		return c.RegistrationSecretValue, nil
+	case envExists:
+		slog.DebugContext(context.Background(), "using registration secret from environment", "env", registrationSecretEnv)
+		return env, nil
+	default:
+		return "", nil
+	}
 }
 
 // StaticPrivateKeyBytes returns a statically configured private key for bound
