@@ -18,19 +18,20 @@ package repl
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 )
 
 // processCommand receives a command call and return the reply and if the
 // command terminates the session.
 func (r *REPL) processCommand(line string) (string, bool) {
-	cmdStr, args, _ := strings.Cut(strings.TrimPrefix(line, commandPrefix), " ")
+	cmdStr, args, _ := strings.Cut(strings.TrimPrefix(strings.TrimSpace(line), commandPrefix), " ")
 	cmd, ok := r.commands[cmdStr]
 	if !ok {
-		return "Unknown command. Try \\? to show the list of supported commands." + lineBreak, false
+		return fmt.Sprintf("Unknown command %q. Try \\? to show the list of supported commands.", cmdStr) + lineBreak, false
 	}
 
 	return cmd.ExecFunc(r, args)
@@ -71,19 +72,19 @@ func initCommands() map[string]*command {
 		"teleport": {
 			Type:        commandTypeGeneral,
 			Description: "Show Teleport interactive shell information, such as execution limitations.",
-			ExecFunc: func(_ *REPL, _ string) (string, bool) {
+			ExecFunc: func(r *REPL, _ string) (string, bool) {
 				// Formats limitiations in a dash list. Example:
 				// - hello
 				//   multi line
 				// - another item
 				var limitations strings.Builder
 				for _, l := range descriptiveLimitations {
-					limitations.WriteString("- " + strings.Join(strings.Split(l, "\n"), "\n  ") + lineBreak)
+					limitations.WriteString(fmt.Sprintf("- %s\n", strings.ReplaceAll(l, lineBreak, lineBreak+"  ")))
 				}
 
 				return fmt.Sprintf(
 					"Teleport PostgreSQL interactive shell (v%s)\n\nLimitations: \n%s",
-					teleport.Version,
+					r.teleportVersion,
 					limitations.String(),
 				), false
 			},
@@ -93,20 +94,23 @@ func initCommands() map[string]*command {
 			Description: "Show the list of supported commands.",
 			ExecFunc: func(r *REPL, _ string) (string, bool) {
 				typesTable := make(map[commandType]*asciitable.Table)
-				for cmdStr, cmd := range r.commands {
+				for _, cmdName := range slices.Sorted(maps.Keys(r.commands)) {
+					cmd := r.commands[cmdName]
 					if _, ok := typesTable[cmd.Type]; !ok {
 						table := asciitable.MakeHeadlessTable(2)
 						typesTable[cmd.Type] = &table
 					}
 
-					typesTable[cmd.Type].AddRow([]string{"\\" + cmdStr, cmd.Description})
+					typesTable[cmd.Type].AddRow([]string{"\\" + cmdName, cmd.Description})
 				}
 
 				var res strings.Builder
-				for cmdType, output := range typesTable {
+				for i, cmdType := range slices.Sorted(maps.Keys(typesTable)) {
 					res.WriteString(string(cmdType) + lineBreak)
-					output.AsBuffer().WriteTo(&res)
-					res.WriteString(lineBreak)
+					typesTable[cmdType].AsBuffer().WriteTo(&res)
+					if i < len(typesTable)-1 {
+						res.WriteString(lineBreak)
+					}
 				}
 
 				return res.String(), false
@@ -116,7 +120,7 @@ func initCommands() map[string]*command {
 			Type:        commandTypeConnection,
 			Description: "Display information about the current session, like user, and database instance.",
 			ExecFunc: func(r *REPL, _ string) (string, bool) {
-				return fmt.Sprintf("Connected to %q instance at %q database as %q user.", r.route.ServiceName, r.route.Database, r.route.Username), false
+				return fmt.Sprintf("Connected to %q instance at %q database as %q user.\n", r.route.ServiceName, r.route.Database, r.route.Username), false
 			},
 		},
 	}
