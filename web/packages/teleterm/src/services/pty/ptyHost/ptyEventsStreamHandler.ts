@@ -116,7 +116,11 @@ export class PtyEventsStreamHandler {
   }
 
   onExit(
-    callback: (reason: { exitCode: number; signal?: number }) => void
+    callback: (reason: {
+      exitCode: number;
+      signal?: number;
+      lastInput: string;
+    }) => void
   ): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
       (event: ManagePtyProcessResponse) => {
