@@ -551,6 +551,14 @@ func (t *TLSServer) stopHeartbeatAndHealthCheck(cluster types.KubeCluster) error
 // getTargetHealth returns the health of a Kubernetes cluster.
 func (t *TLSServer) getTargetHealth(ctx context.Context, cluster types.KubeCluster) *types.TargetHealth {
 	health, err := t.HealthCheckManager.GetTargetHealth(cluster)
+	// Log the health status along with any error encountered while fetching it.
+	// This helps in debugging issues related to health checks.
+	// For example, if the health check failed due to network issues or
+	t.log.InfoContext(ctx, "getTargetHealth: Got kube cluster health",
+		"kube_cluster", log.StringerAttr(cluster),
+		"health", log.StringerAttr(health),
+		"error", err,
+	)
 	if err == nil {
 		return health
 	}

@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-dev-k8s-health.8"
+const Version = "19.0.0-dev-k8s-health.9"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev-k8s-health.8"
+const VersionPreRelease = "dev-k8s-health.9"
 const VersionMetadata = ""
