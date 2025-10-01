@@ -159,10 +159,7 @@ function Wrapper(
           sortField={sortField}
           sortDir={sortDir}
           selectedItem={selected}
-          onSortChanged={function (
-            sortField: string,
-            sortDir: 'ASC' | 'DESC'
-          ): void {
+          onSortChanged={(sortField: string, sortDir: 'ASC' | 'DESC') => {
             setSortField(sortField);
             setSortDir(sortDir);
             listRef.current?.scrollToTop();
