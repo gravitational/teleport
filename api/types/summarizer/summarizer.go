@@ -23,6 +23,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // NewInferenceModel creates a new InferenceModel resource with the given name
@@ -66,7 +67,6 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 	provider := m.GetSpec().GetProvider()
 	switch p := provider.(type) {
 	case nil:
-		m.GetSpec().ProtoReflect().GetUnknown()
 		return trace.BadParameter(
 			// Unfortunately, there's no way to tell between a missing and
 			// unsupported one once the object is parsed from YAML. There may be a
@@ -77,6 +77,17 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 	case *summarizerv1.InferenceModelSpec_Openai:
 		if p.Openai.GetOpenaiModelId() == "" {
 			return trace.BadParameter("spec.openai.openai_model_id is required")
+		}
+	case *summarizerv1.InferenceModelSpec_Bedrock:
+		// TODO(bl-nero): Relax this condition once we implement spend controls.
+		if modules.GetModules().Features().Cloud {
+			return trace.BadParameter("Amazon Bedrock models are unavailable in Teleport Cloud")
+		}
+		if p.Bedrock.GetBedrockModelId() == "" {
+			return trace.BadParameter("spec.bedrock.bedrock_model_id is required")
+		}
+		if p.Bedrock.GetRegion() == "" {
+			return trace.BadParameter("spec.bedrock.region is required")
 		}
 	}
 

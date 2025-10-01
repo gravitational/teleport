@@ -282,6 +282,8 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.6.0
 )
 
+require github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.41.0
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.121.6 // indirect
