@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshca"
-	libsshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -843,28 +842,35 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		writeSessionCtx, writeSessionCancel := context.WithCancel(ctx)
 		defer writeSessionCancel()
 
-		waitForSessionID := libsshutils.PrepareToReceiveSessionID(writeSessionCtx, t.logger, nc.Client, false)
+		// only handle the first session ID request
+		var receiveSessionIDOnce sync.Once
+		receivedSessionID := make(chan struct{})
+		nc.Client.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+			receiveSessionIDOnce.Do(func() {
+				sid, err := session.ParseID(string(req.Payload))
+				if err != nil {
+					t.logger.WarnContext(ctx, "Unable to parse session ID", "error", err)
+					return
+				}
+
+				t.sessionData.ID = *sid
+				close(receivedSessionID)
+			})
+		})
 
 		// wait in a new goroutine because the server won't set a
 		// session ID until we start the session.
-		// Note: before v19.0.0, the session ID isn't set until during
-		// the shell request, rather than right after the session request.
 		go func() {
-			defer close(sessionDataSent)
+			ctx, cancel := context.WithTimeout(writeSessionCtx, 10*time.Second)
+			defer cancel()
 
-			sid, status := waitForSessionID()
-			switch status {
-			case libsshutils.SessionIDReceived:
-				t.sessionData.ID = sid
-				fallthrough
-			case libsshutils.SessionIDNotModified:
+			select {
+			case <-receivedSessionID:
 				if err := t.writeSessionData(ctx); err != nil {
 					t.logger.WarnContext(ctx, "Failure sending session data", "error", err)
 				}
-			case libsshutils.SessionIDNotSent:
+			case <-ctx.Done():
 				t.logger.WarnContext(ctx, "Failed to receive session data")
-			default:
-				t.logger.WarnContext(ctx, "Invalid session ID status", "status", status)
 			}
 		}()
 	}

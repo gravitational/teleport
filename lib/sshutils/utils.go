@@ -19,20 +19,12 @@
 package sshutils
 
 import (
-	"context"
-	"log/slog"
 	"net"
 	"strconv"
-	"sync/atomic"
-	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
-
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -69,90 +61,4 @@ func NewSSHConnMetadataWithUser(conn ssh.ConnMetadata, user string) SSHConnMetad
 // User returns the user ID for this connection.
 func (s SSHConnMetadataWithUser) User() string {
 	return s.user
-}
-
-// SessionIDStatus indicates whether the session ID was received from
-// the server or not, and if not why
-type SessionIDStatus int
-
-const (
-	// SessionIDReceived indicates the the session ID was received
-	SessionIDReceived SessionIDStatus = iota + 1
-	// SessionIDNotSent indicates that the server set the session ID
-	// but didn't send it to us
-	SessionIDNotSent
-	// SessionIDNotModified indicates that the server used the session
-	// ID that was set by us
-	SessionIDNotModified
-)
-
-// PrepareToReceiveSessionID configures the TeleportClient to listen for
-// the server to send the session ID it's using. The returned function
-// will return the current session ID from the server or a reason why
-// one wasn't received.
-func PrepareToReceiveSessionID(ctx context.Context, log *slog.Logger, client *tracessh.Client, useV2 bool) func() (session.ID, SessionIDStatus) {
-	// send the session ID received from the server
-	var gotSessionID atomic.Bool
-	sessionIDFromServer := make(chan session.ID, 1)
-
-	client.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
-		// only handle the first session ID request
-		if gotSessionID.Load() {
-			return
-		}
-
-		sid, err := session.ParseID(string(req.Payload))
-		if err != nil {
-			log.WarnContext(ctx, "Unable to parse session ID", "error", err)
-			return
-		}
-
-		if gotSessionID.CompareAndSwap(false, true) {
-			sessionIDFromServer <- *sid
-		}
-	})
-
-	// If the session is about to close and we haven't received a session
-	// ID yet, ask if the server even supports sending one. Send the
-	// request in a new goroutine so session establishment won't be
-	// blocked on making this request
-	serverWillSetSessionID := make(chan bool, 1)
-	go func() {
-		reqName := teleport.SessionIDQueryRequest
-		if useV2 {
-			reqName = teleport.SessionIDQueryRequestV2
-		}
-
-		resp, _, err := client.SendRequest(ctx, reqName, true, nil)
-		if err != nil {
-			log.WarnContext(ctx, "Failed to send session ID query request", "error", err)
-			serverWillSetSessionID <- false
-		} else {
-			serverWillSetSessionID <- resp
-		}
-	}()
-
-	waitForSessionID := func() (session.ID, SessionIDStatus) {
-		timer := time.NewTimer(10 * time.Second)
-		defer timer.Stop()
-
-		for {
-			select {
-			case sessionID := <-sessionIDFromServer:
-				return sessionID, SessionIDReceived
-			case sessionIDIsComing := <-serverWillSetSessionID:
-				if !sessionIDIsComing {
-					return "", SessionIDNotModified
-				}
-				// the server will send the session ID, continue
-				// waiting for it
-			case <-ctx.Done():
-				return "", SessionIDNotSent
-			case <-timer.C:
-				return "", SessionIDNotSent
-			}
-		}
-	}
-
-	return waitForSessionID
 }
