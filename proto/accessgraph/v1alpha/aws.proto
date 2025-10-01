@@ -84,8 +84,8 @@ message AWSResource {
 
 // AWSUserInlinePolicyV1 is a policy that is inlined to an AWS user.
 message AWSUserInlinePolicyV1 {
-  reserved 2;
-  reserved "username";
+  reserved 2, 6;
+  reserved "username", "last_sync_time";
   // policy_name is the name of the policy.
   string policy_name = 1;
   // policy_document is the JSON document that defines the policy.
@@ -94,12 +94,12 @@ message AWSUserInlinePolicyV1 {
   string account_id = 4;
   // user is the user who the policy is attached to.
   AWSUserV1 user = 5;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 6;
 }
 
 // AWSPolicyV1 is an AWS policy.
 message AWSPolicyV1 {
+  reserved 13;
+  reserved "last_sync_time";
   // arn is the ARN of the AWS policy.
   string arn = 1;
   // created_at is the time when the AWS policy was created.
@@ -125,12 +125,12 @@ message AWSPolicyV1 {
   string policy_name = 11;
   // policy_document is the JSON document that defines the policy.
   bytes policy_document = 12;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 13;
 }
 
 // AWSGroupV1 is a group of AWS users.
 message AWSGroupV1 {
+  reserved 7;
+  reserved "last_sync_time";
   // arn is the ARN of the AWS group.
   string arn = 1;
   // created_at is the time when the AWS group was created.
@@ -143,22 +143,22 @@ message AWSGroupV1 {
   string path = 5;
   // account_id is the ID of the AWS account that the group belongs to.
   string account_id = 6;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 7;
 }
 
 // AWSUserGroupsV1 is a list of AWS groups that an AWS user belongs to.
 message AWSUserGroupsV1 {
+  reserved 3;
+  reserved "last_sync_time";
   // user is the AWS user.
   AWSUserV1 user = 1;
   // groups is the list of AWS groups that the user belongs to.
   repeated AWSGroupV1 groups = 2;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 3;
 }
 
 // AWSUserV1 is an AWS user.
 message AWSUserV1 {
+  reserved 10;
+  reserved "last_sync_time";
   // arn is the ARN of the AWS user.
   string arn = 1;
   // created_at is the time when the AWS user was created.
@@ -177,8 +177,6 @@ message AWSUserV1 {
   repeated AWSTag tags = 8;
   // account_id is the ID of the AWS account that the user belongs to.
   string account_id = 9;
-  // last_sync_time is the time when the user was last synced.
-  google.protobuf.Timestamp last_sync_time = 10;
 }
 
 // AWSTag is a tag that is attached to an AWS resource.
@@ -209,6 +207,8 @@ enum UsersPermissionsBoundaryType {
 
 // AWSInstanceV1 is an AWS instance.
 message AWSInstanceV1 {
+  reserved 9;
+  reserved "last_sync_time";
   // instance_id is the ID of the AWS instance.
   string instance_id = 1;
   // launch_time is the time when the instance was launched.
@@ -227,21 +227,19 @@ message AWSInstanceV1 {
   // launch_key_name is the name of the key pair that is used to launch the
   // instance.
   google.protobuf.StringValue launch_key_name = 8;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 9;
 }
 
 // AWSUserAttachedPolicies is a list of AWS policies that are attached to an
 // AWS user.
 message AWSUserAttachedPolicies {
+  reserved 9;
+  reserved "last_sync_time";
   // user is the AWS user.
   AWSUserV1 user = 1;
   // policies is the list of AWS policies that are attached to the user.
   repeated AttachedPolicyV1 policies = 2;
   // account_id is the ID of the AWS account that the user belongs to.
   string account_id = 3;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 9;
 }
 
 // AttachedPolicyV1 is a AWS policy identifier.
@@ -255,18 +253,20 @@ message AttachedPolicyV1 {
 // AWSGroupAttachedPolicies is a list of AWS policies that are attached to an
 // AWS group.
 message AWSGroupAttachedPolicies {
+  reserved 4;
+  reserved "last_sync_time";
   // group is the AWS group.
   AWSGroupV1 group = 1;
   // policies is the list of AWS policies that are attached to the group.
   repeated AttachedPolicyV1 policies = 2;
   // account_id is the ID of the AWS account that the group belongs to.
   string account_id = 3;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 4;
 }
 
 // AWSGroupInlinePolicyV1 is a policy that is inlined to an AWS Group.
 message AWSGroupInlinePolicyV1 {
+  reserved 5;
+  reserved "last_sync_time";
   // policy_name is the name of the policy.
   string policy_name = 1;
   // group is the AWS group.
@@ -275,12 +275,12 @@ message AWSGroupInlinePolicyV1 {
   bytes policy_document = 3;
   // account_id is the ID of the AWS account that the group belongs to.
   string account_id = 4;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 5;
 }
 
 // AWSS3BucketV1 is an AWS S3 bucket.
 message AWSS3BucketV1 {
+  reserved 7;
+  reserved "last_sync_time";
   // name is the name of the AWS S3 bucket.
   string name = 1;
   // account_id is the ID of the AWS account that the S3 bucket belongs to.
@@ -293,8 +293,6 @@ message AWSS3BucketV1 {
   repeated AWSS3BucketACL acls = 5;
   // tags is the list of tags that are attached to the S3 bucket.
   repeated AWSTag tags = 6;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 7;
 }
 
 // AWSS3BucketACL is the ACL of an AWS S3 bucket.
@@ -321,6 +319,8 @@ message AWSS3BucketACLGrantee {
 
 // AWSRoleV1 is an AWS role.
 message AWSRoleV1 {
+  reserved 13;
+  reserved "last_sync_time";
   // arn is the ARN of the AWS role.
   string arn = 1;
   // assume_role_policy_document is the JSON document that defines the trust
@@ -346,8 +346,6 @@ message AWSRoleV1 {
   RoleLastUsedV1 role_last_used = 11;
   // account_id is the ID of the AWS account that the role belongs to.
   string account_id = 12;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 13;
 }
 
 // RolePermissionsBoundaryV1 is the permissions boundary of a role.
@@ -378,8 +376,8 @@ message RoleLastUsedV1 {
 
 // AWSRoleInlinePolicyV1 is a policy that is inlined to an AWS Role.
 message AWSRoleInlinePolicyV1 {
-  reserved 2;
-  reserved "role";
+  reserved 2, 6;
+  reserved "role", "last_sync_time";
   // policy_name is the name of the policy.
   string policy_name = 1;
   // policy_document is the JSON document that defines the policy.
@@ -388,27 +386,25 @@ message AWSRoleInlinePolicyV1 {
   string account_id = 4;
   // aws_role is the role name of the AWS role that the policy is attached to.
   AWSRoleV1 aws_role = 5;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 6;
 }
 
 // AWSRoleAttachedPolicies is a list of AWS policies that are attached to an
 // AWS role.
 message AWSRoleAttachedPolicies {
-  reserved 1;
-  reserved "role";
+  reserved 1, 5;
+  reserved "role", "last_sync_time";
   // policies is the list of AWS policies that are attached to the role.
   repeated AttachedPolicyV1 policies = 2;
   // account_id is the ID of the AWS account that the role belongs to.
   string account_id = 3;
   // aws_role is the AWS role.
   AWSRoleV1 aws_role = 4;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 5;
 }
 
 // AWSInstanceProfileV1 is an AWS instance profile.
 message AWSInstanceProfileV1 {
+  reserved 9;
+  reserved "last_sync_time";
   // arn is the ARN of the AWS instance profile.
   string arn = 1;
   // created_at is the time when the instance profile was created.
@@ -426,12 +422,12 @@ message AWSInstanceProfileV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 8;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 9;
 }
 
 // AWSEKSClusterV1 represents an AWS EKS cluster.
 message AWSEKSClusterV1 {
+  reserved 9;
+  reserved "last_sync_time";
   // name is the cluster name.
   string name = 1;
   // arn is the cluster arn
@@ -449,12 +445,12 @@ message AWSEKSClusterV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 8;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 9;
 }
 
 // AWSEKSClusterAccessEntriesV1 represents an EKS cluster Access Entry.
 message AWSEKSClusterAccessEntryV1 {
+  reserved 11;
+  reserved "last_sync_time";
   // cluster is the EKS cluster.
   AWSEKSClusterV1 cluster = 1;
   // access_entry_arn is the ARN of the access entry.
@@ -476,12 +472,12 @@ message AWSEKSClusterAccessEntryV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 10;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 11;
 }
 
 // AWSEKSAssociatedAccessPolicyV1 identifies an access policy association.
 message AWSEKSAssociatedAccessPolicyV1 {
+  reserved 8;
+  reserved "last_sync_time";
   // cluster is the EKS cluster.
   AWSEKSClusterV1 cluster = 1;
   // principal_arn is the principal that the associated access policy insides.
@@ -498,8 +494,6 @@ message AWSEKSAssociatedAccessPolicyV1 {
   // account_id is the ID of the AWS account that the instance profile belongs
   // to.
   string account_id = 7;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 8;
 }
 
 //AWSEKSAccessScope identifies the scope to which the AssociatedAccessPolicy applies.
@@ -512,6 +506,8 @@ message AWSEKSAccessScopeV1 {
 
 // AWSRDSDatabaseV1 defines the database details.
 message AWSRDSDatabaseV1 {
+  reserved 11;
+  reserved "last_sync_time";
   // arn is the instance ARN.
   string arn = 1;
   // status is the instance status.
@@ -533,8 +529,6 @@ message AWSRDSDatabaseV1 {
   string account_id = 9;
   // resource_id is the RDS unique resource id.
   string resource_id = 10;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 11;
 }
 
 // AWSRDSEngineV1 defines the database engine details
@@ -547,6 +541,8 @@ message AWSRDSEngineV1 {
 
 // AWSSAMLProviderV1 defines the SAML identity provider details.
 message AWSSAMLProviderV1 {
+  reserved 9;
+  reserved "last_sync_time";
   // arn is the provider ARN.
   string arn = 1;
   // created_at is the time when the SAML provider was created.
@@ -563,12 +559,12 @@ message AWSSAMLProviderV1 {
   repeated string sso_urls = 7;
   // signing_certificates is a list of signing certificates for this identity provider.
   repeated string signing_certificates = 8;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 9;
 }
 
 // AWSOIDCProviderV1 defines the OIDC identity provider details.
 message AWSOIDCProviderV1 {
+  reserved 8;
+  reserved "last_sync_time";
   // arn is the provider ARN.
   string arn = 1;
   // created_at is the time when the OIDC provider was created.
@@ -583,12 +579,12 @@ message AWSOIDCProviderV1 {
   repeated string thumbprints = 6;
   // url is the URL for this OIDC provider.
   string url = 7;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 8;
 }
 
 // AWSKMSKeyV1 defines the KMS key details.
 message AWSKMSKeyV1 {
+  reserved 5;
+  reserved "last_sync_time";
   // arn is the key ARN.
   string arn = 1;
   // created_at is the time when the key was created.
@@ -597,8 +593,6 @@ message AWSKMSKeyV1 {
   repeated AWSTag tags = 3;
   // account_id is the ID of the AWS account that the key belongs to.
   string account_id = 4;
-  // last_sync_time is the time when the resource was last synced.
-  google.protobuf.Timestamp last_sync_time = 5;
   // aliases is the list of aliases that are attached to the key.
   // they are prefixed with "alias/", for example "alias/my-key-alias".
   repeated string aliases = 6;
