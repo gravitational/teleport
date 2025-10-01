@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// TODO(ravicious): Before introducing any changes, move this file to the /proto dir and
-// remove the generate-grpc-shared script.
-
 syntax = "proto3";
+
+package teleport.web.teleterm.ptyhost.v1;
 
 import "google/protobuf/struct.proto";
 

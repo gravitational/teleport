@@ -109,12 +109,6 @@ make grpc
 
 Resulting Go and JS files can be found in `gen/proto`.
 
-### Generating shared process gRPC protobuf files
-
-Run `generate-grpc-shared` script from `teleterm/package.json`.
-It generates protobuf files from `*.proto` files in `sharedProcess/api/proto`.
-Resulting files can be found in `sharedProcess/api/protogen`.
-
 ## Build process
 
 `pnpm package-term` is responsible for packaging the app code for distribution.
