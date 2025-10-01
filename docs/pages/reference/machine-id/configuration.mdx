@@ -1374,18 +1374,6 @@ connects to the listener will be able to access applications through Teleport.
 For this reason, ensure that the listener is only accessible by the intended
 clients by using the Unix socket listener or binding to `127.0.0.1`.
 
-#### Limitations
-
-There are a number of limitations in the initial implementation of the
-`application-proxy` to be aware of:
-
-- Only HTTP applications are supported. TCP applications are not supported at
-  this time.
-- Only HTTP/1 and HTTP/1.1 are supported. HTTP/2 is not supported at this time.
-
-If these limitations are problematic, consider using the `application-tunnel`
-service instead, or, reach out to the Teleport team to discuss your use-case.
-
 ```yaml
 # type specifies the type of the service. For the application proxy service,
 # this will always be `application-proxy`.
@@ -1404,6 +1392,18 @@ name: my-service-name
 
 The `application-proxy` service will not start if `tbot` has been configured
 to run in one-shot mode.
+
+#### Limitations
+
+There are a number of limitations in the initial implementation of the
+`application-proxy` to be aware of:
+
+- Only HTTP applications are supported. TCP applications are not supported at
+  this time.
+- Only HTTP/1 and HTTP/1.1 are supported. HTTP/2 is not supported at this time.
+
+If these limitations are problematic, consider using the `application-tunnel`
+service instead, or, reach out to the Teleport team to discuss your use-case.
 
 #### Using the application proxy
 
