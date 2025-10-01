@@ -70,8 +70,8 @@ type JoinServiceClient interface {
 	// The client must send an ClientInit message on the JoinRequest stream to
 	// initiate the join flow.
 	//
-	// The server will reply with a JoinResponse where the payload will vary
-	// based on the join method specified in the provision token.
+	// The server will reply with a ServerInit message, and subsequent messages
+	// on the stream will depend on the join method.
 	Join(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[JoinRequest, JoinResponse], error)
 }
 
@@ -130,8 +130,8 @@ type JoinServiceServer interface {
 	// The client must send an ClientInit message on the JoinRequest stream to
 	// initiate the join flow.
 	//
-	// The server will reply with a JoinResponse where the payload will vary
-	// based on the join method specified in the provision token.
+	// The server will reply with a ServerInit message, and subsequent messages
+	// on the stream will depend on the join method.
 	Join(grpc.BidiStreamingServer[JoinRequest, JoinResponse]) error
 	mustEmbedUnimplementedJoinServiceServer()
 }

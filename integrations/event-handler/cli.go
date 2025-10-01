@@ -127,13 +127,13 @@ type IngestConfig struct {
 	Types []string `help:"Comma-separated list of event types to forward" env:"FDFWD_TYPES"`
 
 	// SkipEventTypesRaw are event types to skip
-	SkipEventTypesRaw []string `name:"skip-event-types" help:"Comma-separated list of event types to skip" env:"FDFWD_SKIP_EVENT_TYPES"`
+	SkipEventTypesRaw []string `name:"skip-event-types" help:"Comma-separated list of audit log event types to skip" env:"FDFWD_SKIP_EVENT_TYPES"`
 
 	// SkipEventTypes is a map generated from SkipEventTypesRaw
 	SkipEventTypes map[string]struct{} `kong:"-"`
 
 	// SkipSessionTypes are session event types to skip
-	SkipSessionTypesRaw []string `name:"skip-session-types" help:"Comma-separated list of session event types to skip" default:"print" env:"FDFWD_SKIP_SESSION_TYPES"`
+	SkipSessionTypesRaw []string `name:"skip-session-types" help:"Comma-separated list of session recording event types to skip" default:"print,desktop.recording" env:"FDFWD_SKIP_SESSION_TYPES"`
 
 	// SkipSessionTypes is a map generated from SkipSessionTypes
 	SkipSessionTypes map[string]struct{} `kong:"-"`
@@ -254,8 +254,8 @@ func (c *StartCmdConfig) Dump(ctx context.Context, log *slog.Logger) {
 	log.InfoContext(ctx, "Using batch size", "batch", c.BatchSize)
 	log.InfoContext(ctx, "Using concurrency", "concurrency", c.Concurrency)
 	log.InfoContext(ctx, "Using type filter", "types", c.Types)
-	log.InfoContext(ctx, "Using type exclude filter", "skip_event_types", c.SkipEventTypes)
-	log.InfoContext(ctx, "Skipping session events of type", "types", c.SkipSessionTypes)
+	log.InfoContext(ctx, "Skipping audit events of type", "types", c.SkipEventTypes)
+	log.InfoContext(ctx, "Skipping session recording events of type", "types", c.SkipSessionTypes)
 	log.InfoContext(ctx, "Using start time", "value", c.StartTime)
 	log.InfoContext(ctx, "Using timeout", "timeout", c.Timeout)
 	log.InfoContext(ctx, "Using Fluentd url", "url", c.FluentdURL)

@@ -47,12 +47,19 @@ server will have the `env:local-dev` label and the other will have the
 user to access a server with the `env:local-dev` label and deny access to the
 `env:local-prod` label.
 
+{/*Note that these instructions only apply to Teleport versions 17.3 and
+above*/}
+
+Before following these instructions, assign <Var
+name="teleport.example.com:443"/> to your Teleport cluster hostname and port,
+but not the scheme (https://).
+
 ### Enroll a server with the `env:local-dev` label
 
 1. Create a join token for the server to use to join the cluster:
 
    ```code
-   $ tctl tokens add --type=node
+   $ tctl tokens add --type=node --format=text
    ```
 
 1. Assign the token to <Var name="token" /> and the host and web port of your
@@ -85,15 +92,36 @@ user to access a server with the `env:local-dev` label and deny access to the
 1. Assign the absolute path to the configuration file you created to 
    <Var name="dev-config-path"/>.
 
-1. Start the Teleport SSH Service on a local Docker container with the
-   configuration and join it to your cluster:
-
+1. Start a Docker container on your workstation to prepare a server that you
+   want enroll as a resource in your Teleport cluster:
+   
    ```code
-   $ docker run -v <Var name="dev-config-path"/>:/etc/teleport/teleport.yaml (=teleport.latest_ent_debug_docker_image=)
+   $ docker run -v <Var name="dev-config-path"/>:/etc/teleport.yaml --interactive --tty ubuntu:24.04 /bin/bash
    ```
 
-1. Wait for a minute or so. Verify that you have logged in via `tsh login` and check that the server has joined your cluster by
-   listing enrolled servers by label. You should see the server you just enrolled:
+1. In your container shell, install curl and sudo:
+
+   ```code
+   $ apt-get update && apt-get install -y curl sudo
+   ```
+
+1. In your container shell, install Teleport on your container:
+
+   ```code
+   $ curl "https://<Var name="teleport.example.com:443"/>/scripts/install.sh" | bash
+   ```
+
+1. In your container shell, start the Teleport SSH Service:
+
+   ```code
+   $ teleport start
+   ```
+
+   Keep the terminal attached to the container shell open.
+
+1. Wait for a minute or so. Verify that you have logged in via `tsh login` and
+   check that the server has joined your cluster by listing enrolled servers by
+   label. You should see the server you just enrolled:
 
    ```code
    $ tsh ls env=local-dev
@@ -109,7 +137,7 @@ user to access a server with the `env:local-dev` label and deny access to the
 1. Create a join token for the server to use to join the cluster:
 
    ```code
-   $ tctl tokens add --type=node
+   $ tctl tokens add --type=node --format=text
    ```
 
 1. Assign the token to <Var name="token" />.
@@ -139,12 +167,32 @@ user to access a server with the `env:local-dev` label and deny access to the
 1. Assign the absolute path to the configuration file you created to 
    <Var name="prod-config-path" />.
 
-1. Start the Teleport SSH Service on a local Docker container with the
-   configuration and join it to your cluster:
+1. Start a Docker container on your workstation to prepare a server that you
+   want enroll as a resource in your Teleport cluster:
+   
+   ```code
+   $ docker run -v <Var name="prod-config-path"/>:/etc/teleport.yaml --interactive --tty ubuntu:24.04 /bin/bash
+   ```
+
+1. In your container shell, install curl and sudo:
 
    ```code
-   $ docker run -v <Var name="prod-config-path" />:/etc/teleport/teleport.yaml (=teleport.latest_ent_debug_docker_image=)
+   $ apt-get update && apt-get install -y curl sudo
    ```
+
+1. In your container shell, install Teleport on your container:
+
+   ```code
+   $ curl "https://<Var name="teleport.example.com:443"/>/scripts/install.sh" | bash
+   ```
+
+1. In your container shell, start the Teleport SSH Service:
+
+   ```code
+   $ teleport start
+   ```
+
+   Keep the terminal attached to the container shell open.
 
 1. Ensure that the server has joined the cluster:
 

@@ -186,7 +186,7 @@
     },
     {
       "source": "/application-access/okta/hosted-guide/",
-      "destination": "/identity-governance/okta/",
+      "destination": "/identity-governance/integrations/okta/",
       "permanent": true
     },
     {
@@ -296,42 +296,42 @@
     },
     {
       "source": "/enroll-resources/application-access/okta/hosted-guide/",
-      "destination": "/identity-governance/okta/",
+      "destination": "/identity-governance/integrations/okta/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/application-access/okta/scim-only/",
-      "destination": "/identity-governance/okta/scim-integration/",
+      "destination": "/identity-governance/integrations/okta/scim-integration/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/application-access/okta/sync-scim/",
-      "destination": "/identity-governance/okta/scim-integration/",
+      "destination": "/identity-governance/integrations/okta/scim-integration/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/application-access/okta/app-and-group-sync/",
-      "destination": "/identity-governance/okta/app-and-group-sync/",
+      "destination": "/identity-governance/integrations/okta/app-and-group-sync/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/application-access/okta/guided-sso/",
-      "destination": "/identity-governance/okta/guided-sso/",
+      "destination": "/identity-governance/integrations/okta/guided-sso/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/application-access/okta/",
-      "destination": "/identity-governance/okta/",
+      "destination": "/identity-governance/integrations/okta/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/application-access/okta/scim-integration/",
-      "destination": "/identity-governance/okta/scim-integration/",
+      "destination": "/identity-governance/integrations/okta/scim-integration/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/application-access/okta/user-sync/",
-      "destination": "/identity-governance/okta/user-sync/",
+      "destination": "/identity-governance/integrations/okta/user-sync/",
       "permanent": true
     },
     {
@@ -526,27 +526,27 @@
     },
     {
       "source": "/admin-guides/access-controls/okta/app-and-group-sync/",
-      "destination": "/identity-governance/okta/app-and-group-sync/",
+      "destination": "/identity-governance/integrations/okta/app-and-group-sync/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/okta/guided-sso/",
-      "destination": "/identity-governance/okta/guided-sso/",
+      "destination": "/identity-governance/integrations/okta/guided-sso/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/okta/",
-      "destination": "/identity-governance/okta/",
+      "destination": "/identity-governance/integrations/okta/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/okta/scim-integration/",
-      "destination": "/identity-governance/okta/scim-integration/",
+      "destination": "/identity-governance/integrations/okta/scim-integration/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/okta/user-sync/",
-      "destination": "/identity-governance/okta/user-sync/",
+      "destination": "/identity-governance/integrations/okta/user-sync/",
       "permanent": true
     },
     {
@@ -791,7 +791,7 @@
     },
     {
       "source": "/admin-guides/teleport-policy/crown-jewels/",
-      "destination": "/identity-security/crown-jewels/",
+      "destination": "/identity-security/usage/crown-jewels/",
       "permanent": true
     },
     {
@@ -841,17 +841,17 @@
     },
     {
       "source": "/admin-guides/teleport-policy/policy-connections/",
-      "destination": "/identity-security/policy-connections/",
+      "destination": "/identity-security/usage/graph-explorer/",
       "permanent": true
     },
     {
       "source": "/admin-guides/teleport-policy/policy-how-to-use/",
-      "destination": "/identity-security/how-to-use/",
+      "destination": "/identity-security/usage/",
       "permanent": true
     },
     {
       "source": "/identity-security/policy-how-to-use/",
-      "destination": "/identity-security/how-to-use/",
+      "destination": "/identity-security/usage/",
       "permanent": true
     },
     {
@@ -1436,17 +1436,17 @@
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/",
-      "destination": "/identity-governance/aws-iam-identity-center/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/guide/",
-      "destination": "/identity-governance/aws-iam-identity-center/guide/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/guide/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
-      "destination": "/identity-governance/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
       "permanent": true
     },
     {
@@ -1491,12 +1491,12 @@
     },
     {
       "source": "/admin-guides/management/guides/scim/sailpoint/",
-      "destination": "/identity-governance/scim/sailpoint/",
+      "destination": "/identity-governance/integrations/scim/sailpoint/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/scim/",
-      "destination": "/identity-governance/scim/",
+      "destination": "/identity-governance/integrations/scim/",
       "permanent": true
     },
     {
@@ -1541,7 +1541,7 @@
     },
     {
       "source": "/admin-guides/management/guides/aws-iam-identity-center/using-aws-cli/",
-      "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/using-aws-cli/",
       "permanent": true
     },
     {
@@ -1666,22 +1666,22 @@
     },
     {
       "source": "/zero-trust-access/management/guides/aws-iam-identity-center/",
-      "destination": "/identity-governance/aws-iam-identity-center/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/management/guides/aws-iam-identity-center/guide/",
-      "destination": "/identity-governance/aws-iam-identity-center/guide/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/guide/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/management/guides/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
-      "destination": "/identity-governance/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/management/guides/aws-iam-identity-center/using-aws-cli/",
-      "destination": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/using-aws-cli/",
       "permanent": true
     },
     {
@@ -2306,12 +2306,122 @@
     },
     {
       "source": "/zero-trust-access/management/guides/scim/",
-      "destination": "/identity-governance/scim/",
+      "destination": "/identity-governance/integrations/scim/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/management/guides/scim/sailpoint/",
-      "destination": "/identity-governance/scim/sailpoint/",
+      "destination": "/identity-governance/integrations/scim/sailpoint/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/aws-iam-identity-center/advanced-options/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/advanced-options/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/aws-iam-identity-center/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/aws-iam-identity-center/guide/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/aws-iam-identity-center/maintenance/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/maintenance/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/migrating-identity-center-from-okta-to-teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/aws-iam-identity-center/using-aws-cli/",
+      "destination": "/identity-governance/integrations/aws-iam-identity-center/using-aws-cli/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/entra-id/configure-access/",
+      "destination": "/identity-governance/integrations/entra-id/configure-access/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/entra-id/",
+      "destination": "/identity-governance/integrations/entra-id/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/entra-id/faq/",
+      "destination": "/identity-governance/integrations/entra-id/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/entra-id/getting-started/",
+      "destination": "/identity-governance/integrations/entra-id/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/entra-id/manual-installation/",
+      "destination": "/identity-governance/integrations/entra-id/manual-installation/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/entra-id/terraform/",
+      "destination": "/identity-governance/integrations/entra-id/terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/okta/app-and-group-sync/",
+      "destination": "/identity-governance/integrations/okta/app-and-group-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/okta/guided-sso/",
+      "destination": "/identity-governance/integrations/okta/guided-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/okta/",
+      "destination": "/identity-governance/integrations/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/okta/scim-integration/",
+      "destination": "/identity-governance/integrations/okta/scim-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/okta/user-sync/",
+      "destination": "/identity-governance/integrations/okta/user-sync/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/scim/sailpoint/",
+      "destination": "/identity-governance/integrations/scim/sailpoint/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/scim/",
+      "destination": "/identity-governance/integrations/scim/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/how-to-use/",
+      "destination": "/identity-security/usage/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/policy-connections/",
+      "destination": "/identity-security/usage/graph-explorer/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-security/crown-jewels/",
+      "destination": "/identity-security/usage/crown-jewels/",
       "permanent": true
     }
   ]

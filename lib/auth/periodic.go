@@ -111,6 +111,8 @@ type instanceMetricsPeriodic struct {
 
 // instanceMetadata contains instance metadata to be exported.
 type instanceMetadata struct {
+	// os is instance Operating System.
+	os string
 	// version specifies the version of the Teleport instance
 	version string
 	// installMethod specifies the Teleport agent installation method
@@ -137,6 +139,7 @@ func (i *instanceMetricsPeriodic) VisitInstance(instance *proto.UpstreamInventor
 	}
 
 	iMetadata := instanceMetadata{
+		os:              metadata.GetOS(),
 		version:         instance.GetVersion(),
 		installMethod:   installMethod,
 		upgraderType:    instance.GetExternalUpgrader(),
@@ -146,6 +149,7 @@ func (i *instanceMetricsPeriodic) VisitInstance(instance *proto.UpstreamInventor
 }
 
 type registeredAgent struct {
+	os               string
 	version          string
 	automaticUpdates string
 }
@@ -160,6 +164,7 @@ func (i *instanceMetricsPeriodic) RegisteredAgentsCount() map[registeredAgent]in
 		}
 
 		agent := registeredAgent{
+			os:               metadata.os,
 			version:          metadata.version,
 			automaticUpdates: automaticUpdates,
 		}

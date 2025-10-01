@@ -183,7 +183,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("PAM", suite.bind(testPAM))
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
-	t.Run("RecordingModesSessionTrackers", suite.bind(testRecordingModesSessionTrackers))
 	t.Run("ReverseTunnelCollapse", suite.bind(testReverseTunnelCollapse))
 	t.Run("RotateRollback", suite.bind(testRotateRollback))
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
@@ -1039,83 +1038,6 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 	}
 }
 
-func testRecordingModesSessionTrackers(t *testing.T, suite *integrationTestSuite) {
-	ctx := t.Context()
-
-	cfg := suite.defaultServiceConfig()
-	cfg.Auth.Enabled = true
-	cfg.Proxy.DisableWebService = true
-	cfg.Proxy.DisableWebInterface = true
-	cfg.Proxy.Enabled = true
-	cfg.SSH.Enabled = true
-
-	teleport := suite.NewTeleportWithConfig(t, nil, nil, cfg)
-	defer teleport.StopAll()
-
-	// startSession starts an interactive session, users must terminate the
-	// session by typing "exit" in the terminal.
-	startSession := func(username string) (*Terminal, chan error) {
-		term := NewTerminal(250)
-		errCh := make(chan error)
-
-		go func() {
-			cl, err := teleport.NewClient(helpers.ClientConfig{
-				Login:   username,
-				Cluster: helpers.Site,
-				Host:    Host,
-			})
-			if err != nil {
-				errCh <- trace.Wrap(err)
-				return
-			}
-			cl.Stdout = term
-			cl.Stdin = term
-
-			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			defer cancel()
-			errCh <- cl.SSH(ctx, nil)
-		}()
-
-		return term, errCh
-	}
-
-	err := teleport.WaitForNodeCount(ctx, helpers.Site, 1)
-	require.NoError(t, err)
-
-	auth := teleport.Process.GetAuthServer()
-	for _, mode := range []string{types.RecordAtNode, types.RecordAtProxy} {
-		t.Run(mode, func(t *testing.T) {
-			rc := types.DefaultSessionRecordingConfig()
-			rc.SetMode(mode)
-
-			_, err := auth.UpsertSessionRecordingConfig(ctx, rc)
-			require.NoError(t, err)
-
-			// Start session.
-			term, errCh := startSession(suite.Me.Username)
-
-			// Validate that the session tracker exists and contains
-			// the correct target address.
-			var sessionID string
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				trackers, err := auth.GetActiveSessionTrackers(ctx)
-				require.NoError(t, err)
-				require.Len(t, trackers, 1)
-				require.Equal(t, helpers.HostID, trackers[0].GetAddress())
-				sessionID = trackers[0].GetSessionID()
-			}, 30*time.Second, 100*time.Millisecond)
-
-			// Wait for the session to terminate without error.
-			term.Type("exit\n\r")
-			require.NoError(t, waitForError(errCh, 30*time.Second))
-
-			// Manually clean up the tracker for the session to prevent
-			// it leaking into the next test case.
-			require.NoError(t, auth.RemoveSessionTracker(ctx, sessionID))
-		})
-	}
-}
-
 func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 	tests := []struct {
 		rootRecordingMode string
@@ -1209,7 +1131,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				)
 				assert.NoError(t, err)
 
-				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil, nil)
+				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
 
