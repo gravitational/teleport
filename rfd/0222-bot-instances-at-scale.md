@@ -157,10 +157,11 @@ The predicate language will be used to provide advanced filtering for instances.
 
 Instance-specific functions will be supported by implementing a custom `typical.ParserSpec`;
 
-| Function       | Purpose                                                                                                                                                     | Example                                                                         |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| **older_than** | Find instances running versions less than a given version - based on the most recent heartbeat                                                              | `older_than(version, "18.1.0")` or `version.older_than("18.1.0")`               |
-| **between**    | Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat. Inclusive of from and exclusive of to. | `between(version, "18.0.0", "18.1.0")` or `version.between("18.0.0", "18.1.0")` |
+| Function       | Purpose                                                                                                                                                     | Example                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| **older_than** | Find instances running a version less than a given version - based on the most recent heartbeat                                                             | `older_than(version, "18.1.0")`        |
+| **newer_than** | Find instances running a version more than a given version - based on the most recent heartbeat                                                             | `newer_than(version, "18.1.0")`        |
+| **between**    | Find instances running versions between a vulnerable version and a fix version - based on the most recent heartbeat. Inclusive of from and exclusive of to. | `between(version, "18.0.0", "18.1.0")` |
 
 ## Service/Output health
 
