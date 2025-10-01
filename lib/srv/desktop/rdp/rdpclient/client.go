@@ -150,7 +150,7 @@ type Client struct {
 	cfg Config
 
 	// Parameters read from the TDP stream
-	requestedWidth, requestedHeight uint16
+	requestedWidth, requestedHeight uint32
 	username                        string
 	keyboardLayout                  uint32
 
@@ -247,7 +247,7 @@ func (c *Client) Run(ctx context.Context, certDER, keyDER []byte) error {
 
 func (c *Client) runLocal(ctx context.Context) error {
 	width := c.requestedWidth - c.requestedWidth%2
-	if err := c.writeConnectionActivated(0, 0, width, c.requestedHeight); err != nil {
+	if err := c.writeConnectionActivated(0, 0, uint16(width), uint16(c.requestedHeight)); err != nil {
 		return trace.Wrap(err)
 	}
 	r, w, err := os.Pipe()
@@ -326,12 +326,13 @@ func (c *Client) runLocal(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	window := setup.Roots[0].Root
+	root := xproto.Drawable(window)
+
 	dmg, err := damage.NewDamageId(dial)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	window := setup.Roots[0].Root
-	root := xproto.Drawable(window)
 	if err := damage.CreateChecked(dial, dmg, root, damage.ReportLevelDeltaRectangles).Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -367,8 +368,18 @@ func (c *Client) runLocal(ctx context.Context) error {
 			}
 		}()
 		for {
-
-			for e, er := dial.PollForEvent(); e != nil || er != nil; e, er = dial.PollForEvent() {
+			if atomic.CompareAndSwapUint32(&c.readyForInput, 1, 0) {
+				if err := damage.DestroyChecked(dial, dmg).Check(); err != nil {
+					return trace.Wrap(err)
+				}
+				dmg, err = damage.NewDamageId(dial)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if err := damage.CreateChecked(dial, dmg, root, damage.ReportLevelDeltaRectangles).Check(); err != nil {
+					return trace.Wrap(err)
+				}
+				continue
 			}
 			start := time.Now()
 			if err := damage.SubtractChecked(dial, dmg, xfixes.RegionNone, parts).Check(); err != nil {
@@ -382,7 +393,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 				i2++
 				if rect.Width%2 == 1 {
 					rect.Width += 1
-					if uint16(rect.X)+rect.Width > width {
+					if uint16(rect.X)+rect.Width > uint16(width) {
 						rect.X -= 1
 					}
 				}
@@ -550,12 +561,18 @@ func (c *Client) handleInputLocal(ctx context.Context, dial *xgb.Conn, root xpro
 		}
 		switch msg := msg.(type) {
 		case tdp.ClientScreenSpec:
+			// If the client has specified a fixed screen size, we don't
+			// need to send a screen resize event.
+			if c.cfg.hasSizeOverride() {
+				return nil
+			}
 			modeCounter++
 			modeName := fmt.Sprintf("mode%d", modeCounter)
 			id, err := dial.NewId()
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			msg.Width = msg.Width - msg.Width%2
 			width := uint16(msg.Width)
 			height := uint16(msg.Height)
 			mode, err := randr.CreateMode(dial, root, randr.ModeInfo{
@@ -591,6 +608,10 @@ func (c *Client) handleInputLocal(ctx context.Context, dial *xgb.Conn, root xpro
 					break
 				}
 			}
+			atomic.StoreUint32(&c.requestedWidth, msg.Width)
+			atomic.StoreUint32(&c.requestedHeight, msg.Height)
+			atomic.StoreUint32(&c.readyForInput, 1)
+
 		case tdp.ClipboardData:
 
 		case tdp.MouseMove:
@@ -665,14 +686,14 @@ func (c *Client) readClientSize() error {
 			// Some desktops have a screen size in their resource definition.
 			// If non-zero then we always request this screen size.
 			c.cfg.Logger.DebugContext(context.Background(), "Forcing a fixed screen size", "width", c.cfg.Width, "height", c.cfg.Height)
-			c.requestedWidth = uint16(c.cfg.Width)
-			c.requestedHeight = uint16(c.cfg.Height)
+			c.requestedWidth = c.cfg.Width
+			c.requestedHeight = c.cfg.Height
 		} else {
 			// If not otherwise specified, we request the screen size based
 			// on what the client (browser) reports.
 			c.cfg.Logger.DebugContext(context.Background(), "Got RDP screen size", "width", s.Width, "height", s.Height)
-			c.requestedWidth = uint16(s.Width)
-			c.requestedHeight = uint16(s.Height)
+			c.requestedWidth = s.Width
+			c.requestedHeight = s.Height
 		}
 
 		if c.requestedWidth > types.MaxRDPScreenWidth || c.requestedHeight > types.MaxRDPScreenHeight {
