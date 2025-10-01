@@ -148,7 +148,7 @@ func (t Target) SecurityPatch() bool {
 }
 
 // SecurityPatchAltOf performs a bidirectional check to see if this target and another
-// are security patch alternates (i.e. wether or not they provide the same security fix).
+// are security patch alternates (i.e. whether or not they provide the same security fix).
 func (t Target) SecurityPatchAltOf(other Target) bool {
 	if !t.Ok() || !other.Ok() {
 		return false
