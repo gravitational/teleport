@@ -59,7 +59,7 @@ export function createPtyHostClient(
       const { response } = await client.getCwd({ id: ptyId });
       return response.cwd;
     },
-    exchangeEvents(ptyId) {
+    managePtyProcess(ptyId) {
       const stream = client.managePtyProcess({ meta: { ptyId: ptyId } });
       return new PtyEventsStreamHandler(stream, ptyId);
     },

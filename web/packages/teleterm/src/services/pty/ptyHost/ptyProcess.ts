@@ -22,7 +22,7 @@ export function createPtyProcess(
   ptyHostClient: PtyHostClient,
   ptyId: string
 ): IPtyProcess {
-  const exchangeEventsStream = ptyHostClient.exchangeEvents(ptyId);
+  const stream = ptyHostClient.managePtyProcess(ptyId);
 
   return {
     getPtyId() {
@@ -34,19 +34,19 @@ export function createPtyProcess(
      */
 
     async start(columns: number, rows: number): Promise<void> {
-      await exchangeEventsStream.start(columns, rows);
+      await stream.start(columns, rows);
     },
 
     async write(data: string): Promise<void> {
-      await exchangeEventsStream.write(data);
+      await stream.write(data);
     },
 
     async resize(columns: number, rows: number): Promise<void> {
-      await exchangeEventsStream.resize(columns, rows);
+      await stream.resize(columns, rows);
     },
 
     async dispose(): Promise<void> {
-      await exchangeEventsStream.dispose();
+      await stream.dispose();
     },
 
     /**
@@ -54,19 +54,19 @@ export function createPtyProcess(
      */
 
     onData(callback: (data: string) => void) {
-      return exchangeEventsStream.onData(callback);
+      return stream.onData(callback);
     },
 
     onOpen(callback: () => void) {
-      return exchangeEventsStream.onOpen(callback);
+      return stream.onOpen(callback);
     },
 
     onExit(callback: (reason: { exitCode: number; signal?: number }) => void) {
-      return exchangeEventsStream.onExit(callback);
+      return stream.onExit(callback);
     },
 
     onStartError(callback: (message: string) => void) {
-      return exchangeEventsStream.onStartError(callback);
+      return stream.onStartError(callback);
     },
 
     /**

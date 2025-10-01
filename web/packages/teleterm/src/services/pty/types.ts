@@ -35,7 +35,7 @@ export interface PtyHostClient {
 
   getCwd(ptyId: string): Promise<string>;
 
-  exchangeEvents(ptyId: string): PtyEventsStreamHandler;
+  managePtyProcess(ptyId: string): PtyEventsStreamHandler;
 }
 
 export type PtyServiceClient = {
