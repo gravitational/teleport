@@ -964,7 +964,7 @@ func TestTrackingSession(t *testing.T) {
 		},
 		{
 			name:          "proxy with proxy recording mode",
-			component:     teleport.ComponentProxy,
+			component:     teleport.ComponentForwardingNode,
 			recordingMode: types.RecordAtProxy,
 			interactive:   true,
 			assertion:     require.NoError,
@@ -974,7 +974,7 @@ func TestTrackingSession(t *testing.T) {
 		},
 		{
 			name:          "proxy with node recording mode",
-			component:     teleport.ComponentProxy,
+			component:     teleport.ComponentForwardingNode,
 			recordingMode: types.RecordAtNode,
 			interactive:   true,
 			assertion:     require.NoError,
@@ -1186,7 +1186,7 @@ func TestCloseProxySession(t *testing.T) {
 	ctx := t.Context()
 
 	srv := newMockServer(t)
-	srv.component = teleport.ComponentProxy
+	srv.component = teleport.ComponentForwardingNode
 
 	reg, err := NewSessionRegistry(SessionRegistryConfig{
 		Srv:                   srv,
@@ -1233,7 +1233,7 @@ func TestCloseRemoteSession(t *testing.T) {
 	ctx := t.Context()
 
 	srv := newMockServer(t)
-	srv.component = teleport.ComponentProxy
+	srv.component = teleport.ComponentForwardingNode
 
 	// init a session registry
 	reg, _ := NewSessionRegistry(SessionRegistryConfig{
