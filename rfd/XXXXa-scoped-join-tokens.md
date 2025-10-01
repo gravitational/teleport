@@ -61,7 +61,7 @@ necessary for assigning scopes, labels, and enforcing limited uses.
 Additionally, fields missing from the existing `types.ProvisionTokenV2` will be
 ported over to facilitate existing provisioning semantics.
 
-```proto
+```diff
 --- a/api/proto/teleport/scopes/joining/v1/token.proto
 +++ b/api/proto/teleport/scopes/joining/v1/token.proto
 @@ -16,7 +16,9 @@ syntax = "proto3";
@@ -74,7 +74,7 @@ ported over to facilitate existing provisioning semantics.
 
  option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1";
 
-@@ -46,8 +48,29 @@ message ScopedToken {
+@@ -46,8 +48,28 @@ message ScopedToken {
 
  // ScopedTokenSpec is the specification of a scoped token.
  message ScopedTokenSpec {
@@ -99,8 +99,11 @@ ported over to facilitate existing provisioning semantics.
 +  // The set of labels to be automatically assigned to any provisioned resource.
 +  map<string, string> assigned_labels = 5;
 +
-+  // The number of resources that can still be provisioned using this token.
-+  int32 remaining_uses = 6;
++  // The number of resources that can be provisioned using this token.
++  int32 max_uses = 6;
++
++  // The number of resources that have been provisioned using this token.
++  int32 total_uses = 6;
  }
 ```
 
@@ -129,46 +132,29 @@ provisioning will use the `server_info` resource to apply
 [resource-based labels](https://goteleport.com/docs/zero-trust-access/rbac-get-started/labels/#apply-resource-based-labels)
 upon creation. This applies labels at runtime using the inventory control
 stream and does not require any new resources or RPCs. Labels will be created
-at the end of `RegisterUsingToken()` before returning the host certificate for a
+at the end of [Join()](https://) before returning the host certificate for a
 successfully provisioned resource.
 
 ### Limited Use Tokens
 
-The simplest way to implement token usage limits is to allow for eventual
-consistency without strong guarantees on usage limits. Whenever a resource is
-provisioned using a token, we decrement the token's `remaining_uses` field with
-a conditional update and delete the token once that number reaches zero. This
-is simple to reason about but makes the tradeoff that multiple resources being
-provisioned at the same time could exceed the number of uses before the token
-was deleted.
+The simplest way to implement token usage limits is to keep a counter of
+successful uses and fallback on the conditional update system to maintain
+consistency. Whenever a resource is provisioned using a token, we increment the
+token's `total_uses` field with a conditional update. If the `total_uses`
+reaches the `max_uses`, the token will no longer be usable and should
+eventually be cleaned up. This is simple to reason about but requires that the
+final decision about whether or not the token can be used has to be deferred to
+the end of the provisioning process. Otherwise it would be possible for many
+concurrent join attempts to exceed the allowed `max_uses` for a token.
 
-Because joining happens over a single bidirectional streaming RPC, we can
-easily wrap the simple approach with a distributed lock keyed on the token's
-name. A reasonable TTL configured for the lock would account for auth server
-crashes, but we would otherwise have complete visibility into whether or not
-provisioning was successful and could release the lock appropriately. This has
-the reverse tradeoff in that we can have strong guarantees about usage limits
-but only one resource can be provisioned at any given time.
+To reduce the throughput to the backend, each auth server would queue attempts
+to update the token and flush them as a single update on a set interval. The
+interval would need to be a relatively short as it would increase provisioning
+time by the interval itself in the worst case. This way writes could be batched
+per auth server per interval instead of per provisioning attempt.
 
-Provided that concurrent provisioning of resources using the same token is not
-a requirement, this seems to balance implementation simplicity without
-sacrificing hard limits.
-
-To facilitate this, we would augment the `ScopedTokenService` API to include a
-method with the following signature:
-
-```go
-func WithScopedToken(ctx context.Context, tokenName string, scopedFn func (ctx context.Context, token *ScopedToken) (bool, error)) error {
-}
-```
-
-This function would acquire a distributed lock on `scoped_token/<token-name>`
-and fetch the `ScopedToken` from the backend. It would then ensure that there
-are still uses remaining before passing the fetched token to the `scopedFn`
-callback. The bool returned by `scopedFn` represents whether or not a resource
-was successfully provisioned. When provisioning is successul, `WithScopedToken`
-will either decrement the remaining uses or delete the `ScopedToken` if there
-are no uses remaining. Finally, it will release the held lock.
+Configuring a token with a `max_uses` of `0` would effectively disable usage
+limits and fallback to the typical expiration behavior tokens have today.
 
 ### `tctl` subcommands
 
