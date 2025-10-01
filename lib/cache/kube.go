@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -145,6 +146,54 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 	}
 
 	return out, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (c *Cache) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesClusters")
+	defer span.End()
+
+	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
+		cache:        c,
+		collection:   c.collections.kubeClusters,
+		index:        kubeClusterNameIndex,
+		upstreamList: c.Config.Kubernetes.ListKubernetesClusters,
+		nextToken:    types.KubeCluster.GetName,
+	}
+	out, next, err := lister.list(ctx, limit, start)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, next, nil
+}
+
+// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+func (c *Cache) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
+		cache:        c,
+		collection:   c.collections.kubeClusters,
+		index:        kubeClusterNameIndex,
+		upstreamList: c.Config.Kubernetes.ListKubernetesClusters,
+		nextToken:    types.KubeCluster.GetName,
+		// TODO(lokraszewski): DELETE IN v21.0.0
+		fallbackGetter: c.Config.Kubernetes.GetKubernetesClusters,
+	}
+
+	return func(yield func(types.KubeCluster, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeKubernetesClusters")
+		defer span.End()
+
+		for cluster, err := range lister.RangeWithFallback(ctx, start, end) {
+			if !yield(cluster, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
