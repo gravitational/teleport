@@ -2343,6 +2343,22 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 	return trustedClusters, nil
 }
 
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (c *Client) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	resp, err := c.TrustClient().ListTrustedClusters(ctx, &trustpb.ListTrustedClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	tcs := make([]types.TrustedCluster, len(resp.TrustedClusters))
+	for i := range resp.TrustedClusters {
+		tcs[i] = resp.TrustedClusters[i]
+	}
+	return tcs, resp.NextPageToken, nil
+}
+
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
 //
 // Deprecated: Use [Client.UpsertTrustedClusterV2] instead.

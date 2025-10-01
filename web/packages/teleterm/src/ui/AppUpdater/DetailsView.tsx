@@ -224,7 +224,11 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
 
   return (
     <Stack>
-      <Text>A new version is available.</Text>
+      <Text>
+        {props.update.updateKind === 'upgrade'
+          ? 'A new version is available.'
+          : 'The app needs to be downgraded to match the required version.'}
+      </Text>
       <Flex gap={1} alignItems="center">
         {props.platform === 'darwin' ? (
           <img alt="App icon" height="50px" src={iconMac} />
