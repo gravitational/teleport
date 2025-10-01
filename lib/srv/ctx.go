@@ -901,8 +901,7 @@ func (c *ServerContext) reportStats(conn *utils.TrackingConn) {
 	// sessions are being recorded at the proxy (this would result in double
 	// events).
 	// Do not emit session data for git commands as they have their own events.
-	if c.GetServer().Component() == teleport.ComponentProxy ||
-		c.GetServer().Component() == teleport.ComponentForwardingGit {
+	if c.GetServer().Component() == teleport.ComponentForwardingGit {
 		return
 	}
 	if services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode()) &&
