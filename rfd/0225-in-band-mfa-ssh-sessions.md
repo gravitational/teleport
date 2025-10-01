@@ -27,7 +27,7 @@ proposal aims to address:
 1. Per-session MFA enforcement flow is performed separately from session creation (i.e., out-of-band), which can
    introduce security gaps. For example, in
    [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc), the MFA
-   enforecement policy can be bypassed since an attacker had the ability to forge a certificate attesting that they had
+   enforcement policy can be bypassed since an attacker had the ability to forge a certificate attesting that they had
    completed MFA and there was no proper binding between the certificate and the session.
 1. Clients are responsible for determining MFA requirements and establishing a separate connection to the Auth service
    to complete the MFA ceremony, increasing implementation complexity and the risk of errors.
