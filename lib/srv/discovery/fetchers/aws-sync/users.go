@@ -27,7 +27,6 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -165,7 +164,6 @@ func awsUserToProtoUser(user iamtypes.User, accountID string) *accessgraphv1alph
 		PasswordLastUsed:    awsTimeToProtoTime(user.PasswordLastUsed),
 		Tags:                tags,
 		PermissionsBoundary: permissionsBoundary,
-		LastSyncTime:        timestamppb.Now(),
 	}
 }
 
@@ -222,7 +220,6 @@ func awsUserPolicyToProtoUserPolicy(policy *iam.GetUserPolicyOutput, user *acces
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
 		User:           user,
 		AccountId:      accountID,
-		LastSyncTime:   timestamppb.Now(),
 	}
 }
 
@@ -248,9 +245,8 @@ func (a *Fetcher) fetchUserAttachedPolicies(ctx context.Context, user *accessgra
 	)
 
 	rsp := &accessgraphv1alpha.AWSUserAttachedPolicies{
-		User:         user,
-		AccountId:    a.AccountID,
-		LastSyncTime: timestamppb.Now(),
+		User:      user,
+		AccountId: a.AccountID,
 	}
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -272,8 +268,7 @@ func (a *Fetcher) fetchUserAttachedPolicies(ctx context.Context, user *accessgra
 
 func (a *Fetcher) fetchGroupsForUser(ctx context.Context, user *accessgraphv1alpha.AWSUserV1) (*accessgraphv1alpha.AWSUserGroupsV1, error) {
 	userGroups := &accessgraphv1alpha.AWSUserGroupsV1{
-		User:         user,
-		LastSyncTime: timestamppb.Now(),
+		User: user,
 	}
 
 	awsCfg, err := a.AWSConfigProvider.GetConfig(
