@@ -959,6 +959,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 ) (*authclient.SSHLoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
+		Scope:          c.Scope,
 		ClientMetadata: clientMeta,
 		SSHPublicKey:   c.UserPublicKeys.SSHPubKey,
 		TLSPublicKey:   c.UserPublicKeys.TLSPubKey,

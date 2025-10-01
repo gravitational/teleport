@@ -96,6 +96,24 @@ func TestValidateSegment(t *testing.T) {
 			strongOk: false,
 			weakOk:   false,
 		},
+		{
+			name:     "leading uppercase segment",
+			segment:  "Aa",
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name:     "middle uppsercase segment",
+			segment:  "aAa",
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name:     "trailing uppercase segment",
+			segment:  "aA",
+			strongOk: false,
+			weakOk:   true,
+		},
 	}
 
 	for _, tt := range tts {

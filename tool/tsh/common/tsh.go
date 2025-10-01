@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
@@ -150,6 +151,8 @@ type ClientInitFunc func(cf *CLIConf) (*client.TeleportClient, error)
 
 // CLIConf stores command line arguments and flags:
 type CLIConf struct {
+	// Scope constrains the current operation to a specific target scope
+	Scope string
 	// UserHost contains "[login]@hostname" argument to SSH command
 	UserHost string
 	// Commands to execute on a remote host
@@ -1229,6 +1232,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request.").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
+	login.Flag("scope", "Scope pins credentials to a given scope.").StringVar(&cf.Scope)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to.").StringVar(&cf.KubernetesCluster)
 	login.Flag("verbose", "Show extra status information.").Short('v').BoolVar(&cf.Verbose)
@@ -2131,6 +2135,7 @@ func serializeVersion(format string, proxyVersion string, proxyPublicAddress str
 
 // onLogin logs in with remote proxy and gets signed certificates
 func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
+	showAlerts := true
 	autoRequest := true
 	// special case: --request-roles=no disables auto-request behavior.
 	if cf.DesiredRoles == "no" {
@@ -2163,6 +2168,24 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+	}
+
+	if cf.Scope != "" {
+		// auto-request behavior is incompatible with scopes
+		autoRequest = false
+		// alerts don't support scoping yet, reduce log spam by disabling lookup attempts
+		showAlerts = false
+
+		// client-side validation of scopes isn't strictly necessary, but scope syntax is easy to mess
+		// up (especially accidentally omitting the leading slash), so its nice to find out if the scope
+		// is malformed before going through authentication.
+		if err := scopes.StrongValidate(cf.Scope); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// TODO(fspmarshall/scopes): this is a clunky way to handle the forced reauth on scope change,
+		// look into doing something smarter.
+		profile, profiles = nil, nil
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
@@ -2471,10 +2494,12 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
 	// with a message like "run 'tsh alerts ls' to view N additional alerts".
-	if err := common.ShowClusterAlerts(cf.Context, clusterClient.CurrentCluster(), os.Stderr, map[string]string{
-		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW); err != nil {
-		logger.WarnContext(cf.Context, "Failed to display cluster alerts", "error", err)
+	if showAlerts {
+		if err := common.ShowClusterAlerts(cf.Context, clusterClient.CurrentCluster(), os.Stderr, map[string]string{
+			types.AlertOnLogin: "yes",
+		}, types.AlertSeverity_LOW); err != nil {
+			logger.WarnContext(cf.Context, "Failed to display cluster alerts", "error", err)
+		}
 	}
 
 	return nil
@@ -4749,6 +4774,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	if len(rPorts) > 0 {
 		c.RemoteForwardPorts = rPorts
 	}
+
+	// TODO(fspmarshall/scopes): decide if we want some kind of persistence for the CLI arg.
+	c.Scope = cf.Scope
+
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
 	}
@@ -5233,10 +5262,24 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	if cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", cluster)
 	}
-	fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
+	if p.Scope != "" {
+		fmt.Printf("  Scope:              %v\n", p.Scope)
+		fmt.Printf("  Scoped Roles:\n")
+
+		assignedScopes := slices.Collect(maps.Keys(p.ScopedRoles))
+		slices.Sort(assignedScopes)
+		for _, scope := range assignedScopes {
+			fmt.Printf("    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
+		}
+	} else {
+		fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
+	}
 	if debug {
 		var count int
 		for k, v := range p.Traits {
+			if len(v) == 0 {
+				continue
+			}
 			if count == 0 {
 				fmt.Printf("  Traits:             %v: %v\n", k, v)
 			} else {
@@ -5425,6 +5468,8 @@ type profileInfo struct {
 	ActiveRequests     []string               `json:"active_requests,omitempty"`
 	Cluster            string                 `json:"cluster"`
 	Roles              []string               `json:"roles,omitempty"`
+	Scope              string                 `json:"scope,omitempty"`
+	ScopedRoles        map[string][]string    `json:"scoped_roles,omitempty"`
 	Traits             wrappers.Traits        `json:"traits,omitempty"`
 	Logins             []string               `json:"logins,omitempty"`
 	KubernetesEnabled  bool                   `json:"kubernetes_enabled"`
@@ -5477,6 +5522,8 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		ActiveRequests:     p.ActiveRequests,
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
+		Scope:              p.Scope,
+		ScopedRoles:        p.ScopedRoles,
 		Traits:             p.Traits,
 		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
