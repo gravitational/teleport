@@ -18,7 +18,7 @@
 
 import { Server, ServerCredentials } from '@grpc/grpc-js';
 
-import { ptyHostDefinition } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.grpc-server';
+import { ptyHostServiceDefinition } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.grpc-server';
 
 import Logger from 'teleterm/logger';
 import { RuntimeSettings, TERMINATE_MESSAGE } from 'teleterm/mainProcess/types';
@@ -74,7 +74,7 @@ async function initializeServer(
 
   const server = new Server();
   const ptyHostService = createPtyHostService();
-  server.addService(ptyHostDefinition, ptyHostService);
+  server.addService(ptyHostServiceDefinition, ptyHostService);
 
   // grpc-js requires us to pass localhost:port for TCP connections,
   const grpcServerAddress = address.replace('tcp://', '');

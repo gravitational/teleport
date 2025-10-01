@@ -23,7 +23,7 @@
 //
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
-import { PtyHost } from "./pty_host_service_pb";
+import { PtyHostService } from "./pty_host_service_pb";
 import type { PtyCwd } from "./pty_host_service_pb";
 import type { PtyServerEvent } from "./pty_host_service_pb";
 import type { PtyClientEvent } from "./pty_host_service_pb";
@@ -34,32 +34,45 @@ import type { PtyCreate } from "./pty_host_service_pb";
 import type { UnaryCall } from "@protobuf-ts/runtime-rpc";
 import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
 /**
- * @generated from protobuf service teleport.web.teleterm.ptyhost.v1.PtyHost
+ * PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
+ *
+ * @generated from protobuf service teleport.web.teleterm.ptyhost.v1.PtyHostService
  */
-export interface IPtyHostClient {
+export interface IPtyHostServiceClient {
     /**
+     * CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
+     *
      * @generated from protobuf rpc: CreatePtyProcess(teleport.web.teleterm.ptyhost.v1.PtyCreate) returns (teleport.web.teleterm.ptyhost.v1.PtyId);
      */
     createPtyProcess(input: PtyCreate, options?: RpcOptions): UnaryCall<PtyCreate, PtyId>;
     /**
+     * ExhchangeEvents is a bidirectional stream that lets the client send input and resize requests
+     * to the PTY process and receive output from the PTY process.
+     *
      * @generated from protobuf rpc: ExchangeEvents(stream teleport.web.teleterm.ptyhost.v1.PtyClientEvent) returns (stream teleport.web.teleterm.ptyhost.v1.PtyServerEvent);
      */
     exchangeEvents(options?: RpcOptions): DuplexStreamingCall<PtyClientEvent, PtyServerEvent>;
     /**
+     * GetCwd returns the current working directory of the given PTY process.
+     *
      * @generated from protobuf rpc: GetCwd(teleport.web.teleterm.ptyhost.v1.PtyId) returns (teleport.web.teleterm.ptyhost.v1.PtyCwd);
      */
     getCwd(input: PtyId, options?: RpcOptions): UnaryCall<PtyId, PtyCwd>;
 }
 /**
- * @generated from protobuf service teleport.web.teleterm.ptyhost.v1.PtyHost
+ * PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
+ *
+ * @generated from protobuf service teleport.web.teleterm.ptyhost.v1.PtyHostService
  */
-export class PtyHostClient implements IPtyHostClient, ServiceInfo {
-    typeName = PtyHost.typeName;
-    methods = PtyHost.methods;
-    options = PtyHost.options;
+export class PtyHostServiceClient implements IPtyHostServiceClient, ServiceInfo {
+    typeName = PtyHostService.typeName;
+    methods = PtyHostService.methods;
+    options = PtyHostService.options;
     constructor(private readonly _transport: RpcTransport) {
     }
     /**
+     * CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
+     *
      * @generated from protobuf rpc: CreatePtyProcess(teleport.web.teleterm.ptyhost.v1.PtyCreate) returns (teleport.web.teleterm.ptyhost.v1.PtyId);
      */
     createPtyProcess(input: PtyCreate, options?: RpcOptions): UnaryCall<PtyCreate, PtyId> {
@@ -67,6 +80,9 @@ export class PtyHostClient implements IPtyHostClient, ServiceInfo {
         return stackIntercept<PtyCreate, PtyId>("unary", this._transport, method, opt, input);
     }
     /**
+     * ExhchangeEvents is a bidirectional stream that lets the client send input and resize requests
+     * to the PTY process and receive output from the PTY process.
+     *
      * @generated from protobuf rpc: ExchangeEvents(stream teleport.web.teleterm.ptyhost.v1.PtyClientEvent) returns (stream teleport.web.teleterm.ptyhost.v1.PtyServerEvent);
      */
     exchangeEvents(options?: RpcOptions): DuplexStreamingCall<PtyClientEvent, PtyServerEvent> {
@@ -74,6 +90,8 @@ export class PtyHostClient implements IPtyHostClient, ServiceInfo {
         return stackIntercept<PtyClientEvent, PtyServerEvent>("duplex", this._transport, method, opt);
     }
     /**
+     * GetCwd returns the current working directory of the given PTY process.
+     *
      * @generated from protobuf rpc: GetCwd(teleport.web.teleterm.ptyhost.v1.PtyId) returns (teleport.web.teleterm.ptyhost.v1.PtyCwd);
      */
     getCwd(input: PtyId, options?: RpcOptions): UnaryCall<PtyId, PtyCwd> {

@@ -28,36 +28,45 @@ import { PtyId } from "./pty_host_service_pb";
 import { PtyCreate } from "./pty_host_service_pb";
 import type * as grpc from "@grpc/grpc-js";
 /**
- * @generated from protobuf service teleport.web.teleterm.ptyhost.v1.PtyHost
+ * PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
+ *
+ * @generated from protobuf service teleport.web.teleterm.ptyhost.v1.PtyHostService
  */
-export interface IPtyHost extends grpc.UntypedServiceImplementation {
+export interface IPtyHostService extends grpc.UntypedServiceImplementation {
     /**
+     * CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
+     *
      * @generated from protobuf rpc: CreatePtyProcess(teleport.web.teleterm.ptyhost.v1.PtyCreate) returns (teleport.web.teleterm.ptyhost.v1.PtyId);
      */
     createPtyProcess: grpc.handleUnaryCall<PtyCreate, PtyId>;
     /**
+     * ExhchangeEvents is a bidirectional stream that lets the client send input and resize requests
+     * to the PTY process and receive output from the PTY process.
+     *
      * @generated from protobuf rpc: ExchangeEvents(stream teleport.web.teleterm.ptyhost.v1.PtyClientEvent) returns (stream teleport.web.teleterm.ptyhost.v1.PtyServerEvent);
      */
     exchangeEvents: grpc.handleBidiStreamingCall<PtyClientEvent, PtyServerEvent>;
     /**
+     * GetCwd returns the current working directory of the given PTY process.
+     *
      * @generated from protobuf rpc: GetCwd(teleport.web.teleterm.ptyhost.v1.PtyId) returns (teleport.web.teleterm.ptyhost.v1.PtyCwd);
      */
     getCwd: grpc.handleUnaryCall<PtyId, PtyCwd>;
 }
 /**
- * @grpc/grpc-js definition for the protobuf service teleport.web.teleterm.ptyhost.v1.PtyHost.
+ * @grpc/grpc-js definition for the protobuf service teleport.web.teleterm.ptyhost.v1.PtyHostService.
  *
- * Usage: Implement the interface IPtyHost and add to a grpc server.
+ * Usage: Implement the interface IPtyHostService and add to a grpc server.
  *
  * ```typescript
  * const server = new grpc.Server();
- * const service: IPtyHost = ...
- * server.addService(ptyHostDefinition, service);
+ * const service: IPtyHostService = ...
+ * server.addService(ptyHostServiceDefinition, service);
  * ```
  */
-export const ptyHostDefinition: grpc.ServiceDefinition<IPtyHost> = {
+export const ptyHostServiceDefinition: grpc.ServiceDefinition<IPtyHostService> = {
     createPtyProcess: {
-        path: "/teleport.web.teleterm.ptyhost.v1.PtyHost/CreatePtyProcess",
+        path: "/teleport.web.teleterm.ptyhost.v1.PtyHostService/CreatePtyProcess",
         originalName: "CreatePtyProcess",
         requestStream: false,
         responseStream: false,
@@ -67,7 +76,7 @@ export const ptyHostDefinition: grpc.ServiceDefinition<IPtyHost> = {
         requestSerialize: value => Buffer.from(PtyCreate.toBinary(value))
     },
     exchangeEvents: {
-        path: "/teleport.web.teleterm.ptyhost.v1.PtyHost/ExchangeEvents",
+        path: "/teleport.web.teleterm.ptyhost.v1.PtyHostService/ExchangeEvents",
         originalName: "ExchangeEvents",
         requestStream: true,
         responseStream: true,
@@ -77,7 +86,7 @@ export const ptyHostDefinition: grpc.ServiceDefinition<IPtyHost> = {
         requestSerialize: value => Buffer.from(PtyClientEvent.toBinary(value))
     },
     getCwd: {
-        path: "/teleport.web.teleterm.ptyhost.v1.PtyHost/GetCwd",
+        path: "/teleport.web.teleterm.ptyhost.v1.PtyHostService/GetCwd",
         originalName: "GetCwd",
         requestStream: false,
         responseStream: false,

@@ -21,7 +21,7 @@ import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
 import { Struct } from 'gen-proto-ts/google/protobuf/struct_pb';
 import { PtyCreate } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
-import { PtyHostClient as GrpcClient } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.client';
+import { PtyHostServiceClient as GrpcClient } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.client';
 
 import { PtyHostClient } from '../types';
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';

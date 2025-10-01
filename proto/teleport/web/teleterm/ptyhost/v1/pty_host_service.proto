@@ -23,7 +23,7 @@ package teleport.web.teleterm.ptyhost.v1;
 import "google/protobuf/struct.proto";
 
 // PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
-service PtyHost {
+service PtyHostService {
   // CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
   rpc CreatePtyProcess(PtyCreate) returns (PtyId) {}
   // ExhchangeEvents is a bidirectional stream that lets the client send input and resize requests

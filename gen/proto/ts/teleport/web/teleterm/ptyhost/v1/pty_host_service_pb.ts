@@ -33,6 +33,8 @@ import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 import { Struct } from "../../../../../google/protobuf/struct_pb";
 /**
+ * PtyId identifies a particular PTY process.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyId
  */
 export interface PtyId {
@@ -42,6 +44,8 @@ export interface PtyId {
     id: string;
 }
 /**
+ * PtyCreate includes fields necessary to start a PTY process.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyCreate
  */
 export interface PtyCreate {
@@ -71,6 +75,8 @@ export interface PtyCreate {
     useConpty: boolean;
 }
 /**
+ * PtyClientEvent represents events sent from the terminal client to the PTY process.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyClientEvent
  */
 export interface PtyClientEvent {
@@ -100,6 +106,8 @@ export interface PtyClientEvent {
     };
 }
 /**
+ * PtyServerEvent represents events sent from the PTY process to the terminal client.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyServerEvent
  */
 export interface PtyServerEvent {
@@ -107,33 +115,27 @@ export interface PtyServerEvent {
      * @generated from protobuf oneof: event
      */
     event: {
-        oneofKind: "resize";
-        /**
-         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventResize resize = 1;
-         */
-        resize: PtyEventResize;
-    } | {
         oneofKind: "data";
         /**
-         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventData data = 2;
+         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventData data = 1;
          */
         data: PtyEventData;
     } | {
         oneofKind: "open";
         /**
-         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventOpen open = 3;
+         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventOpen open = 2;
          */
         open: PtyEventOpen;
     } | {
         oneofKind: "exit";
         /**
-         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventExit exit = 4;
+         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventExit exit = 3;
          */
         exit: PtyEventExit;
     } | {
         oneofKind: "startError";
         /**
-         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventStartError start_error = 5;
+         * @generated from protobuf field: teleport.web.teleterm.ptyhost.v1.PtyEventStartError start_error = 4;
          */
         startError: PtyEventStartError;
     } | {
@@ -141,6 +143,9 @@ export interface PtyServerEvent {
     };
 }
 /**
+ * PtyEventStart sent by the client makes the shared process attempt to spawn the PTY process
+ * previously initialized with CreatePtyProcess.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyEventStart
  */
 export interface PtyEventStart {
@@ -154,6 +159,9 @@ export interface PtyEventStart {
     rows: number;
 }
 /**
+ * PtyEventData is input sent by the client to the PTY process or output sent from the PTY process
+ * to the client.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyEventData
  */
 export interface PtyEventData {
@@ -163,6 +171,8 @@ export interface PtyEventData {
     message: string;
 }
 /**
+ * PtyEventResize is a resize request sent from the client to the PTY process.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyEventResize
  */
 export interface PtyEventResize {
@@ -176,11 +186,15 @@ export interface PtyEventResize {
     rows: number;
 }
 /**
+ * PtyEventOpen is sent by the PTY process after a successful start.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyEventOpen
  */
 export interface PtyEventOpen {
 }
 /**
+ * PtyEventExit is sent by the PTY process on exit.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyEventExit
  */
 export interface PtyEventExit {
@@ -194,6 +208,8 @@ export interface PtyEventExit {
     signal?: number;
 }
 /**
+ * PtyEventStartError is sent by the PTY process when the shared process fails to start it.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyEventStartError
  */
 export interface PtyEventStartError {
@@ -203,6 +219,8 @@ export interface PtyEventStartError {
     message: string;
 }
 /**
+ * PtyCwd is the current working directory of a PTY process.
+ *
  * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyCwd
  */
 export interface PtyCwd {
@@ -418,11 +436,10 @@ export const PtyClientEvent = new PtyClientEvent$Type();
 class PtyServerEvent$Type extends MessageType<PtyServerEvent> {
     constructor() {
         super("teleport.web.teleterm.ptyhost.v1.PtyServerEvent", [
-            { no: 1, name: "resize", kind: "message", oneof: "event", T: () => PtyEventResize },
-            { no: 2, name: "data", kind: "message", oneof: "event", T: () => PtyEventData },
-            { no: 3, name: "open", kind: "message", oneof: "event", T: () => PtyEventOpen },
-            { no: 4, name: "exit", kind: "message", oneof: "event", T: () => PtyEventExit },
-            { no: 5, name: "start_error", kind: "message", oneof: "event", T: () => PtyEventStartError }
+            { no: 1, name: "data", kind: "message", oneof: "event", T: () => PtyEventData },
+            { no: 2, name: "open", kind: "message", oneof: "event", T: () => PtyEventOpen },
+            { no: 3, name: "exit", kind: "message", oneof: "event", T: () => PtyEventExit },
+            { no: 4, name: "start_error", kind: "message", oneof: "event", T: () => PtyEventStartError }
         ]);
     }
     create(value?: PartialMessage<PtyServerEvent>): PtyServerEvent {
@@ -437,31 +454,25 @@ class PtyServerEvent$Type extends MessageType<PtyServerEvent> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* teleport.web.teleterm.ptyhost.v1.PtyEventResize resize */ 1:
-                    message.event = {
-                        oneofKind: "resize",
-                        resize: PtyEventResize.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).resize)
-                    };
-                    break;
-                case /* teleport.web.teleterm.ptyhost.v1.PtyEventData data */ 2:
+                case /* teleport.web.teleterm.ptyhost.v1.PtyEventData data */ 1:
                     message.event = {
                         oneofKind: "data",
                         data: PtyEventData.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).data)
                     };
                     break;
-                case /* teleport.web.teleterm.ptyhost.v1.PtyEventOpen open */ 3:
+                case /* teleport.web.teleterm.ptyhost.v1.PtyEventOpen open */ 2:
                     message.event = {
                         oneofKind: "open",
                         open: PtyEventOpen.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).open)
                     };
                     break;
-                case /* teleport.web.teleterm.ptyhost.v1.PtyEventExit exit */ 4:
+                case /* teleport.web.teleterm.ptyhost.v1.PtyEventExit exit */ 3:
                     message.event = {
                         oneofKind: "exit",
                         exit: PtyEventExit.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).exit)
                     };
                     break;
-                case /* teleport.web.teleterm.ptyhost.v1.PtyEventStartError start_error */ 5:
+                case /* teleport.web.teleterm.ptyhost.v1.PtyEventStartError start_error */ 4:
                     message.event = {
                         oneofKind: "startError",
                         startError: PtyEventStartError.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).startError)
@@ -479,21 +490,18 @@ class PtyServerEvent$Type extends MessageType<PtyServerEvent> {
         return message;
     }
     internalBinaryWrite(message: PtyServerEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* teleport.web.teleterm.ptyhost.v1.PtyEventResize resize = 1; */
-        if (message.event.oneofKind === "resize")
-            PtyEventResize.internalBinaryWrite(message.event.resize, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.web.teleterm.ptyhost.v1.PtyEventData data = 2; */
+        /* teleport.web.teleterm.ptyhost.v1.PtyEventData data = 1; */
         if (message.event.oneofKind === "data")
-            PtyEventData.internalBinaryWrite(message.event.data, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.web.teleterm.ptyhost.v1.PtyEventOpen open = 3; */
+            PtyEventData.internalBinaryWrite(message.event.data, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.web.teleterm.ptyhost.v1.PtyEventOpen open = 2; */
         if (message.event.oneofKind === "open")
-            PtyEventOpen.internalBinaryWrite(message.event.open, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.web.teleterm.ptyhost.v1.PtyEventExit exit = 4; */
+            PtyEventOpen.internalBinaryWrite(message.event.open, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.web.teleterm.ptyhost.v1.PtyEventExit exit = 3; */
         if (message.event.oneofKind === "exit")
-            PtyEventExit.internalBinaryWrite(message.event.exit, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.web.teleterm.ptyhost.v1.PtyEventStartError start_error = 5; */
+            PtyEventExit.internalBinaryWrite(message.event.exit, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.web.teleterm.ptyhost.v1.PtyEventStartError start_error = 4; */
         if (message.event.oneofKind === "startError")
-            PtyEventStartError.internalBinaryWrite(message.event.startError, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+            PtyEventStartError.internalBinaryWrite(message.event.startError, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -835,9 +843,9 @@ class PtyCwd$Type extends MessageType<PtyCwd> {
  */
 export const PtyCwd = new PtyCwd$Type();
 /**
- * @generated ServiceType for protobuf service teleport.web.teleterm.ptyhost.v1.PtyHost
+ * @generated ServiceType for protobuf service teleport.web.teleterm.ptyhost.v1.PtyHostService
  */
-export const PtyHost = new ServiceType("teleport.web.teleterm.ptyhost.v1.PtyHost", [
+export const PtyHostService = new ServiceType("teleport.web.teleterm.ptyhost.v1.PtyHostService", [
     { name: "CreatePtyProcess", options: {}, I: PtyCreate, O: PtyId },
     { name: "ExchangeEvents", serverStreaming: true, clientStreaming: true, options: {}, I: PtyClientEvent, O: PtyServerEvent },
     { name: "GetCwd", options: {}, I: PtyId, O: PtyCwd }

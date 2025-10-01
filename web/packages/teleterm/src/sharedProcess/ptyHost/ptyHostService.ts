@@ -21,7 +21,7 @@ import {
   PtyCwd,
   PtyId,
 } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
-import { IPtyHost } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.grpc-server';
+import { IPtyHostService } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.grpc-server';
 
 import Logger from 'teleterm/logger';
 import { unique } from 'teleterm/ui/utils';
@@ -29,7 +29,7 @@ import { unique } from 'teleterm/ui/utils';
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
 import { PtyProcess } from './ptyProcess';
 
-export function createPtyHostService(): IPtyHost & {
+export function createPtyHostService(): IPtyHostService & {
   dispose(): Promise<void>;
 } {
   const logger = new Logger('PtyHostService');
