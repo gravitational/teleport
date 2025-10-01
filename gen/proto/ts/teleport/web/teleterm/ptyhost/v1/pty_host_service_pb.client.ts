@@ -24,13 +24,14 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { PtyHostService } from "./pty_host_service_pb";
-import type { PtyCwd } from "./pty_host_service_pb";
-import type { PtyServerEvent } from "./pty_host_service_pb";
-import type { PtyClientEvent } from "./pty_host_service_pb";
+import type { GetCwdResponse } from "./pty_host_service_pb";
+import type { GetCwdRequest } from "./pty_host_service_pb";
+import type { ManagePtyProcessResponse } from "./pty_host_service_pb";
+import type { ManagePtyProcessRequest } from "./pty_host_service_pb";
 import type { DuplexStreamingCall } from "@protobuf-ts/runtime-rpc";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
-import type { PtyId } from "./pty_host_service_pb";
-import type { PtyCreate } from "./pty_host_service_pb";
+import type { CreatePtyProcessResponse } from "./pty_host_service_pb";
+import type { CreatePtyProcessRequest } from "./pty_host_service_pb";
 import type { UnaryCall } from "@protobuf-ts/runtime-rpc";
 import type { RpcOptions } from "@protobuf-ts/runtime-rpc";
 /**
@@ -42,22 +43,22 @@ export interface IPtyHostServiceClient {
     /**
      * CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
      *
-     * @generated from protobuf rpc: CreatePtyProcess(teleport.web.teleterm.ptyhost.v1.PtyCreate) returns (teleport.web.teleterm.ptyhost.v1.PtyId);
+     * @generated from protobuf rpc: CreatePtyProcess(teleport.web.teleterm.ptyhost.v1.CreatePtyProcessRequest) returns (teleport.web.teleterm.ptyhost.v1.CreatePtyProcessResponse);
      */
-    createPtyProcess(input: PtyCreate, options?: RpcOptions): UnaryCall<PtyCreate, PtyId>;
+    createPtyProcess(input: CreatePtyProcessRequest, options?: RpcOptions): UnaryCall<CreatePtyProcessRequest, CreatePtyProcessResponse>;
     /**
-     * ExhchangeEvents is a bidirectional stream that lets the client send input and resize requests
+     * ManagePtyProcess is a bidirectional stream that lets the client send input and resize requests
      * to the PTY process and receive output from the PTY process.
      *
-     * @generated from protobuf rpc: ExchangeEvents(stream teleport.web.teleterm.ptyhost.v1.PtyClientEvent) returns (stream teleport.web.teleterm.ptyhost.v1.PtyServerEvent);
+     * @generated from protobuf rpc: ManagePtyProcess(stream teleport.web.teleterm.ptyhost.v1.ManagePtyProcessRequest) returns (stream teleport.web.teleterm.ptyhost.v1.ManagePtyProcessResponse);
      */
-    exchangeEvents(options?: RpcOptions): DuplexStreamingCall<PtyClientEvent, PtyServerEvent>;
+    managePtyProcess(options?: RpcOptions): DuplexStreamingCall<ManagePtyProcessRequest, ManagePtyProcessResponse>;
     /**
      * GetCwd returns the current working directory of the given PTY process.
      *
-     * @generated from protobuf rpc: GetCwd(teleport.web.teleterm.ptyhost.v1.PtyId) returns (teleport.web.teleterm.ptyhost.v1.PtyCwd);
+     * @generated from protobuf rpc: GetCwd(teleport.web.teleterm.ptyhost.v1.GetCwdRequest) returns (teleport.web.teleterm.ptyhost.v1.GetCwdResponse);
      */
-    getCwd(input: PtyId, options?: RpcOptions): UnaryCall<PtyId, PtyCwd>;
+    getCwd(input: GetCwdRequest, options?: RpcOptions): UnaryCall<GetCwdRequest, GetCwdResponse>;
 }
 /**
  * PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
@@ -73,29 +74,29 @@ export class PtyHostServiceClient implements IPtyHostServiceClient, ServiceInfo 
     /**
      * CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
      *
-     * @generated from protobuf rpc: CreatePtyProcess(teleport.web.teleterm.ptyhost.v1.PtyCreate) returns (teleport.web.teleterm.ptyhost.v1.PtyId);
+     * @generated from protobuf rpc: CreatePtyProcess(teleport.web.teleterm.ptyhost.v1.CreatePtyProcessRequest) returns (teleport.web.teleterm.ptyhost.v1.CreatePtyProcessResponse);
      */
-    createPtyProcess(input: PtyCreate, options?: RpcOptions): UnaryCall<PtyCreate, PtyId> {
+    createPtyProcess(input: CreatePtyProcessRequest, options?: RpcOptions): UnaryCall<CreatePtyProcessRequest, CreatePtyProcessResponse> {
         const method = this.methods[0], opt = this._transport.mergeOptions(options);
-        return stackIntercept<PtyCreate, PtyId>("unary", this._transport, method, opt, input);
+        return stackIntercept<CreatePtyProcessRequest, CreatePtyProcessResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * ExhchangeEvents is a bidirectional stream that lets the client send input and resize requests
+     * ManagePtyProcess is a bidirectional stream that lets the client send input and resize requests
      * to the PTY process and receive output from the PTY process.
      *
-     * @generated from protobuf rpc: ExchangeEvents(stream teleport.web.teleterm.ptyhost.v1.PtyClientEvent) returns (stream teleport.web.teleterm.ptyhost.v1.PtyServerEvent);
+     * @generated from protobuf rpc: ManagePtyProcess(stream teleport.web.teleterm.ptyhost.v1.ManagePtyProcessRequest) returns (stream teleport.web.teleterm.ptyhost.v1.ManagePtyProcessResponse);
      */
-    exchangeEvents(options?: RpcOptions): DuplexStreamingCall<PtyClientEvent, PtyServerEvent> {
+    managePtyProcess(options?: RpcOptions): DuplexStreamingCall<ManagePtyProcessRequest, ManagePtyProcessResponse> {
         const method = this.methods[1], opt = this._transport.mergeOptions(options);
-        return stackIntercept<PtyClientEvent, PtyServerEvent>("duplex", this._transport, method, opt);
+        return stackIntercept<ManagePtyProcessRequest, ManagePtyProcessResponse>("duplex", this._transport, method, opt);
     }
     /**
      * GetCwd returns the current working directory of the given PTY process.
      *
-     * @generated from protobuf rpc: GetCwd(teleport.web.teleterm.ptyhost.v1.PtyId) returns (teleport.web.teleterm.ptyhost.v1.PtyCwd);
+     * @generated from protobuf rpc: GetCwd(teleport.web.teleterm.ptyhost.v1.GetCwdRequest) returns (teleport.web.teleterm.ptyhost.v1.GetCwdResponse);
      */
-    getCwd(input: PtyId, options?: RpcOptions): UnaryCall<PtyId, PtyCwd> {
+    getCwd(input: GetCwdRequest, options?: RpcOptions): UnaryCall<GetCwdRequest, GetCwdResponse> {
         const method = this.methods[2], opt = this._transport.mergeOptions(options);
-        return stackIntercept<PtyId, PtyCwd>("unary", this._transport, method, opt, input);
+        return stackIntercept<GetCwdRequest, GetCwdResponse>("unary", this._transport, method, opt, input);
     }
 }

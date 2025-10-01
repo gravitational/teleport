@@ -20,7 +20,7 @@ import { ChannelCredentials } from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 
 import { Struct } from 'gen-proto-ts/google/protobuf/struct_pb';
-import { PtyCreate } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
+import { CreatePtyProcessRequest } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 import { PtyHostServiceClient as GrpcClient } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.client';
 
 import { PtyHostClient } from '../types';
@@ -38,7 +38,7 @@ export function createPtyHostClient(
 
   return {
     async createPtyProcess(ptyOptions) {
-      const request = PtyCreate.create({
+      const request = CreatePtyProcessRequest.create({
         args: ptyOptions.args,
         path: ptyOptions.path,
         env: Struct.fromJson(ptyOptions.env),
@@ -60,7 +60,7 @@ export function createPtyHostClient(
       return response.cwd;
     },
     exchangeEvents(ptyId) {
-      const stream = client.exchangeEvents({ meta: { ptyId: ptyId } });
+      const stream = client.managePtyProcess({ meta: { ptyId: ptyId } });
       return new PtyEventsStreamHandler(stream, ptyId);
     },
   };

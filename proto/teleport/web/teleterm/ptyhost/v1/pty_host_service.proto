@@ -25,21 +25,16 @@ import "google/protobuf/struct.proto";
 // PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
 service PtyHostService {
   // CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
-  rpc CreatePtyProcess(PtyCreate) returns (PtyId) {}
-  // ExhchangeEvents is a bidirectional stream that lets the client send input and resize requests
+  rpc CreatePtyProcess(CreatePtyProcessRequest) returns (CreatePtyProcessResponse) {}
+  // ManagePtyProcess is a bidirectional stream that lets the client send input and resize requests
   // to the PTY process and receive output from the PTY process.
-  rpc ExchangeEvents(stream PtyClientEvent) returns (stream PtyServerEvent) {}
+  rpc ManagePtyProcess(stream ManagePtyProcessRequest) returns (stream ManagePtyProcessResponse) {}
   // GetCwd returns the current working directory of the given PTY process.
-  rpc GetCwd(PtyId) returns (PtyCwd) {}
+  rpc GetCwd(GetCwdRequest) returns (GetCwdResponse) {}
 }
 
-// PtyId identifies a particular PTY process.
-message PtyId {
-  string id = 1;
-}
-
-// PtyCreate includes fields necessary to start a PTY process.
-message PtyCreate {
+// CreatePtyProcessRequest includes fields necessary to start a PTY process.
+message CreatePtyProcessRequest {
   string path = 3;
   repeated string args = 4;
   string cwd = 5;
@@ -50,8 +45,13 @@ message PtyCreate {
   bool use_conpty = 9;
 }
 
-// PtyClientEvent represents events sent from the terminal client to the PTY process.
-message PtyClientEvent {
+// CreatePtyProcessResponse returns the ID of the initialized PTY process.
+message CreatePtyProcessResponse {
+  string id = 1;
+}
+
+// ManagePtyProcessRequest represents events sent from the terminal client to the PTY process.
+message ManagePtyProcessRequest {
   oneof event {
     PtyEventStart start = 2;
     PtyEventResize resize = 3;
@@ -59,8 +59,8 @@ message PtyClientEvent {
   }
 }
 
-// PtyServerEvent represents events sent from the PTY process to the terminal client.
-message PtyServerEvent {
+// ManagePtyProcessResponse represents events sent from the PTY process to the terminal client.
+message ManagePtyProcessResponse {
   oneof event {
     PtyEventData data = 1;
     PtyEventOpen open = 2;
@@ -102,7 +102,12 @@ message PtyEventStartError {
   string message = 1;
 }
 
-// PtyCwd is the current working directory of a PTY process.
-message PtyCwd {
+// GetCwdRequest identifies the PTY process for which the cwd should be returned.
+message GetCwdRequest {
+  string id = 1;
+}
+
+// GetCwdResponse includes the current working directory of a PTY process.
+message GetCwdResponse {
   string cwd = 1;
 }

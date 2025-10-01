@@ -21,11 +21,12 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-import { PtyCwd } from "./pty_host_service_pb";
-import { PtyServerEvent } from "./pty_host_service_pb";
-import { PtyClientEvent } from "./pty_host_service_pb";
-import { PtyId } from "./pty_host_service_pb";
-import { PtyCreate } from "./pty_host_service_pb";
+import { GetCwdResponse } from "./pty_host_service_pb";
+import { GetCwdRequest } from "./pty_host_service_pb";
+import { ManagePtyProcessResponse } from "./pty_host_service_pb";
+import { ManagePtyProcessRequest } from "./pty_host_service_pb";
+import { CreatePtyProcessResponse } from "./pty_host_service_pb";
+import { CreatePtyProcessRequest } from "./pty_host_service_pb";
 import type * as grpc from "@grpc/grpc-js";
 /**
  * PtyHost runs in the shared process of Teleport Connect and manages PTY processes.
@@ -36,22 +37,22 @@ export interface IPtyHostService extends grpc.UntypedServiceImplementation {
     /**
      * CreatePtyProcess initializes the PTY process in the shared process without starting it yet.
      *
-     * @generated from protobuf rpc: CreatePtyProcess(teleport.web.teleterm.ptyhost.v1.PtyCreate) returns (teleport.web.teleterm.ptyhost.v1.PtyId);
+     * @generated from protobuf rpc: CreatePtyProcess(teleport.web.teleterm.ptyhost.v1.CreatePtyProcessRequest) returns (teleport.web.teleterm.ptyhost.v1.CreatePtyProcessResponse);
      */
-    createPtyProcess: grpc.handleUnaryCall<PtyCreate, PtyId>;
+    createPtyProcess: grpc.handleUnaryCall<CreatePtyProcessRequest, CreatePtyProcessResponse>;
     /**
-     * ExhchangeEvents is a bidirectional stream that lets the client send input and resize requests
+     * ManagePtyProcess is a bidirectional stream that lets the client send input and resize requests
      * to the PTY process and receive output from the PTY process.
      *
-     * @generated from protobuf rpc: ExchangeEvents(stream teleport.web.teleterm.ptyhost.v1.PtyClientEvent) returns (stream teleport.web.teleterm.ptyhost.v1.PtyServerEvent);
+     * @generated from protobuf rpc: ManagePtyProcess(stream teleport.web.teleterm.ptyhost.v1.ManagePtyProcessRequest) returns (stream teleport.web.teleterm.ptyhost.v1.ManagePtyProcessResponse);
      */
-    exchangeEvents: grpc.handleBidiStreamingCall<PtyClientEvent, PtyServerEvent>;
+    managePtyProcess: grpc.handleBidiStreamingCall<ManagePtyProcessRequest, ManagePtyProcessResponse>;
     /**
      * GetCwd returns the current working directory of the given PTY process.
      *
-     * @generated from protobuf rpc: GetCwd(teleport.web.teleterm.ptyhost.v1.PtyId) returns (teleport.web.teleterm.ptyhost.v1.PtyCwd);
+     * @generated from protobuf rpc: GetCwd(teleport.web.teleterm.ptyhost.v1.GetCwdRequest) returns (teleport.web.teleterm.ptyhost.v1.GetCwdResponse);
      */
-    getCwd: grpc.handleUnaryCall<PtyId, PtyCwd>;
+    getCwd: grpc.handleUnaryCall<GetCwdRequest, GetCwdResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.web.teleterm.ptyhost.v1.PtyHostService.
@@ -70,29 +71,29 @@ export const ptyHostServiceDefinition: grpc.ServiceDefinition<IPtyHostService> =
         originalName: "CreatePtyProcess",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => PtyId.fromBinary(bytes),
-        requestDeserialize: bytes => PtyCreate.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(PtyId.toBinary(value)),
-        requestSerialize: value => Buffer.from(PtyCreate.toBinary(value))
+        responseDeserialize: bytes => CreatePtyProcessResponse.fromBinary(bytes),
+        requestDeserialize: bytes => CreatePtyProcessRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(CreatePtyProcessResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(CreatePtyProcessRequest.toBinary(value))
     },
-    exchangeEvents: {
-        path: "/teleport.web.teleterm.ptyhost.v1.PtyHostService/ExchangeEvents",
-        originalName: "ExchangeEvents",
+    managePtyProcess: {
+        path: "/teleport.web.teleterm.ptyhost.v1.PtyHostService/ManagePtyProcess",
+        originalName: "ManagePtyProcess",
         requestStream: true,
         responseStream: true,
-        responseDeserialize: bytes => PtyServerEvent.fromBinary(bytes),
-        requestDeserialize: bytes => PtyClientEvent.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(PtyServerEvent.toBinary(value)),
-        requestSerialize: value => Buffer.from(PtyClientEvent.toBinary(value))
+        responseDeserialize: bytes => ManagePtyProcessResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ManagePtyProcessRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ManagePtyProcessResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ManagePtyProcessRequest.toBinary(value))
     },
     getCwd: {
         path: "/teleport.web.teleterm.ptyhost.v1.PtyHostService/GetCwd",
         originalName: "GetCwd",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => PtyCwd.fromBinary(bytes),
-        requestDeserialize: bytes => PtyId.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(PtyCwd.toBinary(value)),
-        requestSerialize: value => Buffer.from(PtyId.toBinary(value))
+        responseDeserialize: bytes => GetCwdResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetCwdRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetCwdResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetCwdRequest.toBinary(value))
     }
 };

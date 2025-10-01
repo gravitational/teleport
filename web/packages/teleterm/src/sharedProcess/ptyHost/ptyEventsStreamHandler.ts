@@ -19,14 +19,14 @@
 import { ServerDuplexStream } from '@grpc/grpc-js';
 
 import {
-  PtyClientEvent,
+  ManagePtyProcessRequest,
+  ManagePtyProcessResponse,
   PtyEventData,
   PtyEventExit,
   PtyEventOpen,
   PtyEventResize,
   PtyEventStart,
   PtyEventStartError,
-  PtyServerEvent,
 } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 
 import {
@@ -44,7 +44,10 @@ export class PtyEventsStreamHandler {
   private readonly logger: Logger;
 
   constructor(
-    private readonly stream: ServerDuplexStream<PtyClientEvent, PtyServerEvent>,
+    private readonly stream: ServerDuplexStream<
+      ManagePtyProcessRequest,
+      ManagePtyProcessResponse
+    >,
     private readonly ptyProcesses: Map<string, PtyProcess>
   ) {
     this.ptyId = stream.metadata.get('ptyId')[0].toString();
@@ -56,7 +59,7 @@ export class PtyEventsStreamHandler {
     stream.addListener('end', () => this.handleStreamEnd());
   }
 
-  private handleStreamData(event: PtyClientEvent): void {
+  private handleStreamData(event: ManagePtyProcessRequest): void {
     if (ptyEventOneOfIsStart(event.event)) {
       return this.handleStartEvent(event.event.start);
     }
@@ -73,7 +76,7 @@ export class PtyEventsStreamHandler {
   private handleStartEvent(event: PtyEventStart): void {
     this.ptyProcess.onData(data =>
       this.stream.write(
-        PtyServerEvent.create({
+        ManagePtyProcessResponse.create({
           event: {
             oneofKind: 'data',
             data: PtyEventData.create({ message: data }),
@@ -83,7 +86,7 @@ export class PtyEventsStreamHandler {
     );
     this.ptyProcess.onOpen(() =>
       this.stream.write(
-        PtyServerEvent.create({
+        ManagePtyProcessResponse.create({
           event: {
             oneofKind: 'open',
             open: PtyEventOpen.create(),
@@ -93,7 +96,7 @@ export class PtyEventsStreamHandler {
     );
     this.ptyProcess.onExit(({ exitCode, signal }) =>
       this.stream.write(
-        PtyServerEvent.create({
+        ManagePtyProcessResponse.create({
           event: {
             oneofKind: 'exit',
             exit: PtyEventExit.create({ exitCode, signal }),
@@ -103,7 +106,7 @@ export class PtyEventsStreamHandler {
     );
     this.ptyProcess.onStartError(message => {
       this.stream.write(
-        PtyServerEvent.create({
+        ManagePtyProcessResponse.create({
           event: {
             oneofKind: 'startError',
             startError: PtyEventStartError.create({ message }),

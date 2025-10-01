@@ -33,22 +33,11 @@ import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
 import { Struct } from "../../../../../google/protobuf/struct_pb";
 /**
- * PtyId identifies a particular PTY process.
+ * CreatePtyProcessRequest includes fields necessary to start a PTY process.
  *
- * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyId
+ * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.CreatePtyProcessRequest
  */
-export interface PtyId {
-    /**
-     * @generated from protobuf field: string id = 1;
-     */
-    id: string;
-}
-/**
- * PtyCreate includes fields necessary to start a PTY process.
- *
- * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyCreate
- */
-export interface PtyCreate {
+export interface CreatePtyProcessRequest {
     /**
      * @generated from protobuf field: string path = 3;
      */
@@ -75,11 +64,22 @@ export interface PtyCreate {
     useConpty: boolean;
 }
 /**
- * PtyClientEvent represents events sent from the terminal client to the PTY process.
+ * CreatePtyProcessResponse returns the ID of the initialized PTY process.
  *
- * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyClientEvent
+ * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.CreatePtyProcessResponse
  */
-export interface PtyClientEvent {
+export interface CreatePtyProcessResponse {
+    /**
+     * @generated from protobuf field: string id = 1;
+     */
+    id: string;
+}
+/**
+ * ManagePtyProcessRequest represents events sent from the terminal client to the PTY process.
+ *
+ * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.ManagePtyProcessRequest
+ */
+export interface ManagePtyProcessRequest {
     /**
      * @generated from protobuf oneof: event
      */
@@ -106,11 +106,11 @@ export interface PtyClientEvent {
     };
 }
 /**
- * PtyServerEvent represents events sent from the PTY process to the terminal client.
+ * ManagePtyProcessResponse represents events sent from the PTY process to the terminal client.
  *
- * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyServerEvent
+ * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.ManagePtyProcessResponse
  */
-export interface PtyServerEvent {
+export interface ManagePtyProcessResponse {
     /**
      * @generated from protobuf oneof: event
      */
@@ -219,67 +219,31 @@ export interface PtyEventStartError {
     message: string;
 }
 /**
- * PtyCwd is the current working directory of a PTY process.
+ * GetCwdRequest identifies the PTY process for which the cwd should be returned.
  *
- * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.PtyCwd
+ * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.GetCwdRequest
  */
-export interface PtyCwd {
+export interface GetCwdRequest {
+    /**
+     * @generated from protobuf field: string id = 1;
+     */
+    id: string;
+}
+/**
+ * GetCwdResponse includes the current working directory of a PTY process.
+ *
+ * @generated from protobuf message teleport.web.teleterm.ptyhost.v1.GetCwdResponse
+ */
+export interface GetCwdResponse {
     /**
      * @generated from protobuf field: string cwd = 1;
      */
     cwd: string;
 }
 // @generated message type with reflection information, may provide speed optimized methods
-class PtyId$Type extends MessageType<PtyId> {
+class CreatePtyProcessRequest$Type extends MessageType<CreatePtyProcessRequest> {
     constructor() {
-        super("teleport.web.teleterm.ptyhost.v1.PtyId", [
-            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<PtyId>): PtyId {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.id = "";
-        if (value !== undefined)
-            reflectionMergePartial<PtyId>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PtyId): PtyId {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string id */ 1:
-                    message.id = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: PtyId, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string id = 1; */
-        if (message.id !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.id);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.PtyId
- */
-export const PtyId = new PtyId$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class PtyCreate$Type extends MessageType<PtyCreate> {
-    constructor() {
-        super("teleport.web.teleterm.ptyhost.v1.PtyCreate", [
+        super("teleport.web.teleterm.ptyhost.v1.CreatePtyProcessRequest", [
             { no: 3, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 4, name: "args", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "cwd", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
@@ -288,7 +252,7 @@ class PtyCreate$Type extends MessageType<PtyCreate> {
             { no: 9, name: "use_conpty", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
-    create(value?: PartialMessage<PtyCreate>): PtyCreate {
+    create(value?: PartialMessage<CreatePtyProcessRequest>): CreatePtyProcessRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.path = "";
         message.args = [];
@@ -296,10 +260,10 @@ class PtyCreate$Type extends MessageType<PtyCreate> {
         message.initMessage = "";
         message.useConpty = false;
         if (value !== undefined)
-            reflectionMergePartial<PtyCreate>(this, message, value);
+            reflectionMergePartial<CreatePtyProcessRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PtyCreate): PtyCreate {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreatePtyProcessRequest): CreatePtyProcessRequest {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -333,7 +297,7 @@ class PtyCreate$Type extends MessageType<PtyCreate> {
         }
         return message;
     }
-    internalBinaryWrite(message: PtyCreate, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: CreatePtyProcessRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string path = 3; */
         if (message.path !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.path);
@@ -359,26 +323,73 @@ class PtyCreate$Type extends MessageType<PtyCreate> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.PtyCreate
+ * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.CreatePtyProcessRequest
  */
-export const PtyCreate = new PtyCreate$Type();
+export const CreatePtyProcessRequest = new CreatePtyProcessRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class PtyClientEvent$Type extends MessageType<PtyClientEvent> {
+class CreatePtyProcessResponse$Type extends MessageType<CreatePtyProcessResponse> {
     constructor() {
-        super("teleport.web.teleterm.ptyhost.v1.PtyClientEvent", [
+        super("teleport.web.teleterm.ptyhost.v1.CreatePtyProcessResponse", [
+            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<CreatePtyProcessResponse>): CreatePtyProcessResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.id = "";
+        if (value !== undefined)
+            reflectionMergePartial<CreatePtyProcessResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CreatePtyProcessResponse): CreatePtyProcessResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string id */ 1:
+                    message.id = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: CreatePtyProcessResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string id = 1; */
+        if (message.id !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.id);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.CreatePtyProcessResponse
+ */
+export const CreatePtyProcessResponse = new CreatePtyProcessResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ManagePtyProcessRequest$Type extends MessageType<ManagePtyProcessRequest> {
+    constructor() {
+        super("teleport.web.teleterm.ptyhost.v1.ManagePtyProcessRequest", [
             { no: 2, name: "start", kind: "message", oneof: "event", T: () => PtyEventStart },
             { no: 3, name: "resize", kind: "message", oneof: "event", T: () => PtyEventResize },
             { no: 4, name: "data", kind: "message", oneof: "event", T: () => PtyEventData }
         ]);
     }
-    create(value?: PartialMessage<PtyClientEvent>): PtyClientEvent {
+    create(value?: PartialMessage<ManagePtyProcessRequest>): ManagePtyProcessRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.event = { oneofKind: undefined };
         if (value !== undefined)
-            reflectionMergePartial<PtyClientEvent>(this, message, value);
+            reflectionMergePartial<ManagePtyProcessRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PtyClientEvent): PtyClientEvent {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ManagePtyProcessRequest): ManagePtyProcessRequest {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -412,7 +423,7 @@ class PtyClientEvent$Type extends MessageType<PtyClientEvent> {
         }
         return message;
     }
-    internalBinaryWrite(message: PtyClientEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: ManagePtyProcessRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* teleport.web.teleterm.ptyhost.v1.PtyEventStart start = 2; */
         if (message.event.oneofKind === "start")
             PtyEventStart.internalBinaryWrite(message.event.start, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
@@ -429,27 +440,27 @@ class PtyClientEvent$Type extends MessageType<PtyClientEvent> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.PtyClientEvent
+ * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.ManagePtyProcessRequest
  */
-export const PtyClientEvent = new PtyClientEvent$Type();
+export const ManagePtyProcessRequest = new ManagePtyProcessRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class PtyServerEvent$Type extends MessageType<PtyServerEvent> {
+class ManagePtyProcessResponse$Type extends MessageType<ManagePtyProcessResponse> {
     constructor() {
-        super("teleport.web.teleterm.ptyhost.v1.PtyServerEvent", [
+        super("teleport.web.teleterm.ptyhost.v1.ManagePtyProcessResponse", [
             { no: 1, name: "data", kind: "message", oneof: "event", T: () => PtyEventData },
             { no: 2, name: "open", kind: "message", oneof: "event", T: () => PtyEventOpen },
             { no: 3, name: "exit", kind: "message", oneof: "event", T: () => PtyEventExit },
             { no: 4, name: "start_error", kind: "message", oneof: "event", T: () => PtyEventStartError }
         ]);
     }
-    create(value?: PartialMessage<PtyServerEvent>): PtyServerEvent {
+    create(value?: PartialMessage<ManagePtyProcessResponse>): ManagePtyProcessResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.event = { oneofKind: undefined };
         if (value !== undefined)
-            reflectionMergePartial<PtyServerEvent>(this, message, value);
+            reflectionMergePartial<ManagePtyProcessResponse>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PtyServerEvent): PtyServerEvent {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ManagePtyProcessResponse): ManagePtyProcessResponse {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -489,7 +500,7 @@ class PtyServerEvent$Type extends MessageType<PtyServerEvent> {
         }
         return message;
     }
-    internalBinaryWrite(message: PtyServerEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: ManagePtyProcessResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* teleport.web.teleterm.ptyhost.v1.PtyEventData data = 1; */
         if (message.event.oneofKind === "data")
             PtyEventData.internalBinaryWrite(message.event.data, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
@@ -509,9 +520,9 @@ class PtyServerEvent$Type extends MessageType<PtyServerEvent> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.PtyServerEvent
+ * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.ManagePtyProcessResponse
  */
-export const PtyServerEvent = new PtyServerEvent$Type();
+export const ManagePtyProcessResponse = new ManagePtyProcessResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class PtyEventStart$Type extends MessageType<PtyEventStart> {
     constructor() {
@@ -796,20 +807,67 @@ class PtyEventStartError$Type extends MessageType<PtyEventStartError> {
  */
 export const PtyEventStartError = new PtyEventStartError$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class PtyCwd$Type extends MessageType<PtyCwd> {
+class GetCwdRequest$Type extends MessageType<GetCwdRequest> {
     constructor() {
-        super("teleport.web.teleterm.ptyhost.v1.PtyCwd", [
+        super("teleport.web.teleterm.ptyhost.v1.GetCwdRequest", [
+            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetCwdRequest>): GetCwdRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.id = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetCwdRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetCwdRequest): GetCwdRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string id */ 1:
+                    message.id = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetCwdRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string id = 1; */
+        if (message.id !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.id);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.GetCwdRequest
+ */
+export const GetCwdRequest = new GetCwdRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetCwdResponse$Type extends MessageType<GetCwdResponse> {
+    constructor() {
+        super("teleport.web.teleterm.ptyhost.v1.GetCwdResponse", [
             { no: 1, name: "cwd", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<PtyCwd>): PtyCwd {
+    create(value?: PartialMessage<GetCwdResponse>): GetCwdResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.cwd = "";
         if (value !== undefined)
-            reflectionMergePartial<PtyCwd>(this, message, value);
+            reflectionMergePartial<GetCwdResponse>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: PtyCwd): PtyCwd {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetCwdResponse): GetCwdResponse {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -828,7 +886,7 @@ class PtyCwd$Type extends MessageType<PtyCwd> {
         }
         return message;
     }
-    internalBinaryWrite(message: PtyCwd, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: GetCwdResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string cwd = 1; */
         if (message.cwd !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.cwd);
@@ -839,14 +897,14 @@ class PtyCwd$Type extends MessageType<PtyCwd> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.PtyCwd
+ * @generated MessageType for protobuf message teleport.web.teleterm.ptyhost.v1.GetCwdResponse
  */
-export const PtyCwd = new PtyCwd$Type();
+export const GetCwdResponse = new GetCwdResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.web.teleterm.ptyhost.v1.PtyHostService
  */
 export const PtyHostService = new ServiceType("teleport.web.teleterm.ptyhost.v1.PtyHostService", [
-    { name: "CreatePtyProcess", options: {}, I: PtyCreate, O: PtyId },
-    { name: "ExchangeEvents", serverStreaming: true, clientStreaming: true, options: {}, I: PtyClientEvent, O: PtyServerEvent },
-    { name: "GetCwd", options: {}, I: PtyId, O: PtyCwd }
+    { name: "CreatePtyProcess", options: {}, I: CreatePtyProcessRequest, O: CreatePtyProcessResponse },
+    { name: "ManagePtyProcess", serverStreaming: true, clientStreaming: true, options: {}, I: ManagePtyProcessRequest, O: ManagePtyProcessResponse },
+    { name: "GetCwd", options: {}, I: GetCwdRequest, O: GetCwdResponse }
 ]);

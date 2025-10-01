@@ -19,11 +19,11 @@
 import { DuplexStreamingCall } from '@protobuf-ts/runtime-rpc';
 
 import {
-  PtyClientEvent,
+  ManagePtyProcessRequest,
+  ManagePtyProcessResponse,
   PtyEventData,
   PtyEventResize,
   PtyEventStart,
-  PtyServerEvent,
 } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 
 import {
@@ -38,8 +38,8 @@ export class PtyEventsStreamHandler {
 
   constructor(
     private readonly stream: DuplexStreamingCall<
-      PtyClientEvent,
-      PtyServerEvent
+      ManagePtyProcessRequest,
+      ManagePtyProcessResponse
     >,
     ptyId: string
   ) {
@@ -54,7 +54,7 @@ export class PtyEventsStreamHandler {
     this.logger.info('Start');
 
     await this._write(
-      PtyClientEvent.create({
+      ManagePtyProcessRequest.create({
         event: {
           oneofKind: 'start',
           start: PtyEventStart.create({ columns, rows }),
@@ -65,7 +65,7 @@ export class PtyEventsStreamHandler {
 
   async write(data: string): Promise<void> {
     this._write(
-      PtyClientEvent.create({
+      ManagePtyProcessRequest.create({
         event: {
           oneofKind: 'data',
           data: PtyEventData.create({ message: data }),
@@ -76,7 +76,7 @@ export class PtyEventsStreamHandler {
 
   async resize(columns: number, rows: number): Promise<void> {
     this._write(
-      PtyClientEvent.create({
+      ManagePtyProcessRequest.create({
         event: {
           oneofKind: 'resize',
           resize: PtyEventResize.create({ columns, rows }),
@@ -97,7 +97,7 @@ export class PtyEventsStreamHandler {
 
   onOpen(callback: () => void): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
-      (event: PtyServerEvent) => {
+      (event: ManagePtyProcessResponse) => {
         if (event.event.oneofKind === 'open') {
           callback();
         }
@@ -107,7 +107,7 @@ export class PtyEventsStreamHandler {
 
   onData(callback: (data: string) => void): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
-      (event: PtyServerEvent) => {
+      (event: ManagePtyProcessResponse) => {
         if (ptyEventOneOfIsData(event.event)) {
           callback(event.event.data.message);
         }
@@ -119,7 +119,7 @@ export class PtyEventsStreamHandler {
     callback: (reason: { exitCode: number; signal?: number }) => void
   ): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
-      (event: PtyServerEvent) => {
+      (event: ManagePtyProcessResponse) => {
         if (ptyEventOneOfIsExit(event.event)) {
           this.logger.info('On exit', event.event.exit);
           callback(event.event.exit);
@@ -130,7 +130,7 @@ export class PtyEventsStreamHandler {
 
   onStartError(callback: (message: string) => void): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
-      (event: PtyServerEvent) => {
+      (event: ManagePtyProcessResponse) => {
         if (ptyEventOneOfIsStartError(event.event)) {
           this.logger.info('On start error', event.event.startError.message);
           callback(event.event.startError.message);
@@ -139,12 +139,12 @@ export class PtyEventsStreamHandler {
     );
   }
 
-  private _write(event: PtyClientEvent): Promise<void> {
+  private _write(event: ManagePtyProcessRequest): Promise<void> {
     return this.stream.requests.send(event);
   }
 
   private addDataListenerAndReturnRemovalFunction(
-    callback: (event: PtyServerEvent) => void
+    callback: (event: ManagePtyProcessResponse) => void
   ) {
     return this.stream.responses.onMessage(callback);
   }

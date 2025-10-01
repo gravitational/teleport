@@ -18,8 +18,8 @@
 
 import { Struct } from 'gen-proto-ts/google/protobuf/struct_pb';
 import {
-  PtyCwd,
-  PtyId,
+  CreatePtyProcessResponse,
+  GetCwdResponse,
 } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 import { IPtyHostService } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.grpc-server';
 
@@ -55,7 +55,7 @@ export function createPtyHostService(): IPtyHostService & {
         callback(error);
         return;
       }
-      callback(null, PtyId.create({ id: ptyId }));
+      callback(null, CreatePtyProcessResponse.create({ id: ptyId }));
       logger.info(`created PTY process for id ${ptyId}`);
     },
     getCwd: (call, callback) => {
@@ -69,7 +69,7 @@ export function createPtyHostService(): IPtyHostService & {
       ptyProcess
         .getCwd()
         .then(cwd => {
-          const response = PtyCwd.create({ cwd });
+          const response = GetCwdResponse.create({ cwd });
           callback(null, response);
         })
         .catch(error => {
@@ -77,7 +77,8 @@ export function createPtyHostService(): IPtyHostService & {
           callback(error);
         });
     },
-    exchangeEvents: stream => new PtyEventsStreamHandler(stream, ptyProcesses),
+    managePtyProcess: stream =>
+      new PtyEventsStreamHandler(stream, ptyProcesses),
     dispose: async () => {
       await Promise.all(
         Array.from(ptyProcesses.values()).map(ptyProcess =>
