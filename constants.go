@@ -834,14 +834,17 @@ const (
 	// will generate and share their own session ID when a new session
 	// is started (session and exec/shell channels accepted).
 	//
-	// TODO(Joerger): DELETE IN v20.0.0 in favor of v2 below, which allows
-	// the client to know the session ID earlier, which is required for the
-	// proxy forwarding server to coordinate the session ID with target nodes.
+	// TODO(Joerger): DELETE IN v21.0.0 (1 extra major version grace period)
+	// All v17+ servers set the session ID. v19+ clients stop checking.
 	SessionIDQueryRequest = "session-id-query@goteleport.com"
 
 	// SessionIDQueryRequestV2 is sent by clients to ask servers if they
 	// will generate and share their own session ID when a new session
-	// channel is accepted.
+	// channel is accepted, rather than when the shell/exec channel is.
+	//
+	// TODO(Joerger): DELETE IN v22.0.0 (1 extra major version grace period)
+	// all v19+ servers set the session ID directly after accepting the session channel.
+	// clients should stop checking in v21, and servers should stop responding to the query in v22.
 	SessionIDQueryRequestV2 = "session-id-query-v2@goteleport.com"
 
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.

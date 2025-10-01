@@ -1297,6 +1297,9 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 			}
 		}
 	case teleport.SessionIDQueryRequest:
+		// TODO(Joerger): DELETE IN v21.0.0 (1 extra major version grace period)
+		// All v17+ servers set the session ID. v19+ clients stop checking.
+
 		// Reply true to session ID query requests, we will set new
 		// session IDs for new sessions during the shel/exec channel
 		// request.
@@ -1305,6 +1308,9 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 		return
 	case teleport.SessionIDQueryRequestV2:
+		// TODO(Joerger): DELETE IN v22.0.0 (1 extra major version grace period)
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+
 		// Reply true to session ID query requests, we will set new
 		// session IDs for new sessions directly after accepting the
 		// session channel request.

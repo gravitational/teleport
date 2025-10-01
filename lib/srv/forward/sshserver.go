@@ -28,6 +28,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -968,6 +969,9 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 		}
 		// Pass request on unchanged.
 	case teleport.SessionIDQueryRequest:
+		// TODO(Joerger): DELETE IN v21.0.0 (1 extra major version grace period)
+		// All v17+ servers set the session ID. v19+ clients stop checking.
+
 		// Reply true to session ID query requests, we will set new
 		// session IDs for new sessions during the shel/exec channel
 		// request.
@@ -976,6 +980,9 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 		}
 		return
 	case teleport.SessionIDQueryRequestV2:
+		// TODO(Joerger): DELETE IN v22.0.0 (1 extra major version grace period)
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+
 		// Reply true to session ID query requests, we will set new
 		// session IDs for new sessions directly after accepting the
 		// session channel request.
@@ -1167,9 +1174,39 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// right after the session channel is accepted. We should reuse this
 	// session ID in order to track the node session from the proxy rather
 	// than creating duplicate session trackers, events, etc. on the node.
-	var waitForSessionID func() (session.ID, sshutils.SessionIDStatus)
+	var receiveSessionIDOnce sync.Once
+	receivedSessionID := make(chan session.ID, 1)
 	if s.targetServer.GetSubKind() == types.SubKindTeleportNode {
-		waitForSessionID = sshutils.PrepareToReceiveSessionID(ctx, s.logger, s.remoteClient, true)
+		// TODO(Joerger): DELETE IN v21.0.0 (1 extra major version grace period)
+		// all v19+ servers set the session ID directly after accepting the session channel.
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+		willSendSID, _, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to send session ID query request", "error", err)
+		}
+
+		if willSendSID {
+			s.remoteClient.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+				receiveSessionIDOnce.Do(func() {
+					sid, err := session.ParseID(string(req.Payload))
+					if err != nil {
+						s.logger.WarnContext(ctx, "Unable to parse session ID", "error", err)
+						return
+					}
+
+					receivedSessionID <- *sid
+					close(receivedSessionID)
+				})
+			})
+		} else {
+			receivedSessionID <- session.NewID()
+			close(receivedSessionID)
+			s.logger.WarnContext(ctx, "Failed to query session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
+		}
+	} else {
+		// This is not a Teleport node so we don't expect session ID to be reported.
+		receivedSessionID <- session.NewID()
+		close(receivedSessionID)
 	}
 
 	// Create a "session" channel on the remote host. Note that we
@@ -1202,19 +1239,12 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	}
 	scx.AddCloser(ch)
 
-	// Wait for the session ID if we expect the node to provide it.
-	if waitForSessionID != nil {
-		sid, status := waitForSessionID()
-		switch status {
-		case sshutils.SessionIDReceived:
-			scx.SetNewSessionID(ctx, sid, ch)
-		default:
-			s.logger.WarnContext(ctx, "Unexpected session ID status from a Teleport Node in proxy recording mode. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.", "status", status)
-			scx.SetNewSessionID(ctx, session.NewID(), ch)
-		}
-	} else {
-		// This is not a Teleport node so we don't expect session ID to be reported.
-		scx.SetNewSessionID(ctx, session.NewID(), ch)
+	// Wait for the session ID to be reported by the target node.
+	select {
+	case sid := <-receivedSessionID:
+		scx.SetNewSessionID(ctx, sid, ch)
+	case <-time.After(5 * time.Second):
+		s.logger.WarnContext(ctx, "Failed to receive session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
 	}
 
 	ch = scx.TrackActivity(ch)
