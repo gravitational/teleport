@@ -34,8 +34,6 @@ lint:
     - api/proto/teleport/legacy/types/wrappers/wrappers.proto
     - proto/teleport/lib/multiplexer/test/ping.proto
     - proto/teleport/lib/web/terminal/envelope.proto
-    # TODO: This is temporary only and will be removed in the next commit.
-    - proto/teleport/web/teleterm/ptyhost/v1/pty_host_service.proto
   ignore_only:
     COMMENT_MESSAGE:
       - proto/prehog
