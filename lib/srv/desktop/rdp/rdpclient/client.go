@@ -357,7 +357,17 @@ func (c *Client) runLocal(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		go func() {
+			for {
+				event, err := dial.WaitForEvent()
+				if err == nil && event == nil {
+					return
+				}
+				c.cfg.Logger.DebugContext(ctx, "Got XGB event", "event", event, "error", err)
+			}
+		}()
 		for {
+
 			for e, er := dial.PollForEvent(); e != nil || er != nil; e, er = dial.PollForEvent() {
 			}
 			start := time.Now()
@@ -413,7 +423,38 @@ func (c *Client) runLocal(ctx context.Context) error {
 				compressedSize += buf.Len()
 				if duration > 20*time.Millisecond {
 					c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "duration", duration, "width", rect.Width, "height", rect.Height, "uncompressed", len(replay.Data), "compressed", buf.Len())
-					//os.WriteFile(fmt.Sprintf("../slow/slow%d_%dx%d.rgb565", i2, rect.Width, rect.Height), replay.Data, 0666)
+					//data := i
+					//go func() {
+					//	img := image.NewRGBA(image.Rectangle{
+					//		Min: image.Point{
+					//			X: int(rect.X),
+					//			Y: int(rect.Y),
+					//		},
+					//		Max: image.Point{
+					//			X: int(rect.X) + int(rect.Width),
+					//			Y: int(rect.Y) + int(rect.Height),
+					//		},
+					//	})
+					//	for i := 0; i < int(rect.Width); i++ {
+					//		for j := 0; j < int(rect.Height); j++ {
+					//			idx := 2 * (j*int(rect.Width) + i)
+					//			img.Set(i, j, color.RGBA{
+					//				R: uint8((527*int(replay.Data[idx+1]>>3) + 23) >> 6),
+					//				G: uint8((259*int((replay.Data[idx+1]&7)|replay.Data[idx]>>5) + 33) >> 6),
+					//				B: uint8((527*int(replay.Data[idx]&63) + 23) >> 6),
+					//				A: 255,
+					//			})
+					//		}
+					//	}
+					//	f, err := os.Create(fmt.Sprintf("../slow/slow%d.png", data))
+					//	if err != nil {
+					//		c.cfg.Logger.WarnContext(ctx, "Slow  frame rendering", "error", err)
+					//		return
+					//	}
+					//	if err := png.Encode(f, img); err != nil {
+					//		c.cfg.Logger.WarnContext(ctx, "Slow frame rendering", "error", err)
+					//	}
+					//}()
 				}
 				if err := c.cfg.Conn.WriteMessage(tdp.X11Frame(buf.Bytes())); err != nil {
 					return trace.Wrap(err)
@@ -466,6 +507,9 @@ func (c *Client) connectToDisplay(ctx context.Context, display string) (*xgb.Con
 	if err := xfixes.Init(dial); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	if err := randr.Init(dial); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	xfixesVersion, err := xfixes.QueryVersion(dial, 5, 0).Reply()
 	if err != nil {
@@ -484,10 +528,16 @@ func (c *Client) connectToDisplay(ctx context.Context, display string) (*xgb.Con
 		return nil, nil, trace.Wrap(err)
 	}
 	c.cfg.Logger.DebugContext(ctx, "Xtest version", "major", xtestVersion.MajorVersion, "minor", xtestVersion.MinorVersion)
+	randrVersion, err := randr.QueryVersion(dial, 5, 0).Reply()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	c.cfg.Logger.DebugContext(ctx, "Xtest version", "major", randrVersion.MajorVersion, "minor", randrVersion.MinorVersion)
 	return dial, setup, nil
 }
 
 func (c *Client) handleInputLocal(ctx context.Context, dial *xgb.Conn, root xproto.Window) error {
+	modeCounter := 0
 	for {
 		select {
 		case <-ctx.Done():
@@ -499,6 +549,48 @@ func (c *Client) handleInputLocal(ctx context.Context, dial *xgb.Conn, root xpro
 			return trace.Wrap(err)
 		}
 		switch msg := msg.(type) {
+		case tdp.ClientScreenSpec:
+			modeCounter++
+			modeName := fmt.Sprintf("mode%d", modeCounter)
+			id, err := dial.NewId()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			width := uint16(msg.Width)
+			height := uint16(msg.Height)
+			mode, err := randr.CreateMode(dial, root, randr.ModeInfo{
+				Id:      id,
+				Width:   width,
+				Height:  height,
+				NameLen: uint16(len(modeName)),
+			}, modeName).Reply()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			screenResources, err := randr.GetScreenResources(dial, root).Reply()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := randr.AddOutputModeChecked(dial, screenResources.Outputs[0], mode.Mode).Check(); err != nil {
+				return trace.Wrap(err)
+			}
+			screen, err := randr.GetScreenInfo(dial, root).Reply()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			for i := 0; i < len(screen.Sizes); i++ {
+				if screen.Sizes[i].Width == width && screen.Sizes[i].Height == height {
+					replay, err := randr.SetScreenConfig(dial, root, 0, screen.ConfigTimestamp, uint16(i), screen.Rotation, screen.Rate).Reply()
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					_ = replay
+					if err := c.writeConnectionActivated(0, 0, width, height); err != nil {
+						return trace.Wrap(err)
+					}
+					break
+				}
+			}
 		case tdp.ClipboardData:
 
 		case tdp.MouseMove:
