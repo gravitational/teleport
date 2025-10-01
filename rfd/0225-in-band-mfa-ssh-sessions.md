@@ -3,7 +3,7 @@ authors: Chris Thach (chris.thach@goteleport.com)
 state: draft
 ---
 
-# RFD 0224 - In-Band MFA for SSH Sessions
+# RFD 0225 - In-Band MFA for SSH Sessions
 
 ## Required Approvers
 
@@ -146,11 +146,11 @@ sequenceDiagram
   Node->>Proxy: SSH Connection Established
   Proxy->>Client: SSH Connection Established
 
-  loop Proxy SSH/Agent Frames
-    Client->>Proxy: SSH/Agent Frames
-    Proxy->>Node: Forward SSH/Agent Frames
-    Node->>Proxy: SSH/Agent Frames
-    Proxy->>Client: Forward SSH/Agent Frames
+  loop Proxy SSH Frames
+    Client->>Proxy: SSH Frames
+    Proxy->>Node: Forward SSH Frames
+    Node->>Proxy: SSH Frames
+    Proxy->>Client: Forward SSH Frames
 
     break SSH Connection Failure
       Proxy->>Client: SSH Connection Failure
@@ -167,8 +167,10 @@ A new version of `TransportService` will be introduced. `TransportService` v2 wi
 `TransportService` in the v1 package. The `ProxySSH` RPC of the v1 `TransportService` will be deprecated in favor of the
 v2 package's `TransportService`'s `ProxySSH` RPC, which provides in-band MFA enforcement during SSH session
 establishment. The new RPC supports both MFA-required and MFA-optional flows, allowing clients to dynamically handle MFA
-challenges as needed. During the [transition period](#transition-period), clients can fallback to the v1
-`TransportService` if the v2 service is not available.
+challenges as needed.
+
+During the [transition period](#transition-period), clients can fallback to the v1 `TransportService` if the v2 service
+is not available or if the client does not yet support the v2 service.
 
 ```proto
 // TransportService provides methods to proxy connections to various Teleport instances.
@@ -180,7 +182,7 @@ service TransportService {
   // the client must send a TargetHost (dial_target) as the first message. The server will then evaluate if MFA is
   // required for the requested target. If MFA is required, the server will send a challenge ID as the next message.
   // The client must then complete the MFA challenge with the MFA service in order to continue. If MFA is not required,
-  // the server will send ClusterDetails and the client can proceed to send SSH/agent frames. All SSH and agent frames
+  // the server will send ClusterDetails and the client can proceed to send SSH frames. All SSH and
   // are sent as raw bytes and are not interpreted by the server.
   rpc ProxySSH(stream ProxySSHRequest) returns (stream ProxySSHResponse);
 }
@@ -188,14 +190,12 @@ service TransportService {
 message ProxySSHRequest {
   // Only one of these fields should be set per message:
   // - Client must send dial_target as the first message.
-  // - Once ClusterDetails are received by the client, the client can send SSH or agent frames.
+  // - Once ClusterDetails are received by the client, the client can send SSH frames.
   oneof payload {
     // Sent by client as the first message
     TargetHost dial_target = 1;
     // SSH payload
     Frame ssh = 2;
-    // SSH Agent payload
-    Frame agent = 3;
   }
 }
 
@@ -204,7 +204,7 @@ message ProxySSHResponse {
   // The first message from the server will be:
   // - challenge_id if MFA is required.
   // - ClusterDetails if the MFA challenge is not required.
-  // After MFA (or if not required), server sends ClusterDetails and then SSH/agent frames.
+  // After MFA (or if not required), server sends ClusterDetails and then SSH frames.
   oneof payload {
     // Sent by server if MFA is required
     string challenge_id = 1;
@@ -212,8 +212,6 @@ message ProxySSHResponse {
     ClusterDetails details = 2;
     // SSH payload
     Frame ssh = 3;
-    // SSH Agent payload
-    Frame agent = 4;
   }
 }
 ```
@@ -292,11 +290,28 @@ message CompleteAuthenticateChallengeResponse {
 }
 ```
 
-### SSH Certificate
+### Teleport Connect and VNet
 
-SSH certificates are not required in the new design except for backwards compatibility with legacy clients. They were
-previously used to convey session metadata and enforce MFA at the Teleport Agent. With the new architecture, the Proxy
-and Auth service handle these responsibilities directly and eliminate the need for SSH certificates. Support for SSH
+Since Teleport Connect and the VNet implementation uses the same client libraries as `tsh`, it will be updated to use
+the new v2 `TransportService` and `MFAService` for SSH sessions. The per-session MFA SSH certificate generation will be
+removed, and the standard client certificate will be used when dialing. Teleport Connect and VNet will fallback to the
+v1 `TransportService` if the v2 service is not available.
+
+### Web Terminal
+
+The web terminal does not use the `TransportService` and establishes SSH connections via a different mechanism so it
+does not need to be updated to use the new v2 `TransportService`. Instead, it relies on web-based authentication flows
+and the Teleport API to manage user sessions and MFA challenges.
+
+However, the web terminal client will be updated to use the `MFAService` for completing MFA challenges as part of the
+SSH session establishment process. The per-session MFA SSH certificate generation will be removed, and the standard
+client certificate will be used when dialing.
+
+### Per-session MFA SSH Certificates
+
+Per-session MFA SSH certificates are not required in the new design except for backwards compatibility with legacy
+clients. They were previously used to convey session metadata and enforce MFA at the Teleport Agent. With the new
+architecture, the Proxy and Auth service handle these responsibilities directly. Support for per-session MFA SSH
 certificates via `ProxySSH` RPC will initially be retained during the transition period to ensure backward compatibility
 with existing clients (see [Backward Compatibility](#backward-compatibility)).
 
@@ -377,7 +392,7 @@ period and while receiving appropriate deprecation notices.
       Decision API response.
 1. he Proxy has a way to tell Decision service that MFA has been satisfied for a session.
 
-#### Phase 1
+#### Phase 1 (Transition Period - at least 2 major releases)
 
 1. Create `TransportService` in `api/proto/teleport/transport/v2/transport_service.proto`.
 1. Generate `TransportService` Go code using `protoc`.
@@ -394,18 +409,18 @@ period and while receiving appropriate deprecation notices.
 1. Update `tsh vnet` client to use the v2 `TransportService` and `MFAService`. Remove per-session MFA certificate
    generation and use standard client certificate when dialing. Client should fallback to the v1 `TransportService` if
    the v2 service is not available.
-1. Update web terminal client to use the v2 `TransportService` and `MFAService`. Remove per-session MFA certificate
-   generation and use standard client certificate when dialing. Client should fallback to the v1 `TransportService` if
-   the v2 service is not available.
+1. Update web terminal client to use the `MFAService`. Remove per-session MFA certificate generation and use standard
+   client certificate when dialing. Client should fallback to the v1 `TransportService` if the v2 service is not
+   available.
 1. Add tests to verify backward compatibility with the deprecated v1 `TransportService` RPCs.
 1. Update documentation to reflect the new architecture and deprecation of direct node access.
 1. Implement `TransportService` v2 support in the Relay service.
 
-#### Phase 2
+#### Phase 2 (Post Transition Period - after at least 2 major releases)
 
-1. Remove `TransportService`'s `ProxySSH` RPC.
-1. Remove direct SSH connections to nodes.
-1. Remove SSH certificate verification logic from the agent, as it is no longer required.
+1. Remove v1 `TransportService`'s `ProxySSH` RPC. Remove all related backward compatibility code.
+1. Remove per-session MFA SSH certificate verification logic.
+1. Remove per-session MFA certificate generation.
 1. Update test plan to remove backward compatibility tests for the deprecated `TransportService` and SSH certificate
    handling.
 
