@@ -592,9 +592,7 @@ type AWSUserInlinePolicyV1 struct {
 	// account_id is the ID of the AWS account that the user belongs to.
 	AccountId string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	// user is the user who the policy is attached to.
-	User *AWSUserV1 `protobuf:"bytes,5,opt,name=user,proto3" json:"user,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	User          *AWSUserV1 `protobuf:"bytes,5,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -657,13 +655,6 @@ func (x *AWSUserInlinePolicyV1) GetUser() *AWSUserV1 {
 	return nil
 }
 
-func (x *AWSUserInlinePolicyV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSPolicyV1 is an AWS policy.
 type AWSPolicyV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -692,10 +683,8 @@ type AWSPolicyV1 struct {
 	PolicyName string `protobuf:"bytes,11,opt,name=policy_name,json=policyName,proto3" json:"policy_name,omitempty"`
 	// policy_document is the JSON document that defines the policy.
 	PolicyDocument []byte `protobuf:"bytes,12,opt,name=policy_document,json=policyDocument,proto3" json:"policy_document,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AWSPolicyV1) Reset() {
@@ -812,13 +801,6 @@ func (x *AWSPolicyV1) GetPolicyDocument() []byte {
 	return nil
 }
 
-func (x *AWSPolicyV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSGroupV1 is a group of AWS users.
 type AWSGroupV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -833,9 +815,7 @@ type AWSGroupV1 struct {
 	// path is the path of the AWS group.
 	Path string `protobuf:"bytes,5,opt,name=path,proto3" json:"path,omitempty"`
 	// account_id is the ID of the AWS account that the group belongs to.
-	AccountId string `protobuf:"bytes,6,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,6,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -912,22 +892,13 @@ func (x *AWSGroupV1) GetAccountId() string {
 	return ""
 }
 
-func (x *AWSGroupV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSUserGroupsV1 is a list of AWS groups that an AWS user belongs to.
 type AWSUserGroupsV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// user is the AWS user.
 	User *AWSUserV1 `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// groups is the list of AWS groups that the user belongs to.
-	Groups []*AWSGroupV1 `protobuf:"bytes,2,rep,name=groups,proto3" json:"groups,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	Groups        []*AWSGroupV1 `protobuf:"bytes,2,rep,name=groups,proto3" json:"groups,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -976,13 +947,6 @@ func (x *AWSUserGroupsV1) GetGroups() []*AWSGroupV1 {
 	return nil
 }
 
-func (x *AWSUserGroupsV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSUserV1 is an AWS user.
 type AWSUserV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1003,9 +967,7 @@ type AWSUserV1 struct {
 	// tags is the list of tags that are attached to the user.
 	Tags []*AWSTag `protobuf:"bytes,8,rep,name=tags,proto3" json:"tags,omitempty"`
 	// account_id is the ID of the AWS account that the user belongs to.
-	AccountId string `protobuf:"bytes,9,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the user was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,9,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1101,13 +1063,6 @@ func (x *AWSUserV1) GetAccountId() string {
 		return x.AccountId
 	}
 	return ""
-}
-
-func (x *AWSUserV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
 }
 
 // AWSTag is a tag that is attached to an AWS resource.
@@ -1241,8 +1196,6 @@ type AWSInstanceV1 struct {
 	// launch_key_name is the name of the key pair that is used to launch the
 	// instance.
 	LaunchKeyName *wrapperspb.StringValue `protobuf:"bytes,8,opt,name=launch_key_name,json=launchKeyName,proto3" json:"launch_key_name,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1333,13 +1286,6 @@ func (x *AWSInstanceV1) GetLaunchKeyName() *wrapperspb.StringValue {
 	return nil
 }
 
-func (x *AWSInstanceV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSUserAttachedPolicies is a list of AWS policies that are attached to an
 // AWS user.
 type AWSUserAttachedPolicies struct {
@@ -1349,9 +1295,7 @@ type AWSUserAttachedPolicies struct {
 	// policies is the list of AWS policies that are attached to the user.
 	Policies []*AttachedPolicyV1 `protobuf:"bytes,2,rep,name=policies,proto3" json:"policies,omitempty"`
 	// account_id is the ID of the AWS account that the user belongs to.
-	AccountId string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1405,13 +1349,6 @@ func (x *AWSUserAttachedPolicies) GetAccountId() string {
 		return x.AccountId
 	}
 	return ""
-}
-
-func (x *AWSUserAttachedPolicies) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
 }
 
 // AttachedPolicyV1 is a AWS policy identifier.
@@ -1478,9 +1415,7 @@ type AWSGroupAttachedPolicies struct {
 	// policies is the list of AWS policies that are attached to the group.
 	Policies []*AttachedPolicyV1 `protobuf:"bytes,2,rep,name=policies,proto3" json:"policies,omitempty"`
 	// account_id is the ID of the AWS account that the group belongs to.
-	AccountId string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1536,13 +1471,6 @@ func (x *AWSGroupAttachedPolicies) GetAccountId() string {
 	return ""
 }
 
-func (x *AWSGroupAttachedPolicies) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSGroupInlinePolicyV1 is a policy that is inlined to an AWS Group.
 type AWSGroupInlinePolicyV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1553,9 +1481,7 @@ type AWSGroupInlinePolicyV1 struct {
 	// policy_document is the JSON document that defines the policy.
 	PolicyDocument []byte `protobuf:"bytes,3,opt,name=policy_document,json=policyDocument,proto3" json:"policy_document,omitempty"`
 	// account_id is the ID of the AWS account that the group belongs to.
-	AccountId string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1618,13 +1544,6 @@ func (x *AWSGroupInlinePolicyV1) GetAccountId() string {
 	return ""
 }
 
-func (x *AWSGroupInlinePolicyV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSS3BucketV1 is an AWS S3 bucket.
 type AWSS3BucketV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1639,9 +1558,7 @@ type AWSS3BucketV1 struct {
 	// acl is the ACL of the S3 bucket.
 	Acls []*AWSS3BucketACL `protobuf:"bytes,5,rep,name=acls,proto3" json:"acls,omitempty"`
 	// tags is the list of tags that are attached to the S3 bucket.
-	Tags []*AWSTag `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	Tags          []*AWSTag `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1714,13 +1631,6 @@ func (x *AWSS3BucketV1) GetAcls() []*AWSS3BucketACL {
 func (x *AWSS3BucketV1) GetTags() []*AWSTag {
 	if x != nil {
 		return x.Tags
-	}
-	return nil
-}
-
-func (x *AWSS3BucketV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
 	}
 	return nil
 }
@@ -1889,9 +1799,7 @@ type AWSRoleV1 struct {
 	// role_last_used is the last used information of the role.
 	RoleLastUsed *RoleLastUsedV1 `protobuf:"bytes,11,opt,name=role_last_used,json=roleLastUsed,proto3" json:"role_last_used,omitempty"`
 	// account_id is the ID of the AWS account that the role belongs to.
-	AccountId string `protobuf:"bytes,12,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,12,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2008,13 +1916,6 @@ func (x *AWSRoleV1) GetAccountId() string {
 		return x.AccountId
 	}
 	return ""
-}
-
-func (x *AWSRoleV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
 }
 
 // RolePermissionsBoundaryV1 is the permissions boundary of a role.
@@ -2137,9 +2038,7 @@ type AWSRoleInlinePolicyV1 struct {
 	// account_id is the ID of the AWS account that the role belongs to.
 	AccountId string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	// aws_role is the role name of the AWS role that the policy is attached to.
-	AwsRole *AWSRoleV1 `protobuf:"bytes,5,opt,name=aws_role,json=awsRole,proto3" json:"aws_role,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AwsRole       *AWSRoleV1 `protobuf:"bytes,5,opt,name=aws_role,json=awsRole,proto3" json:"aws_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2202,13 +2101,6 @@ func (x *AWSRoleInlinePolicyV1) GetAwsRole() *AWSRoleV1 {
 	return nil
 }
 
-func (x *AWSRoleInlinePolicyV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSRoleAttachedPolicies is a list of AWS policies that are attached to an
 // AWS role.
 type AWSRoleAttachedPolicies struct {
@@ -2218,9 +2110,7 @@ type AWSRoleAttachedPolicies struct {
 	// account_id is the ID of the AWS account that the role belongs to.
 	AccountId string `protobuf:"bytes,3,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	// aws_role is the AWS role.
-	AwsRole *AWSRoleV1 `protobuf:"bytes,4,opt,name=aws_role,json=awsRole,proto3" json:"aws_role,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AwsRole       *AWSRoleV1 `protobuf:"bytes,4,opt,name=aws_role,json=awsRole,proto3" json:"aws_role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2276,13 +2166,6 @@ func (x *AWSRoleAttachedPolicies) GetAwsRole() *AWSRoleV1 {
 	return nil
 }
 
-func (x *AWSRoleAttachedPolicies) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSInstanceProfileV1 is an AWS instance profile.
 type AWSInstanceProfileV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2302,9 +2185,7 @@ type AWSInstanceProfileV1 struct {
 	Tags []*AWSTag `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty"`
 	// account_id is the ID of the AWS account that the instance profile belongs
 	// to.
-	AccountId string `protobuf:"bytes,8,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,8,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2395,13 +2276,6 @@ func (x *AWSInstanceProfileV1) GetAccountId() string {
 	return ""
 }
 
-func (x *AWSInstanceProfileV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSEKSClusterV1 represents an AWS EKS cluster.
 type AWSEKSClusterV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2421,9 +2295,7 @@ type AWSEKSClusterV1 struct {
 	Region string `protobuf:"bytes,7,opt,name=region,proto3" json:"region,omitempty"`
 	// account_id is the ID of the AWS account that the instance profile belongs
 	// to.
-	AccountId string `protobuf:"bytes,8,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,8,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2514,13 +2386,6 @@ func (x *AWSEKSClusterV1) GetAccountId() string {
 	return ""
 }
 
-func (x *AWSEKSClusterV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSEKSClusterAccessEntriesV1 represents an EKS cluster Access Entry.
 type AWSEKSClusterAccessEntryV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2544,9 +2409,7 @@ type AWSEKSClusterAccessEntryV1 struct {
 	Username string `protobuf:"bytes,9,opt,name=username,proto3" json:"username,omitempty"`
 	// account_id is the ID of the AWS account that the instance profile belongs
 	// to.
-	AccountId string `protobuf:"bytes,10,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,10,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2651,13 +2514,6 @@ func (x *AWSEKSClusterAccessEntryV1) GetAccountId() string {
 	return ""
 }
 
-func (x *AWSEKSClusterAccessEntryV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSEKSAssociatedAccessPolicyV1 identifies an access policy association.
 type AWSEKSAssociatedAccessPolicyV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2676,9 +2532,7 @@ type AWSEKSAssociatedAccessPolicyV1 struct {
 	PolicyArn string `protobuf:"bytes,6,opt,name=policy_arn,json=policyArn,proto3" json:"policy_arn,omitempty"`
 	// account_id is the ID of the AWS account that the instance profile belongs
 	// to.
-	AccountId string `protobuf:"bytes,7,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	AccountId     string `protobuf:"bytes,7,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2762,13 +2616,6 @@ func (x *AWSEKSAssociatedAccessPolicyV1) GetAccountId() string {
 	return ""
 }
 
-func (x *AWSEKSAssociatedAccessPolicyV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSEKSAccessScope identifies the scope to which the AssociatedAccessPolicy applies.
 type AWSEKSAccessScopeV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2847,9 +2694,7 @@ type AWSRDSDatabaseV1 struct {
 	// to.
 	AccountId string `protobuf:"bytes,9,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	// resource_id is the RDS unique resource id.
-	ResourceId string `protobuf:"bytes,10,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	ResourceId    string `protobuf:"bytes,10,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2954,13 +2799,6 @@ func (x *AWSRDSDatabaseV1) GetResourceId() string {
 	return ""
 }
 
-func (x *AWSRDSDatabaseV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSRDSEngineV1 defines the database engine details
 type AWSRDSEngineV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -3035,10 +2873,8 @@ type AWSSAMLProviderV1 struct {
 	SsoUrls []string `protobuf:"bytes,7,rep,name=sso_urls,json=ssoUrls,proto3" json:"sso_urls,omitempty"`
 	// signing_certificates is a list of signing certificates for this identity provider.
 	SigningCertificates []string `protobuf:"bytes,8,rep,name=signing_certificates,json=signingCertificates,proto3" json:"signing_certificates,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *AWSSAMLProviderV1) Reset() {
@@ -3127,13 +2963,6 @@ func (x *AWSSAMLProviderV1) GetSigningCertificates() []string {
 	return nil
 }
 
-func (x *AWSSAMLProviderV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 // AWSOIDCProviderV1 defines the OIDC identity provider details.
 type AWSOIDCProviderV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -3150,9 +2979,7 @@ type AWSOIDCProviderV1 struct {
 	// thumbprints is a list of certificate thumbprints for this OIDC provider.
 	Thumbprints []string `protobuf:"bytes,6,rep,name=thumbprints,proto3" json:"thumbprints,omitempty"`
 	// url is the URL for this OIDC provider.
-	Url string `protobuf:"bytes,7,opt,name=url,proto3" json:"url,omitempty"`
-	// last_sync_time is the time when the resource was last synced.
-	LastSyncTime  *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=last_sync_time,json=lastSyncTime,proto3" json:"last_sync_time,omitempty"`
+	Url           string `protobuf:"bytes,7,opt,name=url,proto3" json:"url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3236,13 +3063,6 @@ func (x *AWSOIDCProviderV1) GetUrl() string {
 	return ""
 }
 
-func (x *AWSOIDCProviderV1) GetLastSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastSyncTime
-	}
-	return nil
-}
-
 var File_accessgraph_v1alpha_aws_proto protoreflect.FileDescriptor
 
 const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
@@ -3275,15 +3095,14 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\rsaml_provider\x18\x13 \x01(\v2&.accessgraph.v1alpha.AWSSAMLProviderV1H\x00R\fsamlProvider\x12M\n" +
 	"\roidc_provider\x18\x14 \x01(\v2&.accessgraph.v1alpha.AWSOIDCProviderV1H\x00R\foidcProviderB\n" +
 	"\n" +
-	"\bresource\"\x86\x02\n" +
+	"\bresource\"\xda\x01\n" +
 	"\x15AWSUserInlinePolicyV1\x12\x1f\n" +
 	"\vpolicy_name\x18\x01 \x01(\tR\n" +
 	"policyName\x12'\n" +
 	"\x0fpolicy_document\x18\x03 \x01(\fR\x0epolicyDocument\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x04 \x01(\tR\taccountId\x122\n" +
-	"\x04user\x18\x05 \x01(\v2\x1e.accessgraph.v1alpha.AWSUserV1R\x04user\x12@\n" +
-	"\x0elast_sync_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTimeJ\x04\b\x02\x10\x03R\busername\"\x97\x04\n" +
+	"\x04user\x18\x05 \x01(\v2\x1e.accessgraph.v1alpha.AWSUserV1R\x04userJ\x04\b\x02\x10\x03J\x04\b\x06\x10\aR\busernameR\x0elast_sync_time\"\xeb\x03\n" +
 	"\vAWSPolicyV1\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x129\n" +
 	"\n" +
@@ -3301,8 +3120,7 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	" \x01(\tR\taccountId\x12\x1f\n" +
 	"\vpolicy_name\x18\v \x01(\tR\n" +
 	"policyName\x12'\n" +
-	"\x0fpolicy_document\x18\f \x01(\fR\x0epolicyDocument\x12@\n" +
-	"\x0elast_sync_time\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xfd\x01\n" +
+	"\x0fpolicy_document\x18\f \x01(\fR\x0epolicyDocumentJ\x04\b\r\x10\x0eR\x0elast_sync_time\"\xd1\x01\n" +
 	"\n" +
 	"AWSGroupV1\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x129\n" +
@@ -3312,12 +3130,10 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\x04name\x18\x04 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x05 \x01(\tR\x04path\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x06 \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xc0\x01\n" +
+	"account_id\x18\x06 \x01(\tR\taccountIdJ\x04\b\a\x10\bR\x0elast_sync_time\"\x94\x01\n" +
 	"\x0fAWSUserGroupsV1\x122\n" +
 	"\x04user\x18\x01 \x01(\v2\x1e.accessgraph.v1alpha.AWSUserV1R\x04user\x127\n" +
-	"\x06groups\x18\x02 \x03(\v2\x1f.accessgraph.v1alpha.AWSGroupV1R\x06groups\x12@\n" +
-	"\x0elast_sync_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xe2\x03\n" +
+	"\x06groups\x18\x02 \x03(\v2\x1f.accessgraph.v1alpha.AWSGroupV1R\x06groupsJ\x04\b\x03\x10\x04R\x0elast_sync_time\"\xb6\x03\n" +
 	"\tAWSUserV1\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x129\n" +
 	"\n" +
@@ -3329,15 +3145,14 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\x14permissions_boundary\x18\a \x01(\v2/.accessgraph.v1alpha.UsersPermissionsBoundaryV1R\x13permissionsBoundary\x12/\n" +
 	"\x04tags\x18\b \x03(\v2\x1b.accessgraph.v1alpha.AWSTagR\x04tags\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\t \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"N\n" +
+	"account_id\x18\t \x01(\tR\taccountIdJ\x04\b\n" +
+	"\x10\vR\x0elast_sync_time\"N\n" +
 	"\x06AWSTag\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x122\n" +
 	"\x05value\x18\x02 \x01(\v2\x1c.google.protobuf.StringValueR\x05value\"\xc5\x01\n" +
 	"\x1aUsersPermissionsBoundaryV1\x128\n" +
 	"\x18permissions_boundary_arn\x18\x01 \x01(\tR\x16permissionsBoundaryArn\x12m\n" +
-	"\x19permissions_boundary_type\x18\x02 \x01(\x0e21.accessgraph.v1alpha.UsersPermissionsBoundaryTypeR\x17permissionsBoundaryType\"\xdc\x03\n" +
+	"\x19permissions_boundary_type\x18\x02 \x01(\x0e21.accessgraph.v1alpha.UsersPermissionsBoundaryTypeR\x17permissionsBoundaryType\"\xb0\x03\n" +
 	"\rAWSInstanceV1\x12\x1f\n" +
 	"\vinstance_id\x18\x01 \x01(\tR\n" +
 	"instanceId\x12;\n" +
@@ -3349,32 +3164,30 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\x04tags\x18\x05 \x03(\v2\x1b.accessgraph.v1alpha.AWSTagR\x04tags\x12&\n" +
 	"\x0fpublic_dns_name\x18\x06 \x01(\tR\rpublicDnsName\x12U\n" +
 	"\x18iam_instance_profile_arn\x18\a \x01(\v2\x1c.google.protobuf.StringValueR\x15iamInstanceProfileArn\x12D\n" +
-	"\x0flaunch_key_name\x18\b \x01(\v2\x1c.google.protobuf.StringValueR\rlaunchKeyName\x12@\n" +
-	"\x0elast_sync_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xf1\x01\n" +
+	"\x0flaunch_key_name\x18\b \x01(\v2\x1c.google.protobuf.StringValueR\rlaunchKeyNameJ\x04\b\t\x10\n" +
+	"R\x0elast_sync_time\"\xc5\x01\n" +
 	"\x17AWSUserAttachedPolicies\x122\n" +
 	"\x04user\x18\x01 \x01(\v2\x1e.accessgraph.v1alpha.AWSUserV1R\x04user\x12A\n" +
 	"\bpolicies\x18\x02 \x03(\v2%.accessgraph.v1alpha.AttachedPolicyV1R\bpolicies\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"E\n" +
+	"account_id\x18\x03 \x01(\tR\taccountIdJ\x04\b\t\x10\n" +
+	"R\x0elast_sync_time\"E\n" +
 	"\x10AttachedPolicyV1\x12\x1f\n" +
 	"\vpolicy_name\x18\x01 \x01(\tR\n" +
 	"policyName\x12\x10\n" +
-	"\x03arn\x18\x02 \x01(\tR\x03arn\"\xf5\x01\n" +
+	"\x03arn\x18\x02 \x01(\tR\x03arn\"\xc9\x01\n" +
 	"\x18AWSGroupAttachedPolicies\x125\n" +
 	"\x05group\x18\x01 \x01(\v2\x1f.accessgraph.v1alpha.AWSGroupV1R\x05group\x12A\n" +
 	"\bpolicies\x18\x02 \x03(\v2%.accessgraph.v1alpha.AttachedPolicyV1R\bpolicies\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x03 \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xfa\x01\n" +
+	"account_id\x18\x03 \x01(\tR\taccountIdJ\x04\b\x04\x10\x05R\x0elast_sync_time\"\xce\x01\n" +
 	"\x16AWSGroupInlinePolicyV1\x12\x1f\n" +
 	"\vpolicy_name\x18\x01 \x01(\tR\n" +
 	"policyName\x125\n" +
 	"\x05group\x18\x02 \x01(\v2\x1f.accessgraph.v1alpha.AWSGroupV1R\x05group\x12'\n" +
 	"\x0fpolicy_document\x18\x03 \x01(\fR\x0epolicyDocument\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x04 \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xb4\x02\n" +
+	"account_id\x18\x04 \x01(\tR\taccountIdJ\x04\b\x05\x10\x06R\x0elast_sync_time\"\x88\x02\n" +
 	"\rAWSS3BucketV1\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
@@ -3382,8 +3195,7 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\x0fpolicy_document\x18\x03 \x01(\fR\x0epolicyDocument\x12\x1b\n" +
 	"\tis_public\x18\x04 \x01(\bR\bisPublic\x127\n" +
 	"\x04acls\x18\x05 \x03(\v2#.accessgraph.v1alpha.AWSS3BucketACLR\x04acls\x12/\n" +
-	"\x04tags\x18\x06 \x03(\v2\x1b.accessgraph.v1alpha.AWSTagR\x04tags\x12@\n" +
-	"\x0elast_sync_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"v\n" +
+	"\x04tags\x18\x06 \x03(\v2\x1b.accessgraph.v1alpha.AWSTagR\x04tagsJ\x04\b\a\x10\bR\x0elast_sync_time\"v\n" +
 	"\x0eAWSS3BucketACL\x12D\n" +
 	"\agrantee\x18\x01 \x01(\v2*.accessgraph.v1alpha.AWSS3BucketACLGranteeR\agrantee\x12\x1e\n" +
 	"\n" +
@@ -3394,7 +3206,7 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12#\n" +
 	"\remail_address\x18\x03 \x01(\tR\femailAddress\x12\x12\n" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x10\n" +
-	"\x03uri\x18\x05 \x01(\tR\x03uri\"\x87\x05\n" +
+	"\x03uri\x18\x05 \x01(\tR\x03uri\"\xdb\x04\n" +
 	"\tAWSRoleV1\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x12=\n" +
 	"\x1bassume_role_policy_document\x18\x02 \x01(\fR\x18assumeRolePolicyDocument\x129\n" +
@@ -3410,28 +3222,25 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	" \x03(\v2\x1b.accessgraph.v1alpha.AWSTagR\x04tags\x12I\n" +
 	"\x0erole_last_used\x18\v \x01(\v2#.accessgraph.v1alpha.RoleLastUsedV1R\froleLastUsed\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\f \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xc3\x01\n" +
+	"account_id\x18\f \x01(\tR\taccountIdJ\x04\b\r\x10\x0eR\x0elast_sync_time\"\xc3\x01\n" +
 	"\x19RolePermissionsBoundaryV1\x128\n" +
 	"\x18permissions_boundary_arn\x18\x01 \x01(\tR\x16permissionsBoundaryArn\x12l\n" +
 	"\x19permissions_boundary_type\x18\x02 \x01(\x0e20.accessgraph.v1alpha.RolePermissionsBoundaryTypeR\x17permissionsBoundaryType\"j\n" +
 	"\x0eRoleLastUsedV1\x12@\n" +
 	"\x0elast_used_date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedDate\x12\x16\n" +
-	"\x06region\x18\x02 \x01(\tR\x06region\"\x89\x02\n" +
+	"\x06region\x18\x02 \x01(\tR\x06region\"\xdd\x01\n" +
 	"\x15AWSRoleInlinePolicyV1\x12\x1f\n" +
 	"\vpolicy_name\x18\x01 \x01(\tR\n" +
 	"policyName\x12'\n" +
 	"\x0fpolicy_document\x18\x03 \x01(\fR\x0epolicyDocument\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x04 \x01(\tR\taccountId\x129\n" +
-	"\baws_role\x18\x05 \x01(\v2\x1e.accessgraph.v1alpha.AWSRoleV1R\aawsRole\x12@\n" +
-	"\x0elast_sync_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTimeJ\x04\b\x02\x10\x03R\x04role\"\x84\x02\n" +
+	"\baws_role\x18\x05 \x01(\v2\x1e.accessgraph.v1alpha.AWSRoleV1R\aawsRoleJ\x04\b\x02\x10\x03J\x04\b\x06\x10\aR\x04roleR\x0elast_sync_time\"\xd8\x01\n" +
 	"\x17AWSRoleAttachedPolicies\x12A\n" +
 	"\bpolicies\x18\x02 \x03(\v2%.accessgraph.v1alpha.AttachedPolicyV1R\bpolicies\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x03 \x01(\tR\taccountId\x129\n" +
-	"\baws_role\x18\x04 \x01(\v2\x1e.accessgraph.v1alpha.AWSRoleV1R\aawsRole\x12@\n" +
-	"\x0elast_sync_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTimeJ\x04\b\x01\x10\x02R\x04role\"\xa3\x03\n" +
+	"\baws_role\x18\x04 \x01(\v2\x1e.accessgraph.v1alpha.AWSRoleV1R\aawsRoleJ\x04\b\x01\x10\x02J\x04\b\x05\x10\x06R\x04roleR\x0elast_sync_time\"\xf7\x02\n" +
 	"\x14AWSInstanceProfileV1\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x129\n" +
 	"\n" +
@@ -3442,8 +3251,8 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\x05roles\x18\x06 \x03(\v2\x1e.accessgraph.v1alpha.AWSRoleV1R\x05roles\x12/\n" +
 	"\x04tags\x18\a \x03(\v2\x1b.accessgraph.v1alpha.AWSTagR\x04tags\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\b \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xce\x02\n" +
+	"account_id\x18\b \x01(\tR\taccountIdJ\x04\b\t\x10\n" +
+	"R\x0elast_sync_time\"\xa2\x02\n" +
 	"\x0fAWSEKSClusterV1\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
 	"\x03arn\x18\x02 \x01(\tR\x03arn\x129\n" +
@@ -3454,8 +3263,8 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\x04tags\x18\x06 \x03(\v2\x1b.accessgraph.v1alpha.AWSTagR\x04tags\x12\x16\n" +
 	"\x06region\x18\a \x01(\tR\x06region\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\b \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\x92\x04\n" +
+	"account_id\x18\b \x01(\tR\taccountIdJ\x04\b\t\x10\n" +
+	"R\x0elast_sync_time\"\xe6\x03\n" +
 	"\x1aAWSEKSClusterAccessEntryV1\x12>\n" +
 	"\acluster\x18\x01 \x01(\v2$.accessgraph.v1alpha.AWSEKSClusterV1R\acluster\x12(\n" +
 	"\x10access_entry_arn\x18\x02 \x01(\tR\x0eaccessEntryArn\x129\n" +
@@ -3470,8 +3279,7 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\busername\x18\t \x01(\tR\busername\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\n" +
-	" \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xc3\x03\n" +
+	" \x01(\tR\taccountIdJ\x04\b\v\x10\fR\x0elast_sync_time\"\x97\x03\n" +
 	"\x1eAWSEKSAssociatedAccessPolicyV1\x12>\n" +
 	"\acluster\x18\x01 \x01(\v2$.accessgraph.v1alpha.AWSEKSClusterV1R\acluster\x12#\n" +
 	"\rprincipal_arn\x18\x02 \x01(\tR\fprincipalArn\x12>\n" +
@@ -3482,13 +3290,12 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\n" +
 	"policy_arn\x18\x06 \x01(\tR\tpolicyArn\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\a \x01(\tR\taccountId\x12@\n" +
-	"\x0elast_sync_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"I\n" +
+	"account_id\x18\a \x01(\tR\taccountIdJ\x04\b\b\x10\tR\x0elast_sync_time\"I\n" +
 	"\x13AWSEKSAccessScopeV1\x12\x1e\n" +
 	"\n" +
 	"namespaces\x18\x01 \x03(\tR\n" +
 	"namespaces\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\"\xc1\x03\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\"\x95\x03\n" +
 	"\x10AWSRDSDatabaseV1\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x12\n" +
@@ -3504,11 +3311,10 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"account_id\x18\t \x01(\tR\taccountId\x12\x1f\n" +
 	"\vresource_id\x18\n" +
 	" \x01(\tR\n" +
-	"resourceId\x12@\n" +
-	"\x0elast_sync_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"B\n" +
+	"resourceIdJ\x04\b\v\x10\fR\x0elast_sync_time\"B\n" +
 	"\x0eAWSRDSEngineV1\x12\x16\n" +
 	"\x06engine\x18\x01 \x01(\tR\x06engine\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\"\x9a\x03\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\"\xee\x02\n" +
 	"\x11AWSSAMLProviderV1\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x129\n" +
 	"\n" +
@@ -3520,8 +3326,8 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"account_id\x18\x05 \x01(\tR\taccountId\x12\x1b\n" +
 	"\tentity_id\x18\x06 \x01(\tR\bentityId\x12\x19\n" +
 	"\bsso_urls\x18\a \x03(\tR\assoUrls\x121\n" +
-	"\x14signing_certificates\x18\b \x03(\tR\x13signingCertificates\x12@\n" +
-	"\x0elast_sync_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\"\xc5\x02\n" +
+	"\x14signing_certificates\x18\b \x03(\tR\x13signingCertificatesJ\x04\b\t\x10\n" +
+	"R\x0elast_sync_time\"\x99\x02\n" +
 	"\x11AWSOIDCProviderV1\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x129\n" +
 	"\n" +
@@ -3532,8 +3338,7 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\n" +
 	"client_ids\x18\x05 \x03(\tR\tclientIds\x12 \n" +
 	"\vthumbprints\x18\x06 \x03(\tR\vthumbprints\x12\x10\n" +
-	"\x03url\x18\a \x01(\tR\x03url\x12@\n" +
-	"\x0elast_sync_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime*\x90\x01\n" +
+	"\x03url\x18\a \x01(\tR\x03urlJ\x04\b\b\x10\tR\x0elast_sync_time*\x90\x01\n" +
 	"\x1cUsersPermissionsBoundaryType\x12/\n" +
 	"+USERS_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED\x10\x00\x12?\n" +
 	";USERS_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY\x10\x01*\x8d\x01\n" +
@@ -3616,86 +3421,66 @@ var file_accessgraph_v1alpha_aws_proto_depIdxs = []int32{
 	31, // 19: accessgraph.v1alpha.AWSResource.saml_provider:type_name -> accessgraph.v1alpha.AWSSAMLProviderV1
 	32, // 20: accessgraph.v1alpha.AWSResource.oidc_provider:type_name -> accessgraph.v1alpha.AWSOIDCProviderV1
 	8,  // 21: accessgraph.v1alpha.AWSUserInlinePolicyV1.user:type_name -> accessgraph.v1alpha.AWSUserV1
-	33, // 22: accessgraph.v1alpha.AWSUserInlinePolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 23: accessgraph.v1alpha.AWSPolicyV1.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 24: accessgraph.v1alpha.AWSPolicyV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 25: accessgraph.v1alpha.AWSPolicyV1.updated_at:type_name -> google.protobuf.Timestamp
-	33, // 26: accessgraph.v1alpha.AWSPolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 27: accessgraph.v1alpha.AWSGroupV1.created_at:type_name -> google.protobuf.Timestamp
-	33, // 28: accessgraph.v1alpha.AWSGroupV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	8,  // 29: accessgraph.v1alpha.AWSUserGroupsV1.user:type_name -> accessgraph.v1alpha.AWSUserV1
-	6,  // 30: accessgraph.v1alpha.AWSUserGroupsV1.groups:type_name -> accessgraph.v1alpha.AWSGroupV1
-	33, // 31: accessgraph.v1alpha.AWSUserGroupsV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 32: accessgraph.v1alpha.AWSUserV1.created_at:type_name -> google.protobuf.Timestamp
-	33, // 33: accessgraph.v1alpha.AWSUserV1.password_last_used:type_name -> google.protobuf.Timestamp
-	10, // 34: accessgraph.v1alpha.AWSUserV1.permissions_boundary:type_name -> accessgraph.v1alpha.UsersPermissionsBoundaryV1
-	9,  // 35: accessgraph.v1alpha.AWSUserV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 36: accessgraph.v1alpha.AWSUserV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	34, // 37: accessgraph.v1alpha.AWSTag.value:type_name -> google.protobuf.StringValue
-	0,  // 38: accessgraph.v1alpha.UsersPermissionsBoundaryV1.permissions_boundary_type:type_name -> accessgraph.v1alpha.UsersPermissionsBoundaryType
-	33, // 39: accessgraph.v1alpha.AWSInstanceV1.launch_time:type_name -> google.protobuf.Timestamp
-	9,  // 40: accessgraph.v1alpha.AWSInstanceV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	34, // 41: accessgraph.v1alpha.AWSInstanceV1.iam_instance_profile_arn:type_name -> google.protobuf.StringValue
-	34, // 42: accessgraph.v1alpha.AWSInstanceV1.launch_key_name:type_name -> google.protobuf.StringValue
-	33, // 43: accessgraph.v1alpha.AWSInstanceV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	8,  // 44: accessgraph.v1alpha.AWSUserAttachedPolicies.user:type_name -> accessgraph.v1alpha.AWSUserV1
-	13, // 45: accessgraph.v1alpha.AWSUserAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
-	33, // 46: accessgraph.v1alpha.AWSUserAttachedPolicies.last_sync_time:type_name -> google.protobuf.Timestamp
-	6,  // 47: accessgraph.v1alpha.AWSGroupAttachedPolicies.group:type_name -> accessgraph.v1alpha.AWSGroupV1
-	13, // 48: accessgraph.v1alpha.AWSGroupAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
-	33, // 49: accessgraph.v1alpha.AWSGroupAttachedPolicies.last_sync_time:type_name -> google.protobuf.Timestamp
-	6,  // 50: accessgraph.v1alpha.AWSGroupInlinePolicyV1.group:type_name -> accessgraph.v1alpha.AWSGroupV1
-	33, // 51: accessgraph.v1alpha.AWSGroupInlinePolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	17, // 52: accessgraph.v1alpha.AWSS3BucketV1.acls:type_name -> accessgraph.v1alpha.AWSS3BucketACL
-	9,  // 53: accessgraph.v1alpha.AWSS3BucketV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 54: accessgraph.v1alpha.AWSS3BucketV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	18, // 55: accessgraph.v1alpha.AWSS3BucketACL.grantee:type_name -> accessgraph.v1alpha.AWSS3BucketACLGrantee
-	33, // 56: accessgraph.v1alpha.AWSRoleV1.created_at:type_name -> google.protobuf.Timestamp
-	35, // 57: accessgraph.v1alpha.AWSRoleV1.max_session_duration:type_name -> google.protobuf.Duration
-	20, // 58: accessgraph.v1alpha.AWSRoleV1.permissions_boundary:type_name -> accessgraph.v1alpha.RolePermissionsBoundaryV1
-	9,  // 59: accessgraph.v1alpha.AWSRoleV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	21, // 60: accessgraph.v1alpha.AWSRoleV1.role_last_used:type_name -> accessgraph.v1alpha.RoleLastUsedV1
-	33, // 61: accessgraph.v1alpha.AWSRoleV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	1,  // 62: accessgraph.v1alpha.RolePermissionsBoundaryV1.permissions_boundary_type:type_name -> accessgraph.v1alpha.RolePermissionsBoundaryType
-	33, // 63: accessgraph.v1alpha.RoleLastUsedV1.last_used_date:type_name -> google.protobuf.Timestamp
-	19, // 64: accessgraph.v1alpha.AWSRoleInlinePolicyV1.aws_role:type_name -> accessgraph.v1alpha.AWSRoleV1
-	33, // 65: accessgraph.v1alpha.AWSRoleInlinePolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	13, // 66: accessgraph.v1alpha.AWSRoleAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
-	19, // 67: accessgraph.v1alpha.AWSRoleAttachedPolicies.aws_role:type_name -> accessgraph.v1alpha.AWSRoleV1
-	33, // 68: accessgraph.v1alpha.AWSRoleAttachedPolicies.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 69: accessgraph.v1alpha.AWSInstanceProfileV1.created_at:type_name -> google.protobuf.Timestamp
-	19, // 70: accessgraph.v1alpha.AWSInstanceProfileV1.roles:type_name -> accessgraph.v1alpha.AWSRoleV1
-	9,  // 71: accessgraph.v1alpha.AWSInstanceProfileV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 72: accessgraph.v1alpha.AWSInstanceProfileV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 73: accessgraph.v1alpha.AWSEKSClusterV1.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 74: accessgraph.v1alpha.AWSEKSClusterV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 75: accessgraph.v1alpha.AWSEKSClusterV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	25, // 76: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
-	33, // 77: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.created_at:type_name -> google.protobuf.Timestamp
-	33, // 78: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.modified_at:type_name -> google.protobuf.Timestamp
-	9,  // 79: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 80: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	25, // 81: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
-	28, // 82: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.scope:type_name -> accessgraph.v1alpha.AWSEKSAccessScopeV1
-	33, // 83: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.associated_at:type_name -> google.protobuf.Timestamp
-	33, // 84: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.modified_at:type_name -> google.protobuf.Timestamp
-	33, // 85: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	30, // 86: accessgraph.v1alpha.AWSRDSDatabaseV1.engine_details:type_name -> accessgraph.v1alpha.AWSRDSEngineV1
-	33, // 87: accessgraph.v1alpha.AWSRDSDatabaseV1.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 88: accessgraph.v1alpha.AWSRDSDatabaseV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 89: accessgraph.v1alpha.AWSRDSDatabaseV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 90: accessgraph.v1alpha.AWSSAMLProviderV1.created_at:type_name -> google.protobuf.Timestamp
-	33, // 91: accessgraph.v1alpha.AWSSAMLProviderV1.valid_until:type_name -> google.protobuf.Timestamp
-	9,  // 92: accessgraph.v1alpha.AWSSAMLProviderV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 93: accessgraph.v1alpha.AWSSAMLProviderV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	33, // 94: accessgraph.v1alpha.AWSOIDCProviderV1.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 95: accessgraph.v1alpha.AWSOIDCProviderV1.tags:type_name -> accessgraph.v1alpha.AWSTag
-	33, // 96: accessgraph.v1alpha.AWSOIDCProviderV1.last_sync_time:type_name -> google.protobuf.Timestamp
-	97, // [97:97] is the sub-list for method output_type
-	97, // [97:97] is the sub-list for method input_type
-	97, // [97:97] is the sub-list for extension type_name
-	97, // [97:97] is the sub-list for extension extendee
-	0,  // [0:97] is the sub-list for field type_name
+	33, // 22: accessgraph.v1alpha.AWSPolicyV1.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 23: accessgraph.v1alpha.AWSPolicyV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	33, // 24: accessgraph.v1alpha.AWSPolicyV1.updated_at:type_name -> google.protobuf.Timestamp
+	33, // 25: accessgraph.v1alpha.AWSGroupV1.created_at:type_name -> google.protobuf.Timestamp
+	8,  // 26: accessgraph.v1alpha.AWSUserGroupsV1.user:type_name -> accessgraph.v1alpha.AWSUserV1
+	6,  // 27: accessgraph.v1alpha.AWSUserGroupsV1.groups:type_name -> accessgraph.v1alpha.AWSGroupV1
+	33, // 28: accessgraph.v1alpha.AWSUserV1.created_at:type_name -> google.protobuf.Timestamp
+	33, // 29: accessgraph.v1alpha.AWSUserV1.password_last_used:type_name -> google.protobuf.Timestamp
+	10, // 30: accessgraph.v1alpha.AWSUserV1.permissions_boundary:type_name -> accessgraph.v1alpha.UsersPermissionsBoundaryV1
+	9,  // 31: accessgraph.v1alpha.AWSUserV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34, // 32: accessgraph.v1alpha.AWSTag.value:type_name -> google.protobuf.StringValue
+	0,  // 33: accessgraph.v1alpha.UsersPermissionsBoundaryV1.permissions_boundary_type:type_name -> accessgraph.v1alpha.UsersPermissionsBoundaryType
+	33, // 34: accessgraph.v1alpha.AWSInstanceV1.launch_time:type_name -> google.protobuf.Timestamp
+	9,  // 35: accessgraph.v1alpha.AWSInstanceV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	34, // 36: accessgraph.v1alpha.AWSInstanceV1.iam_instance_profile_arn:type_name -> google.protobuf.StringValue
+	34, // 37: accessgraph.v1alpha.AWSInstanceV1.launch_key_name:type_name -> google.protobuf.StringValue
+	8,  // 38: accessgraph.v1alpha.AWSUserAttachedPolicies.user:type_name -> accessgraph.v1alpha.AWSUserV1
+	13, // 39: accessgraph.v1alpha.AWSUserAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
+	6,  // 40: accessgraph.v1alpha.AWSGroupAttachedPolicies.group:type_name -> accessgraph.v1alpha.AWSGroupV1
+	13, // 41: accessgraph.v1alpha.AWSGroupAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
+	6,  // 42: accessgraph.v1alpha.AWSGroupInlinePolicyV1.group:type_name -> accessgraph.v1alpha.AWSGroupV1
+	17, // 43: accessgraph.v1alpha.AWSS3BucketV1.acls:type_name -> accessgraph.v1alpha.AWSS3BucketACL
+	9,  // 44: accessgraph.v1alpha.AWSS3BucketV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	18, // 45: accessgraph.v1alpha.AWSS3BucketACL.grantee:type_name -> accessgraph.v1alpha.AWSS3BucketACLGrantee
+	33, // 46: accessgraph.v1alpha.AWSRoleV1.created_at:type_name -> google.protobuf.Timestamp
+	35, // 47: accessgraph.v1alpha.AWSRoleV1.max_session_duration:type_name -> google.protobuf.Duration
+	20, // 48: accessgraph.v1alpha.AWSRoleV1.permissions_boundary:type_name -> accessgraph.v1alpha.RolePermissionsBoundaryV1
+	9,  // 49: accessgraph.v1alpha.AWSRoleV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	21, // 50: accessgraph.v1alpha.AWSRoleV1.role_last_used:type_name -> accessgraph.v1alpha.RoleLastUsedV1
+	1,  // 51: accessgraph.v1alpha.RolePermissionsBoundaryV1.permissions_boundary_type:type_name -> accessgraph.v1alpha.RolePermissionsBoundaryType
+	33, // 52: accessgraph.v1alpha.RoleLastUsedV1.last_used_date:type_name -> google.protobuf.Timestamp
+	19, // 53: accessgraph.v1alpha.AWSRoleInlinePolicyV1.aws_role:type_name -> accessgraph.v1alpha.AWSRoleV1
+	13, // 54: accessgraph.v1alpha.AWSRoleAttachedPolicies.policies:type_name -> accessgraph.v1alpha.AttachedPolicyV1
+	19, // 55: accessgraph.v1alpha.AWSRoleAttachedPolicies.aws_role:type_name -> accessgraph.v1alpha.AWSRoleV1
+	33, // 56: accessgraph.v1alpha.AWSInstanceProfileV1.created_at:type_name -> google.protobuf.Timestamp
+	19, // 57: accessgraph.v1alpha.AWSInstanceProfileV1.roles:type_name -> accessgraph.v1alpha.AWSRoleV1
+	9,  // 58: accessgraph.v1alpha.AWSInstanceProfileV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	33, // 59: accessgraph.v1alpha.AWSEKSClusterV1.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 60: accessgraph.v1alpha.AWSEKSClusterV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	25, // 61: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
+	33, // 62: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.created_at:type_name -> google.protobuf.Timestamp
+	33, // 63: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.modified_at:type_name -> google.protobuf.Timestamp
+	9,  // 64: accessgraph.v1alpha.AWSEKSClusterAccessEntryV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	25, // 65: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.cluster:type_name -> accessgraph.v1alpha.AWSEKSClusterV1
+	28, // 66: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.scope:type_name -> accessgraph.v1alpha.AWSEKSAccessScopeV1
+	33, // 67: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.associated_at:type_name -> google.protobuf.Timestamp
+	33, // 68: accessgraph.v1alpha.AWSEKSAssociatedAccessPolicyV1.modified_at:type_name -> google.protobuf.Timestamp
+	30, // 69: accessgraph.v1alpha.AWSRDSDatabaseV1.engine_details:type_name -> accessgraph.v1alpha.AWSRDSEngineV1
+	33, // 70: accessgraph.v1alpha.AWSRDSDatabaseV1.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 71: accessgraph.v1alpha.AWSRDSDatabaseV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	33, // 72: accessgraph.v1alpha.AWSSAMLProviderV1.created_at:type_name -> google.protobuf.Timestamp
+	33, // 73: accessgraph.v1alpha.AWSSAMLProviderV1.valid_until:type_name -> google.protobuf.Timestamp
+	9,  // 74: accessgraph.v1alpha.AWSSAMLProviderV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	33, // 75: accessgraph.v1alpha.AWSOIDCProviderV1.created_at:type_name -> google.protobuf.Timestamp
+	9,  // 76: accessgraph.v1alpha.AWSOIDCProviderV1.tags:type_name -> accessgraph.v1alpha.AWSTag
+	77, // [77:77] is the sub-list for method output_type
+	77, // [77:77] is the sub-list for method input_type
+	77, // [77:77] is the sub-list for extension type_name
+	77, // [77:77] is the sub-list for extension extendee
+	0,  // [0:77] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1alpha_aws_proto_init() }
