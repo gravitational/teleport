@@ -53,11 +53,10 @@ message PtyClientEvent {
 
 message PtyServerEvent {
   oneof event {
-    PtyEventResize resize = 1;
-    PtyEventData data = 2;
-    PtyEventOpen open = 3;
-    PtyEventExit exit = 4;
-    PtyEventStartError start_error = 5;
+    PtyEventData data = 1;
+    PtyEventOpen open = 2;
+    PtyEventExit exit = 3;
+    PtyEventStartError start_error = 4;
   }
 }
 
