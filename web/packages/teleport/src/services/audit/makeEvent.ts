@@ -239,14 +239,14 @@ export const formatters: Formatters = {
       const { proto, kubernetes_cluster, user = '', sid } = event;
       if (proto === 'kube') {
         if (!kubernetes_cluster) {
-          return `User [${user}] executed a Kubernetes command within a session [${sid}]`;
+          return `User [${user}] executed a Kubernetes command within session [${sid}]`;
         }
-        return `User [${user}] executed a command on Kubernetes cluster [${kubernetes_cluster}] within a session [${sid}]`;
+        return `User [${user}] executed a command on Kubernetes cluster [${kubernetes_cluster}] within session [${sid}]`;
       }
 
       return `User [${user}] executed a command on node ${
         event['server_hostname'] || event['addr.local']
-      } within a session [${sid}]`;
+      } within session [${sid}]`;
     },
   },
   [eventCodes.EXEC_FAILURE]: {
@@ -255,7 +255,7 @@ export const formatters: Formatters = {
     format: ({ user, exitError, sid, ...rest }) =>
       `User [${user}] command execution on node ${
         rest['server_hostname'] || rest['addr.local']
-      } failed [${exitError}] within a session [${sid}]`,
+      } failed [${exitError}] within session [${sid}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
     type: 'github.created',
