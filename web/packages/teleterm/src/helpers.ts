@@ -28,11 +28,6 @@ import {
   RouteConflictReport,
   SSHConfigurationReport,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
-
-import {
-  ReloginRequest,
-  SendNotificationRequest,
-} from 'teleterm/services/tshdEvents';
 import {
   PtyClientEvent,
   PtyEventData,
@@ -41,7 +36,12 @@ import {
   PtyEventStart,
   PtyEventStartError,
   PtyServerEvent,
-} from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb';
+} from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
+
+import {
+  ReloginRequest,
+  SendNotificationRequest,
+} from 'teleterm/services/tshdEvents';
 
 export function resourceOneOfIsServer(
   resource: PaginatedResource['resource']

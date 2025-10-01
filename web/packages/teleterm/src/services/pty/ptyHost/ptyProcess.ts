@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-
-import { PtyHostClient } from '../types';
+import { IPtyProcess, PtyHostClient } from '../types';
 
 export function createPtyProcess(
   ptyHostClient: PtyHostClient,
@@ -35,20 +33,20 @@ export function createPtyProcess(
      * Client -> Server stream events
      */
 
-    start(columns: number, rows: number): void {
-      exchangeEventsStream.start(columns, rows);
+    async start(columns: number, rows: number): Promise<void> {
+      await exchangeEventsStream.start(columns, rows);
     },
 
-    write(data: string): void {
-      exchangeEventsStream.write(data);
+    async write(data: string): Promise<void> {
+      await exchangeEventsStream.write(data);
     },
 
-    resize(columns: number, rows: number): void {
-      exchangeEventsStream.resize(columns, rows);
+    async resize(columns: number, rows: number): Promise<void> {
+      await exchangeEventsStream.resize(columns, rows);
     },
 
     async dispose(): Promise<void> {
-      exchangeEventsStream.dispose();
+      await exchangeEventsStream.dispose();
     },
 
     /**

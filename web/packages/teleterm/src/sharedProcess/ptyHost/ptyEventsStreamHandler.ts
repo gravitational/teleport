@@ -19,13 +19,6 @@
 import { ServerDuplexStream } from '@grpc/grpc-js';
 
 import {
-  ptyEventOneOfIsData,
-  ptyEventOneOfIsResize,
-  ptyEventOneOfIsStart,
-} from 'teleterm/helpers';
-import Logger from 'teleterm/logger';
-
-import {
   PtyClientEvent,
   PtyEventData,
   PtyEventExit,
@@ -34,7 +27,15 @@ import {
   PtyEventStart,
   PtyEventStartError,
   PtyServerEvent,
-} from '../api/protogen/ptyHostService_pb';
+} from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
+
+import {
+  ptyEventOneOfIsData,
+  ptyEventOneOfIsResize,
+  ptyEventOneOfIsStart,
+} from 'teleterm/helpers';
+import Logger from 'teleterm/logger';
+
 import { PtyProcess } from './ptyProcess';
 
 export class PtyEventsStreamHandler {

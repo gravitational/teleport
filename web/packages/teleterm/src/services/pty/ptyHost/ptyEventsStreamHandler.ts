@@ -16,7 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClientDuplexStream } from '@grpc/grpc-js';
+import { DuplexStreamingCall } from '@protobuf-ts/runtime-rpc';
+
+import {
+  PtyClientEvent,
+  PtyEventData,
+  PtyEventResize,
+  PtyEventStart,
+  PtyServerEvent,
+} from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 
 import {
   ptyEventOneOfIsData,
@@ -24,19 +32,15 @@ import {
   ptyEventOneOfIsStartError,
 } from 'teleterm/helpers';
 import Logger from 'teleterm/logger';
-import {
-  PtyClientEvent,
-  PtyEventData,
-  PtyEventResize,
-  PtyEventStart,
-  PtyServerEvent,
-} from 'teleterm/sharedProcess/ptyHost';
 
 export class PtyEventsStreamHandler {
   private logger: Logger;
 
   constructor(
-    private readonly stream: ClientDuplexStream<PtyClientEvent, PtyServerEvent>,
+    private readonly stream: DuplexStreamingCall<
+      PtyClientEvent,
+      PtyServerEvent
+    >,
     ptyId: string
   ) {
     this.logger = new Logger(`PtyEventsStreamHandler ${ptyId}`);
@@ -46,10 +50,10 @@ export class PtyEventsStreamHandler {
    * Client -> Server stream events
    */
 
-  start(columns: number, rows: number): void {
+  async start(columns: number, rows: number): Promise<void> {
     this.logger.info('Start');
 
-    this.writeOrThrow(
+    await this._write(
       PtyClientEvent.create({
         event: {
           oneofKind: 'start',
@@ -59,8 +63,8 @@ export class PtyEventsStreamHandler {
     );
   }
 
-  write(data: string): void {
-    this.writeOrThrow(
+  async write(data: string): Promise<void> {
+    this._write(
       PtyClientEvent.create({
         event: {
           oneofKind: 'data',
@@ -70,8 +74,8 @@ export class PtyEventsStreamHandler {
     );
   }
 
-  resize(columns: number, rows: number): void {
-    this.writeOrThrow(
+  async resize(columns: number, rows: number): Promise<void> {
+    this._write(
       PtyClientEvent.create({
         event: {
           oneofKind: 'resize',
@@ -81,11 +85,10 @@ export class PtyEventsStreamHandler {
     );
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.logger.info('Dispose');
 
-    this.stream.end();
-    this.stream.removeAllListeners();
+    await this.stream.requests.complete();
   }
 
   /**
@@ -136,22 +139,14 @@ export class PtyEventsStreamHandler {
     );
   }
 
-  private writeOrThrow(event: PtyClientEvent) {
-    return this.stream.write(event, (error: Error | undefined) => {
-      if (error) {
-        throw error;
-      }
-    });
+  private _write(event: PtyClientEvent): Promise<void> {
+    return this.stream.requests.send(event);
   }
 
   private addDataListenerAndReturnRemovalFunction(
     callback: (event: PtyServerEvent) => void
   ) {
-    this.stream.addListener('data', callback);
-
-    return () => {
-      this.stream.removeListener('data', callback);
-    };
+    return this.stream.responses.onMessage(callback);
   }
 }
 

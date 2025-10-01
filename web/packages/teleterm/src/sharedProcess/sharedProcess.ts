@@ -18,6 +18,8 @@
 
 import { Server, ServerCredentials } from '@grpc/grpc-js';
 
+import { ptyHostDefinition } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.grpc-server';
+
 import Logger from 'teleterm/logger';
 import { RuntimeSettings, TERMINATE_MESSAGE } from 'teleterm/mainProcess/types';
 import {
@@ -29,7 +31,6 @@ import {
   shouldEncryptConnection,
 } from 'teleterm/services/grpcCredentials';
 import { createStdoutLoggerService } from 'teleterm/services/logger';
-import { ptyHostDefinition } from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb.grpc-server';
 
 import { createPtyHostService } from './ptyHost/ptyHostService';
 
