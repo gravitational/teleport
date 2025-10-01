@@ -212,7 +212,7 @@ func TestScheduleRequest(t *testing.T) {
 
 	testRule := newApprovedRule(
 		testRuleName,
-		`access_request.spec.creation_time.in_schedule(spec.schedules["test-schedule"])`)
+		`true`)
 
 	testRule.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
 		"test-schedule": {

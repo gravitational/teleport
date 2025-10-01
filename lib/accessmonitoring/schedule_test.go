@@ -88,19 +88,21 @@ func TestInSchedule(t *testing.T) {
 	timestamp := time.Date(2025, time.August, 11, 14, 30, 0, 0, time.UTC) // Monday 14:30
 	tests := []struct {
 		description      string
-		schedule         *accessmonitoringrulesv1.Schedule
+		schedules        map[string]*accessmonitoringrulesv1.Schedule
 		assertErr        require.ErrorAssertionFunc
 		assertInSchedule require.BoolAssertionFunc
 	}{
 		{
 			description: "in schedule",
-			schedule: &accessmonitoringrulesv1.Schedule{
-				Time: &accessmonitoringrulesv1.TimeSchedule{
-					Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-						{
-							Weekday: time.Monday.String(),
-							Start:   "14:00",
-							End:     "15:00",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "14:00",
+								End:     "15:00",
+							},
 						},
 					},
 				},
@@ -110,9 +112,11 @@ func TestInSchedule(t *testing.T) {
 		},
 		{
 			description: "schedule does not contain any shifts",
-			schedule: &accessmonitoringrulesv1.Schedule{
-				Time: &accessmonitoringrulesv1.TimeSchedule{
-					Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{},
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{},
+					},
 				},
 			},
 			assertErr:        require.NoError,
@@ -120,13 +124,15 @@ func TestInSchedule(t *testing.T) {
 		},
 		{
 			description: "different weekday",
-			schedule: &accessmonitoringrulesv1.Schedule{
-				Time: &accessmonitoringrulesv1.TimeSchedule{
-					Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-						{
-							Weekday: time.Tuesday.String(),
-							Start:   "14:00",
-							End:     "15:00",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Tuesday.String(),
+								Start:   "14:00",
+								End:     "15:00",
+							},
 						},
 					},
 				},
@@ -136,13 +142,15 @@ func TestInSchedule(t *testing.T) {
 		},
 		{
 			description: "before schedule",
-			schedule: &accessmonitoringrulesv1.Schedule{
-				Time: &accessmonitoringrulesv1.TimeSchedule{
-					Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-						{
-							Weekday: time.Monday.String(),
-							Start:   "14:31",
-							End:     "15:00",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "14:31",
+								End:     "15:00",
+							},
 						},
 					},
 				},
@@ -152,13 +160,44 @@ func TestInSchedule(t *testing.T) {
 		},
 		{
 			description: "exact start time",
-			schedule: &accessmonitoringrulesv1.Schedule{
-				Time: &accessmonitoringrulesv1.TimeSchedule{
-					Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-						{
-							Weekday: time.Monday.String(),
-							Start:   "14:30",
-							End:     "15:00",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "14:30",
+								End:     "15:00",
+							},
+						},
+					},
+				},
+			},
+			assertErr:        require.NoError,
+			assertInSchedule: require.True,
+		},
+		{
+			description: "multiple schedules",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"schedule1": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "14:30",
+								End:     "15:00",
+							},
+						},
+					},
+				},
+				"schedule2": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Tuesday.String(),
+								Start:   "14:30",
+								End:     "15:00",
+							},
 						},
 					},
 				},
@@ -171,7 +210,7 @@ func TestInSchedule(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			t.Parallel()
-			ts, err := inSchedule(timestamp, tt.schedule)
+			ts, err := InSchedules(tt.schedules, timestamp)
 			tt.assertErr(t, err)
 			if tt.assertInSchedule != nil {
 				tt.assertInSchedule(t, ts)

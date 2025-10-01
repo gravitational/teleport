@@ -24,16 +24,6 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 )
 
-// ScheduleDict specifies a dictionary of schedules.
-//
-// Implements [typical.Getter]
-type ScheduleDict map[string]*accessmonitoringrulesv1.Schedule
-
-// Get returns the schedule with the specified key name.
-func (d ScheduleDict) Get(key string) (*accessmonitoringrulesv1.Schedule, error) {
-	return d[key], nil
-}
-
 // ClockTime returns a new time value overriding the hour and minute.
 func ClockTime(timestamp time.Time, hourMinute string) (time.Time, error) {
 	const hourMinuteFormat = "15:04" // 24-hour HH:MM format
@@ -48,7 +38,7 @@ func ClockTime(timestamp time.Time, hourMinute string) (time.Time, error) {
 }
 
 // inSchedule returns true if the timestamp is within the schedule.
-func inSchedule(timestamp time.Time, schedule *accessmonitoringrulesv1.Schedule) (bool, error) {
+func inSchedule(schedule *accessmonitoringrulesv1.Schedule, timestamp time.Time) (bool, error) {
 	if schedule.GetTime() == nil {
 		return false, nil
 	}
@@ -74,6 +64,21 @@ func inSchedule(timestamp time.Time, schedule *accessmonitoringrulesv1.Schedule)
 		}
 
 		if !timestamp.Before(startTime) && !timestamp.After(endTime) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// InSchedules returns true if the provided timestamp is within an of the provided
+// schedules. Returns false if schedules is empty.
+func InSchedules(schedules map[string]*accessmonitoringrulesv1.Schedule, timestamp time.Time) (bool, error) {
+	for _, schedule := range schedules {
+		isInSchedule, err := inSchedule(schedule, timestamp)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if isInSchedule {
 			return true, nil
 		}
 	}

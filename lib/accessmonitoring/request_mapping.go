@@ -42,10 +42,6 @@ type AccessRequestExpressionEnv struct {
 	// UserTraits includes arbitrary user traits dynamically provided by the
 	// access monitoring rule handler.
 	UserTraits map[string][]string
-
-	// Schedules contains the dictonary of schedules configured within the
-	// access monitoring rule.
-	Schedules ScheduleDict
 }
 
 type accessRequestExpression typical.Expression[AccessRequestExpressionEnv, any]
@@ -131,18 +127,10 @@ func newRequestConditionParser() (*typical.Parser[AccessRequestExpressionEnv, an
 		"user.traits": typical.DynamicMap(func(env AccessRequestExpressionEnv) (expression.Dict, error) {
 			return expression.DictFromStringSliceMap(env.UserTraits), nil
 		}),
-
-		"spec.schedules": typical.DynamicMap(func(env AccessRequestExpressionEnv) (ScheduleDict, error) {
-			return env.Schedules, nil
-		}),
 	}
 
 	defParserSpec := expression.DefaultParserSpec[AccessRequestExpressionEnv]()
 	defParserSpec.Variables = typicalEnvVar
-
-	inScheduleFn := typical.BinaryFunction[AccessRequestExpressionEnv](inSchedule)
-	defParserSpec.Functions["in_schedule"] = inScheduleFn
-	defParserSpec.Methods["in_schedule"] = inScheduleFn
 
 	requestConditionParser, err := typical.NewParser[AccessRequestExpressionEnv, any](defParserSpec)
 	if err != nil {
