@@ -139,7 +139,7 @@ func (a AtomicWriteShim) CompareAndSwap(ctx context.Context, expected backend.It
 		if err != nil {
 			if errors.Is(err, backend.ErrConditionFailed) {
 				// concurrent modification does not guarantee that the value was changed (may have been a redundant
-				// update or a keepalive), so we need to retry in order to determine wether or not the cas should
+				// update or a keepalive), so we need to retry in order to determine whether or not the cas should
 				// succeed.
 				continue
 			}

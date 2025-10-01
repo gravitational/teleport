@@ -53,7 +53,7 @@ type CacheConfig struct {
 	// Disabled is a flag that can be used to disable ttl-caching. Useful in tests that
 	// don't play nicely with stale data.
 	Disabled bool
-	// ReloadOnErr controls wether or not the underlying ttl cache will hold onto error
+	// ReloadOnErr controls whether or not the underlying ttl cache will hold onto error
 	// entries for the full TTL, or reload error entries immediately. As a general rule,
 	// this value aught to be true on auth servers and false on agents, though in practice
 	// the difference is small unless an unusually long TTL is used.
