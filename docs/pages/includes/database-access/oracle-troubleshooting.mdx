@@ -1,7 +1,7 @@
 ### Connection hangs or is refused
 
 A common issue when connecting to an Oracle database is a connection timeout or refusal. This typically indicates a networking problem where the Teleport Database Service cannot reach the Oracle database endpoint.
-Verify that network routing and access controls, such as firewalls and VPC security groups, allow traffic to flow from the Database Service host to the database host.
+Verify that network routing and access controls, such as firewalls and VPC security groups, allow traffic to flow from the Database Service host to the database endpoint.
 
 You can validate connectivity using a native Oracle client, which helps confirm whether the issue is with Teleport or the underlying network configuration. For example, using Oracle SQLcl:
 
@@ -64,16 +64,12 @@ Teleport rejects connections to databases with untrusted server certificates. If
 You can view the Teleport Database CA certificate with the following command:
 
 ```
-tctl auth export --type=db | openssl x509 -text -noout
+tctl auth export --type=db | openssl x509 -issuer -noout
 ...
-Certificate:
-    Data:
-        ...
-        Subject: O=teleport.example.com, CN=teleport.example.com, serialNumber=200129862304303044762346177566738813560
-...
+issuer=O=teleport.example.com, CN=teleport.example.com, serialNumber=200129862304303044762346177566738813560
 ```
 
-Compare the `issuer` in the server certificate with the `Subject` of the Teleport Database CA certificate. The `openssl s_client` command from the previous section will show you the server certificate:
+Compare the `issuer` in the server certificate with the `issuer` of the Teleport Database CA certificate. The `openssl s_client` command from the previous section will show you the server certificate:
 
 
 ```
@@ -108,12 +104,8 @@ If the Oracle server rejects client certificates presented by the Teleport Datab
 You can view the Teleport Database User CA with this command:
 
 ```
-tctl auth export --type=db-client | openssl x509 -text -noout
-...
-Certificate:
-    Data:
-        ...
-        Subject: O=teleport.example.com, CN=teleport.example.com, serialNumber=183359545647055551607366887578713393931
+tctl auth export --type=db-client | openssl x509 -issuer -noout
+issuer=O=teleport.example.com, CN=teleport.example.com, serialNumber=183359545647055551607366887578713393931
 ```
 
 Compare the Teleport Database User CA with the list of CAs trusted by the Oracle database. The `openssl s_client` command from earlier will show the list of CAs the Oracle database trusts:
@@ -135,7 +127,7 @@ You can also inspect the Oracle wallet directly using the `orapki` utility to ve
 orapki wallet display -complete -wallet /path/to/wallet
 ```
 
-The "Trusted Certificates" section of the output should contain the Teleport Database User CA. Its `Subject` should match the `Subject` of the Teleport Database User CA.
+The "Trusted Certificates" section of the output should contain the Teleport Database User CA. Its `Issuer` should match the `issuer` of the Teleport Database User CA.
 
 ```
 Trusted Certificates:
