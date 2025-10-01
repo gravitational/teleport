@@ -129,6 +129,7 @@ func TestCreateBot(t *testing.T) {
 							"my-label":       "my-value",
 							"my-other-label": "my-other-value",
 						},
+						Description: "Property of US Robotics and Mechanical Men.",
 					},
 					Spec: &machineidv1pb.BotSpec{
 						Roles: []string{testRole.GetName()},
@@ -156,6 +157,7 @@ func TestCreateBot(t *testing.T) {
 						"my-label":       "my-value",
 						"my-other-label": "my-other-value",
 					},
+					Description: "Property of US Robotics and Mechanical Men.",
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},
@@ -183,6 +185,7 @@ func TestCreateBot(t *testing.T) {
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
 					},
+					Description: "Property of US Robotics and Mechanical Men.",
 				},
 				Spec: types.UserSpecV2{
 					CreatedBy: types.CreatedBy{
@@ -1307,6 +1310,7 @@ func TestGetBot(t *testing.T) {
 						"my-label":       "my-value",
 						"my-other-label": "my-other-value",
 					},
+					Description: "The maze wasn't meant for you",
 				},
 				Spec: &machineidv1pb.BotSpec{
 					Roles: []string{testRole.GetName()},

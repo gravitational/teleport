@@ -2,13 +2,16 @@
 title: Reference for the teleport_user Terraform resource
 sidebar_label: user
 description: This page describes the supported values of the teleport_user resource of the Teleport Terraform provider.
-labels:
+tags:
  - reference
  - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/terraform and run `make docs`.*/}
+
+This page describes the supported values of the teleport_user resource of the Teleport Terraform provider.
+
 
 
 
@@ -133,4 +136,3 @@ Optional:
 
 - `mfa_weakest_device` (Number) mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a "best effort" property, in that it can be UNSPECIFIED.
 - `password_state` (Number) password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!
-

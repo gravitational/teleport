@@ -1,5 +1,35 @@
 # Changelog
 
+## 16.5.18 (09/29/25)
+
+* Fixed auto-approvals in the Datadog Incident Management integration by updating the on-call API client. [#59670](https://github.com/gravitational/teleport/pull/59670)
+* Fixed auto-approvals in the Datadog Incident Management integration to ignore case sensitivity in user emails. [#59670](https://github.com/gravitational/teleport/pull/59670)
+* Fixed `tsh play` not returning an error when playing a session fails. [#59627](https://github.com/gravitational/teleport/pull/59627)
+* Fixed persistence of `metadata.description` field for the Bot resource. [#59572](https://github.com/gravitational/teleport/pull/59572)
+* Fixed an issue that prevented connecting to agents over peered tunnels when proxy peering was enabled. [#59558](https://github.com/gravitational/teleport/pull/59558)
+
+## 16.5.17 (09/23/25)
+
+* Made the check for a running Teleport process in the install-node.sh script more robust. [#59494](https://github.com/gravitational/teleport/pull/59494)
+* Fixed `tctl edit` producing an error when trying to modify a Bot resource. [#59482](https://github.com/gravitational/teleport/pull/59482)
+* Improved app access error messages in case of network error. [#59466](https://github.com/gravitational/teleport/pull/59466)
+* Fixed database IAM configurator potentially getting stuck and never recovering (#59290). [#59419](https://github.com/gravitational/teleport/pull/59419)
+* Fixed `tsh config` binary path after managed updates. [#59386](https://github.com/gravitational/teleport/pull/59386)
+
+## 16.5.16 (09/18/25)
+
+* Fix issue preventing auto enrollment of EKS clusters when using the Web UI. [#59274](https://github.com/gravitational/teleport/pull/59274)
+* Added desktop name for Windows Directory and Clipboard audit events. [#59158](https://github.com/gravitational/teleport/pull/59158)
+* Fixed client tools managed updates sequential update. [#59090](https://github.com/gravitational/teleport/pull/59090)
+* Install script allows specifying a group for agent installation with managed updates V2 enabled. [#59061](https://github.com/gravitational/teleport/pull/59061)
+* Added fdpass-teleport binary to install script for Teleport tar downloads. [#58921](https://github.com/gravitational/teleport/pull/58921)
+* Updated Go to 1.24.7. [#58837](https://github.com/gravitational/teleport/pull/58837)
+* Allow controlling the description of auto-discovered Kubernetes apps with an annotation. [#58815](https://github.com/gravitational/teleport/pull/58815)
+* Prevents an application from being registered if its public address matches a Teleport cluster address. [#58768](https://github.com/gravitational/teleport/pull/58768)
+
+Enterprise:
+* Fixed an issue in the Entra ID integration where a user account with an unsupported username value could prevent other valid users and groups to be synced to Teleport. Such user accounts are now filtered.
+
 ## 16.5.15 (09/02/25)
 
 * The following Helm charts now support obtaining the plugin credentials using tbot: `teleport-plugin-discord`, `teleport-plugin-email`, `teleport-plugin-jira`, `teleport-plugin-mattermost`, `teleport-plugin-msteams`, `teleport-plugin-pagerduty`, `teleport-plugin-event-handler`. [#58302](https://github.com/gravitational/teleport/pull/58302)

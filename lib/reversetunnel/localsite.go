@@ -244,23 +244,31 @@ func (s *localSite) DialAuthServer(params reversetunnelclient.DialParams) (net.C
 // shouldDialAndForward returns whether a connection should be proxied
 // and forwarded or not.
 func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types.SessionRecordingConfig) bool {
+	// only proxy and forward ssh connections
+	if params.ConnType != types.NodeTunnel {
+		return false
+	}
 	// connection is already being tunneled, do not forward
 	if params.FromPeerProxy {
 		return false
 	}
 	// the node is an agentless node, the connection must be forwarded
-	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
+	if params.TargetServer.IsOpenSSHNode() {
 		return true
 	}
 	// proxy session recording mode is being used and an SSH session
 	// is being requested, the connection must be forwarded
-	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+	if services.IsRecordAtProxy(recConfig.GetMode()) {
 		return true
 	}
 	return false
 }
 
 func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	if params.TargetServer == nil && params.ConnType == types.NodeTunnel {
+		return nil, trace.BadParameter("target server is required for teleport nodes")
+	}
+
 	recConfig, err := s.accessPoint.GetSessionRecordingConfig(s.srv.Context)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -286,7 +294,8 @@ func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
+	isAgentless := params.TargetServer != nil && params.TargetServer.IsOpenSSHNode()
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, isAgentless, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
@@ -358,7 +367,7 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 }
 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+	if params.GetUserAgent == nil && !params.TargetServer.IsOpenSSHNode() {
 		return nil, trace.BadParameter("agentless node require an agent getter")
 	}
 	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
@@ -402,7 +411,6 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		LocalAuthClient:          s.client,
 		TargetClusterAccessPoint: s.accessPoint,
 		UserAgent:                userAgent,
-		IsAgentlessNode:          params.IsAgentlessNode,
 		AgentlessSigner:          params.AgentlessSigner,
 		TargetConn:               targetConn,
 		SrcAddr:                  params.From,
@@ -424,10 +432,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		TargetServer:             params.TargetServer,
 		Clock:                    s.clock,
 	}
-	// Ensure the hostname is set correctly if we have details of the target
-	if params.TargetServer != nil {
-		serverConfig.TargetHostname = params.TargetServer.GetHostname()
-	}
+
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

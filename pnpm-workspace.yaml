@@ -32,3 +32,5 @@ peerDependencyRules:
 # affect performance outside of docker.
 # https://github.com/gravitational/teleport/issues/46019
 packageImportMethod: clone-or-copy
+# Do not install packages released less than 2 days (2880 minutes) ago
+minimumReleaseAge: 2880

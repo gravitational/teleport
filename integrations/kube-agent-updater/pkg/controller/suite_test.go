@@ -19,7 +19,7 @@
 package controller
 
 import (
-	"golang.org/x/exp/rand"
+	"math/rand/v2"
 )
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
@@ -27,7 +27,7 @@ var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
 func validRandomResourceName(prefix string) string {
 	b := make([]rune, 5)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letterRunes[rand.IntN(len(letterRunes))]
 	}
 	return prefix + string(b)
 }

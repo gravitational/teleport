@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -1492,6 +1493,10 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		if hasOktaOrigin {
 			return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
 		}
+	}
+
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
@@ -3074,6 +3079,33 @@ func (g *GRPCServer) GetTrustedClusters(ctx context.Context, _ *emptypb.Empty) (
 	}, nil
 }
 
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (g *GRPCServer) ListTrustedClusters(ctx context.Context, req *authpb.ListTrustedClustersRequest) (*authpb.ListTrustedClustersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tcs, next, err := auth.ServerWithRoles.ListTrustedClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListTrustedClustersResponse{
+		TrustedClusters: make([]*types.TrustedClusterV2, 0, len(tcs)),
+		NextPageToken:   next,
+	}
+
+	for _, tc := range tcs {
+		tcV2, ok := tc.(*types.TrustedClusterV2)
+		if !ok {
+			return nil, trace.BadParameter("unsupported Trusted Cluster type %T", tc)
+		}
+		resp.TrustedClusters = append(resp.TrustedClusters, tcV2)
+	}
+	return resp, nil
+}
+
 // UpsertTrustedCluster upserts a Trusted Cluster.
 func (g *GRPCServer) UpsertTrustedCluster(ctx context.Context, cluster *types.TrustedClusterV2) (*types.TrustedClusterV2, error) {
 	auth, err := g.authenticate(ctx)
@@ -3652,6 +3684,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3666,6 +3701,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	}
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
+	}
+	if err := services.ValidateApp(app, auth); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
@@ -5259,6 +5297,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
 		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(

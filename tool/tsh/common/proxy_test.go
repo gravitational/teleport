@@ -622,7 +622,7 @@ func TestProxySSHJumpHost(t *testing.T) {
 					),
 				}
 				leafServer := testserver.MakeTestServer(t, leafServerOpts...)
-				testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+				testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer, 0)
 
 				rootProxyAddr, err := rootServer.ProxyWebAddr()
 				require.NoError(t, err)

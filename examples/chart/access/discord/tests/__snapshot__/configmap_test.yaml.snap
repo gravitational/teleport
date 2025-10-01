@@ -24,6 +24,6 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-discord
-        app.kubernetes.io/version: 16.5.15
-        helm.sh/chart: teleport-plugin-discord-16.5.15
+        app.kubernetes.io/version: 16.5.18
+        helm.sh/chart: teleport-plugin-discord-16.5.18
       name: RELEASE-NAME-teleport-plugin-discord

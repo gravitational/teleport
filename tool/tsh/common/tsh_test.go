@@ -6083,7 +6083,7 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 		}),
 	}
 	leafServer := testserver.MakeTestServer(t, leafServerOpts...)
-	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer)
+	testserver.SetupTrustedCluster(ctx, t, rootServer, leafServer, 1)
 
 	var (
 		rootNode, leafNode *types.ServerV2

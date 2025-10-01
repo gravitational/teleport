@@ -2797,6 +2797,24 @@ message AccessRequestAllowedPromotionResponse {
   types.AccessRequestAllowedPromotions allowedPromotions = 1;
 }
 
+// ListTrustedClustersRequest is the request for ListTrustedClusters.
+message ListTrustedClustersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// ListTrustedClustersResponse is the response for ListTrustedClusters.
+message ListTrustedClustersResponse {
+  // TrustedClusters is a list of Trusted Cluster resources.
+  repeated types.TrustedClusterV2 trusted_clusters = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -3266,6 +3284,8 @@ service AuthService {
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
   // GetTrustedClusters gets all current Trusted Cluster resources.
   rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
+  // ListTrustedClusters returns a page of current Trusted Cluster resources.
+  rpc ListTrustedClusters(ListTrustedClustersRequest) returns (ListTrustedClustersResponse);
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
   rpc UpsertTrustedCluster(types.TrustedClusterV2) returns (types.TrustedClusterV2);
   // DeleteTrustedCluster deletes an existing Trusted Cluster in a backend by name.

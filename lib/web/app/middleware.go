@@ -20,6 +20,7 @@ package app
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -73,18 +74,37 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	}
 
 	if h.c.WebPublicAddr == "" {
-		// The error below tends to be swallowed by the Web UI, so log a warning for
-		// admins as well.
-		h.log.Error("" +
-			"Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
-			"Please contact your Teleport cluster administrator or refer to " +
-			"https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/.")
-		return trace.BadParameter("public address of the proxy is not set")
+		const errMsg = "Application Service requires public_addr to be set in the Teleport Proxy Service configuration. " +
+			"Update the Teleport Proxy Service configuration to include a public_addr. " +
+			"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
+
+		// Log the error to warn admins 🚩
+		h.log.Error(errMsg)
+
+		// Immediately return an error since this is a critical misconfiguration 🛑
+		return trace.BadParameter(errMsg)
 	}
 
 	addr, err := utils.ParseAddr(r.Host)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if slices.ContainsFunc(
+		h.c.ProxyPublicAddrs,
+		func(proxyAddr utils.NetAddr) bool {
+			return p.publicAddr == proxyAddr.Host()
+		},
+	) {
+		const errMsg = "Application public address conflicts with the Teleport Proxy public address. " +
+			"Configure the application to use a unique public address that does not match the proxy's public addresses. " +
+			"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/."
+
+		// Log the error to warn admins 🚩
+		h.log.WithField("launcher_params", p).Error(errMsg)
+
+		// Immediately return an error since this is a critical misconfiguration 🛑
+		return trace.BadParameter(errMsg)
 	}
 
 	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host(), p)
@@ -116,7 +136,7 @@ func makeHandler(handler handlerFunc) http.HandlerFunc {
 // response writer.
 func writeError(w http.ResponseWriter, err error) {
 	code := trace.ErrorToCode(err)
-	http.Error(w, http.StatusText(code), code)
+	http.Error(w, err.Error(), code)
 }
 
 type routerFunc func(http.ResponseWriter, *http.Request, httprouter.Params) error

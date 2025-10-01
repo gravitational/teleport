@@ -451,7 +451,7 @@ func startDummyHTTPServer(t *testing.T, name string) string {
 	return srv.URL
 }
 
-func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
+func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, expectedAppServers int, additionalRoleMappings ...types.RoleMapping) {
 	// Use insecure mode so that the trusted cluster can establish trust over reverse tunnel.
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
@@ -490,6 +490,22 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 		assert.NoError(t, err)
 		assert.Len(t, rts, 1)
 	}, time.Second*10, time.Second)
+
+	tsrv, err := rootServer.GetReverseTunnelServer()
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := tsrv.GetSite(leafServer.Config.Auth.ClusterName.GetClusterName())
+		require.NoError(t, err)
+		require.NotNil(t, rts)
+
+		require.Equal(t, 1, rts.GetTunnelsCount())
+
+		client, err := rts.CachingAccessPoint()
+		require.NoError(t, err)
+		appS, err := client.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, appS, expectedAppServers)
+	}, time.Second*10, 200*time.Millisecond)
 }
 
 type cliModules struct{}
