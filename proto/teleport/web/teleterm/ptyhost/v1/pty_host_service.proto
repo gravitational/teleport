@@ -93,6 +93,7 @@ message PtyEventOpen {}
 message PtyEventExit {
   uint32 exit_code = 1;
   optional uint32 signal = 2;
+  string last_input = 3;
 }
 
 // PtyEventStartError is sent by the PTY process when the shared process fails to start it.

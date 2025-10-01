@@ -22,7 +22,6 @@ import {
   ManagePtyProcessRequest,
   ManagePtyProcessResponse,
   PtyEventData,
-  PtyEventExit,
   PtyEventOpen,
   PtyEventResize,
   PtyEventStart,
@@ -94,12 +93,12 @@ export class PtyEventsStreamHandler {
         })
       )
     );
-    this.ptyProcess.onExit(({ exitCode, signal }) =>
+    this.ptyProcess.onExit(payload =>
       this.stream.write(
         ManagePtyProcessResponse.create({
           event: {
             oneofKind: 'exit',
-            exit: PtyEventExit.create({ exitCode, signal }),
+            exit: payload,
           },
         })
       )
