@@ -34,6 +34,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"regexp"
@@ -44,6 +45,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/digitorus/pkcs7"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
@@ -1222,6 +1224,80 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.Handle("POST", dtPrefix+"/*wildcard", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		h.logger.InfoContext(r.Context(), "Got request", "method", r.Method, "url", r.URL)
 		dtPrefixHandler.ServeHTTP(w, r)
+	})
+
+	h.Handle("GET", "/webapi/profile.mobileconfig", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		// 1. The mobile app opens this endpoint with the credential ID and the public key DER as query
+		//    params.
+		// 2. The auth server creates a temporary resource with three fields: a random token, a
+		//    credential ID and a public key DER (the last two from the query params of this request).
+		//    The resource expires in 8 minutes (https://support.apple.com/en-us/102400).
+		// 3. The random token is included as the challenge in the plist returned from this endpoint.
+		// 4. The device makes a request to the URL from the plist, including the challenge.
+		// 5. The auth server verifies that the request is signed with iPhone Device CA and that the
+		//    challenge is present.
+		// 6. The auth server uses the challenge to find the temporary resource. It finds the device by
+		//    the serial number and then it updates the credential ID and the public key DER of the
+		//    device.
+		// 7. During the enrollment, the device uses its credential ID to identify the device, as it
+		//    doesn't have direct access to its serial number.
+		dumpedReq, err := httputil.DumpRequest(r, true /* body */)
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Could not dump mobileconfig request", "error", err)
+		} else {
+			h.logger.InfoContext(r.Context(), "Got mobileconfig request", "req", dumpedReq)
+		}
+		plist := `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>PayloadContent</key>
+<dict>
+<key>URL</key>
+<string>https://teleport-mbp.ocelot-paradise.ts.net:3030/webapi/profile</string>
+<key>DeviceAttributes</key>
+<array>
+<string>SERIAL</string>
+</array>
+</dict>
+<key>PayloadOrganization</key>
+<string>Gravitational</string>
+<key>PayloadDisplayName</key>
+<string>Device Trust profile for teleport-mbp.ocelot-paradise.ts.net</string>
+<key>PayloadVersion</key>
+<integer>1</integer>
+<key>PayloadUUID</key>
+<string>A271EDC7-FA19-4B2D-9A25-D82E9EEDAE0A</string>
+<key>PayloadIdentifier</key>
+<string>com.gravitational.devicetrust</string>
+<key>PayloadDescription</key>
+<string>Profile enabling Device Trust</string>
+<key>PayloadType</key>
+<string>Profile Service</string>
+</dict>
+</plist>`
+		w.WriteHeader(200)
+		w.Header().Set("Content-Type", "application/x-apple-aspen-config")
+		// TODO: Sign the plist.
+		// https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/iPhoneOTAConfiguration/profile-service/profile-service.html#//apple_ref/doc/uid/TP40009505-CH2-SW1
+		w.Write([]byte(plist))
+	})
+
+	h.Handle("POST", "/webapi/profile", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		body, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Could not read body", "error", err)
+			w.WriteHeader(500)
+			return
+		}
+		p7, err := pkcs7.Parse(body)
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "Could not parse body", "error", err)
+			w.WriteHeader(500)
+			return
+		}
+		h.logger.InfoContext(r.Context(), "Got profile request", "content", p7.Content)
+		w.WriteHeader(200)
 	})
 }
 
