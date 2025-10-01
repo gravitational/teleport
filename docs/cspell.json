@@ -650,6 +650,7 @@
     "libgcc",
     "libm",
     "libpq",
+    "lifecycle",
     "livez",
     "lmnop",
     "loadbalancer",
