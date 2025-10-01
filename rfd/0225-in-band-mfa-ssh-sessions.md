@@ -82,7 +82,7 @@ required for the session by invoking the `EvaluateSSHAccess` RPC in the Decision
 
 For sessions where MFA is required, the server begins by sending an MFA challenge ID as the initial message. The
 `ProxySSH` stream is then paused, and the client must invoke the [MFA service's](#mfa-service)
-`CompleteAuthenticateChallenge` RPC with the challenge ID and complete the challenge. client completes the MFA
+`CompleteAuthenticateChallenge` RPC with the challenge ID and complete the challenge. Once the client completes the MFA
 challenge, the `TransportService` will receive the pass/fail result and `ProxySSH` will unblock and proceed accordingly.
 
 If the MFA verification fails, the stream is immediately terminated. Similarly, any connectivity issues with the
@@ -90,8 +90,8 @@ authentication service result in the session being denied. See [Per-session MFA 
 details on session termination.
 
 In cases where MFA is optional, or after successful MFA verification, the server sends `ClusterDetails` to the client.
-At this point, the client can proceed with their `DialTarget` request, and the server establishes an SSH connection with
-the target node.
+The client can then proceed to send SSH frames over the established stream. The Proxy forwards these frames to the
+target host, and the target host's responses are relayed back to the client.
 
 ```mermaid
 sequenceDiagram
@@ -103,14 +103,14 @@ sequenceDiagram
   participant Node
 
   Client->>Proxy: Open stream (ProxySSH)
-  Client->>Proxy: Send target host
+  Client->>Proxy: Send target host (dial_target )
 
   alt New Client
     Proxy->>Proxy: Check MFA Requirement (EvaluateSSHAccess)
     Note over Proxy: Using local Decision service
 
     alt MFA Required
-      Proxy->>Auth: Start a MFA challenge (StartAuthenticateChallenge)
+      Proxy->>Auth: Initiate MFA challenge (StartAuthenticateChallenge)
       Auth->>Proxy: Send MFA challenge ID
       Proxy->>Client: Send MFA challenge ID
 
@@ -118,6 +118,12 @@ sequenceDiagram
       Auth->>Client: Send MFA challenge
       Client->>Auth: Send MFA response
       Auth->>Auth: Validate MFA response
+
+      break MFA Failure
+        Auth->>Client: MFA Failure
+        Auth->>Proxy: MFA Failure
+        Note over Client,Proxy: Session terminated
+      end
 
       Auth->>Client: Result of MFA challenge
       Auth->>Proxy: Result of MFA challenge
@@ -216,55 +222,47 @@ message ProxySSHResponse {
 }
 ```
 
-##### ProxySSH RPC
-
-The `ProxySSH` RPC establishes an SSH connection to the target host as requested by the client. The new `ProxySSH` will
-preserve the same authentication and authorization mechanisms as the existing `ProxySSH`
-
 #### MFA Service
 
-A new MFA service will be introduced to handle MFA challenges and responses. MFA related RPCs in the Auth service will
-be deprecated and migrated to this new service. The Proxy will invoke the MFA service to validate MFA responses during
-the SSH session establishment process.
+A new MFA service will be introduced to handle MFA challenges and responses instead of continuing to introduce new RPCs
+to the legacy AuthService. Existing MFA related RPCs in the Auth service can eventually be migrated to this new MFA
+service in a future effort.
 
 ```proto
 // MFAService is responsible for handling MFA challenges and responses.
 service MFAService {
-  // ... other MFA related RPCs from the Auth service ...
-
-  // StartAuthenticateChallenge initiates an MFA challenge that is facilitated by the MFA service on behalf of
-  // the caller. Once the MFA challenge is successfully resolved, a response is returned with the result.
-  //
-  // - The first response will include a unique challenge ID. The user's client must use the exact challenge ID in order
-  //   to resolve the MFA challenge and so the caller is properly notified of the result of the MFA challenge.
-  // - The second response will include the success/fail result of the MFA challenge.
+  // StartAuthenticateChallenge initiates an MFA challenge for a user and blocks until the challenge is resolved.
+  // Once the MFA challenge is successfully resolved, a response is returned with the result. If the challenge fails,
+  // an error is returned.
   rpc StartAuthenticateChallenge(StartAuthenticateChallengeRequest) returns (stream StartAuthenticateChallengeResponse);
 
   // CompleteAuthenticateChallenge is invoked by the user's client to complete the MFA challenge using the challenge ID
-  // provided by StartAuthenticateChallenge. The client first receives the challenge, then must respond with the MFA
-  // response. The MFA response is validated and the caller of StartAuthenticateChallenge is notified of the result of
-  // the MFA challenge.
+  // provided by StartAuthenticateChallenge. The client must first send the challenge ID and then the server will
+  // respond with the MFA challenge. The client must send the MFA response and the server will validate it. The caller
+  // of StartAuthenticateChallenge is notified of the result of the MFA challenge.
   rpc CompleteAuthenticateChallenge(stream CompleteAuthenticateChallengeRequest) returns (stream CompleteAuthenticateChallengeResponse);
 }
 
 // Request to start an MFA challenge.
 message StartAuthenticateChallengeRequest {
+  // Unique challenge ID for the MFA challenge. If not provided, a new challenge ID will be generated.
+  string challenge_id = 1;
   // User for whom the challenge is being initiated.
-  string user = 1;
+  string user = 2;
   // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
-  ChallengeExtensions challenge_extensions = 2;
+  ChallengeExtensions challenge_extensions = 3;
   // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
-  string SSOClientRedirectURL = 3;
+  string SSOClientRedirectURL = 4;
   // ProxyAddress is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this address
   // is required to determine which URL to redirect the user to when there are multiple options.
-  string ProxyAddress = 4;
+  string ProxyAddress = 5;
 }
 
 // Response containing the details of the MFA challenge.
 message StartAuthenticateChallengeResponse {
-  one of payload {
-    // Initial response containing the unique challenge ID for the MFA challenge.
+  one of data {
+    // Unique challenge ID for the MFA challenge.
     string challenge_id = 1;
     // Final response indicating the result of the MFA challenge.
     bool success = 2;
@@ -273,7 +271,7 @@ message StartAuthenticateChallengeResponse {
 
 // Request to complete an MFA challenge.
 message CompleteAuthenticateChallengeRequest {
-  one of payload {
+  one of data {
     // Unique identifier for the MFA challenge session.
     string challenge_id = 1;
     // MFA response from the client (e.g., OTP, WebAuthn assertion).
@@ -283,8 +281,8 @@ message CompleteAuthenticateChallengeRequest {
 
 // Response indicating the result of the MFA challenge.
 message CompleteAuthenticateChallengeResponse {
-  one of payload {
-    // MFA challenge
+  one of data {
+    // The MFA challenge to be presented to the user.
     MFAAuthenticateChallenge challenge = 1;
   }
 }
@@ -365,7 +363,7 @@ observability patterns are needed.
 
 ### Product Usage
 
-No changes in product usage are expected since this is an internal change to an existing service.
+No changes in product usage are expected since this is an internal change.
 
 ### Test Plan
 
@@ -380,6 +378,8 @@ period and while receiving appropriate deprecation notices.
 
 #### Dependencies
 
+The following are assumed to be completed before starting work on this RFD:
+
 1. [Access Control Decision API (RFD
    0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md) refactor
    and relocate implementation
@@ -390,7 +390,7 @@ period and while receiving appropriate deprecation notices.
       be forwarded from Proxy to agent as part of an incoming dial.
    1. There exists a structured way for the Proxy to determine if MFA is required for a given SSH session based on the
       Decision API response.
-1. he Proxy has a way to tell Decision service that MFA has been satisfied for a session.
+   1. The Proxy has a way to tell Decision service that MFA has been satisfied for a session.
 
 #### Phase 1 (Transition Period - at least 2 major releases)
 
@@ -402,7 +402,6 @@ period and while receiving appropriate deprecation notices.
    `TransportService` RPCs.
 1. Add new `MFAService` in `api/proto/teleport/mfa/v1/mfa_service.proto` and implement the service in `lib/auth/mfa/`.
 1. Ensure Proxy is authorized to invoke the new `MFAService` RPCs and the `EvaluateSSHAccess` RPC.
-1. Migrate existing MFA related RPCs from the Auth service to the new `MFAService`.
 1. Update `tsh ssh` client to use the v2 `TransportService` and `MFAService`. Remove per-session MFA certificate
    generation and use standard client certificate when dialing. Client should fallback to the v1 `TransportService` if
    the v2 service is not available.
@@ -413,14 +412,14 @@ period and while receiving appropriate deprecation notices.
    client certificate when dialing. Client should fallback to the v1 `TransportService` if the v2 service is not
    available.
 1. Add tests to verify backward compatibility with the deprecated v1 `TransportService` RPCs.
-1. Update documentation to reflect the new architecture and deprecation of direct node access.
+1. Update documentation to reflect the new architecture.
 1. Implement `TransportService` v2 support in the Relay service.
 
 #### Phase 2 (Post Transition Period - after at least 2 major releases)
 
 1. Remove v1 `TransportService`'s `ProxySSH` RPC. Remove all related backward compatibility code.
 1. Remove per-session MFA SSH certificate verification logic.
-1. Remove per-session MFA certificate generation.
+1. Remove per-session MFA SSH certificate generation.
 1. Update test plan to remove backward compatibility tests for the deprecated `TransportService` and SSH certificate
    handling.
 
@@ -435,6 +434,7 @@ period and while receiving appropriate deprecation notices.
 
 1. Extend in-band MFA enforcement to additional protocols e.g., Kubernetes API requests, database connections, desktop
    access, etc.
+1. Migrate MFA related RPCs in the Auth service to the new `MFAService`.
 1. Unify all clients (tsh, web, etc.) to use the same `MFAService` RPCs for MFA enforcement, reducing code duplication
    and simplifying maintenance. For example, we can follow the pattern as established by [Headless
    Authentication](/rfd/0105-headless-authentication.md) and replace all client-specific MFA handling with the Web UI +
