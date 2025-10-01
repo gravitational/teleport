@@ -236,6 +236,7 @@ to join from any other repository, it will be rejected.
 <summary>The join token file is at `teleport/github_bot_join_token.yaml`</summary>
 
 ```yaml
+kind: token
 version: v2
 metadata:
   name: github-bot
@@ -245,7 +246,7 @@ spec:
   - Bot
   bot_name: github-bot
   github:
-    allows:
+    allow:
     - repository: "your-github-username/mwi-getting-started-guide" # if you cloned the example repo, if not, use your repo name
   # enterprise_server_host: github.my-company.com # use for self-hosted GitHub Enterprise
   # enterprise_slug: my-company # use for GitHub Enterprise Cloud organization
