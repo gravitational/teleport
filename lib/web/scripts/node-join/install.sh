@@ -423,7 +423,7 @@ get_teleport_pid() {
     # if we have procfs available (i.e. on Linux), we do a more detailed check for the binary name
     # this method also combats issues with install scripts running in cloud-init with "teleport" in
     # their name (see https://github.com/gravitational/teleport/pull/59452)
-    # for MacOS and Linux without procfs, we just use the original "pgrep teleport" behaviour
+    # for MacOS (and Linux without procfs, if that ever happens), we just use the original behaviour
     if [[ -d /proc ]]; then
         check_exists_fatal basename readlink
         TELEPORT_PIDS=""
