@@ -168,43 +168,54 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	clientParams := makeClientParams(params, publicKeys)
 
 	// Delegate out to the handler for the specific join method.
-	if err := joinWithMethod(stream, clientParams, serverInit.JoinMethod); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Receive the final result message.
-	if params.ID.Role == types.RoleBot {
-		botResult, err := messages.RecvResponse[*messages.BotResult](stream)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return makeJoinResult(signer, botResult.Certificates)
-	}
-	hostResult, err := messages.RecvResponse[*messages.HostResult](stream)
+	resultMsg, err := joinWithMethod(ctx, stream, params, clientParams, serverInit.JoinMethod)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return makeJoinResult(signer, hostResult.Certificates)
+
+	// Convert the result message into a JoinResult.
+	switch typedResult := resultMsg.(type) {
+	case *messages.HostResult:
+		return makeJoinResult(signer, typedResult.Certificates)
+	case *messages.BotResult:
+		joinResult, err := makeJoinResult(signer, typedResult.Certificates)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if typedResult.BoundKeypairResult != nil {
+			joinResult.BoundKeypair = &authjoin.BoundKeypairRegisterResult{
+				BoundPublicKey: string(typedResult.BoundKeypairResult.PublicKey),
+				JoinState:      typedResult.BoundKeypairResult.JoinState,
+			}
+		}
+		return joinResult, nil
+	default:
+		return nil, trace.BadParameter("unhandled result message type %T", resultMsg)
+	}
 }
 
 func joinWithMethod(
+	ctx context.Context,
 	stream messages.ClientStream,
+	joinParams JoinParams,
 	clientParams messages.ClientParams,
 	method string,
-) error {
+) (messages.Response, error) {
 	switch types.JoinMethod(method) {
 	case types.JoinMethodToken:
-		return trace.Wrap(tokenJoin(stream, clientParams))
+		return tokenJoin(stream, clientParams)
+	case types.JoinMethodBoundKeypair:
+		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
 	default:
 		// TODO(nklaassen): implement remaining join methods.
-		return trace.NotImplemented("server selected join method %v which is not supported by this client", method)
+		return nil, trace.NotImplemented("server selected join method %v which is not supported by this client", method)
 	}
 }
 
 func tokenJoin(
 	stream messages.ClientStream,
 	clientParams messages.ClientParams,
-) error {
+) (messages.Response, error) {
 	// The token join method is relatively simple, the flow is
 	//
 	// client->server ClientInit
@@ -213,12 +224,16 @@ func tokenJoin(
 	// client<-server Result
 	//
 	// At this point the ServerInit messages has already been received, all
-	// that's left is to send the TokenInit message, the caller will handle
-	// receiving the final result.
+	// that's left is to send the TokenInit message and receive the final result.
 	tokenInitMsg := &messages.TokenInit{
 		ClientParams: clientParams,
 	}
-	return trace.Wrap(stream.Send(tokenInitMsg))
+	if err := stream.Send(tokenInitMsg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Receive and return the final result.
+	result, err := stream.Recv()
+	return result, trace.Wrap(err)
 }
 
 func makeClientParams(params JoinParams, publicKeys *messages.PublicKeys) messages.ClientParams {

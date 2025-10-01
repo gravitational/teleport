@@ -47,6 +47,7 @@ func (s *Server) handleTokenJoin(
 		authCtx,
 		clientInit,
 		&tokenInit.ClientParams,
+		nil, /*rawClaims*/
 		provisionToken,
 	)
 	return result, trace.Wrap(err)
