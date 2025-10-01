@@ -673,7 +673,7 @@ func initBoundKeypairClientState(
 			"no local credentials are available and no registration secret "+
 			"was provided. To continue, either generate a keypair with "+
 			"`tbot keypair create` and register it with Teleport, or "+
-			"generate a registration secret on Teleport and provide it with "+
+			"generate a registration secret in Teleport and provide it with "+
 			"the `--registration-secret` flag.")
 		return nil, trace.Wrap(err, "loading bound keypair client state")
 	}
