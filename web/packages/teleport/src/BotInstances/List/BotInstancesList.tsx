@@ -48,7 +48,7 @@ function InternalBotInstancesList(
     selectedItem: string | null;
     onSortChanged: (sortField: string, sortDir: 'ASC' | 'DESC') => void;
     onLoadNextPage: () => void;
-    onItemSelected: (item: BotInstanceSummary | null) => void;
+    onItemSelected: (item: BotInstanceSummary) => void;
   },
   ref: React.RefObject<BotInstancesListControls | null>
 ) {
