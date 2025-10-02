@@ -20,13 +20,16 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -254,4 +257,177 @@ func TestListSnowflakeSessions(t *testing.T) {
 			require.Len(t, sessions, maxSessionPageSize)
 		}
 	}
+}
+
+func TestWebTokenCRUD(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	identity, err := NewTestIdentityService(backend)
+	require.NoError(t, err)
+
+	newToken := func(name, user string) types.WebToken {
+
+		// types.NewWebToken
+		expires := clock.Now().Add(time.Hour)
+		token, err := types.NewWebToken(expires, types.WebTokenSpecV3{
+			Token: name,
+			User:  user,
+		})
+
+		require.NoError(t, err)
+		return token
+	}
+
+	// Initially we expect no tokens.
+	out, err := identity.GetWebTokens(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	out, next, err := identity.ListWebTokens(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Create some tokens.
+	var expected []types.WebToken
+	for i := range 5 {
+		tk := newToken(fmt.Sprintf("resource-%d", i), "bob")
+		err := identity.UpsertWebToken(ctx, tk)
+		require.NoError(t, err)
+		expected = append(expected, tk)
+	}
+
+	// Fetch all tokens.
+	out, err = identity.GetWebTokens(ctx)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, next, err = identity.ListWebTokens(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+	require.Empty(t, next)
+
+	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Fetch a specific token.
+	token, err := identity.GetWebToken(ctx, types.GetWebTokenRequest{
+		Token: expected[1].GetName(),
+		User:  expected[1].GetUser(),
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected[1], token,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Try to fetch a token that doesn't exist.
+	_, err = identity.GetWebToken(ctx, types.GetWebTokenRequest{
+		Token: "doesnotexist",
+		User:  "alice",
+	})
+	require.IsType(t, trace.NotFound(""), err)
+
+	// Upsert.
+	expected[1].SetUser("alice")
+	err = identity.UpsertWebToken(ctx, expected[1])
+	require.NoError(t, err)
+	token, err = identity.GetWebToken(ctx, types.GetWebTokenRequest{
+		Token: expected[1].GetName(),
+		User:  expected[1].GetUser(),
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected[1], token,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	page1, page2Start, err := identity.ListWebTokens(ctx, 2, "")
+	require.NoError(t, err)
+	assert.Len(t, page1, 2)
+	assert.NotEmpty(t, page2Start)
+
+	page2, next, err := identity.ListWebTokens(ctx, 1000, page2Start)
+	require.NoError(t, err)
+	assert.Len(t, page2, len(expected)-2)
+	assert.Empty(t, next)
+
+	listed := append(page1, page2...)
+
+	assert.Empty(t, cmp.Diff(expected, listed,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", page2Start))
+	require.NoError(t, err)
+	assert.Len(t, out, len(page1))
+	assert.Empty(t, cmp.Diff(page1, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected))
+	assert.Empty(t, cmp.Diff(expected, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	out, err = stream.Collect(identity.RangeWebTokens(ctx, page2Start, ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected)-2)
+	assert.Empty(t, cmp.Diff(expected, append(page1, out...),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Try to delete a token that doesn't exist.
+	err = identity.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
+		Token: "doesnotexist",
+		User:  "doesnotexist",
+	})
+	require.IsType(t, trace.NotFound(""), err)
+
+	err = identity.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
+		Token: expected[0].GetToken(),
+		User:  expected[0].GetUser(),
+	})
+	require.NoError(t, err)
+
+	// Verify deleted
+	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
+	require.NoError(t, err)
+	assert.Len(t, out, len(expected)-1)
+	assert.Empty(t, cmp.Diff(expected[1:], out,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+
+	// Delete all tokens.
+	err = identity.DeleteAllWebTokens(ctx)
+	require.NoError(t, err)
+	out, err = identity.GetWebTokens(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	out, next, err = identity.ListWebTokens(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Empty(t, next)
+
+	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
 }
