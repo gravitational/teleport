@@ -826,7 +826,10 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 
 	sid := scx.GetNewSessionID(ctx)
 	if sid == "" {
-		return nil, nil, trace.BadParameter("newSessionID should be set prior to session creation")
+		// Some flows (particularly tests) do not set the session ID ahead of time.
+		sid = rsession.NewID()
+		scx.SetNewSessionID(ctx, sid, ch)
+		r.logger.WarnContext(ctx, "newSessionID should be set prior to session creation. If this log is seen outside of tests, this is a bug.")
 	}
 
 	serverSessions.Inc()
