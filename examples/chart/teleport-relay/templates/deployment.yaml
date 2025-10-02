@@ -1,0 +1,224 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "teleport-relay.fullname" . }}
+  labels:
+    {{- include "teleport-relay.labels" . | nindent 4 }}
+    {{- with .Values.extraLabels.deployment }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "teleport-relay.selectorLabels" . | nindent 6 }}
+  {{- $replicaCount := int .Values.highAvailability.replicaCount }}
+  {{- if and (gt $replicaCount 0) (lt $replicaCount (int .Values.targetConnectionCount)) }}
+    {{- fail "highAvailability.replicaCount must not be smaller than targetConnectionCount" }}
+  {{- end }}
+  replicas: {{ $replicaCount }}
+  template:
+    metadata:
+      labels:
+        {{- include "teleport-relay.labels" . | nindent 8 }}
+        {{- with .Values.extraLabels.pod }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.annotations.pod }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "teleport-relay.serviceAccountName" . | quote }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ quote . }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dnsPolicy }}
+      dnsPolicy: {{ quote . }}
+      {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and .Values.topologySpreadConstraints .Values.disableTopologySpreadConstraints }}
+        {{- fail "disableTopologySpreadConstraints cannot be enabled if topologySpreadConstraints is set in chart values"}}
+      {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml .Values.topologySpreadConstraints | nindent 8 }}
+      {{- else if not .Values.disableTopologySpreadConstraints }}
+      topologySpreadConstraints:
+        - topologyKey: kubernetes.io/hostname
+          maxSkew: 1
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "teleport-relay.selectorLabels" . | nindent 14 }}
+        - topologyKey: topology.kubernetes.io/zone
+          maxSkew: 1
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "teleport-relay.selectorLabels" . | nindent 14 }}
+      {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "teleport-relay.fullname" . }}
+        - name: auth-token
+          secret:
+            secretName: {{ include "teleport-relay.joinTokenSecretName" . }}
+        - name: data
+          emptyDir: {}
+        {{- with .Values.tls.existingCASecretName }}
+        - name: teleport-tls-ca
+          secret:
+            secretName: {{ quote . }}
+        {{- end }}
+        {{- with .Values.teleportClusterName }}
+        {{- /* This volume is used to obtain a service account token that can be
+          used to join the Teleport cluster using the kubernetes join method. To
+          ensure Kubernetes compatibility, we use .Values.teleportClusterName as
+          a feature flag. The token must have the cluster name as audience, and
+          its TTL must not exceed 30 minutes. We pick 10 minutes because that's
+          the shortest lifetime for the token. */}}
+        - name: join-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: join-sa-token
+                  expirationSeconds: 600
+                  audience: {{ quote . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: teleport
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: {{ include "teleport-relay.image" . | quote }}
+          {{- with .Values.imagePullPolicy }}
+          imagePullPolicy: {{ quote . }}
+          {{- end }}
+          command:
+            - /usr/bin/dumb-init
+            - "--"
+            - /usr/local/bin/teleport
+          args:
+            - start
+            {{- if .Values.insecureSkipProxyTLSVerify }}
+            - "--insecure"
+            {{- end }}
+            {{- with .Values.extraArgs }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          env:
+            {{- /* This variable is set for telemetry purposes.
+              Telemetry is opt-in and controlled at the auth level. */}}
+            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+              value: "true"
+            {{- if .Values.teleportClusterName }}
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/teleport-join-sa-token/join-sa-token
+            {{- end }}
+            {{- if .Values.tls.existingCASecretName }}
+            - name: SSL_CERT_FILE
+              value: /etc/teleport-tls-ca.pem
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - containerPort: 3000
+              name: diagnostics
+              protocol: TCP
+            - containerPort: 3040
+              name: transport
+              protocol: TCP
+            - containerPort: 3041
+              name: peer
+              protocol: TCP
+            - containerPort: 3042
+              name: tunnel
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: diagnostics
+            failureThreshold: 6
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 1
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: diagnostics
+            failureThreshold: 12
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 1
+          {{- with .Values.preStopDelay }}
+          lifecycle:
+            {{- /* waiting during preStop ensures that load balancers have time
+              to stop sending new connections to the Terminating pod */}}
+            preStop:
+              exec:
+                command:
+                  - /usr/local/bin/teleport
+                  - wait
+                  - duration
+                  - {{ quote . }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /var/lib/teleport
+              name: data
+            - mountPath: /etc/teleport.yaml
+              name: config
+              subPath: teleport.yaml
+            - mountPath: /etc/teleport-secrets
+              name: auth-token
+            {{- if .Values.teleportClusterName }}
+            - mountPath: /var/run/secrets/teleport-join-sa-token
+              name: join-sa-token
+            {{- end }}
+            {{- if .Values.tls.existingCASecretName }}
+            - mountPath: /etc/teleport-tls-ca.pem
+              name: teleport-tls-ca
+              subPath: {{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName | quote }}
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
