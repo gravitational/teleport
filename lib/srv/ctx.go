@@ -705,7 +705,7 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 	return sessionParams
 }
 
-// proxyShouldCreateSessionTracker indicates that a session tracker should be created
+// SetProxyShouldCreateSessionTracker indicates that a session tracker should be created
 // for a proxy forwarded session because the node failed to report its session ID after
 // a session channel request.
 // TODO(Joerger): DELETE IN v21.0.0 - All v19+ nodes report session ID after session channel
