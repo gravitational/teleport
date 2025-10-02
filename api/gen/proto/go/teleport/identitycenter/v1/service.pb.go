@@ -1,4 +1,4 @@
-// Copyright 2024 Gravitational, Inc.
+// Copyright 2025 Gravitational, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,8 @@ type PrincipalSummary struct {
 	// Provisioning holds summary details about the principal's SCIM provisioning
 	// state
 	Provisioning *PrincipalSummary_ProvisioningSummary `protobuf:"bytes,4,opt,name=provisioning,proto3" json:"provisioning,omitempty"`
-	// AccountAssignments... Empty on listing
+	// AccountAssignments lists the teleport-calculated account assignments for
+	// this principal. This will not be populated in a user listing.
 	AccountAssignments []*AccountAssignmentRef `protobuf:"bytes,5,rep,name=account_assignments,json=accountAssignments,proto3" json:"account_assignments,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
@@ -128,7 +129,7 @@ type DescribePrincipalRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// PrincipalName is the Teleport name of the principal to describe
 	PrincipalName string `protobuf:"bytes,1,opt,name=principal_name,json=principalName,proto3" json:"principal_name,omitempty"`
-	// PrincipalType is the
+	// PrincipalType is the type of the principal to describe.
 	PrincipalType PrincipalType `protobuf:"varint,2,opt,name=principal_type,json=principalType,proto3,enum=teleport.identitycenter.v1.PrincipalType" json:"principal_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -412,70 +413,9 @@ func (*ResetPrincipalResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{5}
 }
 
-// AssignmentSummary holds summary details about a principal's account
-// assignment state
-type PrincipalSummary_AssignmentSummary struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        ProvisioningState      `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.identitycenter.v1.ProvisioningState" json:"status,omitempty"`
-	ExternalId    string                 `protobuf:"bytes,2,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
-	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PrincipalSummary_AssignmentSummary) Reset() {
-	*x = PrincipalSummary_AssignmentSummary{}
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PrincipalSummary_AssignmentSummary) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PrincipalSummary_AssignmentSummary) ProtoMessage() {}
-
-func (x *PrincipalSummary_AssignmentSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PrincipalSummary_AssignmentSummary.ProtoReflect.Descriptor instead.
-func (*PrincipalSummary_AssignmentSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{0, 0}
-}
-
-func (x *PrincipalSummary_AssignmentSummary) GetStatus() ProvisioningState {
-	if x != nil {
-		return x.Status
-	}
-	return ProvisioningState_PROVISIONING_STATE_UNSPECIFIED
-}
-
-func (x *PrincipalSummary_AssignmentSummary) GetExternalId() string {
-	if x != nil {
-		return x.ExternalId
-	}
-	return ""
-}
-
-func (x *PrincipalSummary_AssignmentSummary) GetError() string {
-	if x != nil {
-		return x.Error
-	}
-	return ""
-}
-
 // ProvisioningSummary holds summary details about a principal's SCIM
-// provisioning state assignment state
+// provisioning state. SCIM provisioning tracks principal creation and group
+// membership in AWS.
 type PrincipalSummary_ProvisioningSummary struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Status        v1.ProvisioningState   `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.provisioning.v1.ProvisioningState" json:"status,omitempty"`
@@ -487,7 +427,7 @@ type PrincipalSummary_ProvisioningSummary struct {
 
 func (x *PrincipalSummary_ProvisioningSummary) Reset() {
 	*x = PrincipalSummary_ProvisioningSummary{}
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[7]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -499,7 +439,7 @@ func (x *PrincipalSummary_ProvisioningSummary) String() string {
 func (*PrincipalSummary_ProvisioningSummary) ProtoMessage() {}
 
 func (x *PrincipalSummary_ProvisioningSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[7]
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -512,7 +452,7 @@ func (x *PrincipalSummary_ProvisioningSummary) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use PrincipalSummary_ProvisioningSummary.ProtoReflect.Descriptor instead.
 func (*PrincipalSummary_ProvisioningSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{0, 1}
+	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{0, 0}
 }
 
 func (x *PrincipalSummary_ProvisioningSummary) GetStatus() v1.ProvisioningState {
@@ -536,6 +476,69 @@ func (x *PrincipalSummary_ProvisioningSummary) GetError() string {
 	return ""
 }
 
+// AssignmentSummary holds summary details about a principal's account assignment
+// state, tracking whether the Teleport-calculated account assignments have been
+// propagated to AWS.
+type PrincipalSummary_AssignmentSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        ProvisioningState      `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.identitycenter.v1.ProvisioningState" json:"status,omitempty"`
+	ExternalId    string                 `protobuf:"bytes,2,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PrincipalSummary_AssignmentSummary) Reset() {
+	*x = PrincipalSummary_AssignmentSummary{}
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrincipalSummary_AssignmentSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrincipalSummary_AssignmentSummary) ProtoMessage() {}
+
+func (x *PrincipalSummary_AssignmentSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_identitycenter_v1_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrincipalSummary_AssignmentSummary.ProtoReflect.Descriptor instead.
+func (*PrincipalSummary_AssignmentSummary) Descriptor() ([]byte, []int) {
+	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{0, 1}
+}
+
+func (x *PrincipalSummary_AssignmentSummary) GetStatus() ProvisioningState {
+	if x != nil {
+		return x.Status
+	}
+	return ProvisioningState_PROVISIONING_STATE_UNSPECIFIED
+}
+
+func (x *PrincipalSummary_AssignmentSummary) GetExternalId() string {
+	if x != nil {
+		return x.ExternalId
+	}
+	return ""
+}
+
+func (x *PrincipalSummary_AssignmentSummary) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_teleport_identitycenter_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_identitycenter_v1_service_proto_rawDesc = "" +
@@ -549,13 +552,13 @@ const file_teleport_identitycenter_v1_service_proto_rawDesc = "" +
 	"assignment\x12d\n" +
 	"\fprovisioning\x18\x04 \x01(\v2@.teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummaryR\fprovisioning\x12a\n" +
 	"\x13account_assignments\x18\x05 \x03(\v20.teleport.identitycenter.v1.AccountAssignmentRefR\x12accountAssignments\x1a\x91\x01\n" +
-	"\x11AssignmentSummary\x12E\n" +
-	"\x06status\x18\x01 \x01(\x0e2-.teleport.identitycenter.v1.ProvisioningStateR\x06status\x12\x1f\n" +
+	"\x13ProvisioningSummary\x12C\n" +
+	"\x06status\x18\x01 \x01(\x0e2+.teleport.provisioning.v1.ProvisioningStateR\x06status\x12\x1f\n" +
 	"\vexternal_id\x18\x02 \x01(\tR\n" +
 	"externalId\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x1a\x91\x01\n" +
-	"\x13ProvisioningSummary\x12C\n" +
-	"\x06status\x18\x01 \x01(\x0e2+.teleport.provisioning.v1.ProvisioningStateR\x06status\x12\x1f\n" +
+	"\x11AssignmentSummary\x12E\n" +
+	"\x06status\x18\x01 \x01(\x0e2-.teleport.identitycenter.v1.ProvisioningStateR\x06status\x12\x1f\n" +
 	"\vexternal_id\x18\x02 \x01(\tR\n" +
 	"externalId\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\"\x93\x01\n" +
@@ -604,23 +607,23 @@ var file_teleport_identitycenter_v1_service_proto_goTypes = []any{
 	(*ListPrincipalsResponse)(nil),               // 3: teleport.identitycenter.v1.ListPrincipalsResponse
 	(*ResetPrincipalRequest)(nil),                // 4: teleport.identitycenter.v1.ResetPrincipalRequest
 	(*ResetPrincipalResponse)(nil),               // 5: teleport.identitycenter.v1.ResetPrincipalResponse
-	(*PrincipalSummary_AssignmentSummary)(nil),   // 6: teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary
-	(*PrincipalSummary_ProvisioningSummary)(nil), // 7: teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary
+	(*PrincipalSummary_ProvisioningSummary)(nil), // 6: teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary
+	(*PrincipalSummary_AssignmentSummary)(nil),   // 7: teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary
 	(PrincipalType)(0),                           // 8: teleport.identitycenter.v1.PrincipalType
 	(*AccountAssignmentRef)(nil),                 // 9: teleport.identitycenter.v1.AccountAssignmentRef
-	(ProvisioningState)(0),                       // 10: teleport.identitycenter.v1.ProvisioningState
-	(v1.ProvisioningState)(0),                    // 11: teleport.provisioning.v1.ProvisioningState
+	(v1.ProvisioningState)(0),                    // 10: teleport.provisioning.v1.ProvisioningState
+	(ProvisioningState)(0),                       // 11: teleport.identitycenter.v1.ProvisioningState
 }
 var file_teleport_identitycenter_v1_service_proto_depIdxs = []int32{
 	8,  // 0: teleport.identitycenter.v1.PrincipalSummary.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
-	6,  // 1: teleport.identitycenter.v1.PrincipalSummary.assignment:type_name -> teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary
-	7,  // 2: teleport.identitycenter.v1.PrincipalSummary.provisioning:type_name -> teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary
+	7,  // 1: teleport.identitycenter.v1.PrincipalSummary.assignment:type_name -> teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary
+	6,  // 2: teleport.identitycenter.v1.PrincipalSummary.provisioning:type_name -> teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary
 	9,  // 3: teleport.identitycenter.v1.PrincipalSummary.account_assignments:type_name -> teleport.identitycenter.v1.AccountAssignmentRef
 	8,  // 4: teleport.identitycenter.v1.DescribePrincipalRequest.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
 	0,  // 5: teleport.identitycenter.v1.ListPrincipalsResponse.principals:type_name -> teleport.identitycenter.v1.PrincipalSummary
 	8,  // 6: teleport.identitycenter.v1.ResetPrincipalRequest.principal_type:type_name -> teleport.identitycenter.v1.PrincipalType
-	10, // 7: teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary.status:type_name -> teleport.identitycenter.v1.ProvisioningState
-	11, // 8: teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary.status:type_name -> teleport.provisioning.v1.ProvisioningState
+	10, // 7: teleport.identitycenter.v1.PrincipalSummary.ProvisioningSummary.status:type_name -> teleport.provisioning.v1.ProvisioningState
+	11, // 8: teleport.identitycenter.v1.PrincipalSummary.AssignmentSummary.status:type_name -> teleport.identitycenter.v1.ProvisioningState
 	1,  // 9: teleport.identitycenter.v1.IdentityCenterService.DescribePrincipal:input_type -> teleport.identitycenter.v1.DescribePrincipalRequest
 	2,  // 10: teleport.identitycenter.v1.IdentityCenterService.ListPrincipals:input_type -> teleport.identitycenter.v1.ListPrincipalsRequest
 	4,  // 11: teleport.identitycenter.v1.IdentityCenterService.ResetPrincipal:input_type -> teleport.identitycenter.v1.ResetPrincipalRequest
