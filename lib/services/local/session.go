@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -365,6 +366,20 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 		out = append(out, token)
 	}
 	return out, nil
+}
+
+// ListPage returns a page of web tokens
+func (r *webTokens) ListPage(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	// TODO(okraport): implement me
+	return nil, "", trace.NotImplemented("")
+}
+
+// Range returns web tokens within the range [start, end).
+func (r *webTokens) Range(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+	// TODO(okraport): implement me
+	return func(yield func(types.WebToken, error) bool) {
+		yield(nil, trace.NotImplemented(""))
+	}
 }
 
 // Upsert updates the existing or inserts a new web token.

@@ -1906,6 +1906,7 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(okraport): implement me: switch to paginated variant
 	tokens, err := auth.WebTokens().List(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1923,6 +1924,11 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 	return &authpb.GetWebTokensResponse{
 		Tokens: out,
 	}, nil
+}
+
+// ListWebTokens returns a page of web tokens
+func (g *GRPCServer) ListWebTokens(ctx context.Context, req *authpb.ListWebTokensRequest) (*authpb.ListWebTokensResponse, error) {
+	return nil, trace.NotImplemented("")
 }
 
 // DeleteWebToken removes the web token given with req.

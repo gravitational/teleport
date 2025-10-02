@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
@@ -67,6 +68,7 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 		collection: c.collections.webTokens,
 		index:      webTokenNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (types.WebToken, error) {
+			// TODO(okraport): implement me switch to paginated variant.
 			token, err := c.Config.WebToken.Get(ctx, req)
 			return token, trace.Wrap(err)
 		},
@@ -96,4 +98,18 @@ func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
 	}
 
 	return tokens, nil
+}
+
+// ListPage returns a page of web tokens
+func (c *Cache) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	// TODO(okraport): implement me
+	return nil, "", trace.NotImplemented("")
+}
+
+// RangeWebTokens returns web tokens within the range [start, end).
+func (c *Cache) RangeWebTokens(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+	// TODO(okraport): implement me
+	return func(yield func(types.WebToken, error) bool) {
+		yield(nil, trace.NotImplemented(""))
+	}
 }

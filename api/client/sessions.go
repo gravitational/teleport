@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"iter"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -141,6 +142,7 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 
 // List returns the list of all web tokens
 func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
+	// TODO(okraport): implement me switch to paginated version
 	resp, err := r.c.grpc.GetWebTokens(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -150,6 +152,20 @@ func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
 		out = append(out, token)
 	}
 	return out, nil
+}
+
+// ListPage returns a page of web tokens
+func (r *webTokens) ListPage(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	// TODO(okraport): implement me
+	return nil, "", trace.NotImplemented("")
+}
+
+// Range returns web tokens within the range [start, end).
+func (r *webTokens) Range(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+	// TODO(okraport): implement me
+	return func(yield func(types.WebToken, error) bool) {
+		yield(nil, trace.NotImplemented(""))
+	}
 }
 
 // Upsert not implemented: can only be called locally.

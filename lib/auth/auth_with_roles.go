@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"maps"
 	"net/url"
@@ -2683,6 +2684,20 @@ func (r *webTokensWithRoles) List(ctx context.Context) ([]types.WebToken, error)
 		return nil, trace.Wrap(err)
 	}
 	return r.t.List(ctx)
+}
+
+// ListPage returns a page of web tokens
+func (r *webTokensWithRoles) ListPage(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	// TODO(okraport): implement me
+	return nil, "", trace.NotImplemented("")
+}
+
+// Range returns web tokens within the range [start, end).
+func (r *webTokensWithRoles) Range(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+	// TODO(okraport): implement me
+	return func(yield func(types.WebToken, error) bool) {
+		yield(nil, trace.NotImplemented(""))
+	}
 }
 
 // Upsert creates a new or updates the existing web token from the specified token.

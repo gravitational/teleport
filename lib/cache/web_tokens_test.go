@@ -29,16 +29,35 @@ func TestWebTokens(t *testing.T) {
 	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	testResources(t, p, testFuncs[types.WebToken]{
-		newResource: func(name string) (types.WebToken, error) {
-			return types.NewWebToken(time.Now().Add(time.Hour), types.WebTokenSpecV3{
-				Token: name,
-				User:  "llama",
-			})
-		},
-		create:    p.webTokenS.Upsert,
-		list:      getAllAdapter(p.webTokenS.List),
-		cacheList: getAllAdapter(p.cache.GetWebTokens),
-		deleteAll: p.webTokenS.DeleteAll,
-	}, withSkipPaginationTest())
+	t.Run("GetWebTokens", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.WebToken]{
+			newResource: func(name string) (types.WebToken, error) {
+				return types.NewWebToken(time.Now().Add(time.Hour), types.WebTokenSpecV3{
+					Token: name,
+					User:  "llama",
+				})
+			},
+			create:    p.webTokenS.Upsert,
+			list:      getAllAdapter(p.webTokenS.List),
+			cacheList: getAllAdapter(p.cache.GetWebTokens),
+			deleteAll: p.webTokenS.DeleteAll,
+		}, withSkipPaginationTest())
+	})
+
+	t.Run("ListWebTokens", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.WebToken]{
+			newResource: func(name string) (types.WebToken, error) {
+				return types.NewWebToken(time.Now().Add(time.Hour), types.WebTokenSpecV3{
+					Token: name,
+					User:  "llama",
+				})
+			},
+			create:     p.webTokenS.Upsert,
+			list:       p.webTokenS.ListPage,
+			cacheList:  p.cache.ListWebTokens,
+			Range:      p.webTokenS.Range,
+			cacheRange: p.cache.RangeWebTokens,
+			deleteAll:  p.webTokenS.DeleteAll,
+		})
+	})
 }
