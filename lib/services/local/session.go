@@ -21,13 +21,16 @@ package local
 import (
 	"context"
 	"iter"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -353,33 +356,79 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 
 // List gets all web tokens.
 func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) {
-	startKey := backend.ExactKey(webPrefix, tokensPrefix)
-	result, err := r.backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	tokens, err := stream.Collect(r.Range(ctx, "", ""))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	for _, item := range result.Items {
-		token, err := services.UnmarshalWebToken(item.Value, services.WithRevision(item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, token)
-	}
-	return out, nil
+	return tokens, nil
 }
 
 // ListPage returns a page of web tokens
 func (r *webTokens) ListPage(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
-	// TODO(okraport): implement me
-	return nil, "", trace.NotImplemented("")
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	var next string
+	var seen int
+	out, err := stream.Collect(
+		stream.TakeWhile(
+			r.Range(ctx, start, ""),
+			func(token types.WebToken) bool {
+				if seen < limit {
+					seen++
+					return true
+				}
+				next = token.GetName()
+				return false
+			},
+		),
+	)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+
+	}
+
+	return out, next, nil
 }
 
 // Range returns web tokens within the range [start, end).
 func (r *webTokens) Range(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
-	// TODO(okraport): implement me
-	return func(yield func(types.WebToken, error) bool) {
-		yield(nil, trace.NotImplemented(""))
+	mapFn := func(item backend.Item) (types.WebToken, bool) {
+		token, err := services.UnmarshalWebToken(item.Value,
+			services.WithRevision(item.Revision))
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to unmarshal web token",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
+		}
+		return token, true
 	}
+
+	tokenKey := backend.NewKey(webPrefix)
+	startKey := tokenKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(tokenKey)
+	if end != "" {
+		endKey = tokenKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+	}
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			r.backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn,
+		),
+		func(db types.WebToken) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || db.GetName() < end
+		})
 }
 
 // Upsert updates the existing or inserts a new web token.
