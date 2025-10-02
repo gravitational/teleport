@@ -1,0 +1,248 @@
+---
+title: Installing Teleport on Amazon ECS using Terraform
+description: How to install and run Teleport Agents on Amazon ECS
+labels:
+ - platform-wide
+ - reference
+---
+
+Using Amazon ECS and Terraform allows you to easily deploy and manage Teleport Agents that are closer to your AWS resources.
+
+This flow is ideal when you want to automatically discover and secure access to your EKS clusters, RDS databases or other supported AWS resources.
+
+## How it works
+A Terraform module deploys a Teleport Agent on Amazon ECS and keeps it up to date.
+Re-applying the Terraform configuration ensures the Teleport Agent's version stays up to date.
+
+You have to create or re-use an IAM Join Token so the Agent is able to join the cluster.
+
+You will need to configure the Teleport services you want to run (e.g., the Discovery Service or Database Service), and then pick the subnets and security groups which allow access to the resources you want to access.
+
+After deploying, the Agent is part of your cluster and starts discovering resources or proxying requests.
+
+You can customize the Agent configuration and re-deploy it as needed.
+
+## Prerequisites
+The following set up is required:
+- Install [`terraform`](https://developer.hashicorp.com/terraform/install)
+- [Configure AWS credentials](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#authentication-and-configuration)
+- Create Teleport [IAM Join Token](../reference/deployment/join-methods.mdx#aws-iam-role-iam) so that your agent can securely join the Teleport cluster
+
+## Step 1/3. Download the Terraform module
+
+Download the source code for our example:
+```code
+$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
+$ cd teleport/examples/aws/terraform/ecs-agent
+```
+
+## Step 2/3. Configure the deployment
+The file `variables.tf` contains all the configurable parameters for the Teleport Agent deployment, ensure you review and create a `.tfvars` file that overrides the default values.
+
+
+<Tabs>
+  <TabItem label="Auto Discover Amazon EKS clusters">
+  In order to Auto Discover and access Amazon EKS clusters, start with the following configuration:
+  
+  ```hcl
+  teleport_proxy_server = "proxy.example.com:443"
+
+  // AWS Region where the Teleport Agent is deployed
+  aws_region = "eu-south-2"
+
+  // ECS cluster name to use.
+  ecs_cluster = "teleport-ecs-guide"
+
+  // ECS Service networking configuration.
+  // Ensure this allows connectivity to the target EKS Clusters.
+  teleport_agent_subnets         = ["subnet-123"]
+  teleport_agent_security_groups = ["sg-456"]
+
+  // Default tags to add to AWS resources when creating them.
+  default_tags = {
+    "DeployedBy" = "TeleportAmazonECSGuide"
+  }
+
+  // Teleport Agent configuration.
+  teleport_agent_config = {
+    version = "v3"
+    teleport = {
+      join_params = {
+        // Create a new IAM Join Token that allows joining from your AWS Account.
+        // Ensure it allows Discovery and Kubernetes system roles.
+        token_name = "token-ecs-guide"
+        method     = "iam"
+      }
+      proxy_server = "proxy.example.com:443"
+      log = {
+        severity = "DEBUG"
+      }
+    }
+    auth_service = {
+      enabled = "no"
+    }
+    proxy_service = {
+      enabled = "no"
+    }
+    ssh_service = {
+      enabled = "no"
+    }
+    discovery_service = {
+      enabled         = "yes"
+      discovery_group = "discover-eks"
+      aws = [
+        {
+          types   = ["eks"]
+          regions = ["eu-south-2"]
+          tags = [
+            { "*" = "*" }
+          ]
+        }
+      ]
+    }
+    kubernetes_service = {
+      enabled = "yes"
+      resources = [
+        {
+          labels = {
+            "region"                                 = "eu-south-2"
+            "account-id"                             = data.aws_caller_identity.current.account_id
+            "teleport.dev/cloud"                     = "AWS"
+            "teleport.dev/discovery-type"            = "eks"
+            "teleport.internal/discovery-group-name" = "discover-eks"
+          }
+        }
+      ]
+    }
+  }
+
+  // Depending on your use case, you may want to allow additional permissions for the IAM Role which will be assumed by the agent.
+  ecs_taskrole = "ecs-guide-teleport_agent_role"
+  ecs_taskrole_policy = {
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid = "EKSDiscovery"
+        Action = [
+          "eks:DescribeCluster",
+          "eks:ListClusters"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      {
+        Sid = "EKSManageAccess"
+        Action = [
+          "eks:AssociateAccessPolicy",
+          "eks:CreateAccessEntry",
+          "eks:DeleteAccessEntry",
+          "eks:DescribeAccessEntry",
+          "eks:TagResource",
+          "eks:UpdateAccessEntry"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+    ]
+  }
+  ecs_executionrole = "ecs-guide-teleport_agent_executionrole"
+  ```
+  </TabItem>
+  
+  <TabItem label="Basic deployment example">
+  Here's an example of a basic ECS Teleport Agent configuration you can use to tailor to your use-case.
+  ```hcl
+  teleport_proxy_server = "proxy.example.com:443"
+
+  // AWS Region where the Teleport Agent is deployed
+  aws_region = "eu-south-2"
+
+  // ECS cluster name to use.
+  ecs_cluster = "teleport-ecs-guide"
+
+  // ECS Service networking configuration.
+  teleport_agent_subnets         = ["subnet-123"]
+  teleport_agent_security_groups = ["sg-456"]
+
+  // Default tags to add to AWS resources when creating them.
+  default_tags = {
+    "DeployedBy" = "TeleportAmazonECSGuide"
+  }
+
+  // Teleport Agent configuration.
+  teleport_agent_config = {
+    version = "v3"
+    teleport = {
+      join_params = {
+        // Create a new IAM Join Token that allows joining from your AWS Account.
+        token_name = "token-ecs-guide"
+        method     = "iam"
+      }
+      // Teleport Proxy server endpoint.
+      proxy_server = "proxy.example.com:443"
+      log = {
+        severity = "DEBUG"
+      }
+    }
+    auth_service = {
+      enabled = "no"
+    }
+    proxy_service = {
+      enabled = "no"
+    }
+    ssh_service = {
+      enabled = "yes"
+    }
+  }
+
+  // Depending on your use case, you may want to allow additional permissions for the IAM Role which will be assumed by the agent.
+  ecs_taskrole = "ecs-guide-teleport_agent_role"
+  ecs_taskrole_policy = {
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "sts:GetCallerIdentity",
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+    ]
+  }
+  ecs_executionrole = "ecs-guide-teleport_agent_executionrole"
+  ```
+  </TabItem>
+</Tabs>
+
+The deployment will create the following AWS resources:
+- IAM Role with the required permission for accessing AWS APIs
+- IAM Role to allow log stream of the Teleport Agent into CloudWatch
+- ECS Task Definition which runs a Teleport Agent
+- ECS Cluster and an ECS Service which runs the Task Definition above
+
+You should edit the `teleport_agent_config` and `ecs_taskrole_policy` variables and adapt it to your needs.
+
+Save the `.tfvars` file as `my-deployment.tfvars` and use it in the next step.
+
+## Step 3/3. Initialize and apply the Terraform configuration
+Applying the configuration will create the resources and deploy the Teleport Agent.
+
+```bash
+$ terraform init
+$ terraform apply -var-file=my-deployment.tfvars
+```
+
+After deployment, the agent should be part of your Teleport cluster.
+
+<Admonition type="note" title="Keep your agent up to date">
+  Run `terraform apply ...` regularly to ensure the deployed Teleport Agent version is updated.
+</Admonition>
+
+## Troubleshooting
+
+Navigate to the [Amazon ECS console](https://console.aws.amazon.com/ecs/v2/clusters), select the Cluster and Service, and look for the logs tab which are stored in [CloudWatch](https://console.aws.amazon.com/cloudwatch/home?#logsV2:log-groups).
+
+## Next steps
+Use this guide as a starting point for implementing Auto Discovery for AWS resources:
+- [EKS clusters](../enroll-resources/auto-discovery/kubernetes/aws.mdx)
+- [AWS databases](../enroll-resources/database-access/enroll-aws-databases/enroll-aws-databases.mdx)
