@@ -7249,6 +7249,18 @@ func TestSCP(t *testing.T) {
 				targetFile1: expectedFile1,
 			},
 		},
+		{
+			name:   "two hosts, one no matching host",
+			source: []string{"2.3.4.5:" + sourceFile1},
+			destination: func(t *testing.T, dir string) string {
+				createFile(t, dir, targetFile1)
+				return "asdf.example.com:" + filepath.Join(dir, targetFile1)
+			},
+			assertion: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err, i...)
+				require.ErrorContains(tt, err, "no matching hosts", i...)
+			},
+		},
 	}
 
 	for _, test := range tests {

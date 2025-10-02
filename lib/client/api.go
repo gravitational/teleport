@@ -527,6 +527,9 @@ type Config struct {
 
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
+
+	// ProxyTemplates describe rules for parsing out proxy out of full hostnames.
+	ProxyTemplates ProxyTemplates
 }
 
 // CachePolicy defines cache policy for local clients
@@ -2617,6 +2620,38 @@ type SFTPRequest struct {
 	ProgressWriter io.Writer
 }
 
+func (tc *TeleportClient) setHostPort(fullHost string) error {
+	tc.Host = fullHost
+	if host, port, err := net.SplitHostPort(fullHost); err == nil {
+		tc.Host = host
+		tc.HostPort, err = strconv.Atoi(port)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (tc *TeleportClient) applyProxyTemplates(fullHost string) error {
+	// Clear existing search criteria.
+	tc.Host = ""
+	tc.PredicateExpression = ""
+	tc.SearchKeywords = nil
+	expanded, matched := tc.ProxyTemplates.Apply(fullHost)
+	if !matched {
+		// Use provided host as-is.
+		return trace.Wrap(tc.setHostPort(fullHost))
+	}
+	if expanded.Host != "" {
+		return trace.Wrap(tc.setHostPort(expanded.Host))
+	} else if expanded.Query != "" {
+		tc.PredicateExpression = expanded.Query
+	} else if expanded.Search != "" {
+		tc.SearchKeywords = ParseSearchKeywords(expanded.Search, ',')
+	}
+	return nil
+}
+
 // SFTP securely copies files between Nodes or SSH servers using SFTP.
 func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
 	ctx, span := tc.Tracer.Start(
@@ -2640,7 +2675,9 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
 	}
 	if sources.Addr != nil {
 		// Respect any proxy templates and attempt host resolution.
-		tc.Host = sources.Addr.Host()
+		if err := tc.applyProxyTemplates(sources.AddrString()); err != nil {
+			return trace.Wrap(err)
+		}
 		target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2656,7 +2693,9 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
 	}
 	if dest.Addr != nil {
 		// Respect any proxy templates and attempt host resolution.
-		tc.Host = dest.Addr.Host()
+		if err := tc.applyProxyTemplates(dest.AddrString()); err != nil {
+			return trace.Wrap(err)
+		}
 		target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
 		if err != nil {
 			return trace.Wrap(err)
