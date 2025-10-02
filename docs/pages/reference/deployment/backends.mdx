@@ -221,7 +221,7 @@ An additional 20-40% safety margin is recommended for metadata and fragmentation
 
 Given an existing resource you can estimate its size with the following command:
 
-```sh
+```code
 tctl get <Var name="resource" /> --format=json | awk '{ total += length($0) } END { print total * 2 }'
 ```
 
