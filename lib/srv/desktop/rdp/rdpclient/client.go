@@ -177,6 +177,8 @@ type Client struct {
 
 	// mouseX and mouseY are the last mouse coordinates sent to the client.
 	mouseX, mouseY uint32
+
+	clipboardData []byte
 }
 
 // New creates and connects a new Client based on cfg.
@@ -343,9 +345,95 @@ func (c *Client) runLocal(ctx context.Context) error {
 	if err := xfixes.CreateRegionChecked(dial, parts, nil).Check(); err != nil {
 		return trace.Wrap(err)
 	}
+	attr, err := xproto.GetWindowAttributes(dial, window).Reply()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	atomReply, err := xproto.InternAtom(dial, false, uint16(len("CLIPBOARD")), "CLIPBOARD").Reply()
+	clipboard := atomReply.Atom
+
+	if err := xfixes.SelectSelectionInputChecked(dial, window, clipboard, xfixes.SelectionEventMaskSetSelectionOwner).Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	clipWindow, err := xproto.NewWindowId(dial)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := xproto.CreateWindowChecked(dial, 16, clipWindow, window, -10, -10, 1, 1, 0, attr.Class, attr.Visual, 0, []uint32{}).Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	property, err := xproto.InternAtom(dial, false, uint16(len("TELEPORT_SELECTION")), "TELEPORT_SELECTION").Reply()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	targets, err := xproto.InternAtom(dial, false, uint16(len("TARGETS")), "TARGETS").Reply()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	utf8, err := xproto.InternAtom(dial, false, uint16(len("UTF8_STRING")), "UTF8_STRING").Reply()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	//ticker := time.NewTicker(40 * time.Millisecond)
 	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		for {
+			event, err := dial.WaitForEvent()
+			if err == nil && event == nil {
+				return nil
+			}
+			switch event := event.(type) {
+			case xproto.SelectionRequestEvent:
+				if event.Property == xproto.AtomNone {
+					event.Property = property.Atom
+				}
+				switch event.Target {
+				case utf8.Atom:
+					if err := xproto.ChangePropertyChecked(dial, xproto.PropModeReplace, event.Requestor, event.Property, xproto.AtomString, 8, uint32(len(c.clipboardData)), c.clipboardData).Check(); err != nil {
+						return trace.Wrap(err)
+					}
+				case xproto.AtomString:
+					re := regexp.MustCompile("[[:^ascii:]]")
+					data := re.ReplaceAllLiteralString(string(c.clipboardData), "")
+					if err := xproto.ChangePropertyChecked(dial, xproto.PropModeReplace, event.Requestor, event.Property, xproto.AtomString, 8, uint32(len(data)), []byte(data)).Check(); err != nil {
+						return trace.Wrap(err)
+					}
+				case targets.Atom:
+					atoms := make([]byte, 8)
+					binary.LittleEndian.PutUint32(atoms, uint32(utf8.Atom))
+					binary.LittleEndian.PutUint32(atoms[4:], xproto.AtomString)
+					if err := xproto.ChangePropertyChecked(dial, xproto.PropModeReplace, event.Requestor, event.Property, xproto.AtomString, 8, uint32(len(atoms)), atoms).Check(); err != nil {
+						return trace.Wrap(err)
+					}
+				default:
+					event.Property = xproto.AtomNone
+				}
+				xproto.SendEvent(dial, true, event.Requestor, 0, string(xproto.SelectionNotifyEvent{
+					Time:      event.Time,
+					Requestor: event.Requestor,
+					Selection: event.Selection,
+					Target:    event.Target,
+					Property:  event.Property,
+				}.Bytes()))
+			case xproto.SelectionNotifyEvent:
+				c.cfg.Logger.DebugContext(ctx, "Got xproto event", "event", event, "error", err)
+				prop, err := xproto.GetProperty(dial, true, clipWindow, event.Property, event.Target, 0, 1024).Reply()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if err := c.cfg.Conn.WriteMessage(tdp.ClipboardData(prop.Value)); err != nil {
+					return trace.Wrap(err)
+				}
+			case xfixes.SelectionNotifyEvent:
+				c.cfg.Logger.DebugContext(ctx, "Got xfixes event", "event", event, "error", err)
+				if err := xproto.ConvertSelectionChecked(dial, clipWindow, clipboard, xproto.AtomString, property.Atom, 0).Check(); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
+
+	})
 	group.Go(func() error {
 		i := int64(0)
 		i2 := 0
@@ -358,15 +446,6 @@ func (c *Client) runLocal(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		go func() {
-			for {
-				event, err := dial.WaitForEvent()
-				if err == nil && event == nil {
-					return
-				}
-				c.cfg.Logger.DebugContext(ctx, "Got XGB event", "event", event, "error", err)
-			}
-		}()
 		for {
 			if atomic.CompareAndSwapUint32(&c.readyForInput, 1, 0) {
 				if err := damage.DestroyChecked(dial, dmg).Check(); err != nil {
@@ -376,7 +455,7 @@ func (c *Client) runLocal(ctx context.Context) error {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				if err := damage.CreateChecked(dial, dmg, root, damage.ReportLevelDeltaRectangles).Check(); err != nil {
+				if err := damage.CreateChecked(dial, dmg, root, damage.ReportLevelNonEmpty).Check(); err != nil {
 					return trace.Wrap(err)
 				}
 				continue
@@ -488,13 +567,13 @@ func (c *Client) runLocal(ctx context.Context) error {
 			}
 
 			i++
-			if i%25 == 0 {
-				c.cfg.Logger.DebugContext(ctx, fmt.Sprintf("Average encooding time %dms, compression rate: %d%%", totalDuration.Milliseconds()/i, compressedSize*100/totalSize))
-			}
+			//if i%25 == 0 {
+			//	c.cfg.Logger.DebugContext(ctx, fmt.Sprintf("Average encooding time %dms, compression rate: %d%%", totalDuration.Milliseconds()/i, compressedSize*100/totalSize))
+			//}
 		}
 	})
 	group.Go(func() error {
-		return c.handleInputLocal(ctx, dial, window)
+		return c.handleInputLocal(ctx, dial, window, clipWindow, clipboard)
 	})
 	err = group.Wait()
 	return err
@@ -547,7 +626,7 @@ func (c *Client) connectToDisplay(ctx context.Context, display string) (*xgb.Con
 	return dial, setup, nil
 }
 
-func (c *Client) handleInputLocal(ctx context.Context, dial *xgb.Conn, root xproto.Window) error {
+func (c *Client) handleInputLocal(ctx context.Context, dial *xgb.Conn, root xproto.Window, clipWindow xproto.Window, clipboard xproto.Atom) error {
 	modeCounter := 0
 	for {
 		select {
@@ -613,7 +692,10 @@ func (c *Client) handleInputLocal(ctx context.Context, dial *xgb.Conn, root xpro
 			atomic.StoreUint32(&c.readyForInput, 1)
 
 		case tdp.ClipboardData:
-
+			c.clipboardData = msg
+			if err := xproto.SetSelectionOwnerChecked(dial, clipWindow, clipboard, 0).Check(); err != nil {
+				return trace.Wrap(err)
+			}
 		case tdp.MouseMove:
 			if err := xtest.FakeInputChecked(dial, 6, 0, xproto.TimeCurrentTime, root, int16(msg.X), int16(msg.Y), 0).Check(); err != nil {
 				return trace.Wrap(err)
