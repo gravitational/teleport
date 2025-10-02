@@ -189,7 +189,6 @@ const cfg = {
     bots: '/web/bots',
     bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
-    botInstance: '/web/bot/:botName/instance/:instanceId',
     botsNew: '/web/bots/new/:type?',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
@@ -845,10 +844,6 @@ const cfg = {
 
   getBotInstancesRoute() {
     return generatePath(cfg.routes.botInstances);
-  },
-
-  getBotInstanceDetailsRoute(params: { botName: string; instanceId: string }) {
-    return generatePath(cfg.routes.botInstance, params);
   },
 
   getBotsNewRoute(type?: string) {
