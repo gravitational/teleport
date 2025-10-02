@@ -85,7 +85,7 @@ export class SessionStream<
   private requestId = 0;
   private state: PlayerState = PlayerState.Loading;
   private wasPlayingBeforeSeek = false;
-  private playbackSpeed = 0.5;
+  private playbackSpeed = 1;
 
   constructor(
     private ws: WebSocket,
