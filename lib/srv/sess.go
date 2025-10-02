@@ -2391,7 +2391,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 	// - this is a non-interactive session
 	// - the session was initiated by a bot
 	svc := s.registry.SessionTrackerService
-	if (s.registry.Srv.Component() == teleport.ComponentForwardingNode && !s.registry.Srv.GetInfo().IsOpenSSHNode()) ||
+	if (s.registry.Srv.Component() == teleport.ComponentForwardingNode && !s.registry.Srv.GetInfo().IsOpenSSHNode() && !s.scx.proxyShouldCreateSessionTracker) ||
 		sessType == sessionTypeNonInteractive ||
 		s.scx.Identity.BotName != "" {
 		svc = nil
