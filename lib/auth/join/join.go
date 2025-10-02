@@ -263,7 +263,7 @@ type RegisterResult struct {
 //
 // Deprecated: this function is superceded by lib/join/joinclient.Join
 //
-// TODO(nklaassen): DELETE IN 19.0.0
+// TODO(nklaassen): DELETE IN 20
 func Register(ctx context.Context, params RegisterParams) (result *RegisterResult, err error) {
 	ctx, span := tracer.Start(ctx, "Register")
 	defer func() { tracing.EndSpan(span, err) }()
