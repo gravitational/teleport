@@ -531,6 +531,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				}
 			}
 
+			// Test streaming events and recording.
 			capturedStream, sessionEvents := streamSession(ctx, t, site, sessionID)
 
 			findByType := func(et string) apievents.AuditEvent {
@@ -541,19 +542,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				}
 				return nil
 			}
-			// helper that asserts that a session event is also included in the
-			// general audit log.
-			requireInAuditLog := func(t *testing.T, sessionEvent apievents.AuditEvent) {
-				t.Helper()
-				auditEvents, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
-					To:         time.Now(),
-					EventTypes: []string{sessionEvent.GetType()},
-				})
-				require.NoError(t, err)
-				require.True(t, slices.ContainsFunc(auditEvents, func(ae apievents.AuditEvent) bool {
-					return ae.GetID() == sessionEvent.GetID()
-				}))
-			}
 
 			// there should always be 'session.start' event (and it must be first)
 			first := sessionEvents[0].(*apievents.SessionStart)
@@ -561,19 +549,16 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, first, start)
 			require.Equal(t, sessionID, start.SessionID)
 			require.NotEmpty(t, start.TerminalSize)
-			requireInAuditLog(t, start)
 
 			// there should always be 'session.end' event
 			end := findByType(events.SessionEndEvent).(*apievents.SessionEnd)
 			require.NotNil(t, end)
 			require.Equal(t, sessionID, end.SessionID)
-			requireInAuditLog(t, end)
 
 			// there should always be 'session.leave' event
 			leave := findByType(events.SessionLeaveEvent).(*apievents.SessionLeave)
 			require.NotNil(t, leave)
 			require.Equal(t, sessionID, leave.SessionID)
-			requireInAuditLog(t, leave)
 
 			// all of them should have a proper time
 			for _, e := range sessionEvents {
@@ -584,6 +569,37 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			recorded := replaceNewlines(capturedStream)
 			require.Regexp(t, ".*exit.*", recorded)
 			require.Regexp(t, ".*echo hi.*", recorded)
+
+			// Ensure that we find the 4 primary session events with the correct session ID and order
+			// and without duplicates or mismatched session IDs.
+			sessionEvents, _, err = site.SearchEvents(ctx, events.SearchEventsRequest{
+				From: time.Time{},
+				To:   time.Now(),
+				EventTypes: []string{
+					events.SessionStartEvent,
+					events.SessionLeaveEvent,
+					events.SessionEndEvent,
+					events.SessionDataEvent,
+				},
+			})
+			require.NoError(t, err)
+			require.Len(t, sessionEvents, 4)
+
+			startEvent, ok := sessionEvents[0].(*apievents.SessionStart)
+			require.True(t, ok, "Expected session start event but got %s", sessionEvents[0].GetType())
+			require.Equal(t, sessionID, startEvent.SessionID)
+
+			endEvent, ok := sessionEvents[1].(*apievents.SessionEnd)
+			require.True(t, ok, "Expected session end event but got %s", sessionEvents[1].GetType())
+			require.Equal(t, sessionID, endEvent.SessionID)
+
+			leaveEvent, ok := sessionEvents[2].(*apievents.SessionLeave)
+			require.True(t, ok, "Expected session leave event but got %s", sessionEvents[2].GetType())
+			require.Equal(t, sessionID, leaveEvent.SessionID)
+
+			dataEvent, ok := sessionEvents[3].(*apievents.SessionData)
+			require.True(t, ok, "Expected session data event but got %s", sessionEvents[3].GetType())
+			require.Equal(t, sessionID, dataEvent.SessionID)
 		})
 	}
 }
