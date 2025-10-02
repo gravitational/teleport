@@ -207,6 +207,7 @@ export interface FeatureFlags {
   externalAuditStorage: boolean;
   listBots: boolean;
   readBots: boolean;
+  readBotInstances: boolean;
   listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;

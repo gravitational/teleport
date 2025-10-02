@@ -107,9 +107,9 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 			},
 		},
 		{
-			name:     "version equals",
-			expTrue:  `equals(status.latest_heartbeat.version, "19.0.1")`,
-			expFalse: `equals(status.latest_heartbeat.version, "19.0.2-rc.1+56001")`,
+			name:     "exact version",
+			expTrue:  `exact_version(status.latest_heartbeat.version, "19.0.1")`,
+			expFalse: `exact_version(status.latest_heartbeat.version, "19.0.2-rc.1+56001")`,
 		},
 		{
 			name:     "between versions - lower",
@@ -122,14 +122,14 @@ func TestBotInstanceExpressionParser(t *testing.T) {
 			expFalse: `between(status.latest_heartbeat.version, "19.0.0", "19.0.1")`,
 		},
 		{
-			name:     "more than version",
-			expTrue:  `more_than(status.latest_heartbeat.version, "19.0.0")`,
-			expFalse: `more_than(status.latest_heartbeat.version, "19.0.1")`,
+			name:     "newer than version",
+			expTrue:  `newer_than(status.latest_heartbeat.version, "19.0.0")`,
+			expFalse: `newer_than(status.latest_heartbeat.version, "19.0.1")`,
 		},
 		{
-			name:     "less than version",
-			expTrue:  `less_than(status.latest_heartbeat.version, "19.0.2")`,
-			expFalse: `less_than(status.latest_heartbeat.version, "19.0.1")`,
+			name:     "older than version",
+			expTrue:  `older_than(status.latest_heartbeat.version, "19.0.2")`,
+			expFalse: `older_than(status.latest_heartbeat.version, "19.0.1")`,
 		},
 	}
 

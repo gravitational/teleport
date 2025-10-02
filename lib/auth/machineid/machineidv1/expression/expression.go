@@ -63,14 +63,14 @@ func NewBotInstanceExpressionParser() (*typical.Parser[*Environment, bool], erro
 		}),
 	}
 
-	// e.g. `more_than(status.latest_heartbeat.version, "19.0.0")`
-	spec.Functions["more_than"] = typical.BinaryFunction[*Environment](semverGt)
-	// e.g. `less_than(status.latest_heartbeat.version, "19.0.2")`
-	spec.Functions["less_than"] = typical.BinaryFunction[*Environment](semverLt)
+	// e.g. `newer_than(status.latest_heartbeat.version, "19.0.0")`
+	spec.Functions["newer_than"] = typical.BinaryFunction[*Environment](semverGt)
+	// e.g. `older_than(status.latest_heartbeat.version, "19.0.2")`
+	spec.Functions["older_than"] = typical.BinaryFunction[*Environment](semverLt)
 	// e.g. `between(status.latest_heartbeat.version, "19.0.0", "19.0.2")`
 	spec.Functions["between"] = typical.TernaryFunction[*Environment](semverBetween)
-	// e.g. `equals(status.latest_heartbeat.version, "19.1.0")`
-	spec.Functions["equals"] = typical.BinaryFunction[*Environment](semverEq)
+	// e.g. `exact_version(status.latest_heartbeat.version, "19.1.0")`
+	spec.Functions["exact_version"] = typical.BinaryFunction[*Environment](semverEq)
 
 	return typical.NewParser[*Environment, bool](spec)
 }
