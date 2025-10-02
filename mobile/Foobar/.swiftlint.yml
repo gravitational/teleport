@@ -2,3 +2,6 @@ disabled_rules:
   - todo
   # Used by generated protos to disable checking the files.
   - blanket_disable_command
+  # Let the formatter deal with this.
+  - opening_brace
+  - identifier_name
