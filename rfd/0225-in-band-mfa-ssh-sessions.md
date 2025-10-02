@@ -56,24 +56,6 @@ security and operational efficiency across the Teleport platform.
 
 No changes to the UX as all changes are internal to the architecture.
 
-### Security
-
-In addition to the risks raised in [Access Control Decision API (RFD
-0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), there are a
-few risks specific to this RFD. Three RPCs are introduced in this RFD: `ProxySSH` in the v2
-[TransportService](#transport-service-v2), and `StartAuthenticateChallenge` and `CompleteAuthenticateChallenge` in the
-new [MFAService](#mfa-service).
-
-Each RPC will only be authorized for specific callers in order to enable this new flow. `ProxySSH` v2 RPC will preserve
-the same authentication and authorization mechanisms as the existing `ProxySSH` v1 RPC. The `StartAuthenticateChallenge`
-RPC will only be authorized for the Proxy to initiate MFA challenges on behalf of users. The
-`CompleteAuthenticateChallenge` RPC will only be authorized for users to complete their own MFA challenges, ensuring
-that only the intended user can respond to the challenge.
-
-### Privacy
-
-No changes to privacy are expected.
-
 ### High-Level Flow
 
 The client first invokes the `ProxySSH` RPC in the [TransportService](#transport-service-v2) to establish an SSH session
@@ -85,13 +67,13 @@ For sessions where MFA is required, the server begins by sending an MFA challeng
 `CompleteAuthenticateChallenge` RPC with the challenge ID and complete the challenge. Once the client completes the MFA
 challenge, the `TransportService` will receive the pass/fail result and `ProxySSH` will unblock and proceed accordingly.
 
-If the MFA verification fails, the stream is immediately terminated. Similarly, any connectivity issues with the
-authentication service result in the session being denied. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for more
-details on session termination.
+If the MFA verification fails, the stream is immediately terminated. Similarly, any connectivity issues with the Proxy
+or Auth services result in the session being denied. If the client does not complete the MFA challenge within a
+specified time frame (e.g., 5 minutes), the session will be terminated. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
 
-In cases where MFA is optional, or after successful MFA verification, the server sends `ClusterDetails` to the client.
-The client can then proceed to send SSH frames over the established stream. The Proxy forwards these frames to the
-target host, and the target host's responses are relayed back to the client.
+In cases where MFA is not required, or after successful MFA verification, the server sends `ClusterDetails` to the
+client. The client can then proceed to send SSH frames over the established stream. The Proxy forwards these frames to
+the target host, and the target host's responses are relayed back to the client.
 
 ```mermaid
 sequenceDiagram
@@ -164,6 +146,48 @@ sequenceDiagram
     end
   end
 ```
+
+### Security
+
+In addition to the risks raised in [Access Control Decision API (RFD
+0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), there are a
+few risks specific to this RFD.
+
+Since new RPCs are being introduced, there are a few new risks:
+
+1. Unauthorized access to the new RPCs could allow attackers to bypass MFA enforcement or impersonate users.
+1. An attacker could exploit an unfinished MFA challenge, potentially allowing unauthorized access.
+1. An attacker could attempt to flood the system with MFA challenge requests, leading to denial-of-service conditions.
+1. An attacker could attempt to downgrade the connection to use the legacy v1 `TransportService` RPCs, which may have
+   weaker security controls.
+
+To mitigate these risks, the following measures will be implemented.
+
+#### RPC Authorization
+
+Each RPC introduced in this RFD will enforce strict authorization:
+
+- `ProxySSH` (v2): Maintains the same authentication and authorization checks as the existing v1 RPC. Only authenticated
+  clients with valid credentials and appropriate permissions can initiate SSH sessions.
+- `StartAuthenticateChallenge`: Only the Proxy service is permitted to invoke this RPC, allowing it to initiate MFA
+  challenges on behalf of users. Direct user access to this RPC will be denied.
+- `CompleteAuthenticateChallenge`: Only the user for whom the MFA challenge was created is authorized to complete it.
+  The service verifies the user's identity and ensures that only the intended recipient can respond to the challenge.
+
+#### MFA Challenge Timeouts
+
+MFA challenges initiated by the Proxy must be completed within a specified time frame (e.g., 5 minutes). If the client
+fails to do so, the session will be terminated. This limits the window of opportunity for an attacker to exploit an
+unfinished MFA challenge.
+
+#### Denial-of-Service Mitigation
+
+MFA challenge creation will be rate-limited per user to prevent abuse. This limits the ability of an attacker to flood
+the system with MFA challenge requests.
+
+### Privacy
+
+No changes to privacy are expected.
 
 ### Proto Specification
 
@@ -350,9 +374,11 @@ After the transition period, support for the deprecated `ProxySSH` RPC will be r
 
 ### Audit Events
 
-All audit events for SSH sessions established via in-band MFA will continue to include the MFA device UUID (under
-`SessionMetadata.WithMFA`), as required by [Per-session MFA (RFD 14)](0014-session-2FA.md) and [RFD
-15](0015-2fa-management.md).
+All MFA challenge initiations, completions, failures, and session establishments will be logged with metadata,
+including fields such as `SessionMetadata.WithMFA` to indicate whether MFA was enforced for the session, `user`, `device
+UUID`, `challenge ID`, and timestamps. This logging approach follows the conventions established in [RFD 0014 - Session
+2FA](0014-session-2FA.md) and [RFD 0024e - Access Control Decision
+API](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md).
 
 ### Observability
 
