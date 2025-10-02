@@ -1,0 +1,897 @@
+
+{/* Generated file. Do not edit.*/}
+{/* Generate this file by navigating to examples/chart and running  make render-chart-ref*/}
+## `relayGroup`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`relayGroup` sets the internal identifier for the group of Relay
+instances reachable through the same load balancer. Should be unique in the
+whole Teleport cluster.
+
+## `publicHostnames`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`publicHostnames` a list of hostnames that this Relay group is publicly
+reachable at by clients.
+
+```
+publicHostnames:
+  - relay.example.com
+```
+
+## `targetConnectionCount`
+
+| Type | Default |
+|------|---------|
+| `int` | `2` |
+
+`targetConnectionCount` the amount of tunnel connections that agents
+will open to distinct Relay instances. It should not be bigger than the
+replica count.
+
+## `proxyAddr`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`proxyAddr` provides the public-facing Teleport Proxy Service
+endpoint which should be used to join the cluster. This is the same URL used
+to access the web UI of your Teleport cluster. The port used is usually either
+3080 or 443.
+
+Here are a few examples:
+
+| Deployment method             | Example `proxy_service.public_addr` |
+|-------------------------------|-------------------------------------|
+| On-prem Teleport cluster      | `teleport.example.com:3080`         |
+| Teleport Cloud cluster        | `example.teleport.sh:443`           |
+| `teleport-cluster` Helm chart | `teleport.example.com:443`          |
+
+## `enterprise`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`enterprise` controls if the `teleport-relay` chart should deploy the
+OSS version or the enterprise version of the container image. This must be set
+to `true` when connecting to Teleport Cloud or self-hosted Teleport Enterprise
+clusters to allow the agent to leverage enterprise features.
+
+## `joinParams`
+
+`joinParams` controls how the Teleport Agent joins the Teleport cluster.
+These sub-values must be configured for the agent to connect to a cluster.
+
+The token used must grant the `Relay` role, and should be valid for the
+lifetime of the Helm release.
+
+### `joinParams.method`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`joinParams.method` controls which join method will be used by the
+instance to join the Teleport cluster.
+
+See [the join method reference](../../reference/deployment/join-methods.mdx)
+for the list of possible values, the implications of each join method, and
+guides to set up each method.
+
+Common join-methods for the `teleport-relay` are:
+- `token`: the most basic one, with regular ephemeral secret tokens
+- `kubernetes`: either the `in-cluster` variant (if the agent runs in the
+  same Kubernetes cluster as the `teleport-cluster` chart) or the
+  `JWKS/OIDC` variants (work in every Kubernetes cluster, regardless of the
+  Teleport Auth Service location).
+
+### `joinParams.tokenName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`joinParams.tokenName` controls which token is used by the agent to
+join the Teleport cluster.
+
+When `joinParams.method` is [a delegated join
+method](../../reference/deployment/join-methods.mdx#delegated-join-methods),
+the value is not sensitive.
+
+When `joinParams.method` is `token` (by default), `joinParams.tokenName`
+contains the secret token itself. In this case, the value is sensitive and
+is automatically stored in a Kubernetes Secret instead of being directly
+included in the agent's configuration.
+
+If method is `token`, `joinParams.tokenName` can be empty if the token is
+provided through an existing Kubernetes Secret, see
+[`joinTokenSecret`](#joinTokenSecret) for more details and instructions.
+
+If method is `kubernetes`, you must set
+[`teleportClusterName`](#teleportClusterName).
+
+## `teleportClusterName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleportClusterName` is the name of the joined Teleport cluster.
+Setting this value is required when joining via the
+[Kubernetes JWKS or OIDC](../../reference/deployment/join-methods.mdx#kubernetes-jwks) join method.
+
+When this value is set, the chart mounts a kubernetes service account token
+via a projected volume and configures Teleport to use it for joining.
+
+## `joinTokenSecret`
+
+`joinTokenSecret` manages the join token secret creation and its name. See
+the [`joinParams`](#joinParams) section for more details.
+
+### `joinTokenSecret.create`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`joinTokenSecret.create` controls whether the chart creates the
+Kubernetes `Secret` containing the Teleport join token. If false, you must
+create a Kubernetes Secret with the configured name in the Helm release
+namespace.
+
+### `joinTokenSecret.name`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`joinTokenSecret.name` is the name of the Kubernetes Secret
+containing the Teleport join token used by the chart.
+
+If `joinTokenSecret.create` is `false`, the chart will not attempt to create
+the secret itself. Instead, it will read the value from an existing secret.
+`joinTokenSecret.name` configures the name of this secret. This allows you
+to configure this secret externally and avoid having a plaintext join token
+stored in your Teleport chart values.
+
+To create your own join token secret, you can use a command like this:
+
+```code
+$ kubectl --namespace teleport create secret generic my-token-secret --from-literal=auth-token=<replace-with-actual-token>
+```
+
+<Admonition type="note">
+
+  The key used for the auth token inside the secret must be `auth-token`, as
+  in the command above.
+
+</Admonition>
+
+```yaml
+joinTokenSecret:
+  create: false
+  name: my-token-secret
+
+joinParams:
+  method: "token"
+  tokenName: ""
+```
+
+## `proxyProtocol`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`proxyProtocol` controls whether or not the connections coming from the
+load balancer will include a PROXY protocol v2 header.
+
+## `log`
+
+`log` controls the agent logging.
+
+### `log.level`
+
+| Type | Default |
+|------|---------|
+| `string` | `"INFO"` |
+
+`log.level` is the log level for the Teleport process.
+Available log levels are: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
+
+The default is `INFO`, which is recommended in production.
+`DEBUG` is useful during first-time setup or to see more detailed logs for debugging.
+
+### `log.format`
+
+| Type | Default |
+|------|---------|
+| `string` | `"json"` |
+
+`log.format` sets the log output format for the Teleport process.
+Possible values are `text` or `json`.
+
+## `preStopDelay`
+
+| Type | Default |
+|------|---------|
+| `string` | `"30s"` |
+
+`preStopDelay` the optional time that will pass between the pod
+entering the Terminating state and the Teleport instance getting signaled to
+begin its shutdown advertisement. Useful to allow load balancers to stop
+routing connections to the terminating pod.
+
+## `shutdownDelay`
+
+| Type | Default |
+|------|---------|
+| `string` | `"30s"` |
+
+`shutdownDelay` the optional time that the Teleport instance will
+wait after advertising its shutdown and before it will stop serving new
+inbound connections.
+
+## `terminationGracePeriodSeconds`
+
+| Type | Default |
+|------|---------|
+| `int` | `90` |
+
+`terminationGracePeriodSeconds` the time allotted to a Teleport instance
+pod for termination. It should be longer than the sum of
+[`preStopDelay`](#preStopDelay) and [`shutdownDelay`](#shutdownDelay).
+
+## `highAvailability`
+
+`highAvailability` contains settings controlling the availability of the
+Teleport Agent deployed by the chart.
+
+The availability can be increased by:
+- running more replicas with `replicaCount`
+- requiring that the Pods are not scheduled on the same Kubernetes Node with `requireAntiAffinity`
+- by asking Kubernetes not to delete all pods at the same time with `podDisruptionBudget`.
+
+Even with highAvailability settings Restarting/rolling-out pods can still cause
+disruption for established long-lived sessions.
+
+### `highAvailability.replicaCount`
+
+| Type | Default |
+|------|---------|
+| `int` | `2` |
+
+`highAvailability.replicaCount` is the number of agent replicas
+deployed by the Chart.
+
+Set to a number higher than `1` for a high availability mode where multiple
+Teleport pods will be deployed.
+
+<Admonition type="tip" title="Sizing guidelines">
+
+  As a rough guide, we recommend configuring one replica per distinct
+  availability zone where your cluster has worker nodes.
+
+  2 replicas/availability zones will be fine for smaller workloads. 3-5
+  replicas/availability zones will be more appropriate for bigger clusters
+  with more traffic.
+
+</Admonition>
+
+### `highAvailability.podDisruptionBudget`
+
+`highAvailability.podDisruptionBudget` controls how the chart creates and
+configures a Kubernetes PodDisruptionBudget to ensure Kubernetes does not
+delete all agent replicas at the same time.
+
+#### `highAvailability.podDisruptionBudget.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`highAvailability.podDisruptionBudget.enabled` makes the chart create
+a Kubernetes PodDisruptionBudget for the agent pods.
+
+#### `highAvailability.podDisruptionBudget.minAvailable`
+
+| Type | Default |
+|------|---------|
+| `intOrString` | `1` |
+
+`highAvailability.podDisruptionBudget.minAvailable` is the
+minimum available pod count specified on the PodDisruptionBudget.
+
+## `resources`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`resources` sets the resource requests/limits for any pods created by
+the chart. See [the Kubernetes
+documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+for more details.
+
+## `service`
+
+`service` options for the Service that points to the Teleport Relay
+instances.
+
+### `service.type`
+
+| Type | Default |
+|------|---------|
+| `string` | `"LoadBalancer"` |
+
+`service.type` the type of the Service. Unless you have specific
+needs, it should probably be set to LoadBalancer.
+
+### `service.spec`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`service.spec` any additional entries here will be added to the
+Service spec.
+
+```
+spec:
+  loadBalancerIP: "1.2.3.4"
+  loadBalancerClass: service.k8s.aws/nlb
+```
+
+## `serviceAccount`
+
+`serviceAccount` contains settings related to the Kubernetes service account
+used by pods.
+
+### `serviceAccount.create`
+
+| Type | Default |
+|------|---------|
+| `bool` | `true` |
+
+`serviceAccount.create` specifies whether a `ServiceAccount` should
+be created or if an existing one should be used.
+
+### `serviceAccount.name`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`serviceAccount.name` the name of the `ServiceAccount` to use. If
+not set and serviceAccount.create is true, the name is generated using the
+release name. If create is false, the name will be used to reference an
+existing service account.
+
+## `extraLabels`
+
+`extraLabels` contains additional Kubernetes labels to apply on the resources
+created by the chart. See [the Kubernetes label documentation
+](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+for more information.
+
+### `extraLabels.config`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.config` are labels to set on the ConfigMap.
+
+### `extraLabels.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.deployment` are labels to set on the Deployment.
+
+### `extraLabels.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.pod` are labels to set on the Pods.
+
+### `extraLabels.podDisruptionBudget`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.podDisruptionBudget` are labels to set on the
+PodDisruptionBudget.
+
+### `extraLabels.secret`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.secret` are labels to set on the Secret.
+
+### `extraLabels.service`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.service` are labels to set on the Service.
+
+### `extraLabels.serviceAccount`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.serviceAccount` are labels to set on the
+ServiceAccount.
+
+## `annotations`
+
+`annotations` contains annotations to apply to the different Kubernetes
+objects created by the chart. See [the Kubernetes annotation
+documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+for more details.
+
+### `annotations.config`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.config` are annotations to set on the ConfigMap.
+
+### `annotations.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.deployment` are annotations to set on the Deployment.
+
+### `annotations.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.pod` are annotations to set on the Pods.
+
+### `annotations.podDisruptionBudget`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.podDisruptionBudget` are annotations to set on the
+podDisruptionBudget.
+
+### `annotations.secret`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.secret` are annotations to set on the Secret.
+
+### `annotations.service`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.service` are annotations to set on the Service.
+
+### `annotations.serviceAccount`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.serviceAccount` are annotations to set on the
+ServiceAccount.
+
+## `image`
+
+| Type | Default |
+|------|---------|
+| `string` | `"public.ecr.aws/gravitational/teleport-distroless"` |
+
+`image` sets the container image used for Teleport Community Edition
+Agent pods created by the chart.
+
+You can override this to use your own Teleport image rather than a
+Teleport-published image.
+
+By default, the image contains only the Teleport application and its runtime
+dependencies, and does not contain a shell.
+
+This setting only takes effect when [`enterprise`](#enterprise) is `false`.
+When running an enterprise version, you must use
+[`enterpriseImage`](#enterpriseImage) instead.
+
+## `enterpriseImage`
+
+| Type | Default |
+|------|---------|
+| `string` | `"public.ecr.aws/gravitational/teleport-ent-distroless"` |
+
+`enterpriseImage` sets the container image used for Teleport Enterprise
+agent pods created by the chart.
+
+You can override this to use your own Teleport image rather than a
+Teleport-published image.
+
+By default, the image contains only the Teleport application and its runtime
+dependencies, and does not contain a shell.
+
+This setting only takes effect when [`enterprise`](#enterprise) is `true`.
+When running an enterprise version, you must use [`image`](#image) instead.
+
+## `imagePullSecrets`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`imagePullSecrets` is a list of secrets containing authorization tokens
+which can be optionally used to access a private Docker registry.
+
+See the [Kubernetes
+reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
+for more details.
+
+## `imagePullPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"IfNotPresent"` |
+
+`imagePullPolicy` sets the pull policy for any pods created by the
+chart. See [the Kubernetes
+documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
+for more details.
+
+## `topologySpreadConstraints`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`topologySpreadConstraints` sets the topology spread constraints for
+any pods created by the chart. See [the Kubernetes
+documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/)
+for more details.
+
+When unset, the chart defaults to a soft topology spread constraint that tries
+to spread pods across hosts and zones.
+
+```
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels: # dynamically computed
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels: # dynamically computed
+```
+
+## `disableTopologySpreadConstraints`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`disableTopologySpreadConstraints` turns off the default topology
+spread constraints.
+
+## `affinity`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`affinity` sets the affinities for any pods created by the chart. See
+[the Kubernetes
+documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+for more details.
+
+## `tolerations`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`tolerations` sets the tolerations for any pods created by the chart.
+See [the Kubernetes
+documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+for more details.
+
+## `teleportConfig`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`teleportConfig` contains YAML teleport configuration to pass to the
+Teleport pods. The configuration will be merged with the chart-generated
+configuration and will take precedence in case of conflict.
+
+See the [Teleport Configuration Reference](../../reference/deployment/config.mdx) for the list of supported fields.
+
+## `extraArgs`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraArgs` contains extra arguments to pass to `teleport start` for
+the main Teleport container.
+
+## `extraEnv`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraEnv` contains extra environment variables to set in the main
+Teleport container.
+
+For example:
+```yaml
+extraEnv:
+  - name: HTTPS_PROXY
+    value: "http://username:password@my.proxy.host:3128"
+```
+
+## `extraVolumes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraVolumes` contains extra volumes to mount into the Teleport pods.
+See [the Kubernetes volume
+documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
+details.
+
+For example:
+```yaml
+extraVolumes:
+- name: myvolume
+  secret:
+    secretName: testSecret
+```
+
+## `extraVolumeMounts`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraVolumeMounts` contains extra volumes mounts for the main Teleport
+container. See [the Kubernetes volume
+documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
+details.
+
+For example:
+```yaml
+extraVolumesMounts:
+- name: myvolume
+  mountPath: /path/on/host
+```
+
+## `dnsConfig`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`dnsConfig` contains custom Pod DNS Configuration for the agent pods.
+This value is useful if you need to reduce the DNS load: set "ndots" to 0 and
+only use FQDNs to refer to remote hosts.
+
+See [the Kubernetes pod DNS documentation
+](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config)
+for more information.
+
+For example:
+```yaml
+ nameservers:
+   - 1.2.3.4
+ searches:
+   - ns1.svc.cluster-domain.example
+   - my.dns.search.suffix
+ options:
+   - name: ndots
+     value: "2"
+```
+
+## `dnsPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`dnsPolicy` sets the Pod's DNS Policy
+
+See [the Kubernetes pod DNS documentation
+](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy)
+for more information.
+
+## `hostAliases`
+
+`hostAliases` sets Host aliases in the Teleport Pod. See [the Kubernetes
+hosts file
+documentation](https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/)
+for more details.
+
+For example:
+```yaml
+hostAliases:
+  - ip: "127.0.0.1"
+    hostnames:
+      - "foo.local"
+      - "bar.local"
+  - ip: "10.1.2.3"
+    hostnames:
+      - "foo.remote"
+      - "bar.remote"
+```
+
+## `tls`
+
+`tls` contains settings for mounting your own TLS material in the agent pod.
+
+### `tls.existingCASecretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`tls.existingCASecretName` sets the `SSL_CERT_FILE` environment
+variable to load a trusted CA or bundle in PEM format into Teleport pods.
+The injected CA will be used to validate TLS communications with the Proxy
+Service.
+
+You must create a secret containing the CA certs in the same namespace as
+Teleport using a command like:
+
+```code
+$ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
+
+### `tls.existingCASecretKeyName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"ca.pem"` |
+
+`tls.existingCASecretKeyName` determines which key in the CA secret
+will be used as a trusted CA bundle file.
+
+## `insecureSkipProxyTLSVerify`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`insecureSkipProxyTLSVerify` disables TLS verification of the TLS
+certificate presented by the Proxy Service.
+
+This can be used for joining a Teleport instance to a Teleport cluster which
+does not have valid TLS certificates for testing.
+
+<Admonition type="warning">
+
+  Using a self-signed TLS certificate and disabling TLS verification is OK for
+  testing, but is not viable when running a production Teleport cluster as it
+  will drastically reduce security. You must configure valid TLS certificates
+  on your Teleport cluster for production workloads.
+
+  One option might be to use Teleport's built-in [ACME
+  support](../../reference/helm-reference/teleport-cluster.mdx#acme) or enable
+  [cert-manager
+  support](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanager).
+
+</Admonition>
+
+## `securityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":65532,"runAsNonRoot":true,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}}` |
+
+`securityContext` sets the container security context for any pods
+created by the chart. See [the Kubernetes
+documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+for more details.
+
+The default value is compatible with [the restricted
+PSS](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
+
+To unset the security context, set it to `null` or `~`.
+
+## `podSecurityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"fsGroup":65532}` |
+
+`podSecurityContext` sets the pod security context for any pods
+created by the chart. See [the Kubernetes
+documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
+for more details.
+
+To unset the security context, set it to `null` or `~`.
+
+## `priorityClassName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`priorityClassName` sets the priority class used by any pods created by the chart.
+The user is responsible for creating the `PriorityClass` resource before deploying the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+for more details.
+
+## `nameOverride`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`nameOverride` optionally overrides the name of the chart, used
+together with the release name when giving a name to resources.
+
+## `fullnameOverride`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`fullnameOverride` optionally overrides the full name of resources.
+
+## `teleportVersionOverride`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleportVersionOverride` controls the Teleport Kubernetes Operator
+image version deployed by the chart.
+
+Normally, the version of the Teleport Kubernetes Operator matches the version
+of the chart. If you install chart version 15.0.0, you'll use Teleport version
+15.0.0. Upgrading the agent is done by upgrading the chart.
+
+<Admonition type="warning">
+
+  `teleportVersionOverride` is intended for development and MUST NOT be used
+  to control the Teleport version in a typical deployment. This chart is
+  designed to run a specific Teleport version. You will face compatibility
+  issues trying to run a different Teleport version with it.
+
+  If you want to run Teleport version `X.Y.Z`, you should use `helm install
+  --version X.Y.Z` instead.
+
+</Admonition>
