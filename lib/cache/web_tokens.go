@@ -76,7 +76,7 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 }
 
 func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetInstallers")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetWebTokens")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.webTokens)
