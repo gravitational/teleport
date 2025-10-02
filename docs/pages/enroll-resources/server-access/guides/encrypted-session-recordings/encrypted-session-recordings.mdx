@@ -60,10 +60,10 @@ are the default, but other backends can also be configured:
 - [Google Cloud KMS](../../../../zero-trust-access/deploy-a-cluster/gcp-kms.mdx)
 - [HSM](../../../../zero-trust-access/deploy-a-cluster/hsm.mdx)
 
-If your cluster is already configured to use one of these backends, you may need
-to add permission for Teleport to use decryption functions. For example, the AWS
-KMS backend will require adding the `kms:Decrypt` action to Teleport's role
-policy.
+If your cluster is already configured to use any of these backends, you should
+ensure Teleport has permission to use their decryption functions. For example,
+the AWS KMS backend will require adding the `kms:Decrypt` action to Teleport's
+role policy.
 
 It is required that all Teleport Auth Service instances have access to the
 exact same encryption keys in order to ensure all recorded sessions are always
