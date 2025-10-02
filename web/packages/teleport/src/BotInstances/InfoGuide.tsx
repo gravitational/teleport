@@ -53,10 +53,9 @@ export function InfoGuide() {
         about the <Mark>tbot</Mark> host, like its architecture and OS version.
       </InfoParagraph>
       <InfoParagraph>
-        {' '}
         Bot Instances have a relatively short lifespan and are set to expire
-        after the most recent identity issued for that instance will expire. If
-        the <Mark>tbot</Mark> client associated with a particular Bot Instance
+        after the most recent identity issued for that instance expires. If the{' '}
+        <Mark>tbot</Mark> client associated with a particular Bot Instance
         renews or rejoins, the expiration of the bot instance is reset. This is
         designed to allow users to list Bot Instances for an accurate view of
         the number of active <Mark>tbot</Mark> clients interacting with their
