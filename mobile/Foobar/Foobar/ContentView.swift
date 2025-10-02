@@ -5,6 +5,8 @@
 //  Created by Rafał Cieślak on 2025-09-11.
 //
 
+import Connect
+import ConnectNIO
 import os
 import SwiftUI
 import Tagged
@@ -46,8 +48,8 @@ func parseDeepLink(_ url: URL) -> DeepLinkParseResult {
     guard let parts = maybeParts else {
       return .failure(.urlComponentsFailed)
     }
-    guard let host = parts.host, host != "" else {
-      return .failure(.missingPart("host"))
+    guard let hostname = parts.host, hostname != "" else {
+      return .failure(.missingPart("hostname"))
     }
     guard let user = parts.user, user != "" else {
       return .failure(.missingPart("user"))
@@ -57,8 +59,9 @@ func parseDeepLink(_ url: URL) -> DeepLinkParseResult {
     else {
       return .failure(.missingPart("user token"))
     }
+    let port = parts.port
     return .success(.enrollMobileDevice(EnrollMobileDeviceDeepURL(
-      url: DeepURL(host: host, user: user),
+      url: DeepURL(hostname: hostname, port: port, user: user),
       userToken: userToken
     )))
   default:
@@ -68,8 +71,10 @@ func parseDeepLink(_ url: URL) -> DeepLinkParseResult {
 }
 
 struct DeepURL {
-  /// host is the hostname plus the port.
-  var host: String
+  /// hostname is just the name of the host without the port.
+  var hostname: String
+  // port of the host.
+  var port: Int?
   /// user is percent-decoded username from the URL.
   var user: String
 }
@@ -166,6 +171,9 @@ struct ScannedURLView: View {
             }.glassButton().labelStyle(.iconOnly)
             Spacer()
             Button(action: {
+              guard let deepURL = maybeDeepURL else {
+                return
+              }
               if enrollAttempt.didSucceed {
                 openedURL = nil
                 enrollAttempt = .idle
@@ -176,6 +184,12 @@ struct ScannedURLView: View {
               }
               enrollAttempt = .loading
               Task {
+                await viewModel.enrollDevice(
+                  hostname: deepURL.url.hostname,
+                  port: deepURL.url.port,
+                  user: deepURL.url.user,
+                  userToken: deepURL.userToken
+                )
                 try await Task.sleep(for: .seconds(3))
                 enrollAttempt = .success("foo")
               }
@@ -201,7 +215,7 @@ struct ScannedURLView: View {
           Text("Do you want to enroll this device?").font(.headline)
           Text("""
           This will enable \(maybeDeepURL!.url.user) to authorize Device Trust web sessions \
-          in \(maybeDeepURL!.url.host) with this device.
+          in \(maybeDeepURL!.url.hostname) with this device.
           """)
           Spacer()
         }.presentationDetents([.medium]).padding(16).presentationCompactAdaptation(.sheet)
@@ -250,7 +264,7 @@ struct ScannedURLView: View {
       .success(.enrollMobileDevice(
 //        teleport://alice@example.com/enroll_mobile_device?user_token=1234
         EnrollMobileDeviceDeepURL(
-          url: DeepURL(host: "example.com", user: "alice"),
+          url: DeepURL(hostname: "example.com", user: "alice"),
           userToken: "1234"
         )
       ))
@@ -267,7 +281,7 @@ struct ScannedURLView: View {
       .success(.enrollMobileDevice(
 //        teleport://alice%40example.com@example.com/enroll_mobile_device?user_token=1234
         EnrollMobileDeviceDeepURL(
-          url: DeepURL(host: "example.com", user: "alice@example.com"),
+          url: DeepURL(hostname: "example.com", user: "alice@example.com"),
           userToken: "1234"
         )
       ))
@@ -283,7 +297,7 @@ struct ScannedURLView: View {
     openedURL: .constant(
       .success(.enrollMobileDevice(
         EnrollMobileDeviceDeepURL(
-          url: DeepURL(host: "example.com", user: "alice@example.com"),
+          url: DeepURL(hostname: "example.com", user: "alice@example.com"),
           userToken: "1234"
         )
       ))
@@ -308,11 +322,24 @@ final class DeviceTrustViewModel: ObservableObject {
     UserDefaults.standard.string(forKey: "serialNumber") ?? "Unknown"
   }
 
-  func enrollDevice(host _: String, user _: String, userToken _: String) async {
-//    let request = Teleport_Devicetrust_V1_PingRequest()
-//    print("Sending ping")
-//    let response = await client.ping(request: request, headers: [:])
-//    print("Sent ping: \(response)")
+  func enrollDevice(hostname: String, port: Int?, user _: String, userToken _: String) async {
+    let hostnameWithScheme = "https://\(hostname)"
+    let hostnameWithPort = "\(hostnameWithScheme)\(port.map { ":\($0)" } ?? "")"
+    let protocolClient = ProtocolClient(
+      httpClient: NIOHTTPClient(host: hostnameWithScheme, port: port, timeout: nil),
+      config: ProtocolClientConfig(
+        host: "\(hostnameWithPort)/webapi/devicetrust/",
+        networkProtocol: .connect,
+        codec: ProtoCodec(),
+      )
+    )
+    let client = Teleport_Devicetrust_V1_DeviceTrustServiceClient(client: protocolClient)
+    let cd = collectDeviceData()
+    print("\(cd)")
+    let request = Teleport_Devicetrust_V1_PingRequest()
+    print("Sending ping")
+    let response = await client.ping(request: request, headers: [:])
+    print("Got ping response: \(response)")
 //
 //    print("Starting a stream")
 //    let stream = client.enrollDevice(headers: [:])
@@ -343,17 +370,31 @@ final class DeviceTrustViewModel: ObservableObject {
   }
 }
 
-// func collectDeviceData() -> Result<Teleport_Devicetrust_V1_DeviceCollectedData, Error> {
-// var cd = Teleport_Devicetrust_V1_DeviceCollectedData()
-// TODO: Add iOS.
-// cd.osType = .macos
-// cd.serialNumber =
-// cd.modelIdentifier
-//  cd.osVersion
-//  cd.osBuild
-//  cd.osUsername
-//  cd.systemSerialNumber
-// }
+func collectDeviceData() -> Teleport_Devicetrust_V1_DeviceCollectedData {
+  let device = UIDevice.current
+  var cd = Teleport_Devicetrust_V1_DeviceCollectedData()
+  let serialNumber = "FOO1234"
+  cd.osType = .macos
+  cd.serialNumber = serialNumber
+  cd.modelIdentifier = getDeviceCode() ?? ""
+  cd.osVersion = device.systemVersion
+  cd.osBuild = device.systemVersion.split(separator: ".", maxSplits: 4).dropFirst(2).first
+    .map(String.init) ?? ""
+  // cd.osUsername
+  cd.systemSerialNumber = serialNumber
+  return cd
+}
+
+func getDeviceCode() -> String? {
+  var systemInfo = utsname()
+  uname(&systemInfo)
+  let modelCode = withUnsafePointer(to: &systemInfo.machine) {
+    $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+      ptr in String(validatingUTF8: ptr)
+    }
+  }
+  return modelCode
+}
 
 struct GlassButtonModifier: ViewModifier {
   func body(content: Content) -> some View {
