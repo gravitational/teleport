@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -134,6 +133,5 @@ func awsPolicyToProtoPolicy(policy *iam.Policy, policyDoc []byte, accountID stri
 		Tags:             tags,
 		PolicyDocument:   policyDoc,
 		AccountId:        accountID,
-		LastSyncTime:     timestamppb.Now(),
 	}
 }
