@@ -326,6 +326,12 @@ type ServerContext struct {
 	// the client of the to-be session ID.
 	newSessionID rsession.ID
 
+	// proxyShouldCreateSessionTracker indicates that a session tracker should be created
+	// for a proxy forwarded session because the node failed to report its session ID after
+	// a session channel request.
+	// TODO(Joerger): DELETE IN v21.0.0 - All v19+ nodes report session ID after session channel
+	proxyShouldCreateSessionTracker bool
+
 	// session holds the active session (if there's an active one).
 	session *session
 
@@ -697,6 +703,16 @@ func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 	}
 
 	return sessionParams
+}
+
+// proxyShouldCreateSessionTracker indicates that a session tracker should be created
+// for a proxy forwarded session because the node failed to report its session ID after
+// a session channel request.
+// TODO(Joerger): DELETE IN v21.0.0 - All v19+ nodes report session ID after session channel
+func (c *ServerContext) SetProxyShouldCreateSessionTracker() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.proxyShouldCreateSessionTracker = true
 }
 
 // SetNewSessionID sets the ID for a new session in this server context.
