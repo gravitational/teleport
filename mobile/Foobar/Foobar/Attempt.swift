@@ -5,7 +5,12 @@
 //  Created by Rafał Cieślak on 2025-09-25.
 //
 
-public enum Attempt<Success: Sendable, Failure: Error & Sendable>: Sendable {
+public enum Attempt<
+  Success: Equatable & Sendable,
+  Failure: Error & Equatable & Sendable
+>: Equatable,
+  Sendable
+{
   case idle
   case loading
   case success(Success)
