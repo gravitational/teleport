@@ -969,7 +969,7 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 		}
 		// Pass request on unchanged.
 	case teleport.SessionIDQueryRequest:
-		// TODO(Joerger): DELETE IN v21.0.0 (1 extra major version grace period)
+		// TODO(Joerger): DELETE IN v20.0.0
 		// All v17+ servers set the session ID. v19+ clients stop checking.
 
 		// Reply true to session ID query requests, we will set new
@@ -980,7 +980,7 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 		}
 		return
 	case teleport.SessionIDQueryRequestV2:
-		// TODO(Joerger): DELETE IN v22.0.0 (1 extra major version grace period)
+		// TODO(Joerger): DELETE IN v21.0.0
 		// clients should stop checking in v21, and servers should stop responding to the query in v22.
 
 		// Reply true to session ID query requests, we will set new
@@ -1177,7 +1177,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	var receiveSessionIDOnce sync.Once
 	receivedSessionID := make(chan session.ID, 1)
 	if s.targetServer.GetSubKind() == types.SubKindTeleportNode {
-		// TODO(Joerger): DELETE IN v21.0.0 (1 extra major version grace period)
+		// TODO(Joerger): DELETE IN v20.0.0
 		// all v19+ servers set the session ID directly after accepting the session channel.
 		// clients should stop checking in v21, and servers should stop responding to the query in v22.
 		willSendSID, _, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
