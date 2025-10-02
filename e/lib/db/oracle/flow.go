@@ -50,11 +50,6 @@ func (e *Engine) readConnect(clientConn *connection.OracleConn) (*protocol.Conne
 
 	e.Log.InfoContext(e.Context, "Received connection string", "conn_string", connString, "service_name", serviceName)
 
-	err = e.checkExpectedServiceName(serviceName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	e.serviceName = serviceName
 
 	if e.onConnectPacketRead != nil {

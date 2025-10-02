@@ -3,7 +3,6 @@ package oracle
 import (
 	"context"
 	"net"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -137,21 +136,6 @@ func (e *Engine) createAuditPuller(ctx context.Context, opts types.OracleOptions
 
 	af, err := audit.NewPuller(cfg)
 	return af, trace.Wrap(err)
-}
-
-func (e *Engine) checkExpectedServiceName(serviceName string) error {
-	// We allow empty database name, which is used by Teleport Connect when establishing the tunnel.
-	// In Connect you can change the database name dynamically, so we don't want to tie that to the particular certificate, so it ends up as empty.
-	if e.session.Identity.RouteToDatabase.Database == "" {
-		return nil
-	}
-
-	// If the database name is non-empty, we expect it to match in case-insensitive way.
-	if strings.EqualFold(serviceName, e.session.Identity.RouteToDatabase.Database) {
-		return nil
-	}
-
-	return trace.BadParameter("service name mismatch (expected=%v, got=%v)", e.session.Identity.RouteToDatabase.Database, serviceName)
 }
 
 func (e *Engine) tryStartAuditPuller(dataPacket *protocol.DataPacket, dataPacketQuota int) error {
