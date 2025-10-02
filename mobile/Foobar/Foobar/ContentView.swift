@@ -17,7 +17,7 @@ let logger = Logger(
 struct ContentView: View {
   @State private var openedURL: DeepLinkParseResult?
   @State private var isConfirmingEnrollment: Bool = false
-  @State private var enrollAttempt: Attempt<String, Error> = .idle
+  @State private var enrollAttempt: Attempt<String, EnrollError> = .idle
   @State private var serialNumber: String?
   @ObservedObject private var viewModel: DeviceTrustViewModel
 
@@ -90,11 +90,15 @@ enum DeepLinkParseError: Error {
   case missingPart(String)
 }
 
+enum EnrollError: Error {
+  case unknown
+}
+
 typealias DeepLinkParseResult = Result<ParsedDeepLink, DeepLinkParseError>
 
 struct ScannedURLView: View {
   @Binding var openedURL: Result<ParsedDeepLink, DeepLinkParseError>?
-  @Binding var enrollAttempt: Attempt<String, Error>
+  @Binding var enrollAttempt: Attempt<String, EnrollError>
   @Binding var serialNumber: String?
   let viewModel: DeviceTrustViewModel
 
@@ -145,7 +149,7 @@ struct ScannedURLView: View {
         } else {
           Alert(title: Text("Expected serial number to not be nil"))
         }
-      }
+      }.glassProminentButton()
       Spacer()
     }.sheet(
       isPresented: .constant(isConfirmingEnrollment),
@@ -156,29 +160,43 @@ struct ScannedURLView: View {
       content: {
         VStack(spacing: 8) {
           HStack {
-            Button("Cancel", role: .cancel) {
+            Button("Cancel", systemImage: "xmark", role: .cancel) {
               openedURL = nil
               enrollAttempt = .idle
-            }
+            }.glassButton().labelStyle(.iconOnly)
             Spacer()
             Button(action: {
+              if enrollAttempt.didSucceed {
+                openedURL = nil
+                enrollAttempt = .idle
+                return
+              }
+              if !enrollAttempt.isIdle {
+                return
+              }
               enrollAttempt = .loading
               Task {
-                // await viewModel.enrollDevice()
+                try await Task.sleep(for: .seconds(3))
                 enrollAttempt = .success("foo")
               }
             }, label: {
-              if enrollAttempt.isLoading {
-                Label("Enroll", systemImage: "progress.indicator")
-              } else {
+              switch enrollAttempt {
+              case .idle:
                 Text("Enroll")
+              case .loading:
+                Label("Enrollment in progress", systemImage: "progress.indicator")
+                  .labelStyle(.iconOnly).symbolEffect(
+                    .variableColor.iterative,
+                    options: .repeat(.continuous),
+                    isActive: true
+                  )
+              case .success:
+                Label("Enrolled", systemImage: "checkmark").labelStyle(.iconOnly)
+              case .failure:
+                Label("Enroll error", systemImage: "xmark.octagon").labelStyle(.iconOnly)
               }
-            }).symbolEffect(
-              .variableColor.iterative,
-              options: .repeat(.continuous),
-              isActive: enrollAttempt.isLoading
-            ).buttonRepeatBehavior(.disabled)
-          }.padding(8)
+            }).glassProminentButton().animation(.easeInOut, value: enrollAttempt)
+          }.padding(8).controlSize(.large)
           Spacer()
           Text("Do you want to enroll this device?").font(.headline)
           Text("""
@@ -336,3 +354,33 @@ final class DeviceTrustViewModel: ObservableObject {
 //  cd.osUsername
 //  cd.systemSerialNumber
 // }
+
+struct GlassButtonModifier: ViewModifier {
+  func body(content: Content) -> some View {
+    if #available(iOS 26.0, *) {
+      content.buttonStyle(.glass)
+    } else {
+      content.buttonStyle(.bordered)
+    }
+  }
+}
+
+struct GlassProminentButtonModifier: ViewModifier {
+  func body(content: Content) -> some View {
+    if #available(iOS 26.0, *) {
+      content.buttonStyle(.glassProminent)
+    } else {
+      content.buttonStyle(.borderedProminent)
+    }
+  }
+}
+
+extension View {
+  func glassButton() -> some View {
+    modifier(GlassButtonModifier())
+  }
+
+  func glassProminentButton() -> some View {
+    modifier(GlassProminentButtonModifier())
+  }
+}
