@@ -48,6 +48,11 @@ export type CommonProps<Opt, IsMulti extends boolean> = {
   // having this more strict (depending on `IsMulti`) helps us to pass the
   // correct type to the validation rules in `FieldSelect`.
   value?: OnChangeValue<Opt, IsMulti>;
+  /**
+   * Disables inputs and hides controls
+   * but does not mute values.
+   */
+  readOnly?: boolean;
 };
 
 export type Props<
