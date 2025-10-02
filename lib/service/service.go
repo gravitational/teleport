@@ -4151,7 +4151,15 @@ func (process *TeleportProcess) instanceAdditionalPrincipals() (principals []str
 // getAdditionalPrincipals returns a list of additional principals to add
 // to role's service certificates.
 func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, hostUUID string) (principals []string, dnsNames []string, err error) {
-	principals, dnsNames = process.instanceAdditionalPrincipals()
+	if process.Config.Hostname != "" {
+		principals = append(principals, process.Config.Hostname)
+		if lh := utils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
+			// openssh expects all hostnames to be lowercase
+			principals = append(principals, lh)
+		}
+	}
+	// Add default DNSNames to the dnsNames list.
+	dnsNames = append(dnsNames, auth.DefaultDNSNamesForRole(role)...)
 
 	var addrs []utils.NetAddr
 	switch role {
