@@ -16,5 +16,5 @@ spec:
   minAvailable: {{ .Values.highAvailability.podDisruptionBudget.minAvailable }}
   selector:
     matchLabels:
-      {{- include "teleport-relay.selectorLabels" . | nindent 4 }}
+      {{- include "teleport-relay.selectorLabels" . | nindent 6 }}
 {{- end }}
