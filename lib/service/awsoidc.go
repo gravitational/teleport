@@ -82,6 +82,8 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 	updater, err := NewDeployServiceUpdater(AWSOIDCDeployServiceUpdaterConfig{
 		Log:                    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
 		AuthClient:             authClient,
+		TokenGetter:            authClient,
+		TokenCreator:           authClient,
 		Clock:                  process.Clock,
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
 		TeleportClusterVersion: resp.GetServerVersion(),
@@ -95,12 +97,28 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 	return trace.Wrap(updater.Run(process.GracefulExitContext()))
 }
 
+// TokenGetter defines the required method to get a Provision Token.
+type TokenGetter interface {
+	// GetToken returns a provision token by name.
+	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+}
+
+// TokenCreator defines the required method to create or update a Provision Token.
+type TokenCreator interface {
+	// UpsertToken creates or updates a provision token.
+	UpsertToken(ctx context.Context, token types.ProvisionToken) error
+}
+
 // AWSOIDCDeployServiceUpdaterConfig specifies updater configs
 type AWSOIDCDeployServiceUpdaterConfig struct {
 	// Log is the logger
 	Log *slog.Logger
 	// AuthClient is the auth api client
 	AuthClient *authclient.Client
+	// TokenGetter is used to get tokens
+	TokenGetter TokenGetter
+	// TokenCreator is used to create or update tokens
+	TokenCreator TokenCreator
 	// Clock is the local clock
 	Clock clockwork.Clock
 	// TeleportClusterName specifies the teleport cluster name
@@ -115,6 +133,14 @@ type AWSOIDCDeployServiceUpdaterConfig struct {
 func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	if cfg.AuthClient == nil {
 		return trace.BadParameter("auth client required")
+	}
+
+	if cfg.TokenCreator == nil {
+		return trace.BadParameter("token creator required")
+	}
+
+	if cfg.TokenGetter == nil {
+		return trace.BadParameter("token getter required")
 	}
 
 	if cfg.TeleportClusterName == "" {
@@ -272,7 +298,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	}
 
 	// The deploy service client is initialized using AWS OIDC integration.
-	awsOIDCDeployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.AuthClient)
+	awsOIDCDeployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.TokenGetter, updater.TokenCreator)
 	if err != nil {
 		return trace.Wrap(err)
 	}
