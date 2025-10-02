@@ -3332,6 +3332,7 @@ func (m *Exec) XXX_DiscardUnknown() {
 var xxx_messageInfo_Exec proto.InternalMessageInfo
 
 // SCP is emitted when data transfer has occurred between server and client
+// Deprecated: use SFTP
 type SCP struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
