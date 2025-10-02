@@ -450,6 +450,440 @@ func (x *TokenInit) GetClientParams() *ClientParams {
 	return nil
 }
 
+// BoundKeypairInit is sent from the client in response to the ServerInit
+// message for the bound keypair join method.
+// The server is expected to respond with a BoundKeypairChallenge.
+//
+// The bound keypair method join flow is:
+//  1. client->server: ClientInit
+//  2. server->client: ServerInit
+//  3. client->server: BoundKeypairInit
+//  4. server->client: BoundKeypairChallenge
+//  5. client->server: BoundKeypairChallengeSolution
+//     (optional additional steps if keypair rotation is required)
+//     server->client: BoundKeypairRotationRequest
+//     client->server: BoundKeypairRotationResponse
+//     server->client: BoundKeypairChallenge
+//     client->server: BoundKeypairChallengeSolution
+//  6. server->client: Result containing BoundKeypairResult
+type BoundKeypairInit struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
+	// If set, attempts to bind a new keypair using an initial join secret.
+	// Any value set here will be ignored if a keypair is already bound.
+	InitialJoinSecret string `protobuf:"bytes,2,opt,name=initial_join_secret,json=initialJoinSecret,proto3" json:"initial_join_secret,omitempty"`
+	// A document signed by Auth containing join state parameters from the
+	// previous join attempt. Not required on initial join; required on all
+	// subsequent joins.
+	PreviousJoinState []byte `protobuf:"bytes,3,opt,name=previous_join_state,json=previousJoinState,proto3" json:"previous_join_state,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *BoundKeypairInit) Reset() {
+	*x = BoundKeypairInit{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairInit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairInit) ProtoMessage() {}
+
+func (x *BoundKeypairInit) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairInit.ProtoReflect.Descriptor instead.
+func (*BoundKeypairInit) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *BoundKeypairInit) GetClientParams() *ClientParams {
+	if x != nil {
+		return x.ClientParams
+	}
+	return nil
+}
+
+func (x *BoundKeypairInit) GetInitialJoinSecret() string {
+	if x != nil {
+		return x.InitialJoinSecret
+	}
+	return ""
+}
+
+func (x *BoundKeypairInit) GetPreviousJoinState() []byte {
+	if x != nil {
+		return x.PreviousJoinState
+	}
+	return nil
+}
+
+// BoundKeypairChallenge is a challenge issued by the server that joining
+// clients are expected to complete.
+// The client is expected to respond with a BoundKeypairChallengeSolution.
+type BoundKeypairChallenge struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The desired public key corresponding to the private key that should be used
+	// to sign this challenge, in SSH authorized keys format.
+	PublicKey []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// A challenge to sign with the requested public key. During keypair rotation,
+	// a second challenge will be provided to verify the new keypair before certs
+	// are returned.
+	Challenge     string `protobuf:"bytes,2,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairChallenge) Reset() {
+	*x = BoundKeypairChallenge{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairChallenge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairChallenge) ProtoMessage() {}
+
+func (x *BoundKeypairChallenge) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairChallenge.ProtoReflect.Descriptor instead.
+func (*BoundKeypairChallenge) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *BoundKeypairChallenge) GetPublicKey() []byte {
+	if x != nil {
+		return x.PublicKey
+	}
+	return nil
+}
+
+func (x *BoundKeypairChallenge) GetChallenge() string {
+	if x != nil {
+		return x.Challenge
+	}
+	return ""
+}
+
+// BoundKeypairChallengeSolution is sent from the client in response to the
+// BoundKeypairChallenge.
+// The server is expected to respond with either a Result or a
+// BoundKeypairRotationRequest.
+type BoundKeypairChallengeSolution struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A solution to a challenge from the server. This generated by signing the
+	// challenge as a JWT using the keypair associated with the requested public
+	// key.
+	Solution      []byte `protobuf:"bytes,1,opt,name=solution,proto3" json:"solution,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairChallengeSolution) Reset() {
+	*x = BoundKeypairChallengeSolution{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairChallengeSolution) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairChallengeSolution) ProtoMessage() {}
+
+func (x *BoundKeypairChallengeSolution) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairChallengeSolution.ProtoReflect.Descriptor instead.
+func (*BoundKeypairChallengeSolution) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *BoundKeypairChallengeSolution) GetSolution() []byte {
+	if x != nil {
+		return x.Solution
+	}
+	return nil
+}
+
+// BoundKeypairRotationRequest is sent by the server in response to a
+// BoundKeypairChallenge when a keypair rotation is required. It acts like an
+// additional challenge, the client is expected to respond with a
+// BoundKeypairRotationResponse.
+type BoundKeypairRotationRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The signature algorithm suite in use by the cluster.
+	SignatureAlgorithmSuite string `protobuf:"bytes,1,opt,name=signature_algorithm_suite,json=signatureAlgorithmSuite,proto3" json:"signature_algorithm_suite,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *BoundKeypairRotationRequest) Reset() {
+	*x = BoundKeypairRotationRequest{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairRotationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairRotationRequest) ProtoMessage() {}
+
+func (x *BoundKeypairRotationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairRotationRequest.ProtoReflect.Descriptor instead.
+func (*BoundKeypairRotationRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *BoundKeypairRotationRequest) GetSignatureAlgorithmSuite() string {
+	if x != nil {
+		return x.SignatureAlgorithmSuite
+	}
+	return ""
+}
+
+// BoundKeypairRotationResponse is sent by the client in response to a
+// BoundKeypairRotationRequest from the server.
+// The server is expected to respond with an additional BoundKeypairChallenge
+// for the new key.
+type BoundKeypairRotationResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The public key to be registered with auth. Clients should expect a
+	// subsequent challenge against this public key to be sent. This is encoded in
+	// SSH authorized keys format.
+	PublicKey     []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairRotationResponse) Reset() {
+	*x = BoundKeypairRotationResponse{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairRotationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairRotationResponse) ProtoMessage() {}
+
+func (x *BoundKeypairRotationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairRotationResponse.ProtoReflect.Descriptor instead.
+func (*BoundKeypairRotationResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *BoundKeypairRotationResponse) GetPublicKey() []byte {
+	if x != nil {
+		return x.PublicKey
+	}
+	return nil
+}
+
+// BoundKeypairResult holds additional result parameters relevant to the bound
+// keypair join method.
+type BoundKeypairResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A signed join state document to be provided on the next join attempt.
+	JoinState []byte `protobuf:"bytes,2,opt,name=join_state,json=joinState,proto3" json:"join_state,omitempty"`
+	// The public key registered with Auth at the end of the joining ceremony.
+	// After a successful keypair rotation, this should reflect the newly
+	// registered public key. This is encoded in SSH authorized keys format.
+	PublicKey     []byte `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairResult) Reset() {
+	*x = BoundKeypairResult{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairResult) ProtoMessage() {}
+
+func (x *BoundKeypairResult) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BoundKeypairResult.ProtoReflect.Descriptor instead.
+func (*BoundKeypairResult) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *BoundKeypairResult) GetJoinState() []byte {
+	if x != nil {
+		return x.JoinState
+	}
+	return nil
+}
+
+func (x *BoundKeypairResult) GetPublicKey() []byte {
+	if x != nil {
+		return x.PublicKey
+	}
+	return nil
+}
+
+// ChallengeSolution holds a solution to a challenge issued by the server.
+type ChallengeSolution struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*ChallengeSolution_BoundKeypairChallengeSolution
+	//	*ChallengeSolution_BoundKeypairRotationResponse
+	Payload       isChallengeSolution_Payload `protobuf_oneof:"payload"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChallengeSolution) Reset() {
+	*x = ChallengeSolution{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChallengeSolution) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChallengeSolution) ProtoMessage() {}
+
+func (x *ChallengeSolution) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChallengeSolution.ProtoReflect.Descriptor instead.
+func (*ChallengeSolution) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ChallengeSolution) GetPayload() isChallengeSolution_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *ChallengeSolution) GetBoundKeypairChallengeSolution() *BoundKeypairChallengeSolution {
+	if x != nil {
+		if x, ok := x.Payload.(*ChallengeSolution_BoundKeypairChallengeSolution); ok {
+			return x.BoundKeypairChallengeSolution
+		}
+	}
+	return nil
+}
+
+func (x *ChallengeSolution) GetBoundKeypairRotationResponse() *BoundKeypairRotationResponse {
+	if x != nil {
+		if x, ok := x.Payload.(*ChallengeSolution_BoundKeypairRotationResponse); ok {
+			return x.BoundKeypairRotationResponse
+		}
+	}
+	return nil
+}
+
+type isChallengeSolution_Payload interface {
+	isChallengeSolution_Payload()
+}
+
+type ChallengeSolution_BoundKeypairChallengeSolution struct {
+	BoundKeypairChallengeSolution *BoundKeypairChallengeSolution `protobuf:"bytes,1,opt,name=bound_keypair_challenge_solution,json=boundKeypairChallengeSolution,proto3,oneof"`
+}
+
+type ChallengeSolution_BoundKeypairRotationResponse struct {
+	BoundKeypairRotationResponse *BoundKeypairRotationResponse `protobuf:"bytes,2,opt,name=bound_keypair_rotation_response,json=boundKeypairRotationResponse,proto3,oneof"`
+}
+
+func (*ChallengeSolution_BoundKeypairChallengeSolution) isChallengeSolution_Payload() {}
+
+func (*ChallengeSolution_BoundKeypairRotationResponse) isChallengeSolution_Payload() {}
+
 // JoinRequest is the message type sent from the joining client to the server.
 type JoinRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -457,6 +891,8 @@ type JoinRequest struct {
 	//
 	//	*JoinRequest_ClientInit
 	//	*JoinRequest_TokenInit
+	//	*JoinRequest_BoundKeypairInit
+	//	*JoinRequest_Solution
 	Payload       isJoinRequest_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -464,7 +900,7 @@ type JoinRequest struct {
 
 func (x *JoinRequest) Reset() {
 	*x = JoinRequest{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[6]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -476,7 +912,7 @@ func (x *JoinRequest) String() string {
 func (*JoinRequest) ProtoMessage() {}
 
 func (x *JoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[6]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -489,7 +925,7 @@ func (x *JoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinRequest.ProtoReflect.Descriptor instead.
 func (*JoinRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{6}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *JoinRequest) GetPayload() isJoinRequest_Payload {
@@ -517,6 +953,24 @@ func (x *JoinRequest) GetTokenInit() *TokenInit {
 	return nil
 }
 
+func (x *JoinRequest) GetBoundKeypairInit() *BoundKeypairInit {
+	if x != nil {
+		if x, ok := x.Payload.(*JoinRequest_BoundKeypairInit); ok {
+			return x.BoundKeypairInit
+		}
+	}
+	return nil
+}
+
+func (x *JoinRequest) GetSolution() *ChallengeSolution {
+	if x != nil {
+		if x, ok := x.Payload.(*JoinRequest_Solution); ok {
+			return x.Solution
+		}
+	}
+	return nil
+}
+
 type isJoinRequest_Payload interface {
 	isJoinRequest_Payload()
 }
@@ -529,9 +983,21 @@ type JoinRequest_TokenInit struct {
 	TokenInit *TokenInit `protobuf:"bytes,2,opt,name=token_init,json=tokenInit,proto3,oneof"`
 }
 
+type JoinRequest_BoundKeypairInit struct {
+	BoundKeypairInit *BoundKeypairInit `protobuf:"bytes,3,opt,name=bound_keypair_init,json=boundKeypairInit,proto3,oneof"`
+}
+
+type JoinRequest_Solution struct {
+	Solution *ChallengeSolution `protobuf:"bytes,4,opt,name=solution,proto3,oneof"`
+}
+
 func (*JoinRequest_ClientInit) isJoinRequest_Payload() {}
 
 func (*JoinRequest_TokenInit) isJoinRequest_Payload() {}
+
+func (*JoinRequest_BoundKeypairInit) isJoinRequest_Payload() {}
+
+func (*JoinRequest_Solution) isJoinRequest_Payload() {}
 
 // ServerInit is the first message sent from the server in response to the
 // ClientInit message.
@@ -548,7 +1014,7 @@ type ServerInit struct {
 
 func (x *ServerInit) Reset() {
 	*x = ServerInit{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[7]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -560,7 +1026,7 @@ func (x *ServerInit) String() string {
 func (*ServerInit) ProtoMessage() {}
 
 func (x *ServerInit) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[7]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -573,7 +1039,7 @@ func (x *ServerInit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInit.ProtoReflect.Descriptor instead.
 func (*ServerInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{7}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ServerInit) GetJoinMethod() string {
@@ -592,14 +1058,19 @@ func (x *ServerInit) GetSignatureAlgorithmSuite() string {
 
 // Challenge is a challenge message sent from the server that the client must solve.
 type Challenge struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Payload:
+	//
+	//	*Challenge_BoundKeypairChallenge
+	//	*Challenge_BoundKeypairRotationRequest
+	Payload       isChallenge_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Challenge) Reset() {
 	*x = Challenge{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[8]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -611,7 +1082,7 @@ func (x *Challenge) String() string {
 func (*Challenge) ProtoMessage() {}
 
 func (x *Challenge) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[8]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -624,8 +1095,49 @@ func (x *Challenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Challenge.ProtoReflect.Descriptor instead.
 func (*Challenge) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{8}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{15}
 }
+
+func (x *Challenge) GetPayload() isChallenge_Payload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *Challenge) GetBoundKeypairChallenge() *BoundKeypairChallenge {
+	if x != nil {
+		if x, ok := x.Payload.(*Challenge_BoundKeypairChallenge); ok {
+			return x.BoundKeypairChallenge
+		}
+	}
+	return nil
+}
+
+func (x *Challenge) GetBoundKeypairRotationRequest() *BoundKeypairRotationRequest {
+	if x != nil {
+		if x, ok := x.Payload.(*Challenge_BoundKeypairRotationRequest); ok {
+			return x.BoundKeypairRotationRequest
+		}
+	}
+	return nil
+}
+
+type isChallenge_Payload interface {
+	isChallenge_Payload()
+}
+
+type Challenge_BoundKeypairChallenge struct {
+	BoundKeypairChallenge *BoundKeypairChallenge `protobuf:"bytes,1,opt,name=bound_keypair_challenge,json=boundKeypairChallenge,proto3,oneof"`
+}
+
+type Challenge_BoundKeypairRotationRequest struct {
+	BoundKeypairRotationRequest *BoundKeypairRotationRequest `protobuf:"bytes,2,opt,name=bound_keypair_rotation_request,json=boundKeypairRotationRequest,proto3,oneof"`
+}
+
+func (*Challenge_BoundKeypairChallenge) isChallenge_Payload() {}
+
+func (*Challenge_BoundKeypairRotationRequest) isChallenge_Payload() {}
 
 // Result is the final message sent from the cluster back to the client, it
 // contains the result of the joining process including the assigned host ID
@@ -643,7 +1155,7 @@ type Result struct {
 
 func (x *Result) Reset() {
 	*x = Result{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[9]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -655,7 +1167,7 @@ func (x *Result) String() string {
 func (*Result) ProtoMessage() {}
 
 func (x *Result) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[9]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -668,7 +1180,7 @@ func (x *Result) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Result.ProtoReflect.Descriptor instead.
 func (*Result) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{9}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Result) GetPayload() isResult_Payload {
@@ -731,7 +1243,7 @@ type Certificates struct {
 
 func (x *Certificates) Reset() {
 	*x = Certificates{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[10]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -743,7 +1255,7 @@ func (x *Certificates) String() string {
 func (*Certificates) ProtoMessage() {}
 
 func (x *Certificates) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[10]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -756,7 +1268,7 @@ func (x *Certificates) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Certificates.ProtoReflect.Descriptor instead.
 func (*Certificates) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{10}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Certificates) GetTlsCert() []byte {
@@ -800,7 +1312,7 @@ type HostResult struct {
 
 func (x *HostResult) Reset() {
 	*x = HostResult{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[11]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -812,7 +1324,7 @@ func (x *HostResult) String() string {
 func (*HostResult) ProtoMessage() {}
 
 func (x *HostResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[11]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -825,7 +1337,7 @@ func (x *HostResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostResult.ProtoReflect.Descriptor instead.
 func (*HostResult) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{11}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *HostResult) GetCertificates() *Certificates {
@@ -846,14 +1358,16 @@ func (x *HostResult) GetHostId() string {
 type BotResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Certificates holds issued certificates and cluster CAs.
-	Certificates  *Certificates `protobuf:"bytes,1,opt,name=certificates,proto3" json:"certificates,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Certificates *Certificates `protobuf:"bytes,1,opt,name=certificates,proto3" json:"certificates,omitempty"`
+	// BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+	BoundKeypairResult *BoundKeypairResult `protobuf:"bytes,2,opt,name=bound_keypair_result,json=boundKeypairResult,proto3,oneof" json:"bound_keypair_result,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *BotResult) Reset() {
 	*x = BotResult{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -865,7 +1379,7 @@ func (x *BotResult) String() string {
 func (*BotResult) ProtoMessage() {}
 
 func (x *BotResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -878,12 +1392,19 @@ func (x *BotResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BotResult.ProtoReflect.Descriptor instead.
 func (*BotResult) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{12}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *BotResult) GetCertificates() *Certificates {
 	if x != nil {
 		return x.Certificates
+	}
+	return nil
+}
+
+func (x *BotResult) GetBoundKeypairResult() *BoundKeypairResult {
+	if x != nil {
+		return x.BoundKeypairResult
 	}
 	return nil
 }
@@ -903,7 +1424,7 @@ type JoinResponse struct {
 
 func (x *JoinResponse) Reset() {
 	*x = JoinResponse{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -915,7 +1436,7 @@ func (x *JoinResponse) String() string {
 func (*JoinResponse) ProtoMessage() {}
 
 func (x *JoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -928,7 +1449,7 @@ func (x *JoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinResponse.ProtoReflect.Descriptor instead.
 func (*JoinResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{13}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *JoinResponse) GetPayload() isJoinResponse_Payload {
@@ -1011,7 +1532,7 @@ type ClientInit_ProxySuppliedParams struct {
 
 func (x *ClientInit_ProxySuppliedParams) Reset() {
 	*x = ClientInit_ProxySuppliedParams{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1023,7 +1544,7 @@ func (x *ClientInit_ProxySuppliedParams) String() string {
 func (*ClientInit_ProxySuppliedParams) ProtoMessage() {}
 
 func (x *ClientInit_ProxySuppliedParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1098,19 +1619,48 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"bot_params\x18\x02 \x01(\v2\x1b.teleport.join.v1.BotParamsH\x00R\tbotParamsB\t\n" +
 	"\apayload\"P\n" +
 	"\tTokenInit\x12C\n" +
-	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\"\x97\x01\n" +
+	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\"\xb7\x01\n" +
+	"\x10BoundKeypairInit\x12C\n" +
+	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\x12.\n" +
+	"\x13initial_join_secret\x18\x02 \x01(\tR\x11initialJoinSecret\x12.\n" +
+	"\x13previous_join_state\x18\x03 \x01(\fR\x11previousJoinState\"T\n" +
+	"\x15BoundKeypairChallenge\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x01 \x01(\fR\tpublicKey\x12\x1c\n" +
+	"\tchallenge\x18\x02 \x01(\tR\tchallenge\";\n" +
+	"\x1dBoundKeypairChallengeSolution\x12\x1a\n" +
+	"\bsolution\x18\x01 \x01(\fR\bsolution\"Y\n" +
+	"\x1bBoundKeypairRotationRequest\x12:\n" +
+	"\x19signature_algorithm_suite\x18\x01 \x01(\tR\x17signatureAlgorithmSuite\"=\n" +
+	"\x1cBoundKeypairRotationResponse\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x01 \x01(\fR\tpublicKey\"R\n" +
+	"\x12BoundKeypairResult\x12\x1d\n" +
+	"\n" +
+	"join_state\x18\x02 \x01(\fR\tjoinState\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x03 \x01(\fR\tpublicKey\"\x93\x02\n" +
+	"\x11ChallengeSolution\x12z\n" +
+	" bound_keypair_challenge_solution\x18\x01 \x01(\v2/.teleport.join.v1.BoundKeypairChallengeSolutionH\x00R\x1dboundKeypairChallengeSolution\x12w\n" +
+	"\x1fbound_keypair_rotation_response\x18\x02 \x01(\v2..teleport.join.v1.BoundKeypairRotationResponseH\x00R\x1cboundKeypairRotationResponseB\t\n" +
+	"\apayload\"\xae\x02\n" +
 	"\vJoinRequest\x12?\n" +
 	"\vclient_init\x18\x01 \x01(\v2\x1c.teleport.join.v1.ClientInitH\x00R\n" +
 	"clientInit\x12<\n" +
 	"\n" +
-	"token_init\x18\x02 \x01(\v2\x1b.teleport.join.v1.TokenInitH\x00R\ttokenInitB\t\n" +
+	"token_init\x18\x02 \x01(\v2\x1b.teleport.join.v1.TokenInitH\x00R\ttokenInit\x12R\n" +
+	"\x12bound_keypair_init\x18\x03 \x01(\v2\".teleport.join.v1.BoundKeypairInitH\x00R\x10boundKeypairInit\x12A\n" +
+	"\bsolution\x18\x04 \x01(\v2#.teleport.join.v1.ChallengeSolutionH\x00R\bsolutionB\t\n" +
 	"\apayload\"i\n" +
 	"\n" +
 	"ServerInit\x12\x1f\n" +
 	"\vjoin_method\x18\x01 \x01(\tR\n" +
 	"joinMethod\x12:\n" +
-	"\x19signature_algorithm_suite\x18\x02 \x01(\tR\x17signatureAlgorithmSuite\"\v\n" +
-	"\tChallenge\"\x92\x01\n" +
+	"\x19signature_algorithm_suite\x18\x02 \x01(\tR\x17signatureAlgorithmSuite\"\xef\x01\n" +
+	"\tChallenge\x12a\n" +
+	"\x17bound_keypair_challenge\x18\x01 \x01(\v2'.teleport.join.v1.BoundKeypairChallengeH\x00R\x15boundKeypairChallenge\x12t\n" +
+	"\x1ebound_keypair_rotation_request\x18\x02 \x01(\v2-.teleport.join.v1.BoundKeypairRotationRequestH\x00R\x1bboundKeypairRotationRequestB\t\n" +
+	"\apayload\"\x92\x01\n" +
 	"\x06Result\x12?\n" +
 	"\vhost_result\x18\x01 \x01(\v2\x1c.teleport.join.v1.HostResultH\x00R\n" +
 	"hostResult\x12<\n" +
@@ -1126,9 +1676,11 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\n" +
 	"HostResult\x12B\n" +
 	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12\x17\n" +
-	"\ahost_id\x18\x02 \x01(\tR\x06hostId\"O\n" +
+	"\ahost_id\x18\x02 \x01(\tR\x06hostId\"\xc5\x01\n" +
 	"\tBotResult\x12B\n" +
-	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\"\xbe\x01\n" +
+	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12[\n" +
+	"\x14bound_keypair_result\x18\x02 \x01(\v2$.teleport.join.v1.BoundKeypairResultH\x00R\x12boundKeypairResult\x88\x01\x01B\x17\n" +
+	"\x15_bound_keypair_result\"\xbe\x01\n" +
 	"\fJoinResponse\x122\n" +
 	"\x04init\x18\x01 \x01(\v2\x1c.teleport.join.v1.ServerInitH\x00R\x04init\x12;\n" +
 	"\tchallenge\x18\x02 \x01(\v2\x1b.teleport.join.v1.ChallengeH\x00R\tchallenge\x122\n" +
@@ -1149,7 +1701,7 @@ func file_teleport_join_v1_joinservice_proto_rawDescGZIP() []byte {
 	return file_teleport_join_v1_joinservice_proto_rawDescData
 }
 
-var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(*ClientInit)(nil),                     // 0: teleport.join.v1.ClientInit
 	(*PublicKeys)(nil),                     // 1: teleport.join.v1.PublicKeys
@@ -1157,41 +1709,56 @@ var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(*BotParams)(nil),                      // 3: teleport.join.v1.BotParams
 	(*ClientParams)(nil),                   // 4: teleport.join.v1.ClientParams
 	(*TokenInit)(nil),                      // 5: teleport.join.v1.TokenInit
-	(*JoinRequest)(nil),                    // 6: teleport.join.v1.JoinRequest
-	(*ServerInit)(nil),                     // 7: teleport.join.v1.ServerInit
-	(*Challenge)(nil),                      // 8: teleport.join.v1.Challenge
-	(*Result)(nil),                         // 9: teleport.join.v1.Result
-	(*Certificates)(nil),                   // 10: teleport.join.v1.Certificates
-	(*HostResult)(nil),                     // 11: teleport.join.v1.HostResult
-	(*BotResult)(nil),                      // 12: teleport.join.v1.BotResult
-	(*JoinResponse)(nil),                   // 13: teleport.join.v1.JoinResponse
-	(*ClientInit_ProxySuppliedParams)(nil), // 14: teleport.join.v1.ClientInit.ProxySuppliedParams
-	(*timestamppb.Timestamp)(nil),          // 15: google.protobuf.Timestamp
+	(*BoundKeypairInit)(nil),               // 6: teleport.join.v1.BoundKeypairInit
+	(*BoundKeypairChallenge)(nil),          // 7: teleport.join.v1.BoundKeypairChallenge
+	(*BoundKeypairChallengeSolution)(nil),  // 8: teleport.join.v1.BoundKeypairChallengeSolution
+	(*BoundKeypairRotationRequest)(nil),    // 9: teleport.join.v1.BoundKeypairRotationRequest
+	(*BoundKeypairRotationResponse)(nil),   // 10: teleport.join.v1.BoundKeypairRotationResponse
+	(*BoundKeypairResult)(nil),             // 11: teleport.join.v1.BoundKeypairResult
+	(*ChallengeSolution)(nil),              // 12: teleport.join.v1.ChallengeSolution
+	(*JoinRequest)(nil),                    // 13: teleport.join.v1.JoinRequest
+	(*ServerInit)(nil),                     // 14: teleport.join.v1.ServerInit
+	(*Challenge)(nil),                      // 15: teleport.join.v1.Challenge
+	(*Result)(nil),                         // 16: teleport.join.v1.Result
+	(*Certificates)(nil),                   // 17: teleport.join.v1.Certificates
+	(*HostResult)(nil),                     // 18: teleport.join.v1.HostResult
+	(*BotResult)(nil),                      // 19: teleport.join.v1.BotResult
+	(*JoinResponse)(nil),                   // 20: teleport.join.v1.JoinResponse
+	(*ClientInit_ProxySuppliedParams)(nil), // 21: teleport.join.v1.ClientInit.ProxySuppliedParams
+	(*timestamppb.Timestamp)(nil),          // 22: google.protobuf.Timestamp
 }
 var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
-	14, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
+	21, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
 	1,  // 1: teleport.join.v1.HostParams.public_keys:type_name -> teleport.join.v1.PublicKeys
 	1,  // 2: teleport.join.v1.BotParams.public_keys:type_name -> teleport.join.v1.PublicKeys
-	15, // 3: teleport.join.v1.BotParams.expires:type_name -> google.protobuf.Timestamp
+	22, // 3: teleport.join.v1.BotParams.expires:type_name -> google.protobuf.Timestamp
 	2,  // 4: teleport.join.v1.ClientParams.host_params:type_name -> teleport.join.v1.HostParams
 	3,  // 5: teleport.join.v1.ClientParams.bot_params:type_name -> teleport.join.v1.BotParams
 	4,  // 6: teleport.join.v1.TokenInit.client_params:type_name -> teleport.join.v1.ClientParams
-	0,  // 7: teleport.join.v1.JoinRequest.client_init:type_name -> teleport.join.v1.ClientInit
-	5,  // 8: teleport.join.v1.JoinRequest.token_init:type_name -> teleport.join.v1.TokenInit
-	11, // 9: teleport.join.v1.Result.host_result:type_name -> teleport.join.v1.HostResult
-	12, // 10: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
-	10, // 11: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
-	10, // 12: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
-	7,  // 13: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
-	8,  // 14: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
-	9,  // 15: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
-	6,  // 16: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
-	13, // 17: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
-	17, // [17:18] is the sub-list for method output_type
-	16, // [16:17] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	4,  // 7: teleport.join.v1.BoundKeypairInit.client_params:type_name -> teleport.join.v1.ClientParams
+	8,  // 8: teleport.join.v1.ChallengeSolution.bound_keypair_challenge_solution:type_name -> teleport.join.v1.BoundKeypairChallengeSolution
+	10, // 9: teleport.join.v1.ChallengeSolution.bound_keypair_rotation_response:type_name -> teleport.join.v1.BoundKeypairRotationResponse
+	0,  // 10: teleport.join.v1.JoinRequest.client_init:type_name -> teleport.join.v1.ClientInit
+	5,  // 11: teleport.join.v1.JoinRequest.token_init:type_name -> teleport.join.v1.TokenInit
+	6,  // 12: teleport.join.v1.JoinRequest.bound_keypair_init:type_name -> teleport.join.v1.BoundKeypairInit
+	12, // 13: teleport.join.v1.JoinRequest.solution:type_name -> teleport.join.v1.ChallengeSolution
+	7,  // 14: teleport.join.v1.Challenge.bound_keypair_challenge:type_name -> teleport.join.v1.BoundKeypairChallenge
+	9,  // 15: teleport.join.v1.Challenge.bound_keypair_rotation_request:type_name -> teleport.join.v1.BoundKeypairRotationRequest
+	18, // 16: teleport.join.v1.Result.host_result:type_name -> teleport.join.v1.HostResult
+	19, // 17: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
+	17, // 18: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
+	17, // 19: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
+	11, // 20: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
+	14, // 21: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
+	15, // 22: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
+	16, // 23: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
+	13, // 24: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
+	20, // 25: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
+	25, // [25:26] is the sub-list for method output_type
+	24, // [24:25] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_teleport_join_v1_joinservice_proto_init() }
@@ -1205,15 +1772,26 @@ func file_teleport_join_v1_joinservice_proto_init() {
 		(*ClientParams_HostParams)(nil),
 		(*ClientParams_BotParams)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[6].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[12].OneofWrappers = []any{
+		(*ChallengeSolution_BoundKeypairChallengeSolution)(nil),
+		(*ChallengeSolution_BoundKeypairRotationResponse)(nil),
+	}
+	file_teleport_join_v1_joinservice_proto_msgTypes[13].OneofWrappers = []any{
 		(*JoinRequest_ClientInit)(nil),
 		(*JoinRequest_TokenInit)(nil),
+		(*JoinRequest_BoundKeypairInit)(nil),
+		(*JoinRequest_Solution)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[9].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[15].OneofWrappers = []any{
+		(*Challenge_BoundKeypairChallenge)(nil),
+		(*Challenge_BoundKeypairRotationRequest)(nil),
+	}
+	file_teleport_join_v1_joinservice_proto_msgTypes[16].OneofWrappers = []any{
 		(*Result_HostResult)(nil),
 		(*Result_BotResult)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[13].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[19].OneofWrappers = []any{}
+	file_teleport_join_v1_joinservice_proto_msgTypes[20].OneofWrappers = []any{
 		(*JoinResponse_Init)(nil),
 		(*JoinResponse_Challenge)(nil),
 		(*JoinResponse_Result)(nil),
@@ -1224,7 +1802,7 @@ func file_teleport_join_v1_joinservice_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_join_v1_joinservice_proto_rawDesc), len(file_teleport_join_v1_joinservice_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
