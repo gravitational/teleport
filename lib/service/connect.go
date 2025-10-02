@@ -430,7 +430,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		// Instance always joins first, only try to persist host ID after
 		// successfully completing the instance join and persisting the state
 		// and identity.
-		if err := process.storage.PersistAssignedHostID(process.ExitContext(), process.Config, identity.ID.HostID()); err != nil {
+		if err := process.storage.PersistAssignedHostID(process.GracefulExitContext(), process.Config, identity.ID.HostID()); err != nil {
 			return nil, trace.Wrap(err, "persisting host ID to storage")
 		}
 	}
