@@ -1200,6 +1200,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 			})
 		} else {
 			receivedSessionID <- session.NewID()
+			scx.SetProxyShouldCreateSessionTracker()
 			close(receivedSessionID)
 			s.logger.WarnContext(ctx, "Failed to query session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
 		}
