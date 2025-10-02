@@ -327,6 +327,16 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: Icons.Info,
   [eventCodes.BOUND_KEYPAIR_ROTATION]: Icons.Info,
   [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_CREATE]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_UPDATE]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_DELETE]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_GET]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_LIST]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {

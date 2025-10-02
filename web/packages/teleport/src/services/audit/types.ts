@@ -346,6 +346,16 @@ export const eventCodes = {
   BOUND_KEYPAIR_RECOVERY: 'TBK001I',
   BOUND_KEYPAIR_ROTATION: 'TBK002I',
   BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
+  SCIM_RESOURCE_CREATE: 'TSCIM001I',
+  SCIM_RESOURCE_CREATE_FAILURE: 'TSCIM001E',
+  SCIM_RESOURCE_UPDATE: 'TSCIM002I',
+  SCIM_RESOURCE_UPDATE_FAILURE: 'TSCIM002E',
+  SCIM_RESOURCE_DELETE: 'TSCIM003I',
+  SCIM_RESOURCE_DELETE_FAILURE: 'TSCIM003E',
+  SCIM_RESOURCE_GET: 'TSCIM004I',
+  SCIM_RESOURCE_GET_FAILURE: 'TSCIM004E',
+  SCIM_RESOURCE_LIST: 'TSCIM005I',
+  SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
 } as const;
 
 /**
@@ -2059,6 +2069,100 @@ export type RawEvents = {
       error: string;
     }
   >;
+  [eventCodes.SCIM_RESOURCE_LIST]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST,
+    { 
+      integration: string;
+      resource_type: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST_FAILURE,
+    { 
+      integration: string;
+      resource_type: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_GET]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET,
+    {
+      integration: string;
+      resource_type: string;
+      external_id: string;
+      teleport_id: string;
+      display: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET_FAILURE,
+    {
+      integration: string;
+      resource_type: string;
+      external_id: string;
+      teleport_id: string;
+      display: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE,
+    {
+      integration: string;
+      resource_type: string;
+      external_id: string;
+      teleport_id: string;
+      display: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE_FAILURE,
+    {
+      integration: string;
+      resource_type: string;
+      external_id: string;
+      teleport_id: string;
+      display: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE,
+    {
+      integration: string;
+      resource_type: string;
+      external_id: string;
+      teleport_id: string;
+      display: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE,
+    {
+      integration: string;
+      resource_type: string;
+      external_id: string;
+      teleport_id: string;
+      display: string;
+    }
+  >;
+    [eventCodes.SCIM_RESOURCE_DELETE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE,
+    {
+      integration: string;
+      resource_type: string;
+      external_id: string;
+      teleport_id: string;
+      display: string;
+    }
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE,
+    {
+      integration: string;
+      resource_type: string;
+      external_id: string;
+      teleport_id: string;
+      display: string;
+    }
+  >;
 };
 
 /**
@@ -2274,6 +2378,25 @@ type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
     status: boolean;
     /* message contains user message for both success and failed status */
     message: string;
+  }
+>;
+
+type RawSCIMListingEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    integration: string;
+  }
+>;
+
+type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    teleport_id: string;
+    external_id: string;
+    integration: string;
+    display: string;
   }
 >;
 
