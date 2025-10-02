@@ -40,10 +40,6 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		return nil, trace.BadParameter("cluster URI must be a root URI")
 	}
 
-	if err = s.DaemonService.ClearCachedClientsForRoot(cluster.URI); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if req.Params == nil {
 		return nil, trace.BadParameter("missing login parameters")
 	}
@@ -90,10 +86,6 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	// works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor added by
 	// daemon.Service.ResolveClusterURI.
 	clusterClient.MFAPromptConstructor = nil
-
-	if err := s.DaemonService.ClearCachedClientsForRoot(cluster.URI); err != nil {
-		return trace.Wrap(err)
-	}
 
 	// Start the prompt flow.
 	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {
