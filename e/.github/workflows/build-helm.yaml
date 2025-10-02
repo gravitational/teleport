@@ -61,6 +61,7 @@ jobs:
         teleport-cluster
         teleport-cluster/charts/teleport-operator
         teleport-kube-agent
+        teleport-relay
     steps:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
