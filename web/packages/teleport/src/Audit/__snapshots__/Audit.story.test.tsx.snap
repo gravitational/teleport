@@ -10350,7 +10350,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [alex] executed a command on Kubernetes cluster [clusterOne]
+          User [alex] executed a command on Kubernetes cluster [clusterOne] within session [8d57a9d5-3848-5ce2-a326-85eb4a6d2eed]
         </td>
         <td
           style="min-width: 120px;"
