@@ -1572,12 +1572,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	stopTracing := initializeTracing(&cf)
 	defer stopTracing()
 
-	// start the span for the command and update the config context so that all spans created
-	// in the future will be rooted at this span.
-	ctx, span := cf.tracer.Start(cf.Context, command)
-	cf.Context = ctx
-	defer span.End()
-
 	if err := client.ValidateAgentKeyOption(cf.AddKeysToAgent); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1918,9 +1912,14 @@ func initializeTracing(cf *CLIConf) func() {
 	cf.TracingProvider = tracing.NoopProvider()
 	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
-	// flush ensures that the spans are all attempted to be written when tsh exits.
+	// flush ends the root span and ensures that the spans are all attempted to be written when tsh exits.
+	var rootSpan oteltrace.Span
 	flush := func(provider *tracing.Provider) func() {
 		return func() {
+			if rootSpan != nil {
+				rootSpan.End()
+			}
+
 			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(cf.Context), time.Second)
 			defer cancel()
 			err := provider.Shutdown(shutdownCtx)
@@ -1965,6 +1964,9 @@ func initializeTracing(cf *CLIConf) func() {
 
 		cf.TracingProvider = provider
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
+		// Start the root span for the command and update the config context so
+		// that all spans created in the future will be rooted at this span.
+		cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
 		return flush(provider)
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
@@ -1989,6 +1991,9 @@ func initializeTracing(cf *CLIConf) func() {
 	}
 	cf.TracingProvider = provider
 	cf.tracer = provider.Tracer(teleport.ComponentTSH)
+	// Start the root span for the command and update the config context so
+	// that all spans created in the future will be rooted at this span.
+	cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
 
 	if cf.command == "login" {
 		// Don't call RetryWithRelogin below if the user is trying to log in.
