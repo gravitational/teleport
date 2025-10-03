@@ -362,6 +362,17 @@ func TestServiceAccess(t *testing.T) {
 			kind:         types.KindAutoUpdateBotInstanceReport,
 			allowedVerbs: []string{types.VerbRead},
 		},
+		{
+			name: "GetAutoUpdateBotInstanceReport",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			kind:         types.KindBotInstance,
+			allowedVerbs: []string{types.VerbList},
+		},
 	}
 
 	for _, tt := range testCases {
