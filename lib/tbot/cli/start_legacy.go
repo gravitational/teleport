@@ -132,6 +132,10 @@ type LegacyCommand struct {
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
 
+	// DiagAddrForUpdater specifies the diagnostics http service address that
+	// should be exposed to the updater via UNIX domain socket.
+	DiagAddrForUpdater string
+
 	oneshotSetByUser bool
 }
 
@@ -158,6 +162,7 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode C
 	c.cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&c.JoinMethod, onboarding.SupportedJoinMethods...)
 	c.cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&c.oneshotSetByUser).BoolVar(&c.Oneshot)
 	c.cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&c.DiagAddr)
+	c.cmd.Flag("diag-addr-for-updater", "If set, run the diagnostics service on the specified address for teleport-update to consume.").Hidden().StringVar(&c.DiagAddrForUpdater)
 
 	return c
 }
@@ -272,6 +277,8 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 		}
 		cfg.DiagAddr = c.DiagAddr
 	}
+
+	cfg.DiagAddrForUpdater = c.DiagAddrForUpdater
 
 	return nil
 }

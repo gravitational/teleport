@@ -170,6 +170,18 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		)
 	}
 
+	if b.cfg.DiagAddrForUpdater != "" {
+		services = append(services,
+			diagnostics.ServiceBuilder(diagnostics.Config{
+				Address: b.cfg.DiagAddrForUpdater,
+				Logger: b.log.With(
+					teleport.ComponentKey,
+					teleport.Component(teleport.ComponentTBot, "diagnostics-updater"),
+				),
+			}),
+		)
+	}
+
 	// This faux service allows us to get the bot's internal identity and client
 	// for tests, without exposing them on the core bot.Bot struct.
 	services = append(services, func(deps bot.ServiceDependencies) (bot.Service, error) {

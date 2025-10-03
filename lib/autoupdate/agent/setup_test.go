@@ -46,7 +46,7 @@ func TestNewNamespace(t *testing.T) {
 		{
 			name: "no namespace",
 			ns: &Namespace{
-				teleportDataDir:      "/var/lib/teleport",
+				dataDir:              "/var/lib/teleport",
 				installDir:           "/opt/teleport",
 				defaultPathDir:       "/usr/local/bin",
 				teleportServiceFile:  "/lib/systemd/system/teleport.service",
@@ -64,7 +64,7 @@ func TestNewNamespace(t *testing.T) {
 			name:       "no namespace with dirs",
 			installDir: "/install",
 			ns: &Namespace{
-				teleportDataDir:      "/var/lib/teleport",
+				dataDir:              "/var/lib/teleport",
 				installDir:           "/install",
 				defaultPathDir:       "/usr/local/bin",
 				teleportServiceFile:  "/lib/systemd/system/teleport.service",
@@ -83,7 +83,7 @@ func TestNewNamespace(t *testing.T) {
 			namespace: "test",
 			ns: &Namespace{
 				name:                 "test",
-				teleportDataDir:      "/var/lib/teleport_test",
+				dataDir:              "/var/lib/teleport_test",
 				installDir:           "/opt/teleport",
 				defaultPathDir:       "/opt/teleport/test/bin",
 				teleportServiceFile:  "/etc/systemd/system/teleport_test.service",
@@ -102,7 +102,7 @@ func TestNewNamespace(t *testing.T) {
 			installDir: "/install",
 			ns: &Namespace{
 				name:                 "test",
-				teleportDataDir:      "/var/lib/teleport_test",
+				dataDir:              "/var/lib/teleport_test",
 				installDir:           "/install",
 				defaultPathDir:       "/install/test/bin",
 				teleportConfigFile:   "/etc/teleport_test.yaml",
@@ -232,7 +232,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 			want: Namespace{
 				defaultProxyAddr: "example.com:3080",
-				teleportDataDir:  "/data",
+				dataDir:          "/data",
 			},
 		},
 		{
@@ -240,7 +240,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			cfg:  &unversionedTeleport{},
 			want: Namespace{
 				defaultProxyAddr: "default.example.com",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -250,7 +250,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 			want: Namespace{
 				defaultProxyAddr: "example.com:8080",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -260,7 +260,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 			want: Namespace{
 				defaultProxyAddr: "example.com:3080",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -270,7 +270,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 			want: Namespace{
 				defaultProxyAddr: "example.com:443",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -280,7 +280,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 			want: Namespace{
 				defaultProxyAddr: "example.com:3080",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -290,7 +290,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 			want: Namespace{
 				defaultProxyAddr: "example.com:3025",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -303,7 +303,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 			want: Namespace{
 				defaultProxyAddr: "one.example.com:3025",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -315,7 +315,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 			want: Namespace{
 				defaultProxyAddr: "one.example.com:3080",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
@@ -326,14 +326,14 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 			},
 			want: Namespace{
 				defaultProxyAddr: "two.example.com:3025",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 		{
 			name: "missing",
 			want: Namespace{
 				defaultProxyAddr: "default.example.com",
-				teleportDataDir:  "/var/lib/teleport",
+				dataDir:          "/var/lib/teleport",
 			},
 		},
 	}
@@ -343,7 +343,7 @@ func TestNamespace_overrideFromConfig(t *testing.T) {
 				log:                slog.Default(),
 				teleportConfigFile: filepath.Join(t.TempDir(), "teleport.yaml"),
 				defaultProxyAddr:   "default.example.com",
-				teleportDataDir:    "/var/lib/teleport",
+				dataDir:            "/var/lib/teleport",
 			}
 			if tt.cfg != nil {
 				out, err := yaml.Marshal(unversionedConfig{Teleport: *tt.cfg})

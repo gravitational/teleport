@@ -132,6 +132,10 @@ type BotConfig struct {
 	// If not set, no diagnostics listener is created.
 	DiagAddr string `yaml:"diag_addr,omitempty"`
 
+	// DiagAddrForUpdater specifies the path to the diagnostics http service socket that
+	// should be exposed to the updater.
+	DiagAddrForUpdater string `yaml:"-"`
+
 	// ReloadCh allows a channel to be injected into the bot to trigger a
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`

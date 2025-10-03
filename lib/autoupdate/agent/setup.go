@@ -114,21 +114,10 @@ Environment="TELEPORT_UPDATE_INSTALL_DIR={{escape .InstallDir}}"
 ExecStart=
 ExecStart=-/bin/echo "The teleport-upgrade script has been disabled by teleport-update. Please remove the teleport-ent-updater package."
 `
-	// This configuration sets the default value for needrestart-trigger automatic restarts for teleport.service to disabled.
-	// Users may still choose to enable needrestart for teleport.service when installing packaging interactively (or via dpkg config),
-	// but doing so will result in a hard restart that disconnects the agent whenever any dependent libraries are updated.
-	// Other network services, like openvpn, follow this pattern.
-	// It is possible to configure needrestart to trigger a soft restart (via restart.d script), but given that Teleport subprocesses
-	// can use a wide variety of installed binaries (when executed by the user), this could trigger many unexpected reloads.
-	needrestartConfTemplate = `$nrconf{override_rc}{qr(^{{replace .TeleportService "." "\\."}})} = 0;
-`
 )
 
-// standard Makefile included in 'selinux-policy-devel' RPM package
-// used to build SELinux modules
-const selinuxMakefile = "/usr/share/selinux/devel/Makefile"
-
-type confParams struct {
+// systemdParams parameterizes the above updater systemd configuration templates.
+type systemdParams struct {
 	TeleportService   string
 	UpdaterBinary     string
 	InstallSuffix     string
@@ -136,6 +125,23 @@ type confParams struct {
 	Path              string
 	UpdaterConfigFile string
 }
+
+// This configuration sets the default value for needrestart-trigger automatic restarts for teleport.service to disabled.
+// Users may still choose to enable needrestart for teleport.service when installing packaging interactively (or via dpkg config),
+// but doing so will result in a hard restart that disconnects the agent whenever any dependent libraries are updated.
+// Other network services, like openvpn, follow this pattern.
+// It is possible to configure needrestart to trigger a soft restart (via restart.d script), but given that Teleport subprocesses
+// can use a wide variety of installed binaries (when executed by the user), this could trigger many unexpected reloads.
+var needrestartConfTemplate = `$nrconf{override_rc}{qr(^{{replace .Service "." "\\."}})} = 0;
+`
+
+type needrestartParams struct {
+	Service string
+}
+
+// standard Makefile included in 'selinux-policy-devel' RPM package
+// used to build SELinux modules
+const selinuxMakefile = "/usr/share/selinux/devel/Makefile"
 
 // Namespace represents a namespace within various system paths for a isolated installation of Teleport.
 type Namespace struct {
@@ -148,8 +154,8 @@ type Namespace struct {
 	defaultPathDir string
 	// defaultProxyAddr parsed from teleport.yaml, if present
 	defaultProxyAddr string
-	// teleportDataDir parsed from teleport.yaml, if present
-	teleportDataDir string
+	// dataDir parsed from teleport.yaml, if present
+	dataDir string
 	// teleportServiceFile for the Teleport systemd service (ns: /etc/systemd/system/teleport_myns.service)
 	teleportServiceFile string
 	// teleportConfigFile for Teleport config (ns: /etc/teleport_myns.yaml)
@@ -163,6 +169,7 @@ type Namespace struct {
 	tbotServiceFile      string
 	tbotConfigFile       string
 	tbotPIDFile          string
+	tbotNRConfigFile     string
 	// updaterIDFile contains the updater's temporary ID file
 	updaterIDFile string
 	// updaterServiceFile is the systemd service path for the updater
@@ -199,16 +206,16 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 			name:                 name,
 			installDir:           installDir,
 			defaultPathDir:       linkDir,
-			teleportDataDir:      defaults.DataDir,
-			teleportServiceFile:  filepath.Join("/", serviceDir, serviceName), // /lib for backwards-compat
+			dataDir:              defaults.DataDir,
+			teleportServiceFile:  filepath.Join("/", serviceDir, teleportServiceName), // /lib for backwards-compat
 			teleportConfigFile:   defaults.ConfigFilePath,
 			teleportPIDFile:      filepath.Join(systemdPIDDir, "teleport.pid"),
+			teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+".conf"),
+			teleportDropInFile:   filepath.Join(systemdAdminDir, "teleport.service.d", BinaryName+".conf"),
 			updaterIDFile:        filepath.Join(os.TempDir(), BinaryName+".id"),
 			updaterServiceFile:   filepath.Join(systemdAdminDir, BinaryName+".service"),
 			updaterTimerFile:     filepath.Join(systemdAdminDir, BinaryName+".timer"),
-			teleportDropInFile:   filepath.Join(systemdAdminDir, "teleport.service.d", BinaryName+".conf"),
 			deprecatedDropInFile: filepath.Join(systemdAdminDir, deprecatedServiceName+".d", BinaryName+".conf"),
-			teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+".conf"),
 			tbotServiceFile:      filepath.Join(systemdAdminDir, "tbot.service"),
 			tbotConfigFile:       filepath.Join("/etc", "tbot.yaml"),
 			tbotPIDFile:          filepath.Join(systemdPIDDir, "tbot.pid"),
@@ -222,18 +229,19 @@ func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string
 		name:                 name,
 		installDir:           installDir,
 		defaultPathDir:       linkDir,
-		teleportDataDir:      filepath.Join(filepath.Dir(defaults.DataDir), prefix),
+		dataDir:              filepath.Join(filepath.Dir(defaults.DataDir), prefix),
 		teleportServiceFile:  filepath.Join(systemdAdminDir, prefix+".service"),
 		teleportConfigFile:   filepath.Join(filepath.Dir(defaults.ConfigFilePath), prefix+".yaml"),
 		teleportPIDFile:      filepath.Join(systemdPIDDir, prefix+".pid"),
+		teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+"_"+name+".conf"),
+		teleportDropInFile:   filepath.Join(systemdAdminDir, prefix+".service.d", BinaryName+"_"+name+".conf"),
 		updaterIDFile:        filepath.Join(os.TempDir(), BinaryName+"_"+name+".id"),
 		updaterServiceFile:   filepath.Join(systemdAdminDir, BinaryName+"_"+name+".service"),
 		updaterTimerFile:     filepath.Join(systemdAdminDir, BinaryName+"_"+name+".timer"),
-		teleportDropInFile:   filepath.Join(systemdAdminDir, prefix+".service.d", BinaryName+"_"+name+".conf"),
-		teleportNRConfigFile: filepath.Join(needrestartConfDir, BinaryName+"_"+name+".conf"),
 		tbotServiceFile:      filepath.Join(systemdAdminDir, "tbot_"+name+".service"),
 		tbotConfigFile:       filepath.Join("/etc", "tbot_"+name+".yaml"),
 		tbotPIDFile:          filepath.Join(systemdPIDDir, "tbot_"+name+".pid"),
+		tbotNRConfigFile:     filepath.Join(needrestartConfDir, "tbot_"+name+".conf"),
 		// no deprecatedDropInFile, as teleport-upgrade does not conflict with namespaced installs
 	}, nil
 }
@@ -327,7 +335,7 @@ func (ns *Namespace) installSELinux(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	fileCtxs, err := selinux.FileContexts(ns.teleportDataDir, ns.teleportConfigFile)
+	fileCtxs, err := selinux.FileContexts(ns.dataDir, ns.teleportConfigFile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -379,13 +387,13 @@ func (ns *Namespace) createAndLabelDirs(ctx context.Context, cmd localExec) erro
 	if err := os.MkdirAll(versioncontrol.UnitConfigDir, defaults.DirectoryPermissions); err != nil {
 		ns.log.WarnContext(ctx, "Failed to create teleport-upgrade directory.", errorKey, err)
 	}
-	if err := os.MkdirAll(ns.teleportDataDir, teleport.PrivateDirMode); err != nil {
+	if err := os.MkdirAll(ns.dataDir, teleport.PrivateDirMode); err != nil {
 		ns.log.WarnContext(ctx, "Failed to create teleport data directory.", errorKey, err)
 	}
 
 	dirsToLabel := []string{
 		filepath.Clean(ns.installDir),
-		ns.teleportDataDir,
+		ns.dataDir,
 		versioncontrol.UnitConfigDir,
 	}
 	// Create an empty teleport.yaml config file if it doesn't exist, and
@@ -445,7 +453,7 @@ func (ns *Namespace) removeSELinux(ctx context.Context) error {
 		return trace.Wrap(err, "failed to remove module")
 	}
 
-	_, err = cmd.Run(ctx, "restorecon", "-rv", filepath.Clean(ns.installDir), ns.teleportDataDir, filepath.Dir(ns.teleportConfigFile))
+	_, err = cmd.Run(ctx, "restorecon", "-rv", filepath.Clean(ns.installDir), ns.dataDir, filepath.Dir(ns.teleportConfigFile))
 	if err != nil {
 		return trace.Wrap(err, "failed to restore file contexts")
 	}
@@ -517,6 +525,7 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 		ns.teleportDropInFile,
 		ns.deprecatedDropInFile,
 		ns.teleportNRConfigFile,
+		ns.tbotNRConfigFile,
 	} {
 		if p == "" {
 			continue
@@ -563,7 +572,8 @@ func (ns *Namespace) Teardown(ctx context.Context) error {
 
 func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revision) error {
 	teleportService := filepath.Base(ns.teleportServiceFile)
-	params := confParams{
+	tbotService := filepath.Base(ns.tbotServiceFile)
+	params := systemdParams{
 		TeleportService:   teleportService,
 		UpdaterBinary:     filepath.Join(path, BinaryName),
 		InstallSuffix:     ns.name,
@@ -588,20 +598,41 @@ func (ns *Namespace) writeConfigFiles(ctx context.Context, path string, rev Revi
 			return trace.Wrap(err)
 		}
 	}
+
 	// Needrestart config is non-critical for updater functionality.
-	_, err := os.Stat(filepath.Dir(ns.teleportNRConfigFile))
-	if os.IsNotExist(err) {
-		return nil // needrestart is not present
+
+	var tbotNRConfigFile string
+	if ok, err := ns.HasCustomTbot(ctx); err != nil {
+		ns.log.ErrorContext(ctx, "Unable to determine if tbot is managed by the updater, skipping needrestart configuration.", errorKey, err)
+	} else if !ok {
+		tbotNRConfigFile = ns.tbotNRConfigFile
 	}
-	if err != nil {
-		ns.log.ErrorContext(ctx, "Unable to disable needrestart.", errorKey, err)
-		return nil
-	}
-	ns.log.InfoContext(ctx, "Disabling needrestart.", unitKey, teleportService)
-	err = writeSystemTemplate(ns.teleportNRConfigFile, "", needrestartConfTemplate, params)
-	if err != nil {
-		ns.log.ErrorContext(ctx, "Unable to disable needrestart.", errorKey, err)
-		return nil
+
+	for _, v := range []struct {
+		path, service string
+	}{
+		{ns.teleportNRConfigFile, teleportService},
+		{tbotNRConfigFile, tbotService},
+	} {
+		if v.path == "" {
+			continue
+		}
+		_, err := os.Stat(filepath.Dir(v.path))
+		if os.IsNotExist(err) {
+			continue // needrestart is not present
+		}
+		if err != nil {
+			ns.log.ErrorContext(ctx, "Unable to disable needrestart.", unitKey, v.service, errorKey, err)
+			continue
+		}
+		ns.log.InfoContext(ctx, "Disabling needrestart.", unitKey, v.service)
+		err = writeSystemTemplate(v.path, "", needrestartConfTemplate, needrestartParams{
+			Service: v.service,
+		})
+		if err != nil {
+			ns.log.ErrorContext(ctx, "Unable to disable needrestart.", unitKey, v.service, errorKey, err)
+			continue
+		}
 	}
 	return nil
 }
@@ -666,10 +697,21 @@ func (ns *Namespace) WriteTeleportService(_ context.Context, pathDir string, rev
 	}))
 }
 
+func (ns *Namespace) HasCustomTbot(ctx context.Context) (bool, error) {
+	diskMarkerPrefix, err := readFileLimit(ns.tbotServiceFile, int64(len(markerPrefix)))
+	if errors.Is(err, os.ErrNotExist) {
+		ns.log.DebugContext(ctx, "Service not present.", "path", ns.tbotServiceFile)
+		return false, nil
+	}
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return string(diskMarkerPrefix) != markerPrefix, nil
+}
+
 // WriteTbotService writes the tbot systemd service for the version of tbot
 // that matches the version of tbot compiled into the executing code.
-// ErrFilePresent is returned if a custom tbot.service is present and force is false.
-func (ns *Namespace) WriteTbotService(ctx context.Context, pathDir string, rev Revision, force bool) error {
+func (ns *Namespace) WriteTbotService(ctx context.Context, pathDir string, rev Revision) error {
 	if pathDir == "" {
 		pathDir = ns.defaultPathDir
 	}
@@ -682,15 +724,10 @@ func (ns *Namespace) WriteTbotService(ctx context.Context, pathDir string, rev R
 	if ns.tbotPIDFile != filepath.Join("/run", unitName+".pid") {
 		return trace.Errorf("invalid PID file: %q", ns.tbotPIDFile)
 	}
-	if !force {
-		diskMarkerPrefix, err := readFileLimit(ns.tbotServiceFile, int64(len(markerPrefix)))
-		if errors.Is(err, os.ErrNotExist) {
-			ns.log.DebugContext(ctx, "Service not present.", "path", ns.tbotServiceFile)
-		} else if err != nil {
-			return trace.Wrap(err)
-		} else if string(diskMarkerPrefix) != markerPrefix {
-			return trace.Wrap(ErrFilePresent)
-		}
+	diagDir := filepath.Join(ns.dataDir, "bot")
+
+	if err := os.MkdirAll(diagDir, teleport.PrivateDirMode); err != nil {
+		ns.log.WarnContext(ctx, "Failed to create tbot data directory.", errorKey, err)
 	}
 
 	return trace.Wrap(writeAtomicWithinDir(ns.tbotServiceFile, configFileMode, func(w io.Writer) error {
@@ -705,6 +742,7 @@ func (ns *Namespace) WriteTbotService(ctx context.Context, pathDir string, rev R
 			AnonymousTelemetry: true,
 			ConfigPath:         ns.tbotConfigFile,
 			TBotPath:           filepath.Join(pathDir, "tbot"),
+			DiagAddrForUpdater: diagDir,
 		}))
 	}))
 }
@@ -760,12 +798,18 @@ func (ns *Namespace) LogWarnings(ctx context.Context, pathDir string) {
 	if pathDir == "" {
 		pathDir = ns.defaultPathDir
 	}
-	ns.log.WarnContext(ctx, "Custom install suffix specified. Teleport data_dir must be configured in the config file.",
-		"data_dir", ns.teleportDataDir,
-		"path_dir", pathDir,
+	ns.log.WarnContext(ctx, "Custom install suffix specified.", "suffix", ns.name, "path_dir", pathDir)
+	ns.log.WarnContext(ctx, "Teleport data_dir must be set in the config file, and paths will be different.",
+		"data_dir", ns.dataDir,
 		"config_file", ns.teleportConfigFile,
 		"service", filepath.Base(ns.teleportServiceFile),
 		"pid_file", ns.teleportPIDFile,
+	)
+	ns.log.WarnContext(ctx, "Tbot data storage must be set in the config file, and paths will be different.",
+		"data_dir", filepath.Join(ns.dataDir, "bot"),
+		"config_file", ns.tbotConfigFile,
+		"service", filepath.Base(ns.tbotServiceFile),
+		"pid_file", ns.tbotPIDFile,
 	)
 }
 
@@ -784,26 +828,55 @@ type unversionedTeleport struct {
 
 // overrideFromConfig loads fields from teleport.yaml into the namespace, overriding any defaults.
 func (ns *Namespace) overrideFromConfig(ctx context.Context) {
-	if ns == nil || ns.teleportConfigFile == "" {
+	if ns == nil {
 		return
 	}
-	path := ns.teleportConfigFile
-	f, err := libutils.OpenFileAllowingUnsafeLinks(path)
-	if err != nil {
-		ns.log.DebugContext(ctx, "Unable to open Teleport config to read proxy or data dir", "config", path, errorKey, err)
+	var (
+		configFile string
+		cfg        unversionedConfig
+	)
+
+	switch {
+	case ns.teleportConfigFile != "":
+		configFile = ns.teleportConfigFile
+		f, err := libutils.OpenFileAllowingUnsafeLinks(configFile)
+		if err != nil {
+			ns.log.DebugContext(ctx, "Unable to open Teleport config to read proxy or data dir", "config_file", configFile, errorKey, err)
+			return
+		}
+		defer f.Close()
+		if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
+			ns.log.DebugContext(ctx, "Unable to parse Teleport config to read proxy or data dir", "config_file", configFile, errorKey, err)
+			return
+		}
+		if cfg.Teleport.DataDir != "" {
+			ns.dataDir = cfg.Teleport.DataDir
+		}
+	case ns.tbotConfigFile != "":
+		configFile = ns.tbotConfigFile
+		customTbot, err := ns.HasCustomTbot(ctx)
+		if err != nil {
+			ns.log.DebugContext(ctx, "Unable to determine if tbot is managed by the updater", "config_file", configFile, errorKey, err)
+			return
+		}
+		if customTbot {
+			return
+		}
+		f, err := libutils.OpenFileAllowingUnsafeLinks(configFile)
+		if err != nil {
+			ns.log.DebugContext(ctx, "Unable to open tbot config to read proxy or data dir", "config_file", configFile, errorKey, err)
+			return
+		}
+		defer f.Close()
+		if err := yaml.NewDecoder(f).Decode(&cfg.Teleport); err != nil {
+			ns.log.DebugContext(ctx, "Unable to parse tbot config to read proxy or data dir", "config_file", configFile, errorKey, err)
+			return
+		}
+	default:
 		return
-	}
-	defer f.Close()
-	var cfg unversionedConfig
-	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
-		ns.log.DebugContext(ctx, "Unable to parse Teleport config to read proxy or data dir", "config", path, errorKey, err)
-		return
-	}
-	if cfg.Teleport.DataDir != "" {
-		ns.teleportDataDir = cfg.Teleport.DataDir
 	}
 
-	// Any implicitly defaulted port in teleport.yaml is explicitly defaulted (to 3080).
+	// Any implicitly defaulted port in configuration is explicitly defaulted (to 3080).
 
 	var addr string
 	var port int
@@ -818,12 +891,12 @@ func (ns *Namespace) overrideFromConfig(ctx context.Context) {
 		addr = t.AuthServers[0]
 		port = defaults.AuthListenPort
 	default:
-		ns.log.DebugContext(ctx, "Unable to find proxy in Teleport config", "config", path, errorKey, err)
+		ns.log.DebugContext(ctx, "Unable to find proxy in config", "config_file", configFile)
 		return
 	}
 	netaddr, err := libutils.ParseHostPortAddr(addr, port)
 	if err != nil {
-		ns.log.DebugContext(ctx, "Unable to parse proxy in Teleport config", "config", path, "proxy_addr", addr, "proxy_port", port, errorKey, err)
+		ns.log.DebugContext(ctx, "Unable to parse proxy in config", "config_file", configFile, "proxy_addr", addr, "proxy_port", port, errorKey, err)
 		return
 	}
 	ns.defaultProxyAddr = netaddr.String()

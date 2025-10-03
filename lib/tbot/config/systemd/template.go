@@ -18,4 +18,5 @@ type TemplateParams struct {
 	AnonymousTelemetry bool
 	ConfigPath         string
 	TBotPath           string
+	DiagAddrForUpdater string
 }

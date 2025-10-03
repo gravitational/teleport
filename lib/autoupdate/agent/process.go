@@ -91,7 +91,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 	// Command error codes < 0 indicate that we are unable to run the command.
 	// Errors from s.systemctl are logged along with stderr and stdout (debug only).
 
-	// If the service is not running, return ErrNotNeeded.
+	// If the service is not running, return nil.
 	// Note systemctl reload returns an error if the unit is not active, and
 	// try-reload-or-restart is too recent of an addition for centos7.
 	code := s.systemctl(ctx, slog.LevelDebug, "is-active", "--quiet", s.ServiceName)
@@ -100,7 +100,7 @@ func (s SystemdService) Reload(ctx context.Context) error {
 		return trace.Errorf("unable to determine if systemd service is active")
 	case code > 0:
 		s.Log.WarnContext(ctx, "Systemd service not running.", unitKey, s.ServiceName)
-		return trace.Wrap(ErrNotNeeded)
+		return nil
 	}
 
 	// Get initial PID for crash monitoring.

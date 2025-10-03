@@ -1331,7 +1331,7 @@ func TestUpdater_Remove(t *testing.T) {
 				InsecureSkipVerify: true,
 			}, ns)
 			require.NoError(t, err)
-			updater.TeleportServiceName = serviceName
+			updater.TeleportServiceName = teleportServiceName
 			if tt.serviceName != "" {
 				updater.TeleportServiceName = tt.serviceName
 			}

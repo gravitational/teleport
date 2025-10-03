@@ -98,6 +98,8 @@ type cliConfig struct {
 	Insecure bool
 	// StatusWithExitCode makes the status command return different exit codes depending on the update status.
 	StatusWithExitCode bool
+	// SetupTbot specifies whether tbot should be managed.
+	SetupTbot bool
 }
 
 func Run(args []string) int {
@@ -191,8 +193,8 @@ func Run(args []string) int {
 		Envar(autoupdate.SetupVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	setupCmd.Flag("flag", "Use the provided flags to generate configuration files.").
 		Envar(autoupdate.SetupFlagsEnvVar).StringsVar(&ccfg.ForceFlags)
-	setupCmd.Flag("overwrite", "Allow existing installed binaries and services to be overwritten.").
-		Envar(autoupdate.SetupOverwriteEnvVar).BoolVar(&ccfg.AllowOverwrite)
+	setupCmd.Flag("tbot", "Setup a systemd service for tbot.").
+		Envar(autoupdate.SetupTbotEnvVar).BoolVar(&ccfg.SetupTbot)
 	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").
 		Hidden().BoolVar(&ccfg.SELinuxSSH)
 
@@ -490,7 +492,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	}
 	flags := common.NewInstallFlagsFromStrings(ccfg.ForceFlags)
 	rev := autoupdate.NewRevision(ccfg.ForceVersion, flags)
-	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.SELinuxSSH, ccfg.Reload, ccfg.AllowOverwrite)
+	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.SELinuxSSH, ccfg.Reload, ccfg.SetupTbot)
 	if err != nil {
 		return trace.Wrap(err)
 	}
