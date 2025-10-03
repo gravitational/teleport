@@ -18,11 +18,13 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -534,4 +536,155 @@ type BotInstance struct {
 	VersionLatest    string `json:"version_latest,omitempty"`
 	ActiveAtLatest   string `json:"active_at_latest,omitempty"`
 	OSLatest         string `json:"os_latest,omitempty"`
+}
+
+func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	ctx := r.Context()
+
+	clt, err := sctx.GetUserClient(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If no report is available yet, we return a NotFound error. The frontend
+	// will treat this as if the proxy doesn't support this endpoint yet.
+	report, err := clt.GetAutoUpdateBotInstanceReport(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Our target version is the operator's selected auto-update tools version,
+	// or if there isn't one configured: the proxy version.
+	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	targetVersion, err := getToolsVersion(autoUpdateVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Returns the earliest possible version in a major release. It's based on:
+	// lib/utils.VersionBeforeAlpha.
+	lowerBound := func(major int64) semver.Version {
+		return semver.Version{Major: major, PreRelease: "aa"}
+	}
+
+	const versionField = "status.latest_heartbeat.version"
+
+	statuses := BotInstanceUpgradeStatuses{
+		UpToDate: BotInstanceUpgradeStatus{
+			Filter: fmt.Sprintf("%[1]s == %[2]q", versionField, targetVersion),
+		},
+		Unsupported: BotInstanceUpgradeStatus{
+			Filter: fmt.Sprintf(
+				"version_lt(%[1]s, %[2]q) || version_gte(%[1]s, %[3]q)",
+				versionField,
+				lowerBound(targetVersion.Major-1),
+				lowerBound(targetVersion.Major+1),
+			),
+		},
+		PatchAvailable: BotInstanceUpgradeStatus{
+			Filter: fmt.Sprintf(
+				"version_gte(%[1]s, %[2]q) && version_lt(%[1]s, %[3]q)",
+				versionField,
+				lowerBound(targetVersion.Major),
+				targetVersion,
+			),
+		},
+		RequiresUpgrade: BotInstanceUpgradeStatus{
+			Filter: fmt.Sprintf(
+				"version_gte(%[1]s, %[2]q) && version_lt(%[1]s, %[3]q)",
+				versionField,
+				lowerBound(targetVersion.Major-1),
+				lowerBound(targetVersion.Major),
+			),
+		},
+	}
+
+	for _, groupMetrics := range report.GetSpec().GetGroups() {
+		for versionString, versionMetrics := range groupMetrics.GetVersions() {
+			version, err := semver.NewVersion(versionString)
+			if err != nil {
+				h.logger.ErrorContext(ctx,
+					"Failed to parse bot instance version string",
+					"version_string", versionString,
+					"error", err,
+				)
+				continue
+			}
+
+			switch {
+			case targetVersion.Equal(*version):
+				// Bot is up to date.
+				statuses.UpToDate.Count += int(versionMetrics.Count)
+
+			case targetVersion.LessThan(*version):
+				// Bot is running a newer version, we don't support this.
+				statuses.Unsupported.Count += int(versionMetrics.Count)
+
+			case targetVersion.Major == version.Major:
+				// Bot is running the right major version, but there's a minor
+				// or patch update available
+				statuses.PatchAvailable.Count += int(versionMetrics.Count)
+
+			case version.Major == targetVersion.Major-1:
+				// Bot is running the previous major version and should upgrade.
+				statuses.RequiresUpgrade.Count += int(versionMetrics.Count)
+
+			case version.Major < targetVersion.Major-1:
+				// Bot is running a version that is too old. In this case, the
+				// connection would be terminated so we shouldn't really see it.
+				statuses.Unsupported.Count += int(versionMetrics.Count)
+
+			default:
+				// The branches of this switch should be exhaustive, but just in case!
+				h.logger.DebugContext(ctx,
+					"Bot instance version comparison is missing a branch",
+					"bot_instance_version", version,
+					"target_version", targetVersion,
+				)
+			}
+		}
+	}
+
+	return BotInstanceMetricsResponse{
+		UpdatedAt:       report.GetSpec().GetTimestamp().AsTime(),
+		UpgradeStatuses: statuses,
+	}, nil
+}
+
+type BotInstanceMetricsResponse struct {
+	// UpdatedAt is when these metrics were last updated.
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// UpgradeStatuses contains instance counts by "upgrade status".
+	UpgradeStatuses BotInstanceUpgradeStatuses `json:"upgrade_statuses"`
+}
+
+type BotInstanceUpgradeStatuses struct {
+	// UpToDate means the instance matches the desired version.
+	UpToDate BotInstanceUpgradeStatus `json:"up_to_date"`
+
+	// Unsupported means the instance is running a release that is too old or
+	// too new for us to support.
+	Unsupported BotInstanceUpgradeStatus `json:"unsupported"`
+
+	// RequiresUpgrade means the instance is running a release from the previous
+	// major series. We can support it for now, but the next major upgrade will
+	// break compatibility.
+	RequiresUpgrade BotInstanceUpgradeStatus `json:"requires_upgrade"`
+
+	// PatchAvailable means the instance is running a release from the desired
+	// major series, but they're behind on a minor or patch release.
+	PatchAvailable BotInstanceUpgradeStatus `json:"patch_available"`
+}
+
+type BotInstanceUpgradeStatus struct {
+	// Count is the number of bot instances.
+	Count int `json:"count"`
+
+	// Filter is a predicate language filter that can be applied to the bot
+	// instance list to find matching instances.
+	Filter string `json:"filter"`
 }

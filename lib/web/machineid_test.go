@@ -35,6 +35,8 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -1257,4 +1259,104 @@ func TestGetBotInstance(t *testing.T) {
 		},
 	}, protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
 	assert.YAMLEq(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.Metadata.Revision), resp.YAML)
+}
+
+func TestBotInstanceMetrics_NotFound(t *testing.T) {
+	ctx := t.Context()
+	env := newWebPack(t, 1)
+	pack := env.proxies[0].authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+
+	// No report yet should return a NotFound.
+	endpoint := pack.clt.Endpoint(
+		"webapi", "sites", clusterName, "machine-id", "bot-instance", "metrics",
+	)
+	_, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.True(t, trace.IsNotFound(err))
+}
+
+func TestBotInstanceMetrics_Success(t *testing.T) {
+	ctx := t.Context()
+	env := newWebPack(t, 1)
+	pack := env.proxies[0].authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+
+	const targetVersion = "19.1.1"
+
+	_, err := env.server.Auth().
+		CreateAutoUpdateVersion(ctx, &autoupdate.AutoUpdateVersion{
+			Kind:    types.KindAutoUpdateVersion,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: types.MetaNameAutoUpdateVersion,
+			},
+			Spec: &autoupdate.AutoUpdateVersionSpec{
+				Tools: &autoupdate.AutoUpdateVersionSpecTools{
+					TargetVersion: targetVersion,
+				},
+			},
+		})
+
+	err = env.server.Auth().
+		SetAutoUpdateBotInstanceReport(ctx, &autoupdate.AutoUpdateBotInstanceReportSpec{
+			Timestamp: timestamppb.New(env.clock.Now()),
+			Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
+				"prod": {
+					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
+						"19.1.1":     {Count: 1},      // Up to date
+						"19.2.0":     {Count: 10},     // Unsupported (too new)
+						"19.1.0":     {Count: 100},    // Patch available
+						"19.0.0-rc1": {Count: 1000},   // Patch available
+						"18.0.0":     {Count: 10000},  // Requires upgrade
+						"17.0.0":     {Count: 100000}, // Unsupported (too old)
+					},
+				},
+			},
+		})
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint(
+		"webapi", "sites", clusterName, "machine-id", "bot-instance", "metrics",
+	)
+	rsp, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var body BotInstanceMetricsResponse
+	require.NoError(t, json.Unmarshal(rsp.Bytes(), &body))
+
+	// Up to date
+	require.Equal(t,
+		BotInstanceUpgradeStatus{
+			Count:  1,
+			Filter: `status.latest_heartbeat.version == "19.1.1"`,
+		},
+		body.UpgradeStatuses.UpToDate,
+	)
+
+	// Unsupported
+	require.Equal(t,
+		BotInstanceUpgradeStatus{
+			Count:  100010,
+			Filter: `version_lt(status.latest_heartbeat.version, "18.0.0-aa") || version_gte(status.latest_heartbeat.version, "20.0.0-aa")`,
+		},
+		body.UpgradeStatuses.Unsupported,
+	)
+
+	// Patch available
+	require.Equal(t,
+		BotInstanceUpgradeStatus{
+			Count:  1100,
+			Filter: `version_gte(status.latest_heartbeat.version, "19.0.0-aa") && version_lt(status.latest_heartbeat.version, "19.1.1")`,
+		},
+		body.UpgradeStatuses.PatchAvailable,
+	)
+
+	// Requires upgrade
+	require.Equal(t,
+		BotInstanceUpgradeStatus{
+			Count:  10000,
+			Filter: `version_gte(status.latest_heartbeat.version, "18.0.0-aa") && version_lt(status.latest_heartbeat.version, "19.0.0-aa")`,
+		},
+		body.UpgradeStatuses.RequiresUpgrade,
+	)
 }
