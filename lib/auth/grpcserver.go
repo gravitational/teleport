@@ -5565,7 +5565,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationAWSOIDCServiceServer, err := integrationv1.NewAWSOIDCService(&integrationv1.AWSOIDCServiceConfig{
 		Authorizer:            cfg.Authorizer,
 		IntegrationService:    integrationServiceServer,
-		Cache:                 cfg.AuthServer,
+		Cache:                 cfg.AuthServer.Cache,
+		TokenCreator:          cfg.AuthServer,
 		ProxyPublicAddrGetter: cfg.AuthServer.getProxyPublicAddr,
 		Clock:                 cfg.AuthServer.clock,
 	})
