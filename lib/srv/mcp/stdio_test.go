@@ -180,6 +180,14 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 
 		// Check container is running.
 		require.NotEmpty(t, findDockerContainerID(t.Context(), dockerClient, containerName))
+
+		// Note that some metrics may be incremented by other tests too so here
+		// just checking they are non-zero.
+		require.Positive(t, testutil.ToFloat64(accumulatedSessions.WithLabelValues(types.MCPTransportStdio)))
+		require.Positive(t, testutil.ToFloat64(activeSessions.WithLabelValues(types.MCPTransportStdio)))
+		require.Positive(t, testutil.ToFloat64(messagesFromClient.WithLabelValues(types.MCPTransportStdio, "request", "initialize")))
+		require.Positive(t, testutil.ToFloat64(messagesFromClient.WithLabelValues(types.MCPTransportStdio, "notification", "notifications/initialized")))
+		require.Positive(t, testutil.ToFloat64(messagesFromServer.WithLabelValues(types.MCPTransportStdio, "response", "initialize")))
 	}
 
 	tests := []struct {
@@ -220,6 +228,9 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			cmd:                "fail-to-start",
 			checkHandlerError:  require.Error,
 			waitForHandlerExit: time.Second * 5,
+			afterHandlerStop: func(t *testing.T, _ *testContext, _ string) {
+				require.Positive(t, testutil.ToFloat64(setupErrors.WithLabelValues(types.MCPTransportStdio)))
+			},
 		},
 		{
 			// Make sure handler is not blocked when command starts then fails
@@ -308,14 +319,4 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("reporting", func(t *testing.T) {
-		// Note that some metrics may be incremented by other tests too so here
-		// just checking they are non-zero.
-		require.Positive(t, testutil.ToFloat64(setupErrors.WithLabelValues(types.MCPTransportStdio)))
-		require.Positive(t, testutil.ToFloat64(accumulatedSessions.WithLabelValues(types.MCPTransportStdio)))
-		require.Positive(t, testutil.ToFloat64(messagesFromClient.WithLabelValues(types.MCPTransportStdio, "request", "initialize")))
-		require.Positive(t, testutil.ToFloat64(messagesFromClient.WithLabelValues(types.MCPTransportStdio, "notification", "notifications/initialized")))
-		require.Positive(t, testutil.ToFloat64(messagesFromServer.WithLabelValues(types.MCPTransportStdio, "response", "initialize")))
-	})
 }
