@@ -355,7 +355,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			UserLoginStates:         svces.UserLoginStates,
 			Users:                   svces.Identity,
 			WebSession:              svces.Identity.WebSessions(),
-			WebToken:                svces.WebTokens(),
+			WebToken:                svces.Identity,
 			WindowsDesktops:         svces.WindowsDesktops,
 		})
 		if err != nil {

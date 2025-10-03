@@ -1483,7 +1483,7 @@ type ClientI interface {
 	types.Events
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	services.WebToken
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
