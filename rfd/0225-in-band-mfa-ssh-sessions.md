@@ -69,7 +69,8 @@ challenge, the `TransportService` will receive the pass/fail result and `ProxySS
 
 If the MFA verification fails, the stream is immediately terminated. Similarly, any connectivity issues with the Proxy
 or Auth services result in the session being denied. If the client does not complete the MFA challenge within a
-specified time frame (e.g., 5 minutes), the session will be terminated. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
+specified time frame (e.g., 5 minutes), the session will be terminated. See [Per-session MFA (RFD
+14)](0014-session-2FA.md) for more details on session termination.
 
 In cases where MFA is not required, or after successful MFA verification, the server sends `ClusterDetails` to the
 client. The client can then proceed to send SSH frames over the established stream. The Proxy forwards these frames to
@@ -163,7 +164,7 @@ Since new RPCs are being introduced, there are a few new risks:
 
 To mitigate these risks, the following measures will be implemented.
 
-#### RPC Authorization
+#### Unauthorized Access Mitigation
 
 Each RPC introduced in this RFD will enforce strict authorization:
 
@@ -174,7 +175,7 @@ Each RPC introduced in this RFD will enforce strict authorization:
 - `CompleteAuthenticateChallenge`: Only the user for whom the MFA challenge was created is authorized to complete it.
   The service verifies the user's identity and ensures that only the intended recipient can respond to the challenge.
 
-#### MFA Challenge Timeouts
+#### Unfinished MFA Challenge Mitigation
 
 MFA challenges initiated by the Proxy must be completed within a specified time frame (e.g., 5 minutes). If the client
 fails to do so, the session will be terminated. This limits the window of opportunity for an attacker to exploit an
@@ -184,6 +185,11 @@ unfinished MFA challenge.
 
 MFA challenge creation will be rate-limited per user to prevent abuse. This limits the ability of an attacker to flood
 the system with MFA challenge requests.
+
+#### Connection Downgrade Mitigation
+
+System administrators will have the ability to disable support for the legacy v1 `TransportService` RPCs on the Proxy.
+This prevents clients from downgrading to the older protocol with weaker security controls.
 
 ### Privacy
 
