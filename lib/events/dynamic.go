@@ -544,6 +544,11 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case BoundKeypairJoinStateVerificationFailed:
 		e = &events.BoundKeypairJoinStateVerificationFailed{}
 
+	case SCIMListingEvent:
+		e = &events.SCIMListingEvent{}
+	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent:
+		e = &events.SCIMResourceEvent{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}

@@ -302,7 +302,7 @@ func (x *UpdateSCIMResourceRequest) GetResource() *Resource {
 	return nil
 }
 
-// DeleteSCIMResourceRequest describes a request to delete a SCIM-mamanged
+// DeleteSCIMResourceRequest describes a request to delete a SCIM-mananged
 // resource
 type DeleteSCIMResourceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
