@@ -609,6 +609,8 @@ func (t *TLSServer) startHeartbeat(name string) error {
 		Announcer:       t.TLSServerConfig.AuthClient,
 		GetResource:     func(context.Context) (*types.KubernetesServerV3, error) { return t.GetServerInfo(name) },
 		OnHeartbeat:     t.TLSServerConfig.OnHeartbeat,
+		// TODO(rana): REMOVE -- TESTING ONLY
+		AnnounceInterval: 15 * time.Second,
 	})
 	if err != nil {
 		return trace.Wrap(err)
