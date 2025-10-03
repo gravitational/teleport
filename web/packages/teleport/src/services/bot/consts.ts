@@ -163,3 +163,12 @@ export function canUseV1Edit(req: EditBotRequest) {
     return true;
   });
 }
+
+export function canUseV2Edit(req: EditBotRequest) {
+  return Object.entries(req).every(([key, value]) => {
+    if (!['roles', 'traits', 'max_session_ttl'].includes(key)) {
+      return value === null || value === undefined;
+    }
+    return true;
+  });
+}

@@ -131,4 +131,6 @@ export type EditBotRequest = {
   traits?: ApiBotTrait[] | null;
   // max_session_ttl is the maximum session TTL
   max_session_ttl?: string | null;
+  // description is the bot's metadata description
+  description?: string | null;
 };
