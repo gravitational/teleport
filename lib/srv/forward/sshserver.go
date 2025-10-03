@@ -574,6 +574,10 @@ func (s *Server) Serve() {
 	config.KeyExchanges = s.kexAlgorithms
 	config.MACs = s.macAlgorithms
 
+	// Set the server version to Teleport to enable tracing and other Teleport
+	// specific features like joining.
+	config.ServerVersion = sshutils.SSHVersionPrefix
+
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
 		s.logger.ErrorContext(s.Context(), "Unable to fetch cluster config", "error", err)
