@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ const (
 // migrateV1AndUpdateConfig launches migration process and add migrated
 // tools to configuration file.
 func migrateV1AndUpdateConfig(toolsDir string, tools []string) error {
-	if err := updateToolsConfig(toolsDir, func(ctc *ClientToolsConfig) error {
+	if err := UpdateToolsConfig(toolsDir, func(ctc *ClientToolsConfig) error {
 		migratedTools, err := migrateV1(toolsDir, tools)
 		if err != nil {
 			return trace.Wrap(err)
@@ -106,6 +107,8 @@ func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
 			} else {
 				migratedTools[toolVersion] = Tool{
 					Version: toolVersion,
+					OS:      runtime.GOOS,
+					Arch:    runtime.GOARCH,
 					PathMap: map[string]string{tool: filepath.Join(newPkg, relPath)},
 				}
 			}
@@ -129,6 +132,8 @@ func migrateV1(toolsDir string, tools []string) (map[string]Tool, error) {
 			}
 			migratedTools[toolVersion] = Tool{
 				Version: toolVersion,
+				OS:      runtime.GOOS,
+				Arch:    runtime.GOARCH,
 				PathMap: map[string]string{tool: filepath.Join(newPkg, tool)},
 			}
 		}
