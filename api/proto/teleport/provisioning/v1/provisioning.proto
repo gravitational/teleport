@@ -98,17 +98,17 @@ message PrincipalStateStatus {
   // principal
   string external_id = 2;
 
-  // LastProvisioned records the last time this record was provisioined into
+  // LastProvisioned records the last time this record was provisioned into
   // the downstream system.
   google.protobuf.Timestamp last_provisioned = 3;
 
-  // Error holds a description of the last provisioing error, if any.
+  // Error holds a description of the last provisioning error, if any.
   string error = 4;
 
   // Revision holds the revision of the principal record provisioned into the
   // downstream system. Used to assert that the latest revision of the principal
   // is provisioned downstream and detect changes in the principal that require
-  // re-provisoning.
+  // re-provisioning.
   string provisioned_principal_revision = 6;
 
   // ActiveLocks holds the list of known active locks on the principal. Used to
