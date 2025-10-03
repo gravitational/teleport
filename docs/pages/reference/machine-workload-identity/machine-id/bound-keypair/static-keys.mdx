@@ -59,7 +59,7 @@ environment.
 - The `tsh`, `tctl`, and `tbot` clients.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Install `tbot`
+## Step 1/7. Install `tbot`
 
 **This step is completed on the bot host.**
 
@@ -70,13 +70,13 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/6. Create a Bot
+## Step 2/7. Create a Bot
 
 **This step is completed on your local machine.**
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/6. Create a keypair and a join token
+## Step 3/7. Create a keypair and a join token
 
 **This step is completed on your local machine.**
 
@@ -132,7 +132,7 @@ Configure your bot to use this static key by inserting the following private key
 value into the bot's environment, ideally via a platform-specific keystore if
 available:
 
-	export TBOT_BOUND_KEYPAIR_STATIC_KEY="<Var name="private key"/>"
+	export TBOT_BOUND_KEYPAIR_STATIC_KEY="<...encoded private key...>"
 
 Note that bots joined with static tokens do not support keypair rotation and
 will be unable to join if a rotation is requested server-side via the token's
@@ -153,7 +153,7 @@ kind: token
 metadata:
   name: example-token
 spec:
-  bot_name: example-bot
+  bot_name: example
   bound_keypair:
   onboarding:
     initial_public_key: <Var name="public key"/>
@@ -174,11 +174,38 @@ When ready, create the join token in your Teleport cluster using `tctl`:
 $ tctl create -f token.yaml
 ```
 
-## Step 4/5. Store the private key
+## Step 4/7. Store the private key
 
-Next, use the
+Now that you've generated the private key, it needs to be stored and made
+available to your job. Exactly how to do this will depend on your provider and
+environment, as well as whether you'll be using an environment variable or file.
 
-## Step 5/6. Configure `tbot`
+### Storing the key in a file on the bot host
+
+Copy the generated private key from your local machine to the bot host via any
+supported means. This might be as simple as copying via `scp`, copying and
+pasting the file contents, or any other process.
+
+Take care to ensure the resulting file on the bot host will only be readable by
+the account that will run the `tbot` process.
+
+### Storing the key in an environment variable
+
+If using an environment variable, depending on your platform and environment,
+you'll likely want to store the key in a platform-specific keystore - such that
+the environment variable is set on the bot host when it starts - rather than
+on the bot host directly.
+
+Regardless of backend, set the variable as follows:
+- Name: `TBOT_BOUND_KEYPAIR_STATIC_KEY`
+- Value: the base64-encoded value as printed by `tbot keypair create --static ...`
+
+The value is the same content that would otherwise be written to a file if you'd
+used `tbot keypair create ... --static --static-key-path /path/to/key`, but the
+content has been base64 encoded to simplify use as an environment variable
+value.
+
+## Step 5/7. Configure `tbot`
 
 **This step is completed on the bot host.**
 
@@ -194,7 +221,7 @@ version: v2
 proxy_server: <Var name="example.teleport.sh"/>:443
 onboarding:
   join_method: bound_keypair
-  token: example
+  token: example-token
 storage:
   type: directory
   path: /var/lib/teleport/bot
@@ -231,9 +258,21 @@ available and save the file.
 
 ## Step 6/7. Verify `tbot` can authenticate to Teleport
 
-TODO
+Run `tbot` using the `tbot.yaml` you created, and ensure the private key is
+available as expected, either via file (at the path you configured earlier) or
+via the environment in `$TBOT_BOUND_KEYPAIR_STATIC_KEY`:
 
-## Step 6/6. Configure outputs
+```code
+$ tbot start -c /etc/tbot.yaml --oneshot
+```
+
+If everything has been setup correctly, `tbot` should run, authenticate with
+Teleport, and exit cleanly. In production, you can remove the `--oneshot` flag
+if you want `tbot` to continually provide updated certificates for
+longer-running jobs, otherwise the certificates issued will expire eventually
+(1 hour by default).
+
+## Step 7/7. Configure outputs
 
 (!docs/pages/includes/machine-id/configure-outputs.mdx!)
 
