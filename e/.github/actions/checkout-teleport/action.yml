@@ -102,7 +102,7 @@ runs:
     - id: fetch-token
       if: inputs.repo-access-app-id && inputs.repo-access-app-key && inputs.oss-teleport-repo != 'gravitational/teleport'
       name: Fetch installation token
-      uses: actions/create-github-app-token@v1
+      uses: actions/create-github-app-token@v2
       continue-on-error: true
       with:
         app-id: ${{ inputs.repo-access-app-id }}
