@@ -318,15 +318,15 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 }
 
 type packCfg struct {
-	memoryBackend bool
-	ignoreKinds   []types.WatchKind
+	withSQLite  bool
+	ignoreKinds []types.WatchKind
 }
 
 type packOption func(cfg *packCfg)
 
-func memoryBackend(bool) packOption {
+func withSQLiteBackend() packOption {
 	return func(cfg *packCfg) {
-		cfg.memoryBackend = true
+		cfg.withSQLite = true
 	}
 }
 
@@ -351,15 +351,15 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	var bk backend.Backend
 	var err error
-	if cfg.memoryBackend {
-		bk, err = memory.New(memory.Config{
-			Context: ctx,
-			Mirror:  true,
-		})
-	} else {
+	if cfg.withSQLite {
 		bk, err = lite.NewWithConfig(ctx, lite.Config{
 			Path:             p.dataDir,
 			PollStreamPeriod: 200 * time.Millisecond,
+		})
+	} else {
+		bk, err = memory.New(memory.Config{
+			Context: ctx,
+			Mirror:  true,
 		})
 	}
 	if err != nil {
@@ -1001,7 +1001,7 @@ cpu: Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz
 BenchmarkListResourcesWithSort-8               1        2351035036 ns/op
 */
 func BenchmarkListResourcesWithSort(b *testing.B) {
-	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	p, err := newPack(b.TempDir(), ForAuth)
 	require.NoError(b, err)
 	defer p.Close()
 

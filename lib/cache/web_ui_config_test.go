@@ -25,7 +25,7 @@ import (
 func TestWebUIConfig(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForProxy)
+	p := newTestPack(t, ForProxy, withSQLiteBackend())
 	t.Cleanup(p.Close)
 
 	testResources(t, p, testFuncs[types.UIConfig]{
