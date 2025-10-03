@@ -149,5 +149,5 @@ const ContentContainer = styled.div`
 const YamlContaner = styled(Flex)`
   flex: 1;
   border-radius: ${props => props.theme.space[2]}px;
-  background-color: ${({ theme }) => theme.colors.levels.elevated};
+  background-color: ${({ theme }) => theme.colors.levels.surface};
 `;
