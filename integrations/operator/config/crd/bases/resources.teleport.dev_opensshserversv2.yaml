@@ -122,6 +122,17 @@ spec:
                   type: string
                 nullable: true
                 type: array
+              relay_group:
+                description: the name of the Relay group that the server is connected
+                  to
+                type: string
+              relay_ids:
+                description: the list of Relay host IDs that the server is connected
+                  to
+                items:
+                  type: string
+                nullable: true
+                type: array
               rotation:
                 description: Rotation specifies server rotation
                 properties:
