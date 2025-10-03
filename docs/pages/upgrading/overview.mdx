@@ -18,13 +18,22 @@ Teleport cluster while preserving compatibility.
 
 (!docs/pages/includes/compatibility.mdx!)
 
+You can think of Teleport cluster components in three tiers:
+1. The Auth Service is expected to be the newest component in the cluster.
+   For this reason it should always be the first component that is upgraded.
+2. The Proxy Service is expected to run a version less than or equal to the
+   Auth Service. The Proxy Service should never run a version newer than the
+   Auth Service.
+3. Other Teleport agents (SSH Service, Database Service, etc.) should always
+   run a version less than or equal to the Proxy Service.
+
 In Teleport Enterprise Cloud, we manage the Auth Service and Proxy Service for
 you. You can determine the current version of these services by running the
 following command, where `mytenant` is the name of your Teleport Enterprise
 Cloud tenant:
 
 ```code
-$ curl -s https://mytenant.teleport.sh/webapi/ping | jq '.server_version'
+$ curl -s https://mytenant.teleport.sh/webapi/find | jq '.server_version'
 ```
 
 ## Upgrading a self-hosted Teleport cluster
@@ -36,9 +45,9 @@ Teleport cluster.
 <Admonition type="warning">
   If you are upgrading more then one major version, you must repeat the
   following steps for each major version until you reach your target version.
-  For example, if your cluster is on v10 and you wish to upgrade to v13, you
-  must first follow the sequence below for v11, then v12, before finally upgrading
-  to v13. You must not upgrade directly from v10 to v13.
+  For example, if your cluster is on v15 and you wish to upgrade to v18, you
+  must first follow the sequence below for v16, then v17, before finally upgrading
+  to v18. You must not upgrade directly from v15 to v18.
 </Admonition>
 
 1. Back up your Teleport cluster state as a precaution against any unforeseen
@@ -48,14 +57,19 @@ Teleport cluster.
 1. Upgrade all **Auth Service** instances to the **target version first**.
    Auth Service instances may be upgraded in any sequence or at the same time. After
    the upgrade **confirm** that the cluster is in a healthy state before continuing.
-1. Upgrade Proxy Service instances to the same version as the Auth
-   Service. Proxy Service instances are stateless and can be upgraded in any
-   sequence or at the same time. After the upgrade **confirm** that the cluster
-   is in a healthy state before continuing.
-1. Upgrade your Teleport Agents to the same version as the Auth Service.
-   You can upgrade resource agents in any sequence or at the same time. After the
+1. After all Auth Service instances are running the target version, upgrade Proxy Service instances
+   to the same version as the Auth Service. Proxy Service instances are
+   stateless and can be upgraded in any sequence or at the same time. After the
    upgrade **confirm** that the cluster is in a healthy state before continuing.
+1. After all Proxy Service instances are running the target version, upgrade
+   your Teleport Agents to the same version as the Auth Service. You can upgrade
+   agents in any sequence or at the same time. After the upgrade **confirm**
+   that the cluster is in a healthy state before continuing.
 1. Upgrade your Teleport clients and plugins (tctl, tsh, tbot, terraform-provider, event-handler, etc.).
+
+By following this process, your agents will never get ahead of your control
+plane components (even within the same major/patch version), ensuring that all
+expected APIs and migrations will be available by the time the agents upgrade.
 
 ## Upgrading multiple Teleport clusters
 
