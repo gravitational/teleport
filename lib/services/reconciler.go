@@ -137,6 +137,8 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 		}
 	}
 
+	// TODO(zmb3): with a large number of resources, this can return a lengthy
+	// error message that is difficult to parse
 	return trace.NewAggregate(errs...)
 }
 
@@ -153,7 +155,7 @@ func (r *GenericReconciler[K, T]) processRegisteredResource(ctx context.Context,
 		return trace.Wrap(err)
 	}
 	r.logger.InfoContext(ctx, "Resource was removed, deleting", "kind", kind, "name", key)
-	if err := r.cfg.OnDelete(ctx, registered); err != nil {
+	if err := r.cfg.OnDelete(ctx, registered); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err, "failed to delete  %v %v", kind, key)
 	}
 
@@ -215,7 +217,7 @@ func (r *GenericReconciler[K, T]) processNewResource(ctx context.Context, curren
 			return nil
 		}
 		r.logger.InfoContext(ctx, "Existing resource updated and no longer matches, deleting", "name", key)
-		if err := r.cfg.OnDelete(ctx, registered); err != nil {
+		if err := r.cfg.OnDelete(ctx, registered); err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err, "failed to delete %v %v", kind, key)
 		}
 		return nil
