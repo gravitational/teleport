@@ -362,11 +362,17 @@ message DatabaseAdminUser {
   string DefaultDatabase = 2 [(gogoproto.jsontag) = "default_database"];
 }
 
-// OracleOptions contains information about privileged database user used
-// for database audit.
+// OracleOptions contains Oracle-specific configuration options.
 message OracleOptions {
-  // AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
-  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user"];
+  // AuditUser is the name of the Oracle database user that should be used to access
+  // the internal audit trail.
+  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user,omitempty"];
+  // RetryCount is the maximum number of times to retry connecting to a
+  // host upon failure. Defaults to 3 if not specified.
+  int32 RetryCount = 2 [(gogoproto.jsontag) = "retry_count,omitempty"];
+  // ShuffleHostnames, when true, randomizes the order of hosts to connect to from
+  // the provided list.
+  bool ShuffleHostnames = 3 [(gogoproto.jsontag) = "shuffle_hostnames,omitempty"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
