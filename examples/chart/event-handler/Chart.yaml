@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev"
+.version: &version "19.0.0-dev.camh.gha.node24.1"
 
 apiVersion: v2
 name: teleport-plugin-event-handler
