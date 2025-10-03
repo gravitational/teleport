@@ -2069,99 +2069,35 @@ export type RawEvents = {
       error: string;
     }
   >;
-  [eventCodes.SCIM_RESOURCE_LIST]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_LIST,
-    { 
-      integration: string;
-      resource_type: string;
-    }
+  [eventCodes.SCIM_RESOURCE_LIST]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST
   >;
-  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_LIST_FAILURE,
-    { 
-      integration: string;
-      resource_type: string;
-    }
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST_FAILURE
   >;
-  [eventCodes.SCIM_RESOURCE_GET]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_GET,
-    {
-      integration: string;
-      resource_type: string;
-      external_id: string;
-      teleport_id: string;
-      display: string;
-    }
+  [eventCodes.SCIM_RESOURCE_GET]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET
   >;
-  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_GET_FAILURE,
-    {
-      integration: string;
-      resource_type: string;
-      external_id: string;
-      teleport_id: string;
-      display: string;
-    }
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET_FAILURE
   >;
-  [eventCodes.SCIM_RESOURCE_CREATE]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_CREATE,
-    {
-      integration: string;
-      resource_type: string;
-      external_id: string;
-      teleport_id: string;
-      display: string;
-    }
+  [eventCodes.SCIM_RESOURCE_CREATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE
   >;
-  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_CREATE_FAILURE,
-    {
-      integration: string;
-      resource_type: string;
-      external_id: string;
-      teleport_id: string;
-      display: string;
-    }
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE_FAILURE
   >;
-  [eventCodes.SCIM_RESOURCE_UPDATE]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_UPDATE,
-    {
-      integration: string;
-      resource_type: string;
-      external_id: string;
-      teleport_id: string;
-      display: string;
-    }
+  [eventCodes.SCIM_RESOURCE_UPDATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE
   >;
-  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE,
-    {
-      integration: string;
-      resource_type: string;
-      external_id: string;
-      teleport_id: string;
-      display: string;
-    }
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE
   >;
-    [eventCodes.SCIM_RESOURCE_DELETE]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_DELETE,
-    {
-      integration: string;
-      resource_type: string;
-      external_id: string;
-      teleport_id: string;
-      display: string;
-    }
+  [eventCodes.SCIM_RESOURCE_DELETE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE
   >;
-  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawEvent<
-    typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE,
-    {
-      integration: string;
-      resource_type: string;
-      external_id: string;
-      teleport_id: string;
-      display: string;
-    }
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE
   >;
 };
 

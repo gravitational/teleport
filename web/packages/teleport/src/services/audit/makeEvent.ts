@@ -2341,25 +2341,25 @@ export const formatters: Formatters = {
       return `Bound keypair token [${token_name}] failed to verify a join attempt: ${error}`;
     },
   },
-  [eventCodes.SCIM_RESOURCE_LIST]:{
-      type: 'scim.list',
+  [eventCodes.SCIM_RESOURCE_LIST]: {
+    type: 'scim.list',
     desc: 'SCIM Resource Listing Succeeded',
     format: ({ integration, resource_type }) =>
       `[${integration}] [${resource_type}] listing succeeded`,
   },
-  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]:{
-      type: 'scim.list',
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: {
+    type: 'scim.list',
     desc: 'SCIM Resource Listing Failed',
     format: ({ integration, resource_type }) =>
       `[${integration}] [${resource_type}] listing failed`,
   },
-  [eventCodes.SCIM_RESOURCE_GET]:{
+  [eventCodes.SCIM_RESOURCE_GET]: {
     type: 'scim.get',
     desc: 'SCIM Resource Fetch Succeeded',
     format: ({ integration, resource_type, teleport_id, external_id }) =>
       `Fetching Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] succeeded`,
   },
-  [eventCodes.SCIM_RESOURCE_GET_FAILURE]:{
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: {
     type: 'scim.get',
     desc: 'SCIM Resource Fetch Failed',
     format: ({ integration, resource_type, teleport_id, external_id }) =>

@@ -4235,7 +4235,7 @@ export const events = [
     cluster: 'dev',
     code: 'TSCIM005I',
     event: 'scim.list',
-    success: true,    
+    success: true,
     integration: 'okta',
     resource_type: 'user',
     teleport_id: 'root@localhost',
@@ -4250,25 +4250,23 @@ export const events = [
     event: 'scim.create',
     success: true,
     request: {
-      id: "ff5cea87-db00-4fa8-a30f-99f220f61075",
-      source_address: "127.0.0.1",
-      user_agent: "carrier pigeon",
-      method: "PUT",
-      path: "/scim/v2/Users",
+      id: 'ff5cea87-db00-4fa8-a30f-99f220f61075',
+      source_address: '127.0.0.1',
+      user_agent: 'carrier pigeon',
+      method: 'PUT',
+      path: '/scim/v2/Users',
       body: {
         active: true,
-        id: "external-id-0987654321",
-        nickName: "bofh",
-        schemas: [
-          "urn:ietf:params:scim:schemas:core:2.0:User"
-        ],
-        "userName": "root@localhost"
+        id: 'external-id-0987654321',
+        nickName: 'bofh',
+        schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
+        userName: 'root@localhost',
       },
     },
     integration: 'okta',
     resource_type: 'user',
-    external_id: "external-id-0987654321",
-    teleport_id: "root@localhost"
+    external_id: 'external-id-0987654321',
+    teleport_id: 'root@localhost',
   },
   {
     time: '2023-05-08T19:21:36.144Z',
