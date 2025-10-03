@@ -106,6 +106,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAutoUpdateAgentRolloutParser()
 		case types.KindAutoUpdateAgentReport:
 			parser = newAutoUpdateAgentReportParser()
+		case types.KindAutoUpdateBotInstanceReport:
+			parser = newAutoUpdateBotInstanceReportParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -906,6 +908,45 @@ func (p *autoUpdateAgentReportParser) parse(event backend.Event) (types.Resource
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(autoUpdateAgentReport), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateBotInstanceReportParser() *autoUpdateBotInstanceReportParser {
+	return &autoUpdateBotInstanceReportParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateBotInstanceReportPrefix)),
+	}
+}
+
+type autoUpdateBotInstanceReportParser struct {
+	baseParser
+}
+
+func (p *autoUpdateBotInstanceReportParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(autoUpdateBotInstanceReportPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindAutoUpdateBotInstanceReport,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		autoUpdateBotInstanceReport, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateBotInstanceReport](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateBotInstanceReport), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

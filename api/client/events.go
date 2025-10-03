@@ -130,6 +130,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AutoUpdateAgentReport{
 			AutoUpdateAgentReport: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*autoupdate.AutoUpdateBotInstanceReport]:
+		out.Resource = &proto.Event_AutoUpdateBotInstanceReport{
+			AutoUpdateBotInstanceReport: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
 		out.Resource = &proto.Event_ScopedRole{
 			ScopedRole: r.UnwrapT(),
@@ -632,6 +636,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateAgentReport(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateBotInstanceReport(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetScopedRole(); r != nil {

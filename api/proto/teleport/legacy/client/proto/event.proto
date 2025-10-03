@@ -232,5 +232,7 @@ message Event {
     teleport.recordingencryption.v1.RecordingEncryption RecordingEncryption = 83;
     // PluginV1 is a resource for Teleport plugins.
     types.PluginV1 plugin = 84;
+    // AutoUpdateAgentReport is a resource for counting connected bot instances.
+    teleport.autoupdate.v1.AutoUpdateBotInstanceReport AutoUpdateBotInstanceReport = 85;
   }
 }

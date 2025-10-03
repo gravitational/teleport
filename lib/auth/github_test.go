@@ -89,6 +89,7 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 	tt.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)

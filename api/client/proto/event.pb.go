@@ -199,6 +199,7 @@ type Event struct {
 	//	*Event_RelayServer
 	//	*Event_RecordingEncryption
 	//	*Event_Plugin
+	//	*Event_AutoUpdateBotInstanceReport
 	Resource      isEvent_Resource `protobuf_oneof:"Resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -959,6 +960,15 @@ func (x *Event) GetPlugin() *types.PluginV1 {
 	return nil
 }
 
+func (x *Event) GetAutoUpdateBotInstanceReport() *v111.AutoUpdateBotInstanceReport {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_AutoUpdateBotInstanceReport); ok {
+			return x.AutoUpdateBotInstanceReport
+		}
+	}
+	return nil
+}
+
 type isEvent_Resource interface {
 	isEvent_Resource()
 }
@@ -1363,6 +1373,11 @@ type Event_Plugin struct {
 	Plugin *types.PluginV1 `protobuf:"bytes,84,opt,name=plugin,proto3,oneof"`
 }
 
+type Event_AutoUpdateBotInstanceReport struct {
+	// AutoUpdateAgentReport is a resource for counting connected bot instances.
+	AutoUpdateBotInstanceReport *v111.AutoUpdateBotInstanceReport `protobuf:"bytes,85,opt,name=AutoUpdateBotInstanceReport,proto3,oneof"`
+}
+
 func (*Event_ResourceHeader) isEvent_Resource() {}
 
 func (*Event_CertAuthority) isEvent_Resource() {}
@@ -1521,11 +1536,13 @@ func (*Event_RecordingEncryption) isEvent_Resource() {}
 
 func (*Event_Plugin) isEvent_Resource() {}
 
+func (*Event_AutoUpdateBotInstanceReport) isEvent_Resource() {}
+
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xea/\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xe30\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -1619,7 +1636,8 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\x14ScopedRoleAssignment\x18Q \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentH\x00R\x14ScopedRoleAssignment\x12F\n" +
 	"\frelay_server\x18R \x01(\v2!.teleport.presence.v1.RelayServerH\x00R\vrelayServer\x12h\n" +
 	"\x13RecordingEncryption\x18S \x01(\v24.teleport.recordingencryption.v1.RecordingEncryptionH\x00R\x13RecordingEncryption\x12)\n" +
-	"\x06plugin\x18T \x01(\v2\x0f.types.PluginV1H\x00R\x06pluginB\n" +
+	"\x06plugin\x18T \x01(\v2\x0f.types.PluginV1H\x00R\x06plugin\x12w\n" +
+	"\x1bAutoUpdateBotInstanceReport\x18U \x01(\v23.teleport.autoupdate.v1.AutoUpdateBotInstanceReportH\x00R\x1bAutoUpdateBotInstanceReportB\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10ER\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlan**\n" +
 	"\tOperation\x12\b\n" +
@@ -1721,6 +1739,7 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v118.RelayServer)(nil),                    // 75: teleport.presence.v1.RelayServer
 	(*v119.RecordingEncryption)(nil),            // 76: teleport.recordingencryption.v1.RecordingEncryption
 	(*types.PluginV1)(nil),                      // 77: types.PluginV1
+	(*v111.AutoUpdateBotInstanceReport)(nil),    // 78: teleport.autoupdate.v1.AutoUpdateBotInstanceReport
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -1803,11 +1822,12 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	75, // 77: proto.Event.relay_server:type_name -> teleport.presence.v1.RelayServer
 	76, // 78: proto.Event.RecordingEncryption:type_name -> teleport.recordingencryption.v1.RecordingEncryption
 	77, // 79: proto.Event.plugin:type_name -> types.PluginV1
-	80, // [80:80] is the sub-list for method output_type
-	80, // [80:80] is the sub-list for method input_type
-	80, // [80:80] is the sub-list for extension type_name
-	80, // [80:80] is the sub-list for extension extendee
-	0,  // [0:80] is the sub-list for field type_name
+	78, // 80: proto.Event.AutoUpdateBotInstanceReport:type_name -> teleport.autoupdate.v1.AutoUpdateBotInstanceReport
+	81, // [81:81] is the sub-list for method output_type
+	81, // [81:81] is the sub-list for method input_type
+	81, // [81:81] is the sub-list for extension type_name
+	81, // [81:81] is the sub-list for extension extendee
+	0,  // [0:81] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -1895,6 +1915,7 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*Event_RelayServer)(nil),
 		(*Event_RecordingEncryption)(nil),
 		(*Event_Plugin)(nil),
+		(*Event_AutoUpdateBotInstanceReport)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
