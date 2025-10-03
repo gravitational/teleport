@@ -528,7 +528,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"retry_count": {
-							Description: "RetryCount is the maximum number of times to retry connecting to a host upon failure. Defaults to 3 if not specified.",
+							Description: "RetryCount is the maximum number of times to retry connecting to a host upon failure. If not specified it defaults to 2, for a total of 3 connection attempts.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
