@@ -671,7 +671,7 @@ type Config struct {
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
-	WebToken types.WebTokenInterface
+	WebToken services.WebToken
 	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// DynamicWindowsDesktops is a dynamic Windows desktop service.
