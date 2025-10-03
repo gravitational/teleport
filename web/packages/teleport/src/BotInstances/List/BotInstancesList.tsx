@@ -96,6 +96,7 @@ function InternalBotInstancesList(
           onChange={value => {
             onSortChanged(value.fieldName, value.dir);
           }}
+          alternateIcons
         />
       </TitleContainer>
 
