@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"net/url"
@@ -1620,32 +1621,64 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 		}, nil
 	}
 
-	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
-		log.DebugContext(ctx, "Using provided host", "host", tc.Host)
+	host := tc.Host
+	port := strconv.Itoa(tc.HostPort)
+	predExpr := tc.PredicateExpression
+	search := tc.SearchKeywords
+
+	// Apply proxy templates.
+	expanded, matched := tc.ProxyTemplates.Apply(net.JoinHostPort(host, port))
+	if matched {
+		log.DebugContext(ctx, "Matched proxy template for host",
+			"matched_host", host,
+			slog.Group("expanded",
+				"host", expanded.Host,
+				"query", expanded.Query,
+				"search", expanded.Search,
+			),
+		)
+		// Expanded template should override all previous search criteria.
+		host = ""
+		predExpr = ""
+		search = nil
+		if expanded.Host != "" {
+			host = expanded.Host
+			if expandedHost, expandedPort, err := net.SplitHostPort(expanded.Host); err == nil {
+				host = expandedHost
+				port = expandedPort
+			}
+		} else if expanded.Query != "" {
+			predExpr = expanded.Query
+		} else if expanded.Search != "" {
+			search = ParseSearchKeywords(expanded.Search, ',')
+		}
+	}
+
+	if len(tc.Labels) == 0 && len(search) == 0 && predExpr == "" {
+		log.DebugContext(ctx, "Using provided host", "host", host)
 
 		// detect the common error when users use host:port address format
-		_, port, err := net.SplitHostPort(tc.Host)
+		_, badPort, err := net.SplitHostPort(host)
 		// client has used host:port notation
 		if err == nil {
-			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
+			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", badPort)
 		}
 
-		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
 		return &TargetNode{
-			Hostname: tc.Host,
-			Addr:     addr,
+			Hostname: host,
+			Addr:     net.JoinHostPort(host, port),
 		}, nil
 	}
 
 	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
 	log.DebugContext(ctx, "Attempting to resolve matching host",
 		"labels", tc.Labels,
-		"search", tc.SearchKeywords,
-		"predicate", tc.PredicateExpression,
+		"search", search,
+		"predicate", predExpr,
 	)
 	resp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
-		PredicateExpression: tc.PredicateExpression,
-		SearchKeywords:      tc.SearchKeywords,
+		PredicateExpression: predExpr,
+		SearchKeywords:      search,
 		Labels:              tc.Labels,
 	})
 	switch {
@@ -1655,8 +1688,8 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 			Kinds:               []string{types.KindNode},
 			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
 			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
+			SearchKeywords:      search,
+			PredicateExpression: predExpr,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2620,38 +2653,6 @@ type SFTPRequest struct {
 	ProgressWriter io.Writer
 }
 
-func (tc *TeleportClient) setHostPort(fullHost string) error {
-	tc.Host = fullHost
-	if host, port, err := net.SplitHostPort(fullHost); err == nil {
-		tc.Host = host
-		tc.HostPort, err = strconv.Atoi(port)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func (tc *TeleportClient) applyProxyTemplates(fullHost string) error {
-	// Clear existing search criteria.
-	tc.Host = ""
-	tc.PredicateExpression = ""
-	tc.SearchKeywords = nil
-	expanded, matched := tc.ProxyTemplates.Apply(fullHost)
-	if !matched {
-		// Use provided host as-is.
-		return trace.Wrap(tc.setHostPort(fullHost))
-	}
-	if expanded.Host != "" {
-		return trace.Wrap(tc.setHostPort(expanded.Host))
-	} else if expanded.Query != "" {
-		tc.PredicateExpression = expanded.Query
-	} else if expanded.Search != "" {
-		tc.SearchKeywords = ParseSearchKeywords(expanded.Search, ',')
-	}
-	return nil
-}
-
 // SFTP securely copies files between Nodes or SSH servers using SFTP.
 func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
 	ctx, span := tc.Tracer.Start(
@@ -2675,9 +2676,7 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
 	}
 	if sources.Addr != nil {
 		// Respect any proxy templates and attempt host resolution.
-		if err := tc.applyProxyTemplates(sources.AddrString()); err != nil {
-			return trace.Wrap(err)
-		}
+		tc.Host = sources.Addr.Host()
 		target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2693,9 +2692,7 @@ func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
 	}
 	if dest.Addr != nil {
 		// Respect any proxy templates and attempt host resolution.
-		if err := tc.applyProxyTemplates(dest.AddrString()); err != nil {
-			return trace.Wrap(err)
-		}
+		tc.Host = dest.Addr.Host()
 		target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
 		if err != nil {
 			return trace.Wrap(err)

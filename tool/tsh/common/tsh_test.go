@@ -7025,7 +7025,7 @@ func TestSCP(t *testing.T) {
 	})
 
 	// Create a second server to test ambiguous matching.
-	secondServerHostname := "second-node"
+	const secondServerHostname = "second-node"
 	server, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SetAuthServerAddresses(rootServer.Config.AuthServerAddresses())
