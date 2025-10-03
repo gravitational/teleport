@@ -658,6 +658,7 @@
     "loadbalancer",
     "localca",
     "localinstall",
+    "localproxy",
     "loginerrortroubleshooting",
     "loginrule",
     "loginrules",
