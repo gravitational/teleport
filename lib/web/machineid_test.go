@@ -1231,6 +1231,7 @@ func TestBotInstanceMetrics_Success(t *testing.T) {
 				},
 			},
 		})
+	require.NoError(t, err)
 
 	err = env.server.Auth().
 		SetAutoUpdateBotInstanceReport(ctx, &autoupdate.AutoUpdateBotInstanceReportSpec{
