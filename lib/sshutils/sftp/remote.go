@@ -61,7 +61,7 @@ func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moder
 	// TODO(Joerger): DELETE IN v20.0.0 - moderated session ID is provided
 	// in the session channel params above instead of indirectly through env vars.
 	if moderatedSessionID != "" {
-		s.Setenv(ctx, string(ModeratedSessionID), moderatedSessionID)
+		s.Setenv(ctx, EnvModeratedSessionID, moderatedSessionID)
 	}
 
 	pe, err := s.StderrPipe()
