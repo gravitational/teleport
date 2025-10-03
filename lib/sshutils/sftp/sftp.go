@@ -39,9 +39,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	"github.com/schollz/progressbar/v3"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
@@ -307,24 +307,29 @@ func (c *Config) setDefaults() {
 
 // TransferFiles transfers files from the configured source paths to the
 // configured destination path over SFTP or HTTP depending on the Config.
-func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error {
-	s, err := sshClient.NewSession()
+// moderatedSessionID must be provided for filetransfers in a moderated session.
+func (c *Config) TransferFiles(ctx context.Context, sshClient *tracessh.Client, moderatedSessionID string) error {
+	s, err := sshClient.NewSessionWithParams(ctx, &tracessh.SessionParams{
+		// File transfers in a moderated session require this variable
+		// to check for approval on the ssh server
+		ModeratedSessionID: moderatedSessionID,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer s.Close()
 
-	// File transfers in a moderated session require this variable
-	// to check for approval on the ssh server
-	if moderatedSessionID, ok := ctx.Value(ModeratedSessionID).(string); ok {
-		s.Setenv(string(ModeratedSessionID), moderatedSessionID)
+	// TODO(Joerger): DELETE IN v20.0.0 - moderated session ID is provided
+	// in the session channel params above instead of indirectly through env vars.
+	if moderatedSessionID != "" {
+		s.Setenv(ctx, EnvModeratedSessionID, moderatedSessionID)
 	}
 
 	pe, err := s.StderrPipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.RequestSubsystem(teleport.SFTPSubsystem); err != nil {
+	if err := s.RequestSubsystem(ctx, teleport.SFTPSubsystem); err != nil {
 		// If the subsystem request failed and a generic error is
 		// returned, return the session's stderr as the error if it's
 		// non-empty, as the session's stderr may have a more useful

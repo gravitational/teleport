@@ -165,7 +165,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 
 			// new exec request context
 			scx := newTestServerContext(t, reg.Srv, accessRoleSet, &decisionpb.SSHAccessPermit{})
-			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
+			scx.SetEnv(sftp.EnvModeratedSessionID, sess.ID())
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())
@@ -710,9 +710,9 @@ func TestParties(t *testing.T) {
 	// Create a session with 3 parties
 	sess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
 	require.Len(t, sess.getParties(), 1)
-	testJoinSession(t, reg, sess)
+	testJoinSession(t, reg, sess.ID())
 	require.Len(t, sess.getParties(), 2)
-	testJoinSession(t, reg, sess)
+	testJoinSession(t, reg, sess.ID())
 	require.Len(t, sess.getParties(), 3)
 
 	// If a party leaves, the session should remove the party and continue.
@@ -754,7 +754,7 @@ func TestParties(t *testing.T) {
 	regClock.BlockUntil(2)
 
 	// If a party connects to the lingering session, it will continue.
-	testJoinSession(t, reg, sess)
+	testJoinSession(t, reg, sess.ID())
 	require.Len(t, sess.getParties(), 1)
 
 	// advance clock and give lingerAndDie goroutine a second to complete.
@@ -774,10 +774,9 @@ func TestParties(t *testing.T) {
 	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 }
 
-func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
+func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
 	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
 	sshChanOpen := newMockSSHChannel()
-	scx.setSession(t.Context(), sess, sshChanOpen)
 
 	// Open a new session
 	go func() {
@@ -785,7 +784,7 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 		io.ReadAll(sshChanOpen)
 	}()
 
-	err := reg.JoinSession(t.Context(), sshChanOpen, scx, sess.ID(), types.SessionPeerMode)
+	err := reg.JoinSession(t.Context(), sshChanOpen, scx, sid, types.SessionPeerMode)
 	require.NoError(t, err)
 }
 
