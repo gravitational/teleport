@@ -779,6 +779,37 @@ const (
 	// join_token.bound_keypair.join_state_verification_failed.
 	BoundKeypairJoinStateVerificationFailedCode = "TBK003W"
 
+	// SCIMResourceCreateSuccessCode indicates a resource was successfully
+	// provisioned via SCIM
+	SCIMResourceCreateSuccessCode = "TSCIM001I"
+	// SCIMResourceCreateFailureCode indicates a failed attempt to provision
+	// a resource via SCIM
+	SCIMResourceCreateFailureCode = "TSCIM001E"
+	// SCIMResourceUpdateSuccessCode indicates a resource was successfully
+	// updated via SCIM
+	SCIMResourceUpdateSuccessCode = "TSCIM002I"
+	// SCIMResourceUpdateFailureCode indicates a failed attempt to update
+	// a resource via SCIM
+	SCIMResourceUpdateFailureCode = "TSCIM002E"
+	// SCIMResourceDeleteSuccessCode indicates a resource was successfully
+	// deleted via SCIM
+	SCIMResourceDeleteSuccessCode = "TSCIM003I"
+	// SCIMResourceDeleteFailureCode indicates a indicates a failed attempt to
+	// update a resource via SCIM
+	SCIMResourceDeleteFailureCode = "TSCIM003E"
+	// SCIMGetResourceSuccessCode indicates a resource was successfully fetched
+	// fron Teleport via SCIM
+	SCIMGetResourceSuccessCode = "TSCIM004I"
+	// SCIMGetResourceFailureCode indicates a failed attempt to fetch a
+	// resource via SCIM
+	SCIMGetResourceFailureCode = "TSCIM004E"
+	// SCIMListResourcesSuccessCode indicates a resource listing was successfully fetched
+	// from Teleport via SCIM
+	SCIMListResourcesSuccessCode = "TSCIM005I"
+	// SCIMListResourcesFailureCode indicates a failed attempt to list resources
+	// via SCIM
+	SCIMListResourcesFailureCode = "TSCIM005E"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
