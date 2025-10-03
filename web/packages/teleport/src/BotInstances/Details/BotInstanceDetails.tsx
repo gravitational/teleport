@@ -57,14 +57,14 @@ export function BotInstanceDetails(props: {
   return (
     <Container>
       <TitleContainer>
-        <Flex gap={2} alignItems={'center'}>
-          <HoverTooltip placement="top" tipContent={'Close'}>
-            <ButtonIcon onClick={() => onClose()} aria-label="close">
-              <Cross size="medium" />
-            </ButtonIcon>
-          </HoverTooltip>
-          <TitleText>Resource YAML</TitleText>
-        </Flex>
+        <TitleText>
+          {botName}/{instanceId}
+        </TitleText>
+        <HoverTooltip placement="top" tipContent={'Close'}>
+          <ButtonIcon onClick={() => onClose()} aria-label="close">
+            <Cross size="medium" />
+          </ButtonIcon>
+        </HoverTooltip>
       </TitleContainer>
       <Divider />
       <ContentContainer>
@@ -90,7 +90,7 @@ export function BotInstanceDetails(props: {
         {isSuccess && data.yaml ? (
           <YamlContaner>
             <TextEditor
-              bg="levels.elevated"
+              bg="levels.sunken"
               data={[
                 {
                   content: data.yaml,
@@ -113,6 +113,7 @@ const Container = styled.section`
   border-left-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
   border-left-width: 1px;
   border-left-style: solid;
+  overflow: hidden;
 `;
 
 const TitleContainer = styled(Flex)`
@@ -120,13 +121,18 @@ const TitleContainer = styled(Flex)`
   justify-content: space-between;
   height: ${p => p.theme.space[8]}px;
   padding-left: ${p => p.theme.space[3]}px;
+  padding-right: ${p => p.theme.space[3]}px;
   gap: ${p => p.theme.space[2]}px;
+  overflow: hidden;
 `;
 
 export const TitleText = styled(Text).attrs({
   as: 'h2',
   typography: 'h2',
-})``;
+})`
+  flex: 1;
+  white-space: nowrap;
+`;
 
 const Divider = styled.div`
   height: 1px;

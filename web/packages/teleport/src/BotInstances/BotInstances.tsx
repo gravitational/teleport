@@ -178,7 +178,7 @@ export function BotInstances() {
   return (
     <FeatureBox>
       <FeatureHeader justifyContent="space-between">
-        <FeatureHeaderTitle>Bot instances</FeatureHeaderTitle>
+        <FeatureHeaderTitle>Bot Instances</FeatureHeaderTitle>
         <InfoGuideButton config={{ guide: <InfoGuide /> }} />
       </FeatureHeader>
 

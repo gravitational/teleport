@@ -86,7 +86,7 @@ function InternalBotInstancesList(
   return (
     <Container>
       <TitleContainer>
-        <TitleText>Currently Active</TitleText>
+        <TitleText>Active Instances</TitleText>
         <SortMenu
           current={{
             fieldName: sortField,

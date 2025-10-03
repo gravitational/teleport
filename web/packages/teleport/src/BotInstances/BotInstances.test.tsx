@@ -229,16 +229,20 @@ describe('BotInstances', () => {
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
     expect(
-      screen.queryByRole('heading', { name: 'Resource YAML' })
+      screen.queryByRole('heading', {
+        name: 'test-bot-2/3c3aae3e-de25-4824-a8e9-5a531862f19a',
+      })
     ).not.toBeInTheDocument();
 
-    const item2 = screen.getByRole('listitem', {
+    const item = screen.getByRole('listitem', {
       name: 'test-bot-2/3c3aae3e-de25-4824-a8e9-5a531862f19a',
     });
-    await user.click(item2);
+    await user.click(item);
 
     expect(
-      screen.getByRole('heading', { name: 'Resource YAML' })
+      screen.getByRole('heading', {
+        name: 'test-bot-2/3c3aae3e-de25-4824-a8e9-5a531862f19a',
+      })
     ).toBeInTheDocument();
 
     expect(
