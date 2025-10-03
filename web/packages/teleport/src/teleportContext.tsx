@@ -223,6 +223,7 @@ class TeleportContext implements types.Context {
       gitServers:
         userContext.getGitServersAccess().list &&
         userContext.getGitServersAccess().read,
+      readBotInstances: userContext.getBotInstancesAccess().read,
       listBotInstances: userContext.getBotInstancesAccess().list,
       listWorkloadIdentities: userContext.getWorkloadIdentityAccess().list,
     };
@@ -268,6 +269,7 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   editBots: false,
   removeBots: false,
   gitServers: false,
+  readBotInstances: false,
   listBotInstances: false,
   listWorkloadIdentities: false,
 };

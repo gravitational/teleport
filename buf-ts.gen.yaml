@@ -3,11 +3,6 @@ version: v2
 inputs:
   - directory: .
     paths:
-      - api/proto/teleport/accesslist/
-      - api/proto/teleport/devicetrust/
-      - api/proto/teleport/header/
-      - api/proto/teleport/trait/
-      - api/proto/teleport/legacy/types/trusted_device_requirement.proto
       - api/proto/teleport/userpreferences/
       - proto/prehog/
       - proto/teleport/lib/teleterm/
@@ -33,10 +28,12 @@ plugins:
       - protoc-gen-ts
     out: gen/proto/ts
     opt:
-      # the next time we tweak the ts codegen we should put the options in
-      # alphabetical order
-      - eslint_disable
       - add_pb_suffix
+      - eslint_disable
+      # By default, only the proto files passed as input to protoc are generated, not the files they
+      # import (with the exception of well-known types which are always generated when imported).
+      # generate_dependencies generates code for dependencies too.
+      - generate_dependencies
       - server_grpc1
       - ts_nocheck
     strategy: all
