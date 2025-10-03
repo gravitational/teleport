@@ -54,10 +54,18 @@ message ListSCIMResourcesRequest {
 
   // Filter is an optional filter to apply to any retrieved results.
   string filter = 3;
+
+  // Meta holds information about the original SCIM/HTTP request that triggered
+  // this internal SCIM operation request.
+  RequestMetadata meta = 4;
 }
 
 // GetSCIMResourceRequest describes a request to fetch a specific resource
 message GetSCIMResourceRequest {
+  // Meta holds information about the original SCIM/HTTP request that triggered
+  // this internal SCIM operation request.
+  RequestMetadata meta = 2;
+
   // Target is the owner, type and ID if the resource targeted by the request.
   RequestTarget target = 1;
 }
@@ -65,6 +73,10 @@ message GetSCIMResourceRequest {
 // CreateSCIMResourceRequest contains a request for the SCIM server to create a
 // new resource
 message CreateSCIMResourceRequest {
+  // Meta holds information about the original SCIM/HTTP request that triggered
+  // this internal SCIM operation request.
+  RequestMetadata meta = 3;
+
   // Target is the owner & type of the resource targeted by the request.
   RequestTarget target = 1;
 
@@ -80,6 +92,10 @@ message UpdateSCIMResourceRequest {
   // Resource is a representation of the updated resource that the server needs
   // to conform with
   Resource resource = 2;
+
+  // Meta holds information about the original SCIM/HTTP request that triggered
+  // this internal SCIM operation request.
+  RequestMetadata meta = 3;
 }
 
 // DeleteSCIMResourceRequest describes a request to delete a SCIM-mananged
@@ -87,6 +103,32 @@ message UpdateSCIMResourceRequest {
 message DeleteSCIMResourceRequest {
   // Target is the owner, type and ID if the resource targeted by the request.
   RequestTarget target = 1;
+
+  // Meta holds information about the original SCIM/HTTP request that triggered
+  // this internal SCIM operation request.
+  RequestMetadata meta = 2;
+}
+
+// RequestMetadata holds information about the original SCIM/HTTP request
+message RequestMetadata {
+  // ID is a request ID to be included in all logging related to the handling of
+  // this request
+  string id = 1;
+
+  // SourceAddress is the IP address of the client that made this request
+  string source_address = 2;
+
+  // UserAgent is the UserAgent of the enclosing SCIM request
+  string user_agent = 3;
+
+  // Method is the HTTP method of the enclosing SCIM request
+  string method = 4;
+
+  // Path is the HTTP request path for the enclosing SCIM request
+  string path = 5;
+
+  // Body is a representation of the original request JSON body
+  google.protobuf.Struct body = 6;
 }
 
 // Resource represents an arbitrary SCIM resource, as per RFC7643
