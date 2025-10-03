@@ -313,6 +313,9 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := min(sessionTTL, defaults.BearerTokenTTL)
+	if idleTimeout > 0 {
+		bearerTokenTTL = min(sessionTTL, idleTimeout)
+	}
 
 	startTime := a.clock.Now()
 	if !req.LoginTime.IsZero() {
