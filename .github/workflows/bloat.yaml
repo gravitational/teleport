@@ -12,6 +12,7 @@ on:
     branches:
       - master
       - branch/**
+      - camh/** # remove before merging
 
 jobs:
   bloat_check:
@@ -53,10 +54,10 @@ jobs:
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: actions/create-github-app-token@v1.0.5 # Cannot upgrade past v1.1 while this runs in centos:7 due to nodejs GLIBC incompatibility
+        uses: actions/create-github-app-token@v2
         with:
-          app_id: ${{ secrets.REVIEWERS_APP_ID }}
-          private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Build base
