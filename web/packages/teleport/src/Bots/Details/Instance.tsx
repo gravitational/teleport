@@ -64,7 +64,16 @@ export function Instance(props: {
     <Container
       $isSelectable={!!isSelectable}
       $isSelected={!!isSelected}
-      onClick={() => onSelected?.()}
+      onClick={onSelected ? () => onSelected() : undefined}
+      onKeyUp={
+        onSelected
+          ? event => {
+              if (event.key === 'Enter') {
+                onSelected();
+              }
+            }
+          : undefined
+      }
       role="listitem"
       tabIndex={0}
       aria-label={`${botName}/${id}`}
