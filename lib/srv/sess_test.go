@@ -949,7 +949,7 @@ func TestTrackingSession(t *testing.T) {
 			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
-				require.Equal(t, 0, count)
+				require.Equal(t, 1, count)
 			},
 		},
 		{
@@ -969,7 +969,7 @@ func TestTrackingSession(t *testing.T) {
 			interactive:   true,
 			assertion:     require.NoError,
 			createAssertion: func(t *testing.T, count int) {
-				require.Equal(t, 1, count)
+				require.Equal(t, 0, count)
 			},
 		},
 		{
