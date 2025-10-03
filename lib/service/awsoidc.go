@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -257,23 +258,14 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	}
 
 	sem := semaphore.NewWeighted(maxConcurrentUpdates)
-	var nextToken string
-	for {
-		respIntegrations, respNextToken, err := updater.Cache.ListIntegrations(ctx, 0, nextToken)
+	for integration, err := range clientutils.Resources(ctx, updater.Cache.ListIntegrations) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		for _, ig := range respIntegrations {
-			if err := updater.processIntegration(ctx, sem, awsRegions, ig, stableVersion); err != nil {
-				return trace.Wrap(err)
-			}
+		if err := updater.processIntegration(ctx, sem, awsRegions, integration, stableVersion); err != nil {
+			return trace.Wrap(err)
 		}
-
-		if respNextToken == "" {
-			break
-		}
-		nextToken = respNextToken
 	}
 
 	// Wait for all updates to finish.
