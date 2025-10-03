@@ -2605,6 +2605,43 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 
+	// We mark the process state as starting until the auth backend is ready.
+	// If cache is enabled, this will wait for the cache to be populated.
+	// We don't want auth to say its ready until its cache is populated,
+	// else a rollout might progress too quickly and cause backend pressure
+	// and outages.
+	{
+		component := teleport.Component(teleport.ComponentAuth, "backend")
+		process.ExpectService(component)
+		process.RegisterFunc("auth.wait-for-backend", func() error {
+			start := process.Clock.Now()
+
+			w, err := authServer.NewWatcher(process.ExitContext(), types.Watch{
+				Name: "auth.wait-for-backend",
+				Kinds: []types.WatchKind{
+					{Kind: types.KindClusterName},
+				},
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating watcher for components %q", component)
+			}
+			defer w.Close()
+
+			select {
+			case evt := <-w.Events():
+				if evt.Type != types.OpInit {
+					return trace.BadParameter("expected init event, got %q (this is a bug)", evt.Type)
+				}
+			case <-w.Done():
+				return w.Error()
+			}
+
+			process.logger.With(teleport.ComponentLabel, component).InfoContext(process.ExitContext(), "auth backend initialized", "duration", process.Clock.Since(start).String())
+			process.OnHeartbeat(component)(nil)
+			return nil
+		})
+	}
+
 	// Register TLS endpoint of the auth service
 	tlsConfig, err := connector.ServerTLSConfig(cfg.CipherSuites)
 	if err != nil {
