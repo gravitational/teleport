@@ -90,6 +90,7 @@ var (
 	// - https://github.com/modelcontextprotocol/modelcontextprotocol
 	// - https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/server/index.ts
 	knownNotificationMethods = []mcp.MCPMethod{
+		//nolint:misspell // "cancelled" is "UK" spelling but our linter is set to use US locale
 		"notifications/cancelled",
 		"notifications/initialized",
 		"notifications/message",
