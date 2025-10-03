@@ -4193,10 +4193,6 @@ func (process *TeleportProcess) initProxy() error {
 
 		return nil
 	})
-	process.RegisterFunc("update.aws-oidc.deploy.service", func() error {
-		err := process.initAWSOIDCDeployServiceUpdater(process.Config.Proxy.AutomaticUpgradesChannels)
-		return trace.Wrap(err)
-	})
 	return nil
 }
 
@@ -5860,6 +5856,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			})
 		}
 	}
+
+	process.RegisterFunc("update.aws-oidc.deploy.service", func() error {
+		err := process.initAWSOIDCDeployServiceUpdater(process.Config.Proxy.AutomaticUpgradesChannels, accessPoint)
+		return trace.Wrap(err)
+	})
 
 	return nil
 }
