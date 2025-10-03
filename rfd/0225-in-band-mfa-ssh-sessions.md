@@ -374,9 +374,9 @@ After the transition period, support for the deprecated `ProxySSH` RPC will be r
 
 ### Audit Events
 
-All MFA challenge initiations, completions, failures, and session establishments will be logged with metadata,
-including fields such as `SessionMetadata.WithMFA` to indicate whether MFA was enforced for the session, `user`, `device
-UUID`, `challenge ID`, and timestamps. This logging approach follows the conventions established in [RFD 0014 - Session
+All MFA challenge initiations, completions, failures, and session establishments will be logged with metadata, including
+fields such as `SessionMetadata.WithMFA` to indicate whether MFA was enforced for the session, `user`, `device UUID`,
+`challenge ID`, and timestamps. This logging approach follows the conventions established in [RFD 0014 - Session
 2FA](0014-session-2FA.md) and [RFD 0024e - Access Control Decision
 API](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md).
 
@@ -392,12 +392,17 @@ No changes in product usage are expected since this is an internal change.
 
 ### Test Plan
 
-Since SSH access is an existing feature and is already covered in the test plan, no changes are required for the
-existing tests.
+#### Existing Tests
 
-However, a new test should be added to ensure backward compatibility with the deprecated `TransportService` RPCs. This
-test should verify that clients using the old `ProxySSH` RPC can still establish SSH sessions during the transition
-period and while receiving appropriate deprecation notices.
+No changes are needed for existing SSH access tests. Since this RFD does not change the UX, existing end-to-end tests
+for `tsh ssh`, `tsh vnet`, and web terminal will continue to function as before.
+
+#### New Tests
+
+1. Add tests to check backward compatibility: verify that clients using the old `ProxySSH` RPC can still connect during
+   the transition period and receive deprecation warnings.
+1. Add an integration test to confirm that if a user does not finish the MFA challenge within the allowed time (for
+   example, 5 minutes), the session is closed automatically.
 
 ### Implementation
 
