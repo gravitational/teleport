@@ -26,7 +26,7 @@ jobs:
     steps:
       - name: Fetch installation token
         id: fetch-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.CLA_ASSISTANT_APP_ID }}
           private-key: ${{ secrets.CLA_ASSISTANT_APP_PRIVATE_KEY }}
