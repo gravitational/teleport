@@ -272,14 +272,14 @@ service MFAService {
 message StartAuthenticateChallengeRequest {
   // User for whom the challenge is being initiated.
   string user = 1;
-  // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
+  // challenge_extensions are extensions that will be applied to the issued MFA challenge.
   ChallengeExtensions challenge_extensions = 2;
-  // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks. If unset, the server will only
+  // sso_client_redirect_url should be supplied if the client supports SSO MFA checks. If unset, the server will only
   // return non-SSO challenges.
-  string SSOClientRedirectURL = 3;
-  // ProxyAddress is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this address
+  string sso_client_redirect_url = 3;
+  // proxy_address is the proxy address that the user is using to connect to the Proxy. When using SSO MFA, this address
   // is required to determine which URL to redirect the user to when there are multiple options.
-  string ProxyAddress = 4;
+  string proxy_address = 4;
 }
 
 // Response containing the details of the MFA challenge.
