@@ -1053,6 +1053,15 @@
           },
           {
             "resources": [
+              "autoupdate_bot_instance_report"
+            ],
+            "verbs": [
+              "list",
+              "read"
+            ]
+          },
+          {
+            "resources": [
               "git_server"
             ],
             "verbs": [
