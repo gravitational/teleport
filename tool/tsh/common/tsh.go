@@ -3759,8 +3759,15 @@ func getAutoResourceRequest(ctx context.Context, tc *client.TeleportClient, requ
 	req.SetDryRun(true)
 	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
 	if err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
-		req, err = clt.CreateAccessRequestV2(ctx, req)
-		return trace.Wrap(err)
+		dryRunReq, err := clt.CreateAccessRequestV2(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Copying the computed roles here is not strictly necessary but avoids requiring
+		// the server to recompute the roles when the real request is created, which can be
+		// an expensive operation.
+		req.SetRoles(dryRunReq.GetRoles())
+		return nil
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
