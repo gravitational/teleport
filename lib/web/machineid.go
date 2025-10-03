@@ -549,7 +549,10 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 	// If no report is available yet, we return a NotFound error. The frontend
 	// will treat this as if the proxy doesn't support this endpoint yet.
 	report, err := clt.GetAutoUpdateBotInstanceReport(ctx)
-	if err != nil {
+	switch {
+	case trace.IsNotFound(err):
+		return nil, trace.NotFound("Bot instance metrics are not yet ready")
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
