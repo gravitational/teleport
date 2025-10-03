@@ -158,6 +158,7 @@ func newMockServer(t *testing.T) *mockServer {
 		datadir:             t.TempDir(),
 		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 		clock:               clock,
+		component:           teleport.ComponentNode,
 	}
 }
 
