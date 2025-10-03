@@ -309,7 +309,7 @@ jobs:
           role-duration-seconds: 3600
 
       - name: Login to Destination ECR Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ${{ steps.expand.outputs.dest-image-registry }}
           ecr: true
