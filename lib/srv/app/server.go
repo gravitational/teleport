@@ -435,6 +435,18 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// App uses heartbeat v2, which heartbeats resources but not the server itself
+	// If there are no resources, we will never report ready.
+	// We workaround by reporting ready after the first successful watcher init.
+	// We only need to do this if the watcher is non-nil, because if
+	// it's nil we are advertising some static app and will heartbeat.
+	if s.watcher != nil && s.c.OnHeartbeat != nil {
+		go func() {
+			s.c.OnHeartbeat(s.watcher.WaitInitialization())
+		}()
+	}
+
 	return nil
 }
 

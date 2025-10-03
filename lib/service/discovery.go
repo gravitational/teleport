@@ -40,6 +40,7 @@ func (process *TeleportProcess) shouldInitDiscovery() bool {
 
 func (process *TeleportProcess) initDiscovery() {
 	process.RegisterWithAuthServer(types.RoleDiscovery, DiscoveryIdentityEvent)
+	process.ExpectService(teleport.ComponentDiscovery)
 	process.RegisterCriticalFunc("discovery.init", process.initDiscoveryService)
 }
 

@@ -375,6 +375,31 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	t.kubeClusterWatcher = kubeClusterWatcher
 	t.mu.Unlock()
 
+	if t.OnHeartbeat != nil {
+		// Kube uses heartbeat v2, which heartbeats resources but not the server itself
+		// If there are no resources, we will never report ready.
+		// We work around by reporting ready after the first successful watcher init.
+		var watcherWaiters []func() error
+		if kubeClusterWatcher != nil {
+			watcherWaiters = append(watcherWaiters, kubeClusterWatcher.WaitInitialization)
+		}
+		if t.KubernetesServersWatcher != nil {
+			watcherWaiters = append(watcherWaiters, t.KubernetesServersWatcher.WaitInitialization)
+		}
+		if len(watcherWaiters) > 0 {
+			go func() {
+				for _, w := range watcherWaiters {
+					err := w()
+					if err != nil {
+						t.OnHeartbeat(err)
+						return
+					}
+				}
+				t.OnHeartbeat(nil)
+			}()
+		}
+	}
+
 	// kubeServerWatcher is used by the kube proxy to watch for changes in the
 	// kubernetes servers of a cluster. Proxy requires it to update the kubeServersMap
 	// which holds the list of kubernetes_services connected to the proxy for a given
