@@ -209,6 +209,8 @@ func integrationEnrollMetadataToPrehog(u *usageeventsv1.IntegrationEnrollMetadat
 		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT
 	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES:
 		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES
+	case usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD:
+		prehogKind = prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD
 	default:
 		prehogKind = prehogv1a.IntegrationEnrollKind(u.Kind)
 	}
