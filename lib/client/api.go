@@ -1629,14 +1629,14 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 	// Apply proxy templates.
 	expanded, matched := tc.ProxyTemplates.Apply(net.JoinHostPort(host, port))
 	if matched {
-		log.DebugContext(ctx, "Matched proxy template for host",
-			"matched_host", host,
+		log.With(
+			slog.String("matched_host", host),
 			slog.Group("expanded",
 				"host", expanded.Host,
 				"query", expanded.Query,
 				"search", expanded.Search,
 			),
-		)
+		).DebugContext(ctx, "Matched proxy template for host")
 		// Expanded template should override all previous search criteria.
 		host = ""
 		predExpr = ""
