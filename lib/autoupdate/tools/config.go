@@ -68,7 +68,7 @@ type ClientToolsConfig struct {
 // The collection size is limited by the `defaultSizeStoredVersion` constant.
 func (ctc *ClientToolsConfig) AddTool(tool Tool) {
 	for _, t := range ctc.Tools {
-		if t.Version == tool.Version {
+		if t.IsEqual(tool.Version, tool.OS, tool.Arch) {
 			maps.Copy(t.PathMap, tool.PathMap)
 			return
 		}
@@ -94,9 +94,9 @@ func (ctc *ClientToolsConfig) SetConfig(proxy string, version string, disabled b
 }
 
 // SelectVersion lookups the version and re-order by last recently used.
-func (ctc *ClientToolsConfig) SelectVersion(version string) *Tool {
+func (ctc *ClientToolsConfig) SelectVersion(version, os, arch string) *Tool {
 	for i, tool := range ctc.Tools {
-		if tool.Version == version {
+		if tool.IsEqual(version, os, arch) {
 			ctc.Tools = append([]Tool{tool}, append(ctc.Tools[:i], ctc.Tools[i+1:]...)...)
 			return &tool
 		}
@@ -105,9 +105,9 @@ func (ctc *ClientToolsConfig) SelectVersion(version string) *Tool {
 }
 
 // HasVersion check that specific version present in collection.
-func (ctc *ClientToolsConfig) HasVersion(version string) bool {
-	return slices.ContainsFunc(ctc.Tools, func(s Tool) bool {
-		return version == s.Version
+func (ctc *ClientToolsConfig) HasVersion(version, os, arch string) bool {
+	return slices.ContainsFunc(ctc.Tools, func(tool Tool) bool {
+		return tool.IsEqual(version, os, arch)
 	})
 }
 
@@ -121,15 +121,19 @@ type ClusterConfig struct {
 type Tool struct {
 	// Version is the version of the tools (tsh, tctl) as defined in the PathMap.
 	Version string `json:"version"`
+	// OS is the operating system of the installed package.
+	OS string `json:"os"`
+	// Arch is architecture of the installed package.
+	Arch string `json:"arch"`
 	// PathMap stores the relative path (within the tools directory) for each tool binary.
 	// For example: {"tctl": "package-id/tctl"}.
 	PathMap map[string]string `json:"path"`
 }
 
 // PackageNames returns the package names extracted from the tool path map.
-func (c *Tool) PackageNames() []string {
+func (t *Tool) PackageNames() []string {
 	var packageNames []string
-	for _, path := range c.PathMap {
+	for _, path := range t.PathMap {
 		dir := strings.SplitN(path, string(filepath.Separator), 2)
 		if len(dir) > 0 {
 			packageNames = append(packageNames, dir[0])
@@ -138,9 +142,14 @@ func (c *Tool) PackageNames() []string {
 	return packageNames
 }
 
-// getToolsConfig reads the configuration file for client tools managed updates,
+// IsEqual verifies that specific tool matches version, operating system and architecture.
+func (t *Tool) IsEqual(version, os, arch string) bool {
+	return version == t.Version && ((os == t.OS && arch == t.Arch) || t.OS == "")
+}
+
+// GetToolsConfig reads the configuration file for client tools managed updates,
 // and acquires a filesystem lock until the configuration is read and deserialized.
-func getToolsConfig(toolsDir string) (ctc *ClientToolsConfig, err error) {
+func GetToolsConfig(toolsDir string) (ctc *ClientToolsConfig, err error) {
 	unlock, err := utils.FSWriteLock(filepath.Join(toolsDir, lockFileName))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -167,9 +176,9 @@ func getToolsConfig(toolsDir string) (ctc *ClientToolsConfig, err error) {
 	return ctc, nil
 }
 
-// updateToolsConfig creates or opens the configuration file for client tools managed updates,
+// UpdateToolsConfig creates or opens the configuration file for client tools managed updates,
 // and acquires a filesystem lock until the configuration is written and closed.
-func updateToolsConfig(toolsDir string, update func(ctc *ClientToolsConfig) error) (err error) {
+func UpdateToolsConfig(toolsDir string, update func(ctc *ClientToolsConfig) error) (err error) {
 	unlock, err := utils.FSWriteLock(filepath.Join(toolsDir, lockFileName))
 	if err != nil {
 		return trace.Wrap(err)
