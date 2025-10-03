@@ -66,7 +66,7 @@ func boundKeypairJoin(
 	// challenges and rotation requests.
 	boundKeypairInit := &messages.BoundKeypairInit{
 		ClientParams:      clientParams,
-		InitialJoinSecret: joinParams.BoundKeypairParams.InitialJoinSecret,
+		InitialJoinSecret: joinParams.BoundKeypairParams.RegistrationSecret,
 		PreviousJoinState: joinParams.BoundKeypairParams.PreviousJoinState,
 	}
 	if err := stream.Send(boundKeypairInit); err != nil {
