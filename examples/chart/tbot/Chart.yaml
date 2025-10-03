@@ -1,4 +1,4 @@
-.version: &version "19.0.0-dev"
+.version: &version "19.0.0-dev.electron.38-2-0-1"
 
 name: tbot
 apiVersion: v2
