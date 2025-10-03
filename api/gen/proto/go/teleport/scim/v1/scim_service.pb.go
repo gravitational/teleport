@@ -41,7 +41,7 @@ const (
 // ListSCIMResourcesRequest represents a request to fetch multiple resources
 type ListSCIMResourcesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Target describes the set of requested by the client, vy integration and
+	// Target describes the set of requested by the client, by integration and
 	// resource type.
 	Target *RequestTarget `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
 	// Page is an optional request to retrieve a page of results. Returns all
@@ -262,7 +262,7 @@ func (x *UpdateSCIMResourceRequest) GetResource() *Resource {
 	return nil
 }
 
-// DeleteSCIMResourceRequest describes a request to delete a SCIM-mamanged
+// DeleteSCIMResourceRequest describes a request to delete a SCIM-mananged
 // resource
 type DeleteSCIMResourceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`

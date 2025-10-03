@@ -4887,6 +4887,8 @@ message OneOf {
     events.BoundKeypairJoinStateVerificationFailed BoundKeypairJoinStateVerificationFailed = 222;
     events.MCPSessionListenSSEStream MCPSessionListenSSEStream = 223;
     events.MCPSessionInvalidHTTPRequest MCPSessionInvalidHTTPRequest = 224;
+    events.SCIMListingEvent SCIMListingEvent = 225;
+    events.SCIMResourceEvent SCIMResourceEvent = 226;
   }
 }
 
@@ -8995,4 +8997,127 @@ message BoundKeypairJoinStateVerificationFailed {
   string TokenName = 4 [(gogoproto.jsontag) = "token_name"];
   // BotName is the name of the bot attempting to join, if any.
   string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
+}
+
+// SCIMRequest describes the SCIM http request that triggered an event
+message SCIMRequest {
+  // ID is a Teleport-generated arbitrary unique ID for the SCIM request that
+  // triggered the enclosing event. It will be included in all structured log
+  // messages involved in the handling of this request.
+  string ID = 1 [(gogoproto.jsontag) = "id,omitempty"];
+
+  // SourceAddress is the source IP address for the SCIM HTTP request that
+  // triggered the enclosing  event.
+  string SourceAddress = 2 [(gogoproto.jsontag) = "source_address,omitempty"];
+
+  // UserAgent is the user agent string from the HTTP request that triggered
+  // the enclosing event
+  string UserAgent = 3 [(gogoproto.jsontag) = "user_agent,omitempty"];
+
+  // Method is the HTTP method used by the SCIM HTTP request that triggered the
+  // enclosing event (e.g. GET, PUT, etc)
+  string Method = 4 [(gogoproto.jsontag) = "method,omitempty"];
+
+  // Path is the fully-qualified path of the SCIM request that triggered the
+  // enclosing event.
+  string Path = 5 [(gogoproto.jsontag) = "path,omitempty"];
+
+  // Body holds a representation of the arbitrary JSON body of the initial
+  // request. May be empty for list operations, hold a SCIM resource
+  // definition for creation and update operations, or a SCIM PATCH description
+  // for patch update requests.
+  google.protobuf.Struct Body = 6 [
+    (gogoproto.jsontag) = "body,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
+}
+
+message SCIMCommonData {
+  // Request holds metadata about the original SCIM request that triggered this
+  // event.
+  SCIMRequest Request = 3 [(gogoproto.jsontag) = "request,omitempty"];
+
+  // Integration is the name of the integration/access plugin that the SCIM
+  // service was operating on for this event.
+  string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
+
+  // ResourceType is the SCIM resource type of the Teleport resource involved in
+  // this event. Valid values include, but are not limited to, "user" and
+  // "group".
+  string ResourceType = 5 [(gogoproto.jsontag) = "resource_type,omitempty"];
+}
+
+// SCIMListingEvent records an attempt to list SCIM resources
+message SCIMListingEvent {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Common holds values common to SCIM listing and resource events
+  SCIMCommonData Common = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Filter is the listing filter function supplied by the client, if any.
+  string Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
+
+  // Count is the requested page size from the client. A zero value indicates that
+  // the client did not request a specific page size.
+  int32 Count = 5 [(gogoproto.jsontag) = "count,omitempty"];
+
+  // Start is the 1-based start index requested by the client, if any. A zero
+  // value indicates that the client did not request a specific starting index
+  // for the page.
+  int32 StartIndex = 6 [(gogoproto.jsontag) = "start_index,omitempty"];
+
+  // ResourceCount is the number of resources returned in response to this
+  // request.
+  uint32 ResourceCount = 7 [(gogoproto.jsontag) = "resource_count,omitempty"];
+}
+
+// SCIMResourceEvent records an attmpted operation on a specific SCIM resource
+message SCIMResourceEvent {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains common command or operation status fields.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Common holds values common to SCIM listing and resource events
+  SCIMCommonData Common = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // TeleportID is the name of the Teleport resource involved in this event.
+  string TeleportID = 4 [(gogoproto.jsontag) = "teleport_id,omitempty"];
+
+  // ExternalID is the ID used by the external SCIM client to to refer to the
+  // resource affected by this event.
+  string ExternalID = 5 [(gogoproto.jsontag) = "external_id,omitempty"];
+
+  // Display is a human-readable name or identifier for the Teleport resource
+  // affected by the event.
+  string Display = 6 [(gogoproto.jsontag) = "display,omitempty"];
 }
