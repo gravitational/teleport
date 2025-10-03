@@ -130,12 +130,14 @@ export function InstancesPanel(props: { botName: string }) {
                   <React.Fragment key={`${instance.instance_id}`}>
                     {i === 0 && j === 0 ? undefined : <Divider />}
                     <Instance
-                      id={instance.instance_id}
-                      activeAt={instance.active_at_latest}
-                      hostname={instance.host_name_latest}
-                      method={instance.join_method_latest}
-                      version={instance.version_latest}
-                      os={instance.os_latest}
+                      data={{
+                        id: instance.instance_id,
+                        version: instance.version_latest,
+                        hostname: instance.host_name_latest,
+                        activeAt: instance.active_at_latest,
+                        method: instance.join_method_latest,
+                        os: instance.os_latest,
+                      }}
                     />
                   </React.Fragment>
                 ))

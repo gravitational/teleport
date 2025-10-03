@@ -36,6 +36,7 @@ interface TimeMarker {
   label: string;
   position: number;
   time: number;
+  showLabel: boolean;
 }
 
 export class TimeMarkersRenderer extends TimelineCanvasRenderer {
@@ -66,22 +67,26 @@ export class TimeMarkersRenderer extends TimelineCanvasRenderer {
       const textWidth = this.ctx.measureText(marker.label).width;
       const x = marker.position + LEFT_PADDING;
 
+      // Always draw the tick mark
       this.ctx.fillStyle =
         this.theme.colors.sessionRecordingTimeline.timeMarks.primary;
       this.ctx.fillRect(x, 0, 1, 10);
 
-      if (marker.absolute) {
-        this.ctx.font = `bold 10px ${CANVAS_FONT}`;
-      }
+      // Only draw label if it's marked to show
+      if (marker.showLabel) {
+        if (marker.absolute) {
+          this.ctx.font = `bold 10px ${CANVAS_FONT}`;
+        }
 
-      this.ctx.fillStyle = marker.absolute
-        ? this.theme.colors.sessionRecordingTimeline.timeMarks.absolute
-        : this.theme.colors.sessionRecordingTimeline.timeMarks.text;
+        this.ctx.fillStyle = marker.absolute
+          ? this.theme.colors.sessionRecordingTimeline.timeMarks.absolute
+          : this.theme.colors.sessionRecordingTimeline.timeMarks.text;
 
-      this.ctx.fillText(marker.label, x - textWidth / 2, 24);
+        this.ctx.fillText(marker.label, x - textWidth / 2, 24);
 
-      if (marker.absolute) {
-        this.ctx.font = `10px ${CANVAS_FONT}`;
+        if (marker.absolute) {
+          this.ctx.font = `10px ${CANVAS_FONT}`;
+        }
       }
     }
 
@@ -99,9 +104,28 @@ export class TimeMarkersRenderer extends TimelineCanvasRenderer {
     let interval = 1000;
     let pixelsPerSecond = (this.timelineWidth / this.duration) * 1000;
 
-    if (pixelsPerSecond < 10) interval = 10000;
+    // Adjust tick interval more aggressively when zoomed out
+    if (pixelsPerSecond < 2) interval = 60000;
+    else if (pixelsPerSecond < 5) interval = 30000;
+    else if (pixelsPerSecond < 10) interval = 10000;
     else if (pixelsPerSecond < 50) interval = 5000;
 
+    // Calculate label display interval based on spacing
+    const minLabelSpacing = 50;
+    const markerSpacing = (interval / this.duration) * this.timelineWidth;
+
+    // Determine how many markers to skip for labels
+    let labelInterval = 1;
+    if (markerSpacing < minLabelSpacing) {
+      labelInterval = Math.ceil(minLabelSpacing / markerSpacing);
+
+      if (labelInterval > 10) labelInterval = 10;
+      else if (labelInterval > 5) labelInterval = 10;
+      else if (labelInterval > 4) labelInterval = 5;
+      else if (labelInterval > 2) labelInterval = Math.min(4, labelInterval);
+    }
+
+    let markerIndex = 0;
     for (let time = 0; time < this.duration + interval; time += interval) {
       // if show absolute time is enabled, change the 0:00, 1:00, etc, labels to absolute time
       const absolute = this.showAbsoluteTime && (time / 1000) % 60 === 0;
@@ -114,12 +138,12 @@ export class TimeMarkersRenderer extends TimelineCanvasRenderer {
         label,
         position: (time / this.duration) * this.timelineWidth,
         time,
+        showLabel: markerIndex % labelInterval === 0,
       });
+      markerIndex++;
     }
 
     const subTicks: SubTick[] = [];
-
-    const markerSpacing = (interval / this.duration) * this.timelineWidth;
 
     let numSubticks = 0;
     if (markerSpacing > 300) numSubticks = 9;
