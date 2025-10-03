@@ -16,16 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Struct } from 'gen-proto-ts/google/protobuf/struct_pb';
+import {
+  CreatePtyProcessResponse,
+  GetCwdResponse,
+} from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
+import { IPtyHostService } from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb.grpc-server';
+
 import Logger from 'teleterm/logger';
-import { Struct } from 'teleterm/sharedProcess/api/protogen/google/protobuf/struct_pb';
 import { unique } from 'teleterm/ui/utils';
 
-import { PtyCwd, PtyId } from './../api/protogen/ptyHostService_pb';
-import { IPtyHost } from './../api/protogen/ptyHostService_pb.grpc-server';
 import { PtyEventsStreamHandler } from './ptyEventsStreamHandler';
 import { PtyProcess } from './ptyProcess';
 
-export function createPtyHostService(): IPtyHost & {
+export function createPtyHostService(): IPtyHostService & {
   dispose(): Promise<void>;
 } {
   const logger = new Logger('PtyHostService');
@@ -51,7 +55,7 @@ export function createPtyHostService(): IPtyHost & {
         callback(error);
         return;
       }
-      callback(null, PtyId.create({ id: ptyId }));
+      callback(null, CreatePtyProcessResponse.create({ id: ptyId }));
       logger.info(`created PTY process for id ${ptyId}`);
     },
     getCwd: (call, callback) => {
@@ -65,7 +69,7 @@ export function createPtyHostService(): IPtyHost & {
       ptyProcess
         .getCwd()
         .then(cwd => {
-          const response = PtyCwd.create({ cwd });
+          const response = GetCwdResponse.create({ cwd });
           callback(null, response);
         })
         .catch(error => {
@@ -73,7 +77,8 @@ export function createPtyHostService(): IPtyHost & {
           callback(error);
         });
     },
-    exchangeEvents: stream => new PtyEventsStreamHandler(stream, ptyProcesses),
+    managePtyProcess: stream =>
+      new PtyEventsStreamHandler(stream, ptyProcesses),
     dispose: async () => {
       await Promise.all(
         Array.from(ptyProcesses.values()).map(ptyProcess =>

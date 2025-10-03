@@ -13,8 +13,7 @@
     "start": "pnpm build-wasm && electron-vite dev",
     "build": "pnpm build-wasm && electron-vite build",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
-    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
-    "generate-grpc-shared": "buf generate"
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
   },
   "repository": {
     "type": "git",
