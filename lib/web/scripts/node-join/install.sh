@@ -429,7 +429,7 @@ get_teleport_pid() {
         POTENTIAL_PIDS=$(pgrep -f "teleport start" | xargs echo)
         for PID in ${POTENTIAL_PIDS}; do
             if [ -f /proc/${PID}/exe ]; then
-                EXE=$(basename $(readlink /proc/${PID}/exe))
+                EXE=$(basename "$(readlink /proc/${PID}/exe)")
                 if [[ "${EXE}" == "teleport" ]]; then TELEPORT_PIDS="${PID} ${TELEPORT_PIDS}"; fi
             fi
         done
