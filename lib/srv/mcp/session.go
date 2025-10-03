@@ -203,7 +203,7 @@ func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string)
 
 func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
 	s.emitNotificationEvent(ctx, notification, nil)
-	messagesFromClient.WithLabelValues(s.transport, "notification", string(notification.Method)).Inc()
+	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
 func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
@@ -257,7 +257,7 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 }
 
 func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
-	messagesFromClient.WithLabelValues(s.transport, "request", string(req.Method)).Inc()
+	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
 
 	s.idTracker.PushRequest(req)
 	switch req.Method {
@@ -272,7 +272,7 @@ func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *m
 
 func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
 	method, _ := s.idTracker.PopByID(response.ID)
-	messagesFromServer.WithLabelValues(s.transport, "response", string(method)).Inc()
+	messagesFromServer.WithLabelValues(s.transport, "response", reportRequestMethod(method)).Inc()
 
 	switch method {
 	case mcp.MethodToolsList:
@@ -283,7 +283,7 @@ func (s *sessionHandler) processServerResponse(ctx context.Context, response *mc
 
 func (s *sessionHandler) processServerNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
 	s.logger.DebugContext(ctx, "Received server notification.", "method", notification.Method)
-	messagesFromServer.WithLabelValues(s.transport, "notification", string(notification.Method)).Inc()
+	messagesFromServer.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
 func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {

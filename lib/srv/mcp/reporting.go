@@ -19,14 +19,17 @@
 package mcp
 
 import (
+	"slices"
+
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 )
 
 var (
-	setupErrors = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	setupErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      "setup_errors_total",
 			Subsystem: "mcp",
@@ -35,8 +38,8 @@ var (
 		[]string{"transport"},
 	)
 
-	accumulatedSessions = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	accumulatedSessions = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      "sessions_total",
 			Subsystem: "mcp",
@@ -80,4 +83,56 @@ var (
 		accumulatedSessions, activeSessions,
 		messagesFromClient, messagesFromServer,
 	}
+
+	// knownNotificationMethods is a list of known method names for notifications.
+	//
+	// The list is obtained by searching these in addition to mcp-go:
+	// - https://github.com/modelcontextprotocol/modelcontextprotocol
+	// - https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/server/index.ts
+	knownNotificationMethods = []mcp.MCPMethod{
+		"notifications/cancelled",
+		"notifications/initialized",
+		"notifications/message",
+		"notifications/progress",
+		mcp.MethodNotificationPromptsListChanged,   // notifications/prompts/list_changed
+		mcp.MethodNotificationResourcesListChanged, // notifications/resources/list_changed
+		mcp.MethodNotificationResourceUpdated,      // notifications/resources/updated
+		mcp.MethodNotificationToolsListChanged,     // notifications/tools/list_changed
+		"notifications/roots/list_changed",
+	}
+
+	// knownRequestMethods is a list of known method names for requests.
+	//
+	// The list is obtained by searching these in addition to mcp-go:
+	// - https://github.com/modelcontextprotocol/modelcontextprotocol
+	// - https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/server/index.ts
+	knownRequestMethods = []mcp.MCPMethod{
+		mcp.MethodInitialize,             // initialize
+		mcp.MethodPing,                   // ping
+		mcp.MethodResourcesList,          // resources/list
+		mcp.MethodResourcesTemplatesList, // resources/templates/list
+		mcp.MethodResourcesRead,          // resources/read
+		mcp.MethodPromptsList,            // prompts/list
+		mcp.MethodPromptsGet,             // prompts/get
+		mcp.MethodToolsList,              // tools/list
+		mcp.MethodToolsCall,              // tools/call
+		mcp.MethodSetLogLevel,            // logging/setLevel
+		mcp.MethodElicitationCreate,      // elicitation/create
+		"roots/list",
+		"sampling/createMessage",
+	}
 )
+
+func reportNotificationMethod(method mcp.MCPMethod) string {
+	if slices.Contains(knownNotificationMethods, method) {
+		return string(method)
+	}
+	return "unknown"
+}
+
+func reportRequestMethod(method mcp.MCPMethod) string {
+	if slices.Contains(knownRequestMethods, method) {
+		return string(method)
+	}
+	return "unknown"
+}
