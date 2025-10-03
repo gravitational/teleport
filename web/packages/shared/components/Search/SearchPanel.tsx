@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, type JSX } from 'react';
+import { ComponentProps, useEffect, useState, type JSX } from 'react';
 import styled from 'styled-components';
 
 import { Flex } from 'design';
@@ -35,6 +35,7 @@ export function SearchPanel({
   disableSearch,
   hideAdvancedSearch,
   extraChildren,
+  mb = 3,
 }: {
   updateQuery?: (s: string) => void;
   updateSearch: (s: string) => void;
@@ -43,6 +44,7 @@ export function SearchPanel({
   disableSearch?: boolean;
   hideAdvancedSearch?: boolean;
   extraChildren?: JSX.Element;
+  mb?: ComponentProps<typeof Flex>['mb'];
 }) {
   const [query, setQuery] = useState(filter.search || filter.query || '');
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(!!filter.query);
@@ -72,7 +74,7 @@ export function SearchPanel({
       justifyContent="space-between"
       alignItems="center"
       width="100%"
-      mb={3}
+      mb={mb}
     >
       <Flex style={{ width: '100%' }} alignItems="center">
         <StyledFlex
