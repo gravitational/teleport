@@ -129,6 +129,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join"
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
@@ -1906,7 +1907,7 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 		return nil, trace.Wrap(err)
 	}
 
-	tokens, err := auth.WebTokens().List(ctx)
+	tokens, err := iterstream.Collect(auth.WebTokens().Range(ctx, "", ""))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1923,6 +1924,34 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *emptypb.Empty) (*authp
 	return &authpb.GetWebTokensResponse{
 		Tokens: out,
 	}, nil
+}
+
+// ListWebTokens returns a page of web tokens
+func (g *GRPCServer) ListWebTokens(ctx context.Context, req *authpb.ListWebTokensRequest) (*authpb.ListWebTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, next, err := auth.WebTokens().ListPage(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListWebTokensResponse{
+		Tokens:        make([]*types.WebTokenV3, 0, len(tokens)),
+		NextPageToken: next,
+	}
+
+	for _, t := range tokens {
+		tokenV3, ok := t.(*types.WebTokenV3)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", t)
+		}
+		resp.Tokens = append(resp.Tokens, tokenV3)
+	}
+
+	return resp, nil
 }
 
 // DeleteWebToken removes the web token given with req.

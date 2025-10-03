@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
@@ -96,4 +97,51 @@ func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
 	}
 
 	return tokens, nil
+}
+
+// ListWebTokens returns a page of web tokens
+func (c *Cache) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListWebTokens")
+	defer span.End()
+
+	lister := genericLister[types.WebToken, webTokenIndex]{
+		cache:        c,
+		collection:   c.collections.webTokens,
+		index:        webTokenNameIndex,
+		upstreamList: c.Config.WebToken.ListPage,
+		nextToken:    types.WebToken.GetName,
+	}
+	out, next, err := lister.list(ctx, limit, start)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, next, nil
+}
+
+// RangeWebTokens returns web tokens within the range [start, end).
+func (c *Cache) RangeWebTokens(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+	ranger := genericRanger[types.WebToken, webTokenIndex]{
+		cache:         c,
+		collection:    c.collections.webTokens,
+		index:         webTokenNameIndex,
+		upstreamRange: c.Config.WebToken.Range,
+		// TODO(lokraszewski): DELETE IN v21.0.0
+		fallbackGetter: c.Config.WebToken.List,
+	}
+
+	return func(yield func(types.WebToken, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeWebTokens")
+		defer span.End()
+
+		for token, err := range ranger.Range(ctx, start, end) {
+			if !yield(token, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
 }

@@ -20,11 +20,14 @@ import (
 	"context"
 	"errors"
 	"io"
+	"iter"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
 // GetWebSession returns the web session for the specified request.
@@ -140,16 +143,54 @@ func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (type
 }
 
 // List returns the list of all web tokens
+// Deprecated: Prefer using [ListPage] or [Range] instead.
 func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
-	resp, err := r.c.grpc.GetWebTokens(ctx, &emptypb.Empty{})
+	tokens, err := clientutils.CollectWithFallback(
+		ctx,
+		r.ListPage,
+		func(ctx context.Context) ([]types.WebToken, error) {
+			//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
+			resp, err := r.c.grpc.GetWebTokens(ctx, &emptypb.Empty{})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			out := make([]types.WebToken, 0, len(resp.Tokens))
+			for _, token := range resp.Tokens {
+				out = append(out, token)
+			}
+			return out, nil
+		},
+	)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]types.WebToken, 0, len(resp.Tokens))
-	for _, token := range resp.Tokens {
-		out = append(out, token)
+
+	return tokens, nil
+
+}
+
+// ListPage returns a page of web tokens
+func (r *webTokens) ListPage(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	resp, err := r.c.grpc.ListWebTokens(ctx, &proto.ListWebTokensRequest{
+		PageToken: start,
+		PageSize:  int32(limit),
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
-	return out, nil
+
+	tokens := make([]types.WebToken, 0, len(resp.Tokens))
+	for _, token := range resp.Tokens {
+		tokens = append(tokens, token)
+	}
+
+	return tokens, resp.NextPageToken, nil
+}
+
+// Range returns web tokens within the range [start, end).
+func (r *webTokens) Range(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+	return clientutils.RangeResources(ctx, start, end, r.ListPage, types.WebToken.GetName)
 }
 
 // Upsert not implemented: can only be called locally.

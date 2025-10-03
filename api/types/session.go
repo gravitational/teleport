@@ -19,6 +19,7 @@ package types
 import (
 	"context"
 	"fmt"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -446,6 +447,12 @@ type WebTokenInterface interface {
 
 	// List gets all web tokens.
 	List(context.Context) ([]WebToken, error)
+
+	// ListPage returns a page of web tokens
+	ListPage(ctx context.Context, limit int, start string) ([]WebToken, string, error)
+
+	// Range returns web tokens within the range [start, end).
+	Range(ctx context.Context, start, end string) iter.Seq2[WebToken, error]
 
 	// Upsert updates existing or inserts a new web token.
 	Upsert(ctx context.Context, token WebToken) error
