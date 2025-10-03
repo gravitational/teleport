@@ -200,6 +200,9 @@ type ReadProxyAccessPoint interface {
 	// GetUIConfig returns configuration for the UI served by the proxy service
 	GetUIConfig(ctx context.Context) (types.UIConfig, error)
 
+	// GetToken finds and returns token by ID
+	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
+
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
@@ -330,6 +333,9 @@ type ReadProxyAccessPoint interface {
 
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+
+	// ListIntegrations returns a paginated list of all integration resources.
+	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
