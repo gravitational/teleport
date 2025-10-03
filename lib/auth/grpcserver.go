@@ -5692,7 +5692,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	scopedAccessControl, err := scopedaccess.New(scopedaccess.Config{
 		Authorizer: cfg.Authorizer,
-		Reader:     cfg.AuthServer.scopedAccessCache,
+		Reader:     cfg.AuthServer.ScopedAccessCache,
 		Writer:     cfg.AuthServer.scopedAccessBackend,
 		Logger:     logger,
 	})
@@ -5750,10 +5750,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dynamicwindowsv1pb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		AuthServer: cfg.AuthServer,
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		AuthServer:       cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5766,6 +5767,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
 		Authorizer:  cfg.Authorizer,
 		AuthService: cfg.AuthServer,
+		Clock:       cfg.AuthServer.clock,
 	}))
 
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{

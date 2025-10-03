@@ -41,6 +41,13 @@ func NewClient(grpcClient joinv1.JoinServiceClient) *Client {
 	}
 }
 
+// NewClientFromConn returns a new [Client] wrapping plain gRPC ClientConn.
+func NewClientFromConn(cc *grpc.ClientConn) *Client {
+	return &Client{
+		grpcClient: joinv1.NewJoinServiceClient(cc),
+	}
+}
+
 // Join implements cluster joining for nodes and bots.
 func (c *Client) Join(ctx context.Context) (messages.ClientStream, error) {
 	ctx, cancel := context.WithCancelCause(ctx)

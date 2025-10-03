@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MutationFunction } from '@tanstack/react-query';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
@@ -65,6 +67,13 @@ export async function listLocks(
   }
 }
 
+export const createLockMutationFn: MutationFunction<
+  Lock,
+  CreateLockRequest
+> = vars => {
+  return createLock(vars);
+};
+
 export async function createLock(
   variables: CreateLockRequest,
   signal?: AbortSignal
@@ -76,6 +85,13 @@ export async function createLock(
   );
   return makeLock(json);
 }
+
+export const deleteLockMutationFn: MutationFunction<
+  unknown,
+  { uuid: string }
+> = vars => {
+  return deleteLock(vars);
+};
 
 export async function deleteLock(
   variables: { uuid: string },
