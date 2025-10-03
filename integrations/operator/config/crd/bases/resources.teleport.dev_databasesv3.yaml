@@ -372,7 +372,8 @@ spec:
                     type: string
                   retry_count:
                     description: RetryCount is the maximum number of times to retry
-                      connecting to a host upon failure. Defaults to 3 if not specified.
+                      connecting to a host upon failure. If not specified it defaults
+                      to 2, for a total of 3 connection attempts.
                     format: int32
                     type: integer
                   shuffle_hostnames:

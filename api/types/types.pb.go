@@ -2011,7 +2011,7 @@ type OracleOptions struct {
 	// the internal audit trail.
 	AuditUser string `protobuf:"bytes,1,opt,name=AuditUser,proto3" json:"audit_user,omitempty"`
 	// RetryCount is the maximum number of times to retry connecting to a
-	// host upon failure. Defaults to 3 if not specified.
+	// host upon failure. If not specified it defaults to 2, for a total of 3 connection attempts.
 	RetryCount int32 `protobuf:"varint,2,opt,name=RetryCount,proto3" json:"retry_count,omitempty"`
 	// ShuffleHostnames, when true, randomizes the order of hosts to connect to from
 	// the provided list.
