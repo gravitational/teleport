@@ -895,12 +895,6 @@ func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionReq
 	return r.Identity.WebSessions().Get(ctx, req)
 }
 
-// GetWebToken returns existing web token described by req.
-// Implements ReadAccessPoint
-func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	return r.Identity.WebTokens().Get(ctx, req)
-}
-
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
