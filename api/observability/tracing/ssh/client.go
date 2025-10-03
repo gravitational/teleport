@@ -22,6 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -29,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Client is a wrapper around ssh.Client that adds tracing support.
@@ -166,9 +168,65 @@ func (c *Client) OpenChannel(
 	}, reqs, err
 }
 
-// NewSession creates a new SSH session that is passed tracing context
-// so that spans may be correlated properly over the ssh connection.
+// SessionParams are session parameters supported by Teleport to provide additional
+// session context or parameters to the server.
+type SessionParams struct {
+	// WebProxyAddr is the address of the proxy forwarding the SSH connection to the target server.
+	WebProxyAddr string
+	// Reason is a reason attached to started sessions meant to describe their intent.
+	Reason string
+	// Invited is a list of people invited to a session.
+	Invited []string
+	// DisplayParticipantRequirements is set if debug information about participants requirements
+	// should be printed in moderated sessions.
+	DisplayParticipantRequirements bool
+	// JoinSessionID is the ID of a session to join.
+	JoinSessionID string
+	// JoinMode is the participant mode to join the session with.
+	// Required if JoinSessionID is set.
+	JoinMode types.SessionParticipantMode
+	// ModeratedSessionID is an optional parameter sent during SCP requests to specify which moderated session
+	// to check for valid FileTransferRequests.
+	ModeratedSessionID string
+}
+
+// ParseSessionParams unmarshals session parameters which have been [ssh.Marshal]ed by the client
+// and provided as extra data in the session channel request. If the provided data is empty, nil params
+// will be returned with a nil error.
+func ParseSessionParams(data []byte) (*SessionParams, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+
+	var params SessionParams
+	if err := ssh.Unmarshal(data, &params); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if params.JoinSessionID != "" {
+		if _, err := uuid.Parse(params.JoinSessionID); err != nil {
+			return nil, trace.Wrap(err, "failed to parse join session ID: %v", params.JoinSessionID)
+		}
+
+		switch params.JoinMode {
+		case types.SessionModeratorMode, types.SessionObserverMode, types.SessionPeerMode:
+		default:
+			return nil, trace.BadParameter("Unrecognized session participant mode: %q", params.JoinMode)
+		}
+	}
+
+	return &params, nil
+}
+
+// NewSession creates a new SSH session. This session is passed a tracing context so that
+// spans may be correlated properly over the ssh connection.
 func (c *Client) NewSession(ctx context.Context) (*Session, error) {
+	return c.NewSessionWithParams(ctx, nil)
+}
+
+// NewSessionWithParams creates a new SSH session with the given (optional) params. This session is
+// passed a tracing context so that spans may be correlated properly over the ssh connection.
+func (c *Client) NewSessionWithParams(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 
 	ctx, span := tracer.Start(
@@ -195,9 +253,16 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 		contexts:   make(map[string][]context.Context),
 	}
 
+	// If we are connected to a Teleport server, send session params in the session request.
+	// If the server does not support session parameters in the extra data, it will be ignored.
+	var sessionData []byte
+	if sessionParams != nil && c.capability == tracingSupported {
+		sessionData = ssh.Marshal(sessionParams)
+	}
+
 	// open a session manually so we can take ownership of the
 	// requests chan
-	ch, reqs, err := wrapper.OpenChannel("session", nil)
+	ch, reqs, err := wrapper.OpenChannel("session", sessionData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -218,7 +283,7 @@ func (c *Client) NewSession(ctx context.Context) (*Session, error) {
 }
 
 // RequestHandlerFn is an ssh request handler function.
-type RequestHandlerFn func(ctx context.Context, ch *ssh.Request)
+type RequestHandlerFn func(ctx context.Context, req *ssh.Request)
 
 // HandleSessionRequest registers a handler for any incoming [ssh.Request] matching the
 // provided type within a session. If the type is already being handled, an error is returned.
