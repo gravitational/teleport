@@ -38,7 +38,7 @@ jobs:
           environment-name: stage/automation/ami-cleanup
 
       - name: Assume AWS role for cleaning up AMIs
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2

@@ -66,7 +66,7 @@ jobs:
           driver: docker-container
 
       - name: Assume AWS Pending ECR Pull Role
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.ECR_OCI_PENDING_PULL_ROLE_ARN }}
@@ -94,7 +94,7 @@ jobs:
           echo "TELEPORT_IMAGE_LIST_HASH=$TELEPORT_IMAGE_LIST_HASH" >> "$GITHUB_ENV"
 
       - name: Assume AWS ECR Push Role
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.ECR_OCI_PUSH_ROLE_ARN }}

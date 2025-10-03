@@ -152,7 +152,7 @@ jobs:
           Write-Output "@Powershell.exe -File `"$ShellScriptBackendPath`" %*" | Out-File -FilePath "$ShellScriptPath" -Encoding ascii
       # TODO move this and the next step to an action in the share-workflows repo
       - name: Assume AWS code signing role
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
         with:
           aws-region: us-west-2
           role-to-assume: ${{ env.WINDOWS_SIGNING_ROLE_ARN }}
@@ -313,7 +313,7 @@ jobs:
           . "build.assets/windows/build.ps1"
           Generate-Artifacts -Workspace "$env:RELCLI_DIR" -ArtifactDirectory "$env:ARTIFACT_DIRECTORY"
       - name: Assume AWS S3 artifact upload role
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
         with:
           role-skip-session-tagging: true
           aws-region: us-west-2
