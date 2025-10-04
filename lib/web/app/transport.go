@@ -379,21 +379,6 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		break
 	}
 
-	t.mu.Lock()
-	// Only attempt to tidy up the list of servers if they weren't altered
-	// while the dialing happened. Since the lock is only held initially when
-	// making the servers copy and released during the dials, another dial attempt
-	// may have already happened and modified the list of servers.
-	if len(servers) == len(t.c.servers) {
-		// eliminate any servers from the head of the list that were unreachable
-		if i < len(t.c.servers) {
-			t.c.servers = t.c.servers[i:]
-		} else {
-			t.c.servers = nil
-		}
-	}
-	t.mu.Unlock()
-
 	if conn != nil || err != nil {
 		return conn, trace.Wrap(err)
 	}
