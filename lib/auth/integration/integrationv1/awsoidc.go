@@ -133,13 +133,26 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 	}
 
 	if len(configsRequireCleanup) > 0 {
+		var qualifiedConfigs []string
+		for _, config := range configsRequireCleanup {
+			qualifiedConfigs = append(qualifiedConfigs, "discovery_config/"+config)
+		}
+
 		return trace.BadParameter("cannot delete integration, "+
-			"Discovery Configs referencing this integration must be removed first: %s",
-			strings.Join(configsRequireCleanup, ", "))
+			"Discovery Configs referencing this integration must be removed first: %s\n\n"+
+			"Use `tsh rm %s` to remove them.",
+			strings.Join(configsRequireCleanup, ", "),
+			strings.Join(qualifiedConfigs, " "))
 	}
 
 	for _, configName := range configsToDelete {
-		if err := s.backend.DeleteDiscoveryConfig(ctx, configName); err != nil && !trace.IsNotFound(err) {
+		s.logger.DebugContext(ctx, "Deleting discovery_config associated with integration",
+			"discovery_config", configName,
+			"integration", ig.GetName())
+
+		err := s.backend.DeleteDiscoveryConfig(ctx, configName)
+
+		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	}
@@ -152,6 +165,10 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 
 	for _, appServer := range appServers {
 		if appServer.GetApp().GetIntegration() == ig.GetName() {
+			s.logger.DebugContext(ctx, "Deleting app_server associated with integration",
+				"app_server", appServer.GetName(),
+				"integration", ig.GetName())
+
 			err := s.backend.DeleteApplicationServer(ctx,
 				appServer.GetNamespace(), appServer.GetHostID(), appServer.GetName())
 
