@@ -26,7 +26,7 @@ Update your Elasticsearch configuration file, `elasticsearch.yaml`, to enable a
 JWT realm:
 
 ```yaml
-xpack.security.authc.realms.jwt.jwt1:
+xpack.security.authc.realms.jwt.teleport:
   order: 1
   client_authentication.type: none
   pkc_jwkset_path: https://proxy.example.com/.well-known/jwks.json
@@ -35,6 +35,18 @@ xpack.security.authc.realms.jwt.jwt1:
   allowed_issuer: example-cluster
   allowed_audiences: ["https://elasticsearch.example.com:9200"]
 ```
+
+<Admonition type="tip" title="Elastic Cloud">
+For **hosted deployments** in Elastic Cloud, you can configure the same settings
+by editing your deployment.
+
+Go to "Manage user settings and extensions" for "Elaiscsearch", then add the
+configuration snippet above under "User Settings". You may have to use an order
+number bigger than 1.
+
+Note that configuring JWT authentication is not available for **Serverless**
+projects.
+</Admonition>
 
 Let's take a closer look at the parameters and their values:
 
@@ -46,7 +58,7 @@ Let's take a closer look at the parameters and their values:
   it instead of using a URL.
 - Set `claims.principal` and `claims.groups` to `sub` and `roles` respectively.
   These are the claims Teleport uses to pass user and role information in JWT
-  tokens. Keep in mind that **users and roles must exist** in Elasticsearch.
+  tokens.
 - Set `allowed_issuer` to the name of your Teleport cluster.
 - Set `allowed_audiences` to the URL which Teleport Application Service will
   use to connect to Elasticsearch.
@@ -54,7 +66,26 @@ Let's take a closer look at the parameters and their values:
 <Admonition title="Elasticsearch role mapping" type="note">
   Note that when using JWT authentication, you cannot map user roles using the
   standard Elasticsearch `role_mapping.yml` file. Instead, you need to set the
-  role mapping using the API. See [JWT realm authorization](https://www.elastic.co/guide/en/elasticsearch/reference/current/jwt-realm.html#jwt-authorization)
+  role mapping using the API.
+
+  For example, you can create the following mapping to map Teleport's `access` role
+  to `superuser` role in Elasticsearch:
+  ```
+  PUT /_security/role_mapping/teleport_access
+  {
+    "roles": [ "superuser" ],
+    "rules": {
+      "all": [
+        { "field": { "realm.name": "teleport" } },
+        { "field": { "groups": "access" } }
+      ]
+    },
+    "enabled": true
+  }
+  ```
+  
+  See [JWT realm
+  authorization](https://www.elastic.co/guide/en/elasticsearch/reference/current/jwt-realm.html#jwt-authorization)
   for details.
 </Admonition>
 
@@ -108,7 +139,7 @@ $ curl \
   --cacert ~/.tsh/keys/teleport.example.com/cas/root.pem \
   --cert ~/.tsh/keys/teleport.example.com/alice-app/example-cluster/elastic-x509.pem \
   --key ~/.tsh/keys/teleport.example.com/alice \
-  https://elastic.teleport.example.com/_security/user | jq
+  https://elastic.teleport.example.com/_security/_authenticate | jq
 ```
 
 ## Next steps
