@@ -243,7 +243,7 @@ const snowflakeSessionNameIndex snowflakeSessionIndex = "name"
 
 func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.WatchKind) (*collection[types.WebSession, snowflakeSessionIndex], error) {
 	if upstream == nil {
-		return nil, trace.BadParameter("missing parameter AppSession")
+		return nil, trace.BadParameter("missing parameter upstream")
 	}
 
 	return &collection[types.WebSession, snowflakeSessionIndex]{
@@ -254,8 +254,14 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 				snowflakeSessionNameIndex: types.WebSession.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
-			webSessions, err := upstream.GetSnowflakeSessions(ctx)
-			if err != nil {
+			webSessions, err := stream.Collect(clientutils.Resources(ctx, upstream.ListSnowflakeSessions))
+			// TODO(okraport): DELETE IN v21.0.0
+			if trace.IsNotImplemented(err) {
+				webSessions, err = upstream.GetSnowflakeSessions(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			} else if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
@@ -311,4 +317,102 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 		}
 	}
 	return out, trace.Wrap(err)
+}
+
+// RangeSnowflakeSessions returns Snowflake session resources within the range [start, end).
+func (c *Cache) RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error] {
+	return func(yield func(types.WebSession, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeSnowflakeSessions")
+		defer span.End()
+
+		rg, err := acquireReadGuard(c, c.collections.snowflakeSessions)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		defer rg.Release()
+
+		if rg.ReadCache() {
+			for a := range rg.store.resources(snowflakeSessionNameIndex, start, end) {
+				if !yield(a.Copy(), nil) {
+					return
+				}
+			}
+			return
+		}
+
+		// Release the read guard early since all future reads will be
+		// performed against the upstream.
+		rg.Release()
+
+		for session, err := range c.Config.SnowflakeSession.RangeSnowflakeSessions(ctx, start, end) {
+			if err != nil {
+				// TODO(lokraszewski): DELETE IN v21.0.0
+				if trace.IsNotImplemented(err) {
+					sessions, err := c.Config.SnowflakeSession.GetSnowflakeSessions(ctx)
+					if err != nil {
+						yield(nil, err)
+						return
+					}
+
+					for _, session := range sessions {
+						if !yield(session, nil) {
+							return
+						}
+					}
+
+					return
+				}
+
+				yield(nil, err)
+				return
+			}
+
+			if !yield(session, nil) {
+				return
+			}
+		}
+	}
+}
+
+// ListSnowflakeSessions returns a page of Snowflake session resources.
+func (c *Cache) ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSnowflakeSessions")
+	defer span.End()
+
+	lister := genericLister[types.WebSession, snowflakeSessionIndex]{
+		cache:        c,
+		collection:   c.collections.snowflakeSessions,
+		index:        snowflakeSessionNameIndex,
+		upstreamList: c.Config.SnowflakeSession.ListSnowflakeSessions,
+		nextToken: func(a types.WebSession) string {
+			return a.GetMetadata().Name
+		},
+	}
+	out, next, err := lister.list(ctx, limit, startKey)
+	return out, next, trace.Wrap(err)
+}
+
+// GetSnowflakeSessions returns all Snowflake session resources.
+func (c *Cache) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSessions")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.snowflakeSessions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		sessions, err := c.Config.SnowflakeSession.GetSnowflakeSessions(ctx)
+		return sessions, trace.Wrap(err)
+	}
+
+	out := make([]types.WebSession, 0, rg.store.len())
+	for a := range rg.store.resources(snowflakeSessionNameIndex, "", "") {
+		out = append(out, a.Copy())
+	}
+
+	return out, nil
 }

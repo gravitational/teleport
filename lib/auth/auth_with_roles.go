@@ -5784,6 +5784,7 @@ func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pag
 }
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
+// Deprecated: Prefer paginated variant such as [ListSnowflakeSessions]
 func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
 	// Check if this a database service.
 	if !a.hasBuiltinRole(types.RoleDatabase) {
@@ -5792,11 +5793,46 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 		}
 	}
 
-	sessions, err := a.authServer.GetSnowflakeSessions(ctx)
+	out, err := iterstream.Collect(a.authServer.RangeSnowflakeSessions(ctx, "", ""))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sessions, nil
+
+	return out, nil
+}
+
+// ListSnowflakeSessions returns a page of Snowflake web sessions.
+func (a *ServerWithRoles) ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error) {
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.authorizeAction(types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
+
+	var next string
+	var seen int
+	out, err := iterstream.Collect(
+		iterstream.TakeWhile(
+			a.authServer.RangeSnowflakeSessions(ctx, start, ""),
+			func(session types.WebSession) bool {
+				if seen < limit {
+					seen++
+					return true
+				}
+				next = session.GetName()
+				return false
+			},
+		),
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, next, nil
 }
 
 // CreateAppSession creates an application web session. Application web
