@@ -230,6 +230,12 @@ func (r ResourceURI) AppendDBServer(id string) ResourceURI {
 	return r
 }
 
+// AppendKubeServer appends kube_server segment to the URI
+func (r ResourceURI) AppendKubeServer(id string) ResourceURI {
+	r.path = fmt.Sprintf("%v/kube_servers/%v", r.path, id)
+	return r
+}
+
 // AppendLeafCluster appends leaf cluster segment to the URI if name is not empty.
 func (r ResourceURI) AppendLeafCluster(name string) ResourceURI {
 	if name == "" {

@@ -102,6 +102,7 @@ export interface UnifiedResourceKube {
   name: string;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
+  targetHealth?: ResourceTargetHealth;
 }
 
 export type UnifiedResourceDesktop = {
@@ -274,4 +275,16 @@ export type DatabaseServer = {
   targetHealth?: ResourceTargetHealth;
 };
 
-export type SharedResourceServer = DatabaseServer;
+/**
+ * KubeServer (kube_server) describes a Kube heartbeat signal
+ * reported from an agent (kubernetes_service) that is proxying
+ * the Kubernetes cluster.
+ */
+export type KubeServer = {
+  kind: 'kube_server';
+  hostname: string;
+  hostId: string;
+  targetHealth?: ResourceTargetHealth;
+};
+
+export type SharedResourceServer = DatabaseServer | KubeServer;

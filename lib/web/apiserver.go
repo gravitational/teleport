@@ -886,7 +886,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Returns the CA Certs
 	// Deprecated, use the `webapi/auth/export` endpoint.
-	// Returning other clusters (trusted cluster) CA certs would leak whether the TrustedCluster exists or not.
+	// Returning other clusters (trusted cluster) CA certs would leak wether the TrustedCluster exists or not.
 	// Given that this is a public/unauthorized endpoint, we should refrain from exposing that kind of information.
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
 	h.GET("/webapi/auth/export", h.authExportPublic)
@@ -942,6 +942,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
 	h.GET("/webapi/sites/:site/kubernetes/resources", h.WithClusterAuth(h.clusterKubeResourcesGet))
+	h.GET("/webapi/sites/:site/kubernetesservers", h.WithClusterAuth(h.clusterKubeServersList))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -3417,6 +3418,10 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			unifiedResources = append(unifiedResources, kube)
 		case types.KubeServer:
 			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker, enriched.RequiresRequest)
+			targetHealth := r.GetTargetHealth()
+			if targetHealth != nil {
+				kube.TargetHealth = *targetHealth
+			}
 			unifiedResources = append(unifiedResources, kube)
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", enriched)

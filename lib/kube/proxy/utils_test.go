@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -242,6 +243,19 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
+	healthCheckManager, err := healthcheck.NewManager(
+		testCtx.Context,
+		healthcheck.ManagerConfig{
+			Component:               teleport.ComponentKube,
+			Events:                  client,
+			HealthCheckConfigReader: client,
+		},
+	)
+	require.NoError(t, err)
+	err = healthCheckManager.Start(testCtx.Context)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -290,6 +304,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		Log:                  logtest.NewLogger(),
 		InventoryHandle:      inventoryHandle,
 		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+		HealthCheckManager:   healthCheckManager,
 	})
 	require.NoError(t, err)
 
@@ -371,6 +386,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			return &types.Rotation{}, nil
 		},
 		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+		HealthCheckManager:   healthCheckManager,
 	})
 	require.NoError(t, err)
 	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")

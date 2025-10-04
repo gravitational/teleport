@@ -67,7 +67,7 @@ func (cfg *workerConfig) checkAndSetDefaults() error {
 		cfg.Log = slog.Default()
 	}
 	if cfg.getTargetHealthTimeout == 0 {
-		cfg.getTargetHealthTimeout = 10 * time.Second
+		cfg.getTargetHealthTimeout = 4 * time.Second
 	}
 	if err := cfg.Target.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
