@@ -67,6 +67,9 @@ type SessionCtx struct {
 
 	// traitsForRewriteHeaders are user traits used for rewriting headers.
 	traitsForRewriteHeaders wrappers.Traits
+
+	// transport is the transport type of the MCP server.
+	transport string
 }
 
 func (c *SessionCtx) checkAndSetDefaults() error {
@@ -82,8 +85,11 @@ func (c *SessionCtx) checkAndSetDefaults() error {
 	if c.Identity.Username == "" {
 		c.Identity = c.AuthCtx.Identity.GetIdentity()
 	}
+	if c.transport == "" {
+		c.transport = types.GetMCPServerTransportType(c.App.GetURI())
+	}
 	if c.sessionID == "" {
-		if types.MCPTransportHTTP == types.GetMCPServerTransportType(c.App.GetURI()) {
+		if types.MCPTransportHTTP == c.transport {
 			// A single HTTP request is handled at a time so take session ID
 			// from cert.
 			c.sessionID = session.ID(c.Identity.RouteToApp.SessionID)
@@ -197,6 +203,7 @@ func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string)
 
 func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
 	s.emitNotificationEvent(ctx, notification, nil)
+	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
 func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
@@ -250,6 +257,8 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 }
 
 func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
+	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
+
 	s.idTracker.PushRequest(req)
 	switch req.Method {
 	case mcp.MethodToolsCall:
@@ -263,6 +272,8 @@ func (s *sessionHandler) processClientRequestNoAudit(ctx context.Context, req *m
 
 func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
 	method, _ := s.idTracker.PopByID(response.ID)
+	messagesFromServer.WithLabelValues(s.transport, "response", reportRequestMethod(method)).Inc()
+
 	switch method {
 	case mcp.MethodToolsList:
 		return s.makeToolsCallResponse(ctx, response)
@@ -272,6 +283,7 @@ func (s *sessionHandler) processServerResponse(ctx context.Context, response *mc
 
 func (s *sessionHandler) processServerNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
 	s.logger.DebugContext(ctx, "Received server notification.", "method", notification.Method)
+	messagesFromServer.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
 func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {

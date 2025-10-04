@@ -64,6 +64,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	// Initialize SSE stream.
 	sseResponseReader, sseRequestWriter, err := mcputils.ConnectSSEServer(ctx, baseURL, httpTransport)
 	if err != nil {
+		setupErrors.WithLabelValues(sessionCtx.transport).Inc()
 		return trace.Wrap(err)
 	}
 	session.logger.DebugContext(ctx, "Received SSE endpoint", "endpoint_url", sseRequestWriter.GetEndpointURL())

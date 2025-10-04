@@ -188,7 +188,6 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 	a.emitEvent(ctx, event)
 }
 
-//nolint:unused //TODO(greedy52) remove nolint
 func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error) {
 	event := &apievents.MCPSessionListenSSEStream{
 		Metadata: a.makeEventMetadata(
@@ -210,7 +209,6 @@ func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error
 	a.emitEvent(ctx, event)
 }
 
-//nolint:unused //TODO(greedy52) remove nolint
 func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Request) {
 	body, _ := utils.GetAndReplaceRequestBody(r)
 	event := &apievents.MCPSessionInvalidHTTPRequest{
