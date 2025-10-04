@@ -71,7 +71,7 @@ import { TrustedClusters } from './TrustedClusters';
 import { NavTitle, type FeatureFlags, type TeleportFeature } from './types';
 import { UnifiedResources } from './UnifiedResources';
 import { Users } from './Users';
-import { EmptyState as WorkloadIdentityEmptyState } from './WorkloadIdentity/EmptyState/EmptyState';
+import { WorkloadIdentities } from './WorkloadIdentity/WorkloadIdentities';
 
 // to promote feature discoverability, most features should be visible in the navigation even if a user doesnt have access.
 // However, there are some cases where hiding the feature is explicitly requested. Use this as a backdoor to hide the features that
@@ -695,17 +695,17 @@ export class FeatureTrust implements TeleportFeature {
 export class FeatureWorkloadIdentity implements TeleportFeature {
   category = NavigationCategory.MachineWorkloadId;
   route = {
-    title: 'Workload Identity',
-    path: cfg.routes.workloadIdentity,
+    title: 'Workload Identities',
+    path: cfg.routes.workloadIdentities,
     exact: true,
-    component: WorkloadIdentityEmptyState,
+    component: WorkloadIdentities,
   };
 
-  // for now, workload identity page is just a placeholder so everyone has
-  // access, unless feature hiding is off
-  hasAccess(): boolean {
+  hasAccess(flags: FeatureFlags): boolean {
+    // if feature hiding is enabled, only show
+    // if the user has access
     if (shouldHideFromNavigation(cfg)) {
-      return false;
+      return flags.listWorkloadIdentities;
     }
     return true;
   }
@@ -713,7 +713,7 @@ export class FeatureWorkloadIdentity implements TeleportFeature {
     title: NavTitle.WorkloadIdentity,
     icon: License,
     getLink() {
-      return cfg.routes.workloadIdentity;
+      return cfg.routes.workloadIdentities;
     },
     searchableTags: ['workload identity', 'workload', 'identity'],
   };
