@@ -801,6 +801,158 @@ func (x *BoundKeypairResult) GetPublicKey() []byte {
 	return nil
 }
 
+// IAMInit is sent from the client in response to the ServerInit message for
+// the IAM join method.
+//
+// The IAM method join flow is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: IAMInit
+// 4. server->client: IAMChallenge
+// 5. client->server: IAMChallengeSolution
+// 6. server->client: Result
+type IAMInit struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams  *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IAMInit) Reset() {
+	*x = IAMInit{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IAMInit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IAMInit) ProtoMessage() {}
+
+func (x *IAMInit) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IAMInit.ProtoReflect.Descriptor instead.
+func (*IAMInit) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *IAMInit) GetClientParams() *ClientParams {
+	if x != nil {
+		return x.ClientParams
+	}
+	return nil
+}
+
+// IAMChallenge is from the server in response to the IAMInit message from the client.
+// The client is expected to respond with a IAMChallengeSolution.
+type IAMChallenge struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Challenge is a a crypto-random string that should be included by the
+	// client in the IAMChallengeSolution message.
+	Challenge     string `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IAMChallenge) Reset() {
+	*x = IAMChallenge{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IAMChallenge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IAMChallenge) ProtoMessage() {}
+
+func (x *IAMChallenge) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IAMChallenge.ProtoReflect.Descriptor instead.
+func (*IAMChallenge) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *IAMChallenge) GetChallenge() string {
+	if x != nil {
+		return x.Challenge
+	}
+	return ""
+}
+
+// IAMChallengeSolution must be sent from the client in response to the
+// IAMChallenge message.
+type IAMChallengeSolution struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// STSIdentityRequest is a signed sts:GetCallerIdentity API request used
+	// to prove the AWS identity of a joining node. It must include the
+	// challenge string as a signed header.
+	StsIdentityRequest []byte `protobuf:"bytes,1,opt,name=sts_identity_request,json=stsIdentityRequest,proto3" json:"sts_identity_request,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *IAMChallengeSolution) Reset() {
+	*x = IAMChallengeSolution{}
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IAMChallengeSolution) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IAMChallengeSolution) ProtoMessage() {}
+
+func (x *IAMChallengeSolution) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IAMChallengeSolution.ProtoReflect.Descriptor instead.
+func (*IAMChallengeSolution) Descriptor() ([]byte, []int) {
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *IAMChallengeSolution) GetStsIdentityRequest() []byte {
+	if x != nil {
+		return x.StsIdentityRequest
+	}
+	return nil
+}
+
 // ChallengeSolution holds a solution to a challenge issued by the server.
 type ChallengeSolution struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -808,6 +960,7 @@ type ChallengeSolution struct {
 	//
 	//	*ChallengeSolution_BoundKeypairChallengeSolution
 	//	*ChallengeSolution_BoundKeypairRotationResponse
+	//	*ChallengeSolution_IamChallengeSolution
 	Payload       isChallengeSolution_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -815,7 +968,7 @@ type ChallengeSolution struct {
 
 func (x *ChallengeSolution) Reset() {
 	*x = ChallengeSolution{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -827,7 +980,7 @@ func (x *ChallengeSolution) String() string {
 func (*ChallengeSolution) ProtoMessage() {}
 
 func (x *ChallengeSolution) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[12]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -840,7 +993,7 @@ func (x *ChallengeSolution) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChallengeSolution.ProtoReflect.Descriptor instead.
 func (*ChallengeSolution) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{12}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ChallengeSolution) GetPayload() isChallengeSolution_Payload {
@@ -868,6 +1021,15 @@ func (x *ChallengeSolution) GetBoundKeypairRotationResponse() *BoundKeypairRotat
 	return nil
 }
 
+func (x *ChallengeSolution) GetIamChallengeSolution() *IAMChallengeSolution {
+	if x != nil {
+		if x, ok := x.Payload.(*ChallengeSolution_IamChallengeSolution); ok {
+			return x.IamChallengeSolution
+		}
+	}
+	return nil
+}
+
 type isChallengeSolution_Payload interface {
 	isChallengeSolution_Payload()
 }
@@ -880,9 +1042,15 @@ type ChallengeSolution_BoundKeypairRotationResponse struct {
 	BoundKeypairRotationResponse *BoundKeypairRotationResponse `protobuf:"bytes,2,opt,name=bound_keypair_rotation_response,json=boundKeypairRotationResponse,proto3,oneof"`
 }
 
+type ChallengeSolution_IamChallengeSolution struct {
+	IamChallengeSolution *IAMChallengeSolution `protobuf:"bytes,3,opt,name=iam_challenge_solution,json=iamChallengeSolution,proto3,oneof"`
+}
+
 func (*ChallengeSolution_BoundKeypairChallengeSolution) isChallengeSolution_Payload() {}
 
 func (*ChallengeSolution_BoundKeypairRotationResponse) isChallengeSolution_Payload() {}
+
+func (*ChallengeSolution_IamChallengeSolution) isChallengeSolution_Payload() {}
 
 // JoinRequest is the message type sent from the joining client to the server.
 type JoinRequest struct {
@@ -893,6 +1061,7 @@ type JoinRequest struct {
 	//	*JoinRequest_TokenInit
 	//	*JoinRequest_BoundKeypairInit
 	//	*JoinRequest_Solution
+	//	*JoinRequest_IamInit
 	Payload       isJoinRequest_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -900,7 +1069,7 @@ type JoinRequest struct {
 
 func (x *JoinRequest) Reset() {
 	*x = JoinRequest{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -912,7 +1081,7 @@ func (x *JoinRequest) String() string {
 func (*JoinRequest) ProtoMessage() {}
 
 func (x *JoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[13]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -925,7 +1094,7 @@ func (x *JoinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinRequest.ProtoReflect.Descriptor instead.
 func (*JoinRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{13}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *JoinRequest) GetPayload() isJoinRequest_Payload {
@@ -971,6 +1140,15 @@ func (x *JoinRequest) GetSolution() *ChallengeSolution {
 	return nil
 }
 
+func (x *JoinRequest) GetIamInit() *IAMInit {
+	if x != nil {
+		if x, ok := x.Payload.(*JoinRequest_IamInit); ok {
+			return x.IamInit
+		}
+	}
+	return nil
+}
+
 type isJoinRequest_Payload interface {
 	isJoinRequest_Payload()
 }
@@ -991,6 +1169,10 @@ type JoinRequest_Solution struct {
 	Solution *ChallengeSolution `protobuf:"bytes,4,opt,name=solution,proto3,oneof"`
 }
 
+type JoinRequest_IamInit struct {
+	IamInit *IAMInit `protobuf:"bytes,5,opt,name=iam_init,json=iamInit,proto3,oneof"`
+}
+
 func (*JoinRequest_ClientInit) isJoinRequest_Payload() {}
 
 func (*JoinRequest_TokenInit) isJoinRequest_Payload() {}
@@ -998,6 +1180,8 @@ func (*JoinRequest_TokenInit) isJoinRequest_Payload() {}
 func (*JoinRequest_BoundKeypairInit) isJoinRequest_Payload() {}
 
 func (*JoinRequest_Solution) isJoinRequest_Payload() {}
+
+func (*JoinRequest_IamInit) isJoinRequest_Payload() {}
 
 // ServerInit is the first message sent from the server in response to the
 // ClientInit message.
@@ -1014,7 +1198,7 @@ type ServerInit struct {
 
 func (x *ServerInit) Reset() {
 	*x = ServerInit{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1026,7 +1210,7 @@ func (x *ServerInit) String() string {
 func (*ServerInit) ProtoMessage() {}
 
 func (x *ServerInit) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[14]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1039,7 +1223,7 @@ func (x *ServerInit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInit.ProtoReflect.Descriptor instead.
 func (*ServerInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{14}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ServerInit) GetJoinMethod() string {
@@ -1063,6 +1247,7 @@ type Challenge struct {
 	//
 	//	*Challenge_BoundKeypairChallenge
 	//	*Challenge_BoundKeypairRotationRequest
+	//	*Challenge_IamChallenge
 	Payload       isChallenge_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1070,7 +1255,7 @@ type Challenge struct {
 
 func (x *Challenge) Reset() {
 	*x = Challenge{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[15]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1082,7 +1267,7 @@ func (x *Challenge) String() string {
 func (*Challenge) ProtoMessage() {}
 
 func (x *Challenge) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[15]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1095,7 +1280,7 @@ func (x *Challenge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Challenge.ProtoReflect.Descriptor instead.
 func (*Challenge) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{15}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Challenge) GetPayload() isChallenge_Payload {
@@ -1123,6 +1308,15 @@ func (x *Challenge) GetBoundKeypairRotationRequest() *BoundKeypairRotationReques
 	return nil
 }
 
+func (x *Challenge) GetIamChallenge() *IAMChallenge {
+	if x != nil {
+		if x, ok := x.Payload.(*Challenge_IamChallenge); ok {
+			return x.IamChallenge
+		}
+	}
+	return nil
+}
+
 type isChallenge_Payload interface {
 	isChallenge_Payload()
 }
@@ -1135,9 +1329,15 @@ type Challenge_BoundKeypairRotationRequest struct {
 	BoundKeypairRotationRequest *BoundKeypairRotationRequest `protobuf:"bytes,2,opt,name=bound_keypair_rotation_request,json=boundKeypairRotationRequest,proto3,oneof"`
 }
 
+type Challenge_IamChallenge struct {
+	IamChallenge *IAMChallenge `protobuf:"bytes,3,opt,name=iam_challenge,json=iamChallenge,proto3,oneof"`
+}
+
 func (*Challenge_BoundKeypairChallenge) isChallenge_Payload() {}
 
 func (*Challenge_BoundKeypairRotationRequest) isChallenge_Payload() {}
+
+func (*Challenge_IamChallenge) isChallenge_Payload() {}
 
 // Result is the final message sent from the cluster back to the client, it
 // contains the result of the joining process including the assigned host ID
@@ -1155,7 +1355,7 @@ type Result struct {
 
 func (x *Result) Reset() {
 	*x = Result{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[16]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1167,7 +1367,7 @@ func (x *Result) String() string {
 func (*Result) ProtoMessage() {}
 
 func (x *Result) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[16]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1180,7 +1380,7 @@ func (x *Result) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Result.ProtoReflect.Descriptor instead.
 func (*Result) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{16}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Result) GetPayload() isResult_Payload {
@@ -1243,7 +1443,7 @@ type Certificates struct {
 
 func (x *Certificates) Reset() {
 	*x = Certificates{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[17]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1255,7 +1455,7 @@ func (x *Certificates) String() string {
 func (*Certificates) ProtoMessage() {}
 
 func (x *Certificates) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[17]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1268,7 +1468,7 @@ func (x *Certificates) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Certificates.ProtoReflect.Descriptor instead.
 func (*Certificates) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{17}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Certificates) GetTlsCert() []byte {
@@ -1312,7 +1512,7 @@ type HostResult struct {
 
 func (x *HostResult) Reset() {
 	*x = HostResult{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[18]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1324,7 +1524,7 @@ func (x *HostResult) String() string {
 func (*HostResult) ProtoMessage() {}
 
 func (x *HostResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[18]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1337,7 +1537,7 @@ func (x *HostResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HostResult.ProtoReflect.Descriptor instead.
 func (*HostResult) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{18}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *HostResult) GetCertificates() *Certificates {
@@ -1367,7 +1567,7 @@ type BotResult struct {
 
 func (x *BotResult) Reset() {
 	*x = BotResult{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[19]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1379,7 +1579,7 @@ func (x *BotResult) String() string {
 func (*BotResult) ProtoMessage() {}
 
 func (x *BotResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[19]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1392,7 +1592,7 @@ func (x *BotResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BotResult.ProtoReflect.Descriptor instead.
 func (*BotResult) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{19}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *BotResult) GetCertificates() *Certificates {
@@ -1424,7 +1624,7 @@ type JoinResponse struct {
 
 func (x *JoinResponse) Reset() {
 	*x = JoinResponse{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1436,7 +1636,7 @@ func (x *JoinResponse) String() string {
 func (*JoinResponse) ProtoMessage() {}
 
 func (x *JoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[20]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1449,7 +1649,7 @@ func (x *JoinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JoinResponse.ProtoReflect.Descriptor instead.
 func (*JoinResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{20}
+	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *JoinResponse) GetPayload() isJoinResponse_Payload {
@@ -1532,7 +1732,7 @@ type ClientInit_ProxySuppliedParams struct {
 
 func (x *ClientInit_ProxySuppliedParams) Reset() {
 	*x = ClientInit_ProxySuppliedParams{}
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1544,7 +1744,7 @@ func (x *ClientInit_ProxySuppliedParams) String() string {
 func (*ClientInit_ProxySuppliedParams) ProtoMessage() {}
 
 func (x *ClientInit_ProxySuppliedParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[21]
+	mi := &file_teleport_join_v1_joinservice_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1639,27 +1839,36 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\n" +
 	"join_state\x18\x02 \x01(\fR\tjoinState\x12\x1d\n" +
 	"\n" +
-	"public_key\x18\x03 \x01(\fR\tpublicKey\"\x93\x02\n" +
+	"public_key\x18\x03 \x01(\fR\tpublicKey\"N\n" +
+	"\aIAMInit\x12C\n" +
+	"\rclient_params\x18\x01 \x01(\v2\x1e.teleport.join.v1.ClientParamsR\fclientParams\",\n" +
+	"\fIAMChallenge\x12\x1c\n" +
+	"\tchallenge\x18\x01 \x01(\tR\tchallenge\"H\n" +
+	"\x14IAMChallengeSolution\x120\n" +
+	"\x14sts_identity_request\x18\x01 \x01(\fR\x12stsIdentityRequest\"\xf3\x02\n" +
 	"\x11ChallengeSolution\x12z\n" +
 	" bound_keypair_challenge_solution\x18\x01 \x01(\v2/.teleport.join.v1.BoundKeypairChallengeSolutionH\x00R\x1dboundKeypairChallengeSolution\x12w\n" +
-	"\x1fbound_keypair_rotation_response\x18\x02 \x01(\v2..teleport.join.v1.BoundKeypairRotationResponseH\x00R\x1cboundKeypairRotationResponseB\t\n" +
-	"\apayload\"\xae\x02\n" +
+	"\x1fbound_keypair_rotation_response\x18\x02 \x01(\v2..teleport.join.v1.BoundKeypairRotationResponseH\x00R\x1cboundKeypairRotationResponse\x12^\n" +
+	"\x16iam_challenge_solution\x18\x03 \x01(\v2&.teleport.join.v1.IAMChallengeSolutionH\x00R\x14iamChallengeSolutionB\t\n" +
+	"\apayload\"\xe6\x02\n" +
 	"\vJoinRequest\x12?\n" +
 	"\vclient_init\x18\x01 \x01(\v2\x1c.teleport.join.v1.ClientInitH\x00R\n" +
 	"clientInit\x12<\n" +
 	"\n" +
 	"token_init\x18\x02 \x01(\v2\x1b.teleport.join.v1.TokenInitH\x00R\ttokenInit\x12R\n" +
 	"\x12bound_keypair_init\x18\x03 \x01(\v2\".teleport.join.v1.BoundKeypairInitH\x00R\x10boundKeypairInit\x12A\n" +
-	"\bsolution\x18\x04 \x01(\v2#.teleport.join.v1.ChallengeSolutionH\x00R\bsolutionB\t\n" +
+	"\bsolution\x18\x04 \x01(\v2#.teleport.join.v1.ChallengeSolutionH\x00R\bsolution\x126\n" +
+	"\biam_init\x18\x05 \x01(\v2\x19.teleport.join.v1.IAMInitH\x00R\aiamInitB\t\n" +
 	"\apayload\"i\n" +
 	"\n" +
 	"ServerInit\x12\x1f\n" +
 	"\vjoin_method\x18\x01 \x01(\tR\n" +
 	"joinMethod\x12:\n" +
-	"\x19signature_algorithm_suite\x18\x02 \x01(\tR\x17signatureAlgorithmSuite\"\xef\x01\n" +
+	"\x19signature_algorithm_suite\x18\x02 \x01(\tR\x17signatureAlgorithmSuite\"\xb6\x02\n" +
 	"\tChallenge\x12a\n" +
 	"\x17bound_keypair_challenge\x18\x01 \x01(\v2'.teleport.join.v1.BoundKeypairChallengeH\x00R\x15boundKeypairChallenge\x12t\n" +
-	"\x1ebound_keypair_rotation_request\x18\x02 \x01(\v2-.teleport.join.v1.BoundKeypairRotationRequestH\x00R\x1bboundKeypairRotationRequestB\t\n" +
+	"\x1ebound_keypair_rotation_request\x18\x02 \x01(\v2-.teleport.join.v1.BoundKeypairRotationRequestH\x00R\x1bboundKeypairRotationRequest\x12E\n" +
+	"\riam_challenge\x18\x03 \x01(\v2\x1e.teleport.join.v1.IAMChallengeH\x00R\fiamChallengeB\t\n" +
 	"\apayload\"\x92\x01\n" +
 	"\x06Result\x12?\n" +
 	"\vhost_result\x18\x01 \x01(\v2\x1c.teleport.join.v1.HostResultH\x00R\n" +
@@ -1701,7 +1910,7 @@ func file_teleport_join_v1_joinservice_proto_rawDescGZIP() []byte {
 	return file_teleport_join_v1_joinservice_proto_rawDescData
 }
 
-var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
 var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(*ClientInit)(nil),                     // 0: teleport.join.v1.ClientInit
 	(*PublicKeys)(nil),                     // 1: teleport.join.v1.PublicKeys
@@ -1715,50 +1924,57 @@ var file_teleport_join_v1_joinservice_proto_goTypes = []any{
 	(*BoundKeypairRotationRequest)(nil),    // 9: teleport.join.v1.BoundKeypairRotationRequest
 	(*BoundKeypairRotationResponse)(nil),   // 10: teleport.join.v1.BoundKeypairRotationResponse
 	(*BoundKeypairResult)(nil),             // 11: teleport.join.v1.BoundKeypairResult
-	(*ChallengeSolution)(nil),              // 12: teleport.join.v1.ChallengeSolution
-	(*JoinRequest)(nil),                    // 13: teleport.join.v1.JoinRequest
-	(*ServerInit)(nil),                     // 14: teleport.join.v1.ServerInit
-	(*Challenge)(nil),                      // 15: teleport.join.v1.Challenge
-	(*Result)(nil),                         // 16: teleport.join.v1.Result
-	(*Certificates)(nil),                   // 17: teleport.join.v1.Certificates
-	(*HostResult)(nil),                     // 18: teleport.join.v1.HostResult
-	(*BotResult)(nil),                      // 19: teleport.join.v1.BotResult
-	(*JoinResponse)(nil),                   // 20: teleport.join.v1.JoinResponse
-	(*ClientInit_ProxySuppliedParams)(nil), // 21: teleport.join.v1.ClientInit.ProxySuppliedParams
-	(*timestamppb.Timestamp)(nil),          // 22: google.protobuf.Timestamp
+	(*IAMInit)(nil),                        // 12: teleport.join.v1.IAMInit
+	(*IAMChallenge)(nil),                   // 13: teleport.join.v1.IAMChallenge
+	(*IAMChallengeSolution)(nil),           // 14: teleport.join.v1.IAMChallengeSolution
+	(*ChallengeSolution)(nil),              // 15: teleport.join.v1.ChallengeSolution
+	(*JoinRequest)(nil),                    // 16: teleport.join.v1.JoinRequest
+	(*ServerInit)(nil),                     // 17: teleport.join.v1.ServerInit
+	(*Challenge)(nil),                      // 18: teleport.join.v1.Challenge
+	(*Result)(nil),                         // 19: teleport.join.v1.Result
+	(*Certificates)(nil),                   // 20: teleport.join.v1.Certificates
+	(*HostResult)(nil),                     // 21: teleport.join.v1.HostResult
+	(*BotResult)(nil),                      // 22: teleport.join.v1.BotResult
+	(*JoinResponse)(nil),                   // 23: teleport.join.v1.JoinResponse
+	(*ClientInit_ProxySuppliedParams)(nil), // 24: teleport.join.v1.ClientInit.ProxySuppliedParams
+	(*timestamppb.Timestamp)(nil),          // 25: google.protobuf.Timestamp
 }
 var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
-	21, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
+	24, // 0: teleport.join.v1.ClientInit.proxy_supplied_parameters:type_name -> teleport.join.v1.ClientInit.ProxySuppliedParams
 	1,  // 1: teleport.join.v1.HostParams.public_keys:type_name -> teleport.join.v1.PublicKeys
 	1,  // 2: teleport.join.v1.BotParams.public_keys:type_name -> teleport.join.v1.PublicKeys
-	22, // 3: teleport.join.v1.BotParams.expires:type_name -> google.protobuf.Timestamp
+	25, // 3: teleport.join.v1.BotParams.expires:type_name -> google.protobuf.Timestamp
 	2,  // 4: teleport.join.v1.ClientParams.host_params:type_name -> teleport.join.v1.HostParams
 	3,  // 5: teleport.join.v1.ClientParams.bot_params:type_name -> teleport.join.v1.BotParams
 	4,  // 6: teleport.join.v1.TokenInit.client_params:type_name -> teleport.join.v1.ClientParams
 	4,  // 7: teleport.join.v1.BoundKeypairInit.client_params:type_name -> teleport.join.v1.ClientParams
-	8,  // 8: teleport.join.v1.ChallengeSolution.bound_keypair_challenge_solution:type_name -> teleport.join.v1.BoundKeypairChallengeSolution
-	10, // 9: teleport.join.v1.ChallengeSolution.bound_keypair_rotation_response:type_name -> teleport.join.v1.BoundKeypairRotationResponse
-	0,  // 10: teleport.join.v1.JoinRequest.client_init:type_name -> teleport.join.v1.ClientInit
-	5,  // 11: teleport.join.v1.JoinRequest.token_init:type_name -> teleport.join.v1.TokenInit
-	6,  // 12: teleport.join.v1.JoinRequest.bound_keypair_init:type_name -> teleport.join.v1.BoundKeypairInit
-	12, // 13: teleport.join.v1.JoinRequest.solution:type_name -> teleport.join.v1.ChallengeSolution
-	7,  // 14: teleport.join.v1.Challenge.bound_keypair_challenge:type_name -> teleport.join.v1.BoundKeypairChallenge
-	9,  // 15: teleport.join.v1.Challenge.bound_keypair_rotation_request:type_name -> teleport.join.v1.BoundKeypairRotationRequest
-	18, // 16: teleport.join.v1.Result.host_result:type_name -> teleport.join.v1.HostResult
-	19, // 17: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
-	17, // 18: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
-	17, // 19: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
-	11, // 20: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
-	14, // 21: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
-	15, // 22: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
-	16, // 23: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
-	13, // 24: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
-	20, // 25: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
-	25, // [25:26] is the sub-list for method output_type
-	24, // [24:25] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	4,  // 8: teleport.join.v1.IAMInit.client_params:type_name -> teleport.join.v1.ClientParams
+	8,  // 9: teleport.join.v1.ChallengeSolution.bound_keypair_challenge_solution:type_name -> teleport.join.v1.BoundKeypairChallengeSolution
+	10, // 10: teleport.join.v1.ChallengeSolution.bound_keypair_rotation_response:type_name -> teleport.join.v1.BoundKeypairRotationResponse
+	14, // 11: teleport.join.v1.ChallengeSolution.iam_challenge_solution:type_name -> teleport.join.v1.IAMChallengeSolution
+	0,  // 12: teleport.join.v1.JoinRequest.client_init:type_name -> teleport.join.v1.ClientInit
+	5,  // 13: teleport.join.v1.JoinRequest.token_init:type_name -> teleport.join.v1.TokenInit
+	6,  // 14: teleport.join.v1.JoinRequest.bound_keypair_init:type_name -> teleport.join.v1.BoundKeypairInit
+	15, // 15: teleport.join.v1.JoinRequest.solution:type_name -> teleport.join.v1.ChallengeSolution
+	12, // 16: teleport.join.v1.JoinRequest.iam_init:type_name -> teleport.join.v1.IAMInit
+	7,  // 17: teleport.join.v1.Challenge.bound_keypair_challenge:type_name -> teleport.join.v1.BoundKeypairChallenge
+	9,  // 18: teleport.join.v1.Challenge.bound_keypair_rotation_request:type_name -> teleport.join.v1.BoundKeypairRotationRequest
+	13, // 19: teleport.join.v1.Challenge.iam_challenge:type_name -> teleport.join.v1.IAMChallenge
+	21, // 20: teleport.join.v1.Result.host_result:type_name -> teleport.join.v1.HostResult
+	22, // 21: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
+	20, // 22: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
+	20, // 23: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
+	11, // 24: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
+	17, // 25: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
+	18, // 26: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
+	19, // 27: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
+	16, // 28: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
+	23, // 29: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
+	29, // [29:30] is the sub-list for method output_type
+	28, // [28:29] is the sub-list for method input_type
+	28, // [28:28] is the sub-list for extension type_name
+	28, // [28:28] is the sub-list for extension extendee
+	0,  // [0:28] is the sub-list for field type_name
 }
 
 func init() { file_teleport_join_v1_joinservice_proto_init() }
@@ -1772,26 +1988,29 @@ func file_teleport_join_v1_joinservice_proto_init() {
 		(*ClientParams_HostParams)(nil),
 		(*ClientParams_BotParams)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[12].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[15].OneofWrappers = []any{
 		(*ChallengeSolution_BoundKeypairChallengeSolution)(nil),
 		(*ChallengeSolution_BoundKeypairRotationResponse)(nil),
+		(*ChallengeSolution_IamChallengeSolution)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[13].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[16].OneofWrappers = []any{
 		(*JoinRequest_ClientInit)(nil),
 		(*JoinRequest_TokenInit)(nil),
 		(*JoinRequest_BoundKeypairInit)(nil),
 		(*JoinRequest_Solution)(nil),
+		(*JoinRequest_IamInit)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[15].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[18].OneofWrappers = []any{
 		(*Challenge_BoundKeypairChallenge)(nil),
 		(*Challenge_BoundKeypairRotationRequest)(nil),
+		(*Challenge_IamChallenge)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[16].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[19].OneofWrappers = []any{
 		(*Result_HostResult)(nil),
 		(*Result_BotResult)(nil),
 	}
-	file_teleport_join_v1_joinservice_proto_msgTypes[19].OneofWrappers = []any{}
-	file_teleport_join_v1_joinservice_proto_msgTypes[20].OneofWrappers = []any{
+	file_teleport_join_v1_joinservice_proto_msgTypes[22].OneofWrappers = []any{}
+	file_teleport_join_v1_joinservice_proto_msgTypes[23].OneofWrappers = []any{
 		(*JoinResponse_Init)(nil),
 		(*JoinResponse_Challenge)(nil),
 		(*JoinResponse_Result)(nil),
@@ -1802,7 +2021,7 @@ func file_teleport_join_v1_joinservice_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_join_v1_joinservice_proto_rawDesc), len(file_teleport_join_v1_joinservice_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   22,
+			NumMessages:   25,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
