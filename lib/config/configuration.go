@@ -1928,7 +1928,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 func convOracleOptions(o DatabaseOracle) servicecfg.OracleOptions {
 	return servicecfg.OracleOptions{
-		AuditUser: o.AuditUser,
+		AuditUser:        o.AuditUser,
+		RetryCount:       o.RetryCount,
+		ShuffleHostnames: o.ShuffleHostnames,
 	}
 }
 
