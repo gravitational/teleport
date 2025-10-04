@@ -72,7 +72,7 @@ Start by creating the following AWS IAM policy in your account.
             "Condition": {
                 "StringEquals": {
                     "aws:RequestTag/TeleportCluster": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>",
-                    "aws:ResourceTag/TeleportCluster": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>"
+                    "aws:ResourceTag/TeleportClusterEncryption": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>"
                 }
             }
         },
@@ -84,12 +84,14 @@ Start by creating the following AWS IAM policy in your account.
                 "kms:ScheduleKeyDeletion",
                 "kms:DescribeKey",
                 "kms:ListResourceTags",
-                "kms:Sign"
+                "kms:Sign",
+                "kms:Decrypt",
             ],
             "Resource": "*",
             "Condition": {
                 "StringEquals": {
-                    "aws:ResourceTag/TeleportCluster": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>"
+                    "aws:ResourceTag/TeleportCluster": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>",
+                    "aws:ResourceTag/TeleportClusterEncryption": "<Var name="teleport.example.com" description="Your Teleport cluster name"/>"
                 }
             }
         }
