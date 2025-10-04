@@ -37,6 +37,7 @@ import (
 	"golang.org/x/term"
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -67,7 +68,10 @@ func TestMain(m *testing.M) {
 }
 
 func TestREPL(t *testing.T) {
-	t.Skip()
+	if run, _ := apiutils.ParseBool(os.Getenv("ENABLE_TESTCONTAINERS")); !run {
+		// Docker Hub rate limits cause failures in CI, this test is disabled until we can set up an alternative to Docker Hub
+		t.Skip("Test disabled in CI. Enable it by setting env variable ENABLE_TESTCONTAINERS")
+	}
 	testSrv := newTestServer(t)
 	route := clientproto.RouteToDatabase{
 		ServiceName: "mysql-test-container",

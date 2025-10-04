@@ -17,21 +17,20 @@
 package repl
 
 import (
-	"context"
-	"io"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
+	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 )
 
 func TestCommandExecution(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	for name, tt := range map[string]struct {
 		line          string
@@ -50,79 +49,33 @@ func TestCommandExecution(t *testing.T) {
 		"empty command":                                {line: "\\", expectUnknown: true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			commandArgsChan := make(chan string, 1)
-			instance, tc := StartWithServer(t, ctx, WithSkipREPLRun())
-			ctx, cancel := context.WithCancel(ctx)
-			defer cancel()
-
-			runErrChan := make(chan error)
-			go func() {
-				runErrChan <- instance.Run(ctx)
-			}()
-
-			// Consume the REPL banner.
-			_ = readUntilNextLead(t, tc)
-
+			repl, err := New(ctx, &dbrepl.NewREPLConfig{Client: nil, ServerConn: nil, Route: clientproto.RouteToDatabase{}})
+			require.NoError(t, err)
+			instance := repl.(*REPL)
 			// Reset available commands and add a test command so we can assert
 			// the command execution flow without relying in commands
 			// implementation or test server capabilities.
 			instance.commands = map[string]*command{
 				"test": {
-					ExecFunc: func(r *REPL, args string) (string, bool) {
-						commandArgsChan <- args
+					ExecFunc: func(_ *REPL, args string) (string, bool) {
+						assert.Equal(t, tt.expectedArgs, args)
 						return tt.commandResult, tt.commandExit
 					},
 				},
 			}
-
-			writeLine(t, tc, tt.line)
+			reply, shouldExit := instance.processCommand(tt.line)
 			if tt.expectUnknown {
-				reply := readUntilNextLead(t, tc)
-				require.True(t, strings.HasPrefix(strings.ToLower(reply), "unknown command"))
-				return
+				require.True(t, strings.HasPrefix(reply, "Unknown command"))
+			} else {
+				require.Equal(t, tt.commandResult, reply)
 			}
-
-			select {
-			case args := <-commandArgsChan:
-				require.Equal(t, tt.expectedArgs, args)
-			case <-time.After(time.Second):
-				require.Fail(t, "expected to command args from test server but got nothing")
-			}
-
-			// When the command exits, the REPL and the connections will be
-			// closed.
-			if tt.commandExit {
-				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					var buf []byte
-					_, err := tc.conn.Read(buf[0:])
-					require.ErrorIs(t, err, io.EOF)
-				}, 5*time.Second, time.Millisecond)
-
-				select {
-				case err := <-runErrChan:
-					require.NoError(t, err, "expected the REPL instance exit gracefully")
-				case <-time.After(5 * time.Second):
-					require.Fail(t, "expected REPL run to terminate but got nothing")
-				}
-				return
-			}
-
-			reply := readUntilNextLead(t, tc)
-			require.Equal(t, tt.commandResult, reply)
-
-			// Terminate the REPL run session and wait for the Run results.
-			cancel()
-			select {
-			case err := <-runErrChan:
-				require.ErrorIs(t, err, context.Canceled, "expected the REPL instance to finish running with error due to cancelation")
-			case <-time.After(5 * time.Second):
-				require.Fail(t, "expected REPL run to terminate but got nothing")
-			}
+			require.Equal(t, tt.commandExit, shouldExit)
 		})
 	}
 }
 
 func TestCommands(t *testing.T) {
+	t.Parallel()
 	availableCmds := initCommands()
 	for cmdName, tc := range map[string]struct {
 		repl               *REPL
@@ -132,6 +85,7 @@ func TestCommands(t *testing.T) {
 	}{
 		"q": {expectExit: true},
 		"teleport": {
+			repl: &REPL{teleportVersion: teleport.Version},
 			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
 				require.Contains(t, val, teleport.Version, "expected \\teleport command to include current Teleport version")
 			},
