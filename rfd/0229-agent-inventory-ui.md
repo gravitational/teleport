@@ -47,32 +47,118 @@ The response will be a JSON object containing the page of agents requested.
 
 ```json
 {
-  "agents": [
+  "instances": [
     {
-      "serverId": "1",
-      "hostname": "server1",
+      "id": "1",
+      "name": "server1",
       "version": "16.1.3",
       "services": ["ssh", "db", "desktop"],
       "updaterGroup": "group1",
     },
     {
-      "serverId": "2",
+      "id": "2",
       "name": "kube1",
       "version": "16.5.4",
       "services": ["kube"],
-      "upgrader": "Upgrader v2",
+      "upgrader": "kube",
+      "upgraderVersion": "v2",
       "updaterGroup": "group2",
     },
     {
-      "serverId": "3",
-      "hostname": "server3",
+      "id": "3",
+      "name": "server2",
       "version": "16.1.3",
       "services": ["ssh"],
       "updaterGroup": "group1",
     },
+    {
+      "id": "3",
+      "name": "bot1",
+      "version": "16.1.3",
+      "isBot": true,
+    },
   ],
-  "totalCount": 3,
+  "totalCount": 4,
   "startKey": "",
+}
+```
+
+#### RPC Service and Proto messages
+
+```protobuf
+service InstanceService {
+  // ListInstances returns a page of Agents and Bot Instances.
+  rpc ListInstances(ListInstancesRequest) returns (ListInstancesResponse);
+}
+
+// ListInstancesRequest is the request for listing instances.
+message ListInstancesRequest {
+  // page_size is the size of the page to return.
+  int32 page_size = 1;
+  // page_token is the next_page_token value returned from a previous ListInstances request, if any.
+  string page_token = 2;
+  // filters specify search criteria to limit which instances should be returned.
+  ListInstancesFilters filters = 3;
+}
+
+// ListInstancesResponse is the response from listing instances.
+message ListInstancesResponse {
+  // instances is the instances returned.
+  repeated Instance instances = 1;
+  // next_page_token contains the next page token to use as the start key for the next page of instances.
+  string next_page_token = 2;
+  // total_count is the total number of agents and bot instances in the cache.
+  int32 total_count = 3;
+}
+
+// ListInstancesFilters provides a mechanism to refine ListInstances results.
+message ListInstancesFilters {
+  // search is a basic string search query which will filter results by `Instance.Spec.Name`.
+  string search = 1;
+  // advanced_search is an advanced search query using predicate language.
+  string advanced_search = 2;
+  // types is the types of instances to return (`instance` and/or `bot_instance`). If ommitted, both types will be returned.
+  repeated string types = 3;
+  // services is the list of services to filter agents by. If ommitted, agents with any services will be returned.
+  repeated string types = 4;
+  // older_than_version is an optional exclusive upper version bound.
+  string older_than_version = 5;
+  // newer_than_version is an optional exclusive lower version bound.
+  string newer_than_version = 6;
+  // version is the exact version filter for instances.
+  string version = 7;
+  // updater_groups is the list of updater groups to filter instances by.
+  repeated string updater_groups = 8;
+  // upgraders is the list of upgraders to filter instances by.
+  repeated string upgraders = 9;
+}
+
+// Instance represents either an agent or a bot instance item with the necessary information for the client.
+message Instance {
+  // id is the is the id of the instance, for agents this represents the `serverId`.
+  string id = 1;
+  // sub_kind represents the kind of instance this is, either `instance` or `bot_instance`.
+  string sub_kind = 2;
+  // metadata is common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 3;
+  // spec is the instance specification.
+  InstanceSpec spec = 4;
+}
+
+// InstanceSpec is the instance specification.
+message InstanceSpec {
+  // name is the name this instance most recently advertised. `hostname` for agents and `bot_name` for bot instances. 
+  string name = 1;
+  // version is the version of teleport this instance most recently advertised.
+  string version = 2;
+  // services is the list of active services this instance most recently advertised, if applicable.
+  repeated string services = 3;
+  // update_group is the update group for the teleport installation on this instance.
+  string update_group = 4;
+  // external_upgrader is the external upgrader that the instance is configured to, if applicable.
+  string external_upgrader = 5;
+  // external_upgrader_version is the version of external upgrader that the instance is configured to, if applicable.
+  string external_upgrader_version = 6;
 }
 ```
 
@@ -97,7 +183,10 @@ fields in the cache and tallied up during initialization, and updated as needed 
 The cache will hook into the backend events watcher and watch for `Instances` events and update the cache accordingly whenever
 an update is detected (such as an instance no longer being connected). This cache will live in auth and the data will be exposed to
 the proxy via a new RPC service with a `ListInstances()` method which will build the page of instances by streaming from the 
-instances cache and bot instances cache (which is already implemented).
+instances cache and bot instances cache (which is already implemented). To achieve this, the `MergeStreams` utility will be used
+to iterate through both caches simultaneously and use a compare function that compares the names of the instances to ensure that 
+the returned page is based on alphabetical order. The `next_key` will consist of the next keys in each cache separated by a comma,
+eg. `"server3,bot2"`, similar to the existing implementation for dual notifications streaming.
 
 Any requests made for instances will be rejected until the `InstancesCache` is initialized and healthy.
 
@@ -116,9 +205,12 @@ version, services, and external upgrader (if any). A search bar will be availabl
 which searches by hostname, or advanced mode using predicate language to perform queries. The `versions` filter controls will
 merely populate the advanced search bar with a predicate query to filter for the desired range of version(s). Filters for 
 services, upgrader, updater group, and types will be dropdowns containing checkbox lists that allow the user to select one 
-or more options.
+or more options. Where applicable, the predicate language query functions will be kept consistent with those used in the Bot Instances
+dashboard.
 
-Bot instances in the list will also contain a deep link to their dedicated bot instance page in the Bot Instances dashboard (RFD 0222).
+Bot instances in the list will also contain a deep link to their dedicated bot instance page in the Bot Instances dashboard (RFD 0222),
+this will work by building the URL to the Bot Instances dashboard with a predicate language advacned search query that filters solely
+for the specific bot instance's name.
 
 If the page is loaded while the `InstancesCache` is still being initialized, the page will be empty and only show a banner message
 with the text "The agent inventory is not yet ready to be displayed, please check back in a few minutes." Users who don't
