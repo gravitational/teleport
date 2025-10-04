@@ -119,6 +119,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -9394,6 +9395,19 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	})
 	require.NoError(t, err)
 
+	healthCheckManager, err := healthcheck.NewManager(
+		ctx,
+		healthcheck.ManagerConfig{
+			Component:               teleport.ComponentKube,
+			Events:                  client,
+			HealthCheckConfigReader: client,
+		},
+	)
+	require.NoError(t, err)
+	err = healthCheckManager.Start(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
 		func(ctx context.Context) (*authproto.UpstreamInventoryHello, error) {
 			return &authproto.UpstreamInventoryHello{
@@ -9466,6 +9480,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		KubernetesServersWatcher: watcher,
 		InventoryHandle:          inventoryHandle,
 		ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
+		HealthCheckManager:       healthCheckManager,
 	})
 	require.NoError(t, err)
 
