@@ -18,7 +18,7 @@ struct ContentView: View {
   @State private var isConfirmingEnrollment: Bool = false
   @State private var enrollAttempt: Attempt<String, EnrollError> = .idle
   @State private var serialNumber: String?
-  private var deviceTrust: DeviceTrust
+  private var deviceTrust: DeviceTrustP
 
   init(deviceTrust: DeviceTrust) {
     self.deviceTrust = deviceTrust
@@ -113,7 +113,7 @@ struct ScannedURLView: View {
   @Binding var serialNumber: String?
   @State var deleteDeviceKeyAttempt: Attempt<Bool, SecOSStatusError> = .idle
   @State var showDeleteDeviceKeyAlert: Bool = false
-  let deviceTrust: DeviceTrust
+  let deviceTrust: DeviceTrustP
 
   private var maybeDeepURL: EnrollMobileDeviceDeepURL? {
     if case let .success(parsedDeepLink) = openedURL,

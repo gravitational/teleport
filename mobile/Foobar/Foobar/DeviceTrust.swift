@@ -10,7 +10,13 @@ import CryptoKit
 import os
 import SwiftUI
 
-final class DeviceTrust {
+protocol DeviceTrustP {
+  func getSerialNumber() -> String
+  func deleteDeviceKey() async -> Result<Bool, SecOSStatusError>
+  func enrollDevice(hostname: String, port: Int?, user: String, userToken: String) async throws
+}
+
+final class DeviceTrust: DeviceTrustP {
   func getSerialNumber() -> String {
     UserDefaults.standard.string(forKey: "serialNumber") ?? "Unknown"
   }
@@ -245,6 +251,32 @@ class DeviceKey {
     return Teleport_Devicetrust_V1_DeviceCredential.with {
       $0.id = uuid
       $0.publicKeyDer = Data(p256.derRepresentation)
+    }
+  }
+}
+
+// TODO: Use this in ContentView instead of bindings for attempts.
+class FakeDeviceTrust: DeviceTrustP {
+  let serialNumber: String = "123456"
+  let deleteDeviceKeyResult: Result<Bool, SecOSStatusError> = .success(true)
+  let enrollDeviceError: Error? = NSError(domain: "test", code: 0, userInfo: nil)
+
+  func getSerialNumber() -> String {
+    serialNumber
+  }
+
+  func deleteDeviceKey() async -> Result<Bool, SecOSStatusError> {
+    deleteDeviceKeyResult
+  }
+
+  func enrollDevice(
+    hostname _: String,
+    port _: Int?,
+    user _: String,
+    userToken _: String
+  ) async throws {
+    if let enrollDeviceError {
+      throw enrollDeviceError
     }
   }
 }
