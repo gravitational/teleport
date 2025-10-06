@@ -3134,10 +3134,14 @@ func serializeNodes(nodes []types.Server, format string) (string, error) {
 func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string {
 	// Reusable function to get addr or tunnel for each node
 	getAddr := func(n types.Server) string {
-		if n.GetUseTunnel() {
+		switch {
+		case n.GetUseTunnel() && n.GetRelayGroup() != "":
+			return "⟵ Tunnel (relay)"
+		case n.GetUseTunnel():
 			return "⟵ Tunnel"
+		default:
+			return n.GetAddr()
 		}
-		return n.GetAddr()
 	}
 
 	row := make([]string, 0)
