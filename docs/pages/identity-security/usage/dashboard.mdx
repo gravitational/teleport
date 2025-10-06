@@ -1,0 +1,27 @@
+---
+title: Uncover Identity Risks with the Standing Privileges Dashboard
+sidebar_label: Standing Privileges
+description: Describes the Standing Privileges Dashboard feature of Teleport Identity Security
+tags:
+ - identity-security
+ - access-risks
+ - conceptual
+---
+
+The standing privileges dashboard provides an overview of resources that an
+identity can access without creating an Access Request. Standing privileges
+allow an attacker to access infrastructure resources with compromised
+credentials, and you can use the standing privileges dashboard as a guide for
+reducing the attack surface of your infrastructure. 
+
+Teleport Identity Security sources standing privileges from Teleport roles as
+well as [integrations](../integrations/integrations.mdx), counting
+Teleport-protected resources as well as access controls and resources from your
+cloud provider and third-party solutions.
+
+To visit the standing privileges dashboard, navigate to **Identity Security** >
+**Dashboard**.
+
+You can explore details about standing privileges can be clicking on a user or bot:
+
+![Standing Privileges](../../../img/access-graph/standing-privileges.png)

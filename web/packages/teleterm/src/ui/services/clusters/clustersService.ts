@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import {
   Cluster,
-  LoggedInUser,
   ShowResources,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
@@ -31,7 +29,6 @@ import {
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { useStore } from 'shared/libs/stores';
 import { isAbortError } from 'shared/utils/error';
-import { pipe } from 'shared/utils/pipe';
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
@@ -45,17 +42,7 @@ import { ImmutableStore } from '../immutableStore';
 const { routing } = uri;
 
 type ClustersServiceState = {
-  clusters: Map<
-    uri.ClusterUri,
-    Cluster & {
-      // TODO(gzdunek): Remove assumedRequests from loggedInUser.
-      // The AssumedRequest objects are needed only in AssumedRolesBar.
-      // We should be able to move fetching them there.
-      loggedInUser?: LoggedInUser & {
-        assumedRequests?: Record<string, AccessRequest>;
-      };
-    }
-  >;
+  clusters: Map<uri.ClusterUri, Cluster>;
   gateways: Map<uri.GatewayUri, Gateway>;
 };
 
@@ -86,10 +73,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     // fetched from the auth server at the RPC message level.
     if (!this.state.clusters.has(cluster.uri)) {
       this.setState(draft => {
-        draft.clusters.set(
-          cluster.uri,
-          this.removeInternalLoginsFromCluster(cluster)
-        );
+        draft.clusters.set(cluster.uri, cluster);
       });
     }
 
@@ -237,9 +221,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
 
     this.setState(draft => {
-      draft.clusters = new Map(
-        clusters.map(c => [c.uri, this.removeInternalLoginsFromCluster(c)])
-      );
+      draft.clusters = new Map(clusters.map(c => [c.uri, c]));
     });
 
     // Sync root clusters and resume headless watchers for any active login sessions.
@@ -276,21 +258,11 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
 
     this.setState(draft => {
       for (const leaf of response.clusters) {
-        draft.clusters.set(
-          leaf.uri,
-          this.removeInternalLoginsFromCluster(leaf)
-        );
+        draft.clusters.set(leaf.uri, leaf);
       }
     });
 
     return response.clusters;
-  }
-
-  /** @deprecated Use getAssumedRequests function instead of the method on ClustersService. */
-  getAssumedRequests(
-    rootClusterUri: uri.RootClusterUri
-  ): Record<string, AccessRequest> {
-    return getAssumedRequests(this.state, rootClusterUri);
   }
 
   /** Assumes roles for the given requests. */
@@ -318,18 +290,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       dropRequestIds: requestIds,
     });
     await this.syncRootCluster(rootClusterUri);
-  }
-
-  async getAccessRequest(
-    rootClusterUri: uri.RootClusterUri,
-    requestId: string
-  ) {
-    const { response } = await this.client.getAccessRequest({
-      clusterUri: rootClusterUri,
-      accessRequestId: requestId,
-    });
-
-    return response.request;
   }
 
   async reviewAccessRequest(params: ReviewAccessRequestRequest) {
@@ -562,12 +522,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     });
   }
 
-  async removeKubeConfig(kubeConfigRelativePath: string): Promise<void> {
-    return this.mainProcessClient.removeKubeConfig({
-      relativePath: kubeConfigRelativePath,
-    });
-  }
-
   useState() {
     return useStore(this).state;
   }
@@ -577,27 +531,8 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       const { response: cluster } = await this.client.getCluster({
         clusterUri,
       });
-      // TODO: this information should eventually be gathered by getCluster
-      const assumedRequests = cluster.loggedInUser
-        ? await this.fetchClusterAssumedRequests(
-            cluster.loggedInUser.activeRequests,
-            clusterUri
-          )
-        : undefined;
-      const mergeAssumedRequests = (cluster: Cluster) => ({
-        ...cluster,
-        loggedInUser: cluster.loggedInUser && {
-          ...cluster.loggedInUser,
-          assumedRequests,
-        },
-      });
-      const processCluster = pipe(
-        this.removeInternalLoginsFromCluster,
-        mergeAssumedRequests
-      );
-
       this.setState(draft => {
-        draft.clusters.set(clusterUri, processCluster(cluster));
+        draft.clusters.set(clusterUri, cluster);
       });
     } catch (error) {
       this.setState(draft => {
@@ -614,47 +549,4 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       throw error;
     }
   }
-
-  private async fetchClusterAssumedRequests(
-    activeRequestsList: string[],
-    clusterUri: uri.RootClusterUri
-  ) {
-    return (
-      await Promise.all(
-        activeRequestsList.map(requestId =>
-          this.getAccessRequest(clusterUri, requestId)
-        )
-      )
-    ).reduce((requestsMap, request) => {
-      requestsMap[request.id] = request;
-      return requestsMap;
-    }, {});
-  }
-
-  // temporary fix for https://github.com/gravitational/webapps.e/issues/294
-  // remove when it will get fixed in `tsh`
-  // alternatively, show only valid logins basing on RBAC check
-  private removeInternalLoginsFromCluster(cluster: Cluster): Cluster {
-    return {
-      ...cluster,
-      loggedInUser: cluster.loggedInUser && {
-        ...cluster.loggedInUser,
-        sshLogins: cluster.loggedInUser.sshLogins.filter(
-          login => !login.startsWith('-')
-        ),
-      },
-    };
-  }
-}
-
-// A workaround to always return the same object so useEffect that relies on it
-// doesn't go into an endless loop.
-const EMPTY_ASSUMED_REQUESTS = {};
-
-export function getAssumedRequests(
-  state: ClustersServiceState,
-  rootClusterUri: uri.RootClusterUri
-): Record<string, AccessRequest> {
-  const cluster = state.clusters.get(rootClusterUri);
-  return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
 }

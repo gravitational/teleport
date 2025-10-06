@@ -37,11 +37,22 @@ func TestWebTokens(t *testing.T) {
 				User:  "llama",
 			})
 		},
-		create: p.webTokenS.Upsert,
-		list:   p.webTokenS.List,
-		cacheList: func(ctx context.Context, pageSize int) ([]types.WebToken, error) {
-			return p.cache.GetWebTokens(ctx)
+		create: p.webTokenS.UpsertWebToken,
+		update: p.webTokenS.UpsertWebToken,
+		cacheGet: func(ctx context.Context, token string) (types.WebToken, error) {
+			return p.cache.GetWebToken(ctx, types.GetWebTokenRequest{
+				Token: token,
+				User:  "llama",
+			})
 		},
-		deleteAll: p.webTokenS.DeleteAll,
-	})
+		list:      getAllAdapter(p.webTokenS.GetWebTokens),
+		cacheList: getAllAdapter(p.cache.GetWebTokens),
+		deleteAll: p.webTokenS.DeleteAllWebTokens,
+		delete: func(ctx context.Context, token string) error {
+			return p.webTokenS.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
+				Token: token,
+				User:  "llama",
+			})
+		},
+	}, withSkipPaginationTest())
 }

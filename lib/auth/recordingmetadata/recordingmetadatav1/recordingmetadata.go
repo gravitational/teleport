@@ -183,7 +183,9 @@ loop:
 					addInactivityEvent(lastActivityTime, e.Time)
 				}
 
-				recordThumbnail(e.EndTime)
+				if sampler.shouldCapture(e.Time) {
+					recordThumbnail(e.Time)
+				}
 
 			case *apievents.SessionJoin:
 				activeUsers[e.User] = e.Time.Sub(startTime)

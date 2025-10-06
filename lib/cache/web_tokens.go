@@ -22,13 +22,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type webTokenIndex string
 
 const webTokenNameIndex webTokenIndex = "name"
 
-func newWebTokenCollection(upstream types.WebTokenInterface, w types.WatchKind) (*collection[types.WebToken, webTokenIndex], error) {
+func newWebTokenCollection(upstream services.WebToken, w types.WatchKind) (*collection[types.WebToken, webTokenIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter WebTokenInterface")
 	}
@@ -41,7 +42,7 @@ func newWebTokenCollection(upstream types.WebTokenInterface, w types.WatchKind) 
 				webTokenNameIndex: types.WebToken.GetName,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebToken, error) {
-			installers, err := upstream.List(ctx)
+			installers, err := upstream.GetWebTokens(ctx)
 			return installers, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.WebToken {
@@ -67,7 +68,7 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 		collection: c.collections.webTokens,
 		index:      webTokenNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (types.WebToken, error) {
-			token, err := c.Config.WebToken.Get(ctx, req)
+			token, err := c.Config.WebToken.GetWebToken(ctx, req)
 			return token, trace.Wrap(err)
 		},
 	}
@@ -76,7 +77,7 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 }
 
 func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetInstallers")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetWebTokens")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.webTokens)
@@ -86,7 +87,7 @@ func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		users, err := c.Config.WebToken.List(ctx)
+		users, err := c.Config.WebToken.GetWebTokens(ctx)
 		return users, trace.Wrap(err)
 	}
 

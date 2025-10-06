@@ -77,6 +77,7 @@ lint:
       - proto/accessgraph/v1alpha/access_graph_service.proto
       - proto/teleport/lib/teleterm/v1/service.proto
       - api/proto/teleport/recordingmetadata/v1/recordingmetadata_service.proto
+      - api/proto/teleport/join/v1/joinservice.proto
 
 breaking:
   use:
@@ -85,6 +86,8 @@ breaking:
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
+    # TODO(nklaassen): Remove ignore once the new join API is stable.
+    - api/proto/teleport/join/v1
 
 plugins:
   - plugin:

@@ -45,6 +45,9 @@ export enum DiscoverGuideId {
   ApplicationSamlWorkforceIdentityFederation = 'application-saml-workforce-identity-federation',
   ApplicationSamlMicrosoftEntraId = 'application-saml-microsoft-entra-id',
 
+  // MCP Servers:
+  MCPServerStdioTransport = 'mcp-stdio',
+
   // Windows Desktops:
   WindowsDesktopsActiveDirectory = 'windows-desktops-active-directory',
   WindowsDesktopsLocal = 'windows-desktops-local',

@@ -33,7 +33,7 @@ func TestStaticHostUsers(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*userprovisioningv2.StaticHostUser]{
+	testResources153(t, p, testFuncs[*userprovisioningv2.StaticHostUser]{
 		newResource: func(name string) (*userprovisioningv2.StaticHostUser, error) {
 			return newStaticHostUser(t, name), nil
 		},
@@ -41,14 +41,8 @@ func TestStaticHostUsers(t *testing.T) {
 			_, err := p.staticHostUsers.CreateStaticHostUser(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*userprovisioningv2.StaticHostUser, error) {
-			items, _, err := p.staticHostUsers.ListStaticHostUsers(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context) ([]*userprovisioningv2.StaticHostUser, error) {
-			items, _, err := p.cache.ListStaticHostUsers(ctx, 0, "")
-			return items, trace.Wrap(err)
-		},
+		list:      p.staticHostUsers.ListStaticHostUsers,
+		cacheList: p.cache.ListStaticHostUsers,
 		cacheGet:  p.cache.GetStaticHostUser,
 		deleteAll: p.staticHostUsers.DeleteAllStaticHostUsers,
 	})

@@ -2462,9 +2462,9 @@ func TestSSHCommands(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
+
 	}, 10*time.Second, 100*time.Millisecond)
 
 	tmpHomePath := t.TempDir()
@@ -2689,15 +2689,12 @@ func TestKubeCredentialsLock(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			gotNames := map[string]struct{}{}
 			for ks, err := range authServer.UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
-				if !assert.NoError(t, err) {
-					return
-				}
+				require.NoError(t, err)
 
 				gotNames[ks.GetCluster().GetName()] = struct{}{}
-
 			}
 
-			assert.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
+			require.Contains(t, gotNames, kubeCluster.GetName(), "missing kube cluster")
 		}, 15*time.Second, 100*time.Millisecond)
 
 		var ssoCalls atomic.Int32
@@ -2996,8 +2993,8 @@ func TestSSHHeadless(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
-		assert.Len(t, found, 1)
+		require.NoError(t, err)
+		require.Len(t, found, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	go func() {
@@ -3118,8 +3115,8 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := server.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
-		assert.Len(t, found, 1)
+		require.NoError(t, err)
+		require.Len(t, found, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	proxyAddr, err := server.ProxyWebAddr()
@@ -6195,34 +6192,28 @@ func TestListingResourcesAcrossClusters(t *testing.T) {
 	)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rootNodes, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootNodes, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootNodes, 1)
 
 		leafNodes, err := leafServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, leafNodes, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, leafNodes, 1)
 
 		rootDatabases, err := rootServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootDatabases, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootDatabases, 1)
 
 		leafDatabases, err := leafServer.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, leafDatabases, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, leafDatabases, 1)
 
 		rootApps, err := rootServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, rootApps, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, rootApps, 1)
 
 		leafApps, err := leafServer.GetAuthServer().GetApplicationServers(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, leafApps, 1) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, leafApps, 1)
 
 		rootNode = rootNodes[0].(*types.ServerV2)
 		leafNode = leafNodes[0].(*types.ServerV2)
@@ -6758,9 +6749,8 @@ func TestResolve(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, found, 2) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, found, 2)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	tmpHomePath := t.TempDir()
@@ -7059,9 +7049,8 @@ func TestSCP(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		found, err := rootServer.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-		if !assert.NoError(t, err) || !assert.Len(t, found, 2) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, found, 2)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	tmpHomePath := t.TempDir()
@@ -7632,8 +7621,8 @@ func TestSSHForkAfterAuthentication(t *testing.T) {
 			command:   []string{"echo", "hello", ">", "test.txt"},
 			assertRun: assert.NoError,
 			assertCommandEffect: func(t *testing.T, testFile string) bool {
-				return assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-					assert.FileExists(collect, testFile)
+				return assert.EventuallyWithT(t, func(t *assert.CollectT) {
+					assert.FileExists(t, testFile)
 				}, 3*time.Second, 100*time.Millisecond)
 			},
 		},

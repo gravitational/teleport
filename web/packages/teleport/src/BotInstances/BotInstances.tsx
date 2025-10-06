@@ -16,22 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useRef } from 'react';
 import { useHistory, useLocation } from 'react-router';
+import styled, { css } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
-import Box from 'design/Box/Box';
-import { formatSortType, parseSortType } from 'design/DataTable/sort';
-import { SortType } from 'design/DataTable/types';
-import { Indicator } from 'design/Indicator/Indicator';
-import { Mark } from 'design/Mark/Mark';
-import {
-  InfoExternalTextLink,
-  InfoGuideButton,
-  InfoParagraph,
-  ReferenceLinks,
-} from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
+import { CardTile } from 'design/CardTile/CardTile';
+import Flex from 'design/Flex/Flex';
+import { Question } from 'design/Icon';
+import Text from 'design/Text';
+import { SearchPanel } from 'shared/components/Search';
+import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
 import { EmptyState } from 'teleport/Bots/List/EmptyState/EmptyState';
 import {
@@ -39,120 +35,119 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
-import cfg from 'teleport/config';
 import { listBotInstances } from 'teleport/services/bot/bot';
 import { BotInstanceSummary } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
-import { BotInstancesList } from './List/BotInstancesList';
+import { BotInstanceDetails } from './Details/BotInstanceDetails';
+import { InfoGuide } from './InfoGuide';
+import {
+  BotInstancesList,
+  BotInstancesListControls,
+} from './List/BotInstancesList';
 
 export function BotInstances() {
   const history = useHistory();
   const location = useLocation<{ prevPageTokens?: readonly string[] }>();
   const queryParams = new URLSearchParams(location.search);
-  const pageToken = queryParams.get('page') ?? '';
-  const searchTerm = queryParams.get('search') ?? '';
-  const sort = queryParams.get('sort') || 'active_at_latest:desc';
+  const query = queryParams.get('query') ?? '';
+  const isAdvancedQuery = queryParams.get('is_advanced') ?? '';
+  const sortField = queryParams.get('sort_field') || 'active_at_latest';
+  const sortDir = queryParams.get('sort_dir') || 'DESC';
+  const selectedItemId = queryParams.get('selected');
+
+  const listRef = useRef<BotInstancesListControls | null>(null);
 
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
-  const canListInstances = flags.listBotInstances;
+  const hasListPermission = flags.listBotInstances;
 
-  const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
-    enabled: canListInstances,
-    queryKey: ['bot_instances', 'list', searchTerm, pageToken, sort],
-    queryFn: () =>
-      listBotInstances({
-        pageSize: 20,
-        pageToken,
-        searchTerm,
-        sort,
-      }),
+  const {
+    isSuccess,
+    data,
+    isLoading,
+    isFetchingNextPage,
+    error,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    enabled: hasListPermission,
+    queryKey: [
+      'bot_instances',
+      'list',
+      sortField,
+      sortDir,
+      query,
+      isAdvancedQuery,
+    ],
+    queryFn: ({ pageParam, signal }) =>
+      listBotInstances(
+        {
+          pageSize: 32,
+          pageToken: pageParam,
+          sortField,
+          sortDir,
+          searchTerm: isAdvancedQuery ? undefined : query,
+          query: isAdvancedQuery ? query : undefined,
+        },
+        signal
+      ),
+    initialPageParam: '',
+    getNextPageParam: data => data?.next_page_token,
     placeholderData: keepPreviousData,
     staleTime: 30_000, // Cached pages are valid for 30 seconds
   });
 
-  const { prevPageTokens = [] } = location.state ?? {};
-  const hasNextPage = !!data?.next_page_token;
-  const hasPrevPage = !!pageToken;
-
-  const handleFetchNext = useCallback(() => {
-    const search = new URLSearchParams(location.search);
-    search.set('page', data?.next_page_token ?? '');
-
-    history.replace(
-      {
-        pathname: location.pathname,
-        search: search.toString(),
-      },
-      {
-        prevPageTokens: [...prevPageTokens, pageToken],
-      }
-    );
-  }, [
-    data?.next_page_token,
-    history,
-    location.pathname,
-    location.search,
-    pageToken,
-    prevPageTokens,
-  ]);
-
-  const handleFetchPrev = useCallback(() => {
-    const prevTokens = [...prevPageTokens];
-    const nextToken = prevTokens.pop();
-
-    const search = new URLSearchParams(location.search);
-    search.set('page', nextToken ?? '');
-
-    history.replace(
-      {
-        pathname: location.pathname,
-        search: search.toString(),
-      },
-      {
-        prevPageTokens: prevTokens,
-      }
-    );
-  }, [history, location.pathname, location.search, prevPageTokens]);
-
-  const handleSearchChange = useCallback(
-    (term: string) => {
+  const handleQueryChange = useCallback(
+    (query: string, isAdvanced: boolean) => {
       const search = new URLSearchParams(location.search);
-      search.set('search', term);
-      search.set('page', '');
+      if (query) {
+        search.set('query', query);
+      } else {
+        search.delete('query');
+      }
+      if (isAdvanced) {
+        search.set('is_advanced', '1');
+      } else {
+        search.delete('is_advanced');
+      }
 
-      history.replace({
+      history.push({
         pathname: `${location.pathname}`,
         search: search.toString(),
       });
+
+      listRef.current?.scrollToTop();
     },
     [history, location.pathname, location.search]
   );
 
-  const onItemSelected = useCallback(
-    (item: BotInstanceSummary) => {
-      history.push(
-        cfg.getBotInstanceDetailsRoute({
-          botName: item.bot_name,
-          instanceId: item.instance_id,
-        })
-      );
-    },
-    [history]
-  );
-
-  const sortType = useMemo(() => parseSortType(sort), [sort]);
-
   const handleSortChanged = useCallback(
-    (sortType: SortType) => {
-      const formattedSortType = formatSortType(sortType);
-
+    (sortField: string, sortDir: string) => {
       const search = new URLSearchParams(location.search);
-      search.set('sort', formattedSortType);
-      search.set('page', '');
+      search.set('sort_field', sortField);
+      search.set('sort_dir', sortDir);
 
       history.replace({
+        pathname: location.pathname,
+        search: search.toString(),
+      });
+
+      listRef.current?.scrollToTop();
+    },
+    [history, location.pathname, location.search]
+  );
+
+  const handleItemSelected = useCallback(
+    (item: BotInstanceSummary | null) => {
+      const search = new URLSearchParams(location.search);
+      if (item) {
+        search.set('selected', `${item.bot_name}/${item.instance_id}`);
+      } else {
+        search.delete('selected');
+      }
+
+      history.push({
         pathname: location.pathname,
         search: search.toString(),
       });
@@ -160,9 +155,15 @@ export function BotInstances() {
     [history, location.pathname, location.search]
   );
 
-  const hasUnsupportedSortError = isUnsupportedSortError(error);
+  const [selectedBotName, selectedInstanceId] =
+    selectedItemId?.split('/') ?? [];
 
-  if (!canListInstances) {
+  const flatData = useMemo(
+    () => (isSuccess ? data.pages.flatMap(page => page.bot_instances) : null),
+    [data?.pages, isSuccess]
+  );
+
+  if (!hasListPermission) {
     return (
       <FeatureBox>
         <Alert kind="info" mt={4}>
@@ -181,101 +182,96 @@ export function BotInstances() {
         <InfoGuideButton config={{ guide: <InfoGuide /> }} />
       </FeatureHeader>
 
-      {isPending ? (
-        <Box data-testid="loading" textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      ) : undefined}
-
-      {isError && hasUnsupportedSortError ? (
-        <Alert
-          kind="warning"
-          primaryAction={{
-            content: 'Reset sort',
-            onClick: () => {
-              handleSortChanged({ fieldName: 'bot_name', dir: 'ASC' });
-            },
+      <Container>
+        <SearchPanel
+          filter={{
+            query: isAdvancedQuery ? query : undefined,
+            search: isAdvancedQuery ? undefined : query,
           }}
-        >
-          {`Error: ${error.message}`}
-        </Alert>
-      ) : undefined}
-
-      {isError && !hasUnsupportedSortError ? (
-        <Alert kind="danger">{`Error: ${error.message}`}</Alert>
-      ) : undefined}
-
-      {isSuccess ? (
-        <BotInstancesList
-          data={data.bot_instances}
-          fetchStatus={isFetching ? 'loading' : ''}
-          onFetchNext={hasNextPage ? handleFetchNext : undefined}
-          onFetchPrev={hasPrevPage ? handleFetchPrev : undefined}
-          onSearchChange={handleSearchChange}
-          searchTerm={searchTerm}
-          onItemSelected={onItemSelected}
-          sortType={sortType}
-          onSortChanged={handleSortChanged}
+          updateSearch={query => handleQueryChange(query, false)}
+          updateQuery={query => handleQueryChange(query, true)}
         />
-      ) : undefined}
+        <ContentContainer>
+          <ListAndDetailsContainer $listOnlyMode={!selectedItemId}>
+            <BotInstancesList
+              ref={listRef}
+              data={flatData}
+              isLoading={isLoading}
+              isFetchingNextPage={isFetchingNextPage}
+              error={error}
+              hasNextPage={hasNextPage}
+              sortField={sortField}
+              sortDir={sortDir === 'DESC' ? 'DESC' : 'ASC'}
+              onSortChanged={handleSortChanged}
+              onLoadNextPage={fetchNextPage}
+              selectedItem={selectedItemId}
+              onItemSelected={handleItemSelected}
+            />
+            {selectedItemId ? (
+              <BotInstanceDetails
+                key={selectedItemId}
+                botName={selectedBotName}
+                instanceId={selectedInstanceId}
+                onClose={() => handleItemSelected(null)}
+              />
+            ) : undefined}
+          </ListAndDetailsContainer>
+          {!selectedItemId ? (
+            <DashboardContainer>
+              <QuestionIcon size={'extra-large'} />
+              <DashboardHelpText>
+                Select an instance to see full details.
+              </DashboardHelpText>
+            </DashboardContainer>
+          ) : undefined}
+        </ContentContainer>
+      </Container>
     </FeatureBox>
   );
 }
 
-const InfoGuide = () => (
-  <Box>
-    <InfoParagraph>
-      A{' '}
-      <InfoExternalTextLink
-        target="_blank"
-        href={InfoGuideReferenceLinks.BotInstances.href}
-      >
-        Bot Instance
-      </InfoExternalTextLink>{' '}
-      identifies a single lineage of{' '}
-      <InfoExternalTextLink
-        target="_blank"
-        href={InfoGuideReferenceLinks.Bots.href}
-      >
-        bot
-      </InfoExternalTextLink>{' '}
-      identities, even through certificate renewals and rejoins. When the{' '}
-      <Mark>tbot</Mark> client first authenticates to a cluster, a Bot Instance
-      is generated and its UUID is embedded in the returned client identity.
-    </InfoParagraph>
-    <InfoParagraph>
-      Bot Instances track a variety of information about <Mark>tbot</Mark>{' '}
-      instances, including regular heartbeats which include basic information
-      about the <Mark>tbot</Mark> host, like its architecture and OS version.
-    </InfoParagraph>
-    <InfoParagraph>
-      {' '}
-      Bot Instances have a relatively short lifespan and are set to expire after
-      the most recent identity issued for that instance will expire. If the{' '}
-      <Mark>tbot</Mark> client associated with a particular Bot Instance renews
-      or rejoins, the expiration of the bot instance is reset. This is designed
-      to allow users to list Bot Instances for an accurate view of the number of
-      active <Mark>tbot</Mark> clients interacting with their Teleport cluster.
-    </InfoParagraph>
-    <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
-  </Box>
-);
+const Container = styled(Flex)`
+  flex-direction: column;
+  flex: 1;
+  overflow: auto;
+  gap: ${props => props.theme.space[2]}px;
+`;
 
-const InfoGuideReferenceLinks = {
-  BotInstances: {
-    title: 'What are Bot instances',
-    href: 'https://goteleport.com/docs/enroll-resources/machine-id/introduction/#bot-instances',
-  },
-  Bots: {
-    title: 'What are Bots',
-    href: 'https://goteleport.com/docs/enroll-resources/machine-id/introduction/#bots',
-  },
-  Tctl: {
-    title: 'Use tctl to manage bot instances',
-    href: 'https://goteleport.com/docs/reference/cli/tctl/#tctl-bots-instances-add',
-  },
-};
+const ContentContainer = styled(Flex)`
+  flex: 1;
+  overflow: auto;
+  gap: ${props => props.theme.space[2]}px;
+`;
 
-const isUnsupportedSortError = (error: Error) => {
-  return error?.message && error.message.includes('unsupported sort');
-};
+const ListAndDetailsContainer = styled(CardTile)<{ $listOnlyMode: boolean }>`
+  flex-direction: row;
+  overflow: auto;
+  padding: 0;
+  gap: 0;
+  margin: ${props => props.theme.space[1]}px;
+
+  ${p =>
+    p.$listOnlyMode
+      ? css`
+          min-width: 300px;
+          max-width: 400px;
+        `
+      : ''}
+`;
+
+const DashboardContainer = styled(Flex)`
+  flex-direction: column;
+  overflow: auto;
+  flex-basis: 100%;
+  align-items: center;
+  justify-content: center;
+`;
+
+const DashboardHelpText = styled(Text)`
+  color: ${props => props.theme.colors.text.muted};
+  text-align: center;
+`;
+
+const QuestionIcon = styled(Question)`
+  color: ${props => props.theme.colors.text.muted};
+`;

@@ -83,8 +83,9 @@ message LoggedInUser {
   string name = 1;
   // roles is the user roles
   repeated string roles = 2;
-  // ssh_logins is the user ssh logins
-  repeated string ssh_logins = 3;
+
+  reserved "ssh_logins";
+  reserved 3;
   // acl is a user access control list.
   // It is available only after the cluster details are fetched, as it is not stored on disk.
   ACL acl = 4;

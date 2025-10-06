@@ -23,8 +23,9 @@ import cfg, {
   UrlAwsOidcConfigureIdp,
   UrlDeployServiceIamConfigureScriptParams,
 } from './config';
+import { IntegrationTag } from './Integrations/Enroll/Shared';
 
-test('getDeployServiceIamConfigureScriptPath formatting', async () => {
+test('getDeployServiceIamConfigureScriptPath formatting', () => {
   const params: UrlDeployServiceIamConfigureScriptParams = {
     integrationName: 'int-name',
     region: 'us-east-1',
@@ -40,7 +41,7 @@ test('getDeployServiceIamConfigureScriptPath formatting', async () => {
   );
 });
 
-test('getAwsOidcConfigureIdpScriptUrl formatting, without s3 fields', async () => {
+test('getAwsOidcConfigureIdpScriptUrl formatting, without s3 fields', () => {
   const params: UrlAwsOidcConfigureIdp = {
     integrationName: 'int-name',
     roleName: 'role-arn',
@@ -54,7 +55,7 @@ test('getAwsOidcConfigureIdpScriptUrl formatting, without s3 fields', async () =
   );
 });
 
-test('getAwsIamConfigureScriptAppAccessUrl formatting', async () => {
+test('getAwsIamConfigureScriptAppAccessUrl formatting', () => {
   const params: Omit<UrlAwsConfigureIamScriptParams, 'region'> = {
     iamRoleName: 'role-arn',
     accountID: '123456789012',
@@ -65,4 +66,16 @@ test('getAwsIamConfigureScriptAppAccessUrl formatting', async () => {
   expect(cfg.getAwsIamConfigureScriptAppAccessUrl(params)).toBe(
     `${base}${expected}`
   );
+});
+
+test('getIntegrationsEnroll appends tags', () => {
+  const tags: IntegrationTag[] = ['devicetrust', 'idp'];
+  const url = new URL(
+    'https://example.com' + cfg.getIntegrationsEnrollRoute({ tags })
+  );
+  expect(url.searchParams.getAll('tags')).toEqual(tags);
+});
+
+test('getIntegrationsEnroll without extra params', () => {
+  expect(cfg.getIntegrationsEnrollRoute()).toEqual('/web/integrations/new');
 });

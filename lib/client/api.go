@@ -28,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"net/url"
 	"os"
@@ -94,11 +93,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -194,6 +193,10 @@ type Config struct {
 	// (for example, using command-line flags).
 	ExplicitUsername bool
 
+	// Scope is the target scope, used during authentication/login to request certificates
+	// that are limited (pinned) to a given target scope.
+	Scope string
+
 	// Remote host to connect
 	Host string
 
@@ -238,6 +241,18 @@ type Config struct {
 
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
+
+	// RelayAddr is the user-specified address of the relay in use.
+	RelayAddr string
+
+	// ProfileRelayAddr is the relay address specified at login time, or "none"
+	// if use of a relay is explicitly disabled.
+	ProfileRelayAddr string
+
+	// ProfileDefaultRelayAddr is the cluster-specified address of the relay, to
+	// be used if no explicit override is specified by the user. Set at login
+	// time.
+	ProfileDefaultRelayAddr string
 
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
@@ -928,6 +943,8 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 	c.PostgresProxyAddr = profile.PostgresProxyAddr
 	c.MySQLProxyAddr = profile.MySQLProxyAddr
 	c.MongoProxyAddr = profile.MongoProxyAddr
+	c.ProfileRelayAddr = profile.RelayAddr
+	c.ProfileDefaultRelayAddr = profile.DefaultRelayAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
 	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
 	c.AuthConnector = profile.AuthConnector
@@ -956,6 +973,16 @@ func (c *Config) LoadProfile(proxyAddr string) error {
 		"web_proxy_addr", c.WebProxyAddr,
 		"upgrade_required", c.TLSRoutingConnUpgradeRequired,
 	)
+
+	switch profile.RelayAddr {
+	case "":
+		c.RelayAddr = profile.DefaultRelayAddr
+	case "none":
+		c.RelayAddr = ""
+	default:
+		c.RelayAddr = profile.RelayAddr
+	}
+
 	return nil
 }
 
@@ -982,6 +1009,8 @@ func (c *Config) Profile() *profile.Profile {
 		PostgresProxyAddr:             c.PostgresProxyAddr,
 		MySQLProxyAddr:                c.MySQLProxyAddr,
 		MongoProxyAddr:                c.MongoProxyAddr,
+		RelayAddr:                     c.ProfileRelayAddr,
+		DefaultRelayAddr:              c.ProfileDefaultRelayAddr,
 		SiteName:                      c.SiteName,
 		TLSRoutingEnabled:             c.TLSRoutingEnabled,
 		TLSRoutingConnUpgradeRequired: c.TLSRoutingConnUpgradeRequired,
@@ -1258,10 +1287,6 @@ type TeleportClient struct {
 	statusMu   sync.Mutex
 
 	localAgent *LocalKeyAgent
-
-	// OnChannelRequest gets called when SSH channel requests are
-	// received. It's safe to keep it nil.
-	OnChannelRequest tracessh.ChannelRequestCallback
 
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil.
@@ -2258,7 +2283,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, tc.OnChannelRequest, nil))
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, "", "", nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
@@ -2412,7 +2437,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	}
 
 	// running shell with a given session means "join" it:
-	err = nc.RunInteractiveShell(ctx, mode, session, tc.OnChannelRequest, beforeStart)
+	err = nc.RunInteractiveShell(ctx, sessionID.String(), mode, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2552,6 +2577,10 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
+	if err := player.Err(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -2654,7 +2683,7 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, clt *ClusterClient,
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(nodeClient.TransferFiles(ctx, cfg))
+	return trace.Wrap(nodeClient.TransferFiles(ctx, cfg, "" /*moderatedSessionID*/))
 }
 
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
@@ -3082,18 +3111,6 @@ func (tc *TeleportClient) writeCommandResults(nodes []execResult) error {
 	return nil
 }
 
-func (tc *TeleportClient) newSessionEnv() map[string]string {
-	env := map[string]string{
-		teleport.SSHSessionWebProxyAddr: tc.WebProxyAddr,
-	}
-	if tc.SessionID != "" {
-		env[sshutils.SessionEnvVar] = tc.SessionID
-	}
-
-	maps.Copy(env, tc.ExtraEnvs)
-	return env
-}
-
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
 func (tc *TeleportClient) getProxySSHPrincipal() string {
 	if tc.ProxySSHPrincipal != "" {
@@ -3171,6 +3188,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
 		ProxyAddress:      cfg.proxyAddress,
+		RelayAddress:      tc.RelayAddr,
 		TLSRoutingEnabled: tc.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
 			if cluster == "" {
@@ -3991,6 +4009,24 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		tc.SiteName = rootClusterName
 	}
 
+	// update the default relay addr from the latest response, which will later
+	// be persisted in the profile
+	tc.ProfileDefaultRelayAddr = response.ClientOptions.DefaultRelayAddr
+
+	tlsCert, err := tlsca.ParseCertificatePEM(response.TLSCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ident, err := tlsca.FromSubject(tlsCert.Subject, time.Time{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ident.ScopePin != nil {
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", ident.ScopePin.Assignments)
+	}
+
 	return keyRing, nil
 }
 
@@ -4114,6 +4150,7 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 		TTL:                     tc.KeyTTL,
 		Insecure:                tc.InsecureSkipVerify,
 		Pool:                    loopbackPool(tc.WebProxyAddr),
+		Scope:                   tc.Scope,
 		Compatibility:           tc.CertificateFormat,
 		RouteToCluster:          tc.SiteName,
 		KubernetesCluster:       tc.KubernetesCluster,
@@ -5531,6 +5568,12 @@ func (tc *TeleportClient) DialMCPServer(ctx context.Context, appName string) (ne
 		return nil, trace.BadParameter("app %q is not a MCP server", appName)
 	}
 
+	// TODO(greedy52) support streamable HTTP for "tsh mcp connect" before
+	// release.
+	if transport := types.GetMCPServerTransportType(apps[0].GetURI()); transport == types.MCPTransportHTTP {
+		return nil, trace.NotImplemented("MCP support for %s is not yet implemented", transport)
+	}
+
 	cert, err := tc.issueMCPCertWithMFA(ctx, apps[0])
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5603,4 +5646,24 @@ func (tc *TeleportClient) DialDatabase(ctx context.Context, route proto.RouteToD
 	}
 
 	return tc.DialALPN(ctx, cert, alpnProtocol)
+}
+
+// CalculateSSHLogins returns the subset of the allowedLogins that exist in
+// the principals of the identity. This is required because SSH authorization
+// only allows using a login that exists in the certificates valid principals.
+// When connecting to servers in a leaf cluster, the root certificate is used,
+// so we need to ensure that we only present the allowed logins that would
+// result in a successful connection, if any exists.
+func CalculateSSHLogins(identityPrincipals []string, allowedLogins []string) ([]string, error) {
+	allowed := set.New(allowedLogins...)
+
+	var logins []string
+	for _, local := range identityPrincipals {
+		if allowed.Contains(local) {
+			logins = append(logins, local)
+		}
+	}
+
+	slices.Sort(logins)
+	return logins, nil
 }

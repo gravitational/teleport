@@ -580,6 +580,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if fc.RelayServer != "" {
+		addr, err := utils.ParseHostPortAddr(fc.RelayServer, -1)
+		if err != nil {
+			return trace.Wrap(err, "parsing teleport.relay_server")
+		}
+
+		cfg.RelayServer = addr.Addr
+	}
+
 	if err := applyTokenConfig(fc, cfg); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1603,6 +1612,8 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
 				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
 				installerParams.ScriptName = matcher.InstallParams.ScriptName
+				installerParams.Suffix = matcher.InstallParams.Suffix
+				installerParams.UpdateGroup = matcher.InstallParams.UpdateGroup
 				if matcher.InstallParams.Azure != nil {
 					installerParams.Azure = &types.AzureInstallerParams{
 						ClientID: matcher.InstallParams.Azure.ClientID,
@@ -1636,6 +1647,8 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				installerParams.JoinMethod = matcher.InstallParams.JoinParams.Method
 				installerParams.JoinToken = matcher.InstallParams.JoinParams.TokenName
 				installerParams.ScriptName = matcher.InstallParams.ScriptName
+				installerParams.Suffix = matcher.InstallParams.Suffix
+				installerParams.UpdateGroup = matcher.InstallParams.UpdateGroup
 			}
 		}
 
@@ -3147,6 +3160,14 @@ func applyRelayConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err, "parsing relay_service.peer_listen_addr")
 	}
 	cfg.Relay.PeerListenAddr = peerListenAddr
+
+	if fc.Relay.PeerPublicAddr != "" {
+		_, _, err := net.SplitHostPort(fc.Relay.PeerPublicAddr)
+		if err != nil {
+			return trace.Wrap(err, "parsing relay_service.peer_public_addr")
+		}
+		cfg.Relay.PeerPublicAddr = fc.Relay.PeerPublicAddr
+	}
 
 	if fc.Relay.TunnelListenAddr == "" {
 		return trace.BadParameter("missing relay_service.tunnel_listen_addr")
