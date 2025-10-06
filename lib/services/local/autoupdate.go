@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/backend"
@@ -350,15 +349,11 @@ func (s *AutoUpdateService) GetAutoUpdateBotInstanceReport(ctx context.Context) 
 	return report, trace.Wrap(err)
 }
 
-// SetAutoUpdateBotInstanceReport overwrites the singleton auto-update bot report.
-func (s *AutoUpdateService) SetAutoUpdateBotInstanceReport(ctx context.Context, spec *autoupdate.AutoUpdateBotInstanceReportSpec) error {
-	_, err := s.botInstanceReport.UpsertResource(ctx, &autoupdate.AutoUpdateBotInstanceReport{
-		Kind:    types.KindAutoUpdateBotInstanceReport,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: types.MetaNameAutoUpdateBotInstanceReport,
-		},
-		Spec: spec,
-	})
-	return trace.Wrap(err)
+// UpsertAutoUpdateBotInstanceReport creates or updates the bot instance report.
+func (s *AutoUpdateService) UpsertAutoUpdateBotInstanceReport(ctx context.Context, report *autoupdate.AutoUpdateBotInstanceReport) (*autoupdate.AutoUpdateBotInstanceReport, error) {
+	if err := update.ValidateAutoUpdateBotInstanceReport(report); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	report, err := s.botInstanceReport.UpsertResource(ctx, report)
+	return report, trace.Wrap(err)
 }

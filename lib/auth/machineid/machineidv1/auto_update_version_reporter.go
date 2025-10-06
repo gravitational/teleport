@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -52,7 +53,7 @@ type AutoUpdateVersionReporter struct {
 
 // AutoUpdateReportStore is used to write the report.
 type AutoUpdateReportStore interface {
-	SetAutoUpdateBotInstanceReport(ctx context.Context, report *autoupdate.AutoUpdateBotInstanceReportSpec) error
+	UpsertAutoUpdateBotInstanceReport(ctx context.Context, report *autoupdate.AutoUpdateBotInstanceReport) (*autoupdate.AutoUpdateBotInstanceReport, error)
 }
 
 // AutoUpdateVersionReporterConfig holds configuration for a version reporter.
@@ -285,11 +286,14 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 		}
 	}
 
-	err := r.store.SetAutoUpdateBotInstanceReport(ctx, &autoupdate.AutoUpdateBotInstanceReportSpec{
+	report, err := update.NewAutoUpdateBotInstanceReport(&autoupdate.AutoUpdateBotInstanceReportSpec{
 		Timestamp: timestamppb.New(r.clock.Now()),
 		Groups:    groups,
 	})
 	if err != nil {
+		return trace.Wrap(err, "creating report")
+	}
+	if _, err = r.store.UpsertAutoUpdateBotInstanceReport(ctx, report); err != nil {
 		return trace.Wrap(err, "storing report")
 	}
 
