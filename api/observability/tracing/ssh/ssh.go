@@ -181,13 +181,10 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 	stopFn := context.AfterFunc(ctx, func() {
 		_ = conn.Close()
 	})
-	defer stopFn()
 
 	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
-	}
-
 	}
 
 	if !stopFn() {
