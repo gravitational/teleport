@@ -231,13 +231,13 @@ export function ResourceCard({
           />
           {/* MinWidth is important to prevent descriptions from overflowing. */}
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
-            <Flex flexDirection="row" alignItems="center">
+            <Flex flexDirection="row" alignItems="center" gap={1}>
               <SingleLineBox flex="1">
                 <HoverTooltip tipContent={name} showOnlyOnOverflow>
                   <Text typography="body1">{name}</Text>
                 </HoverTooltip>
               </SingleLineBox>
-              {hovered && <CopyButton name={name} mr={2} />}
+              {hovered && <CopyButton name={name} />}
               <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
                 {ActionButton}
               </ResourceActionButtonWrapper>
