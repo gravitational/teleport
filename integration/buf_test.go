@@ -16,15 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package utils
+package integration
 
 import (
 	"bytes"
 	"io"
 )
 
-// NewSyncBuffer returns new in memory buffer
-func NewSyncBuffer() *SyncBuffer {
+// newSyncBuffer returns new in memory buffer
+func newSyncBuffer() *syncBuffer {
 	reader, writer := io.Pipe()
 	buf := &bytes.Buffer{}
 	copyDone := make(chan struct{})
@@ -32,7 +32,7 @@ func NewSyncBuffer() *SyncBuffer {
 		defer close(copyDone)
 		io.Copy(buf, reader)
 	}()
-	return &SyncBuffer{
+	return &syncBuffer{
 		reader:   reader,
 		writer:   writer,
 		buf:      buf,
@@ -40,9 +40,9 @@ func NewSyncBuffer() *SyncBuffer {
 	}
 }
 
-// SyncBuffer is in memory bytes buffer that is
+// syncBuffer is in memory bytes buffer that is
 // safe for concurrent writes
-type SyncBuffer struct {
+type syncBuffer struct {
 	reader *io.PipeReader
 	writer *io.PipeWriter
 	buf    *bytes.Buffer
@@ -51,26 +51,26 @@ type SyncBuffer struct {
 	copyDone chan struct{}
 }
 
-func (b *SyncBuffer) Write(data []byte) (n int, err error) {
+func (b *syncBuffer) Write(data []byte) (n int, err error) {
 	return b.writer.Write(data)
 }
 
 // String returns contents of the buffer
 // after this call, all writes will fail
-func (b *SyncBuffer) String() string {
+func (b *syncBuffer) String() string {
 	b.Close()
 	return b.buf.String()
 }
 
 // Bytes returns contents of the buffer
 // after this call, all writes will fail
-func (b *SyncBuffer) Bytes() []byte {
+func (b *syncBuffer) Bytes() []byte {
 	b.Close()
 	return b.buf.Bytes()
 }
 
 // Close closes reads and writes on the buffer
-func (b *SyncBuffer) Close() error {
+func (b *syncBuffer) Close() error {
 	err := b.reader.Close()
 	err2 := b.writer.Close()
 

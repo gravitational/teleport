@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -701,7 +700,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			stdin := bytes.NewBufferString(tc.stdinText)
-			stdout := utils.NewSyncBuffer()
+			stdout := newSyncBuffer()
 			t.Cleanup(func() {
 				require.NoError(t, stdout.Close())
 			})
