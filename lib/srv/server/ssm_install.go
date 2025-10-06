@@ -41,9 +41,16 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 )
 
-// waiterTimedOutErrorMessage is the error message returned by the AWS SDK command
-// executed waiter when it times out.
-const waiterTimedOutErrorMessage = "exceeded max wait time for CommandExecuted waiter"
+const (
+	// waiterTimedOutErrorMessage is the error message returned by the AWS SDK command
+	// executed waiter when it times out.
+	waiterTimedOutErrorMessage = "exceeded max wait time for CommandExecuted waiter"
+
+	// waiterTransitionedToFailureErrorMessage is the error message returned by the AWS SDK command
+	//nolint:misspell // ignore Cancelled and Cancelling
+	// executed waiter when the command state transitions to one of Cancelled, TimedOut, Failed or Cancelling.
+	waiterTransitionedToFailureErrorMessage = "waiter state transitioned to Failure"
+)
 
 // SSMClient is the subset of the AWS SSM API required for EC2 discovery.
 type SSMClient interface {
@@ -371,25 +378,29 @@ func (si *SSMInstaller) describeSSMAgentState(ctx context.Context, req SSMRunReq
 	return ret, nil
 }
 
-// skipAWSWaitErr is used to ignore the error returned from
-// Wait if it times out, as this can represent one of several different errors which
-// are handled by checking the command invocation after calling this
-// to get more information about the error.
-func skipAWSWaitErr(err error) error {
-	if err != nil && err.Error() == waiterTimedOutErrorMessage {
-		return nil
-	}
-	return trace.Wrap(err)
-}
-
 func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string, instanceName string) error {
 	err := si.getWaiter(req.SSM).Wait(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
 		InstanceId: instanceID,
 		// 100 seconds to match v1 sdk waiter default.
 	}, 100*time.Second)
+	switch {
+	case err == nil:
+		// Command executed successfully.
 
-	if err := skipAWSWaitErr(err); err != nil {
+	case err.Error() == waiterTransitionedToFailureErrorMessage:
+		//nolint:misspell // ignore Cancelled and Cancelling
+		// When the command invocation state is one of Cancelled, TimedOut, Failed or Cancelling,
+		// the waiter returns the error message above.
+		// Ignoring this error allows us to get the actual command status to report it.
+
+	case err.Error() == waiterTimedOutErrorMessage:
+		// When the Waiter times out, it returns the error message above.
+		// The command might still be Pending or InProgress.
+		// Ignoring this error allows us to report that status back to the user.
+
+	default:
+		// For every other unknown error, return the error.
 		return trace.Wrap(err)
 	}
 
