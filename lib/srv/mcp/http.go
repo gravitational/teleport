@@ -242,7 +242,7 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
 		// Only emit session start if "initialize" succeeded.
-		if mcpRequest.Method == "initialize" && respErrForAudit == nil {
+		if mcpRequest.Method == mcp.MethodInitialize && respErrForAudit == nil {
 			t.emitStartEvent(t.parentCtx)
 		}
 		t.emitRequestEvent(t.parentCtx, mcpRequest, respErrForAudit)
