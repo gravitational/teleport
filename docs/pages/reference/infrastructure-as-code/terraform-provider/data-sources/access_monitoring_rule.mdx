@@ -14,6 +14,9 @@ tags:
 to refer to these. */}
 {/* vale 3rd-party-products.former-names = NO */}
 
+This page describes the supported values of the `teleport_access_monitoring_rule` data source of the
+Teleport Terraform provider.
+
 
 
 
@@ -43,6 +46,7 @@ Optional:
 - `condition` (String) condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.
 - `desired_state` (String) desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.
 - `notification` (Attributes) notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set. (see [below for nested schema](#nested-schema-for-specnotification))
+- `schedules` (Attributes Map) schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions. (see [below for nested schema](#nested-schema-for-specschedules))
 - `states` (List of String) states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.
 
 ### Nested Schema for `spec.automatic_review`
@@ -59,6 +63,29 @@ Optional:
 
 - `name` (String) name is the name of the plugin to which this configuration should apply.
 - `recipients` (List of String) recipients is the list of recipients the plugin should notify.
+
+
+### Nested Schema for `spec.schedules`
+
+Optional:
+
+- `time` (Attributes) TimeSchedule specifies an in-line schedule. (see [below for nested schema](#nested-schema-for-specschedulestime))
+
+### Nested Schema for `spec.schedules.time`
+
+Optional:
+
+- `shifts` (Attributes List) Shifts contains a set of shifts that make up the schedule. Shifts are configured in UTC. (see [below for nested schema](#nested-schema-for-specschedulestimeshifts))
+
+### Nested Schema for `spec.schedules.time.shifts`
+
+Optional:
+
+- `end` (String) End specifies the end time in the format HH:MM, e.g., "12:30".
+- `start` (String) Start specifies the start time in the format HH:MM, e.g., "12:30".
+- `weekday` (String) Weekday specifies the day of the week, e.g., "Sunday", "Monday", "Tuesday".
+
+
 
 
 

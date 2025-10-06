@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -536,10 +537,51 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(ca, gotCA, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
+	wantTcs := []types.TrustedCluster{tc, stc}
+	compareOpts := []cmp.Option{
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b types.TrustedCluster) bool {
+			return a.GetName() < b.GetName()
+		},
+		)}
+
 	// get all clusters
 	allTC, err := trustService.GetTrustedClusters(ctx)
 	require.NoError(t, err)
 	require.Len(t, allTC, 2)
+	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
+
+	// No page limit.
+	allTC, next, err := trustService.ListTrustedClusters(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, allTC, 2)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
+
+	// Check page limits.
+	firstPage, next, err := trustService.ListTrustedClusters(ctx, 1, "")
+	require.NoError(t, err)
+	require.Len(t, firstPage, 1)
+	require.NotEmpty(t, next)
+
+	// Ensure upper limit works.
+	rangeEnd, err := stream.Collect(trustService.RangeTrustedClusters(ctx, "", next))
+	require.NoError(t, err)
+	require.Len(t, rangeEnd, 1)
+	require.NotEmpty(t, next)
+	require.Empty(t, cmp.Diff(firstPage, rangeEnd, compareOpts...))
+
+	// Full range.
+	allTC, err = stream.Collect(trustService.RangeTrustedClusters(ctx, "", ""))
+	require.NoError(t, err)
+	require.Len(t, allTC, 2)
+	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
+
+	// Ensure start token work for range.
+	secondPage, err := stream.Collect(trustService.RangeTrustedClusters(ctx, next, ""))
+	require.NoError(t, err)
+	require.Len(t, secondPage, 1)
+	require.Empty(t, cmp.Diff(wantTcs, append(firstPage, secondPage...), compareOpts...))
 
 	// verify that enabling/disabling correctly shows/hides CAs
 	tc.SetEnabled(false)

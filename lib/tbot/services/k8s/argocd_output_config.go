@@ -25,11 +25,14 @@ import (
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/validation"
 
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
 )
 
 const ArgoCDOutputServiceType = "kubernetes/argo-cd"
+
+var defaultContextNameTemplate = kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")
 
 // ArgoCDOutputConfig contains configuration for the service that registers
 // Kubernetes cluster credentials in Argo CD.
@@ -77,6 +80,15 @@ type ArgoCDOutputConfig struct {
 	// credentials will be allowed to operate on cluster-scoped resources (only
 	// when Namespaces is non-empty).
 	ClusterResources bool `yaml:"cluster_resources,omitempty"`
+
+	// ClusterNameTemplate determines the format of cluster names in Argo CD.
+	// It is a "text/template" string that supports the following variables:
+	//
+	//   - {{.ClusterName}} - Name of the Teleport cluster
+	//   - {{.KubeName}} - Name of the Kubernetes cluster resource
+	//
+	// By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}".
+	ClusterNameTemplate string `yaml:"cluster_name_template,omitempty"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -121,6 +133,14 @@ func (o *ArgoCDOutputConfig) CheckAndSetDefaults() error {
 
 	if o.ClusterResources && len(o.Namespaces) == 0 {
 		return trace.BadParameter("cluster_resources is only applicable if namespaces is also set")
+	}
+
+	if o.ClusterNameTemplate == "" {
+		o.ClusterNameTemplate = defaultContextNameTemplate
+	} else {
+		if _, err := kubeconfig.ContextNameFromTemplate(o.ClusterNameTemplate, "", ""); err != nil {
+			return trace.BadParameter("cluster_name_template is invalid: %v", err)
+		}
 	}
 
 	return nil

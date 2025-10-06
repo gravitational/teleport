@@ -48,5 +48,5 @@ func TestCrownJewel(t *testing.T) {
 			return p.crownJewels.ListCrownJewels(ctx, int64(pageSize), pageToken)
 		},
 		deleteAll: p.crownJewels.DeleteAllCrownJewels,
-	}, withSkipPaginationTest())
+	})
 }

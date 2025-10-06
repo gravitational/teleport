@@ -22,7 +22,7 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
-import { ChevronLeft, Terminal } from 'design/Icon';
+import { ChevronLeft } from 'design/Icon';
 import { H3 } from 'design/Text';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
@@ -31,7 +31,10 @@ import cfg from 'teleport/config';
 import { type RecordingType } from 'teleport/services/recordings';
 import { useSuspenseGetRecordingMetadata } from 'teleport/services/recordings/hooks';
 import { KeysEnum } from 'teleport/services/storageService';
-import { formatSessionRecordingDuration } from 'teleport/SessionRecordings/list/RecordingItem';
+import {
+  formatSessionRecordingDuration,
+  getRecordingTypeInfo,
+} from 'teleport/SessionRecordings/list/RecordingItem';
 import { RecordingPlayer } from 'teleport/SessionRecordings/view/RecordingPlayer';
 import type { PlayerHandle } from 'teleport/SessionRecordings/view/SshPlayer';
 import {
@@ -119,6 +122,8 @@ export function RecordingWithMetadata({
   const startTime = new Date(data.metadata.startTime * 1000);
   const endTime = new Date(data.metadata.endTime * 1000);
 
+  const { icon: Icon, label } = getRecordingTypeInfo(data.metadata.type);
+
   useEffect(() => {
     if (!timelineRef.current || timelineHidden) {
       return;
@@ -142,6 +147,7 @@ export function RecordingWithMetadata({
           onTimeChange={handleTimeChange}
           initialCols={data.metadata.startCols}
           initialRows={data.metadata.startRows}
+          events={data.metadata.events}
           ref={playerRef}
         />
       </Player>
@@ -163,9 +169,9 @@ export function RecordingWithMetadata({
             </Flex>
 
             <Flex alignItems="center" gap={3} px={3}>
-              <Terminal />
+              <Icon size="small" />
 
-              <H3>SSH Session</H3>
+              <H3>{label}</H3>
             </Flex>
 
             <InfoGrid>

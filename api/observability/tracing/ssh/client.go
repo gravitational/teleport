@@ -22,6 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -29,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Client is a wrapper around ssh.Client that adds tracing support.
@@ -36,6 +38,9 @@ type Client struct {
 	*ssh.Client
 	opts       []tracing.Option
 	capability tracingCapability
+
+	requestHandlersMu sync.Mutex
+	requestHandlers   map[string]RequestHandlerFn
 }
 
 type tracingCapability int
@@ -56,9 +61,10 @@ const (
 // of whether they should provide tracing context.
 func NewClient(c ssh.Conn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request, opts ...tracing.Option) *Client {
 	clt := &Client{
-		Client:     ssh.NewClient(c, chans, reqs),
-		opts:       opts,
-		capability: tracingUnsupported,
+		Client:          ssh.NewClient(c, chans, reqs),
+		opts:            opts,
+		capability:      tracingUnsupported,
+		requestHandlers: map[string]RequestHandlerFn{},
 	}
 
 	if bytes.HasPrefix(clt.ServerVersion(), []byte("SSH-2.0-Teleport")) {
@@ -89,7 +95,7 @@ func (c *Client) DialContext(ctx context.Context, n, addr string) (net.Conn, err
 	)
 	defer span.End()
 
-	// create the wrapper while the lock is held
+	// create a new wrapper to propagate tracing span context.
 	wrapper := &clientWrapper{
 		capability: c.capability,
 		Conn:       c.Client.Conn,
@@ -162,21 +168,65 @@ func (c *Client) OpenChannel(
 	}, reqs, err
 }
 
-// NewSession creates a new SSH session that is passed tracing context
-// so that spans may be correlated properly over the ssh connection.
+// SessionParams are session parameters supported by Teleport to provide additional
+// session context or parameters to the server.
+type SessionParams struct {
+	// WebProxyAddr is the address of the proxy forwarding the SSH connection to the target server.
+	WebProxyAddr string
+	// Reason is a reason attached to started sessions meant to describe their intent.
+	Reason string
+	// Invited is a list of people invited to a session.
+	Invited []string
+	// DisplayParticipantRequirements is set if debug information about participants requirements
+	// should be printed in moderated sessions.
+	DisplayParticipantRequirements bool
+	// JoinSessionID is the ID of a session to join.
+	JoinSessionID string
+	// JoinMode is the participant mode to join the session with.
+	// Required if JoinSessionID is set.
+	JoinMode types.SessionParticipantMode
+	// ModeratedSessionID is an optional parameter sent during SCP requests to specify which moderated session
+	// to check for valid FileTransferRequests.
+	ModeratedSessionID string
+}
+
+// ParseSessionParams unmarshals session parameters which have been [ssh.Marshal]ed by the client
+// and provided as extra data in the session channel request. If the provided data is empty, nil params
+// will be returned with a nil error.
+func ParseSessionParams(data []byte) (*SessionParams, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+
+	var params SessionParams
+	if err := ssh.Unmarshal(data, &params); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if params.JoinSessionID != "" {
+		if _, err := uuid.Parse(params.JoinSessionID); err != nil {
+			return nil, trace.Wrap(err, "failed to parse join session ID: %v", params.JoinSessionID)
+		}
+
+		switch params.JoinMode {
+		case types.SessionModeratorMode, types.SessionObserverMode, types.SessionPeerMode:
+		default:
+			return nil, trace.BadParameter("Unrecognized session participant mode: %q", params.JoinMode)
+		}
+	}
+
+	return &params, nil
+}
+
+// NewSession creates a new SSH session. This session is passed a tracing context so that
+// spans may be correlated properly over the ssh connection.
 func (c *Client) NewSession(ctx context.Context) (*Session, error) {
-	return c.newSession(ctx, nil)
+	return c.NewSessionWithParams(ctx, nil)
 }
 
-// NewSessionWithRequestCallback creates a new SSH session that is passed
-// tracing context so that spans may be correlated properly over the ssh
-// connection. The handling of channel requests from the underlying SSH
-// session can be controlled with chanReqCallback.
-func (c *Client) NewSessionWithRequestCallback(ctx context.Context, chanReqCallback ChannelRequestCallback) (*Session, error) {
-	return c.newSession(ctx, chanReqCallback)
-}
-
-func (c *Client) newSession(ctx context.Context, chanReqCallback ChannelRequestCallback) (*Session, error) {
+// NewSessionWithParams creates a new SSH session with the given (optional) params. This session is
+// passed a tracing context so that spans may be correlated properly over the ssh connection.
+func (c *Client) NewSessionWithParams(ctx context.Context, sessionParams *SessionParams) (*Session, error) {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 
 	ctx, span := tracer.Start(
@@ -194,7 +244,7 @@ func (c *Client) newSession(ctx context.Context, chanReqCallback ChannelRequestC
 	)
 	defer span.End()
 
-	// create the wrapper while the lock is still held
+	// create a new wrapper to propagate tracing span context.
 	wrapper := &clientWrapper{
 		capability: c.capability,
 		Conn:       c.Client.Conn,
@@ -203,9 +253,99 @@ func (c *Client) newSession(ctx context.Context, chanReqCallback ChannelRequestC
 		contexts:   make(map[string][]context.Context),
 	}
 
-	// get a session from the wrapper
-	session, err := wrapper.NewSession(chanReqCallback)
-	return session, trace.Wrap(err)
+	// If we are connected to a Teleport server, send session params in the session request.
+	// If the server does not support session parameters in the extra data, it will be ignored.
+	var sessionData []byte
+	if sessionParams != nil && c.capability == tracingSupported {
+		sessionData = ssh.Marshal(sessionParams)
+	}
+
+	// open a session manually so we can take ownership of the
+	// requests chan
+	ch, reqs, err := wrapper.OpenChannel("session", sessionData)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	unhandledReqs := c.serveSessionRequests(ctx, reqs)
+	session, err := newCryptoSSHSession(ch, unhandledReqs)
+	if err != nil {
+		_ = ch.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	// wrap the session so all session requests on the channel
+	// can be traced
+	return &Session{
+		Session: session,
+		wrapper: wrapper,
+	}, nil
+}
+
+// RequestHandlerFn is an ssh request handler function.
+type RequestHandlerFn func(ctx context.Context, req *ssh.Request)
+
+// HandleSessionRequest registers a handler for any incoming [ssh.Request] matching the
+// provided type within a session. If the type is already being handled, an error is returned.
+// All registered handlers are consumed by the next call to [Client.NewSession].
+func (c *Client) HandleSessionRequest(ctx context.Context, requestType string, handlerFn RequestHandlerFn) error {
+	c.requestHandlersMu.Lock()
+	defer c.requestHandlersMu.Unlock()
+
+	if _, ok := c.requestHandlers[requestType]; ok {
+		return trace.AlreadyExists("ssh request type %q is already being handled for this session", requestType)
+	}
+
+	c.requestHandlers[requestType] = handlerFn
+	return nil
+}
+
+// serveSessionRequests from the remote side with registered handlers.
+//
+// This method consumes all registered handlers so that the next call to
+// [Client.NewSession] will not reuse the same handlers.
+func (c *Client) serveSessionRequests(ctx context.Context, in <-chan *ssh.Request) <-chan *ssh.Request {
+	c.requestHandlersMu.Lock()
+	requestHandlers := c.requestHandlers
+	c.requestHandlers = make(map[string]RequestHandlerFn)
+	c.requestHandlersMu.Unlock()
+
+	// Capture requests not handled by registered request handlers and
+	// pass them to the crypto [ssh.Session].
+	unhandledReqs := make(chan *ssh.Request, cap(in))
+
+	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
+	go func() {
+		defer close(unhandledReqs)
+		for req := range in {
+			ctx, span := tracer.Start(
+				ctx,
+				fmt.Sprintf("ssh.HandleRequests/%s", req.Type),
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(
+					append(
+						peerAttr(c.Conn.RemoteAddr()),
+						semconv.RPCServiceKey.String("ssh.Client"),
+						semconv.RPCMethodKey.String("HandleRequests"),
+						semconv.RPCSystemKey.String("ssh"),
+					)...,
+				),
+			)
+
+			handler, ok := requestHandlers[req.Type]
+			if ok {
+				handler(ctx, req)
+			} else {
+				// Pass on requests without a registered handler. These will be
+				// handled by the default x/crypto/ssh request handler.
+				unhandledReqs <- req
+			}
+
+			span.End()
+		}
+	}()
+
+	return unhandledReqs
 }
 
 // clientWrapper wraps the ssh.Conn for individual ssh.Client
@@ -227,64 +367,6 @@ type clientWrapper struct {
 	lock sync.Mutex
 	// contexts a LIFO queue of context.Context per channel name.
 	contexts map[string][]context.Context
-}
-
-// ChannelRequestCallback allows the handling of channel requests
-// to be customized. nil can be returned if you don't want
-// golang/x/crypto/ssh to handle the request.
-type ChannelRequestCallback func(req *ssh.Request) *ssh.Request
-
-// NewSession opens a new Session for this client.
-func (c *clientWrapper) NewSession(callback ChannelRequestCallback) (*Session, error) {
-	// create a client that will defer to us when
-	// opening the "session" channel so that we
-	// can add an Envelope to the request
-	client := &ssh.Client{
-		Conn: c,
-	}
-
-	var session *ssh.Session
-	var err error
-	if callback != nil {
-		// open a session manually so we can take ownership of the
-		// requests chan
-		ch, originalReqs, openChannelErr := client.OpenChannel("session", nil)
-		if openChannelErr != nil {
-			return nil, trace.Wrap(openChannelErr)
-		}
-
-		// pass the channel requests to the provided callback and
-		// forward them to another chan so golang.org/x/crypto/ssh
-		// can handle Session exiting correctly
-		reqs := make(chan *ssh.Request, cap(originalReqs))
-		go func() {
-			defer close(reqs)
-
-			for req := range originalReqs {
-				if req := callback(req); req != nil {
-					reqs <- req
-				}
-			}
-		}()
-
-		session, err = newCryptoSSHSession(ch, reqs)
-		if err != nil {
-			_ = ch.Close()
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		session, err = client.NewSession()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// wrap the session so all session requests on the channel
-	// can be traced
-	return &Session{
-		Session: session,
-		wrapper: c,
-	}, nil
 }
 
 // wrappedSSHConn allows an SSH session to be created while also allowing

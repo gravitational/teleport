@@ -116,7 +116,7 @@ func (s *EventHandlerSuite) SetupTest() {
 			BatchSize:        100,
 			Concurrency:      5,
 			StartTime:        &startTime,
-			SkipSessionTypes: map[string]struct{}{"print": {}},
+			SkipSessionTypes: map[string]struct{}{"print": {}, "desktop.recording": {}},
 			WindowSize:       time.Hour * 24,
 		},
 	}

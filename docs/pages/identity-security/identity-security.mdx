@@ -19,30 +19,25 @@ It can help you answer questions like:
 
 ## Getting started with Identity Security
 
-Identity Security is a separately licensed product and is available to Teleport Enterprise customers.
-Access Graph is a capability of Identity Security that displays the relationships of
-policies of users, groups, and computing resources.
+To start using Identity Security to explore access paths and identity-related
+activity in your infrastructure, read [Get Started with Identity
+Security](usage/usage.mdx).
 
-To verify the availability of the Access Graph, ensure that the Teleport Identity Security icon is present in the navigation sidebar.
+Identity Security is a separately licensed product and is available to Teleport
+Enterprise customers.
 
-<Admonition type="note">
-Note: For managed Enterprise customers, Identity Security is enabled by default.
-If you are a self-hosted Teleport customer, you will need to [deploy the Access Graph Service](access-graph/access-graph.mdx) and ensure you have an updated
-`license.pem` with Identity Security enabled to use it.
-</Admonition>
+## Enabling Identity Security integrations
 
-## Identity Activity Center
+You can configure Teleport Identity Security to integrate with third-party
+services so you can visualize access paths and identity-related activity from
+your cloud platform, code repositories, and more, all in a single view. Read
+[Identity Security Integrations](integrations/integrations.mdx) for
+instructions.
 
-(!docs/pages/includes/policy/identity-activity-center.mdx!)
+## Self-hosting Identity Security
 
-### Identity Activity Center guides and supported integrations
+Self-hosted Teleport Enterprise customers must deploy Identity Security on their
+own infrastructure. Learn about the services you need to deploy in [Self-Host
+Teleport Identity Security](access-graph/access-graph.mdx).
 
-- [Enable Identity Activity Center](access-graph/identity-activity-center.mdx)
-- [Discover AWS Access Patterns and CloudTrail events with Teleport Identity Security](./integrations/aws-sync.mdx) guide.
-- [Analyze and correlate Teleport Audit Logs](./integrations/teleport.mdx)
-- [Analyze and correlate GitHub Audit Logs and Access Paths](./integrations/github.mdx) 
-- [Analyze and correlate Okta Audit Logs and Access Paths](../identity-governance/okta/okta.mdx)
 
-## Identity Security guides
-
-<DocCardList />

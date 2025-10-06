@@ -383,6 +383,7 @@ func tgzExtractPaths(ent bool) []utils.ExtractPath {
 		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: filepath.Join(serviceDir, serviceName), DirMode: systemDirMode},
 		{Src: path.Join(prefix, "examples"), Skip: true, DirMode: systemDirMode},
 		{Src: path.Join(prefix, "install"), Skip: true, DirMode: systemDirMode},
+		{Src: path.Join(prefix, "install-selinux.sh"), Skip: true, DirMode: systemDirMode},
 		{Src: path.Join(prefix, "README.md"), Dst: "share/README.md", DirMode: systemDirMode},
 		{Src: path.Join(prefix, "CHANGELOG.md"), Dst: "share/CHANGELOG.md", DirMode: systemDirMode},
 		{Src: path.Join(prefix, "VERSION"), Dst: "share/VERSION", DirMode: systemDirMode},

@@ -264,7 +264,7 @@ func (e *localExec) transformSecureCopy() error {
 				Time: time.Now(),
 			},
 			UserMetadata:   e.Ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.Ctx.GetServer().TargetMetadata(),
+			ServerMetadata: e.Ctx.GetServer().EventMetadata(),
 			Error:          err.Error(),
 		})
 		return trace.Wrap(err)
@@ -369,7 +369,7 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 				Time: time.Now(),
 			},
 			UserMetadata:   e.ctx.Identity.GetUserMetadata(),
-			ServerMetadata: e.ctx.GetServer().TargetMetadata(),
+			ServerMetadata: e.ctx.GetServer().EventMetadata(),
 			Error:          err.Error(),
 		})
 		return nil, trace.Wrap(err)
@@ -435,7 +435,7 @@ func (e *remoteExec) PID() int {
 // instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
-	serverMeta := ctx.GetServer().TargetMetadata()
+	serverMeta := ctx.GetServer().EventMetadata()
 	sessionMeta := ctx.GetSessionMetadata()
 	userMeta := ctx.Identity.GetUserMetadata()
 

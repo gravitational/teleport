@@ -383,6 +383,15 @@ renewal_interval: 15m
 # invocation of `kubectl`. Defaults to `false`.
 disable_exec_plugin: false
 
+# context_name_template determines the format of context names in the generated
+# kubeconfig. It is a Go template string that supports the following variables:
+#
+#   - {{.ClusterName}} - Name of the Teleport cluster
+#   - {{.KubeName}} - Name of the Kubernetes cluster resource
+#
+# By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}"
+context_name_template: "{{.KubeName}}"
+
 # name optionally overrides the name of the service used in logs and the `/readyz`
 # endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
 # symbols.
@@ -485,6 +494,15 @@ namespaces:
 # cluster-scoped resources within the target clusters. This option is only
 # applicable when `namespaces` is non-empty.
 cluster_resources: true
+
+# cluster_name_template determines the format of cluster names in Argo CD. It is
+# a Go template string that supports the following variables:
+#
+#   - {{.ClusterName}} - Name of the Teleport cluster
+#   - {{.KubeName}} - Name of the Kubernetes cluster resource
+#
+# By default, the following template will be used: "{{.ClusterName}}-{{.KubeName}}"
+cluster_name_template: "{{.KubeName}}"
 
 # The following configuration fields are available across most output types.
 # Note that `roles` and `destination` are not supported for this output type.
@@ -1339,6 +1357,73 @@ func main() {
 }
 ```
 </details>
+
+### `application-proxy`
+
+The `application-proxy` service opens a listener serving an HTTP proxy that
+forwards requests to HTTP applications enrolled in Teleport. It handles the
+process of attaching the necessary client certificate to the upstream connection
+on the behalf of the client.
+
+Unlike the `application-tunnel` service, which is explicitly bound to a specific
+application, the `application-proxy` service dynamically routes requests to the
+correct application. This makes it more suitable for use-cases where a client
+must connect to a large number of applications enrolled in Teleport,
+for example, for scraping Prometheus metric endpoints through Teleport.
+
+The proxy authenticates connections for the client, meaning that any client that
+connects to the listener will be able to access applications through Teleport.
+For this reason, ensure that the listener is only accessible by the intended
+clients by using the Unix socket listener or binding to `127.0.0.1`.
+
+```yaml
+# type specifies the type of the service. For the application proxy service,
+# this will always be `application-proxy`.
+type: application-proxy
+# listen specifies the address that the service should listen on.
+#
+# Two types of listener are supported:
+# - TCP: `tcp://<address>:<port>`
+# - Unix socket: `unix:///<path>`
+listen: tcp://127.0.0.1:8080
+# name optionally overrides the name of the service used in logs and the `/readyz`
+# endpoint. It must only contain letters, numbers, hyphens, underscores, and plus
+# symbols.
+name: my-service-name
+```
+
+The `application-proxy` service will not start if `tbot` has been configured
+to run in one-shot mode.
+
+#### Limitations
+
+There are a number of limitations in the initial implementation of the
+`application-proxy` to be aware of:
+
+- Only HTTP applications are supported. TCP applications are not supported at
+  this time.
+- Only HTTP/1 and HTTP/1.1 are supported. HTTP/2 is not supported at this time.
+
+If these limitations are problematic, consider using the `application-tunnel`
+service instead, or, reach out to the Teleport team to discuss your use-case.
+
+#### Using the application proxy
+
+The listener exposed by the `application-proxy` service is compatible with a
+wide range of HTTP clients and libraries. How this is configured will depend on
+the client or library being used. For many clients, this is possible using the
+`http_proxy` environment variable.
+
+When using the `application-proxy`, either the `Host` header or authority
+specified within a request's target URI must match the name of the application
+as enrolled within Teleport.
+
+For example, using `curl` to access the HTTP application enrolled in Teleport
+called `my-app`:
+
+```bash
+curl --proxy localhost:8080 http://my-app/example
+````
 
 ## Destinations
 

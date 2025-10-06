@@ -516,7 +516,13 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	if app.IsMCP() {
-		return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
+		// TODO(greedy52) refactor and implement "tsh proxy mcp".
+		switch types.GetMCPServerTransportType(app.GetURI()) {
+		case types.MCPTransportHTTP:
+			// continue
+		default:
+			return trace.BadParameter("MCP applications are not supported. Please see 'tsh mcp config --help' for more details.")
+		}
 	}
 
 	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)

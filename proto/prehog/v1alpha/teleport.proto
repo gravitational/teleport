@@ -522,6 +522,10 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
 
   DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
+
+  DISCOVER_RESOURCE_MCP_STDIO = 42;
+  DISCOVER_RESOURCE_MCP_SSE = 43;
+  DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP = 44;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -1129,6 +1133,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
   INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
   INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
 }
 
 // IntegrationEnrollMetadata contains common metadata

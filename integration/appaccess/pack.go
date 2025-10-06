@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
@@ -500,24 +501,19 @@ func (p *Pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 	return statusCode, []byte(body), trace.Wrap(err)
 }
 
-func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {
-	ctx := context.Background()
-	require.Eventuallyf(t, func() bool {
+func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, matchEvent func(event apievents.AuditEvent) bool) {
+	ctx := t.Context()
+	require.EventuallyWithTf(t, func(t *assert.CollectT) {
 		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
 			From:       time.Now().Add(-time.Hour),
 			To:         time.Now().Add(time.Hour),
 			EventTypes: []string{eventType},
-			Limit:      1,
+			Limit:      5,
 			Order:      types.EventOrderDescending,
 		})
 		require.NoError(t, err)
-		if len(events) == 0 {
-			return false
-		}
-
-		checkEvent(events[0])
-		return true
-	}, 500*time.Millisecond, 50*time.Millisecond, "failed to fetch audit event \"%s\"", eventType)
+		require.True(t, slices.ContainsFunc(events, matchEvent))
+	}, 5*time.Second, 100*time.Millisecond, "failed to fetch audit event \"%s\"", eventType)
 }
 
 // initCertPool initializes root cluster CA pool.
@@ -914,16 +910,16 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, configs[i].Apps.Apps)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.rootAppClusterName, srv, configs[i].Apps.Apps)
 	}
 
 	return servers
 }
 
-func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name string, apps []servicecfg.App) {
+func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, srv *service.TeleportProcess, apps []servicecfg.App) {
 	// Make sure that the app server is ready to accept connections.
 	// The remote site cache needs to be filled with new registered application services.
-	waitForAppInClusterCache(t, tunnel, name, apps)
+	waitForAppInClusterCache(t, tunnel, clusterName, srv, apps)
 }
 
 func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions) []*service.TeleportProcess {
@@ -1059,14 +1055,32 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 		t.Cleanup(func() {
 			require.NoError(t, srv.Close())
 		})
-		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, configs[i].Apps.Apps)
+		waitForAppServer(t, p.leafCluster.Tunnel, p.leafAppClusterName, srv, configs[i].Apps.Apps)
+		waitForAppServer(t, p.rootCluster.Tunnel, p.leafAppClusterName, srv, configs[i].Apps.Apps)
 	}
 
 	return servers
 }
 
-func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App) {
+// waitForAppInClusterCache ensures the applications is present on the cache.
+// Given that the applications might be already served by other application
+// agent, we must assert the applications are served by the provided server.
+func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, clusterName string, srv *service.TeleportProcess, cfgApps []servicecfg.App) {
+	t.Helper()
+
 	ctx := t.Context()
+	hostID, err := srv.WaitForHostID(ctx)
+	require.NoError(t, err)
+
+	type appHost struct {
+		appID  string
+		hostID string
+	}
+
+	wantNames := sliceutils.Map(cfgApps, func(app servicecfg.App) appHost {
+		return appHost{appID: app.Name, hostID: hostID}
+	})
+
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		cluster, err := server.Cluster(ctx, clusterName)
 		require.NoError(t, err)
@@ -1077,11 +1091,10 @@ func waitForAppInClusterCache(t *testing.T, server reversetunnelclient.Server, c
 		apps, err := ap.GetApplicationServers(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
 
-		wantNames := sliceutils.Map(cfgApps, func(app servicecfg.App) string {
-			return app.Name
-		})
 		require.Subset(t,
-			slices.Collect(types.ResourceNames(apps)),
+			slices.Collect(iterutils.Map(func(appServer types.AppServer) appHost {
+				return appHost{appID: appServer.GetApp().GetName(), hostID: appServer.GetHostID()}
+			}, slices.Values(apps))),
 			wantNames,
 		)
 	}, time.Minute*2, time.Millisecond*200)

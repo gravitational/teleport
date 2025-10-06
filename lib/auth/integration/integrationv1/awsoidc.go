@@ -79,6 +79,7 @@ type AWSOIDCServiceConfig struct {
 	IntegrationService    *Service
 	Authorizer            authz.Authorizer
 	Cache                 CacheAWSOIDC
+	TokenCreator          TokenCreator
 	Clock                 clockwork.Clock
 	ProxyPublicAddrGetter func() string
 	Logger                *slog.Logger
@@ -97,6 +98,10 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 
 	if s.Cache == nil {
 		return trace.BadParameter("cache is required")
+	}
+
+	if s.TokenCreator == nil {
+		return trace.BadParameter("token creator is required")
 	}
 
 	if s.Clock == nil {
@@ -124,6 +129,7 @@ type AWSOIDCService struct {
 	clock                 clockwork.Clock
 	proxyPublicAddrGetter func() string
 	cache                 CacheAWSOIDC
+	tokenCreator          TokenCreator
 }
 
 // CacheAWSOIDC is the subset of the cached resources that the Service queries.
@@ -131,11 +137,14 @@ type CacheAWSOIDC interface {
 	// GetToken returns a provision token by name.
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 
-	// UpsertToken creates or updates a provision token.
-	UpsertToken(ctx context.Context, token types.ProvisionToken) error
-
 	// GetClusterName returns the current cluster name.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
+}
+
+// TokenCreator is a subset of the auth server methods used to create tokens.
+type TokenCreator interface {
+	// UpsertToken creates or updates a provision token.
+	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 }
 
 // NewAWSOIDCService returns a new AWSOIDCService.
@@ -151,6 +160,7 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 		proxyPublicAddrGetter: cfg.ProxyPublicAddrGetter,
 		clock:                 cfg.Clock,
 		cache:                 cfg.Cache,
+		tokenCreator:          cfg.TokenCreator,
 	}, nil
 }
 
@@ -464,7 +474,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		return nil, trace.Wrap(err)
 	}
 
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache, s.tokenCreator)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -571,7 +581,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.cache.UpsertToken)
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.tokenCreator.UpsertToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -634,7 +644,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		return nil, trace.Wrap(err)
 	}
 
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache, s.tokenCreator)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

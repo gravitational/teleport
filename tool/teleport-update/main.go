@@ -191,7 +191,8 @@ func Run(args []string) int {
 		Envar(autoupdate.SetupVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	setupCmd.Flag("flag", "Use the provided flags to generate configuration files.").
 		Envar(autoupdate.SetupFlagsEnvVar).StringsVar(&ccfg.ForceFlags)
-	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").Hidden().BoolVar(&ccfg.SELinuxSSH)
+	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").
+		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).BoolVar(&ccfg.SELinuxSSH)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 	statusCmd.Flag("err-if-should-update-now",

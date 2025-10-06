@@ -52,6 +52,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	if err != nil {
 		return trace.Wrap(err, "creating HTTP transport")
 	}
+	// TODO(greedy52) support JWT for SSE transport.
 	session, err := s.makeSessionHandler(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err, "setting up session handler")
@@ -63,6 +64,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	// Initialize SSE stream.
 	sseResponseReader, sseRequestWriter, err := mcputils.ConnectSSEServer(ctx, baseURL, httpTransport)
 	if err != nil {
+		setupErrors.WithLabelValues(sessionCtx.transport).Inc()
 		return trace.Wrap(err)
 	}
 	session.logger.DebugContext(ctx, "Received SSE endpoint", "endpoint_url", sseRequestWriter.GetEndpointURL())
@@ -102,7 +104,7 @@ func (s *Server) handleStdioToSSE(ctx context.Context, sessionCtx *SessionCtx) e
 	// TODO(greedy52) capture client info then emit start event with client
 	// information.
 	session.emitStartEvent(s.cfg.ParentContext)
-	defer session.emitEndEvent(s.cfg.ParentContext)
+	defer session.emitEndEvent(s.cfg.ParentContext, nil)
 
 	// Wait until reader finishes.
 	clientRequestReader.Run(ctx)

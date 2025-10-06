@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { UseQueryResult } from '@tanstack/react-query';
 import { formatDistanceToNow, isPast } from 'date-fns';
 import { ComponentType, useEffect, useMemo, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
@@ -25,7 +26,7 @@ import * as Icon from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 import { MenuItemSectionLabel } from 'design/Menu/MenuItem';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
-import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
+import { AccessRequest as GenAccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest';
 import { getResourcesOrRolesFromRequest } from 'shared/components/AccessRequests/Shared/Shared';
 import {
@@ -55,6 +56,11 @@ import {
 } from '../TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 import { useAccessRequestsContext } from './AccessRequestsContext';
 
+type AccessRequest = Pick<
+  GenAccessRequest,
+  'expires' | 'id' | 'resources' | 'roles' | 'state' | 'user'
+>;
+
 export function SelectorMenu() {
   const [open, setOpen] = useState(false);
   // Captures a snapshot of the assumed request when the menu opens.
@@ -62,7 +68,7 @@ export function SelectorMenu() {
   // Prevents requests from shifting when they are assumed or dropped
   // while the menu is open.
   const [assumedSnapshot, setAssumedSnapshot] = useState<
-    Map<string, AccessRequest>
+    Map<string, UseQueryResult<AccessRequest>>
   >(() => new Map());
   const {
     canUse,
@@ -92,21 +98,24 @@ export function SelectorMenu() {
     [fetchRequestsAttempt, username]
   );
 
-  // Ensure that the assumed requests are always displayed in the menu.
-  // It's possible that the user assumed a request that was later deleted.
-  // If they refreshed the list after that, the request would be gone there, but
-  // still displayed in the status bar.
-  // The same thing would happen if the API call to fetch requests failed.
-  // We need to make sure that the assumed roles are always visible.
+  // Ensure assumed requests are always shown.
+  // If a request was deleted after being assumed, or if the API call to fetch
+  // requests fails, add the cached assumed requests to the list
+  // (or at least their request IDs if full details aren’t available).
   const assumedAndAssumableRequests = useMemo(() => {
-    const allRequests = [...(assumableRequests.data || [])];
-    assumed.forEach(assumedRequest => {
-      if (
-        !allRequests.find(
-          fetchedRequest => fetchedRequest.id === assumedRequest.id
-        )
-      ) {
-        allRequests.push(assumedRequest);
+    const allRequests: AccessRequest[] = [...(assumableRequests.data || [])];
+    Array.from(assumed).forEach(([assumedRequestId, assumedRequestQuery]) => {
+      const exists = allRequests.some(r => r.id === assumedRequestId);
+
+      if (!exists) {
+        const fallbackRequest = {
+          id: assumedRequestId,
+          resources: [],
+          roles: [],
+          state: '',
+          user: '',
+        };
+        allRequests.push(assumedRequestQuery.data || fallbackRequest);
       }
     });
     return allRequests;
@@ -339,6 +348,18 @@ function RequestItem(props: {
     assumeOrDropAttempt.status === 'processing' ||
     !canAssumeResourceRequest;
 
+  const clippedRequestItems = clipRequestItems(items).map((i, index, array) => {
+    const { Icon, name } = i;
+    const isLast = index === array.length - 1;
+    return (
+      <Flex key={`name-${index}`} gap={1}>
+        {Icon && <Icon size="small" />}
+        {name}
+        {!isLast && ','}
+      </Flex>
+    );
+  });
+
   return (
     <StyledMenuItemContainer
       assumed={props.isAssumed}
@@ -363,17 +384,10 @@ function RequestItem(props: {
           `}
         >
           <Flex gap={1} flexWrap="wrap">
-            {clipRequestItems(items).map((i, index, array) => {
-              const { Icon, name } = i;
-              const isLast = index === array.length - 1;
-              return (
-                <Flex key={`name-${index}`} gap={1}>
-                  {Icon && <Icon size="small" />}
-                  {name}
-                  {!isLast && ','}
-                </Flex>
-              );
-            })}
+            {/*Only fallback requests have no roles/resources.*/}
+            {clippedRequestItems.length
+              ? clippedRequestItems
+              : props.request.id}
           </Flex>
           <P3
             css={`
@@ -448,14 +462,17 @@ function getAccessRequestIconStatus(
 
 function getAccessRequestStatusText(args: {
   attempt: Attempt<unknown>;
-  expires: Timestamp;
+  expires: Timestamp | undefined;
   isAssumed: boolean;
   canAssumeResourceRequest: boolean;
 }) {
-  const expirationDate = Timestamp.toDate(args.expires);
-  const expiresIn = isPast(expirationDate)
-    ? 'Expired'
-    : `Expires in ${formatDistanceToNow(Timestamp.toDate(args.expires))}`;
+  const expirationDate = args.expires && Timestamp.toDate(args.expires);
+
+  const expiresIn = !expirationDate
+    ? 'Unknown expiration'
+    : isPast(expirationDate)
+      ? 'Expired'
+      : `Expires in ${formatDistanceToNow(expirationDate)}`;
 
   if (args.attempt.status === 'error') {
     return `Could not update access: ${args.attempt.statusText}`;

@@ -705,7 +705,10 @@ type AuthServiceClient interface {
 	DeleteAllServerInfos(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
+	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
+	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -797,6 +800,7 @@ type AuthServiceClient interface {
 	SetNetworkRestrictions(ctx context.Context, in *types.NetworkRestrictionsV4, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
@@ -2658,6 +2662,7 @@ func (c *authServiceClient) GetTrustedCluster(ctx context.Context, in *types.Res
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetTrustedClusters(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.TrustedClusterV2List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.TrustedClusterV2List)
@@ -3018,6 +3023,7 @@ func (c *authServiceClient) DeleteNetworkRestrictions(ctx context.Context, in *e
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *authServiceClient) GetApps(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AppV3List, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(types.AppV3List)
@@ -4249,7 +4255,10 @@ type AuthServiceServer interface {
 	DeleteAllServerInfos(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetTrustedCluster gets a Trusted Cluster resource by name.
 	GetTrustedCluster(context.Context, *types.ResourceRequest) (*types.TrustedClusterV2, error)
+	// Deprecated: Do not use.
 	// GetTrustedClusters gets all current Trusted Cluster resources.
+	// Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+	// TODO(okraport): DELETE IN 21.0.0
 	GetTrustedClusters(context.Context, *emptypb.Empty) (*types.TrustedClusterV2List, error)
 	// Deprecated: Do not use.
 	// UpsertTrustedCluster upserts a Trusted Cluster in a backend.
@@ -4341,6 +4350,7 @@ type AuthServiceServer interface {
 	SetNetworkRestrictions(context.Context, *types.NetworkRestrictionsV4) (*emptypb.Empty, error)
 	// DeleteNetworkRestrictions delete the network restrictions.
 	DeleteNetworkRestrictions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// Deprecated: Do not use.
 	// GetApps returns all registered applications.
 	GetApps(context.Context, *emptypb.Empty) (*types.AppV3List, error)
 	// ListApps returns a page of registered applications.
