@@ -12,6 +12,11 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
+    labels:
+      - 'dependencies'
+      - 'go'
+      - 'no-changelog'
+    
   - package-ecosystem: cargo
     directory: '/windowsauth'
     schedule:
@@ -24,6 +29,10 @@ updates:
         update-types:
           - 'minor'
           - 'patch'
+    labels:
+      - 'dependencies'
+      - 'rust'
+      - 'no-changelog'
 
   - package-ecosystem: github-actions
     directory: '/.github/workflows'
@@ -32,6 +41,10 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'
 
   # Every custom action directory must be defined individually. See:
   # * https://github.com/dependabot/dependabot-core/issues/6704
@@ -43,6 +56,10 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'
 
   - package-ecosystem: github-actions
     directory: '/.github/actions/deploy-os-package'
@@ -51,6 +68,10 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'
 
   - package-ecosystem: github-actions
     directory: '/.github/actions/load-gpg-key'
@@ -59,6 +80,10 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'
 
   - package-ecosystem: github-actions
     directory: '/.github/actions/parse-version'
@@ -67,3 +92,7 @@ updates:
       day: monday
       time: '09:00'
       timezone: 'America/Los_Angeles'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+      - 'no-changelog'
