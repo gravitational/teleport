@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package utils
+package aws
 
 import (
 	"context"
@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // GetRawEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
@@ -42,7 +43,7 @@ func GetRawEC2IdentityDocument(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	iidBytes, err := ReadAtMost(output.Content, teleport.MaxHTTPResponseSize)
+	iidBytes, err := utils.ReadAtMost(output.Content, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
