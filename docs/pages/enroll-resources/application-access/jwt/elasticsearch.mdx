@@ -40,12 +40,12 @@ xpack.security.authc.realms.jwt.teleport:
 For **hosted deployments** in Elastic Cloud, you can configure the same settings
 by editing your deployment.
 
-Go to "Manage user settings and extensions" for "Elaiscsearch", then add the
+Go to "Manage user settings and extensions" for "Elasticsearch", then add the
 configuration snippet above under "User Settings". You may have to use an order
 number bigger than 1.
 
-Note that configuring JWT authentication is not available for **Serverless**
-projects.
+Please note that Elastic Cloud **Serverless** projects do not support connecting
+external realms, and therefore cannot be configured with JWT authentication.
 </Admonition>
 
 Let's take a closer look at the parameters and their values:
