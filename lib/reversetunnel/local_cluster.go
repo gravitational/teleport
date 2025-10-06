@@ -581,8 +581,8 @@ with the cluster.`
 
   %v
 
-This usually means that the server is offline or network permissions block the SSH connection.
-Check the network permissions, verify that the instance is running and the sshd service is active.`
+This usually means that the server is offline or a firewall restriction is blocking the SSH connection.
+Check the firewall restrictions, verify that the instance is running and the sshd service is active.`
 	}
 
 	var toAddr string
