@@ -74,7 +74,7 @@ export const getBotSuccess = (overrides?: {
  * @returns http handler to use in SetupServerApi.use()
  */
 export const editBotSuccess = (
-  version: 'v1' | 'v2' | 'v3' = 'v3',
+  version: EditBotApiVersion = 'v3',
   overrides?: Partial<EditBotRequest>
 ) =>
   http.put<{ botName: string }>(
@@ -139,7 +139,7 @@ export const getBotError = (status: number, error: string | null = null) =>
   });
 
 export const editBotError = (
-  version: 'v1' | 'v2' | 'v3' = 'v3',
+  version: EditBotApiVersion = 'v3',
   status: number,
   error: string | null = null,
   fields: JsonObject = {}
@@ -175,3 +175,5 @@ export const editBotForever = () =>
         /* never resolved */
       })
   );
+
+export type EditBotApiVersion = 'v1' | 'v2' | 'v3';

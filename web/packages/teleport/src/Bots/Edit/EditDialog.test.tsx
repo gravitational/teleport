@@ -38,6 +38,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { EditBotRequest, FlatBot } from 'teleport/services/bot/types';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import {
+  EditBotApiVersion,
   editBotError,
   editBotSuccess,
   getBotError,
@@ -378,14 +379,14 @@ function withFetchBotError(status = 500, message = 'something went wrong') {
 }
 
 function withSaveError(
-  version: 'v1' | 'v2' | 'v3' = 'v3',
+  version: EditBotApiVersion = 'v3',
   status = 500,
   message = 'something went wrong'
 ) {
   server.use(editBotError(version, status, message));
 }
 
-function withSaveVersionMismatch(version: 'v1' | 'v2' | 'v3' = 'v3') {
+function withSaveVersionMismatch(version: EditBotApiVersion = 'v3') {
   server.use(
     editBotError(version, 404, 'path not found', {
       proxyVersion: {
@@ -404,7 +405,7 @@ function withFetchBotSuccess(...params: Parameters<typeof getBotSuccess>) {
 }
 
 function withSaveSuccess(
-  version: 'v1' | 'v2' | 'v3' = 'v3',
+  version: EditBotApiVersion = 'v3',
   overrides?: Partial<EditBotRequest>
 ) {
   server.use(editBotSuccess(version, overrides));
