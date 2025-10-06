@@ -54,7 +54,7 @@ export interface RecordingPlayerProps<
   TEndEventType extends TEventType = TEventType,
 > {
   duration: number;
-  onTimeChange: (time: number) => void;
+  onTimeChange?: (time: number) => void;
   onToggleSidebar?: () => void;
   onToggleTimeline?: () => void;
   onToggleFullscreen?: () => void;
@@ -108,7 +108,7 @@ export function RecordingPlayer<
       }
 
       controlsRef.current.setTime(time);
-      onTimeChange(time);
+      onTimeChange?.(time);
       eventInfoRef.current.setTime(time);
     });
 
@@ -172,11 +172,13 @@ export function RecordingPlayer<
         overflow="hidden"
         position="relative"
       >
-        <CurrentEventInfo
-          events={events}
-          onSeek={handleSeek}
-          ref={eventInfoRef}
-        />
+        {events?.length > 0 && (
+          <CurrentEventInfo
+            events={events}
+            onSeek={handleSeek}
+            ref={eventInfoRef}
+          />
+        )}
 
         {showPlayButton && (
           <PlayButton onClick={handlePlay}>
