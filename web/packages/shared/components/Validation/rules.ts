@@ -274,24 +274,23 @@ const requiredMaxLength =
   ): Rule<T | T[] | readonly T[]> =>
   value =>
   () => {
-    switch (true) {
-      case typeof value === 'string':
-        const valid = value.trim().length <= maxLength;
-        return {
-          valid,
-          message: valid ? undefined : message,
-        };
-      case Array.isArray(value): {
-        const valid = value.length <= maxLength;
-        return {
-          valid,
-          message: valid ? undefined : message,
-        };
-      }
-      default: {
-        return { valid: false, message: 'value must be a string or an array' };
-      }
+    if (typeof value === 'string') {
+      const valid = value.trim().length <= maxLength;
+      return {
+        valid,
+        message: valid ? undefined : message,
+      };
     }
+
+    if (Array.isArray(value)) {
+      const valid = value.length <= maxLength;
+      return {
+        valid,
+        message: valid ? undefined : message,
+      };
+    }
+
+    return { valid: false, message: 'value must be a string or an array' };
   };
 
 /**
