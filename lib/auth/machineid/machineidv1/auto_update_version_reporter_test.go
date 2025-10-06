@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -62,6 +63,9 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 		t.Helper()
 
 		_, err = botInstanceService.CreateBotInstance(ctx, &machineidv1pb.BotInstance{
+			Metadata: &headerv1.Metadata{
+				Expires: timestamppb.New(clock.Now().Add(1 * time.Hour)),
+			},
 			Spec: &machineidv1pb.BotInstanceSpec{
 				InstanceId: uuid.NewString(),
 				BotName:    "bot-1234",

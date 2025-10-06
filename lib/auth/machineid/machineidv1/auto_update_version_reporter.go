@@ -244,6 +244,12 @@ func (r *AutoUpdateVersionReporter) Report(ctx context.Context) error {
 		}
 
 		for _, inst := range instances {
+			// Defend against backends not removing expired items in a timely manner.
+			expiry := inst.GetMetadata().GetExpires().AsTime()
+			if expiry.Before(r.clock.Now()) && !expiry.IsZero() {
+				continue
+			}
+
 			// Take the version information from the latest heartbeat.
 			heartbeats := inst.GetStatus().GetLatestHeartbeats()
 			if len(heartbeats) == 0 {
