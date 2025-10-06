@@ -1338,7 +1338,7 @@ func TestBotInstanceMetrics_Success(t *testing.T) {
 	require.Equal(t,
 		BotInstanceUpgradeStatus{
 			Count:  100010,
-			Filter: `version_lt(status.latest_heartbeat.version, "18.0.0-aa") || version_gte(status.latest_heartbeat.version, "20.0.0-aa")`,
+			Filter: `older_than(status.latest_heartbeat.version, "18.0.0-aa") || status.latest_heartbeat.version == "20.0.0-aa" || newer_than(status.latest_heartbeat.version, "20.0.0-aa")`,
 		},
 		body.UpgradeStatuses.Unsupported,
 	)
@@ -1347,7 +1347,7 @@ func TestBotInstanceMetrics_Success(t *testing.T) {
 	require.Equal(t,
 		BotInstanceUpgradeStatus{
 			Count:  1100,
-			Filter: `version_gte(status.latest_heartbeat.version, "19.0.0-aa") && version_lt(status.latest_heartbeat.version, "19.1.1")`,
+			Filter: `between(status.latest_heartbeat.version, "19.0.0-aa", "19.1.1")`,
 		},
 		body.UpgradeStatuses.PatchAvailable,
 	)
@@ -1356,7 +1356,7 @@ func TestBotInstanceMetrics_Success(t *testing.T) {
 	require.Equal(t,
 		BotInstanceUpgradeStatus{
 			Count:  10000,
-			Filter: `version_gte(status.latest_heartbeat.version, "18.0.0-aa") && version_lt(status.latest_heartbeat.version, "19.0.0-aa")`,
+			Filter: `between(status.latest_heartbeat.version, "18.0.0-aa", "19.0.0-aa")`,
 		},
 		body.UpgradeStatuses.RequiresUpgrade,
 	)

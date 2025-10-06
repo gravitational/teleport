@@ -582,7 +582,7 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 		},
 		Unsupported: BotInstanceUpgradeStatus{
 			Filter: fmt.Sprintf(
-				"version_lt(%[1]s, %[2]q) || version_gte(%[1]s, %[3]q)",
+				"older_than(%[1]s, %[2]q) || %[1]s == %[3]q || newer_than(%[1]s, %[3]q)",
 				versionField,
 				lowerBound(targetVersion.Major-1),
 				lowerBound(targetVersion.Major+1),
@@ -590,7 +590,7 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 		},
 		PatchAvailable: BotInstanceUpgradeStatus{
 			Filter: fmt.Sprintf(
-				"version_gte(%[1]s, %[2]q) && version_lt(%[1]s, %[3]q)",
+				"between(%[1]s, %[2]q, %[3]q)",
 				versionField,
 				lowerBound(targetVersion.Major),
 				targetVersion,
@@ -598,7 +598,7 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 		},
 		RequiresUpgrade: BotInstanceUpgradeStatus{
 			Filter: fmt.Sprintf(
-				"version_gte(%[1]s, %[2]q) && version_lt(%[1]s, %[3]q)",
+				"between(%[1]s, %[2]q, %[3]q)",
 				versionField,
 				lowerBound(targetVersion.Major-1),
 				lowerBound(targetVersion.Major),
