@@ -1212,8 +1212,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
 
 	dtPrefix := "/webapi/devicetrust"
+	h.auth.proxyClient.DevicesClient()
 	_, dtHandler := devicetrustv1connect.NewDeviceTrustServiceHandler(&deviceTrustServer{
-		logger: h.logger,
+		logger:        h.logger.With(teleport.ComponentKey, "dtenroll"),
+		devicesClient: h.auth.proxyClient.DevicesClient(),
 	})
 	dtPrefixHandler := http.StripPrefix(dtPrefix, dtHandler)
 
