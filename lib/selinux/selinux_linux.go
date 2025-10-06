@@ -226,6 +226,9 @@ func diagnoseWrongDomain(procCtx *selinuxContext, logger *slog.Logger) error {
 // ModuleInstalled returns true if the SSH SELinux module is installed.
 func ModuleInstalled() (bool, error) {
 	selinuxType, err := readConfig(selinuxTypeTag)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
 	if err != nil {
 		return false, trace.Wrap(err, "failed to find SELinux type")
 	}
