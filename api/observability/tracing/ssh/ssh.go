@@ -27,6 +27,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -153,12 +154,69 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 	)
 	defer span.End()
 
+	// ssh.ClientConfig.Timeout is not the total timeout for the connection
+	// establishment, including DNS resolution, TCP connection, but it doesn't
+	// include the SSH estalbishment.
+	// From the crypto/ssh docs:
+	// > Timeout is the maximum amount of time for the TCP connection to establish.
+	//
+	// Since we pass the connection here, the timeout will never be enforced by the
+	// ssh package. `NewClientConnWithDeadline` tries to enforced it by setting
+	// the read deadline on the connection, but might not be sufficient because
+	// we have some net.Conn implementations that don't support setting read deadlines
+	// and will block forever.
+	// To be sure that we don't block forever, we set up a timer that will close
+	// the connection when the timeout is reached.
+	// If the context has a deadline, we use that instead and take the minimum
+	// between the two.
+	// If neither is set, we default to 30 seconds.
+
+	// We aim to close the connection to avoid clients to hang forever
+	// if the server is not responding.
+	ctx, cancel := context.WithTimeout(
+		ctx,
+		getTimeoutOrDefault(ctx, config),
+	)
+	defer cancel()
+	stopFn := context.AfterFunc(ctx, func() {
+		_ = conn.Close()
+	})
+	defer stopFn()
+
 	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	return c, chans, reqs, nil
+}
+
+// getTimeoutOrDefault returns the minimum timeout between the context deadline and the ssh.ClientConfig timeout.
+// If neither is set, it returns a default of 30s.
+func getTimeoutOrDefault(ctx context.Context, cfg *ssh.ClientConfig) time.Duration {
+	// Default to 1 hour if no timeout is set on the config or context
+	// deadline.
+	deadlineTimeout := time.Hour
+	cfgTimeout := time.Hour
+
+	if cfg != nil && cfg.Timeout != 0 {
+		cfgTimeout = cfg.Timeout
+	}
+
+	deadline, ok := ctx.Deadline()
+	if ok {
+		deadlineTimeout = time.Until(deadline)
+		if deadlineTimeout <= 0 {
+			// Deadline exceeded, return immediately.
+			return time.Nanosecond
+		}
+	}
+	if cfg.Timeout != 0 || ok {
+		return min(cfgTimeout, deadlineTimeout)
+	}
+
+	return defaults.DefaultIOTimeout
+
 }
 
 // NewClientConnWithDeadline establishes new client connection with specified deadline
