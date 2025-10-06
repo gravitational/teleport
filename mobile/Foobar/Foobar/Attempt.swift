@@ -26,6 +26,13 @@ public enum Attempt<
     return false
   }
 
+  public var didFinish: Bool {
+    switch self {
+    case .failure, .success: true
+    default: false
+    }
+  }
+
   public var isLoading: Bool {
     if case .loading = self { return true }
     return false
