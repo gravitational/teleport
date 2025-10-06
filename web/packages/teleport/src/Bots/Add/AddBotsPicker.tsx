@@ -157,6 +157,17 @@ export const integrations: BotIntegration[] = [
     tags: ['bot', 'resourceaccess'],
   },
   {
+    title: 'Argo CD',
+    description:
+      'Use Machine ID to enable Argo CD to connect to external Kubernetes clusters.',
+    link: 'https://goteleport.com/docs/machine-workload-identity/machine-id/access-guides/argocd/',
+    icon: 'argocd',
+    kind: IntegrationEnrollKind.MachineIDArgoCD,
+    type: 'bot',
+    guided: false,
+    tags: ['bot', 'cicd'],
+  },
+  {
     title: 'Generic',
     description: 'Use Machine ID to Integrate generic server with Teleport.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/getting-started/',
