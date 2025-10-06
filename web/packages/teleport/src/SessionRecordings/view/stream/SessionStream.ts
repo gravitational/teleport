@@ -330,11 +330,7 @@ export class SessionStream<
 
     const remainingBufferTime = lastEventTime - currentTime;
 
-    if (
-      !this.atEnd &&
-      !this.loading &&
-      remainingBufferTime < loadThreshold
-    ) {
+    if (!this.atEnd && !this.loading && remainingBufferTime < loadThreshold) {
       const newStartTime = this.loadedRange.end;
       const newEndTime = newStartTime + this.getLoadChunkMs();
 
