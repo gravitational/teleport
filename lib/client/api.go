@@ -2609,8 +2609,8 @@ func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination
 	)
 	defer span.End()
 
-	isDownload := strings.ContainsRune(source[0], ':')
-	isUpload := strings.ContainsRune(destination, ':')
+	isDownload := sftp.IsRemotePath(source[0])
+	isUpload := sftp.IsRemotePath(destination)
 
 	if !isUpload && !isDownload {
 		return trace.BadParameter("no remote destination specified")
