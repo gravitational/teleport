@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
