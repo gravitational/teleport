@@ -44,7 +44,7 @@ a `saml_idp_service_provider` resource for the IAMShowcase app.
 The role will also grant permission to log in to this application 
 by authenticating with Teleport. We will name this role as `saml-admin`.
 
-In the Teleport Web UI, from side the navigation menu, select **Zero Trust Access > Roles** 
+In the Teleport Web UI, from the side the navigation menu, select **Zero Trust Access > Roles** 
 menu. From the **Roles** UI, click `Create New Role` button. 
 
 Enter "saml-admin" as a role name and then click the `Next: Resources` button to 
@@ -202,11 +202,13 @@ Examples of managing a `saml_idp_service_provider` resource using `tctl`.
 
 ### Create a `saml_idp_service_provider` resource
 
+First, create a Teleport resource spec file with the following `saml_idp_service_provider`
+resource spec:
+
 ```yaml
 cat > iamshowcase.yaml << EOF
 kind: saml_idp_service_provider
 metadata:
-  # For RBAC, role allow "app_labels" rule will be matched with this resource label.
   labels:
     env: saml-test
   # The resource name of the service provider.
@@ -218,21 +220,23 @@ version: v1
 EOF
 ```
 
-Add this to Teleport using `tctl`:
+Next, create a Teleport resource using the `tctl create` command:
 
 ```code
 $ tctl create iamshowcase.yaml
 # SAML IdP service provider 'IAMShowcase' has been created.
 ```
 
+### Update a `saml_idp_service_provider` resource
+
 To update the resource, first, get the latest copy of the resource spec 
 from the Teleport cluster.
 ```code
-# get service provider spec
 $ tctl get saml_idp_service_provider/IAMShowcase > iamshowcase.yaml
 ```
 
-Then modify the spec and update it using the `tctl create -f` command:
+Then modify the spec by updating the `iamshowcase.yaml`, save it, and then update 
+the Teleport resource by using the `tctl create -f` command:
 ```code
 $ tctl create -f iamshowcase.yaml 
 ```
