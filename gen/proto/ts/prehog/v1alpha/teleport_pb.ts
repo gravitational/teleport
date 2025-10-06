@@ -4096,7 +4096,11 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
      */
-    GITHUB_REPO_ACCESS = 27
+    GITHUB_REPO_ACCESS = 27,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
+     */
+    MACHINE_ID_ARGOCD = 28
 }
 /**
  * IntegrationEnrollStep defines inner configuration steps

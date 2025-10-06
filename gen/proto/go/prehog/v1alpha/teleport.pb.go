@@ -613,6 +613,7 @@ const (
 	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_SERVICENOW                  IntegrationEnrollKind = 25
 	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER         IntegrationEnrollKind = 26
 	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS          IntegrationEnrollKind = 27
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD           IntegrationEnrollKind = 28
 )
 
 // Enum value maps for IntegrationEnrollKind.
@@ -646,6 +647,7 @@ var (
 		25: "INTEGRATION_ENROLL_KIND_SERVICENOW",
 		26: "INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER",
 		27: "INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS",
+		28: "INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD",
 	}
 	IntegrationEnrollKind_value = map[string]int32{
 		"INTEGRATION_ENROLL_KIND_UNSPECIFIED":                 0,
@@ -676,6 +678,7 @@ var (
 		"INTEGRATION_ENROLL_KIND_SERVICENOW":                  25,
 		"INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER":         26,
 		"INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS":          27,
+		"INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD":           28,
 	}
 )
 
@@ -10662,7 +10665,7 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"\x12\x16\n" +
 	"\x12CTA_OKTA_USER_SYNC\x10\v\x12\x10\n" +
 	"\fCTA_ENTRA_ID\x10\f\x12\x11\n" +
-	"\rCTA_OKTA_SCIM\x10\r*\xc4\t\n" +
+	"\rCTA_OKTA_SCIM\x10\r*\xf3\t\n" +
 	"\x15IntegrationEnrollKind\x12'\n" +
 	"#INTEGRATION_ENROLL_KIND_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dINTEGRATION_ENROLL_KIND_SLACK\x10\x01\x12$\n" +
@@ -10692,7 +10695,8 @@ const file_prehog_v1alpha_teleport_proto_rawDesc = "" +
 	"3INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT\x10\x18\x12&\n" +
 	"\"INTEGRATION_ENROLL_KIND_SERVICENOW\x10\x19\x12/\n" +
 	"+INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER\x10\x1a\x12.\n" +
-	"*INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS\x10\x1b*\x83\x04\n" +
+	"*INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS\x10\x1b\x12-\n" +
+	")INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD\x10\x1c*\x83\x04\n" +
 	"\x15IntegrationEnrollStep\x12'\n" +
 	"#INTEGRATION_ENROLL_STEP_UNSPECIFIED\x10\x00\x12.\n" +
 	"*INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC\x10\x01\x12>\n" +
