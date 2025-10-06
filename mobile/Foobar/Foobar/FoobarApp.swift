@@ -12,7 +12,7 @@ struct FoobarApp: App {
   var body: some Scene {
     WindowGroup {
       ContentView(
-        viewModel: DeviceTrustViewModel()
+        deviceTrust: DeviceTrust()
       )
     }
   }
