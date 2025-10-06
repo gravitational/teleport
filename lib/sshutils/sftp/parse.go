@@ -19,6 +19,8 @@
 package sftp
 
 import (
+	"os"
+	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -39,6 +41,30 @@ type Destination struct {
 	Path string
 }
 
+var windowsDrivePattern = regexp.MustCompile(`^[A-Z]:\\`)
+
+// IsRemotePath checks if a path refers to a location on a remote host.
+func IsRemotePath(input string) bool {
+	// Windows paths are always local; check here so we don't confuse the drive
+	// name for a host.
+	if windowsDrivePattern.MatchString(input) {
+		return false
+	}
+	colonIndex := strings.Index(input, ":")
+	if colonIndex == -1 {
+		// Can't be remote without a colon.
+		return false
+	}
+	slashIndex := strings.Index(input, string(os.PathSeparator))
+	// On Unix, colons are valid in path names, so check if the first colon is
+	// part of the path.
+	//
+	// If we get something like "foo:bar", we have no way to tell if that's local
+	// path "foo:bar" or remote path "bar" on host "foo". We'll assume it's the
+	// host:path variant, as the other can also be written as "./foo:bar".
+	return slashIndex == -1 || colonIndex < slashIndex
+}
+
 // ParseDestination takes a string representing a remote resource for SFTP
 // to download/upload in the form "[user@]host:[path]" and parses it into
 // a structured form.
@@ -46,6 +72,9 @@ type Destination struct {
 // See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
 // section about details on file names.
 func ParseDestination(input string) (*Destination, error) {
+	if !IsRemotePath(input) {
+		return nil, trace.BadParameter("%q is missing a path, use form [user@]host:[path]", input)
+	}
 	firstColonIdx := strings.Index(input, ":")
 	// if there are no colons, no path is specified
 	if firstColonIdx == -1 {
