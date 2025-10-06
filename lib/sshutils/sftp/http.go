@@ -171,6 +171,10 @@ func (h *httpFS) Getwd() (string, error) {
 	return "", nil
 }
 
+func (h *httpFS) RealPath(path string) (string, error) {
+	return path, nil
+}
+
 type nopWriteCloser struct {
 	io.Writer
 }
