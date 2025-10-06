@@ -1,6 +1,6 @@
 ---
 authors: Marco Dinis (marco.dinis@goteleport.com)
-state: draft
+state: implemented (v18.2.4)
 ---
 
 # RFD 224 - Multiple Agents in EC2 Auto Discovery

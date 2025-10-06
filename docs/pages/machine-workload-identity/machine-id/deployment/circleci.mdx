@@ -2,6 +2,7 @@
 title: Deploying tbot on CircleCI
 description: How to install and configure Machine ID on CircleCI
 tags:
+ - ci-cd
  - how-to
  - mwi
  - infrastructure-identity
@@ -161,7 +162,7 @@ Open your Git repository and create a directory called `.circleci`. Then open
 a file called `config.yml` and insert the following configuration:
 
 ```yaml
-# See: https://circleci.com/docs/2.0/configuration-reference
+# See: https://circleci.com/docs/configuration-reference
 version: 2.1
 jobs:
   write-run-log:

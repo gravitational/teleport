@@ -62,5 +62,5 @@ func TestSPIFFEFederations(t *testing.T) {
 		deleteAll: p.spiffeFederations.DeleteAllSPIFFEFederations,
 		cacheList: p.cache.ListSPIFFEFederations,
 		cacheGet:  p.cache.GetSPIFFEFederation,
-	}, withSkipPaginationTest())
+	})
 }

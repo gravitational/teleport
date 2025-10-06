@@ -346,6 +346,16 @@ export const eventCodes = {
   BOUND_KEYPAIR_RECOVERY: 'TBK001I',
   BOUND_KEYPAIR_ROTATION: 'TBK002I',
   BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
+  SCIM_RESOURCE_CREATE: 'TSCIM001I',
+  SCIM_RESOURCE_CREATE_FAILURE: 'TSCIM001E',
+  SCIM_RESOURCE_UPDATE: 'TSCIM002I',
+  SCIM_RESOURCE_UPDATE_FAILURE: 'TSCIM002E',
+  SCIM_RESOURCE_DELETE: 'TSCIM003I',
+  SCIM_RESOURCE_DELETE_FAILURE: 'TSCIM003E',
+  SCIM_RESOURCE_GET: 'TSCIM004I',
+  SCIM_RESOURCE_GET_FAILURE: 'TSCIM004E',
+  SCIM_RESOURCE_LIST: 'TSCIM005I',
+  SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
 } as const;
 
 /**
@@ -401,11 +411,15 @@ export type RawEvents = {
     {
       proto: 'kube';
       kubernetes_cluster: string;
+      sid: string;
     }
   >;
   [eventCodes.EXEC_FAILURE]: RawEvent<
     typeof eventCodes.EXEC_FAILURE,
-    { exitError: string }
+    {
+      exitError: string;
+      sid: string;
+    }
   >;
   [eventCodes.BILLING_CARD_CREATE]: RawEvent<
     typeof eventCodes.BILLING_CARD_CREATE
@@ -2055,6 +2069,36 @@ export type RawEvents = {
       error: string;
     }
   >;
+  [eventCodes.SCIM_RESOURCE_LIST]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST
+  >;
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_GET]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET
+  >;
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE
+  >;
 };
 
 /**
@@ -2270,6 +2314,25 @@ type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
     status: boolean;
     /* message contains user message for both success and failed status */
     message: string;
+  }
+>;
+
+type RawSCIMListingEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    integration: string;
+  }
+>;
+
+type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    teleport_id: string;
+    external_id: string;
+    integration: string;
+    display: string;
   }
 >;
 

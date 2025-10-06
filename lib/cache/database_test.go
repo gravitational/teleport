@@ -220,5 +220,5 @@ func TestDatabaseObjects(t *testing.T) {
 			}
 			return nil
 		},
-	}, withSkipPaginationTest())
+	})
 }

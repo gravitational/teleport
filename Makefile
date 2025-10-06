@@ -867,27 +867,6 @@ RENDER_TESTS := $(TOOLINGDIR)/bin/render-tests
 $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
 
-#
-# Install gotestsum to parse test output.
-#
-.PHONY: ensure-gotestsum
-ensure-gotestsum:
-# Install gotestsum if it's not already installed
- ifeq (, $(shell command -v gotestsum))
-	go install gotest.tools/gotestsum@latest
-endif
-
-#
-# Install goda to lint testing symbols
-#
-.PHONY: ensure-goda
-ensure-goda:
-# Install goda if it's not already installed
- ifeq (, $(shell command -v goda))
-	go install github.com/loov/goda@latest
-endif
-
-
 DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
@@ -897,7 +876,7 @@ $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
 
 .PHONY: tooling
-tooling: ensure-gotestsum $(DIFF_TEST)
+tooling: $(DIFF_TEST)
 
 #
 # Runs all Go/shell tests, called by CI/CD.
@@ -925,6 +904,7 @@ helmunit/installed:
 test-helm: helmunit/installed
 	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 --with-subchart=false examples/chart/teleport-kube-agent
+	helm unittest -3 --with-subchart=false examples/chart/teleport-relay
 	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
 	helm unittest -3 --with-subchart=false examples/chart/access/*
 	helm unittest -3 --with-subchart=false examples/chart/event-handler
@@ -934,6 +914,7 @@ test-helm: helmunit/installed
 test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-kube-agent
+	helm unittest -3 -u --with-subchart=false examples/chart/teleport-relay
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
 	helm unittest -3 -u --with-subchart=false examples/chart/access/*
 	helm unittest -3 -u --with-subchart=false examples/chart/event-handler
@@ -970,7 +951,7 @@ test-env-leakage:
 
 # Runs test prepare steps
 .PHONY: test-go-prepare
-test-go-prepare: ensure-webassets bpf-bytecode $(TEST_LOG_DIR) ensure-gotestsum $(VERSRC)
+test-go-prepare: ensure-webassets bpf-bytecode $(TEST_LOG_DIR) $(VERSRC)
 
 # Runs base unit tests
 .PHONY: test-go-unit
@@ -980,7 +961,7 @@ test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integra
 test-go-unit:
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| gotestsum --raw-command -- cat
+		| go tool gotestsum --raw-command -- cat
 
 # Runs tbot unit tests
 .PHONY: test-go-unit-tbot
@@ -988,7 +969,7 @@ test-go-unit-tbot: FLAGS ?= -race -shuffle on
 test-go-unit-tbot:
 	$(CGOFLAG) go test -json $(FLAGS) $(ADDFLAGS) ./tool/tbot/... ./lib/tbot/... \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| gotestsum --raw-command -- cat
+		| go tool gotestsum --raw-command -- cat
 
 # Make sure untagged touchid code build/tests.
 .PHONY: test-go-touch-id
@@ -998,7 +979,7 @@ test-go-touch-id:
 ifneq ("$(TOUCHID_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| gotestsum --raw-command -- cat
+		| go tool gotestsum --raw-command -- cat
 endif
 
 # Runs benchmarks once to make sure they pass.
@@ -1028,7 +1009,7 @@ test-go-vnet-daemon:
 ifneq ("$(VNETDAEMON_TAG)", "")
 	$(CGOFLAG) go test -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| gotestsum --raw-command -- cat
+		| go tool gotestsum --raw-command -- cat
 endif
 
 # Runs ci tsh tests
@@ -1038,7 +1019,7 @@ test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh/...
 test-go-tsh:
 	$(CGOFLAG_TSH) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| gotestsum --raw-command -- cat
+		| go tool gotestsum --raw-command -- cat
 
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 .PHONY: test-go-chaos
@@ -1046,32 +1027,32 @@ test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs
 test-go-chaos:
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
-		| gotestsum --raw-command -- cat
+		| go tool gotestsum --raw-command -- cat
 
 #
 # Runs all Go tests except integration, end-to-end, and chaos, called by CI/CD.
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) ensure-gotestsum
+test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR)
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e e2e -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit-root.json \
-		| gotestsum --raw-command -- cat
+		| go tool gotestsum --raw-command -- cat
 
 #
 # Runs Go tests on the api module. These have to be run separately as the package name is different.
 #
 .PHONY: test-api
-test-api: $(VERSRC) $(TEST_LOG_DIR) ensure-gotestsum
+test-api: $(VERSRC) $(TEST_LOG_DIR)
 test-api: FLAGS ?= -race -shuffle on
 test-api: SUBJECT ?= $(shell cd api && go list ./...)
 test-api:
 	cd api && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/api.json \
-		| gotestsum --raw-command -- cat
+		| go tool gotestsum --raw-command -- cat
 
 #
 # Runs Teleport Operator tests.
@@ -1096,13 +1077,13 @@ test-terraform-provider-mwi:
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
 .PHONY: test-kube-agent-updater
-test-kube-agent-updater: $(VERSRC) $(TEST_LOG_DIR) ensure-gotestsum
+test-kube-agent-updater: $(VERSRC) $(TEST_LOG_DIR)
 test-kube-agent-updater: FLAGS ?= -race -shuffle on
 test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater && go list ./...)
 test-kube-agent-updater:
 	cd integrations/kube-agent-updater && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/kube-agent-updater.json \
-		| gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --raw-command --format=testname -- cat
 
 .PHONY: test-access-integrations
 test-access-integrations:
@@ -1120,13 +1101,13 @@ test-integrations-lib:
 # Runs Go tests on the examples/teleport-usage module. These have to be run separately as the package name is different.
 #
 .PHONY: test-teleport-usage
-test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR) ensure-gotestsum
+test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR)
 test-teleport-usage: FLAGS ?= -race -shuffle on
 test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./...)
 test-teleport-usage:
 	cd examples/teleport-usage && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/teleport-usage.json \
-		| gotestsum --raw-command -- cat
+		| go tool gotestsum --raw-command -- cat
 
 #
 # Flaky test detection. Usually run from CI nightly, overriding these default parameters
@@ -1185,11 +1166,11 @@ run-etcd:
 .PHONY: integration
 integration: FLAGS ?= -v -race
 integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
-integration:  $(TEST_LOG_DIR) ensure-gotestsum
+integration:  $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration.json \
-		| gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
@@ -1199,11 +1180,11 @@ INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
 integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v 'integration/autoupdate')
-integration-kube: $(TEST_LOG_DIR) ensure-gotestsum
+integration-kube: $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-kube.json \
-		| gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -1213,20 +1194,20 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
-integration-root: $(TEST_LOG_DIR) ensure-gotestsum
+integration-root: $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-root.json \
-		| gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --raw-command --format=testname -- cat
 
 
 .PHONY: e2e-aws
 e2e-aws: FLAGS ?= -v -race
 e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
-e2e-aws: $(TEST_LOG_DIR) ensure-gotestsum
+e2e-aws: $(TEST_LOG_DIR)
 	@echo TEST_KUBE: $(TEST_KUBE) TEST_AWS_DB: $(TEST_AWS_DB)
 	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) $(ADDFLAGS)\
 		| tee $(TEST_LOG_DIR)/e2e-aws.json \
-		| gotestsum --raw-command --format=testname -- cat
+		| go tool gotestsum --raw-command --format=testname -- cat
 
 #
 # Lint the source code.
@@ -1245,19 +1226,18 @@ lint-no-actions: lint-sh lint-license
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
 
-
 #
 # Checks that testing symbols and the testify library is not included in binaries.
 #
 #
 .PHONY: lint-test-symbols
-lint-test-symbols: ensure-goda
-	@testing_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+lint-test-symbols:
+	@testing_count=`go tool goda tree "reach(github.com/gravitational/teleport/tool/...:all, testing)" | tee /dev/stderr | wc -l | tr -d ' '`; \
 	if [ "$$testing_count" -gt 0 ]; then \
 		echo ""; \
 		echo "FAIL: \"testing\" is included in binaries"; \
 	fi; \
-	testify_count=`goda tree "reach(github.com/gravitational/teleport/tool/...:all, github.com/stretchr/testify/...)" | tee /dev/stderr | wc -l | tr -d ' '`; \
+	testify_count=`go tool goda tree "reach(github.com/gravitational/teleport/tool/...:all, github.com/stretchr/testify/...)" | tee /dev/stderr | wc -l | tr -d ' '`; \
 	if [ "$$testify_count" -gt 0 ]; then \
 		echo ""; \
 		echo "FAIL: \"github.com/stretchr/testify\" is included in binaries"; \
@@ -1291,19 +1271,11 @@ lint-go:
 
 .PHONY: fix-imports
 fix-imports:
-ifndef TELEPORT_DEVBOX
 	$(MAKE) -C build.assets/ fix-imports
-else
-	$(MAKE) fix-imports/host
-endif
 
 .PHONY: fix-imports/host
 fix-imports/host:
-	@if ! type gci >/dev/null 2>&1; then\
-		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
-		exit 1;\
-	fi
-	gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
+	go tool gci write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
 
 lint-build-tooling: GO_LINT_FLAGS ?=
 lint-build-tooling:
@@ -1356,7 +1328,7 @@ lint-helm:
 		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot; do \
+	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot; do \
 		if [ -d $${CHART}/.lint ]; then \
 			for VALUES in $${CHART}/.lint/*.yaml; do \
 				export HELM_TEMP=$$(mktemp); \
@@ -1365,6 +1337,7 @@ lint-helm:
 				helm lint --quiet --strict $${CHART} -f $${VALUES} || exit 1; \
 				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
 				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
+				echo; \
 			done \
 		else \
 			export HELM_TEMP=$$(mktemp); \
@@ -1654,11 +1627,7 @@ derive-up-to-date: must-start-clean/host derive
 # This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
-ifndef TELEPORT_DEVBOX
 	$(MAKE) -C build.assets grpc
-else
-	$(MAKE) grpc/host
-endif
 
 # grpc/host generates gRPC stubs.
 # Unlike grpc, this target runs locally.
@@ -1670,11 +1639,7 @@ grpc/host: protos/all
 # This target runs in the buildbox container.
 .PHONY: protos-up-to-date
 protos-up-to-date:
-ifndef TELEPORT_DEVBOX
 	$(MAKE) -C build.assets protos-up-to-date
-else
-	$(MAKE) protos-up-to-date/host
-endif
 
 # protos-up-to-date/host checks if the generated gRPC stubs are up to date.
 # Unlike protos-up-to-date, this target runs locally.
@@ -1901,7 +1866,7 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt rustup-install-wasm-toolchain
+ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
@@ -1912,21 +1877,20 @@ WASM_BINDGEN_VERSION = $(shell awk ' \
 print-wasm-bindgen-version:
 	@echo $(WASM_BINDGEN_VERSION)
 
+RUST_TOOLCHAIN_VERSION = $(shell awk '$$1 == "channel" && $$2 == "=" { gsub(/"/, "", $$3); print $$3 }' rust-toolchain.toml )
+
+.PHONY: print-rust-toolchain-version
+print-rust-toolchain-version:
+	@echo $(RUST_TOOLCHAIN_VERSION)
+
 ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
 ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
 ensure-wasm-bindgen:
-ifneq ($(CI)$(FORCE),)
 	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
 	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
 		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
 		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
 	)
-else
-	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		@echo "Wrong wasm-bindgen version. Want $(NEED_VERSION) have $(INSTALLED_VERSION)"; \
-		echo "Run 'make $@ FORCE=true' to force installation." \
-	)
-endif
 endif
 
 .PHONY: ensure-wasm-opt
@@ -1946,22 +1910,18 @@ build-ui-e: ensure-js-deps ensure-wasm-deps
 docker-ui:
 	$(MAKE) -C build.assets ui
 
+# TODO(rhammonds): Remove this target once all references to it have
+# been removed from e submodule and e ref is updated.
 .PHONY: rustup-set-version
-rustup-set-version: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
-rustup-set-version:
-	rustup override set $(RUST_VERSION)
+rustup-set-version: ; # obsoleted by toolchain file
 
 # rustup-install-target-toolchain ensures the required rust compiler is
 # installed to build for $(ARCH)/$(OS) for the version of rust we use, as
 # defined in build.assets/Makefile. It assumes that `rustup` is already
 # installed for managing the rust toolchain.
 .PHONY: rustup-install-target-toolchain
-rustup-install-target-toolchain: rustup-set-version
+rustup-install-target-toolchain:
 	rustup target add $(RUST_TARGET_ARCH)
-
-.PHONY: rustup-install-wasm-toolchain
-rustup-install-wasm-toolchain: rustup-set-version
-	rustup target add $(CARGO_WASM_TARGET)
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.

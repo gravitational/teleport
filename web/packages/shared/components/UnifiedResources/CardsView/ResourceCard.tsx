@@ -27,7 +27,7 @@ import { HoverTooltip } from 'design/Tooltip';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 
-import { CopyButton } from '../shared/CopyButton';
+import { CopyButton } from '../../CopyButton/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
@@ -231,13 +231,13 @@ export function ResourceCard({
           />
           {/* MinWidth is important to prevent descriptions from overflowing. */}
           <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
-            <Flex flexDirection="row" alignItems="center">
+            <Flex flexDirection="row" alignItems="center" gap={1}>
               <SingleLineBox flex="1">
                 <HoverTooltip tipContent={name} showOnlyOnOverflow>
                   <Text typography="body1">{name}</Text>
                 </HoverTooltip>
               </SingleLineBox>
-              {hovered && <CopyButton name={name} mr={2} />}
+              {hovered && <CopyButton value={name} />}
               <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
                 {ActionButton}
               </ResourceActionButtonWrapper>

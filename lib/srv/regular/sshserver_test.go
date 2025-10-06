@@ -715,7 +715,7 @@ func TestInactivityTimeout(t *testing.T) {
 		// If all goes well, the client will be closed by the time cleanup happens,
 		// so change the assertion on closing the client to expect it to fail
 		f.ssh.assertCltClose = require.Error
-		se, err := f.ssh.clt.NewSession(context.Background())
+		se, err := f.ssh.clt.NewSessionWithParams(context.Background(), nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, err) })
 		waitForTimeout(t, f, se)
@@ -727,7 +727,7 @@ func TestInactivityTimeout(t *testing.T) {
 		// If all goes well, the client will be closed by the time cleanup happens,
 		// so change the assertion on closing the client to expect it to fail
 		f.ssh.assertCltClose = require.Error
-		se, err := f.ssh.clt.NewSession(context.Background())
+		se, err := f.ssh.clt.NewSessionWithParams(context.Background(), nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, err) })
 
@@ -1403,7 +1403,7 @@ func TestX11Forward(t *testing.T) {
 // echoing XServer requests received back to the client. Returns the Display opened on the
 // session, which is set in $DISPLAY.
 func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11.Display {
-	se, err := clt.NewSession(context.Background())
+	se, err := clt.NewSessionWithParams(context.Background(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
@@ -2613,7 +2613,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 	getNonProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
 		return func() *tracessh.Session {
-			se, err := f.ssh.clt.NewSession(context.Background())
+			se, err := f.ssh.clt.NewSessionWithParams(context.Background(), nil)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = se.Close() })
 			return se
@@ -3068,7 +3068,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.Equal(t, "hello once more\n", string(out))
 }
 
-func TestTargetMetadata(t *testing.T) {
+func TestEventMetadata(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -3136,7 +3136,7 @@ func TestTargetMetadata(t *testing.T) {
 		serverOptions...)
 	require.NoError(t, err)
 
-	metadata := sshSrv.TargetMetadata()
+	metadata := sshSrv.EventMetadata()
 	require.Equal(t, nodeID, metadata.ServerID)
 	require.Equal(t, apidefaults.Namespace, metadata.ServerNamespace)
 	require.Empty(t, metadata.ServerAddr)
@@ -3610,4 +3610,114 @@ func (f *fakeHostUsersBackend) UserExists(name string) error {
 
 func (f *fakeHostUsersBackend) SetHostUserDeletionGrace(grace time.Duration) {
 	f.functionCalled("SetHostUserDeletionGrace")
+}
+
+func TestSessionParams(t *testing.T) {
+	f := newFixtureWithoutDiskBasedLogging(t)
+	ctx := t.Context()
+
+	// Start one session that can be used to test joining in the test cases below.
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, se.Close()) })
+	require.NoError(t, se.Shell(ctx))
+	sessions, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetActiveSessionTrackers(ctx)
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	joinSID := sessions[0].GetSessionID()
+
+	for _, baseCase := range []struct {
+		name   string
+		params *tracessh.SessionParams
+	}{
+		{
+			name: "new session",
+			params: &tracessh.SessionParams{
+				Reason:  "For science.",
+				Invited: []string{"Esqueleto"},
+			},
+		}, {
+			name: "join session",
+			params: &tracessh.SessionParams{
+				JoinSessionID: joinSID,
+				JoinMode:      types.SessionObserverMode,
+			},
+		},
+	} {
+		t.Run(baseCase.name, func(t *testing.T) {
+			envVars := map[string]string{
+				teleport.EnvSSHSessionReason: baseCase.params.Reason,
+				sshutils.SessionEnvVar:       baseCase.params.JoinSessionID,
+				teleport.EnvSSHJoinMode:      string(baseCase.params.JoinMode),
+			}
+			if baseCase.params.Invited != nil {
+				invitedJSON, err := json.Marshal(baseCase.params.Invited)
+				require.NoError(t, err)
+				envVars[teleport.EnvSSHSessionInvited] = string(invitedJSON)
+			}
+
+			for _, sessionCase := range []struct {
+				name    string
+				params  *tracessh.SessionParams
+				envVars map[string]string
+			}{
+				{
+					// TODO(Joerger): DELETE IN v20.0.0 - params are needed to join a session.
+					name:    "env vars only", // v18- client
+					params:  nil,
+					envVars: envVars,
+				}, {
+					// TODO(Joerger): DELETE IN v20.0.0 - only params are needed to join a session.
+					name:    "params and env vars", // v19 client
+					params:  baseCase.params,
+					envVars: envVars,
+				}, {
+					name:   "params only", // v20+ client
+					params: baseCase.params,
+				},
+			} {
+				t.Run(sessionCase.name, func(t *testing.T) {
+					sidC := make(chan string)
+					err := f.ssh.clt.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+						sidC <- string(req.Payload)
+					})
+					require.NoError(t, err)
+
+					se, err := f.ssh.clt.NewSessionWithParams(ctx, sessionCase.params)
+					require.NoError(t, err)
+					t.Cleanup(func() { require.NoError(t, se.Close()) })
+
+					if sessionCase.envVars != nil {
+						err := se.SetEnvs(ctx, sessionCase.envVars)
+						require.NoError(t, err)
+					}
+
+					require.NoError(t, se.Shell(ctx))
+
+					var sid string
+					select {
+					case sid = <-sidC:
+					case <-time.After(time.Second):
+						t.Fatalf("Failed to received session ID from server")
+					}
+
+					sessionTracker, err := f.ssh.srv.termHandlers.SessionRegistry.SessionTrackerService.GetSessionTracker(ctx, sid)
+					require.NoError(t, err)
+
+					require.Equal(t, baseCase.params.Invited, sessionTracker.GetInvited())
+					require.Equal(t, baseCase.params.Reason, sessionTracker.GetReason())
+
+					participants := sessionTracker.GetParticipants()
+					if baseCase.params.JoinSessionID != "" {
+						require.Equal(t, baseCase.params.JoinSessionID, sid, "Expected to join session %q, but got a new session ID instead", baseCase.params.JoinSessionID)
+						require.Len(t, participants, 2)
+						require.Equal(t, string(baseCase.params.JoinMode), participants[1].Mode)
+					} else {
+						require.Len(t, participants, 1)
+						require.Equal(t, string(types.SessionPeerMode), participants[0].Mode)
+					}
+				})
+			}
+		})
+	}
 }

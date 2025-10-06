@@ -2272,7 +2272,9 @@ func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.Trus
 }
 
 // GetTrustedClusters returns a list of Trusted Clusters.
+// Deprecated: Use [Client.ListTrustedClusters] instead.
 func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	resp, err := c.grpc.GetTrustedClusters(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2282,6 +2284,27 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 		trustedClusters[i] = trustedCluster
 	}
 	return trustedClusters, nil
+}
+
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (c *Client) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	resp, err := c.TrustClient().ListTrustedClusters(ctx, &trustpb.ListTrustedClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	tcs := make([]types.TrustedCluster, len(resp.TrustedClusters))
+	for i := range resp.TrustedClusters {
+		tcs[i] = resp.TrustedClusters[i]
+	}
+	return tcs, resp.NextPageToken, nil
+}
+
+// RangeTrustedClusters returns Trusted Cluster resources within the range [start, end).
+func (c *Client) RangeTrustedClusters(ctx context.Context, start, end string) iter.Seq2[types.TrustedCluster, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListTrustedClusters, types.TrustedCluster.GetName)
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
@@ -3353,6 +3376,7 @@ func (c *Client) GetApp(ctx context.Context, name string) (types.Application, er
 // service, use GetApplicationServers instead.
 // Deprecated: Prefer using [ListApps] or [Apps] instead.
 func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	items, err := c.grpc.GetApps(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3593,31 +3617,7 @@ func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]
 
 // RangeDatabases returns database resources within the range [start, end).
 func (c *Client) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
-	return func(yield func(types.Database, error) bool) {
-		for {
-			databases, next, err := c.ListDatabases(ctx, 0, start)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			for _, db := range databases {
-				if end != "" && db.GetName() >= end {
-					return
-				}
-
-				if !yield(db, nil) {
-					return
-				}
-			}
-
-			if next == "" {
-				return
-			}
-
-			start = next
-		}
-	}
+	return clientutils.RangeResources(ctx, start, end, c.ListDatabases, types.Database.GetName)
 }
 
 // DeleteDatabase deletes specified database resource.

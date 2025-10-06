@@ -22,7 +22,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/msgraph"
@@ -78,7 +77,6 @@ func fetchPrincipals(ctx context.Context, subscriptionID string, cli *msgraph.Cl
 		pbPrincipals = append(pbPrincipals, &accessgraphv1alpha.AzurePrincipal{
 			Id:             *res.dirObj.ID,
 			SubscriptionId: subscriptionID,
-			LastSyncTime:   timestamppb.Now(),
 			DisplayName:    *res.dirObj.DisplayName,
 			ObjectType:     res.metadata.objectType,
 		})

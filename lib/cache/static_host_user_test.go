@@ -45,5 +45,5 @@ func TestStaticHostUsers(t *testing.T) {
 		cacheList: p.cache.ListStaticHostUsers,
 		cacheGet:  p.cache.GetStaticHostUser,
 		deleteAll: p.staticHostUsers.DeleteAllStaticHostUsers,
-	}, withSkipPaginationTest())
+	})
 }

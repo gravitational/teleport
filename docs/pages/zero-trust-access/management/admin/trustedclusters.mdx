@@ -941,3 +941,10 @@ To troubleshoot, you should start by checking the following information for the 
   `/var/lib/teleport/log` on the server where the Teleport Auth Service for the cluster runs.
 
   If you use Teleport as a managed cloud-based service, the audit log is viewable under **Audit** in the left-hand pane via the Web UI for users with permission to the `event` resources.
+
+
+### Application access within trusted clusters
+
+It is recommended to have unique application names across your entire cluster, root and leafs included. Applications served by leaf clusters are accessed via `app_name.root_proxy_public_addr`
+in the root cluster. When accessing the app via FQDN only, it can lead to ambiguous resolution. If your apps must contain the same name across multiple
+clusters, the most deterministic way to access the correct app is via the web UI's resources page.

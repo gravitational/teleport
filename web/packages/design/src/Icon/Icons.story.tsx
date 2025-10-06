@@ -124,6 +124,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.EqualizersVertical} text="EqualizersVertical" />
     <IconBox IconCmpt={Icon.Expand} text="Expand" />
     <IconBox IconCmpt={Icon.Facebook} text="Facebook" />
+    <IconBox IconCmpt={Icon.FastForward} text="FastForward" />
     <IconBox IconCmpt={Icon.FilmStrip} text="FilmStrip" />
     <IconBox IconCmpt={Icon.FingerprintSimple} text="FingerprintSimple" />
     <IconBox IconCmpt={Icon.Floppy} text="Floppy" />

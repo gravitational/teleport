@@ -20,12 +20,6 @@ import { http, HttpResponse, HttpResponseResolver } from 'msw';
 
 import { RoleResource } from 'teleport/services/resources';
 
-interface BadRequest {
-  error: {
-    message: string;
-  };
-}
-
 const rolesPath = '/v1/webapi/roles';
 
 interface GetRolesResponse {
@@ -33,9 +27,7 @@ interface GetRolesResponse {
   startKey: string;
 }
 
-export function handleGetRoles(
-  resolver: HttpResponseResolver<never, never, GetRolesResponse | BadRequest>
-) {
+function handleGetRoles(resolver: HttpResponseResolver) {
   return http.get(rolesPath, resolver);
 }
 
