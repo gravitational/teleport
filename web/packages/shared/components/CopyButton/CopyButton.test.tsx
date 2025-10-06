@@ -34,7 +34,7 @@ describe('CopyButton', () => {
 
     render(
       <div onClick={parentClick}>
-        <CopyButton name="copy data" />
+        <CopyButton value="copy data" />
       </div>
     );
 
