@@ -154,6 +154,11 @@ databases, but it does not provide direct access to the Snowsight web interface.
 To enable Snowsight access, you can configure it as a SAML application in
 Teleport, allowing Teleport to act as the Identity Provider (IdP) for Snowsight.
 
+<Admonition type="note">
+When Teleport is configured as the IdP for Snowsight, it only handles SAML
+authentication. Snowsight activity is not audited or recorded through Teleport.
+</Admonition>
+
 Follow [Using Teleport as a SAML identity
 provider](../../../identity-governance/idps/saml-guide.mdx) and [Configuring
 Snowflake to use federated
