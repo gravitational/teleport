@@ -188,6 +188,23 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
+	}
+
+	if !stopFn() {
+		// we failed to stop the AfterFunc so conn will be closed and
+		// c will soon become invalid no matter what we do, so we
+		// drain it and close it
+		_ = conn.Close()
+		go func() {
+			for newCh := range chans {
+				_ = newCh.Reject(0, "")
+			}
+		}()
+		go ssh.DiscardRequests(reqs)
+		_ = c.Close()
+		return nil, nil, nil, ctx.Err()
+	}
+
 	return c, chans, reqs, nil
 }
 
