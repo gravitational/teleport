@@ -176,6 +176,7 @@ func (s *execServer) getStdinPipe() (io.WriteCloser, error) {
 
 func (s *execServer) run(context.Context) error {
 	if err := s.cmd.Start(); err != nil {
+		setupErrors.WithLabelValues(s.session.transport).Inc()
 		return trace.Wrap(err)
 	}
 
