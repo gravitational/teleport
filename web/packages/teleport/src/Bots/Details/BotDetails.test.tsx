@@ -46,6 +46,7 @@ import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
   deleteBotSuccess,
+  EditBotApiVersion,
   editBotSuccess,
   getBotError,
   getBotSuccess,
@@ -769,7 +770,7 @@ function withFetchInstancesSuccess() {
 }
 
 function withSaveSuccess(
-  version: 'v1' | 'v2' | 'v3' = 'v3',
+  version: EditBotApiVersion = 'v3',
   overrides?: Partial<EditBotRequest>
 ) {
   server.use(editBotSuccess(version, overrides));
