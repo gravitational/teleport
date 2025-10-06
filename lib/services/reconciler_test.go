@@ -23,6 +23,7 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -105,6 +106,26 @@ func TestReconciler(t *testing.T) {
 			}},
 			registeredResources: []testResource{makeDynamicResource("res1", nil)},
 			onDeleteCalls:       []testResource{makeDynamicResource("res1", nil)},
+		},
+		{
+			description: "removing a resource that doesn't exist is not an error",
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"foo": []string{"bar"}},
+			}},
+			// Note the label change below. This means the resource no longer matches and should be removed.
+			registeredResources: []testResource{makeDynamicResource("res1", map[string]string{"foo": "bar"})},
+			newResources:        []testResource{makeDynamicResource("res1", map[string]string{"baz": "quux"})},
+
+			// Simulate the resource having already expired from the backend.
+			configure: func(cfg *ReconcilerConfig[testResource]) {
+				originalDelete := cfg.OnDelete
+				cfg.OnDelete = func(ctx context.Context, tr testResource) error {
+					originalDelete(ctx, tr)
+					return trace.NotFound("resource does not exist")
+				}
+			},
+
+			onDeleteCalls: []testResource{makeDynamicResource("res1", map[string]string{"foo": "bar"})},
 		},
 		{
 			description: "resource with updated matching labels should be updated",
