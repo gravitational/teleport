@@ -25,16 +25,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -45,7 +51,10 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -920,6 +929,166 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 		_, err := s.AuthenticateWebUser(ctx, req)
 		return err
 	}))
+}
+
+// TestBasicSSHScopedLogin verifies the basic expected behavior of a scoped login attempt using password-only
+// auth and a rudimentary set of scoped roles.
+func TestBasicSSHScopedLogin(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	adminClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+
+	username := "alice"
+	password := uuid.NewString()
+
+	_, _, err = authtest.CreateUserAndRole(authServer, username, nil, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
+
+	req := authclient.AuthenticateUserRequest{
+		Username: username,
+		Scope:    "/aa/bb",
+		Pass: &authclient.PassCreds{
+			Password: []byte(password),
+		},
+		SSHPublicKey: []byte(sshPubKey),
+		TLSPublicKey: []byte(tlsPubKey),
+	}
+
+	// user is not assigned any scoped roles applicable to /aa/bb, so login attempt should fail
+	_, err = authServer.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
+		AuthenticateUserRequest: req,
+	})
+	require.Error(t, err)
+
+	// set up some scoped roles
+	scopedRoles := []*scopedaccessv1.ScopedRole{
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "role-a",
+			},
+			Scope: "/aa",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/aa"},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "role-b",
+			},
+			Scope: "/aa/bb",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/aa/bb"},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "role-c",
+			},
+			Scope: "/aa/bb/cc",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/aa/bb/cc"},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "role-x",
+			},
+			Scope: "/xx",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/xx"},
+			},
+			Version: types.V1,
+		},
+	}
+
+	// Create the roles.
+	for _, role := range scopedRoles {
+		_, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			Role: role,
+		})
+		require.NoError(t, err)
+	}
+
+	for _, role := range scopedRoles {
+		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+			Assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind: scopedaccess.KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.NewString(),
+				},
+				Scope: role.GetScope(),
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User: "alice",
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  role.GetMetadata().GetName(),
+							Scope: role.GetScope(),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// the same authentication request should now succeed
+	authrsp, err := authServer.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
+		AuthenticateUserRequest: req,
+	})
+	require.NoError(t, err)
+
+	// verify that the expected scope pin is applied to ssh and tls certificates
+	expectedPin := &scopesv1.Pin{
+		Scope: "/aa/bb",
+		Assignments: map[string]*scopesv1.PinnedAssignments{
+			"/aa": {
+				Roles: []string{"role-a"},
+			},
+			"/aa/bb": {
+				Roles: []string{"role-b"},
+			},
+			"/aa/bb/cc": {
+				Roles: []string{"role-c"},
+			},
+		},
+	}
+
+	// parse and examine the ssh cert
+	sshCert, err := sshutils.ParseCertificate(authrsp.Cert)
+	require.NoError(t, err)
+
+	sshIdent, err := sshca.DecodeIdentity(sshCert)
+	require.NoError(t, err)
+
+	require.NotNil(t, sshIdent.ScopePin)
+	require.Empty(t, cmp.Diff(expectedPin, sshIdent.ScopePin, protocmp.Transform()))
+	require.Empty(t, sshIdent.Roles)
+
+	// parse and examine the tls cert
+	tlsCert, err := tlsca.ParseCertificatePEM(authrsp.TLSCert)
+	require.NoError(t, err)
+
+	tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+
+	require.NotNil(t, tlsIdent.ScopePin)
+	require.Empty(t, cmp.Diff(expectedPin, tlsIdent.ScopePin, protocmp.Transform()))
+	require.Empty(t, tlsIdent.Groups)
 }
 
 func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {

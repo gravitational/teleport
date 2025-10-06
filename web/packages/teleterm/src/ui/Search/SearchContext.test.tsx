@@ -183,10 +183,10 @@ describe('open', () => {
     otherInput.focus();
 
     expect(screen.getByTestId('is-open')).toHaveTextContent('false');
-    act(() => screen.getByTestId('open').click());
+    fireEvent.click(screen.getByTestId('open'));
     expect(screen.getByTestId('is-open')).toHaveTextContent('true');
 
-    act(() => screen.getByTestId('close').click());
+    fireEvent.click(screen.getByTestId('close'));
     expect(otherInput).toHaveFocus();
   });
 });

@@ -34,39 +34,11 @@ message ClientInit {
   string token_name = 2;
   // SystemRole is the system role requested, e.g. Proxy, Node, Instance, Bot.
   string system_role = 3;
-  // PublicTlsKey is the public key requested for the subject of the x509 certificate.
-  // It must be encoded in PKIX, ASN.1 DER form.
-  bytes public_tls_key = 4;
-  // PublicSshKey is the public key requested for the subject of the SSH certificate.
-  // It must be encoded in SSH wire format.
-  bytes public_ssh_key = 5;
   // ForwardedByProxy will be set to true when the message is forwarded by the
   // Proxy service. When this is set the Auth service must ignore any
   // any credentials authenticating the request, except for the purpose of
   // accepting ProxySuppliedParams.
-  bool forwarded_by_proxy = 6;
-
-  // HostParams holds parameters that are specific to host joining and
-  // irrelevant to bot joining.
-  message HostParams {
-    // HostName is the user-friendly node name for the host. This comes from
-    // teleport.nodename in the service configuration and defaults to the
-    // hostname. It is encoded as a valid principal in issued certificates.
-    string host_name = 1;
-    // AdditionalPrincipals is a list of additional principals requested.
-    repeated string additional_principals = 2;
-    // DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
-    repeated string dns_names = 3;
-  }
-  optional HostParams host_params = 7;
-
-  // BotParams holds parameters that are specific to bot joining and irrelevant
-  // to host joining.
-  message BotParams {
-    // Expires is a desired time of the expiry of the returned certificates.
-    optional google.protobuf.Timestamp expires = 9;
-  }
-  optional BotParams bot_params = 8;
+  bool forwarded_by_proxy = 4;
 
   // ProxySuppliedParams holds parameters set by the Proxy when nodes join
   // via the proxy address. They must only be trusted if the incoming join
@@ -78,13 +50,161 @@ message ClientInit {
     // ClientVersion is the Teleport version of the client attempting to join.
     string client_version = 2;
   }
-  optional ProxySuppliedParams proxy_supplied_parameters = 9;
+  optional ProxySuppliedParams proxy_supplied_parameters = 5;
+}
+
+// PublicKeys holds public keys sent by the client requested subject keys for
+// issued certificates.
+message PublicKeys {
+  // PublicTlsKey is the public key requested for the subject of the x509 certificate.
+  // It must be encoded in PKIX, ASN.1 DER form.
+  bytes public_tls_key = 1;
+  // PublicSshKey is the public key requested for the subject of the SSH certificate.
+  // It must be encoded in SSH wire format.
+  bytes public_ssh_key = 2;
+}
+
+// HostParams holds parameters required for host joining.
+message HostParams {
+  // PublicKeys holds the host public keys.
+  PublicKeys public_keys = 1;
+  // HostName is the user-friendly node name for the host. This comes from
+  // teleport.nodename in the service configuration and defaults to the
+  // hostname. It is encoded as a valid principal in issued certificates.
+  string host_name = 2;
+  // AdditionalPrincipals is a list of additional principals requested.
+  repeated string additional_principals = 3;
+  // DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
+  repeated string dns_names = 4;
+}
+
+// BotParams holds parameters required for bot joining.
+message BotParams {
+  // PublicKeys holds the bot public keys.
+  PublicKeys public_keys = 1;
+  // Expires is a desired time of the expiry of the returned certificates.
+  optional google.protobuf.Timestamp expires = 2;
+}
+
+// ClientParams holds either host or bot join parameters.
+message ClientParams {
+  oneof payload {
+    HostParams host_params = 1;
+    BotParams bot_params = 2;
+  }
+}
+
+// TokenInit is sent by the client in response to the ServerInit message for
+// the Token join method.
+//
+// The Token method join flow is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: TokenInit
+// 4. server->client: Result
+message TokenInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+}
+
+// BoundKeypairInit is sent from the client in response to the ServerInit
+// message for the bound keypair join method.
+// The server is expected to respond with a BoundKeypairChallenge.
+//
+// The bound keypair method join flow is:
+// 1. client->server: ClientInit
+// 2. server->client: ServerInit
+// 3. client->server: BoundKeypairInit
+// 4. server->client: BoundKeypairChallenge
+// 5. client->server: BoundKeypairChallengeSolution
+//   (optional additional steps if keypair rotation is required)
+//   server->client: BoundKeypairRotationRequest
+//   client->server: BoundKeypairRotationResponse
+//   server->client: BoundKeypairChallenge
+//   client->server: BoundKeypairChallengeSolution
+// 6. server->client: Result containing BoundKeypairResult
+message BoundKeypairInit {
+  // ClientParams holds parameters for the specific type of client trying to join.
+  ClientParams client_params = 1;
+  // If set, attempts to bind a new keypair using an initial join secret.
+  // Any value set here will be ignored if a keypair is already bound.
+  string initial_join_secret = 2;
+  // A document signed by Auth containing join state parameters from the
+  // previous join attempt. Not required on initial join; required on all
+  // subsequent joins.
+  bytes previous_join_state = 3;
+}
+
+// BoundKeypairChallenge is a challenge issued by the server that joining
+// clients are expected to complete.
+// The client is expected to respond with a BoundKeypairChallengeSolution.
+message BoundKeypairChallenge {
+  // The desired public key corresponding to the private key that should be used
+  // to sign this challenge, in SSH authorized keys format.
+  bytes public_key = 1;
+  // A challenge to sign with the requested public key. During keypair rotation,
+  // a second challenge will be provided to verify the new keypair before certs
+  // are returned.
+  string challenge = 2;
+}
+
+// BoundKeypairChallengeSolution is sent from the client in response to the
+// BoundKeypairChallenge.
+// The server is expected to respond with either a Result or a
+// BoundKeypairRotationRequest.
+message BoundKeypairChallengeSolution {
+  // A solution to a challenge from the server. This generated by signing the
+  // challenge as a JWT using the keypair associated with the requested public
+  // key.
+  bytes solution = 1;
+}
+
+// BoundKeypairRotationRequest is sent by the server in response to a
+// BoundKeypairChallenge when a keypair rotation is required. It acts like an
+// additional challenge, the client is expected to respond with a
+// BoundKeypairRotationResponse.
+message BoundKeypairRotationRequest {
+  // The signature algorithm suite in use by the cluster.
+  string signature_algorithm_suite = 1;
+}
+
+// BoundKeypairRotationResponse is sent by the client in response to a
+// BoundKeypairRotationRequest from the server.
+// The server is expected to respond with an additional BoundKeypairChallenge
+// for the new key.
+message BoundKeypairRotationResponse {
+  // The public key to be registered with auth. Clients should expect a
+  // subsequent challenge against this public key to be sent. This is encoded in
+  // SSH authorized keys format.
+  bytes public_key = 1;
+}
+
+// BoundKeypairResult holds additional result parameters relevant to the bound
+// keypair join method.
+message BoundKeypairResult {
+  // A signed join state document to be provided on the next join attempt.
+  bytes join_state = 2;
+  // The public key registered with Auth at the end of the joining ceremony.
+  // After a successful keypair rotation, this should reflect the newly
+  // registered public key. This is encoded in SSH authorized keys format.
+  bytes public_key = 3;
+}
+
+// ChallengeSolution holds a solution to a challenge issued by the server.
+message ChallengeSolution {
+  oneof payload {
+    BoundKeypairChallengeSolution bound_keypair_challenge_solution = 1;
+    BoundKeypairRotationResponse bound_keypair_rotation_response = 2;
+  }
 }
 
 // JoinRequest is the message type sent from the joining client to the server.
 message JoinRequest {
   oneof payload {
     ClientInit client_init = 1;
+    TokenInit token_init = 2;
+    BoundKeypairInit bound_keypair_init = 3;
+    ChallengeSolution solution = 4;
   }
 }
 
@@ -93,27 +213,57 @@ message JoinRequest {
 message ServerInit {
   // JoinMethod is the name of the selected join method.
   string join_method = 1;
+  // SignatureAlgorithmSuite is the name of the signature algorithm suite
+  // currently configured for the cluster.
+  string signature_algorithm_suite = 2;
 }
 
 // Challenge is a challenge message sent from the server that the client must solve.
-message Challenge {}
+message Challenge {
+  oneof payload {
+    BoundKeypairChallenge bound_keypair_challenge = 1;
+    BoundKeypairRotationRequest bound_keypair_rotation_request = 2;
+  }
+}
 
 // Result is the final message sent from the cluster back to the client, it
 // contains the result of the joining process including the assigned host ID
 // and issued certificates.
 message Result {
+  oneof payload {
+    HostResult host_result = 1;
+    BotResult bot_result = 2;
+  }
+}
+
+// Certificates holds issued certificates and cluster CAs.
+message Certificates {
   // TlsCert is an X.509 certificate encoded in ASN.1 DER form.
   bytes tls_cert = 1;
-  // TlsCaCerts is a list of TLS certificate authorities that the agent should trust.
+  // TlsCaCerts is a list of TLS certificate authorities that the client should trust.
   // Each certificate is encoding in ASN.1 DER form.
   repeated bytes tls_ca_certs = 2;
   // SshCert is an SSH certificate encoded in SSH wire format.
   bytes ssh_cert = 3;
-  // SshCaKey is a list of SSH certificate authority public keys that the agent should trust.
+  // SshCaKey is a list of SSH certificate authority public keys that the client should trust.
   // Each CA key is encoded in SSH wire format.
   repeated bytes ssh_ca_keys = 4;
+}
+
+// HostResult holds results for host joining.
+message HostResult {
+  // Certificates holds issued certificates and cluster CAs.
+  Certificates certificates = 1;
   // HostId is the unique ID assigned to the host.
-  optional string host_id = 5;
+  string host_id = 2;
+}
+
+// HostResult holds results for bot joining.
+message BotResult {
+  // Certificates holds issued certificates and cluster CAs.
+  Certificates certificates = 1;
+  // BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+  optional BoundKeypairResult bound_keypair_result = 2;
 }
 
 // JoinResponse is the message type sent from the server to the joining client.
@@ -163,7 +313,7 @@ service JoinService {
   // The client must send an ClientInit message on the JoinRequest stream to
   // initiate the join flow.
   //
-  // The server will reply with a JoinResponse where the payload will vary
-  // based on the join method specified in the provision token.
+  // The server will reply with a ServerInit message, and subsequent messages
+  // on the stream will depend on the join method.
   rpc Join(stream JoinRequest) returns (stream JoinResponse);
 }

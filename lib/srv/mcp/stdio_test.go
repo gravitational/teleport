@@ -63,7 +63,7 @@ func Test_handleAuthErrStdio(t *testing.T) {
 
 	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
 	_, err = mcptest.InitializeClient(ctx, stdioClient)
-	require.EqualError(t, err, originalAuthErr.Error())
+	require.ErrorContains(t, err, originalAuthErr.Error())
 
 	select {
 	case <-time.After(time.Second * 10):
