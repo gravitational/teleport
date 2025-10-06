@@ -230,6 +230,7 @@ func validateAddition(
 	return nil
 }
 
+// TODO(hugoShaka): make this code cycle proof
 func isReachable(
 	ctx context.Context,
 	currentList *accesslist.AccessList,

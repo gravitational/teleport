@@ -174,6 +174,7 @@ func GetOwnersFor(ctx context.Context, accessList *accesslist.AccessList, g Acce
 	return owners, nil
 }
 
+// TODO(hugoShaka): make this code cycle proof
 func maxDepthDownwards(
 	ctx context.Context,
 	currentListName string,
@@ -352,6 +353,7 @@ func IsAccessListMember(
 
 	var membershipErr error
 
+	// TODO(hugoShaka): this AL traversal code is not cycle proof
 	for _, member := range members {
 		// Is user an explicit member?
 		if member.Spec.MembershipKind != accesslist.MembershipKindList && member.GetName() == user.GetName() {
@@ -479,7 +481,7 @@ func withUserRequirementsCheck(user types.User, clock clockwork.Clock) ancestorO
 type HierarchyConfig struct {
 	// AccessListService is used to fetch Access Lists and their members.
 	AccessListsService AccessListAndMembersGetter
-	// Getter is used to fetch Access Lists and their members.
+	// Clock is used to check if memberships are expired.
 	Clock clockwork.Clock
 }
 
