@@ -142,7 +142,7 @@ export class TimelineRenderer {
       .then(() => {
         this.render();
 
-        requestIdleCallback(() => {
+        window.setTimeout(() => {
           void this.framesRenderer.loadNonVisibleFrames();
         });
       })
