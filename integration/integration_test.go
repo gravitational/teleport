@@ -1191,7 +1191,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				)
 				assert.NoError(t, err)
 
-				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil, nil)
+				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
 
