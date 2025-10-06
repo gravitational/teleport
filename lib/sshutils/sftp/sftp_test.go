@@ -633,6 +633,82 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	checkTransfer(t, false, dstPath, linkPath)
 }
 
+type mockFS struct {
+	localFS
+	fileAccesses map[string]int
+}
+
+func (m *mockFS) Open(path string) (File, error) {
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	m.fileAccesses[realPath]++
+	return m.localFS.Open(path)
+}
+
+func TestRecursiveSymlinks(t *testing.T) {
+	// Create files and symlinks.
+	root := t.TempDir()
+	t.Chdir(root)
+	srcDir := filepath.Join(root, "a")
+	createDir(t, filepath.Join(srcDir, "b/c"))
+	fileA := "a/a.txt"
+	fileB := "a/b/b.txt"
+	fileC := "a/b/c/c.txt"
+	for _, file := range []string{fileA, fileB, fileC} {
+		createFile(t, filepath.Join(root, file))
+	}
+	require.NoError(t, os.Symlink(srcDir, filepath.Join(srcDir, "abs_link")))
+	require.NoError(t, os.Symlink("..", filepath.Join(srcDir, "b/rel_link")))
+
+	tests := []struct {
+		name   string
+		srcDir string
+	}{
+		{
+			name:   "absolute",
+			srcDir: srcDir,
+		},
+		{
+			name:   "relative",
+			srcDir: filepath.Base(srcDir),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Perform the transfer.
+			dstDir := filepath.Join(root, "dst")
+			t.Cleanup(func() { os.RemoveAll(dstDir) })
+
+			cfg, err := CreateDownloadConfig(tc.srcDir, dstDir, Options{Recursive: true})
+			require.NoError(t, err)
+			// use all local filesystems to avoid SSH overhead
+			srcFS := &mockFS{fileAccesses: make(map[string]int)}
+			cfg.srcFS = srcFS
+			require.NoError(t, cfg.initFS(nil))
+			require.NoError(t, cfg.transfer(t.Context()))
+
+			// Check results. Don't use checkTransfer() as the directories will not have
+			// matching sizes (the symlinks that aren't copied over).
+			for _, file := range []string{fileA, fileB, fileC} {
+				srcFile, err := filepath.EvalSymlinks(filepath.Join(filepath.Dir(tc.srcDir), file))
+				require.NoError(t, err)
+				srcInfo, err := os.Stat(srcFile)
+				require.NoError(t, err)
+				dstFile, err := filepath.EvalSymlinks(filepath.Join(dstDir, file))
+				require.NoError(t, err)
+				dstInfo, err := os.Stat(dstFile)
+				require.NoError(t, err)
+				compareFiles(t, false, dstInfo, srcInfo, dstFile, srcFile)
+				// Check that the file was only opened once.
+				accesses := srcFS.fileAccesses[srcFile]
+				require.Equal(t, 1, accesses, "file %q was opened %d times", srcFile, accesses)
+			}
+		})
+	}
+}
+
 func TestHTTPUpload(t *testing.T) {
 	t.Parallel()
 
