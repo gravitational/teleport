@@ -120,6 +120,13 @@ const integrations: BotIntegration[] = [
     guided: false,
   },
   {
+    title: 'Argo CD',
+    link: 'https://goteleport.com/docs/machine-workload-identity/machine-id/access-guides/argocd/',
+    icon: <ResourceIcon name="argocd" />,
+    kind: IntegrationEnrollKind.MachineIDArgoCD,
+    guided: false,
+  },
+  {
     title: 'Generic',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/getting-started/',
     icon: <Server size={80} />,
