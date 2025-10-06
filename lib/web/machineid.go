@@ -576,6 +576,7 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 	const versionField = "status.latest_heartbeat.version"
 
 	statuses := BotInstanceUpgradeStatuses{
+		UpdatedAt: report.GetSpec().GetTimestamp().AsTime(),
 		UpToDate: BotInstanceUpgradeStatus{
 			Filter: fmt.Sprintf("%[1]s == %[2]q", versionField, targetVersion),
 		},
@@ -652,20 +653,19 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 	}
 
 	return BotInstanceMetricsResponse{
-		UpdatedAt:       report.GetSpec().GetTimestamp().AsTime(),
 		UpgradeStatuses: statuses,
 	}, nil
 }
 
 type BotInstanceMetricsResponse struct {
-	// UpdatedAt is when these metrics were last updated.
-	UpdatedAt time.Time `json:"updated_at"`
-
 	// UpgradeStatuses contains instance counts by "upgrade status".
 	UpgradeStatuses BotInstanceUpgradeStatuses `json:"upgrade_statuses"`
 }
 
 type BotInstanceUpgradeStatuses struct {
+	// UpdatedAt is when these metrics were last updated.
+	UpdatedAt time.Time `json:"updated_at"`
+
 	// UpToDate means the instance matches the desired version.
 	UpToDate BotInstanceUpgradeStatus `json:"up_to_date"`
 
