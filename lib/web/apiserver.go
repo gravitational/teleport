@@ -4726,6 +4726,12 @@ func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httproute
 		if _, err := fn(w, r, p, sctx, site, ws); err != nil {
 			h.writeErrToWebSocket(r.Context(), ws, err)
 		}
+
+		deadline := time.Now().Add(time.Second)
+		if err := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), deadline); err != nil {
+			h.logger.ErrorContext(r.Context(), "error writing close message", "error", err)
+		}
+
 		return nil, nil
 	})
 }
