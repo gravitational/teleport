@@ -32,7 +32,6 @@ import (
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
@@ -77,7 +76,7 @@ func TestReplaceHTTPResponse(t *testing.T) {
 		_, err = mcptest.InitializeClient(ctx, client)
 		require.NoError(t, err)
 		mcptest.MustCallServerTool(t, ctx, client)
-		assert.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
+		require.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
 
 		// Send notifications from server. Notifications will be sent through SSE.
 		synctest.Wait() // Wait for client to establish the GET connection.
@@ -98,11 +97,10 @@ func TestReplaceHTTPResponse(t *testing.T) {
 }
 
 type testReplaceHTTPResponseTransport struct {
-	countMethods         map[string]int
-	countMethodsMu       sync.Mutex
-	countMCPResponse     atomic.Uint32
-	countMCPNotification atomic.Uint32
-	client               http.Client
+	countMethods     map[string]int
+	countMethodsMu   sync.Mutex
+	countMCPResponse atomic.Uint32
+	client           http.Client
 }
 
 func newTestReplaceHTTPResponseTransport(inMemoryListener *listenerutils.InMemoryListener) *testReplaceHTTPResponseTransport {
@@ -144,6 +142,5 @@ func (t *testReplaceHTTPResponseTransport) ProcessResponse(_ context.Context, re
 }
 
 func (t *testReplaceHTTPResponseTransport) ProcessNotification(_ context.Context, notification *JSONRPCNotification) mcp.JSONRPCMessage {
-	t.countMCPNotification.Add(1)
 	return notification
 }
