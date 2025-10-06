@@ -17,6 +17,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -224,32 +225,75 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 // TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV2
 // MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
 func (h *Handler) updateBotV1(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	return h.updateBotV3(w, r, p, sctx, cluster)
+	var request updateBotRequestV1
+	if err := httplib.ReadResourceJSON(r, &request); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return updateBot(r.Context(), p.ByName("name"), updateBotRequestV3{
+		Roles: request.Roles,
+	}, sctx, cluster)
+}
+
+type updateBotRequestV1 struct {
+	Roles []string `json:"roles"`
 }
 
 // updateBotV2 updates a bot with provided roles, traits and max_session_ttl.
-// TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV2
+// TODO(nicholasmarais1158) DELETE IN v20.0.0 - replaced by updateBotV3
 // MUST delete with related code found in `web/packages/teleport/src/services/bot/bot.ts`
 func (h *Handler) updateBotV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	return h.updateBotV3(w, r, p, sctx, cluster)
+	var request updateBotRequestV2
+	if err := httplib.ReadResourceJSON(r, &request); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return updateBot(r.Context(), p.ByName("name"), updateBotRequestV3{
+		Roles:         request.Roles,
+		Traits:        request.Traits,
+		MaxSessionTtl: request.MaxSessionTtl,
+	}, sctx, cluster)
+}
+
+type updateBotRequestV2 struct {
+	Roles         []string                `json:"roles"`
+	Traits        []updateBotRequestTrait `json:"traits"`
+	MaxSessionTtl string                  `json:"max_session_ttl"`
+}
+
+type updateBotRequestTrait struct {
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
 }
 
 // updateBot updates a bot with provided roles, traits, max_session_ttl and
 // description.
 func (h *Handler) updateBotV3(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
-	var request updateBotRequest
+	var request updateBotRequestV3
 	if err := httplib.ReadResourceJSON(r, &request); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	botName := p.ByName("name")
-	if botName == "" {
-		return nil, trace.BadParameter("empty name")
-	}
+	return updateBot(r.Context(), p.ByName("name"), request, sctx, cluster)
+}
 
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+type updateBotRequestV3 struct {
+	Roles         []string                `json:"roles"`
+	Traits        []updateBotRequestTrait `json:"traits"`
+	MaxSessionTtl string                  `json:"max_session_ttl"`
+	Description   *string                 `json:"description"`
+}
+
+// updateBot updates a bot with provided roles, traits, max_session_ttl and
+// description.
+func updateBot(ctx context.Context, botName string, request updateBotRequestV3, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if botName == "" {
+		return nil, trace.BadParameter("empty name")
 	}
 
 	mask, err := fieldmaskpb.New(&machineidv1.Bot{})
@@ -299,7 +343,7 @@ func (h *Handler) updateBotV3(w http.ResponseWriter, r *http.Request, p httprout
 		metadata.Description = *request.Description
 	}
 
-	updated, err := clt.BotServiceClient().UpdateBot(r.Context(), &machineidv1.UpdateBotRequest{
+	updated, err := clt.BotServiceClient().UpdateBot(ctx, &machineidv1.UpdateBotRequest{
 		UpdateMask: mask,
 		Bot: &machineidv1.Bot{
 			Kind:     types.KindBot,
@@ -313,18 +357,6 @@ func (h *Handler) updateBotV3(w http.ResponseWriter, r *http.Request, p httprout
 	}
 
 	return updated, nil
-}
-
-type updateBotRequest struct {
-	Roles         []string                `json:"roles"`
-	Traits        []updateBotRequestTrait `json:"traits"`
-	MaxSessionTtl string                  `json:"max_session_ttl"`
-	Description   *string                 `json:"description"`
-}
-
-type updateBotRequestTrait struct {
-	Name   string   `json:"name"`
-	Values []string `json:"values"`
 }
 
 // getBotInstance retrieves a bot instance by id

@@ -345,7 +345,7 @@ func TestEditBot(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpoint, botName), updateBotRequest{
+	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpoint, botName), updateBotRequestV1{
 		Roles: []string{"new-new-role"},
 	})
 	require.NoError(t, err)
@@ -394,7 +394,7 @@ func TestEditBotRoles(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV2, botName), updateBotRequest{
+	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV2, botName), updateBotRequestV2{
 		Roles: []string{"new-new-role"},
 	})
 	require.NoError(t, err)
@@ -450,7 +450,7 @@ func TestEditBotTraits(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV2, botName), updateBotRequest{
+	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV2, botName), updateBotRequestV2{
 		Traits: []updateBotRequestTrait{
 			{
 				Name:   "test-trait-1",
@@ -526,7 +526,7 @@ func TestEditBotMaxSessionTTL(t *testing.T) {
 	require.NoError(t, json.Unmarshal(response.Bytes(), &createdBot), "invalid response received")
 	assert.Equal(t, int64(43200), createdBot.GetSpec().GetMaxSessionTtl().GetSeconds())
 
-	response, err = pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV2, botName), updateBotRequest{
+	response, err = pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV2, botName), updateBotRequestV2{
 		MaxSessionTtl: "1h2m3s",
 	})
 	require.NoError(t, err)
@@ -590,7 +590,7 @@ func TestEditBotDescription(t *testing.T) {
 	assert.Equal(t, int64(43200), createdBot.GetSpec().GetMaxSessionTtl().GetSeconds())
 
 	description := "This is the bot's description."
-	response, err = pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV3, botName), updateBotRequest{
+	response, err = pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV3, botName), updateBotRequestV3{
 		Description: &description,
 	})
 	require.NoError(t, err)
