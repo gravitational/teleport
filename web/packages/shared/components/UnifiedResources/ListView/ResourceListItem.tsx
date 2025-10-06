@@ -28,7 +28,7 @@ import { HoverTooltip } from 'design/Tooltip';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { makeLabelTag } from 'teleport/components/formatters';
 
-import { CopyButton } from '../shared/CopyButton';
+import { CopyButton } from '../../CopyButton/CopyButton';
 import {
   BackgroundColorProps,
   getBackgroundColor,
@@ -165,7 +165,7 @@ export function ResourceListItem({
               align-self: start;
             `}
           >
-            {hovered && <CopyButton name={name} ml={1} />}
+            {hovered && <CopyButton value={name} ml={1} />}
           </Box>
         </Flex>
 
