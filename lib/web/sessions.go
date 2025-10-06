@@ -1348,7 +1348,7 @@ func prepareToReceiveSessionID(ctx context.Context, log *logrus.Entry, nc *clien
 		sid, err := session.ParseID(string(req.Payload))
 		if err != nil {
 			log.WithError(err).Warn("Unable to parse session ID.")
-			return nil
+			return
 		}
 
 		if gotSessionID.CompareAndSwap(false, true) {
