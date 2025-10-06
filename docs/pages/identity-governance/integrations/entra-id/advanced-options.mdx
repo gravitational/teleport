@@ -1,6 +1,6 @@
 ---
-title: Entra ID Group Filters
-description: How to configure group filters for the Teleport Entra ID integration.
+title: Advanced Entra ID Integration Options
+description: Advanced Teleport Entra ID integration configuration options.
 sidebar_position: 5
 tags:
  - identity-governance
@@ -8,9 +8,10 @@ tags:
  - privileged-access
 ---
 
-This page explains how to configure group filters in the Teleport Entra ID integration. 
+This page lists advanced configuration options related to the
+Teleport Entra ID integration. 
 
-## How it works
+## Group filters
 
 By default, all the groups that exists in the Microsoft Entra ID directory gets 
 imported to Teleport. 
@@ -23,7 +24,7 @@ Group filter can only be configured using `tctl` and the ability to configure it
 using Teleport Web UI is in the works.
 
 
-## Group filter precedence
+### Group filter precedence
 
 - If no filters are configured, all the groups are imported (default behavior).
 - If an include filter is defined, only the matching group is imported. 
@@ -31,7 +32,7 @@ using Teleport Web UI is in the works.
 filter gets precedence. 
 
 
-## Configure group filters during installation
+### Configure group filters during installation
 
 Example to configure group filters during installation:
 ```code
@@ -56,7 +57,7 @@ $ tctl plugins install entraid \
 - `--exclude-group-name`. Exclude groups matching the specified group name regex. 
   Multiple flags allowed.
 
-## Updating group filters
+### Updating group filters
 Group filters can be updated using `group_filters` flag, which is available in 
 the `sync_settings` of the Teleport Entra ID plugin resource spec. 
 
