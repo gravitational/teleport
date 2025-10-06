@@ -48,9 +48,10 @@ jobs:
           echo "rust: ${RUST_VERSION}"
 
       - name: Install Node Toolchain
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
 
       - name: Setup pnpm
         run: |
