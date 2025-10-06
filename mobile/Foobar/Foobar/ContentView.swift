@@ -9,7 +9,6 @@ import Connect
 import ConnectNIO
 import os
 import SwiftUI
-import Tagged
 
 let logger = Logger(
   subsystem: Bundle.main.bundleIdentifier ?? "Foobar",

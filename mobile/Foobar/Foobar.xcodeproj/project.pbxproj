@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		453C652B2E86D50500250C90 /* Tagged in Frameworks */ = {isa = PBXBuildFile; productRef = 453C652A2E86D50500250C90 /* Tagged */; };
 		45FFF3B52E84116F00A28C94 /* Connect in Frameworks */ = {isa = PBXBuildFile; productRef = 45FFF3B42E84116F00A28C94 /* Connect */; };
 		45FFF4212E842E7B00A28C94 /* ConnectNIO in Frameworks */ = {isa = PBXBuildFile; productRef = 45FFF4202E842E7B00A28C94 /* ConnectNIO */; };
 /* End PBXBuildFile section */
@@ -71,7 +70,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				453C652B2E86D50500250C90 /* Tagged in Frameworks */,
 				45FFF4212E842E7B00A28C94 /* ConnectNIO in Frameworks */,
 				45FFF3B52E84116F00A28C94 /* Connect in Frameworks */,
 			);
@@ -137,7 +135,6 @@
 			packageProductDependencies = (
 				45FFF3B42E84116F00A28C94 /* Connect */,
 				45FFF4202E842E7B00A28C94 /* ConnectNIO */,
-				453C652A2E86D50500250C90 /* Tagged */,
 			);
 			productName = Foobar;
 			productReference = 45D39C852E730E8D005CB76F /* Foobar.app */;
@@ -225,7 +222,6 @@
 				45D39CAF2E741825005CB76F /* XCRemoteSwiftPackageReference "SwiftFormat" */,
 				45D39CE32E741E29005CB76F /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */,
 				45FFF3B32E84116F00A28C94 /* XCRemoteSwiftPackageReference "connect-swift" */,
-				453C65292E86D50500250C90 /* XCRemoteSwiftPackageReference "swift-tagged" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 45D39C862E730E8D005CB76F /* Products */;
@@ -608,14 +604,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		453C65292E86D50500250C90 /* XCRemoteSwiftPackageReference "swift-tagged" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/pointfreeco/swift-tagged";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.10.0;
-			};
-		};
 		45D39CAF2E741825005CB76F /* XCRemoteSwiftPackageReference "SwiftFormat" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/nicklockwood/SwiftFormat";
@@ -643,11 +631,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		453C652A2E86D50500250C90 /* Tagged */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 453C65292E86D50500250C90 /* XCRemoteSwiftPackageReference "swift-tagged" */;
-			productName = Tagged;
-		};
 		45D39CFC2E7420CC005CB76F /* SwiftLintBuildToolPlugin */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 45D39CE32E741E29005CB76F /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */;
