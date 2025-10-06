@@ -61,6 +61,10 @@ func checkRequiredKubeEnvVars(t *testing.T) {
 }
 
 func TestKube(t *testing.T) {
+	// AWS E2E tests are disabled because our recreation script is broken
+	// and the necessary infra is not available.
+	t.Skip("Skipping AWS EKS test suite.")
+
 	t.Parallel()
 	testEnabled := os.Getenv(teleport.KubeRunTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {

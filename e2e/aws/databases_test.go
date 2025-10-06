@@ -60,6 +60,10 @@ import (
 )
 
 func TestDatabases(t *testing.T) {
+	// AWS E2E tests are disabled because our recreation script is broken
+	// and the necessary infra is not available.
+	t.Skip("Skipping AWS Databases test suite.")
+
 	t.Parallel()
 	testEnabled := os.Getenv(teleport.AWSRunDBTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
