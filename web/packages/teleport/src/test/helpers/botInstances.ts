@@ -20,6 +20,7 @@ import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
 import {
+  GetBotInstanceMetricsResponse,
   GetBotInstanceResponse,
   ListBotInstancesResponse,
 } from 'teleport/services/bot/types';
@@ -67,3 +68,54 @@ export const getBotInstanceForever = () =>
         /* never resolved */
       })
   );
+
+export const getBotInstanceMetricsSuccess = (
+  mock?: GetBotInstanceMetricsResponse
+) =>
+  http.get(cfg.api.botInstance.metrics, () => {
+    return HttpResponse.json(
+      mock ?? {
+        upgrade_statuses: {
+          updated_at: new Date().toISOString(),
+          up_to_date: {
+            count: randBetween(0, 2000),
+            filter: 'up to date filter goes here',
+          },
+          patch_available: {
+            count: randBetween(0, 2000),
+            filter: 'patch filter goes here',
+          },
+          requires_upgrade: {
+            count: randBetween(0, 2000),
+            filter: 'upgrade filter goes here',
+          },
+          unsupported: {
+            count: randBetween(0, 2000),
+            filter: 'unsupported filter goes here',
+          },
+        },
+      }
+    );
+  });
+
+export const getBotInstanceMetricsForever = () =>
+  http.get(
+    cfg.api.botInstance.metrics,
+    () =>
+      new Promise(() => {
+        /* never resolved */
+      })
+  );
+
+export const getBotInstanceMetricsError = (
+  status: number,
+  error: string | null = null
+) =>
+  http.get(cfg.api.botInstance.metrics, () => {
+    return HttpResponse.json({ error: { message: error } }, { status });
+  });
+
+function randBetween(low: number, high: number) {
+  if (low > high) [low, high] = [high, low];
+  return Math.floor(Math.random() * (high - low + 1)) + low;
+}

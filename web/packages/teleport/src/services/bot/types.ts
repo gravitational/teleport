@@ -82,6 +82,19 @@ export type GetBotInstanceResponse = {
   yaml?: string;
 };
 
+export type GetBotInstanceMetricsResponse = {
+  upgrade_statuses?:
+    | (Record<
+        'unsupported' | 'patch_available' | 'requires_upgrade' | 'up_to_date',
+        {
+          count?: number | null;
+          filter?: string | null;
+        } | null
+      > & { updated_at: string })
+    | null;
+  refresh_after_seconds: number;
+};
+
 export type BotList = {
   bots: FlatBot[];
 };

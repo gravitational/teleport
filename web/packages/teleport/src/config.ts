@@ -502,6 +502,7 @@ const cfg = {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
       listV2: '/v2/webapi/sites/:clusterId/machine-id/bot-instance',
+      metrics: '/v1/webapi/sites/:clusterId/machine-id/bot-instance/metrics',
     },
 
     workloadIdentity: {
@@ -1710,6 +1711,9 @@ const cfg = {
           botName: string;
           instanceId: string;
         }
+      | {
+          action: 'metrics';
+        }
     ) & { clusterId?: string }
   ) {
     const { clusterId = cfg.proxyCluster } = req;
@@ -1727,6 +1731,10 @@ const cfg = {
           clusterId,
           botName: req.botName,
           instanceId: req.instanceId,
+        });
+      case 'metrics':
+        return generatePath(cfg.api.botInstance.metrics, {
+          clusterId,
         });
       default:
         req satisfies never;
