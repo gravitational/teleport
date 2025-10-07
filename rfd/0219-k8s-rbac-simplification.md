@@ -164,7 +164,7 @@ are global and not namespaced.
 {{- if .Values.rbac.defaultClusterRoleBindings -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
-metadata:metadata:
+metadata:
   name: {{ .Release.Name }}-{{ .Release.Namespace }}-preset-edit
 ```
 
