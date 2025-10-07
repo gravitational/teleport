@@ -78,21 +78,21 @@ final class DeviceTrust: DeviceTrustP {
 
 enum StreamError: Error, LocalizedError {
   case endOfStream
-  case error(Code, Error?)
+  case error(ConnectError)
+  case unknownError(Code, Error)
   case noMessage
 
   public var errorDescription: String? {
     switch self {
     case .endOfStream:
-      return "end of stream"
-    case let .error(code, error):
-      if let error {
-        if let message = (error as? ConnectError)?.message {
+      return "unexpected end of stream"
+    case let .error(error):
+        if let message = error.message {
           return message
         }
-        return "stream ended with error (code \(code)): \(error)"
-      }
-      return "stream ended (code \(code))"
+      return "stream ended with error (code \(error.code)): \(error.localizedDescription)"
+    case let .unknownError(code, error):
+      return "stream ended with unknown error (code \(code)): \(error.localizedDescription)"
     case .noMessage:
       return "stream did not return a message"
     }
@@ -108,10 +108,14 @@ func getSingleMessage<Request, Response>(_ stream: any BidirectionalAsyncStreamI
     case let .message(message):
       return .success(message)
     case let .complete(code, error, _):
-      if code == .ok {
-        return .failure(.endOfStream)
+      if let error = error {
+        if let connectError = error as? ConnectError {
+          return .failure(.error(connectError))
+        }
+        return .failure(.unknownError(code, error))
       }
-      return .failure(.error(code, error))
+      // If there's no error, assume that code == .ok.
+      return .failure(.endOfStream)
     case .headers:
       // Ignore headers.
       break
