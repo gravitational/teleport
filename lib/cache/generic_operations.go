@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
@@ -137,4 +138,76 @@ func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startT
 func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken string) ([]T, string, error) {
 	out, next, err := l.listRange(ctx, pageSize, startToken, "")
 	return out, next, trace.Wrap(err)
+}
+
+// genericRanger is a helper to retrieve a stream from a cache collection.
+type genericRanger[T any, I comparable] struct {
+	// cache to performe the primary read from.
+	cache *Cache
+	// collection that contains the item.
+	collection *collection[T, I]
+	// index of the collection to read with.
+	index I
+	// upstreamRange is the upstream range implementation.
+	upstreamRange func(context.Context, string, string) iter.Seq2[T, error]
+	// fallbackGetter is an optional fallback if upstream does not implment ranging getters.
+	fallbackGetter func(context.Context) ([]T, error)
+}
+
+// Range retrieves a stream of items from the configured cache collection within the range [start, end).
+// If the cache is not healthy, then the items are retrieved from the upstream backend.
+func (g genericRanger[T, I]) Range(ctx context.Context, start, end string) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		rg, err := acquireReadGuard(g.cache, g.collection)
+		if err != nil {
+			yield(*new(T), err)
+			return
+		}
+		defer rg.Release()
+
+		if rg.ReadCache() {
+			for item := range rg.store.resources(g.index, start, end) {
+				if !yield(g.collection.store.clone(item), nil) {
+					return
+				}
+			}
+			return
+		}
+
+		// Release the read guard early since all future reads will be
+		// performed against the upstream.
+		rg.Release()
+
+		for item, err := range g.upstreamRange(ctx, start, end) {
+			if err != nil {
+				if g.fallbackGetter != nil && trace.IsNotImplemented(err) {
+					items, err := g.fallbackGetter(ctx)
+					if err != nil {
+						yield(*new(T), err)
+						return
+					}
+
+					for _, item := range items {
+						if !yield(item, nil) {
+							return
+						}
+					}
+
+					return
+				}
+
+				yield(*new(T), err)
+				return
+			}
+
+			if !yield(item, nil) {
+				return
+			}
+			// if we get a NotImplemented halfway through the iteration we
+			// cannot retroactively not yield the items we have already successfully
+			// received, so we have to forward the NotImplemented error even if we
+			// have a fallback configured
+			g.fallbackGetter = nil
+		}
+	}
 }
