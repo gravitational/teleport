@@ -272,6 +272,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindRelayServer},
+		{Kind: types.KindHealthCheckConfig},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -368,6 +369,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindHealthCheckConfig},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
