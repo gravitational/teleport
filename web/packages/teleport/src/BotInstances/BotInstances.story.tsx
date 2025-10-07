@@ -111,6 +111,7 @@ export const Happy: Story = {
           },
           yaml: 'kind: bot_instance\nversion: v1\n',
         }),
+        getBotInstanceMetricsSuccess(),
       ],
     },
   },
@@ -119,7 +120,10 @@ export const Happy: Story = {
 export const ErrorLoadingList: Story = {
   parameters: {
     msw: {
-      handlers: [listBotInstancesError(500, 'something went wrong')],
+      handlers: [
+        listBotInstancesError(500, 'something went wrong'),
+        getBotInstanceMetricsSuccess(),
+      ],
     },
   },
 };
@@ -127,7 +131,7 @@ export const ErrorLoadingList: Story = {
 export const StillLoadingList: Story = {
   parameters: {
     msw: {
-      handlers: [listBotInstancesForever()],
+      handlers: [listBotInstancesForever(), getBotInstanceMetricsSuccess()],
     },
   },
 };
@@ -143,6 +147,7 @@ export const NoListPermission: Story = {
           500,
           'this call should never be made without permissions'
         ),
+        getBotInstanceMetricsSuccess(),
       ],
     },
   },
@@ -161,6 +166,7 @@ export const NoReadPermission: Story = {
           500,
           'this call should never be made without permissions'
         ),
+        getBotInstanceMetricsSuccess(),
       ],
     },
   },
