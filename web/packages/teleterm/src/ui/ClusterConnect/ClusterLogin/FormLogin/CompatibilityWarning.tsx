@@ -126,7 +126,7 @@ function buildDownloadUrl(platform: Platform): string {
   let os: string;
   switch (platform) {
     case 'darwin':
-      os = 'mac';
+      os = 'darwin';
       break;
     case 'linux':
       os = 'linux';
@@ -136,7 +136,7 @@ function buildDownloadUrl(platform: Platform): string {
       break;
   }
 
-  return `https://goteleport.com/download/?product=connect&os=${os}`;
+  return `https://goteleport.com/download/client-tools/?os=${os}`;
 }
 
 function getMajorVersion(version: string): string {
