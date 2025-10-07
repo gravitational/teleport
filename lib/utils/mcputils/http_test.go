@@ -20,6 +20,8 @@ package mcputils
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"sync"
@@ -32,6 +34,7 @@ import (
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
@@ -73,8 +76,7 @@ func TestReplaceHTTPResponse(t *testing.T) {
 		require.NoError(t, client.Start(ctx))
 
 		// Initialize client and call a tool.
-		_, err = mcptest.InitializeClient(ctx, client)
-		require.NoError(t, err)
+		mcptest.MustInitializeClient(t, ctx, client)
 		mcptest.MustCallServerTool(t, ctx, client)
 		require.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
 
@@ -143,4 +145,52 @@ func (t *testReplaceHTTPResponseTransport) ProcessResponse(_ context.Context, re
 
 func (t *testReplaceHTTPResponseTransport) ProcessNotification(_ context.Context, notification *JSONRPCNotification) mcp.JSONRPCMessage {
 	return notification
+}
+
+func TestHTTPReaderWriter(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Set up an MCP server.
+	mcpServer := mcptest.NewServer()
+	httpServer := mcpserver.NewTestStreamableHTTPServer(mcpServer)
+	t.Cleanup(httpServer.Close)
+
+	// Create a proxy that converts from stdio to HTTP.
+	clientStdin, writeToClient := io.Pipe()
+	readFromClient, clientStdout := io.Pipe()
+	t.Cleanup(func() {
+		assert.NoError(t, trace.NewAggregate(
+			clientStdin.Close(), writeToClient.Close(),
+			readFromClient.Close(), clientStdout.Close(),
+		))
+	})
+
+	serverReaderWriter, err := NewHTTPReaderWriter(ctx, httpServer.URL)
+	require.NoError(t, err)
+	clientTransportReader := NewStdioReader(readFromClient)
+	clientWriter := NewStdioMessageWriter(writeToClient)
+	proxyReaderWriter(t, clientTransportReader, clientWriter, serverReaderWriter, serverReaderWriter)
+
+	// Make a "high-level" stdio MCP client and test the proxy.
+	stdioClient := mcptest.NewStdioClient(t, clientStdin, clientStdout)
+	mcptest.MustInitializeClient(t, ctx, stdioClient)
+	mcptest.MustCallServerTool(t, ctx, stdioClient)
+}
+
+func proxyReaderWriter(
+	t *testing.T,
+	clientTransportReader TransportReader,
+	clientWriter MessageWriter,
+	serverTransportReader TransportReader,
+	serverWriter MessageWriter,
+) {
+	t.Helper()
+
+	clientMessageReader, err := NewForwardMessageReader(slog.Default(), clientTransportReader, serverWriter)
+	require.NoError(t, err)
+	serverMessageReader, err := NewForwardMessageReader(slog.Default(), serverTransportReader, clientWriter)
+	require.NoError(t, err)
+	go clientMessageReader.Run(t.Context())
+	go serverMessageReader.Run(t.Context())
 }

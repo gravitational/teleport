@@ -94,6 +94,13 @@ func InitializeClient(ctx context.Context, client *mcpclient.Client) (*mcp.Initi
 	return resp, trace.Wrap(err)
 }
 
+func MustInitializeClient(t *testing.T, ctx context.Context, client *mcpclient.Client) *mcp.InitializeResult {
+	t.Helper()
+	result, err := InitializeClient(ctx, client)
+	require.NoError(t, err)
+	return result
+}
+
 // MustCallServerTool calls the "hello-server" tool and verifies the result.
 func MustCallServerTool(t *testing.T, ctx context.Context, client *mcpclient.Client) {
 	t.Helper()
