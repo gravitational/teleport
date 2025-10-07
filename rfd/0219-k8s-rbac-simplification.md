@@ -1,5 +1,5 @@
 ---
-authors: Guillaume Charmes (guillaume.charmes@goteleport.com)
+authors: Guillaume Charmes (guillaume.charmes@goteleport.com), Tim Ross (tim.ross@goteleport.com)
 state: draft
 ---
 
