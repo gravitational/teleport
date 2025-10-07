@@ -24,12 +24,14 @@ import { JsonObject } from 'teleport/types';
 
 export const getBotSuccess = (overrides?: {
   name?: ApiBot['metadata']['name'];
+  description?: ApiBot['metadata']['description'];
   roles?: ApiBot['spec']['roles'];
   traits?: ApiBot['spec']['traits'];
   max_session_ttl?: ApiBot['spec']['max_session_ttl'];
 }) => {
   const {
     name = 'test-bot-name',
+    description = "This is the bot's description.",
     roles = ['admin', 'user'],
     traits = [
       {
@@ -50,7 +52,7 @@ export const getBotSuccess = (overrides?: {
       version: 'v1',
       metadata: {
         name,
-        description: '',
+        description,
         labels: new Map(),
         namespace: '',
         revision: '',
@@ -72,17 +74,22 @@ export const getBotSuccess = (overrides?: {
  * @returns http handler to use in SetupServerApi.use()
  */
 export const editBotSuccess = (
-  version: 1 | 2 = 2,
+  version: EditBotApiVersion = 'v3',
   overrides?: Partial<EditBotRequest>
 ) =>
   http.put<{ botName: string }>(
-    version === 1 ? cfg.api.bot.update : cfg.api.bot.updateV2,
+    version === 'v1'
+      ? cfg.api.bot.update
+      : version === 'v2'
+        ? cfg.api.bot.updateV2
+        : cfg.api.bot.updateV3,
     async ({ request, params }) => {
       const req = (await request.clone().json()) as EditBotRequest;
       const {
         roles = req.roles,
         traits = req.traits,
         max_session_ttl = req.max_session_ttl,
+        description = req.description,
       } = overrides ?? {};
 
       const maxSessionTtlSeconds =
@@ -95,7 +102,7 @@ export const editBotSuccess = (
         version: 'v1',
         metadata: {
           name: params.botName,
-          description: '',
+          description,
           labels: new Map(),
           namespace: '',
           revision: '',
@@ -132,13 +139,24 @@ export const getBotError = (status: number, error: string | null = null) =>
   });
 
 export const editBotError = (
+  version: EditBotApiVersion = 'v3',
   status: number,
   error: string | null = null,
   fields: JsonObject = {}
 ) =>
-  http.put(cfg.api.bot.updateV2, () => {
-    return HttpResponse.json({ error: { message: error }, fields }, { status });
-  });
+  http.put(
+    version === 'v1'
+      ? cfg.api.bot.update
+      : version === 'v2'
+        ? cfg.api.bot.updateV2
+        : cfg.api.bot.updateV3,
+    () => {
+      return HttpResponse.json(
+        { error: { message: error }, fields },
+        { status }
+      );
+    }
+  );
 
 export const getBotForever = () =>
   http.get(
@@ -157,3 +175,5 @@ export const editBotForever = () =>
         /* never resolved */
       })
   );
+
+export type EditBotApiVersion = 'v1' | 'v2' | 'v3';
