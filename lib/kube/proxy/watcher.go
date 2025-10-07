@@ -139,7 +139,7 @@ func (s *TLSServer) onUpdate(ctx context.Context, cluster, _ types.KubeCluster) 
 }
 
 func (s *TLSServer) onDelete(ctx context.Context, cluster types.KubeCluster) error {
-	return s.unregisterKubeCluster(ctx, cluster.GetName())
+	return s.unregisterKubeCluster(ctx, cluster)
 }
 
 func (s *TLSServer) matcher(cluster types.KubeCluster) bool {
@@ -194,7 +194,7 @@ func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeC
 		return trace.Wrap(err)
 	}
 	s.fwd.upsertKubeDetails(cluster.GetName(), clusterDetails)
-	return trace.Wrap(s.startHeartbeat(cluster.GetName()))
+	return trace.Wrap(s.startHeartbeatAndHealthCheck(cluster))
 }
 
 func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
@@ -212,11 +212,14 @@ func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeClu
 // unregisterKubeCluster unregisters the proxied Kube Cluster from the agent.
 // This function is called when the dynamic cluster is deleted/no longer match
 // the agent's resource matcher or when the agent is shutting down.
-func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) error {
+func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	var errs []error
 
-	errs = append(errs, s.stopHeartbeat(name))
-	s.fwd.removeKubeDetails(name)
+	if err := s.stopHeartbeatAndHealthCheck(cluster); err != nil {
+		errs = append(errs, err)
+	}
+	clusterName := cluster.GetName()
+	s.fwd.removeKubeDetails(clusterName)
 
 	shouldDeleteCluster := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
 	sender, ok := s.TLSServerConfig.InventoryHandle.GetSender()
@@ -234,7 +237,9 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 	// When unregistering a dynamic cluster, the context is empty and the
 	// decision will be to delete the kubernetes server.
 	if shouldDeleteCluster {
-		errs = append(errs, s.deleteKubernetesServer(ctx, name))
+		if err := s.deleteKubernetesServer(ctx, clusterName); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	// close active sessions before returning.
@@ -244,9 +249,11 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 	s.fwd.mu.Unlock()
 	// close active sessions
 	for _, sess := range sessions {
-		if sess.ctx.kubeClusterName == name {
+		if sess.ctx.kubeClusterName == clusterName {
 			// TODO(tigrato): check if we should send errors to each client
-			errs = append(errs, sess.Close())
+			if err := sess.Close(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 
