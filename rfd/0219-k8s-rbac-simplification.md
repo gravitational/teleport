@@ -200,12 +200,6 @@ existing setups are already working.
 
 ### UX
 
-#### Exec confusion
-
-As the underlying Kubernetes RBAC gets discouraged, it will help with the
-confusion around _exec_ being allowed with a `get` verb is gone.
-Teleport uses a dedicated verb to control access to `exec`.
-
 #### Resource enrollment UI
 
 On the Web UI, the initial page generates a _Helm_ command line.
