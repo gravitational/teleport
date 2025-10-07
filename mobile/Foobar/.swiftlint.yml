@@ -7,3 +7,4 @@ disabled_rules:
   # Let the formatter deal with these.
   - opening_brace
   - trailing_comma
+  - line_length

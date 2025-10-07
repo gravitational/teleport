@@ -163,6 +163,11 @@ type deviceTrustServer struct {
 	devicesClient devicepb.DeviceTrustServiceClient
 }
 
+func (s *deviceTrustServer) CreateDeviceEnrollToken(ctx context.Context, req *connect.Request[devicepb.CreateDeviceEnrollTokenRequest]) (*connect.Response[devicepb.DeviceEnrollToken], error) {
+	token, err := s.devicesClient.CreateDeviceEnrollToken(ctx, req.Msg)
+	return connect.NewResponse(token), trace.Wrap(err)
+}
+
 func (s *deviceTrustServer) EnrollDevice(ctx context.Context, clientStream *connect.BidiStream[devicepb.EnrollDeviceRequest, devicepb.EnrollDeviceResponse]) error {
 	s.logger.InfoContext(ctx, "EnrollDevice has started")
 	defer s.logger.InfoContext(ctx, "EnrollDevice has ended")

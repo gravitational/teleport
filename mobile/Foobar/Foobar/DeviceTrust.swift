@@ -8,6 +8,7 @@ import Connect
 import ConnectNIO
 import CryptoKit
 import os
+import SwiftProtobuf
 import SwiftUI
 
 protocol DeviceTrustP {
@@ -45,6 +46,15 @@ final class DeviceTrust: DeviceTrustP {
     let cred = try DeviceKey.getOrCreate()
     print("\(cred)")
 
+    let createTokenResponse = await client
+      .createDeviceEnrollToken(request: Teleport_Devicetrust_V1_CreateDeviceEnrollTokenRequest
+        .with {
+          $0.deviceData = cd
+        })
+    guard let deviceEnrollToken = createTokenResponse.message else {
+      throw createTokenResponse.error!
+    }
+
 //    let request = Teleport_Devicetrust_V1_PingRequest()
 //    print("Sending ping")
 //    let response = await client.ping(request: request, headers: [:])
@@ -61,6 +71,7 @@ final class DeviceTrust: DeviceTrustP {
           .with { $0.init_p = Teleport_Devicetrust_V1_EnrollDeviceInit.with {
             $0.deviceData = cd
             $0.credentialID = cred.id
+            $0.token = deviceEnrollToken.token
             $0.macos = Teleport_Devicetrust_V1_MacOSEnrollPayload.with {
               $0.publicKeyDer = cred.publicKeyDer
             }
@@ -71,8 +82,26 @@ final class DeviceTrust: DeviceTrustP {
       return
     }
 
-    let response = try await getSingleMessage(stream).get()
+    let response = try await (getSingleMessage(stream)).get()
+    guard case let .macosChallenge(challenge) = response.payload else {
+      throw UnexpectedPayload(expected: "macosChallenge", actual: response.payload)
+    }
     print("Got message: \(response)")
+    // TODO: Process challenge.
+  }
+}
+
+struct UnexpectedPayload<Actual>: Error & LocalizedError {
+  let expected: String
+  let actual: Actual?
+
+  var errorDescription: String? {
+    guard let actualValue = actual else {
+      return "expected \(expected), got nil"
+    }
+
+    let actualMirror = Mirror(reflecting: actualValue)
+    return "expected \(expected), got \(actualMirror.children.first?.label ?? "<unknown>")"
   }
 }
 
@@ -82,14 +111,14 @@ enum StreamError: Error, LocalizedError {
   case unknownError(Code, Error)
   case noMessage
 
-  public var errorDescription: String? {
+  var errorDescription: String? {
     switch self {
     case .endOfStream:
       return "unexpected end of stream"
     case let .error(error):
-        if let message = error.message {
-          return message
-        }
+      if let message = error.message {
+        return message
+      }
       return "stream ended with error (code \(error.code)): \(error.localizedDescription)"
     case let .unknownError(code, error):
       return "stream ended with unknown error (code \(code)): \(error.localizedDescription)"
@@ -108,7 +137,7 @@ func getSingleMessage<Request, Response>(_ stream: any BidirectionalAsyncStreamI
     case let .message(message):
       return .success(message)
     case let .complete(code, error, _):
-      if let error = error {
+      if let error {
         if let connectError = error as? ConnectError {
           return .failure(.error(connectError))
         }
@@ -129,6 +158,7 @@ func collectDeviceData() -> Teleport_Devicetrust_V1_DeviceCollectedData {
   let device = UIDevice.current
   var cd = Teleport_Devicetrust_V1_DeviceCollectedData()
   let serialNumber = "FOO1234"
+  cd.collectTime = Google_Protobuf_Timestamp(date: Date())
   cd.osType = .macos
   cd.serialNumber = serialNumber
   cd.modelIdentifier = getDeviceCode() ?? ""
@@ -169,6 +199,7 @@ enum DeviceKeyError: Error {
 
 /// SecOSStatusError wraps OSStatus values returned by functions from the Security framework.
 struct SecOSStatusError: Error & Equatable & CustomStringConvertible {
+  // TODO: Make SecOSStatusError be LocalizedError too.
   let status: OSStatus
 
   var description: String {
