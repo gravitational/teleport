@@ -544,5 +544,14 @@ func (c *yamuxServerConn) dial(ctx context.Context, src net.Addr, dst net.Addr) 
 	<-explode
 	stream.SetDeadline(time.Time{})
 
-	return stream, nil
+	nc := &yamuxStreamConn{
+		Stream: stream,
+
+		// on this side of the connection we are the source and the peer is the
+		// destination, the tunnel client will do the opposite
+		localAddr:  src,
+		remoteAddr: dst,
+	}
+
+	return nc, nil
 }
