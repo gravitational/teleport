@@ -186,6 +186,8 @@ type yamuxStreamConn struct {
 // Read implements [net.Conn].
 func (c *yamuxStreamConn) Read(b []byte) (int, error) {
 	n, err := c.Stream.Read(b)
+	//nolint:errorlint // this workaround is specifically to work around bad
+	//practices around net.Conn and exact error values
 	if err == yamux.ErrTimeout {
 		// yamux.ErrTimeout.Temporary() returns false, which makes [*tls.Conn]
 		// kill the connection; the correct error to return from Read or Write
@@ -200,6 +202,8 @@ func (c *yamuxStreamConn) Read(b []byte) (int, error) {
 // Write implements [net.Conn].
 func (c *yamuxStreamConn) Write(b []byte) (int, error) {
 	n, err := c.Stream.Write(b)
+	//nolint:errorlint // this workaround is specifically to work around bad
+	//practices around net.Conn and exact error values
 	if err == yamux.ErrTimeout {
 		// yamux.ErrTimeout.Temporary() returns false, which makes [*tls.Conn]
 		// kill the connection; the correct error to return from Read or Write
