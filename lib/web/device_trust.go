@@ -18,6 +18,8 @@ package web
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -157,29 +159,80 @@ func (h *Handler) getRedirectURL(host, unsafeRedirectURI string) (string, error)
 type deviceTrustServer struct {
 	devicetrustv1connect.UnimplementedDeviceTrustServiceHandler
 	logger *slog.Logger
+	// devicesClient is a client to auth's Device Trust service authenticated as the proxy.
+	devicesClient devicepb.DeviceTrustServiceClient
 }
 
-func (s *deviceTrustServer) EnrollDevice(ctx context.Context, stream *connect.BidiStream[devicepb.EnrollDeviceRequest, devicepb.EnrollDeviceResponse]) error {
-	s.logger.InfoContext(ctx, "Enroll device start")
-	req, err := stream.Receive()
+func (s *deviceTrustServer) EnrollDevice(ctx context.Context, clientStream *connect.BidiStream[devicepb.EnrollDeviceRequest, devicepb.EnrollDeviceResponse]) error {
+	s.logger.InfoContext(ctx, "EnrollDevice has started")
+	defer s.logger.InfoContext(ctx, "EnrollDevice has ended")
+	serverStream, err := s.devicesClient.EnrollDevice(ctx)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.logger.InfoContext(ctx, "Got message", "message", req)
-
-	if err = stream.Send(&devicepb.EnrollDeviceResponse{
-		Payload: &devicepb.EnrollDeviceResponse_Success{
-			Success: &devicepb.EnrollDeviceSuccess{
-				Device: &devicepb.Device{
-					Id: "success :~)",
-				},
-			},
-		},
-	}); err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "starting server stream")
 	}
 
-	return nil
+	errChan := make(chan error, 2)
+
+	// Forward messages from client to server.
+	go func() {
+		defer s.logger.InfoContext(ctx, "Finished forwarding from client to server")
+		defer func() {
+			// CloseSend always returns nil error.
+			_ = serverStream.CloseSend()
+		}()
+
+		for {
+			s.logger.InfoContext(ctx, "Waiting for client message")
+			clientMsg, err := clientStream.Receive()
+			s.logger.InfoContext(ctx, "Got client message", "message", clientMsg, "error", err)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					// Client is done sending messages.
+					errChan <- nil
+					return
+				}
+				errChan <- trace.Wrap(err, "receiving message from client")
+				return
+			}
+
+			if err := serverStream.Send(clientMsg); err != nil {
+				errChan <- trace.Wrap(err, "sending message from client to server")
+				return
+			}
+		}
+	}()
+
+	// Forward messages from server to client.
+	go func() {
+		defer s.logger.InfoContext(ctx, "Finished forwarding from server to client")
+		for {
+			s.logger.InfoContext(ctx, "Waiting for server message")
+			serverMsg, err := serverStream.Recv()
+			s.logger.InfoContext(ctx, "Got server message", "message", serverMsg, "error", err)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					// Server stream has terminated with an OK status.
+					errChan <- nil
+					return
+				}
+				// Do not add a message to trace.Wrap here. If the server returns an error in response to a
+				// message from the client, the error needs to be proxied with no changes to its structure.
+				// Any message added to trace.Wrap here would be appended to the error delivered to the
+				// client.
+				errChan <- trace.Wrap(err)
+				return
+			}
+
+			if err := clientStream.Send(serverMsg); err != nil {
+				errChan <- trace.Wrap(err, "sending message from server to client")
+				return
+			}
+		}
+	}()
+
+	// Return immediately on the first value. Since we're within a handler for a bidi stream,
+	// returning an error from the handler is the only way of passing the error back to the client.
+	return trace.Wrap(<-errChan)
 }
 
 func (s *deviceTrustServer) Ping(ctx context.Context, req *connect.Request[devicepb.PingRequest]) (*connect.Response[devicepb.PingResponse], error) {
