@@ -45,7 +45,7 @@
     "@types/whatwg-url": "^11.0.5",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
-    "electron": "37.4.0",
+    "electron": "37.6.0",
     "electron-builder": "^26.0.12",
     "electron-updater": "^6.6.8",
     "electron-vite": "^4.0.0",
