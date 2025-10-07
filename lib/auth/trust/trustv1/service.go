@@ -20,6 +20,7 @@ package trustv1
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,6 +29,7 @@ import (
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -57,19 +59,21 @@ type authServer interface {
 // ServiceConfig holds configuration options for
 // the trust gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      services.AuthorityGetter
-	Backend    services.TrustInternal
-	AuthServer authServer
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Cache            services.AuthorityGetter
+	Backend          services.TrustInternal
+	AuthServer       authServer
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
 type Service struct {
 	trustpb.UnimplementedTrustServiceServer
-	authorizer authz.Authorizer
-	cache      services.AuthorityGetter
-	backend    services.TrustInternal
-	authServer authServer
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	cache            services.AuthorityGetter
+	backend          services.TrustInternal
+	authServer       authServer
 }
 
 // NewService returns a new trust gRPC service.
@@ -86,10 +90,11 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
-		backend:    cfg.Backend,
-		authServer: cfg.AuthServer,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		cache:            cfg.Cache,
+		backend:          cfg.Backend,
+		authServer:       cfg.AuthServer,
 	}, nil
 }
 
@@ -150,8 +155,20 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 // GetCertAuthorities retrieves the cert authorities with the specified type.
 func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAuthoritiesRequest) (*trustpb.GetCertAuthoritiesResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
+	var scopedAuthCtx *authz.ScopedContext
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, authz.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+
+		if s.scopedAuthorizer == nil {
+			return nil, trace.AccessDenied("scoped authorization is not configured")
+		}
+
+		scopedAuthCtx, err = s.scopedAuthorizer.AuthorizeScoped(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	verbs := []string{types.VerbList, types.VerbReadNoSecrets}
@@ -159,14 +176,30 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 	if req.IncludeKey {
 		verbs = append(verbs, types.VerbRead)
 
+		if scopedAuthCtx != nil {
+			return nil, trace.AccessDenied("scoped identity cannot read CA secrets (admin action)")
+		}
+
 		// Require admin MFA to read secrets.
 		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
-		return nil, trace.Wrap(err)
+	if scopedAuthCtx != nil {
+		_, err := services.DoScopedDecision[struct{}](
+			scopedAuthCtx.CheckerContext.RiskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
+			func(checker *services.ScopedAccessChecker) (struct{}, error) {
+				return struct{}{}, checker.CheckAccessToRules(types.KindCertAuthority, verbs...)
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := authCtx.CheckAccessToKind(types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	cas, err := s.cache.GetCertAuthorities(ctx, types.CertAuthType(req.Type), req.IncludeKey)
