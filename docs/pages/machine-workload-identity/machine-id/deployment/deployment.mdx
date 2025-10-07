@@ -85,5 +85,10 @@ integration and continuous deployment platform
 | [Terraform Cloud](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud.mdx) | Teleport Terraform Provider via Teleport's Terraform Registry | Terraform Cloud-signed identity document |
 
 
+<Admonition type="tip" title="Unsupported Provider?">
+If your CI/CD provider does not have a dedicated join method listed above,
+consider using [Bound Keypair static keys][bound-keypair-static] as a fallback.
+</Admonition>
+
 [bound-keypair]: ../../../reference/machine-workload-identity/machine-id/bound-keypair/getting-started.mdx
 [bound-keypair-static]: ../../../reference/machine-workload-identity/machine-id/bound-keypair/static-keys.mdx
