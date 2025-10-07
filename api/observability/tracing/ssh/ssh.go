@@ -15,10 +15,10 @@
 package ssh
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"net"
-	"time"
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
@@ -127,27 +127,37 @@ func Dial(ctx context.Context, network, addr string, config *ssh.ClientConfig, o
 	if err != nil {
 		return nil, err
 	}
-	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config, opts...)
+	c, err := NewClientWithTimeout(ctx, conn, addr, config, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return NewClient(c, chans, reqs), nil
+	return c, nil
 }
 
-// NewClientConn creates a new SSH client connection that is passed tracing context so that spans may be correlated
-// properly over the ssh connection.
-func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+// NewClientConnWithTimeout creates a new SSH client connection that includes tracing context,
+// allowing spans to be properly correlated across the SSH connection.
+//
+// The connection respects the earliest of the following:
+// - The context's deadline or cancellation
+// - The timeout specified in the config
+// - A default timeout of 30 seconds if config doesn't specify a timeout
+//
+// Behavior based on config.Timeout:
+// - If > 0: the timeout is applied in addition to any context deadline.
+// - If == 0: a default timeout of 30 seconds is used to avoid hanging connections.
+// - If < 0: only the context’s deadline or cancellation is used.
+func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
 	tracer := tracing.NewConfig(opts).TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start( //nolint:staticcheck,ineffassign // keeping shadowed ctx to avoid accidental missing in the future
 		ctx,
-		"ssh/NewClientConn",
+		"ssh/NewClientConnWithTimeout",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			append(
 				peerAttr(conn.RemoteAddr()),
 				attribute.String("address", addr),
 				semconv.RPCServiceKey.String("ssh"),
-				semconv.RPCMethodKey.String("NewClientConn"),
+				semconv.RPCMethodKey.String("NewClientConnWithTimeout"),
 				semconv.RPCSystemKey.String("ssh"),
 			)...,
 		),
@@ -173,17 +183,30 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 
 	// We aim to close the connection to avoid clients to hang forever
 	// if the server is not responding.
-	ctx, cancel := context.WithTimeout(
-		ctx,
-		getTimeoutOrDefault(ctx, config),
-	)
-	defer cancel()
+
+	// If config.Timeout is negative, we don't set a timeout and restrict
+	// ourselves to the context deadline if any.
+	if config.Timeout >= 0 {
+		newCtx, cancel := context.WithTimeout(
+			ctx,
+			cmp.Or(config.Timeout, defaults.DefaultIOTimeout),
+		)
+		defer cancel()
+		ctx = newCtx
+	}
+
 	stopFn := context.AfterFunc(ctx, func() {
 		_ = conn.Close()
 	})
 
 	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
+		// if the context was canceled or timed out, return that error instead
+		// of the error from NewClientConn which would be something like
+		// "ssh: handshake failed: read tcp {ip}:{port} -> {ip}:{port} use of closed network connection"
+		if ctx.Err() != nil {
+			return nil, nil, nil, trace.Wrap(ctx.Err())
+		}
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
@@ -199,57 +222,10 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 		}()
 		go ssh.DiscardRequests(reqs)
 		_ = c.Close()
-		return nil, nil, nil, ctx.Err()
+		return nil, nil, nil, trace.Wrap(ctx.Err())
 	}
 
 	return c, chans, reqs, nil
-}
-
-// getTimeoutOrDefault returns the minimum timeout between the context deadline and the ssh.ClientConfig timeout.
-// If neither is set, it returns a default of 30s.
-func getTimeoutOrDefault(ctx context.Context, cfg *ssh.ClientConfig) time.Duration {
-	// Default to 1 hour if no timeout is set on the config or context
-	// deadline.
-	deadlineTimeout := time.Hour
-	cfgTimeout := time.Hour
-
-	if cfg != nil && cfg.Timeout != 0 {
-		cfgTimeout = cfg.Timeout
-	}
-
-	deadline, ok := ctx.Deadline()
-	if ok {
-		deadlineTimeout = time.Until(deadline)
-		if deadlineTimeout <= 0 {
-			// Deadline exceeded, return immediately.
-			return time.Nanosecond
-		}
-	}
-	if cfg.Timeout != 0 || ok {
-		return min(cfgTimeout, deadlineTimeout)
-	}
-
-	return defaults.DefaultIOTimeout
-
-}
-
-// NewClientConnWithDeadline establishes new client connection with specified deadline
-func NewClientConnWithDeadline(ctx context.Context, conn net.Conn, addr string, config *ssh.ClientConfig, opts ...tracing.Option) (*Client, error) {
-	if config.Timeout > 0 {
-		if err := conn.SetReadDeadline(time.Now().Add(config.Timeout)); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	c, chans, reqs, err := NewClientConn(ctx, conn, addr, config, opts...)
-	if err != nil {
-		return nil, err
-	}
-	if config.Timeout > 0 {
-		if err := conn.SetReadDeadline(time.Time{}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return NewClient(c, chans, reqs, opts...), nil
 }
 
 // peerAttr returns attributes about the peer address.

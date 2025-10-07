@@ -21,8 +21,10 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -418,4 +420,69 @@ func TestWrapPayload(t *testing.T) {
 			tt.payloadAssertion(t, testPayload, payload)
 		})
 	}
+}
+
+func TestNewClientConnTimeout(t *testing.T) {
+	t.Parallel()
+
+	// This test ensure that NewClientConnWithTimeout respects the context
+	// timeout and does not hang indefinitely.
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+
+	go func() {
+		defer listener.Close()
+
+		for {
+			conn, err := listener.Accept()
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+			require.NoError(t, err)
+			go func(conn net.Conn) {
+				defer conn.Close()
+				// Simulate a server that does not respond so the ssh.NewClientConn
+				// call on the client side hangs indefinitely.
+				_, _ = io.ReadAll(conn)
+			}(conn)
+		}
+	}()
+
+	t.Run("context timeout is respected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		t.Cleanup(cancel)
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+
+		_, _, _, err = NewClientConnWithTimeout(ctx, conn, listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         -1,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded, "expected context deadline exceeded error, got: %v", err)
+	})
+
+	t.Run("config timeout is respected", func(t *testing.T) {
+		t.Parallel()
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+
+		_, _, _, err = NewClientConnWithTimeout(t.Context(), conn, listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         500 * time.Millisecond,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded, "expected context deadline exceeded error, got: %v", err)
+	})
+
 }
