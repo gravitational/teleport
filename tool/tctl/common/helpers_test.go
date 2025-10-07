@@ -120,6 +120,16 @@ func runTokensCommand(t *testing.T, client *authclient.Client, args []string) (*
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
+func runScopedCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &ScopedCommand{
+		Stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"scoped"}, args...)
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
 func runUserCommand(t *testing.T, client *authclient.Client, args []string) error {
 	command := &UserCommand{}
 	args = append([]string{"users"}, args...)
