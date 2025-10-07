@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-- Engineering: (@zmb3 || @rjones) && (@hugoShaka || @tigrato)
+- Engineering: (@zmb3 || @rjones || @r0mant) && (@hugoShaka || @tigrato)
 Product: @klizhentas
 
 ## What
