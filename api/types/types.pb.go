@@ -1072,6 +1072,8 @@ const (
 	InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT InstallParamEnrollMode = 1
 	// INSTALL_PARAM_ENROLL_MODE_EICE uses EC2 Instance Connect Endpoint to access the node and DiscoveryService handles the heartbeat.
 	// Only available for AWS EC2 instances.
+	//
+	// DEPRECATED: EICE mode is deprecated. Use script mode.
 	InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE InstallParamEnrollMode = 2
 )
 
@@ -23955,7 +23957,7 @@ type InstallerParams struct {
 	// Valid values:
 	// 0: uses eice for EC2 matchers which use an integration and script for all the other methods
 	// 1: uses script mode
-	// 2: uses eice mode
+	// 2: uses eice mode (deprecated)
 	EnrollMode InstallParamEnrollMode `protobuf:"varint,8,opt,name=EnrollMode,proto3,enum=types.InstallParamEnrollMode" json:"enroll_mode,omitempty"`
 	// Suffix indicates the installation suffix for the teleport installation.
 	// Set this value if you want multiple installations of Teleport.

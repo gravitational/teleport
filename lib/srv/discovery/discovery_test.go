@@ -858,7 +858,16 @@ func fetchAllUserTasks(t *testing.T, userTasksClt services.UserTasks, minUserTas
 }
 
 func TestDiscoveryServerConcurrency(t *testing.T) {
-	t.Parallel()
+	// Most Server installations flows rely on installing teleport in the target server, which then joins the cluster.
+	// Even if multiple installations happen, only one agent will run at the same time in the target server.
+	// So, there's effectively no concurrency issue.
+	//
+	// EICE flow is different, because servers are created in the cluster directly.
+	// If two different discovery servers discover the same EC2 instance, they will both try to create
+	// the same EICE Node in the cluster, causing a conflict.
+	//
+	// After removing the EICE feature, this test must be removed as well.
+	t.Setenv("TELEPORT_UNSTABLE_ENABLE_EICE", "1")
 	ctx := context.Background()
 	logger := logtest.NewLogger()
 

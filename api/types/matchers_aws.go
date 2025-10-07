@@ -17,10 +17,12 @@ limitations under the License.
 package types
 
 import (
+	"os"
 	"slices"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 )
@@ -197,6 +199,14 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 
 	default:
 		return trace.BadParameter("invalid enroll mode %s", m.Params.EnrollMode.String())
+	}
+
+	if slices.Contains(m.Types, AWSMatcherEC2) {
+		if m.Params.EnrollMode == InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
+			if os.Getenv(constants.UnstableEnableEICEEnvVar) == "" {
+				return trace.BadParameter(constants.EICEDisabledMessage)
+			}
+		}
 	}
 
 	switch m.Params.JoinMethod {
