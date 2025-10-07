@@ -31,6 +31,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -652,11 +653,16 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 	}
 
 	return BotInstanceMetricsResponse{
-		UpgradeStatuses: statuses,
+		RefreshAfterSeconds: int(constants.AutoUpdateBotInstanceReportPeriod.Seconds()),
+		UpgradeStatuses:     statuses,
 	}, nil
 }
 
 type BotInstanceMetricsResponse struct {
+	// RefreshAfterSeconds is the amount of time (in seconds) after receiving
+	// this response the client should poll for new metrics.
+	RefreshAfterSeconds int `json:"refresh_after_seconds"`
+
 	// UpgradeStatuses contains instance counts by "upgrade status".
 	UpgradeStatuses BotInstanceUpgradeStatuses `json:"upgrade_statuses"`
 }
