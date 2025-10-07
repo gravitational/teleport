@@ -141,11 +141,12 @@ func (c *Cache) ListDatabases(ctx context.Context, limit int, startKey string) (
 
 // RangeDatabases returns database resources within the range [start, end).
 func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
-	ranger := genericRanger[types.Database, databaseIndex]{
-		cache:         c,
-		collection:    c.collections.dbs,
-		index:         databaseNameIndex,
-		upstreamRange: c.Config.Databases.RangeDatabases,
+	lister := genericLister[types.Database, databaseIndex]{
+		cache:        c,
+		collection:   c.collections.dbs,
+		index:        databaseNameIndex,
+		upstreamList: c.Config.Databases.ListDatabases,
+		nextToken:    types.Database.GetName,
 		// TODO(lokraszewski): DELETE IN v21.0.0
 		fallbackGetter: c.Config.Databases.GetDatabases,
 	}
@@ -154,7 +155,7 @@ func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2
 		ctx, span := c.Tracer.Start(ctx, "cache/RangeDatabases")
 		defer span.End()
 
-		for db, err := range ranger.Range(ctx, start, end) {
+		for db, err := range lister.RangeWithFallback(ctx, start, end) {
 			if !yield(db, err) {
 				return
 			}
