@@ -1346,6 +1346,9 @@ type Cache interface {
 
 	// UserLoginStatesGetter defines methods for fetching user login states.
 	services.UserLoginStatesGetter
+
+	// DiscoveryConfigsGetter defines methods for fetching discovery configs.
+	services.DiscoveryConfigsGetter
 }
 
 type NodeWrapper struct {
