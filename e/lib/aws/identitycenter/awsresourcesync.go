@@ -140,7 +140,7 @@ func (svc *Service) synchronize(ctx context.Context) error {
 		_, err = svc.reconcileAccountAssignmentRoles(ctx, teleportResources.accountAssignmentRoles, awsResources.accountAssignmentRoles)
 		if err != nil {
 			syncEvent.UserMessage = "Periodic account assignment role reconciliation failed"
-			return trace.Wrap(err, "reconciling  account assignment roles")
+			return trace.Wrap(err, "reconciling account assignment roles")
 		}
 	}
 

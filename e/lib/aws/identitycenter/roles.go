@@ -173,7 +173,7 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 	updateRole := func(ctx context.Context, newRole, _ *types.RoleV6) error {
 		updated, err := svc.rolesSvc.UpdateRole(ctx, newRole)
 		if err != nil {
-			return trace.Wrap(err, "updating Identity Center Account record")
+			return trace.Wrap(err, "updating Identity Center Account Assignment Role resource")
 		}
 		rv6, ok := updated.(*types.RoleV6)
 		if !ok {
@@ -193,7 +193,7 @@ func (svc *Service) reconcileAccountAssignmentRoles(ctx context.Context, oldRole
 		// removed before deleting
 
 		if err := svc.rolesSvc.DeleteRole(ctx, role.GetName()); err != nil {
-			return trace.Wrap(err, "updating Identity Center Account record")
+			return trace.Wrap(err, "deleting Identity Center Account Assignment Role resource")
 		}
 
 		key, err := mkRoleKeyForRole(role)
