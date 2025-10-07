@@ -133,7 +133,7 @@ tctl users add hugo --logins root --kubernetes-group teleport:preset:edit --role
 ### Provisioning
 
 To enable easy setup, provisioning methods will be updated to create the
-required new ClusterRoles and ClusterRoleBindings.
+required new ClusterRoleBindings.
 
 #### Helm Chart
 
