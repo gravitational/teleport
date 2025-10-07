@@ -258,17 +258,17 @@ initial custom setups that skipped the provided provisioning scripts.
 
 #### Proposed flow
 
-- Day 0 - Initial setup:
-  - User installs Teleport and sets up a Kubernetes cluster.
-  - User provisions the Kubernetes cluster using a script, discovery, or Helm
-    chart to create all required RBAC resources.
-  - User configures the Teleport role with `kubernetes_resources` and
-    `kubernetes_labels` to match or reduce the permissions granted by the
-    ClusterRole.
-  - User applies the desired `kubernetes_groups` trait to the Teleport user.
-- Day 1 - Ongoing management:
-  - User can reduce the scope of either Kubernetes or Teleport's roles by
-    changing the counterpart
-  - User has the option to use the `teleport:preset:editor` role to avoid the
-    complexity of managing the underlying Kubernetes RBAC, only managing
-    resources/labels on the Teleport side instead.
+- Day 0 - Initial setup, prospect and hackers:
+  - Prospect installs Teleport
+  - Prospect creates its first Teleport local user with the trait `kubernetes_groups: "teleport:preset:cluster-admin"`
+  - Prospect deploys a Teleport agent in their Kubernetes cluster
+  - Prospect can access the Kubernetes cluster as administrator with their local Teleport user
+- Day 1 - Multiple users, late stage prospect or new Teleport adopter
+  - Admin has some Kubernetes agents connected, SSO connector set up, and several users
+  - Admin creates per-team roles with different `spec.allow. kubernetes_labels` to select each team's cluster
+  - Admin sets the `teleport:preset:edit` or `teleport:preset:view` as `spec.allow.kubernetes_groups`
+  - Admin grants the role to users using SSO connector or Access Lists
+  - users from each team can access their Kubernetes clusters
+- Day 2 - More granular access, advanced Teleport users
+  - Admin can create custom Kubernetes rolebindings, deploy them in their clusters and use them in their Teleport roles instead of the presets
+  - Admin can scope down read and edit roles to select namespaces or resources by using `kubernmetes_resources` in their roles
