@@ -1,0 +1,73 @@
+suite: Test PodDisruptionBudget
+templates:
+  - pdb.yaml
+
+tests:
+  - it: does not create a PDB by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: creates a PDB if highAvailability.podDisruptionBudget.enabled is set
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - containsDocument:
+          kind: PodDisruptionBudget
+          apiVersion: policy/v1
+          name: RELEASE-NAME-teleport-relay
+      - equal:
+          path: spec.minAvailable
+          value: 1
+  - it: sets the custom minAvailable from the values
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 42
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 42
+
+  - it: selects the deployment pods
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          enabled: true
+    # the selector labels are checked to be in the deployment template in
+    # deployment_test.yaml
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/name: teleport-relay
+
+  - it: includes extraLabels and annotations
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          enabled: true
+      extraLabels:
+        podDisruptionBudget:
+          labelName1: labelValue1
+          labelName2: labelValue2
+      annotations:
+        podDisruptionBudget:
+          annotationName1: annotationValue1
+          annotationName2: annotationValue2
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            labelName1: labelValue1
+            labelName2: labelValue2
+      - equal:
+          path: metadata.annotations
+          value:
+            annotationName1: annotationValue1
+            annotationName2: annotationValue2
