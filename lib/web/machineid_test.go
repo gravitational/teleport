@@ -345,7 +345,7 @@ func TestEditBot(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpoint, botName), updateBotRequest{
+	response, err := pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpoint, botName), updateBotRequestV1{
 		Roles: []string{"new-new-role"},
 	})
 	require.NoError(t, err)
@@ -543,6 +543,71 @@ func TestEditBotMaxSessionTTL(t *testing.T) {
 		},
 	}, updatedBot.GetSpec().Traits)
 	assert.Equal(t, int64((1*time.Hour+2*time.Minute+3*time.Second)/time.Second), updatedBot.GetSpec().GetMaxSessionTtl().GetSeconds())
+}
+
+func TestEditBotDescription(t *testing.T) {
+	ctx := t.Context()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
+	clusterName := env.server.ClusterName()
+	endpointV1 := pack.clt.Endpoint(
+		"v1",
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+	)
+	endpointV3 := pack.clt.Endpoint(
+		"v3",
+		"webapi",
+		"sites",
+		clusterName,
+		"machine-id",
+		"bot",
+	)
+
+	// create a bot named `test-bot-edit`
+	botName := "test-bot-edit"
+	_, err := pack.clt.PostJSON(ctx, endpointV1, CreateBotRequest{
+		BotName: botName,
+		Roles:   []string{"test-role"},
+		Traits: []*machineidv1.Trait{
+			{
+				Name:   "test-trait-1",
+				Values: []string{"value-1"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	response, err := pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpointV1, botName), nil)
+	require.NoError(t, err)
+
+	var createdBot machineidv1.Bot
+	require.NoError(t, json.Unmarshal(response.Bytes(), &createdBot), "invalid response received")
+	assert.Equal(t, int64(43200), createdBot.GetSpec().GetMaxSessionTtl().GetSeconds())
+
+	description := "This is the bot's description."
+	response, err = pack.clt.PutJSON(ctx, fmt.Sprintf("%s/%s", endpointV3, botName), updateBotRequestV3{
+		Description: &description,
+	})
+	require.NoError(t, err)
+
+	var updatedBot machineidv1.Bot
+	require.NoError(t, json.Unmarshal(response.Bytes(), &updatedBot), "invalid response received")
+	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code updating bot")
+	assert.Equal(t, botName, updatedBot.GetMetadata().GetName())
+	assert.Equal(t, []string{"test-role"}, updatedBot.GetSpec().GetRoles())
+	assert.Equal(t, []*machineidv1.Trait{
+		{
+			Name:   "test-trait-1",
+			Values: []string{"value-1"},
+		},
+	}, updatedBot.GetSpec().Traits)
+	assert.Equal(t, int64((12*time.Hour)/time.Second), updatedBot.GetSpec().GetMaxSessionTtl().GetSeconds())
+	assert.Equal(t, description, updatedBot.GetMetadata().GetDescription())
 }
 
 func TestListBotInstances(t *testing.T) {
