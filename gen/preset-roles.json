@@ -1158,6 +1158,18 @@
               "update",
               "delete"
             ]
+          },
+          {
+            "resources": [
+              "cloud_ip_restriction"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
           }
         ]
       },

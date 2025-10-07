@@ -80,6 +80,7 @@ export const allAccessAcl: Acl = {
   accessGraphSettings: fullAccess,
   botInstances: fullAccess,
   workloadIdentity: fullAccess,
+  cloudIpRestriction: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

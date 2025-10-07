@@ -274,4 +274,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getWorkloadIdentityAccess() {
     return this.state.acl.workloadIdentity;
   }
+
+  geCloudIpRestrictionAccess() {
+    return this.state.acl.cloudIpRestriction;
+  }
 }

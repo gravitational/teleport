@@ -124,6 +124,8 @@ type UserACL struct {
 	GitServers ResourceAccess `json:"gitServers"`
 	// WorkloadIdentity defines access to Workload Identity
 	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
+	// CloudIPRestriction defines access to Cloud IP Restrictions
+	CloudIPRestriction ResourceAccess `json:"cloudIpRestriction"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -230,6 +232,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 
 	contact := newAccess(userRoles, ctx, types.KindContact)
 
+	var cloudIPRestrictions ResourceAccess
+	if features.Cloud {
+		cloudIPRestrictions = newAccess(userRoles, ctx, types.KindCloudIPRestriction)
+	}
+
 	return UserACL{
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
@@ -275,5 +282,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		FileTransferAccess:      fileTransferAccess,
 		GitServers:              gitServersAccess,
 		WorkloadIdentity:        workloadIdentity,
+		CloudIPRestriction:      cloudIPRestrictions,
 	}
 }
