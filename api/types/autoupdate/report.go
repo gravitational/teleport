@@ -28,33 +28,79 @@ import (
 )
 
 const (
-	autoUpdateAgentReportTTL = time.Hour
-	maxGroups                = 50
-	maxVersions              = 20
+	autoUpdateReportTTL = time.Hour
+	maxGroups           = 50
+	maxVersions         = 20
 )
 
-// NewAutoUpdateAgentReport creates a new auto update version resource.
+// NewAutoUpdateAgentReport creates a new auto update agent report resource.
 func NewAutoUpdateAgentReport(spec *autoupdate.AutoUpdateAgentReportSpec, authName string) (*autoupdate.AutoUpdateAgentReport, error) {
-	rollout := &autoupdate.AutoUpdateAgentReport{
+	report := &autoupdate.AutoUpdateAgentReport{
 		Kind:    types.KindAutoUpdateAgentReport,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: authName,
 			// Validate will fail later if timestamp is zero
-			Expires: timestamppb.New(spec.GetTimestamp().AsTime().Add(autoUpdateAgentReportTTL)),
+			Expires: timestamppb.New(spec.GetTimestamp().AsTime().Add(autoUpdateReportTTL)),
 		},
 		Spec: spec,
 	}
-	if err := ValidateAutoUpdateAgentReport(rollout); err != nil {
+	if err := ValidateAutoUpdateAgentReport(report); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return rollout, nil
+	return report, nil
 }
 
 // ValidateAutoUpdateAgentReport checks that required parameters are set
 // for the specified AutoUpdateAgentReport.
 func ValidateAutoUpdateAgentReport(v *autoupdate.AutoUpdateAgentReport) error {
+	if v.GetMetadata().GetName() == "" {
+		return trace.BadParameter("Metadata.Name is empty")
+	}
+	if v.Spec == nil {
+		return trace.BadParameter("Spec is nil")
+	}
+
+	if ts := v.GetSpec().GetTimestamp(); ts.GetSeconds() == 0 && ts.GetNanos() == 0 {
+		return trace.BadParameter("Spec.Timestamp is empty or zero")
+	}
+
+	if numGroups := len(v.GetSpec().GetGroups()); numGroups > maxGroups {
+		return trace.BadParameter("Spec.Groups is too large (%d while the max is %d)", numGroups, maxGroups)
+	}
+
+	for groupName, group := range v.GetSpec().GetGroups() {
+		if numVersions := len(group.GetVersions()); numVersions > maxVersions {
+			return trace.BadParameter("group %q has too many versions (%d while the max is %d)", groupName, numVersions, maxVersions)
+		}
+	}
+
+	return nil
+}
+
+// NewAutoUpdateBotInstanceReport creates a new auto update bot instance report resource.
+func NewAutoUpdateBotInstanceReport(spec *autoupdate.AutoUpdateBotInstanceReportSpec) (*autoupdate.AutoUpdateBotInstanceReport, error) {
+	report := &autoupdate.AutoUpdateBotInstanceReport{
+		Kind:    types.KindAutoUpdateBotInstanceReport,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameAutoUpdateBotInstanceReport,
+			// Validate will fail later if timestamp is zero
+			Expires: timestamppb.New(spec.GetTimestamp().AsTime().Add(autoUpdateReportTTL)),
+		},
+		Spec: spec,
+	}
+	if err := ValidateAutoUpdateBotInstanceReport(report); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return report, nil
+}
+
+// ValidateAutoUpdateBotInstanceReport checks that the given bot instance report
+// is well-formed and doesn't exceed limits.
+func ValidateAutoUpdateBotInstanceReport(v *autoupdate.AutoUpdateBotInstanceReport) error {
 	if v.GetMetadata().GetName() == "" {
 		return trace.BadParameter("Metadata.Name is empty")
 	}
