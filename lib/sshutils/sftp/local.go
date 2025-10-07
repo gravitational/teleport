@@ -150,3 +150,7 @@ func (l localFS) RealPath(path string) (string, error) {
 	}
 	return filepath.EvalSymlinks(path)
 }
+
+func (l localFS) Close() error {
+	return nil
+}
