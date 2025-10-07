@@ -2221,3 +2221,27 @@ func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) er
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
+
+type autoUpdateBotInstanceReportCollection struct {
+	report *autoupdatev1pb.AutoUpdateBotInstanceReport
+}
+
+func (c *autoUpdateBotInstanceReportCollection) resources() []types.Resource {
+	return []types.Resource{types.ProtoResource153ToLegacy(c.report)}
+}
+
+func (c *autoUpdateBotInstanceReportCollection) writeText(w io.Writer, _ bool) error {
+	t := asciitable.MakeTable([]string{"Update Group", "Version", "Count"})
+	for groupName, groupMetrics := range c.report.GetSpec().GetGroups() {
+		if groupName == "" {
+			groupName = "<no update group>"
+		}
+		for versionName, versionMetrics := range groupMetrics.GetVersions() {
+			t.AddRow([]string{groupName, versionName, strconv.Itoa(int(versionMetrics.Count))})
+		}
+	}
+	t.SortRowsBy([]int{0, 1}, true)
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
