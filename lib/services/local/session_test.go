@@ -23,13 +23,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 func TestDeleteUserAppSessions(t *testing.T) {
@@ -169,6 +173,85 @@ func TestListAppSessions(t *testing.T) {
 			} else {
 				require.Len(t, sessions, 11)
 			}
+		}
+	}
+}
+
+func TestListSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	identity, err := NewTestIdentityService(backend)
+	require.NoError(t, err)
+
+	users := []string{"alice", "bob"}
+	ctx := context.Background()
+
+	// the default page size is used if the pageSize
+	// provide to ListSnowflakeSessions is 0 || > maxSessionPageSize
+	const useDefaultPageSize = 0
+
+	// Validate no sessions exist
+	sessions, next, err := identity.ListSnowflakeSessions(ctx, useDefaultPageSize, "")
+	require.NoError(t, err)
+	require.Empty(t, sessions)
+	require.Empty(t, next)
+
+	// Create 3 pages worth of sessions. One full
+	// page per user and one partial page with 5
+	// sessions per user.
+	var expected []types.WebSession
+	for range maxSessionPageSize + 5 {
+		for _, user := range users {
+			session, err := types.NewWebSession(uuid.New().String(), types.KindSnowflakeSession, types.WebSessionSpecV2{
+				User:    user,
+				Expires: clock.Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+
+			err = identity.UpsertSnowflakeSession(ctx, session)
+			require.NoError(t, err)
+			expected = append(expected, session)
+		}
+	}
+
+	// Validate page size is truncated to maxSessionPageSize
+	sessions, next, err = identity.ListSnowflakeSessions(ctx, maxSessionPageSize+maxSessionPageSize*2/3, "")
+	require.NoError(t, err)
+	require.Len(t, sessions, maxSessionPageSize)
+	require.NotEmpty(t, next)
+
+	opts := []cmp.Option{
+		cmpopts.SortSlices(func(a, b types.WebSession) bool {
+			return a.GetName() < b.GetName()
+		}),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	}
+
+	sessions, err = stream.Collect(clientutils.Resources(ctx, identity.ListSnowflakeSessions))
+	require.NoError(t, err)
+	require.Len(t, sessions, len(expected))
+	require.Empty(t, cmp.Diff(expected, sessions, opts...))
+
+	// reset token
+	next = ""
+
+	// Validate that sessions are retrieved for all users
+	// with the default page size
+	for {
+		sessions, next, err = identity.ListSnowflakeSessions(ctx, useDefaultPageSize, next)
+		require.NoError(t, err)
+		if next == "" {
+			require.Len(t, sessions, 10)
+			break
+		} else {
+			require.Len(t, sessions, maxSessionPageSize)
 		}
 	}
 }
