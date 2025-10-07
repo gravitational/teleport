@@ -160,6 +160,9 @@ type FileSystem interface {
 	Readlink(name string) (string, error)
 	// Getwd gets the current working directory.
 	Getwd() (string, error)
+	// RealPath canonicalizes a path name, including resolving ".." and
+	// following symlinks.
+	RealPath(path string) (string, error)
 }
 
 // CreateUploadConfig returns a Config ready to upload files over SFTP.
@@ -550,7 +553,7 @@ func (c *Config) transfer(ctx context.Context) error {
 		}
 
 		if fi.IsDir() {
-			if err := c.transferDir(ctx, dstPath, matchedPaths[i], fi); err != nil {
+			if err := c.transferDir(ctx, dstPath, matchedPaths[i], fi, nil); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
@@ -564,10 +567,22 @@ func (c *Config) transfer(ctx context.Context) error {
 }
 
 // transferDir transfers a directory
-func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo, visited map[string]struct{}) error {
+	if visited == nil {
+		visited = make(map[string]struct{})
+	}
+	realSrcPath, err := c.srcFS.RealPath(srcPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, ok := visited[realSrcPath]; ok {
+		c.Log.Debugf("symlink loop detected at link %v, directory %v will be skipped", srcPath, realSrcPath)
+		return nil
+	}
+	visited[realSrcPath] = struct{}{}
 	c.Log.Debugf("copying %s dir %q to %s dir %q", c.srcFS.Type(), srcPath, c.dstFS.Type(), dstPath)
 
-	err := c.dstFS.Mkdir(dstPath)
+	err = c.dstFS.Mkdir(dstPath)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
@@ -585,7 +600,7 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 		lSubPath := path.Join(srcPath, info.Name())
 
 		if info.IsDir() {
-			if err := c.transferDir(ctx, dstSubPath, lSubPath, info); err != nil {
+			if err := c.transferDir(ctx, dstSubPath, lSubPath, info, visited); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
