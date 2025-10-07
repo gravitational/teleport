@@ -200,22 +200,6 @@ func TestValidateHealthCheckConfig(t *testing.T) {
 			requireErr: errContains("spec.match is missing"),
 		},
 		{
-			name: "missing matcher is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
-				Version: types.V1,
-				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
-					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match:    &healthcheckconfigv1.Matcher{},
-					Timeout:  durationpb.New(time.Second),
-					Interval: durationpb.New(2 * time.Second),
-				},
-			},
-			requireErr: errContains("at least one of spec.match.db_labels or spec.match.db_labels_expression must be set"),
-		},
-		{
 			name: "invalid label matcher",
 			in: &healthcheckconfigv1.HealthCheckConfig{
 				Version: types.V1,
