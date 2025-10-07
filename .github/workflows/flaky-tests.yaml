@@ -14,6 +14,7 @@ permissions:
 jobs:
   test:
     name: Flaky Tests Detector
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
