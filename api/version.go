@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.2.4"
+const Version = "18.2.5-dev.staticbkp.1"
 
 const VersionMajor = 18
 const VersionMinor = 2
-const VersionPatch = 4
-const VersionPreRelease = ""
+const VersionPatch = 5
+const VersionPreRelease = "dev.staticbkp.1"
 const VersionMetadata = ""
