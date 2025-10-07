@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	relaytunnelv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -610,7 +609,14 @@ func (c *yamuxClientConn) handleStream(stream *yamux.Stream, handleConnection fu
 		}
 	}
 
-	nc := utils.NewConnWithAddr(stream, dst, src)
+	nc := &yamuxStreamConn{
+		Stream: stream,
+
+		// on this side of the connection we are the destination and the peer is
+		// the source, the tunnel server will do the opposite
+		localAddr:  dst,
+		remoteAddr: src,
+	}
 	handleConnection(nc)
 }
 
