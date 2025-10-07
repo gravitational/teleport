@@ -42,11 +42,12 @@ However, a user who attempts to read the documentation might follow a path that 
 
 The Teleport Downloads page has a similar issue that is actively being addressed.
 
-This RFD proposes that we add one new top-level "Platform" section, with three subsections:
+This RFD proposes that we add one new top-level "Platform" section, with at least two subsections:
 
-1. "Installation"
-2. "Upgrading"
-3. "Operations"
+1. Platform
+   1. Installation
+   2. Upgrading
+   3. (Other sections, e.g., "High Availability" or "Backup & Restore")
 
 These sections would cover all Teleport components.
 Installation sections will cover setup for Managed Updates, and link to more details Upgrading docs where appropriate.
@@ -60,6 +61,9 @@ A complete user story for a Teleport installation workflow may need to involve i
 For example, it is common to configure roles after installing a self-hosted cluster.
 As we cannot repeat these instructions for every combination of component and target platform, we can rely on cross-linking to ensure
 that the user is guided to the correct page regardless of their starting point.
+
+This organizational structure will be especially useful when the installation portion of a workflow may vary significantly on different
+cloud platforms, Linux distributions, etc.
 
 ## Details
 
@@ -151,14 +155,14 @@ The following organization is proposed, nested under a top-level Platform sectio
    2. Upgrading Teleport Client Tools
    3. Upgrading Self-Hosted Teleport Clusters
    4. Upgrading Teleport Plugins & Integrations
-3. Operations - New page, explains what it means to operate Teleport (backups, troubleshooting, specialty config like KMS, multi-region, etc.)
-   1. Operating Teleport Agents
-   2. Operating Teleport Client Tools
-   3. Operating Self-Hosted Teleport Clusters
-   4. Operating Teleport Plugins & Integrations
+3. (Other operational sections) - New pages, explains what it means to operate Teleport (backups, troubleshooting, specialty config like KMS, multi-region, etc.)
+   1. (Operating) Teleport Agents
+   2. (Operating) Teleport Client Tools
+   3. (Operating) Self-Hosted Teleport Clusters
+   4. (Operating) Teleport Plugins & Integrations
 
 Notably, cluster operations that are not handled by Cloud should be included under the marketing-branded sections, not Platform.
-For example, a guide to configuring a cluster to support AWS KMS would be included in Operating Self-Hosted Teleport Clusters, while
+For example, a guide to configuring a cluster to support AWS KMS would be included in Platform -> KMS -> Self-Hosted Teleport Clusters, while
 a guide for getting started with Teleport roles would be included in the "Zero Trust Access" section.
 The only exception to this rule is global, shared configuration that is directly related to platform operations and does not
 fit into the marketing-branded sections. For example, some of the `cluster_*` or `autoupdate_*` resources may be described in Platform.
@@ -181,18 +185,20 @@ Note: these are best understood by opening https://goteleport.com/docs and follo
 - "Introduction -> Installation" moves to "Platform -> Installation"
 - "Introduction -> Upgrading" moves to "Platform -> Upgrading"
 - "Introduction -> Migrate Teleport Plans" moves to "Platform -> Cloud" (tentative)
-- "Zero Trust Access -> Exporting Teleport Audit Events" contains links to "Platform -> Installation -> Installing Teleport Plugins & Integrations -> Event Exporter", and vice-versa
+- Client installation docs present under "User Guides" appear in "Platform -> Installation" as well (or link where more appropriate)
+- "Zero Trust Access -> Exporting Teleport Audit Events" and "Platform -> Installation -> Installing Teleport Plugins & Integrations -> Event Exporter" include the same content or cross-link where appropriate. An Auditing section may be created in ZTA as well.
 - "Zero Trust Access -> Infrastructure as Code -> Teleport Kubernetes Operator" moves to "Platform -> Installation -> Installing Teleport Plugins & Integrations -> Teleport Kubernetes Operator" (install guides only, with cross-linking)
 - "Zero Trust Access -> Cluster management -> Cluster Administration guides -> Uninstall Teleport" moves to "Platform -> Installation" (subsections as appropriate)
 - "Zero Trust Access -> Cluster management -> Cluster Administration guides -> Run Teleport as a Daemon" moves to "Platform -> Installation -> Installing Teleport Agents -> Linux Servers"
-- "Zero Trust Access -> Cluster management" moves to "Platform -> Operations -> Operating Self-Hosted Teleport Clouds"
+- "Zero Trust Access -> Cluster management" moves to "Platform -> (new sections) -> Self-Hosted Teleport Clusters"
 - "Zero Trust Access -> Self-Hosting Teleport -> Guides for running Teleport using Helm" moves to "Platform -> Installation -> Installing Self-Hosted Clusters -> Kubernetes" (many subsections)
-- "Zero Trust Access -> Self-Hosting Teleport" moves to "Platform -> Operations -> Operating Self-Hosted Teleport Clusters" (remaining sections)
+- "Zero Trust Access -> Self-Hosting Teleport" moves to "Platform -> (new sections) -> Self-Hosted Teleport Clusters" (for remaining sections)
 - "Machine & Workload Identity" -> Machine ID -> Deploy tbot" links to "Installation -> Installing Teleport Client Tools -> tbot" (or vice-versa, at MWI team discretion.)
+- "Identity Governance -> Just-in-Time Access Request Plugins" become more discoverable via a link from "Platform -> Installation -> Access Request Plugins" (may move in the future if, e.g., per-OS docs are needed)
 - "Identity Security -> Self-Hosting Teleport Access Graph" moves to "Installation -> Installing Self-Hosted Teleport Clusters -> Access Graph"
 - "Enroll Resources -> Joining Teleport Agents" moves to "Platform -> Installation -> Installing Teleport Agents" (such that Enroll Resources is always use-case driven, and links to Platform -> Installation for Azure, GCP, etc, instructions.)
 
-Marketing-branded sections may link to Installation, Upgrading, or Operations sections where relevant, and vice-versa.
+Marketing-branded sections may link to Installation, Upgrading, or other Platform sections where relevant, and vice-versa.
 
 ### Confusing Workflow Reference
 
