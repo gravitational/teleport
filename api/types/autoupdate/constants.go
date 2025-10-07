@@ -22,6 +22,12 @@ const (
 	// ToolsUpdateModeDisabled disables client tools automatic updates.
 	ToolsUpdateModeDisabled = "disabled"
 
+	// ToolStrategyNoDowngrade is strategy that denies downgrading client tools.
+	ToolStrategyNoDowngrade = "no-downgrade"
+	// ToolStrategyIgnoreMajorDowngrade is strategy that denies to downgrade
+	// if major version is changed.
+	ToolStrategyIgnoreMajorDowngrade = "ignore-major-downgrade"
+
 	// AgentsUpdateModeEnabled enabled agent automatic updates.
 	AgentsUpdateModeEnabled = "enabled"
 	// AgentsUpdateModeDisabled disables agent automatic updates.

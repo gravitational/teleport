@@ -45,9 +45,9 @@ import (
 )
 
 var (
-	// ErrNoBaseURL is returned when `TELEPORT_CDN_BASE_URL` must be set
-	// in order to proceed with managed updates.
-	ErrNoBaseURL = errors.New("baseURL is not defined")
+	// ErrCancelUpdate is general error for canceling update without breaking
+	// execution.
+	ErrCancelUpdate = errors.New("client tools update is canceled")
 	// ErrVersionCheck is returned when the downloaded version fails
 	// to execute for version identification.
 	ErrVersionCheck = errors.New("version check failed")
@@ -211,7 +211,7 @@ func teleportPackageURLs(ctx context.Context, uriTmpl string, baseURL, requested
 	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
 	if m.BuildType() == modules.BuildOSS && envBaseURL == "" {
 		slog.WarnContext(ctx, "Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
-		return nil, ErrNoBaseURL
+		return nil, ErrCancelUpdate
 	}
 
 	var flags autoupdate.InstallFlags
