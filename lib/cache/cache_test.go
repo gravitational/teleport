@@ -3631,6 +3631,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAutoUpdateVersion:                 types.Resource153ToLegacy(newAutoUpdateVersion(t)),
 		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
 		types.KindAutoUpdateAgentReport:             types.Resource153ToLegacy(newAutoUpdateAgentReport(t, "test")),
+		types.KindAutoUpdateBotInstanceReport:       types.Resource153ToLegacy(newAutoUpdateBotInstanceReport(t)),
 		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
 		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
@@ -4248,6 +4249,35 @@ func newAutoUpdateAgentReport(t *testing.T, name string) *autoupdate.AutoUpdateA
 	}, name)
 	require.NoError(t, err)
 	return r
+}
+
+func newAutoUpdateBotInstanceReport(t *testing.T) *autoupdate.AutoUpdateBotInstanceReport {
+	t.Helper()
+
+	return &autoupdate.AutoUpdateBotInstanceReport{
+		Kind:    types.KindAutoUpdateBotInstanceReport,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameAutoUpdateBotInstanceReport,
+		},
+		Spec: &autoupdate.AutoUpdateBotInstanceReportSpec{
+			Timestamp: timestamppb.Now(),
+			Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
+				"foo": {
+					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
+						"1.2.3": {Count: 1},
+						"1.2.4": {Count: 2},
+					},
+				},
+				"bar": {
+					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
+						"2.3.4": {Count: 3},
+						"2.3.5": {Count: 4},
+					},
+				},
+			},
+		},
+	}
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

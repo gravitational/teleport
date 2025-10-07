@@ -88,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
@@ -725,6 +726,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	as.RegisterLoginHook(as.ulsGenerator.LoginHook(services.UserLoginStates))
 
+	as.botVersionReporter, err = machineidv1.NewAutoUpdateVersionReporter(machineidv1.AutoUpdateVersionReporterConfig{
+		Clock: cfg.Clock,
+		Logger: as.logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentAuth, "bot-version-reporter"),
+		),
+		Semaphores: as,
+		HostUUID:   cfg.HostUUID,
+		Store:      as,
+		Cache:      as.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := as.botVersionReporter.Run(as.CloseContext()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if _, ok := as.getCache(); !ok {
 		log.Warn("Auth server starting without cache (may have negative performance implications).")
 	}
@@ -1196,6 +1214,10 @@ type Server struct {
 
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
+
+	// botVersionReporter is called periodically to generate a report of the
+	// number of bot instances by version and update group.
+	botVersionReporter *machineidv1.AutoUpdateVersionReporter
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1440,6 +1462,7 @@ const (
 	roleCountKey
 	accessListReminderNotificationsKey
 	autoUpdateAgentReportKey
+	autoUpdateBotInstanceReportKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1534,6 +1557,12 @@ func (a *Server) runPeriodicOperations() {
 			Duration:      constants.AutoUpdateAgentReportPeriod,
 			FirstDuration: retryutils.FullJitter(constants.AutoUpdateAgentReportPeriod),
 			// No jitter here, this is intentional and required for accurate tracking across auths.
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateBotInstanceReportKey,
+			Duration:      constants.AutoUpdateAgentReportPeriod,
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
 		})
 	}
 
@@ -1661,6 +1690,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
 			case autoUpdateAgentReportKey:
 				go a.reportAgentVersions(a.closeCtx)
+			case autoUpdateBotInstanceReportKey:
+				go a.botVersionReporter.Report(a.closeCtx)
 			}
 		}
 	}

@@ -51,11 +51,12 @@ type collectionHandler interface {
 type collections struct {
 	byKind map[resourceKind]collectionHandler
 
-	botInstances      *collection[*machineidv1.BotInstance, botInstanceIndex]
-	remoteClusters    *collection[types.RemoteCluster, remoteClusterIndex]
-	plugins           *collection[types.Plugin, pluginIndex]
-	autoUpdateReports *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
-	workloadIdentity  *collection[*workloadidentityv1.WorkloadIdentity, workloadIdentityIndex]
+	botInstances                 *collection[*machineidv1.BotInstance, botInstanceIndex]
+	remoteClusters               *collection[types.RemoteCluster, remoteClusterIndex]
+	plugins                      *collection[types.Plugin, pluginIndex]
+	autoUpdateAgentReports       *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
+	autoUpdateBotInstanceReports *collection[*autoupdatev1.AutoUpdateBotInstanceReport, autoUpdateBotInstanceReportIndex]
+	workloadIdentity             *collection[*workloadidentityv1.WorkloadIdentity, workloadIdentityIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -99,8 +100,16 @@ func setupCollections(c Config, legacyCollections map[resourceKind]legacyCollect
 				return nil, trace.Wrap(err)
 			}
 
-			out.autoUpdateReports = collect
-			out.byKind[resourceKind] = out.autoUpdateReports
+			out.autoUpdateAgentReports = collect
+			out.byKind[resourceKind] = out.autoUpdateAgentReports
+		case types.KindAutoUpdateBotInstanceReport:
+			collect, err := newAutoUpdateBotInstanceReportCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateBotInstanceReports = collect
+			out.byKind[resourceKind] = out.autoUpdateBotInstanceReports
 		case types.KindRemoteCluster:
 			collect, err := newRemoteClusterCollection(c.Trust, watch)
 			if err != nil {

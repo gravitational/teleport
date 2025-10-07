@@ -55,6 +55,9 @@ type Cache interface {
 
 	// ListAutoUpdateAgentReports lists all AutoUpdateAgentReport from the backend.
 	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
+
+	// GetAutoUpdateBotInstanceReport gets the singleton AutoUpdateBotInstanceReport from the backend.
+	GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdate.AutoUpdateBotInstanceReport, error)
 }
 
 // ServiceConfig holds configuration options for the auto update gRPC service.
@@ -1037,6 +1040,56 @@ func (s *Service) DeleteAutoUpdateAgentReport(ctx context.Context, req *autoupda
 	}
 
 	if err := s.backend.DeleteAutoUpdateAgentReport(ctx, req.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// GetAutoUpdateBotInstanceReport gets the singleton AutoUpdateBotInstanceReport.
+func (s *Service) GetAutoUpdateBotInstanceReport(ctx context.Context, _ *autoupdate.GetAutoUpdateBotInstanceReportRequest) (*autoupdate.AutoUpdateBotInstanceReport, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateBotInstanceReport, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	report, err := s.backend.GetAutoUpdateBotInstanceReport(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return report, nil
+}
+
+// DeleteAutoUpdateBotInstanceReport gets the singleton AutoUpdateBotInstanceReport.
+func (s *Service) DeleteAutoUpdateBotInstanceReport(ctx context.Context, _ *autoupdate.DeleteAutoUpdateBotInstanceReportRequest) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing an agent report is restricted to cluster administrators.
+	// As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
+	// a first class citizen, we'll want to update this permission check.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateBotInstanceReport, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteAutoUpdateBotInstanceReport(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil

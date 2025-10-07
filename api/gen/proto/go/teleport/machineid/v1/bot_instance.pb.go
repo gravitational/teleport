@@ -23,6 +23,7 @@ package machineidv1
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -224,7 +225,14 @@ type BotInstanceStatusHeartbeat struct {
 	// runtime.GOARCH.
 	Architecture string `protobuf:"bytes,8,opt,name=architecture,proto3" json:"architecture,omitempty"`
 	// The OS of the host that `tbot` is running on, determined by runtime.GOOS.
-	Os            string `protobuf:"bytes,9,opt,name=os,proto3" json:"os,omitempty"`
+	Os string `protobuf:"bytes,9,opt,name=os,proto3" json:"os,omitempty"`
+	// Identifies the external updater process.
+	ExternalUpdater string `protobuf:"bytes,10,opt,name=external_updater,json=externalUpdater,proto3" json:"external_updater,omitempty"`
+	// Identifies the external updated version. Empty if no updater is configured.
+	ExternalUpdaterVersion string `protobuf:"bytes,11,opt,name=external_updater_version,json=externalUpdaterVersion,proto3" json:"external_updater_version,omitempty"`
+	// Information provided by the external updater, including the update group
+	// and updater status.
+	UpdaterInfo   *types.UpdaterV2Info `protobuf:"bytes,12,opt,name=updater_info,json=updaterInfo,proto3" json:"updater_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -320,6 +328,27 @@ func (x *BotInstanceStatusHeartbeat) GetOs() string {
 		return x.Os
 	}
 	return ""
+}
+
+func (x *BotInstanceStatusHeartbeat) GetExternalUpdater() string {
+	if x != nil {
+		return x.ExternalUpdater
+	}
+	return ""
+}
+
+func (x *BotInstanceStatusHeartbeat) GetExternalUpdaterVersion() string {
+	if x != nil {
+		return x.ExternalUpdaterVersion
+	}
+	return ""
+}
+
+func (x *BotInstanceStatusHeartbeat) GetUpdaterInfo() *types.UpdaterV2Info {
+	if x != nil {
+		return x.UpdaterInfo
+	}
+	return nil
 }
 
 // BotInstanceStatusAuthentication contains information about a join or renewal.
@@ -513,7 +542,7 @@ var File_teleport_machineid_v1_bot_instance_proto protoreflect.FileDescriptor
 
 const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/machineid/v1/bot_instance.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\x1a-teleport/workloadidentity/v1/join_attrs.proto\"\x8e\x02\n" +
+	"(teleport/machineid/v1/bot_instance.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\x1a!teleport/legacy/types/types.proto\x1a-teleport/workloadidentity/v1/join_attrs.proto\"\x8e\x02\n" +
 	"\vBotInstance\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -525,7 +554,7 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
 	"instanceId\x120\n" +
-	"\x14previous_instance_id\x18\x04 \x01(\tR\x12previousInstanceIdJ\x04\b\x03\x10\x04R\x03ttl\"\xd1\x02\n" +
+	"\x14previous_instance_id\x18\x04 \x01(\tR\x12previousInstanceIdJ\x04\b\x03\x10\x04R\x03ttl\"\xef\x03\n" +
 	"\x1aBotInstanceStatusHeartbeat\x12;\n" +
 	"\vrecorded_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"recordedAt\x12\x1d\n" +
@@ -538,7 +567,11 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"joinMethod\x12\x19\n" +
 	"\bone_shot\x18\a \x01(\bR\aoneShot\x12\"\n" +
 	"\farchitecture\x18\b \x01(\tR\farchitecture\x12\x0e\n" +
-	"\x02os\x18\t \x01(\tR\x02os\"\xf7\x02\n" +
+	"\x02os\x18\t \x01(\tR\x02os\x12)\n" +
+	"\x10external_updater\x18\n" +
+	" \x01(\tR\x0fexternalUpdater\x128\n" +
+	"\x18external_updater_version\x18\v \x01(\tR\x16externalUpdaterVersion\x127\n" +
+	"\fupdater_info\x18\f \x01(\v2\x14.types.UpdaterV2InfoR\vupdaterInfo\"\xf7\x02\n" +
 	"\x1fBotInstanceStatusAuthentication\x12E\n" +
 	"\x10authenticated_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x0fauthenticatedAt\x12\x1f\n" +
 	"\vjoin_method\x18\x02 \x01(\tR\n" +
@@ -581,8 +614,9 @@ var file_teleport_machineid_v1_bot_instance_proto_goTypes = []any{
 	(*v1.Metadata)(nil),                     // 5: teleport.header.v1.Metadata
 	(*timestamppb.Timestamp)(nil),           // 6: google.protobuf.Timestamp
 	(*durationpb.Duration)(nil),             // 7: google.protobuf.Duration
-	(*structpb.Struct)(nil),                 // 8: google.protobuf.Struct
-	(*v11.JoinAttrs)(nil),                   // 9: teleport.workloadidentity.v1.JoinAttrs
+	(*types.UpdaterV2Info)(nil),             // 8: types.UpdaterV2Info
+	(*structpb.Struct)(nil),                 // 9: google.protobuf.Struct
+	(*v11.JoinAttrs)(nil),                   // 10: teleport.workloadidentity.v1.JoinAttrs
 }
 var file_teleport_machineid_v1_bot_instance_proto_depIdxs = []int32{
 	5,  // 0: teleport.machineid.v1.BotInstance.metadata:type_name -> teleport.header.v1.Metadata
@@ -590,18 +624,19 @@ var file_teleport_machineid_v1_bot_instance_proto_depIdxs = []int32{
 	4,  // 2: teleport.machineid.v1.BotInstance.status:type_name -> teleport.machineid.v1.BotInstanceStatus
 	6,  // 3: teleport.machineid.v1.BotInstanceStatusHeartbeat.recorded_at:type_name -> google.protobuf.Timestamp
 	7,  // 4: teleport.machineid.v1.BotInstanceStatusHeartbeat.uptime:type_name -> google.protobuf.Duration
-	6,  // 5: teleport.machineid.v1.BotInstanceStatusAuthentication.authenticated_at:type_name -> google.protobuf.Timestamp
-	8,  // 6: teleport.machineid.v1.BotInstanceStatusAuthentication.metadata:type_name -> google.protobuf.Struct
-	9,  // 7: teleport.machineid.v1.BotInstanceStatusAuthentication.join_attrs:type_name -> teleport.workloadidentity.v1.JoinAttrs
-	3,  // 8: teleport.machineid.v1.BotInstanceStatus.initial_authentication:type_name -> teleport.machineid.v1.BotInstanceStatusAuthentication
-	3,  // 9: teleport.machineid.v1.BotInstanceStatus.latest_authentications:type_name -> teleport.machineid.v1.BotInstanceStatusAuthentication
-	2,  // 10: teleport.machineid.v1.BotInstanceStatus.initial_heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
-	2,  // 11: teleport.machineid.v1.BotInstanceStatus.latest_heartbeats:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	8,  // 5: teleport.machineid.v1.BotInstanceStatusHeartbeat.updater_info:type_name -> types.UpdaterV2Info
+	6,  // 6: teleport.machineid.v1.BotInstanceStatusAuthentication.authenticated_at:type_name -> google.protobuf.Timestamp
+	9,  // 7: teleport.machineid.v1.BotInstanceStatusAuthentication.metadata:type_name -> google.protobuf.Struct
+	10, // 8: teleport.machineid.v1.BotInstanceStatusAuthentication.join_attrs:type_name -> teleport.workloadidentity.v1.JoinAttrs
+	3,  // 9: teleport.machineid.v1.BotInstanceStatus.initial_authentication:type_name -> teleport.machineid.v1.BotInstanceStatusAuthentication
+	3,  // 10: teleport.machineid.v1.BotInstanceStatus.latest_authentications:type_name -> teleport.machineid.v1.BotInstanceStatusAuthentication
+	2,  // 11: teleport.machineid.v1.BotInstanceStatus.initial_heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
+	2,  // 12: teleport.machineid.v1.BotInstanceStatus.latest_heartbeats:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_teleport_machineid_v1_bot_instance_proto_init() }
