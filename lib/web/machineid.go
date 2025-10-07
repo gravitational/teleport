@@ -547,11 +547,15 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 		return nil, trace.Wrap(err)
 	}
 
-	// If no report is available yet, we return a NotFound error.
+	rsp := BotInstanceMetricsResponse{
+		RefreshAfterSeconds: int(constants.AutoUpdateBotInstanceReportPeriod.Seconds()),
+	}
+
+	// If no report is available yet, `UpgradeStatuses` will be nil.
 	report, err := clt.GetAutoUpdateBotInstanceReport(ctx)
 	switch {
 	case trace.IsNotFound(err):
-		return nil, trace.NotFound("Bot instance metrics are not yet ready")
+		return rsp, nil
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
@@ -575,7 +579,7 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 
 	const versionField = "status.latest_heartbeat.version"
 
-	statuses := BotInstanceUpgradeStatuses{
+	rsp.UpgradeStatuses = &BotInstanceUpgradeStatuses{
 		UpdatedAt: report.GetSpec().GetTimestamp().AsTime(),
 		UpToDate: BotInstanceUpgradeStatus{
 			Filter: fmt.Sprintf("%[1]s == %[2]q", versionField, targetVersion),
@@ -621,25 +625,25 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 			switch {
 			case targetVersion.Equal(*version):
 				// Bot is up to date.
-				statuses.UpToDate.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.UpToDate.Count += int(versionMetrics.Count)
 
 			case targetVersion.LessThan(*version):
 				// Bot is running a newer version, we don't support this.
-				statuses.Unsupported.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.Unsupported.Count += int(versionMetrics.Count)
 
 			case targetVersion.Major == version.Major:
 				// Bot is running the right major version, but there's a minor
 				// or patch update available
-				statuses.PatchAvailable.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.PatchAvailable.Count += int(versionMetrics.Count)
 
 			case version.Major == targetVersion.Major-1:
 				// Bot is running the previous major version and should upgrade.
-				statuses.RequiresUpgrade.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.RequiresUpgrade.Count += int(versionMetrics.Count)
 
 			case version.Major < targetVersion.Major-1:
 				// Bot is running a version that is too old. In this case, the
 				// connection would be terminated so we shouldn't really see it.
-				statuses.Unsupported.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.Unsupported.Count += int(versionMetrics.Count)
 
 			default:
 				// The branches of this switch should be exhaustive, but just in case!
@@ -651,11 +655,7 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 			}
 		}
 	}
-
-	return BotInstanceMetricsResponse{
-		RefreshAfterSeconds: int(constants.AutoUpdateBotInstanceReportPeriod.Seconds()),
-		UpgradeStatuses:     statuses,
-	}, nil
+	return rsp, nil
 }
 
 type BotInstanceMetricsResponse struct {
@@ -664,7 +664,7 @@ type BotInstanceMetricsResponse struct {
 	RefreshAfterSeconds int `json:"refresh_after_seconds"`
 
 	// UpgradeStatuses contains instance counts by "upgrade status".
-	UpgradeStatuses BotInstanceUpgradeStatuses `json:"upgrade_statuses"`
+	UpgradeStatuses *BotInstanceUpgradeStatuses `json:"upgrade_statuses"`
 }
 
 type BotInstanceUpgradeStatuses struct {

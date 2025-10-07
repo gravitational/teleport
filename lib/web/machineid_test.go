@@ -1268,12 +1268,16 @@ func TestBotInstanceMetrics_NotFound(t *testing.T) {
 	pack := env.proxies[0].authPack(t, "admin", []types.Role{services.NewPresetEditorRole()})
 	clusterName := env.server.ClusterName()
 
-	// No report yet should return a NotFound.
+	// No report yet should return an empty `UpgradeStatuses`.
 	endpoint := pack.clt.Endpoint(
 		"webapi", "sites", clusterName, "machine-id", "bot-instance", "metrics",
 	)
-	_, err := pack.clt.Get(ctx, endpoint, url.Values{})
-	require.True(t, trace.IsNotFound(err))
+	rsp, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var body BotInstanceMetricsResponse
+	require.NoError(t, json.Unmarshal(rsp.Bytes(), &body))
+	require.Nil(t, body.UpgradeStatuses)
 }
 
 func TestBotInstanceMetrics_Success(t *testing.T) {
