@@ -3166,7 +3166,7 @@ func (c *Client) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdat
 // DeleteAutoUpdateBotInstanceReport deletes the singleton auto-update bot instance report.
 func (c *Client) DeleteAutoUpdateBotInstanceReport(ctx context.Context) error {
 	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	_, err := client.GetAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.GetAutoUpdateBotInstanceReportRequest{})
+	_, err := client.DeleteAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.DeleteAutoUpdateBotInstanceReportRequest{})
 	return trace.Wrap(err)
 }
 
