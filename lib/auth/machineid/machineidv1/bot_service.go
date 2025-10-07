@@ -527,6 +527,10 @@ func (bs *BotService) UpdateBot(
 			opts := role.GetOptions()
 			opts.MaxSessionTTL = types.Duration(req.Bot.Spec.MaxSessionTtl.AsDuration())
 			role.SetOptions(opts)
+		case "metadata.description":
+			meta := user.GetMetadata()
+			meta.Description = req.Bot.Metadata.Description
+			user.SetMetadata(meta)
 		default:
 			return nil, trace.BadParameter("update_mask: unsupported path %q", path)
 		}
