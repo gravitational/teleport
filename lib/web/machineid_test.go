@@ -39,6 +39,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -1298,22 +1299,24 @@ func TestBotInstanceMetrics_Success(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	err = env.server.Auth().
-		SetAutoUpdateBotInstanceReport(ctx, &autoupdate.AutoUpdateBotInstanceReportSpec{
-			Timestamp: timestamppb.New(env.clock.Now()),
-			Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
-				"prod": {
-					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
-						"19.1.1":     {Count: 1},      // Up to date
-						"19.2.0":     {Count: 10},     // Unsupported (too new)
-						"19.1.0":     {Count: 100},    // Patch available
-						"19.0.0-rc1": {Count: 1000},   // Patch available
-						"18.0.0":     {Count: 10000},  // Requires upgrade
-						"17.0.0":     {Count: 100000}, // Unsupported (too old)
-					},
+	report, err := update.NewAutoUpdateBotInstanceReport(&autoupdate.AutoUpdateBotInstanceReportSpec{
+		Timestamp: timestamppb.New(env.clock.Now()),
+		Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
+			"prod": {
+				Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
+					"19.1.1":     {Count: 1},      // Up to date
+					"19.2.0":     {Count: 10},     // Unsupported (too new)
+					"19.1.0":     {Count: 100},    // Patch available
+					"19.0.0-rc1": {Count: 1000},   // Patch available
+					"18.0.0":     {Count: 10000},  // Requires upgrade
+					"17.0.0":     {Count: 100000}, // Unsupported (too old)
 				},
 			},
-		})
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertAutoUpdateBotInstanceReport(ctx, report)
 	require.NoError(t, err)
 
 	endpoint := pack.clt.Endpoint(
