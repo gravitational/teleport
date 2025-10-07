@@ -357,3 +357,8 @@ func (s *AutoUpdateService) UpsertAutoUpdateBotInstanceReport(ctx context.Contex
 	report, err := s.botInstanceReport.UpsertResource(ctx, report)
 	return report, trace.Wrap(err)
 }
+
+// DeleteAutoUpdateBotInstanceReport deletes the singleton auto-update bot instance report.
+func (s *AutoUpdateService) DeleteAutoUpdateBotInstanceReport(ctx context.Context) error {
+	return trace.Wrap(s.botInstanceReport.DeleteResource(ctx, types.MetaNameAutoUpdateBotInstanceReport))
+}

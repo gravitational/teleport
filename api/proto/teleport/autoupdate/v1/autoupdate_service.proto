@@ -99,6 +99,9 @@ service AutoUpdateService {
 
   // GetAutoUpdateBotInstanceReport returns the singleton AutoUpdateBotInstanceReport resource.
   rpc GetAutoUpdateBotInstanceReport(GetAutoUpdateBotInstanceReportRequest) returns (AutoUpdateBotInstanceReport);
+
+  // DeleteAutoUpdateBotInstanceReport removes the singleton AutoUpdateBotInstanceReport resource.
+  rpc DeleteAutoUpdateBotInstanceReport(DeleteAutoUpdateBotInstanceReportRequest) returns (google.protobuf.Empty);
 }
 
 // Request for GetAutoUpdateConfig.
@@ -243,3 +246,6 @@ message DeleteAutoUpdateAgentReportRequest {
 
 // Request for GetAutoUpdateBotInstanceReport.
 message GetAutoUpdateBotInstanceReportRequest {}
+
+// Request for DeleteAutoUpdateBotInstanceReport.
+message DeleteAutoUpdateBotInstanceReportRequest {}

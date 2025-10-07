@@ -1066,6 +1066,38 @@ func (s *Service) GetAutoUpdateBotInstanceReport(ctx context.Context, _ *autoupd
 	return report, nil
 }
 
+// DeleteAutoUpdateBotInstanceReport gets the singleton AutoUpdateBotInstanceReport.
+func (s *Service) DeleteAutoUpdateBotInstanceReport(ctx context.Context, _ *autoupdate.DeleteAutoUpdateBotInstanceReportRequest) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Editing an agent report is restricted to cluster administrators.
+	// As of today we don't have any way of having
+	// resources that can only be edited by Teleport Cloud (when running cloud-hosted).
+	// The workaround is to check if the caller has the auth/admin system role.
+	// This is not ideal as it forces local tctl usage and can be bypassed if the user is very creative.
+	// In the future, if we expand the permission system and make cloud
+	// a first class citizen, we'll want to update this permission check.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAuth)) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+		return nil, trace.AccessDenied("this request can be only executed by an auth server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateBotInstanceReport, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteAutoUpdateBotInstanceReport(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
 	if err := s.emitter.EmitAuditEvent(ctx, e); err != nil {
 		slog.WarnContext(ctx, "Failed to emit audit event",
