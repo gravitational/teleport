@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -2224,7 +2223,7 @@ func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) er
 }
 
 type autoUpdateBotInstanceReportCollection struct {
-	report *autoupdate.AutoUpdateBotInstanceReport
+	report *autoupdatev1pb.AutoUpdateBotInstanceReport
 }
 
 func (c *autoUpdateBotInstanceReportCollection) resources() []types.Resource {
