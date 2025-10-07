@@ -45,51 +45,80 @@ final class DeviceTrust: DeviceTrustP {
     let cred = try DeviceKey.getOrCreate()
     print("\(cred)")
 
-    let request = Teleport_Devicetrust_V1_PingRequest()
-    print("Sending ping")
-    let response = await client.ping(request: request, headers: [:])
-    print("Got ping response: \(response)")
-    return
+//    let request = Teleport_Devicetrust_V1_PingRequest()
+//    print("Sending ping")
+//    let response = await client.ping(request: request, headers: [:])
+//    print("Got ping response: \(response)")
+//    return
 
+    print("Starting a stream")
     let stream = client.enrollDevice()
 
-    try stream
-      .send(Teleport_Devicetrust_V1_EnrollDeviceRequest
-        .with { $0.init_p = Teleport_Devicetrust_V1_EnrollDeviceInit.with {
-          $0.deviceData = cd
-          $0.credentialID = cred.id
-          $0.macos = Teleport_Devicetrust_V1_MacOSEnrollPayload.with {
-            $0.publicKeyDer = cred.publicKeyDer
-          }
-        } })
-//
-//    print("Starting a stream")
-//    let stream = client.enrollDevice(headers: [:])
-//    do {
-//      print("Sending a message over the stream")
-//      try stream
-//        .send(Teleport_Devicetrust_V1_EnrollDeviceRequest
-//          .with { $0.init_p = Teleport_Devicetrust_V1_EnrollDeviceInit() })
-//      print("Sent a message over the stream")
-//    } catch {
-//      print("Failed to send a message over the stream: \(error)")
-//      return
-//    }
-//
-//    var streamMessage: Teleport_Devicetrust_V1_EnrollDeviceResponse?
-//    print("Waiting for message from the stream")
-//    resultsLoop: for await result in stream.results() {
-//      switch result {
-//      case let .message(message):
-//        streamMessage = message
-//        break resultsLoop
-//      case let .complete(code, error, _):
-//        print("Stream ended with code: \(code), error: \(error?.localizedDescription ?? "none")")
-//      default: ()
-//      }
-//    }
-//    print("Got message: \(streamMessage, default: "no message")")
+    do {
+      print("Sending a message over the stream")
+      try stream
+        .send(Teleport_Devicetrust_V1_EnrollDeviceRequest
+          .with { $0.init_p = Teleport_Devicetrust_V1_EnrollDeviceInit.with {
+            $0.deviceData = cd
+            $0.credentialID = cred.id
+            $0.macos = Teleport_Devicetrust_V1_MacOSEnrollPayload.with {
+              $0.publicKeyDer = cred.publicKeyDer
+            }
+          } })
+      print("Sent a message over the stream")
+    } catch {
+      print("Failed to send a message over the stream: \(error)")
+      return
+    }
+
+    let response = try await getSingleMessage(stream).get()
+    print("Got message: \(response)")
   }
+}
+
+enum StreamError: Error, LocalizedError {
+  case endOfStream
+  case error(Code, Error?)
+  case noMessage
+
+  public var errorDescription: String? {
+    switch self {
+    case .endOfStream:
+      return "end of stream"
+    case let .error(code, error):
+      if let error {
+        if let message = (error as? ConnectError)?.message {
+          return message
+        }
+        return "stream ended with error (code \(code)): \(error)"
+      }
+      return "stream ended (code \(code))"
+    case .noMessage:
+      return "stream did not return a message"
+    }
+  }
+}
+
+func getSingleMessage<Request, Response>(_ stream: any BidirectionalAsyncStreamInterface<
+  Request,
+  Response
+>) async -> Result<Response, StreamError> {
+  for await result in stream.results() {
+    switch result {
+    case let .message(message):
+      return .success(message)
+    case let .complete(code, error, _):
+      if code == .ok {
+        return .failure(.endOfStream)
+      }
+      return .failure(.error(code, error))
+    case .headers:
+      // Ignore headers.
+      break
+    }
+  }
+
+  return .failure(.noMessage)
 }
 
 func collectDeviceData() -> Teleport_Devicetrust_V1_DeviceCollectedData {

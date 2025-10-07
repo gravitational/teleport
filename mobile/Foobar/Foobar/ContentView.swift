@@ -229,6 +229,7 @@ struct ScannedURLView: View {
               enrollAttempt = .loading
               Task {
                 do {
+                  // TODO: Cancel this somehow?
                   try await deviceTrust.enrollDevice(
                     hostname: deepURL.url.hostname,
                     port: deepURL.url.port,
@@ -263,7 +264,7 @@ struct ScannedURLView: View {
           Spacer()
           if case let .failure(.unknownError(error)) = enrollAttempt {
             Text("Could not enroll this device").font(.headline)
-            Text("\(error.localizedDescription)")
+            Text("There was an error: \(error.localizedDescription)")
           } else {
             Text("Do you want to enroll this device?").font(.headline)
             Text("""
