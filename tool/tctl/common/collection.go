@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -2217,6 +2218,30 @@ func (c *scopedRoleAssignmentCollection) writeText(w io.Writer, verbose bool) er
 	}
 
 	t := asciitable.MakeTable(headers, rows...)
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoUpdateBotInstanceReportCollection struct {
+	report *autoupdate.AutoUpdateBotInstanceReport
+}
+
+func (c *autoUpdateBotInstanceReportCollection) resources() []types.Resource {
+	return []types.Resource{types.ProtoResource153ToLegacy(c.report)}
+}
+
+func (c *autoUpdateBotInstanceReportCollection) writeText(w io.Writer, _ bool) error {
+	t := asciitable.MakeTable([]string{"Update Group", "Version", "Count"})
+	for groupName, groupMetrics := range c.report.GetSpec().GetGroups() {
+		if groupName == "" {
+			groupName = "<no update group>"
+		}
+		for versionName, versionMetrics := range groupMetrics.GetVersions() {
+			t.AddRow([]string{groupName, versionName, strconv.Itoa(int(versionMetrics.Count))})
+		}
+	}
+	t.SortRowsBy([]int{0, 1}, true)
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
