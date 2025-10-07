@@ -675,6 +675,9 @@ const (
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
 
+	// KindCloudIPRestriction is the resource kind of a Cloud IP Restriction.
+	KindCloudIPRestriction = "cloud_ip_restriction"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
