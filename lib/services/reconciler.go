@@ -129,6 +129,8 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context) error {
 		}
 	}
 
+	// TODO(zmb3): with a large number of resources, this can return a lengthy
+	// error message that is difficult to parse
 	return trace.NewAggregate(errs...)
 }
 
@@ -146,6 +148,10 @@ func (r *Reconciler[T]) processRegisteredResource(ctx context.Context, newResour
 	}
 	r.log.Infof("%v %v removed, deleting.", kind, name)
 	if err := r.cfg.OnDelete(ctx, registered); err != nil {
+		if trace.IsNotFound(err) {
+			r.log.WithError(err).Tracef("Failed to delete %v %v", kind, name)
+			return nil
+		}
 		return trace.Wrap(err, "failed to delete  %v %v", kind, name)
 	}
 
@@ -204,6 +210,10 @@ func (r *Reconciler[T]) processNewResource(ctx context.Context, currentResources
 		}
 		r.log.Infof("%v %v updated and no longer matches, deleting.", kind, name)
 		if err := r.cfg.OnDelete(ctx, registered); err != nil {
+			if trace.IsNotFound(err) {
+				r.log.WithError(err).Tracef("Failed to delete %v %v", kind, name)
+				return nil
+			}
 			return trace.Wrap(err, "failed to delete %v %v", kind, name)
 		}
 		return nil
