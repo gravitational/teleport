@@ -271,4 +271,4 @@ initial custom setups that skipped the provided provisioning scripts.
   - users from each team can access their Kubernetes clusters
 - Day 2 - More granular access, advanced Teleport users
   - Admin can create custom Kubernetes rolebindings, deploy them in their clusters and use them in their Teleport roles instead of the presets
-  - Admin can scope down read and edit roles to select namespaces or resources by using `kubernmetes_resources` in their roles
+  - Admin can scope down read and edit roles to select namespaces or resources by using `kubernetes_resources` in their roles
