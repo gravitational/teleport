@@ -36,6 +36,10 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 		return trace.BadParameter("ResourceID must include Name")
 	}
 
+	if id.Constraints != nil && id.SubResourceName != "" {
+		return trace.BadParameter("ResourceID must not include both Constraints and SubResourceName")
+	}
+
 	// TODO(@creack): DELETE IN v20.0.0. Here to maintain backwards compatibility with older clients.
 	if id.Kind != KindKubeNamespace && slices.Contains(KubernetesResourcesKinds, id.Kind) {
 		apiGroup := KubernetesResourcesV7KindGroups[id.Kind]
@@ -84,19 +88,32 @@ func (id *ResourceID) validateK8sSubResource() error {
 }
 
 // ResourceIDToString marshals a ResourceID to a string.
-func ResourceIDToString(id ResourceID) string {
-	if id.SubResourceName == "" {
-		return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
+func ResourceIDToString(id ResourceID) (string, error) {
+	if id.Constraints != nil {
+		if id.SubResourceName != "" {
+			return "", trace.BadParameter("cannot marshal ResourceID with both Constraints and SubResourceName set")
+		}
+		return resourceIDWithConstraintsToString(id)
 	}
-	return fmt.Sprintf("/%s/%s/%s/%s", id.ClusterName, id.Kind, id.Name, id.SubResourceName)
+
+	if id.SubResourceName == "" {
+		return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name), nil
+	}
+	return fmt.Sprintf("/%s/%s/%s/%s", id.ClusterName, id.Kind, id.Name, id.SubResourceName), nil
 }
 
 // ResourceIDFromString parses a ResourceID from a string. The string should
 // have been obtained from ResourceIDToString.
 func ResourceIDFromString(raw string) (ResourceID, error) {
-	if len(raw) < 1 || raw[0] != '/' {
+	if len(raw) < 1 || (raw[0] != '/' && raw[0] != '{') {
 		return ResourceID{}, trace.BadParameter("%s is not a valid ResourceID string", raw)
 	}
+
+	// Handle JSON-encoded format with constraints.
+	if raw[0] == '{' {
+		return resourceIDWithConstraintsFromString(raw)
+	}
+
 	raw = raw[1:]
 	// Should be safe for any Name as long as the ClusterName and Kind don't
 	// contain slashes, which should never happen.
@@ -134,6 +151,30 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 	return resourceID, trace.Wrap(resourceID.CheckAndSetDefaults())
 }
 
+func resourceIDWithConstraintsToString(id ResourceID) (string, error) {
+	bytes, err := json.Marshal(id)
+	if err != nil {
+		// Should never happen since ResourceID is always marshalable.
+		return "", trace.BadParameter("failed to marshal ResourceID to JSON: %v", err)
+	}
+	// If over max size of 2KB
+	if len(bytes) > 2048 {
+		return "", trace.BadParameter("resource ID is too large (%d bytes, max 2048)", len(bytes))
+	}
+	return string(bytes), nil
+}
+
+func resourceIDWithConstraintsFromString(raw string) (ResourceID, error) {
+	var resourceID ResourceID
+	if err := json.Unmarshal([]byte(raw), &resourceID); err != nil {
+		return ResourceID{}, trace.BadParameter("failed to parse ResourceID from JSON: %v", err)
+	}
+	if err := resourceID.CheckAndSetDefaults(); err != nil {
+		return ResourceID{}, trace.Wrap(err)
+	}
+	return resourceID, nil
+}
+
 // ResourceIDsFromStrings parses a list of ResourceIDs from a list of strings.
 // Each string should have been obtained from ResourceIDToString.
 func ResourceIDsFromStrings(resourceIDStrs []string) ([]ResourceID, error) {
@@ -156,7 +197,11 @@ func ResourceIDsToString(ids []ResourceID) (string, error) {
 	// Marshal each ID to a string using the custom helper.
 	var idStrings []string
 	for _, id := range ids {
-		idStrings = append(idStrings, ResourceIDToString(id))
+		idString, err := ResourceIDToString(id)
+		if err != nil {
+			return "", trace.BadParameter("failed to marshal ResourceID to string: %v", err)
+		}
+		idStrings = append(idStrings, idString)
 	}
 	// Marshal the entire list of strings as JSON (should properly handle any
 	// IDs containing commas or quotes).
