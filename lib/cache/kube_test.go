@@ -35,19 +35,39 @@ func TestKubernetes(t *testing.T) {
 	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	testResources(t, p, testFuncs[types.KubeCluster]{
-		newResource: func(name string) (types.KubeCluster, error) {
-			return types.NewKubernetesClusterV3(types.Metadata{
-				Name: name,
-			}, types.KubernetesClusterSpecV3{})
-		},
-		create:    p.kubernetes.CreateKubernetesCluster,
-		list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
-		cacheGet:  p.cache.GetKubernetesCluster,
-		cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
-		update:    p.kubernetes.UpdateKubernetesCluster,
-		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
-	}, withSkipPaginationTest())
+	t.Run("GetKubernetesClusters", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.KubeCluster]{
+			newResource: func(name string) (types.KubeCluster, error) {
+				return types.NewKubernetesClusterV3(types.Metadata{
+					Name: name,
+				}, types.KubernetesClusterSpecV3{})
+			},
+			create:    p.kubernetes.CreateKubernetesCluster,
+			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
+			cacheGet:  p.cache.GetKubernetesCluster,
+			cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
+			update:    p.kubernetes.UpdateKubernetesCluster,
+			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
+		}, withSkipPaginationTest())
+	})
+
+	t.Run("ListKubernetesClusters", func(t *testing.T) {
+		testResources(t, p, testFuncs[types.KubeCluster]{
+			newResource: func(name string) (types.KubeCluster, error) {
+				return types.NewKubernetesClusterV3(types.Metadata{
+					Name: name,
+				}, types.KubernetesClusterSpecV3{})
+			},
+			create:     p.kubernetes.CreateKubernetesCluster,
+			list:       p.kubernetes.ListKubernetesClusters,
+			cacheGet:   p.cache.GetKubernetesCluster,
+			cacheList:  p.cache.ListKubernetesClusters,
+			update:     p.kubernetes.UpdateKubernetesCluster,
+			deleteAll:  p.kubernetes.DeleteAllKubernetesClusters,
+			Range:      p.kubernetes.RangeKubernetesClusters,
+			cacheRange: p.cache.RangeKubernetesClusters,
+		})
+	})
 }
 
 // TestKubernetesServers tests that CRUD operations on kube servers are

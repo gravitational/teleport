@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -127,7 +128,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				existingClusters, err := clt.GetKubernetesClusters(s.ctx)
+				existingClusters, err := iterstream.Collect(clt.RangeKubernetesClusters(s.ctx, "", ""))
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes clusters from cache", "error", err)
 					continue
