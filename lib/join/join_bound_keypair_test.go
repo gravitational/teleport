@@ -751,10 +751,10 @@ func TestJoinBoundKeypair(t *testing.T) {
 				},
 				AuthClient: nopClient,
 				BoundKeypairParams: &joinclient.BoundKeypairParams{
-					InitialJoinSecret: tt.initialJoinSecret,
-					PreviousJoinState: []byte(tt.previousJoinState),
-					GetSigner:         tt.solver.getSigner,
-					RequestNewKeypair: tt.solver.requestNewKeypair,
+					RegistrationSecret: tt.initialJoinSecret,
+					PreviousJoinState:  []byte(tt.previousJoinState),
+					GetSigner:          tt.solver.getSigner,
+					RequestNewKeypair:  tt.solver.requestNewKeypair,
 				},
 			})
 			tt.assertError(t, err)
