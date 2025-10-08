@@ -284,6 +284,44 @@ type BoundKeypairResult struct {
 	PublicKey []byte
 }
 
+// IAMInit is sent from the client in response to the ServerInit message for
+// the IAM join method.
+//
+// The IAM method join flow is:
+// 1. client->server: ClientInit
+// 2. client<-server: ServerInit
+// 3. client->server: IAMInit
+// 4. client<-server: IAMChallenge
+// 5. client->server: IAMChallengeSolution
+// 6. client<-server: Result
+type IAMInit struct {
+	embedRequest
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams ClientParams
+}
+
+// IAMChallenge is from the server in response to the IAMInit message from the client.
+// The client is expected to respond with a IAMChallengeSolution.
+type IAMChallenge struct {
+	embedResponse
+
+	// Challenge is a a crypto-random string that should be included by the
+	// client in the IAMChallengeSolution message.
+	Challenge string
+}
+
+// IAMChallengeSolution must be sent from the client in response to the
+// IAMChallenge message.
+type IAMChallengeSolution struct {
+	embedRequest
+
+	// STSIdentityRequest is a signed sts:GetCallerIdentity API request used
+	// to prove the AWS identity of a joining node. It must include the
+	// challenge string as a signed header.
+	STSIdentityRequest []byte
+}
+
 // Response is implemented by all join response messages.
 type Response interface {
 	isResponse()
