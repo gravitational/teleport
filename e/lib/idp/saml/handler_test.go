@@ -125,7 +125,7 @@ func TestAuth(t *testing.T) {
 		expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 			require.False(t, event.Success)
 			require.Equal(t, user.Username, event.User)
-			require.Equal(t, "identity is expired", event.Error)
+			require.Contains(t, event.Error, "identity is expired")
 			require.Empty(t, event.ServiceProviderEntityID)
 		})
 
@@ -420,7 +420,8 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	env.samlIdPService.ServeHTTP(w, r)
-	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Contains(t, w.Body.String(), "You do not have access to this resource")
 
 	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
@@ -622,6 +623,14 @@ func TestIdPInitiatedSSOWithRBAC(t *testing.T) {
 			env.samlIdPService.ServeHTTP(w, r)
 			require.Equal(t, test.httpStatus, w.Code)
 			expectAuthAttemptEvent(t, env.testServices.Emitter, test.authAttemptEvent)
+
+			if test.httpStatus == http.StatusForbidden {
+				if test.options.DeviceTrustMode == "required" {
+					require.Contains(t, w.Body.String(), "Trusted Device")
+				} else {
+					require.Contains(t, w.Body.String(), "You do not have access to this resource")
+				}
+			}
 		})
 	}
 }
@@ -801,6 +810,14 @@ func TestSPInitiatedSSOWithRBAC(t *testing.T) {
 			env.samlIdPService.ServeHTTP(w, r)
 			require.Equal(t, test.httpStatus, w.Code)
 			expectAuthAttemptEvent(t, env.testServices.Emitter, test.authAttemptEvent)
+
+			if test.httpStatus == http.StatusForbidden {
+				if test.options.DeviceTrustMode == "required" {
+					require.Contains(t, w.Body.String(), "Trusted Device")
+				} else {
+					require.Contains(t, w.Body.String(), "You do not have access to this resource")
+				}
+			}
 		})
 	}
 }

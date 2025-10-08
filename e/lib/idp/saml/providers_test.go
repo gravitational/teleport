@@ -89,12 +89,12 @@ func TestGetSession(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "http://test-url/", bytes.NewBuffer([]byte{})).WithContext(authz.ContextWithUser(ctxWithIdentity(ctx, &user.Identity), user))
 	authnReq = newAuthnReq(&idp, req, sp1.GetEntityID())
 	require.Nil(t, env.samlIdPService.GetSession(rw, req, authnReq))
-	require.Equal(t, http.StatusForbidden, rw.Code)
+	require.Equal(t, http.StatusUnauthorized, rw.Code)
 
 	expectAuthAttemptEvent(t, env.testServices.Emitter, func(event *apievents.SAMLIdPAuthAttempt) {
 		require.False(t, event.Success)
 		require.Equal(t, user.Username, event.User)
-		require.Equal(t, "identity is expired", event.Error)
+		require.Contains(t, event.Error, "identity is expired")
 		require.Equal(t, sp1.GetEntityID(), event.ServiceProviderEntityID)
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -30,12 +32,16 @@ const (
 	spEntityIDContextKey idpContextKey = "saml-idp-sp-entity-id"
 )
 
+// errUnauthorized is returned for errors related to user session.
+// RBAC related errors should directly use trace.AccessDenied.
+var errUnauthorized = &trace.AccessDeniedError{Message: "unauthorized"}
+
 // ServeHTTP serves the IdP endpoints.
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler := s.handler()
 
 	if handler == nil {
-		s.writeError(w, http.StatusNotFound)
+		s.writeError(w, trace.NotFound("idp not enabled"))
 		return
 	}
 
@@ -83,7 +89,7 @@ func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 				username = identity.Username
 			}
 			s.emitAuthAttemptEvent(r.Context(), username, "", "", err)
-			s.writeError(w, http.StatusUnauthorized)
+			s.writeError(w, trace.NewAggregate(err, errUnauthorized))
 			return
 		}
 		fn(w, r.WithContext(ctxWithIdentity(r.Context(), identity)), p)
@@ -134,7 +140,7 @@ func (s *Service) authorize(r *http.Request, sp types.SAMLIdPServiceProvider) (*
 
 	identity, err := s.identityFromAuthCtx(authCtx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(err, errUnauthorized)
 	}
 
 	authPref, err := s.accessPoint.GetAuthPreference(r.Context())
@@ -174,7 +180,7 @@ func (s *Service) handleMetadata(w http.ResponseWriter, r *http.Request, p httpr
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
-		s.writeError(w, http.StatusInternalServerError)
+		s.writeError(w, err)
 	}
 	idp.ServeMetadata(w, r) // The saml.IdentityProvider does the response handling here.
 }
@@ -192,7 +198,7 @@ func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
-		s.writeError(w, http.StatusInternalServerError)
+		s.writeError(w, err)
 	}
 	ed := idp.Metadata()
 
@@ -214,7 +220,7 @@ func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p
 				rawCert, err := base64.StdEncoding.DecodeString(b64EncodedCert)
 				if err != nil {
 					s.logger.ErrorContext(r.Context(), "Error decoding IdP certificate", "error", err)
-					s.writeError(w, http.StatusInternalServerError)
+					s.writeError(w, err)
 				}
 				certPEM := pem.EncodeToMemory(&pem.Block{
 					Type:  "CERTIFICATE",
@@ -227,7 +233,7 @@ func (s *Service) handleMetadataValues(w http.ResponseWriter, r *http.Request, p
 
 	resp, err := json.Marshal(metadata)
 	if err != nil {
-		s.writeError(w, http.StatusInternalServerError)
+		s.writeError(w, err)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -239,7 +245,7 @@ func (s *Service) handleSSO(w http.ResponseWriter, r *http.Request, p httprouter
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
-		s.writeError(w, http.StatusInternalServerError)
+		s.writeError(w, err)
 	}
 	idp.ServeSSO(w, r) // The saml.IdentityProvider does the response handling here.
 }
@@ -257,21 +263,22 @@ func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request
 	// It looks like this case isn't possible because the httprouter won't let this resolve
 	// without the shortcut, but we'll check here just to be sure.
 	if shortcutName == "" {
-		s.emitAuthAttemptEvent(r.Context(), user, "", "", trace.NotFound("shortcut (SAML app name) is empty"))
-		s.writeError(w, http.StatusInternalServerError)
+		err := trace.NotFound("shortcut (SAML app name) is empty")
+		s.emitAuthAttemptEvent(r.Context(), user, "", "", err)
+		s.writeError(w, err)
 		return
 	}
 
 	sp, err := s.accessPoint.GetSAMLIdPServiceProvider(r.Context(), shortcutName)
 	if err != nil {
 		s.emitAuthAttemptEvent(r.Context(), user, "", shortcutName, err)
-		s.writeError(w, http.StatusNotFound)
+		s.writeError(w, trace.NotFound("service provider not found"))
 		return
 	}
 
 	if err := validateAssertionConsumerServices(sp); err != nil {
 		s.emitAuthAttemptEvent(r.Context(), user, "", shortcutName, err)
-		s.writeError(w, http.StatusNotFound)
+		s.writeError(w, err)
 		return
 	}
 
@@ -284,7 +291,7 @@ func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request
 	idp, err := s.createIdP(r.Context())
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Error creating IdP", "error", err)
-		s.writeError(w, http.StatusInternalServerError)
+		s.writeError(w, err)
 	}
 	idp.ServeIDPInitiated(w, r, sp.GetEntityID(), sp.GetRelayState())
 }
@@ -313,8 +320,30 @@ func (s *Service) handler() http.Handler {
 }
 
 // writeError writes an error response.
-func (s *Service) writeError(w http.ResponseWriter, code int) {
-	http.Error(w, http.StatusText(code), code)
+func (s *Service) writeError(w http.ResponseWriter, err error) {
+	var code int
+	var msg string
+
+	switch {
+	case errors.Is(err, errUnauthorized):
+		code = http.StatusUnauthorized
+		msg = http.StatusText(http.StatusUnauthorized)
+	case errors.Is(err, services.ErrTrustedDeviceRequired):
+		code = http.StatusForbidden
+		msg = "Access to this resource requires a Trusted Device."
+	case trace.IsNotFound(err) || trace.IsAccessDenied(err):
+		// StatusForbidden is used to prevent SAML application enumeration
+		// based on not-found or access denied errors.
+		code = http.StatusForbidden
+		msg = "You do not have access to this resource."
+	default:
+		code = trace.ErrorToCode(err)
+		msg = http.StatusText(code)
+	}
+
+	msg = msg + " More details related to this event can be found in the Teleport audit log."
+
+	http.Error(w, msg, code)
 }
 
 // ctxWithIdentity will return the context with the given identity.

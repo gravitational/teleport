@@ -32,7 +32,7 @@ func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, req *saml.I
 	sp, err := s.getServiceProvider(ctx, entityID)
 	if err != nil {
 		s.emitAuthAttemptEvent(ctx, username, entityID, "", err)
-		s.writeError(w, trace.ErrorToCode(err))
+		s.writeError(w, err)
 		return nil
 	}
 
@@ -49,7 +49,7 @@ func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, req *saml.I
 		}
 		s.emitAuthAttemptEvent(ctx, username, entityID, "", err)
 		s.logger.DebugContext(ctx, "User not authorized", "error", err)
-		s.writeError(w, http.StatusForbidden)
+		s.writeError(w, err)
 		return nil
 	}
 
@@ -57,7 +57,7 @@ func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, req *saml.I
 	if err != nil {
 		s.emitAuthAttemptEvent(ctx, username, entityID, "", err)
 		s.logger.ErrorContext(ctx, "Failed to get session", "error", err)
-		s.writeError(w, trace.ErrorToCode(err))
+		s.writeError(w, err)
 		return nil
 	}
 
