@@ -14,15 +14,22 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !go1.25 && !goexperiment.synctest
+//go:build !go1.25 && goexperiment.synctest
 
 package inventory
 
-import "testing"
+import (
+	"testing"
+	"testing/synctest"
+)
 
 // TODO(espadolini): DELETE IN v21 or after the oldest supported Teleport
 // version is on go 1.25
 
 func maybeSynctest(t *testing.T, fn func(*testing.T)) {
-	fn(t)
+	// in go 1.24 with the synctest experiment there's no integrated support for
+	// t.Cleanup callbacks to run before exiting the bubble, but if we run
+	// things in a subtest we get the same behavior, albeit with everything in a
+	// subtest, which is ugly but functional
+	synctest.Run(func() { t.Run("goexperiment.synctest", fn) })
 }
