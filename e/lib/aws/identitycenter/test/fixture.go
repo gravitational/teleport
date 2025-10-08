@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -147,6 +148,7 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 		ClusterName:            clusterName,
 		SkipPeriodicOperations: true,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
+		HostUUID:               uuid.NewString(),
 	}, authOpts...)
 	require.NoError(t, err, "creating Auth server")
 	cleanup := sync.OnceFunc(func() { require.NoError(t, auth.Close()) })

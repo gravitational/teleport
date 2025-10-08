@@ -22,6 +22,7 @@ import (
 	"github.com/crewjam/saml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	saml2 "github.com/russellhaering/gosaml2"
@@ -107,6 +108,7 @@ func newSAMLTestFixture(t *testing.T) *samlTestFixture {
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 
 	a, err := auth.NewServer(authConfig)
@@ -625,6 +627,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 
 	a, err := auth.NewServer(authConfig)
@@ -728,6 +731,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		HostUUID:               uuid.NewString(),
 	}
 
 	a, err := auth.NewServer(authConfig)

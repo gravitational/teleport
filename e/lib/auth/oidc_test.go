@@ -24,6 +24,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -333,6 +334,7 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		Clock:                  o.clock,
+		HostUUID:               uuid.NewString(),
 	}
 	authServer, err := auth.NewServer(authConfig)
 	require.NoError(t, err)

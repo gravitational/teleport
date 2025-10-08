@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -355,6 +356,7 @@ func initService(t *testing.T) testServiceComponents {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		Clock:                  clock,
+		HostUUID:               uuid.NewString(),
 	}
 	authServer, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
