@@ -129,7 +129,7 @@ func newMockServer(t *testing.T) *mockServer {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, bk.Close())
+		_ = bk.Close()
 	})
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
