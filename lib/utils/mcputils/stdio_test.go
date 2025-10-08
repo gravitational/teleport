@@ -117,11 +117,11 @@ func TestStdioHelpers(t *testing.T) {
 
 	// Test things out.
 	t.Run("client initialize", func(t *testing.T) {
-		mcptest.MustInitializeClient(t, t.Context(), stdioClient)
+		mcptest.MustInitializeClient(t, stdioClient)
 	})
 
 	t.Run("client call tool", func(t *testing.T) {
-		mcptest.MustCallServerTool(t, t.Context(), stdioClient)
+		mcptest.MustCallServerTool(t, stdioClient)
 	})
 
 	t.Run("reader closed by closing stdin", func(t *testing.T) {

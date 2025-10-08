@@ -76,8 +76,8 @@ func TestReplaceHTTPResponse(t *testing.T) {
 		require.NoError(t, client.Start(ctx))
 
 		// Initialize client and call a tool.
-		mcptest.MustInitializeClient(t, ctx, client)
-		mcptest.MustCallServerTool(t, ctx, client)
+		mcptest.MustInitializeClient(t, client)
+		mcptest.MustCallServerTool(t, client)
 		require.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
 
 		// Send notifications from server. Notifications will be sent through SSE.
@@ -174,8 +174,8 @@ func TestHTTPReaderWriter(t *testing.T) {
 
 	// Make a "high-level" stdio MCP client and test the proxy.
 	stdioClient := mcptest.NewStdioClient(t, clientStdin, clientStdout)
-	mcptest.MustInitializeClient(t, ctx, stdioClient)
-	mcptest.MustCallServerTool(t, ctx, stdioClient)
+	mcptest.MustInitializeClient(t, stdioClient)
+	mcptest.MustCallServerTool(t, stdioClient)
 }
 
 func proxyReaderWriter(
