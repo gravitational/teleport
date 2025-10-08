@@ -124,6 +124,13 @@ role.
 
 Those bindings will be available to Teleport users via the user trait feature.
 
+Kubernetes might introduce new API endpoints that should be allowed or denied.
+Vendoring those roles on Teleport would require us to update the list for every
+Kubernetes version, and would potentially cause a permission issues if a user
+deploys an old Teleport version in a modern Kubernetes cluster. Relying on the
+Kubernetes built-in roles for RBAC frees us from the maintenance burden and
+prevents security issues caused by version mismatch.
+
 Example:
 
 ```bash
