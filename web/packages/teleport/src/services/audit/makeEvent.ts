@@ -2305,6 +2305,66 @@ export const formatters: Formatters = {
       return `Bound keypair token [${token_name}] failed to verify a join attempt: ${error}`;
     },
   },
+  [eventCodes.SCIM_RESOURCE_LIST]: {
+    type: 'scim.list',
+    desc: 'SCIM Resource Listing Succeeded',
+    format: ({ integration, resource_type }) =>
+      `[${integration}] [${resource_type}] listing succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: {
+    type: 'scim.list',
+    desc: 'SCIM Resource Listing Failed',
+    format: ({ integration, resource_type }) =>
+      `[${integration}] [${resource_type}] listing failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_GET]: {
+    type: 'scim.get',
+    desc: 'SCIM Resource Fetch Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Fetching Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: {
+    type: 'scim.get',
+    desc: 'SCIM Resource Fetch Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Fetching Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_CREATE]: {
+    type: 'scim.create',
+    desc: 'SCIM Resource Creation Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Creating Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: {
+    type: 'scim.create',
+    desc: 'SCIM Resource Creation Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Creating Teleport [${resource_type}] [${teleport_id}] for [${integration}] [${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_UPDATE]: {
+    type: 'scim.update',
+    desc: 'SCIM Update Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Updating Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: {
+    type: 'scim.update',
+    desc: 'SCIM Update Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Updating Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] failed`,
+  },
+  [eventCodes.SCIM_RESOURCE_DELETE]: {
+    type: 'scim.delete',
+    desc: 'SCIM Delete Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: {
+    type: 'scim.delete',
+    desc: 'SCIM Delete Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
+  },
 };
 
 const unknownFormatter = {
