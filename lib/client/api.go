@@ -195,6 +195,10 @@ type Config struct {
 	// (for example, using command-line flags).
 	ExplicitUsername bool
 
+	// Scope is the target scope, used during authentication/login to request certificates
+	// that are limited (pinned) to a given target scope.
+	Scope string
+
 	// Remote host to connect
 	Host string
 
@@ -2585,8 +2589,8 @@ func (tc *TeleportClient) SFTP(ctx context.Context, source []string, destination
 	)
 	defer span.End()
 
-	isDownload := strings.ContainsRune(source[0], ':')
-	isUpload := strings.ContainsRune(destination, ':')
+	isDownload := sftp.IsRemotePath(source[0])
+	isUpload := sftp.IsRemotePath(destination)
 
 	if !isUpload && !isDownload {
 		return trace.BadParameter("no remote destination specified")
@@ -3999,6 +4003,20 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		tc.SiteName = rootClusterName
 	}
 
+	tlsCert, err := tlsca.ParseCertificatePEM(response.TLSCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ident, err := tlsca.FromSubject(tlsCert.Subject, time.Time{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ident.ScopePin != nil {
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", ident.ScopePin.Assignments)
+	}
+
 	return keyRing, nil
 }
 
@@ -4122,6 +4140,7 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 		TTL:                     tc.KeyTTL,
 		Insecure:                tc.InsecureSkipVerify,
 		Pool:                    loopbackPool(tc.WebProxyAddr),
+		Scope:                   tc.Scope,
 		Compatibility:           tc.CertificateFormat,
 		RouteToCluster:          tc.SiteName,
 		KubernetesCluster:       tc.KubernetesCluster,

@@ -44,11 +44,12 @@ import (
 )
 
 type APIConfig struct {
-	PluginRegistry plugin.Registry
-	AuthServer     *Server
-	AuditLog       events.AuditLogSessionStreamer
-	Authorizer     authz.Authorizer
-	Emitter        apievents.Emitter
+	PluginRegistry   plugin.Registry
+	AuthServer       *Server
+	AuditLog         events.AuditLogSessionStreamer
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Emitter          apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration
 	// KeepAliveCount specifies amount of missed keep alives

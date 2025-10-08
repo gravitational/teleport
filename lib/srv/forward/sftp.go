@@ -211,6 +211,12 @@ func (h *proxyHandlers) Filelist(req *sftp.Request) (_ sftp.ListerAt, err error)
 	return lister, nil
 }
 
+// RealPath canonicalizes a path name, including resolving ".." and
+// following symlinks. Required to implement [sftp.RealPathFileLister].
+func (h *proxyHandlers) RealPath(path string) (string, error) {
+	return h.remoteFS.RealPath(path)
+}
+
 func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	wd, err := h.remoteFS.Getwd()
 	if err != nil {

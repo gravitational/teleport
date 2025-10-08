@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/auth/join")
@@ -283,7 +284,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
 		}
-		params.ec2IdentityDocument, err = utils.GetRawEC2IdentityDocument(ctx)
+		params.ec2IdentityDocument, err = awsutils.GetRawEC2IdentityDocument(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
