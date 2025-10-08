@@ -22,36 +22,29 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/trace"
 )
 
 // reservedServiceNames are the service names reserved for internal use.
-var reservedServiceNames = []string{
+var reservedServiceNames = set.New(
 	"ca-rotation",
 	"crl-cache",
 	"heartbeat",
 	"identity",
 	"spiffe-trust-bundle-cache",
-}
-
-var reservedServiceNamesMap = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(reservedServiceNames))
-	for _, k := range reservedServiceNames {
-		m[k] = struct{}{}
-	}
-	return m
-}()
+)
 
 var invalidServiceNameRegex = regexp.MustCompile(`[^a-z\d_\-+]`)
 
 type serviceNamer struct {
-	usedNames          map[string]struct{}
+	usedNames          set.Set[string]
 	countByServiceType map[string]int
 }
 
 func newServiceNamer() *serviceNamer {
 	return &serviceNamer{
-		usedNames:          make(map[string]struct{}),
+		usedNames:          set.New[string](),
 		countByServiceType: make(map[string]int),
 	}
 }
@@ -68,14 +61,14 @@ func (n *serviceNamer) pickName(serviceType, name string) (string, error) {
 			invalidServiceNameRegex.ReplaceAllString(serviceType, "-"),
 			n.countByServiceType[serviceType],
 		)
-		if _, ok := n.usedNames[name]; ok {
+		if n.usedNames.Contains(name) {
 			return "", trace.BadParameter("service name %q conflicts with an automatically generated service name", name)
 		}
 	} else {
-		if _, ok := n.usedNames[name]; ok {
+		if n.usedNames.Contains(name) {
 			return "", trace.BadParameter("service name %q used more than once", name)
 		}
-		if _, ok := reservedServiceNamesMap[name]; ok {
+		if reservedServiceNames.Contains(name) {
 			return "", trace.BadParameter("service name %q is reserved for internal use", name)
 		}
 		if invalidServiceNameRegex.MatchString(name) {
@@ -83,6 +76,6 @@ func (n *serviceNamer) pickName(serviceType, name string) (string, error) {
 		}
 	}
 
-	n.usedNames[name] = struct{}{}
+	n.usedNames.Add(name)
 	return name, nil
 }
