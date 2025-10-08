@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import {
   Cluster,
   ShowResources,
@@ -25,39 +24,37 @@ import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import {
   CreateAccessRequestRequest,
   CreateGatewayRequest,
-  PasswordlessPrompt,
   PromoteAccessRequestRequest,
   ReviewAccessRequestRequest,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import { useStore } from 'shared/libs/stores';
-import { isAbortError } from 'shared/utils/abortError';
-import { pipe } from 'shared/utils/pipe';
+import { isAbortError } from 'shared/utils/error';
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
-import {
-  CloneableAbortSignal,
-  cloneAbortSignal,
-  TshdClient,
-} from 'teleterm/services/tshd';
+import { cloneAbortSignal, TshdClient } from 'teleterm/services/tshd';
 import { getGatewayTargetUriKind } from 'teleterm/services/tshd/gateway';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import * as uri from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
-import type * as types from './types';
 
 const { routing } = uri;
 
-export function createClusterServiceState(): types.ClustersServiceState {
+type ClustersServiceState = {
+  clusters: Map<uri.ClusterUri, Cluster>;
+  gateways: Map<uri.GatewayUri, Gateway>;
+};
+
+export function createClusterServiceState(): ClustersServiceState {
   return {
     clusters: new Map(),
     gateways: new Map(),
   };
 }
 
-export class ClustersService extends ImmutableStore<types.ClustersServiceState> {
-  state: types.ClustersServiceState = createClusterServiceState();
+export class ClustersService extends ImmutableStore<ClustersServiceState> {
+  state: ClustersServiceState = createClusterServiceState();
 
   constructor(
     public client: TshdClient,
@@ -76,10 +73,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     // fetched from the auth server at the RPC message level.
     if (!this.state.clusters.has(cluster.uri)) {
       this.setState(draft => {
-        draft.clusters.set(
-          cluster.uri,
-          this.removeInternalLoginsFromCluster(cluster)
-        );
+        draft.clusters.set(cluster.uri, cluster);
       });
     }
 
@@ -109,52 +103,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     });
   }
 
-  async loginLocal(
-    params: types.LoginLocalParams,
-    abortSignal: CloneableAbortSignal
-  ) {
-    await this.client.login(
-      {
-        clusterUri: params.clusterUri,
-        params: {
-          oneofKind: 'local',
-          local: {
-            user: params.username,
-            password: params.password,
-            token: params.token,
-          },
-        },
-      },
-      { abort: abortSignal }
-    );
-    // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
-    // cluster fails, we don't want to stop the user on the failed modal – we want to open the
-    // workspace and show an error state within the workspace.
-    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
-    this.usageService.captureUserLogin(params.clusterUri, 'local');
-  }
-
-  async loginSso(
-    params: types.LoginSsoParams,
-    abortSignal: CloneableAbortSignal
-  ) {
-    await this.client.login(
-      {
-        clusterUri: params.clusterUri,
-        params: {
-          oneofKind: 'sso',
-          sso: {
-            providerType: params.providerType,
-            providerName: params.providerName,
-          },
-        },
-      },
-      { abort: abortSignal }
-    );
-    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
-    this.usageService.captureUserLogin(params.clusterUri, params.providerType);
-  }
-
   async authenticateWebDevice(
     rootClusterUri: uri.RootClusterUri,
     {
@@ -178,99 +126,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         expectedDeviceIds: [],
       },
     });
-  }
-
-  async loginPasswordless(
-    params: types.LoginPasswordlessParams,
-    abortSignal: CloneableAbortSignal
-  ) {
-    await new Promise<void>((resolve, reject) => {
-      const stream = this.client.loginPasswordless({
-        abort: abortSignal,
-      });
-
-      let hasDeviceBeenTapped = false;
-
-      // Init the stream.
-      stream.requests.send({
-        request: {
-          oneofKind: 'init',
-          init: {
-            clusterUri: params.clusterUri,
-          },
-        },
-      });
-
-      stream.responses.onMessage(function (response) {
-        switch (response.prompt) {
-          case PasswordlessPrompt.PIN:
-            const pinResponse = (pin: string) => {
-              stream.requests.send({
-                request: {
-                  oneofKind: 'pin',
-                  pin: { pin },
-                },
-              });
-            };
-
-            params.onPromptCallback({
-              type: 'pin',
-              onUserResponse: pinResponse,
-            });
-            return;
-
-          case PasswordlessPrompt.CREDENTIAL:
-            const credResponse = (index: number) => {
-              stream.requests.send({
-                request: {
-                  oneofKind: 'credential',
-                  credential: { index: BigInt(index) },
-                },
-              });
-            };
-
-            params.onPromptCallback({
-              type: 'credential',
-              onUserResponse: credResponse,
-              data: { credentials: response.credentials || [] },
-            });
-            return;
-
-          case PasswordlessPrompt.TAP:
-            if (hasDeviceBeenTapped) {
-              params.onPromptCallback({ type: 'retap' });
-            } else {
-              hasDeviceBeenTapped = true;
-              params.onPromptCallback({ type: 'tap' });
-            }
-            return;
-
-          // Following cases should never happen but just in case?
-          case PasswordlessPrompt.UNSPECIFIED:
-            stream.requests.complete();
-            return reject(new Error('no passwordless prompt was specified'));
-
-          default:
-            stream.requests.complete();
-            return reject(
-              new Error(
-                `passwordless prompt '${response.prompt}' not supported`
-              )
-            );
-        }
-      });
-
-      stream.responses.onComplete(function () {
-        resolve();
-      });
-
-      stream.responses.onError(function (err: Error) {
-        reject(err);
-      });
-    });
-
-    await this.syncAndWatchRootClusterWithErrorHandling(params.clusterUri);
-    this.usageService.captureUserLogin(params.clusterUri, 'passwordless');
   }
 
   /**
@@ -366,9 +221,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
 
     this.setState(draft => {
-      draft.clusters = new Map(
-        clusters.map(c => [c.uri, this.removeInternalLoginsFromCluster(c)])
-      );
+      draft.clusters = new Map(clusters.map(c => [c.uri, c]));
     });
 
     // Sync root clusters and resume headless watchers for any active login sessions.
@@ -405,21 +258,11 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
     this.setState(draft => {
       for (const leaf of response.clusters) {
-        draft.clusters.set(
-          leaf.uri,
-          this.removeInternalLoginsFromCluster(leaf)
-        );
+        draft.clusters.set(leaf.uri, leaf);
       }
     });
 
     return response.clusters;
-  }
-
-  /** @deprecated Use getAssumedRequests function instead of the method on ClustersService. */
-  getAssumedRequests(
-    rootClusterUri: uri.RootClusterUri
-  ): Record<string, AccessRequest> {
-    return getAssumedRequests(this.state, rootClusterUri);
   }
 
   /** Assumes roles for the given requests. */
@@ -447,18 +290,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       dropRequestIds: requestIds,
     });
     await this.syncRootCluster(rootClusterUri);
-  }
-
-  async getAccessRequest(
-    rootClusterUri: uri.RootClusterUri,
-    requestId: string
-  ) {
-    const { response } = await this.client.getAccessRequest({
-      clusterUri: rootClusterUri,
-      accessRequestId: requestId,
-    });
-
-    return response.request;
   }
 
   async reviewAccessRequest(params: ReviewAccessRequestRequest) {
@@ -691,12 +522,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     });
   }
 
-  async removeKubeConfig(kubeConfigRelativePath: string): Promise<void> {
-    return this.mainProcessClient.removeKubeConfig({
-      relativePath: kubeConfigRelativePath,
-    });
-  }
-
   useState() {
     return useStore(this).state;
   }
@@ -706,27 +531,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       const { response: cluster } = await this.client.getCluster({
         clusterUri,
       });
-      // TODO: this information should eventually be gathered by getCluster
-      const assumedRequests = cluster.loggedInUser
-        ? await this.fetchClusterAssumedRequests(
-            cluster.loggedInUser.activeRequests,
-            clusterUri
-          )
-        : undefined;
-      const mergeAssumedRequests = (cluster: Cluster) => ({
-        ...cluster,
-        loggedInUser: cluster.loggedInUser && {
-          ...cluster.loggedInUser,
-          assumedRequests,
-        },
-      });
-      const processCluster = pipe(
-        this.removeInternalLoginsFromCluster,
-        mergeAssumedRequests
-      );
-
       this.setState(draft => {
-        draft.clusters.set(clusterUri, processCluster(cluster));
+        draft.clusters.set(clusterUri, cluster);
       });
     } catch (error) {
       this.setState(draft => {
@@ -743,47 +549,4 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       throw error;
     }
   }
-
-  private async fetchClusterAssumedRequests(
-    activeRequestsList: string[],
-    clusterUri: uri.RootClusterUri
-  ) {
-    return (
-      await Promise.all(
-        activeRequestsList.map(requestId =>
-          this.getAccessRequest(clusterUri, requestId)
-        )
-      )
-    ).reduce((requestsMap, request) => {
-      requestsMap[request.id] = request;
-      return requestsMap;
-    }, {});
-  }
-
-  // temporary fix for https://github.com/gravitational/webapps.e/issues/294
-  // remove when it will get fixed in `tsh`
-  // alternatively, show only valid logins basing on RBAC check
-  private removeInternalLoginsFromCluster(cluster: Cluster): Cluster {
-    return {
-      ...cluster,
-      loggedInUser: cluster.loggedInUser && {
-        ...cluster.loggedInUser,
-        sshLogins: cluster.loggedInUser.sshLogins.filter(
-          login => !login.startsWith('-')
-        ),
-      },
-    };
-  }
-}
-
-// A workaround to always return the same object so useEffect that relies on it
-// doesn't go into an endless loop.
-const EMPTY_ASSUMED_REQUESTS = {};
-
-export function getAssumedRequests(
-  state: types.ClustersServiceState,
-  rootClusterUri: uri.RootClusterUri
-): Record<string, AccessRequest> {
-  const cluster = state.clusters.get(rootClusterUri);
-  return cluster?.loggedInUser?.assumedRequests || EMPTY_ASSUMED_REQUESTS;
 }

@@ -207,11 +207,13 @@ export interface FeatureFlags {
   externalAuditStorage: boolean;
   listBots: boolean;
   readBots: boolean;
+  readBotInstances: boolean;
   listBotInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
   gitServers: boolean;
+  listWorkloadIdentities: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

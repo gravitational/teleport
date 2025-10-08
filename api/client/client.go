@@ -81,6 +81,7 @@ import (
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -152,8 +153,8 @@ type Client struct {
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
 	grpc AuthServiceClient
-	// JoinServiceClient is a client for the JoinService, which runs on both the
-	// auth and proxy.
+	// JoinServiceClient is a client for the legacy JoinService, which
+	// runs on both the auth and proxy.
 	*JoinServiceClient
 	// closedFlag is set to indicate that the connection is closed.
 	// It's a pointer to allow the Client struct to be copied.
@@ -923,6 +924,11 @@ func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
 }
 
+// JoinV1Client returns an unadorned gRPC client for the new Join service.
+func (c *Client) JoinV1Client() joinv1.JoinServiceClient {
+	return joinv1.NewJoinServiceClient(c.conn)
+}
+
 // SummarizerServiceClient returns an unadorned client for the session
 // recording summarizer service.
 func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient {
@@ -933,6 +939,12 @@ func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient 
 // recording metadata service.
 func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient {
 	return recordingmetadatav1.NewRecordingMetadataServiceClient(c.conn)
+}
+
+// RecordingEncryptionServiceClient returns an unadorned client for the session
+// recording encryption service.
+func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
+	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -1353,6 +1365,15 @@ func (c *Client) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 // GetAccessCapabilities requests the access capabilities of a user.
 func (c *Client) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	caps, err := c.grpc.GetAccessCapabilities(ctx, &req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
+// GetRemoteAccessCapabilities requests the access capabilities of a user.
+func (c *Client) GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	caps, err := c.grpc.GetRemoteAccessCapabilities(ctx, &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2251,7 +2272,9 @@ func (c *Client) GetTrustedCluster(ctx context.Context, name string) (types.Trus
 }
 
 // GetTrustedClusters returns a list of Trusted Clusters.
+// Deprecated: Use [Client.ListTrustedClusters] instead.
 func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	resp, err := c.grpc.GetTrustedClusters(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2261,6 +2284,27 @@ func (c *Client) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster
 		trustedClusters[i] = trustedCluster
 	}
 	return trustedClusters, nil
+}
+
+// ListTrustedClusters returns a page of Trusted Cluster resources.
+func (c *Client) ListTrustedClusters(ctx context.Context, limit int, start string) ([]types.TrustedCluster, string, error) {
+	resp, err := c.TrustClient().ListTrustedClusters(ctx, &trustpb.ListTrustedClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	tcs := make([]types.TrustedCluster, len(resp.TrustedClusters))
+	for i := range resp.TrustedClusters {
+		tcs[i] = resp.TrustedClusters[i]
+	}
+	return tcs, resp.NextPageToken, nil
+}
+
+// RangeTrustedClusters returns Trusted Cluster resources within the range [start, end).
+func (c *Client) RangeTrustedClusters(ctx context.Context, start, end string) iter.Seq2[types.TrustedCluster, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListTrustedClusters, types.TrustedCluster.GetName)
 }
 
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
@@ -2549,7 +2593,9 @@ func (c *Client) UploadEncryptedRecording(ctx context.Context, sessionID string,
 	}
 
 	var uploadedParts []*recordingencryptionv1pb.Part
-	var partNumber int64
+	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
+	// configured for the auth service
+	var partNumber int64 = 1
 	for part, err := range parts {
 		if err != nil {
 			return trace.Wrap(err)
@@ -3103,6 +3149,23 @@ func (c *Client) UpsertAutoUpdateAgentReport(ctx context.Context, report *autoup
 	return resp, nil
 }
 
+// GetAutoUpdateBotInstanceReport gets the singleton auto-update bot report.
+func (c *Client) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdatev1pb.AutoUpdateBotInstanceReport, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.GetAutoUpdateBotInstanceReportRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// DeleteAutoUpdateBotInstanceReport deletes the singleton auto-update bot instance report.
+func (c *Client) DeleteAutoUpdateBotInstanceReport(ctx context.Context) error {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	_, err := client.DeleteAutoUpdateBotInstanceReport(ctx, &autoupdatev1pb.DeleteAutoUpdateBotInstanceReportRequest{})
+	return trace.Wrap(err)
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -3330,6 +3393,7 @@ func (c *Client) GetApp(ctx context.Context, name string) (types.Application, er
 // service, use GetApplicationServers instead.
 // Deprecated: Prefer using [ListApps] or [Apps] instead.
 func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
+	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	items, err := c.grpc.GetApps(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3570,31 +3634,7 @@ func (c *Client) ListDatabases(ctx context.Context, limit int, start string) ([]
 
 // RangeDatabases returns database resources within the range [start, end).
 func (c *Client) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
-	return func(yield func(types.Database, error) bool) {
-		for {
-			databases, next, err := c.ListDatabases(ctx, 0, start)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-
-			for _, db := range databases {
-				if end != "" && db.GetName() >= end {
-					return
-				}
-
-				if !yield(db, nil) {
-					return
-				}
-			}
-
-			if next == "" {
-				return
-			}
-
-			start = next
-		}
-	}
+	return clientutils.RangeResources(ctx, start, end, c.ListDatabases, types.Database.GetName)
 }
 
 // DeleteDatabase deletes specified database resource.
@@ -4303,7 +4343,7 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetGitServer()
 			default:
 				out.Resources = nil
-				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+				return out, trace.NotImplemented("resource type %q does not support pagination", req.ResourceType)
 			}
 
 			t, ok := resource.(T)
@@ -5575,4 +5615,16 @@ func (c *Client) DeleteHealthCheckConfig(ctx context.Context, name string) error
 		},
 	)
 	return trace.Wrap(err)
+}
+
+// ValidateTrustedCluster is called by the proxy on behalf of a cluster that
+// wishes to join this one as a leaf cluster.
+func (c *Client) ValidateTrustedCluster(
+	ctx context.Context, validateRequest *proto.ValidateTrustedClusterRequest,
+) (*proto.ValidateTrustedClusterResponse, error) {
+	resp, err := c.grpc.ValidateTrustedCluster(ctx, validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }

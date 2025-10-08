@@ -24,14 +24,13 @@ import (
 	"log/slog"
 	"net"
 	"runtime/debug"
-	"time"
 
+	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -82,11 +81,11 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// has a chance to close the connection from its side.
 	defer func() {
 		if r := recover(); r != nil {
-			p.Log.WarnContext(ctx, "Recovered in MySQL proxy while handling connectionv.", "from", clientConn.RemoteAddr(), "problem", r, "stack", debug.Stack())
+			p.Log.WarnContext(ctx, "Recovered in MySQL proxy while handling connection.", "from", clientConn.RemoteAddr(), "problem", r, "stack", debug.Stack())
 			err = trace.BadParameter("failed to handle MySQL client connection")
 		}
 		if err != nil {
-			if writeErr := mysqlServer.WriteError(err); writeErr != nil {
+			if writeErr := mysqlServer.WriteError(trace.Unwrap(err)); writeErr != nil {
 				p.Log.DebugContext(ctx, "Failed to send error to MySQL client.", "original_err", err.Error(), "error", writeErr)
 			}
 		}
@@ -131,9 +130,23 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// Before replying OK to the client which would make the client consider
 	// auth completed, wait for OK packet from db service indicating auth
 	// success.
-	err = p.waitForOK(mysqlServer, serviceConn)
+	err = waitForAgent(ctx, p.Log, getHandshakeMode(), serviceConn, func(c *client.Conn) error {
+		// forward (client & proxy) caps to get (client & proxy & agent) caps
+		// to the agent.
+		c.SetCapability(mysqlServer.Capability())
+		// forward attributes, notably: "_client_name" (user agent)
+		c.SetAttributes(mysqlServer.Attributes())
+		return nil
+	})
 	if err != nil {
+		p.Log.ErrorContext(ctx, "Failed to wait for agent connection notification",
+			"error", err,
+		)
 		return trace.Wrap(err)
+	}
+	// now tell the real client we are ready
+	if err := mysqlServer.WriteOK(nil); err != nil {
+		return trace.Wrap(err, "failed to write OK to real client")
 	}
 	// Auth has completed, the client enters command phase, start proxying
 	// all messages back-and-forth.
@@ -167,8 +180,10 @@ func getServerVersionFromCtx(ctx context.Context, configEngineVersion string) st
 // It's a no-op because authentication is done via mTLS.
 type credentialProvider struct{}
 
-func (p *credentialProvider) CheckUsername(_ string) (bool, error)         { return true, nil }
-func (p *credentialProvider) GetCredential(_ string) (string, bool, error) { return "", true, nil }
+func (p *credentialProvider) CheckUsername(_ string) (bool, error) { return true, nil }
+func (p *credentialProvider) GetCredential(_ string) (string, bool, error) {
+	return emptyPassword, true, nil
+}
 
 // makeServer creates a MySQL server from the accepted client connection that
 // provides access to various parts of the handshake.
@@ -245,27 +260,14 @@ func (p *Proxy) maybeReadProxyLine(ctx context.Context, conn *multiplexer.Conn) 
 	return nil
 }
 
-// waitForOK waits for OK_PACKET from the database service which indicates
-// that auth on the other side completed successfully.
-func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
-	err := serviceConn.SetReadDeadline(time.Now().Add(2 * defaults.DatabaseConnectTimeout))
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func waitForOKPacket(serviceConn net.Conn) (*protocol.OK, error) {
 	packet, err := protocol.ParsePacket(serviceConn)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = serviceConn.SetReadDeadline(time.Time{})
-	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	switch p := packet.(type) {
 	case *protocol.OK:
-		err = server.WriteOK(nil)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return p, nil
 	case *protocol.Error:
 		// There may be a difference in capabilities between client <--> proxy
 		// than there is between proxy <--> agent, most notably,
@@ -273,14 +275,10 @@ func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
 		// So rather than forwarding packet bytes directly, convert the error
 		// packet into MyError and write with respect to caps between
 		// client <--> proxy.
-		err = server.WriteError(mysql.NewError(p.Code, p.Message))
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return nil, trace.Wrap(mysql.NewError(p.Code, p.Message))
 	default:
-		return trace.BadParameter("expected OK or ERR packet, got %s", packet)
+		return nil, trace.BadParameter("expected OK or ERR packet, got %s", packet)
 	}
-	return nil
 }
 
 const (

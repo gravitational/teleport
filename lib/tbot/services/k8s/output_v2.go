@@ -166,14 +166,27 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 	}
 	defer impersonatedClient.Close()
 
-	clusters, err := fetchAllMatchingKubeClusters(ctx, impersonatedClient, s.cfg.Selectors)
+	matches, err := fetchAllMatchingKubeClusters(ctx, impersonatedClient, s.cfg.Selectors)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var clusterNames []string
-	for _, c := range clusters {
-		clusterNames = append(clusterNames, c.GetName())
+	for _, m := range matches {
+		clusterNames = append(clusterNames, m.cluster.GetName())
+	}
+	defaultNamespaces := map[string]string{}
+	for _, m := range matches {
+		if m.selector.DefaultNamespace != "" {
+			if _, ok := defaultNamespaces[m.cluster.GetName()]; ok {
+				s.log.WarnContext(
+					ctx,
+					"Multiple selectors match the same cluster with different default namespaces configured, last definition will take priority",
+					"cluster", m.cluster.GetName(),
+				)
+			}
+			defaultNamespaces[m.cluster.GetName()] = m.selector.DefaultNamespace
+		}
 	}
 
 	clusterNames = utils.Deduplicate(clusterNames)
@@ -211,6 +224,7 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 		credentials:            keyRing,
 		teleportClusterName:    proxyPong.ClusterName,
 		kubernetesClusterNames: clusterNames,
+		defaultNamespaces:      defaultNamespaces,
 	}
 
 	return trace.Wrap(s.render(ctx, status, id.Get(), hostCAs))
@@ -224,6 +238,9 @@ type kubernetesStatusV2 struct {
 	tlsServerName          string
 	credentials            *libclient.KeyRing
 	kubernetesClusterNames []string
+	// defaultNamespace is map of the cluster name to the default namespace
+	// which should be used for that cluster.
+	defaultNamespaces map[string]string
 }
 
 // queryKubeClustersByLabels fetches a list of Kubernetes clusters matching the
@@ -249,13 +266,18 @@ func queryKubeClustersByLabels(ctx context.Context, clt apiclient.GetResourcesCl
 	return clusters, nil
 }
 
+type selectorMatch struct {
+	selector *KubernetesSelector
+	cluster  types.KubeCluster
+}
+
 // fetchAllMatchingKubeClusters returns a list of all clusters matching the
 // given selectors.
-func fetchAllMatchingKubeClusters(ctx context.Context, clt apiclient.GetResourcesClient, selectors []*KubernetesSelector) ([]types.KubeCluster, error) {
+func fetchAllMatchingKubeClusters(ctx context.Context, clt apiclient.GetResourcesClient, selectors []*KubernetesSelector) ([]selectorMatch, error) {
 	ctx, span := tracer.Start(ctx, "findAllMatchingKubeClusters")
 	defer span.End()
 
-	clusters := []types.KubeCluster{}
+	matches := []selectorMatch{}
 	for _, selector := range selectors {
 		if selector.Name != "" {
 			cluster, err := getKubeCluster(ctx, clt, selector.Name)
@@ -264,7 +286,10 @@ func fetchAllMatchingKubeClusters(ctx context.Context, clt apiclient.GetResource
 				return nil, trace.Wrap(err, "unable to fetch cluster %q by name", selector.Name)
 			}
 
-			clusters = append(clusters, cluster)
+			matches = append(matches, selectorMatch{
+				selector: selector,
+				cluster:  cluster,
+			})
 			continue
 		}
 
@@ -278,11 +303,15 @@ func fetchAllMatchingKubeClusters(ctx context.Context, clt apiclient.GetResource
 			// clusters are returned.)
 			return nil, trace.Wrap(err, "unable to fetch clusters with labels %v", selector.Labels)
 		}
-
-		clusters = append(clusters, labeledClusters...)
+		for _, cluster := range labeledClusters {
+			matches = append(matches, selectorMatch{
+				selector: selector,
+				cluster:  cluster,
+			})
+		}
 	}
 
-	return clusters, nil
+	return matches, nil
 }
 
 func (s *OutputV2Service) render(
@@ -328,7 +357,7 @@ func (s *OutputV2Service) render(
 	if s.cfg.DisableExecPlugin {
 		// If they've disabled the exec plugin, we just write the credentials
 		// directly into the kubeconfig.
-		kubeCfg, err = generateKubeConfigV2WithoutPlugin(status)
+		kubeCfg, err = s.generateKubeConfigV2WithoutPlugin(status)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -340,7 +369,7 @@ func (s *OutputV2Service) render(
 			return trace.Wrap(err)
 		}
 
-		kubeCfg, err = generateKubeConfigV2WithPlugin(status, destinationDir.Path, executablePath)
+		kubeCfg, err = s.generateKubeConfigV2WithPlugin(status, destinationDir.Path, executablePath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -371,7 +400,7 @@ func encodePathComponent(input string) string {
 // generateKubeConfigWithPlugin creates a Kubernetes config object with the
 // given cluster config, using the `tbot kube credentials` auth helper plugin to
 // fetch refreshed certificate data at runtime.
-func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, executablePath string) (*clientcmdapi.Config, error) {
+func (o *OutputV2Service) generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, executablePath string) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Implementation note: tsh/kube.go generates a kubeconfig with all
@@ -413,7 +442,10 @@ func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, exe
 	}
 
 	for i, cluster := range ks.kubernetesClusterNames {
-		contextName := kubeconfig.ContextName(ks.teleportClusterName, cluster)
+		contextName, err := kubeconfig.ContextNameFromTemplate(o.cfg.ContextNameTemplate, ks.teleportClusterName, cluster)
+		if err != nil {
+			return nil, trace.Wrap(err, "templating context name")
+		}
 
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
@@ -431,6 +463,9 @@ func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, exe
 			Cluster:  contextName,
 			AuthInfo: ks.teleportClusterName,
 		}
+		if ns, ok := ks.defaultNamespaces[cluster]; ok {
+			config.Contexts[contextName].Namespace = ns
+		}
 
 		// Always set the current context to the first-matched cluster. This
 		// won't be perfectly consistent if the first selector uses labels, so
@@ -444,7 +479,7 @@ func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, exe
 	return config, nil
 }
 
-func generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Config, error) {
+func (o *OutputV2Service) generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Configure the cluster.
@@ -464,7 +499,10 @@ func generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Co
 	}
 
 	for i, cluster := range ks.kubernetesClusterNames {
-		contextName := kubeconfig.ContextName(ks.teleportClusterName, cluster)
+		contextName, err := kubeconfig.ContextNameFromTemplate(o.cfg.ContextNameTemplate, ks.teleportClusterName, cluster)
+		if err != nil {
+			return nil, trace.Wrap(err, "templating context name")
+		}
 
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
@@ -477,6 +515,9 @@ func generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Co
 		config.Contexts[contextName] = &clientcmdapi.Context{
 			Cluster:  contextName,
 			AuthInfo: ks.teleportClusterName,
+		}
+		if ns, ok := ks.defaultNamespaces[cluster]; ok {
+			config.Contexts[contextName].Namespace = ns
 		}
 
 		if i == 0 {

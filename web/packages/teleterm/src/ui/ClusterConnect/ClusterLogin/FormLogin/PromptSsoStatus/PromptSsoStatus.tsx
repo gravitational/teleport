@@ -20,22 +20,30 @@ import { Box, ButtonSecondary, Flex, Text } from 'design';
 
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
-export default function PromptSsoStatus(props: Props) {
+import { SsoPrompt } from '../../useClusterLogin';
+
+export default function PromptSsoStatus(props: {
+  onCancel?(): void;
+  ssoPrompt: Exclude<SsoPrompt, 'no-prompt'>;
+}) {
+  const { onCancel, ssoPrompt } = props;
   return (
     <Flex gap={4} flexDirection="column" alignItems="flex-start">
-      <Box style={{ position: 'relative' }}>
+      <Box width="100%" style={{ position: 'relative' }}>
         <Text bold mb={2} textAlign="center">
-          Please follow the steps in the new browser window to authenticate.
+          {ssoPrompt === 'follow-browser-steps' && (
+            <>Please follow the steps in the browser to&nbsp;authenticate.</>
+          )}
+
+          {ssoPrompt === 'wait-for-sync' && (
+            <>Login successful, connecting to the cluster…</>
+          )}
         </Text>
         <LinearProgress />
       </Box>
-      {props.onCancel && (
-        <ButtonSecondary onClick={props.onCancel}>Cancel</ButtonSecondary>
+      {ssoPrompt === 'follow-browser-steps' && onCancel && (
+        <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
       )}
     </Flex>
   );
 }
-
-export type Props = {
-  onCancel?(): void;
-};

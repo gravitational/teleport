@@ -29,9 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestTokens tests static tokens
@@ -137,19 +135,15 @@ func TestTokensCache(t *testing.T) {
 		cacheGet: func(ctx context.Context, key string) (types.ProvisionToken, error) {
 			return p.cache.GetToken(ctx, key)
 		},
-		cacheList: func(ctx context.Context, pageSize int) ([]types.ProvisionToken, error) {
-			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
-				return p.cache.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
-			}))
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
+			return p.cache.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
 		},
 		create: func(ctx context.Context, resource types.ProvisionToken) error {
 			err := p.provisionerS.CreateToken(ctx, resource)
 			return err
 		},
-		list: func(ctx context.Context) ([]types.ProvisionToken, error) {
-			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
-				return p.provisionerS.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
-			}))
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
+			return p.provisionerS.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
 		},
 		update: func(ctx context.Context, t types.ProvisionToken) error {
 			err := p.provisionerS.UpsertToken(ctx, t)
@@ -209,7 +203,7 @@ func TestTokensCacheFilters(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		result, _, err := p.cache.ListProvisionTokens(ctx, defaults.MaxIterationLimit, "", nil, "")
 		require.NoError(t, err)
-		assert.Len(t, result, len(tokens))
+		require.Len(t, result, len(tokens))
 	}, 10*time.Second, 100*time.Millisecond)
 
 	t.Run("roles filter", func(t *testing.T) {

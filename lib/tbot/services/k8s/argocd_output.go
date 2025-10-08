@@ -216,14 +216,14 @@ func (s *ArgoCDOutput) discoverClusters(ctx context.Context) ([]*argoClusterCred
 	}
 	defer impersonatedClient.Close()
 
-	clusters, err := fetchAllMatchingKubeClusters(ctx, impersonatedClient, s.cfg.Selectors)
+	matches, err := fetchAllMatchingKubeClusters(ctx, impersonatedClient, s.cfg.Selectors)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var clusterNames []string
-	for _, c := range clusters {
-		clusterNames = append(clusterNames, c.GetName())
+	for _, m := range matches {
+		clusterNames = append(clusterNames, m.cluster.GetName())
 	}
 	clusterNames = utils.Deduplicate(clusterNames)
 
@@ -348,8 +348,17 @@ func (s *ArgoCDOutput) renderSecret(cluster *argoClusterCredentials) (*corev1.Se
 		return nil, trace.Wrap(err, "marshaling cluster credentials")
 	}
 
+	name, err := kubeconfig.ContextNameFromTemplate(
+		s.cfg.ClusterNameTemplate,
+		cluster.teleportClusterName,
+		cluster.kubeClusterName,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "templating cluster name")
+	}
+
 	data := map[string][]byte{
-		"name":   []byte(kubeconfig.ContextName(cluster.teleportClusterName, cluster.kubeClusterName)),
+		"name":   []byte(name),
 		"server": []byte(cluster.addr),
 		"config": configJSON,
 	}

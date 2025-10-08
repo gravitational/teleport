@@ -99,7 +99,11 @@ export const CanvasRenderer = forwardRef<
   }, []);
 
   useEffect(() => {
-    if (!onResize) {
+    if (
+      !onResize ||
+      // Only send resize events when the canvas is visible (i.e. the connection is active).
+      props.hidden
+    ) {
       return;
     }
 
@@ -118,7 +122,7 @@ export const CanvasRenderer = forwardRef<
       debouncedOnResize.cancel();
       observer.disconnect();
     };
-  }, [onResize]);
+  }, [onResize, props.hidden]);
 
   // Wheel events must be registered on a ref because React's onWheel
   // uses a passive listener, so handlers are not able to call of e.preventDefault() on it.

@@ -41,6 +41,7 @@ import (
 	peerdial "github.com/gravitational/teleport/lib/proxy/peer/dial"
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ServerConfig holds the parameters for [NewServer].
@@ -215,13 +216,13 @@ func (s *Server) handleConn(conn *quic.Conn) {
 		"internal_id", uuid.NewString(),
 	)
 	state := conn.ConnectionState()
-	log.InfoContext(conn.Context(),
+	log.Log(conn.Context(), logutils.TraceLevel,
 		"handling new peer connection",
 		"gso", state.GSO,
 		"used_0rtt", state.Used0RTT,
 	)
 	defer func() {
-		log.DebugContext(conn.Context(),
+		log.Log(conn.Context(), logutils.TraceLevel,
 			"peer connection closed",
 			"error", ignoreCodeZero(context.Cause(conn.Context())),
 		)

@@ -532,6 +532,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MCPSessionRequest{}
 	case MCPSessionNotificationEvent:
 		e = &events.MCPSessionNotification{}
+	case MCPSessionListenSSEStream:
+		e = &events.MCPSessionListenSSEStream{}
+	case MCPSessionInvalidHTTPRequest:
+		e = &events.MCPSessionInvalidHTTPRequest{}
 
 	case BoundKeypairRecovery:
 		e = &events.BoundKeypairRecovery{}
@@ -539,6 +543,11 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.BoundKeypairRotation{}
 	case BoundKeypairJoinStateVerificationFailed:
 		e = &events.BoundKeypairJoinStateVerificationFailed{}
+
+	case SCIMListingEvent:
+		e = &events.SCIMListingEvent{}
+	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent:
+		e = &events.SCIMResourceEvent{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)

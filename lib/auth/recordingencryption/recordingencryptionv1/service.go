@@ -32,11 +32,20 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
+// A KeyRotater facilitates rotation of encryption keys.
+type KeyRotater interface {
+	RotateKey(context.Context) error
+	CompleteRotation(context.Context) error
+	RollbackRotation(context.Context) error
+	GetRotationState(context.Context) ([]*recordingencryptionv1.FingerprintWithState, error)
+}
+
 // ServiceConfig captures everything a [Service] requires to fulfill requests.
 type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	Logger     *slog.Logger
 	Uploader   events.MultipartUploader
+	KeyRotater KeyRotater
 }
 
 // NewService returns a new [Service] based on the given [ServiceConfig].
@@ -46,6 +55,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.Uploader == nil:
 		return nil, trace.BadParameter("uploader is required")
+	case cfg.KeyRotater == nil:
+		return nil, trace.BadParameter("key rotater is required")
 	}
 
 	if cfg.Logger == nil {
@@ -56,6 +67,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		logger:   cfg.Logger,
 		uploader: cfg.Uploader,
 		auth:     cfg.Authorizer,
+		rotater:  cfg.KeyRotater,
 	}, nil
 }
 
@@ -66,6 +78,7 @@ type Service struct {
 	auth     authz.Authorizer
 	logger   *slog.Logger
 	uploader events.MultipartUploader
+	rotater  KeyRotater
 }
 
 func streamUploadAsProto(upload events.StreamUpload) *recordingencryptionv1.Upload {
@@ -183,4 +196,72 @@ func (s *Service) CompleteUpload(ctx context.Context, req *recordingencryptionv1
 	}
 
 	return &recordingencryptionv1.CompleteUploadResponse{}, nil
+}
+
+func (s *Service) authorizeKeyRotation(ctx context.Context) error {
+	authCtx, err := s.auth.Authorize(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return trace.AccessDenied("Key rotation can only be performed by admins")
+	}
+
+	return nil
+}
+
+// RotateKey starts the rotation process for the active key pair used while encrypting session recording data.
+func (s *Service) RotateKey(ctx context.Context, req *recordingencryptionv1.RotateKeyRequest) (*recordingencryptionv1.RotateKeyResponse, error) {
+	if err := s.authorizeKeyRotation(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.rotater.RotateKey(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &recordingencryptionv1.RotateKeyResponse{}, nil
+}
+
+// CompleteRotation moves rotated keys out of the active set into new RotatedKey resources.
+func (s *Service) CompleteRotation(ctx context.Context, req *recordingencryptionv1.CompleteRotationRequest) (*recordingencryptionv1.CompleteRotationResponse, error) {
+	if err := s.authorizeKeyRotation(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.rotater.CompleteRotation(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &recordingencryptionv1.CompleteRotationResponse{}, nil
+}
+
+// RollbackRotation removes active keys and reverts rotating keys back to being active.
+func (s *Service) RollbackRotation(ctx context.Context, req *recordingencryptionv1.RollbackRotationRequest) (*recordingencryptionv1.RollbackRotationResponse, error) {
+	if err := s.authorizeKeyRotation(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.rotater.RollbackRotation(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &recordingencryptionv1.RollbackRotationResponse{}, nil
+}
+
+// GetRotationState the state and fingerprint of all currently active keys.
+func (s *Service) GetRotationState(ctx context.Context, req *recordingencryptionv1.GetRotationStateRequest) (*recordingencryptionv1.GetRotationStateResponse, error) {
+	if err := s.authorizeKeyRotation(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	states, err := s.rotater.GetRotationState(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &recordingencryptionv1.GetRotationStateResponse{
+		KeyPairStates: states,
+	}, nil
 }

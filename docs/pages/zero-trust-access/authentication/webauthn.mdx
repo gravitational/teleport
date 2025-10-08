@@ -2,9 +2,10 @@
 title: Harden your Cluster Against IdP Compromises
 description: Implement cluster-wide hardening measures.
 videoBanner: vQgKkD4ZRDU
-labels:
+tags:
  - how-to
  - zero-trust
+ - resiliency
 ---
 
 This guide aims to help you fortify your identity infrastructure and mitigate the risks associated with IdP weaknesses.
@@ -293,8 +294,7 @@ $ tsh device asset-tag
 </Tabs>
 </details>
 
-Replace 
-<Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/> 
+Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
 with the serial number of the device you wish to enroll, and
 <Var name="macos" /> with your operating system. Run the
 `tctl devices add` command:
@@ -308,9 +308,9 @@ Use `tctl` to check that the device has been registered:
 
 ```code
 $ tctl devices ls
-Asset Tag    OS    Enroll Status Device ID
------------- ----- ------------- ------------------------------------
-(=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
+Asset Tag    OS    Source Enroll Status Owner Device ID
+------------ ----- ------ ------------- ----- ------------------------------------
+(=devicetrust.asset_tag=) macOS        not enrolled        (=devicetrust.device_id=)
 ```
 
 ### Step 2/3. Create a device enrollment token
@@ -362,8 +362,8 @@ Teleport supports auto-enrollment. When enabled, auto-enrollment automatically
 enrolls the user's device in their next Teleport (`tsh`) login.
 
 For auto-enrollment to work, the following conditions must be met:
-- A device must be registered. Registration may be [manual](#implement-cluster-wide-device-trust) or performed using an
-integration, like the [Jamf Pro integration](../../identity-governance/device-trust/jamf-integration.mdx).
+- A device must be registered. Registration may be [manual](#implement-cluster-wide-device-trust) or
+  performed using [an MDM integration](../../identity-governance/device-trust/device-trust.mdx#mdm-integrations).
 - Auto-enrollment must be enabled in the cluster setting.
 
 ### Step 1/2. Enable auto-enrollment in your cluster settings

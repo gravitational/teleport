@@ -34,6 +34,7 @@ import { Checks, Info } from 'design/Icon';
 
 import { Platform } from 'teleterm/mainProcess/types';
 import { AppUpdateEvent, UpdateInfo } from 'teleterm/services/appUpdater';
+import { UnsupportedVersionError } from 'teleterm/services/appUpdater/errors';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { AutoUpdatesManagement } from './AutoUpdatesManagement';
@@ -171,8 +172,12 @@ function UpdaterState({
           {event.update && (
             <AvailableUpdate update={event.update} platform={platform} />
           )}
-          <Alert mb={1} details={event.error.message}>
-            {event.update ? 'Update failed' : 'Unable to check for app updates'}
+          <Alert mb={1} details={event.error.message} width="100%">
+            {event.update
+              ? 'Update failed'
+              : event.error.name === UnsupportedVersionError.name
+                ? 'Incompatible managed update version'
+                : 'Unable to check for app updates'}
           </Alert>
           <ButtonSecondary block onClick={onCheckForAppUpdates}>
             Try Again
@@ -219,7 +224,11 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
 
   return (
     <Stack>
-      <Text>A new version is available.</Text>
+      <Text>
+        {props.update.updateKind === 'upgrade'
+          ? 'A new version is available.'
+          : 'The app needs to be downgraded to match the required version.'}
+      </Text>
       <Flex gap={1} alignItems="center">
         {props.platform === 'darwin' ? (
           <img alt="App icon" height="50px" src={iconMac} />

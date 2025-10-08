@@ -27,6 +27,7 @@ import (
 	"os/user"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -148,6 +149,7 @@ func newMockServer(t *testing.T) *mockServer {
 		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
+		HostUUID:       uuid.NewString(),
 	}
 
 	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
@@ -250,7 +252,7 @@ func (m *mockServer) GetInfo() types.Server {
 	}
 }
 
-func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
+func (m *mockServer) EventMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerID:        "123",
 		ForwardedBy:     "abc",
@@ -280,8 +282,8 @@ func (m *mockServer) Context() context.Context {
 }
 
 // GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp string) {
-	return "test", "test", "test"
+func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string) {
+	return "test", "test", "test", "test"
 }
 
 // GetLockWatcher gets the server's lock watcher.

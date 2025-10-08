@@ -47,6 +47,7 @@ import (
 func (process *TeleportProcess) initWindowsDesktopService() {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id))
 	process.RegisterWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
+	process.ExpectService(teleport.ComponentWindowsDesktop)
 	process.RegisterCriticalFunc("windows_desktop.init", func() error {
 		conn, err := process.WaitForConnector(WindowsDesktopIdentityEvent, logger)
 		if conn == nil {
@@ -223,7 +224,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		Labels:       cfg.WindowsDesktop.Labels,
 		HostLabelsFn: cfg.WindowsDesktop.HostLabels.LabelsForHost,
 		Heartbeat: desktop.HeartbeatConfig{
-			HostUUID:    cfg.HostUUID,
+			HostUUID:    conn.HostUUID(),
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.StaticHosts,
 			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
@@ -234,6 +235,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		PKIDomain:            cfg.WindowsDesktop.PKIDomain,
 		Discovery:            cfg.WindowsDesktop.Discovery,
 		DiscoveryInterval:    cfg.WindowsDesktop.DiscoveryInterval,
+		PublishCRLInterval:   cfg.WindowsDesktop.PublishCRLInterval,
 		Hostname:             cfg.Hostname,
 		ConnectedProxyGetter: proxyGetter,
 		ResourceMatchers:     cfg.WindowsDesktop.ResourceMatchers,

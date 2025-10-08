@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,16 +41,22 @@ import (
 // that returns the internal features
 type mockedFeatureGetter struct {
 	authclient.ClientI
+
+	mu       sync.Mutex
 	features proto.Features
 }
 
 func (m *mockedFeatureGetter) Ping(ctx context.Context) (proto.PingResponse, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return proto.PingResponse{
 		ServerFeatures: utils.CloneProtoMsg(&m.features),
 	}, nil
 }
 
 func (m *mockedFeatureGetter) setFeatures(f proto.Features) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.features = f
 }
 
@@ -158,7 +165,7 @@ func requireFeatures(t *testing.T, fakeClock *clockwork.FakeClock, want proto.Fe
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		diff := cmp.Diff(want, getFeatures())
-		assert.Empty(t, diff)
+		require.Empty(t, diff)
 	}, 5*time.Second, time.Millisecond*100)
 }
 

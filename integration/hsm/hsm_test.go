@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -154,9 +153,9 @@ func TestHSMRotation(t *testing.T) {
 }
 
 func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, error) {
-	identity, err := storage.ReadLocalIdentity(
+	identity, err := storage.ReadLocalIdentityForRole(
 		filepath.Join(authDataDir, teleport.ComponentProcess),
-		state.IdentityID{Role: types.RoleAdmin})
+		types.RoleAdmin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -199,8 +198,8 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 		return
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		assert.NoError(t, f())
-		assert.NoError(t, f())
+		require.NoError(t, f())
+		require.NoError(t, f())
 	}, 10*time.Second, 250*time.Millisecond, "admin client failed test call to GetClusterName")
 }
 
@@ -536,8 +535,7 @@ func TestHSMMigrate(t *testing.T) {
 // software keys.
 func TestHSMRevert(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 	log := logtest.With(teleport.ComponentKey, "TestHSMRevert")
 
 	log.DebugContext(ctx, "starting auth server")
@@ -556,10 +554,13 @@ func TestHSMRevert(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure a cluster alert is created.
-	alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
-	require.NoError(t, err)
-	require.Len(t, alerts, 1)
-	alert := alerts[0]
+	var alert types.ClusterAlert
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+		require.NoError(t, err)
+		require.Len(t, alerts, 1)
+		alert = alerts[0]
+	}, time.Second*30, time.Millisecond*100, "waiting for cluster alert to be created")
 	assert.Equal(t, types.AlertSeverity_HIGH, alert.Spec.Severity)
 	assert.Contains(t, alert.Spec.Message, "configured to use raw software keys")
 	assert.Contains(t, alert.Spec.Message, "the following CAs do not contain any keys of that type:")
@@ -599,7 +600,7 @@ func TestHSMRevert(t *testing.T) {
 	// auth.AutoRotateCertAuthorities which reconciles the alert state.
 	clock.Advance(2 * defaults.HighResPollingPeriod)
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
-		alerts, err = auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+		alerts, err := auth1.process.GetAuthServer().GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
 		assert.NoError(t, err)
 		assert.Empty(t, alerts)
 

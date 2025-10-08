@@ -384,6 +384,7 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 		return nil, trace.NotFound("no LDAP servers found for domain %q", c.Domain)
 	}
 
+	var lastErr error
 	for _, server := range servers {
 		conn, err := ldap.DialURL(
 			"ldaps://"+server,
@@ -391,16 +392,18 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 			ldap.DialWithTLSConfig(ldapTLSConfig),
 		)
 
-		if err != nil {
-			// If the connection fails, try the next server
-			c.Logger.DebugContext(ctx, "Error connecting to LDAP server, trying next available server", "server", server, "error", err)
-			continue
+		if err == nil {
+			c.Logger.DebugContext(ctx, "Connected to LDAP server", "server", server)
+			conn.SetTimeout(ldapRequestTimeout)
+			return conn, nil
 		}
+		lastErr = err
 
-		c.Logger.DebugContext(ctx, "Connected to LDAP server", "server", server)
-		conn.SetTimeout(ldapRequestTimeout)
-		return conn, nil
+		if c.LocateServer.Enabled {
+			// If the connection fails and we're using LocateServer, log that a server failed.
+			c.Logger.DebugContext(ctx, "Error connecting to LDAP server, trying next available server", "server", server, "error", err)
+		}
 	}
 
-	return nil, trace.NotFound("no LDAP servers responded successfully for domain %q", c.Domain)
+	return nil, trace.NotFound("no LDAP servers responded successfully for domain %q: %v", c.Domain, lastErr)
 }

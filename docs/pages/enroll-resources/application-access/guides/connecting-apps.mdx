@@ -1,9 +1,10 @@
 ---
 title: Web Application Access
 description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
-labels:
+tags:
  - how-to
  - zero-trust
+ - infrastructure-identity
 ---
 
 This guide shows you how to enroll a web application with your Teleport cluster
@@ -17,7 +18,7 @@ Application Service, which uses a join token to establish trust with the
 Teleport Auth Service. Users visit Teleport-protected web applications through
 the Teleport Web UI. The Teleport Proxy Service routes browser traffic to the
 Teleport Application Service, which forwards HTTP requests to and from target
-applications. 
+applications.
 
 ## Prerequisites
 
@@ -38,7 +39,7 @@ target application, then deploy a Teleport Agent to run the service.
 ### Generate a token
 
 A join token is required to authorize a Teleport Application Service to
-join the cluster. 
+join the cluster.
 
 1. Generate a short-lived join token. Make sure to change `app-name` to the name
    of your application and `app-uri` to the application's domain name and port:
@@ -157,6 +158,7 @@ header or move this page.
 */}
 
 An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
+It should also be unique across root and leaf clusters if you are deploying in a trusted clusters environment.
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
@@ -195,6 +197,7 @@ address. To override the public address, specify the `public_addr` field:
 ```yaml
 - name: "jira"
   uri: "https://localhost:8001"
+  # The public address must be a unique DNS name and not conflict with the Teleport cluster's public addresses.
   public_addr: "jira.example.com"
 ```
 

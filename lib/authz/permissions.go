@@ -79,6 +79,7 @@ type AuthorizerOpts struct {
 	ClusterName         string
 	AccessPoint         AuthorizerAccessPoint
 	ReadOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
+	ScopedRoleReader    services.ScopedRoleReader
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
 	Logger              *slog.Logger
@@ -96,6 +97,10 @@ type AuthorizerOpts struct {
 
 // NewAuthorizer returns new authorizer using backends
 func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
+	return newAuthorizer(opts)
+}
+
+func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 	if opts.ClusterName == "" {
 		return nil, trace.BadParameter("missing parameter clusterName")
 	}
@@ -126,6 +131,7 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 		clusterName:             opts.ClusterName,
 		accessPoint:             opts.AccessPoint,
 		readOnlyAccessPoint:     opts.ReadOnlyAccessPoint,
+		scopedRoleReader:        opts.ScopedRoleReader,
 		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
@@ -217,6 +223,7 @@ type authorizer struct {
 	clusterName         string
 	accessPoint         AuthorizerAccessPoint
 	readOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
+	scopedRoleReader    services.ScopedRoleReader
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
 	logger              *slog.Logger
@@ -396,6 +403,12 @@ func (c *Context) GetDisconnectCertExpiry(authPref readonly.AuthPreference) time
 	return identity.Expires
 }
 
+// ErrScopedIdentity is returned by Authorize when it receives a scoped identity. Methods that implement
+// scoping support may check for this error and fallback to scoped authorization as appropriate.
+var ErrScopedIdentity = &trace.AccessDeniedError{
+	Message: "scoped certificates not supported",
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
 	defer func() {
@@ -411,6 +424,11 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if user, ok := userI.(LocalUser); ok && user.Identity.ScopePin != nil {
+		return nil, ErrScopedIdentity
+	}
+
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -608,6 +626,8 @@ func (a *authorizer) convertAuthorizerError(err error) error {
 	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
 		a.logger.WarnContext(context.Background(), "ip pinning requirements not satisfied", "error", err)
 		return trace.Wrap(err)
+	case errors.Is(err, ErrScopedIdentity):
+		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
 		a.logger.WarnContext(context.Background(), "access denied", "error", err)
 	case keys.IsPrivateKeyPolicyError(err):
@@ -753,6 +773,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		PinnedIP:          u.Identity.PinnedIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 		UserType:          u.Identity.UserType,
+		OriginClusterName: u.Identity.TeleportCluster,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.Wrap(ErrIPPinningMissing)
@@ -925,6 +946,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindAccessGraphSettings, services.RO()),
 				types.NewRule(types.KindRelayServer, services.RO()),
 				types.NewRule(types.KindAccessList, services.RO()),
+				types.NewRule(types.KindHealthCheckConfig, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{
@@ -1203,6 +1225,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindHealthCheckConfig, services.RO()),
 					},
 				},
 			})

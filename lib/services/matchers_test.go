@@ -659,6 +659,26 @@ func TestMatchResourceByFilters(t *testing.T) {
 				PredicateExpression: filterExpression,
 			},
 		},
+		{
+			name: "MCP server with mcp kind filter",
+			resource: func() types.ResourceWithLabels {
+				return newAppServerFromApp(t, newMCPServerApp(t, "foo"))
+			},
+			filters: MatchResourceFilter{
+				Kinds:               []string{types.KindMCP},
+				PredicateExpression: filterExpression,
+			},
+		},
+		{
+			name: "MCP server with app kind filter",
+			resource: func() types.ResourceWithLabels {
+				return newAppServerFromApp(t, newMCPServerApp(t, "foo"))
+			},
+			filters: MatchResourceFilter{
+				Kinds:               []string{types.KindApp},
+				PredicateExpression: filterExpression,
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -727,4 +747,24 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			require.Equal(t, tt.out, ResourceMatchersToTypes(tt.in))
 		})
 	}
+}
+
+func newMCPServerApp(t *testing.T, name string) *types.AppV3 {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name: name,
+	}, types.AppSpecV3{
+		MCP: &types.MCP{
+			Command:       "test",
+			RunAsHostUser: "test",
+		},
+	})
+	require.NoError(t, err)
+	return app
+}
+
+func newAppServerFromApp(t *testing.T, app *types.AppV3) types.AppServer {
+	appServer, err := types.NewAppServerV3FromApp(app, "_", "_")
+	require.NoError(t, err)
+	return appServer
 }

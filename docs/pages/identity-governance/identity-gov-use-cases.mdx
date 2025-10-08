@@ -1,0 +1,67 @@
+---
+title: Identity Governance in Action
+description: Common use cases with Teleport Identity Governance
+labels:
+ - identity-governance
+---
+
+Teleport Identity Governance helps organizations strengthen security and compliance by centralizing 
+how access is granted, monitored, and enforced across infrastructure and applications. 
+The following use cases highlight practical ways to apply Teleport's governance features, from integrating 
+with device and identity providers, and extending controls into external services. 
+Each scenario links to detailed guides so you can quickly put these capabilities into practice.
+
+## Identity integrations
+
+Teleport supports multiple identity options so you can plug into your existing stack or make Teleport your source of truth. 
+
+Integrate with IdPs like **AWS IAM Identity Center**, **Okta,** **Microsoft Entra ID**, or **SailPoint** to sync groups to Teleport roles. 
+If you prefer, you can also run **Teleport as an identity provider**, issuing 
+short-lived credentials and federating access to downstream apps and services. 
+
+These integrations enable centralized onboarding/off-boarding, group-to-role mapping, and consistent policy enforcement across all your resources.
+
+- [**AWS IAM Identity Center**](integrations/aws-iam-identity-center/aws-iam-identity-center.mdx)
+- [**Okta Integration**](integrations/okta/okta.mdx)
+- [**Entra ID Integration**](integrations/entra-id/getting-started.mdx)
+- [**Teleport Identity Provider**](./idps/idps.mdx)
+- [**SailPoint SCIM Integration**](integrations/scim/sailpoint.mdx)
+
+## Just-in-time Access Requests
+
+[Grant temporary access when it's needed](./access-requests/access-requests.mdx).
+Developers request elevated roles only for the specific task and duration required. 
+Approvals are tracked in the audit log, and Teleport issues short-lived certificates 
+so access automatically expires without manual cleanup.
+
+## Just-in-time Access Request plugins
+
+[Manage requests via third-party tools](./access-request-plugins/access-request-plugins.mdx).
+Plugins enforce your reviewer policies, post status updates, and keep a complete, auditable trail. 
+You can receive Access Request notifications where your team already works, such as Slack, Microsoft Teams, PagerDuty, Jira, ServiceNow, and more.
+
+## Access Lists
+
+[Grant auditable access by user group](./access-lists/access-lists.mdx).
+Define membership-based access with owners, eligibility rules, and time-boxed enrollment. 
+Access Lists map groups to Teleport roles, require periodic reviews, and provide a clear record of who had access and why.
+
+## Device Trust
+
+[Enforce trusted registered device access](./device-trust/device-trust.mdx).
+Device identity can help block access from unknown or non-compliant workstations by policy.
+
+## Session and Identity Locking
+
+[Lock compromised users and resources](./locking.mdx).
+Instantly quarantine a user, device, or node to cut off access in an incident. Locks terminate active sessions, 
+prevent new certificate issuance, and are fully scoped and time-limited for safe rollback.
+
+## Further reading
+
+- Read about all of the ways you can configure Access Requests in the 
+[Access Request Configuration Guide](../identity-governance/access-requests/access-request-configuration.mdx).
+- To read more about the architecture of an Access Request plugin, and start writing your own, 
+read our [Access Request plugin development guide](../identity-governance/access-request-plugins/access-plugin.mdx).
+- Learn how [nested Access Lists](../identity-governance/access-lists/nested-access-lists.mdx) grants inheritance work.
+- Learn how [SCIM](integrations/scim/scim.mdx) (System for Cross-domain Identity Management) integration supports automated user management.

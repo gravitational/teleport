@@ -237,7 +237,7 @@ func signPayload(sigPayload payload.Cosign, key *cosign.KeysBytes) (oci.Signatur
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sv, err := cosign.LoadPrivateKey(key.PrivateBytes, []byte{})
+	sv, err := cosign.LoadPrivateKey(key.PrivateBytes, []byte{}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

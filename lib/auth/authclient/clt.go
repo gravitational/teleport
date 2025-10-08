@@ -576,7 +576,7 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
+func (c *Client) UpdatePresence(ctx context.Context, _, _, _ string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -869,6 +869,9 @@ type OIDCAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -916,6 +919,9 @@ type SAMLAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
@@ -955,6 +961,9 @@ type GithubAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // GithubAuthRequest is an Github auth request that supports standard json marshaling
@@ -1219,6 +1228,41 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	}, nil
 }
 
+func (v *ValidateTrustedClusterRequest) ToProto() (*proto.ValidateTrustedClusterRequest, error) {
+	// Convert from interface type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+
+	return &proto.ValidateTrustedClusterRequest{
+		Token:           v.Token,
+		TeleportVersion: v.TeleportVersion,
+		CertAuthorities: cas,
+	}, nil
+}
+
+func ValidateTrustedClusterRequestFromProto(
+	req *proto.ValidateTrustedClusterRequest,
+) *ValidateTrustedClusterRequest {
+	cas := make([]types.CertAuthority, 0, len(req.CertAuthorities))
+	for _, certAuthority := range req.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterRequest{
+		Token:           req.Token,
+		CAs:             cas,
+		TeleportVersion: req.TeleportVersion,
+	}
+}
+
 type ValidateTrustedClusterRequestRaw struct {
 	Token           string   `json:"token"`
 	CAs             [][]byte `json:"certificate_authorities"`
@@ -1265,6 +1309,39 @@ func (v *ValidateTrustedClusterResponse) ToRaw() (*ValidateTrustedClusterRespons
 	}, nil
 }
 
+// ToProto converts ValidateTrustedClusterResponse to its proto representation.
+func (v *ValidateTrustedClusterResponse) ToProto() (*proto.ValidateTrustedClusterResponse, error) {
+	// Cast interface to underlying type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+	return &proto.ValidateTrustedClusterResponse{
+		CertAuthorities: cas,
+	}, nil
+}
+
+// ValidateTrustedClusterResponseFromProto converts the proto representation of
+// ValidateTrustedClusterResponse to its native representation.
+func ValidateTrustedClusterResponseFromProto(
+	resp *proto.ValidateTrustedClusterResponse,
+) *ValidateTrustedClusterResponse {
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthorities))
+	for _, certAuthority := range resp.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterResponse{
+		CAs: cas,
+	}
+}
+
 type ValidateTrustedClusterResponseRaw struct {
 	CAs [][]byte `json:"certificate_authorities"`
 }
@@ -1290,6 +1367,11 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
+
+	// Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+	// authentication and some differences in locking behavior.
+	Scope string `json:"scope,omitempty"`
 
 	// SSHPublicKey is a public key in ssh authorized_keys format.
 	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
@@ -1404,6 +1486,17 @@ type SSHLoginResponse struct {
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
+}
+
+// ClientOptions contains options passed from the control plane to the client at
+// login time.
+type ClientOptions struct {
+	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
+	// be used if the client does not otherwise specify a relay.
+	DefaultRelayAddr string `json:"default_relay_addr"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1481,7 +1574,7 @@ type ClientI interface {
 	types.Events
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	services.WebToken
 
 	DynamicDesktopClient() *dynamicwindows.Client
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
@@ -1672,6 +1765,13 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient
+
+	// WorkloadIdentityResourceServiceClient returns a client for interacting
+	// with workload identity resources.
+	// Clients connecting to  older Teleport versions, still get an access list
+	// client when calling this method, but all RPCs will return "not
+	// implemented" errors (as per the default gRPC behavior).
+	WorkloadIdentityResourceServiceClient() workloadidentityv1pb.WorkloadIdentityResourceServiceClient
 
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client

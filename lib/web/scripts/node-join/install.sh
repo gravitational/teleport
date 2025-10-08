@@ -419,7 +419,24 @@ get_download_filename() { echo "${1##*/}"; }
 # gets the pid of any running teleport process (and converts newlines to spaces)
 get_teleport_pid() {
     check_exists_fatal pgrep xargs
-    pgrep teleport | xargs echo
+    TELEPORT_PIDS=$(pgrep teleport | xargs echo)
+    # if we have procfs available (i.e. on Linux), we do a more detailed check for the binary name
+    # this method also combats issues with install scripts running in cloud-init with "teleport" in
+    # their name (see https://github.com/gravitational/teleport/pull/59452)
+    # for MacOS (and Linux without procfs, if that ever happens), we just use the original behaviour
+    if [[ -d /proc ]]; then
+        check_exists_fatal basename readlink
+        TELEPORT_PIDS=""
+        POTENTIAL_PIDS=$(pgrep -f "teleport start" | xargs echo)
+        for PID in ${POTENTIAL_PIDS}; do
+            if [ -f /proc/${PID}/exe ]; then
+                EXE=$(basename "$(readlink /proc/${PID}/exe)")
+                if [[ "${EXE}" == "teleport" ]]; then TELEPORT_PIDS="${PID} ${TELEPORT_PIDS}"; fi
+            fi
+        done
+    fi
+    # return list of pids with whitespace trimmed from the end
+    echo ${TELEPORT_PIDS%%[[:space:]]*}
 }
 # returns a command which will start teleport using the config
 get_teleport_start_command() {

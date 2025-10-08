@@ -19,7 +19,6 @@ package cache
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -87,28 +86,21 @@ func TestPluginStaticCredentials(t *testing.T) {
 						})
 				},
 				create: p.pluginStaticCredentials.CreatePluginStaticCredentials,
-				list:   p.pluginStaticCredentials.GetAllPluginStaticCredentials,
+				list:   getAllAdapter(p.pluginStaticCredentials.GetAllPluginStaticCredentials),
 				update: func(ctx context.Context, cred types.PluginStaticCredentials) error {
 					_, err := p.pluginStaticCredentials.UpdatePluginStaticCredentials(ctx, cred)
 					return err
 				},
 				deleteAll: p.pluginStaticCredentials.DeleteAllPluginStaticCredentials,
-				cacheList: func(ctx context.Context, pageSize int) ([]types.PluginStaticCredentials, error) {
+				cacheList: func(ctx context.Context, _ int, _ string) ([]types.PluginStaticCredentials, string, error) {
 					var out []types.PluginStaticCredentials
 					for cred := range p.cache.collections.pluginStaticCredentials.store.resources(pluginStaticCredentialsNameIndex, "", "") {
 						out = append(out, cred.Clone())
 					}
-					return out, nil
+					return out, "", nil
 				},
 				cacheGet: cacheGet.fn,
-				changeResource: func(cred types.PluginStaticCredentials) {
-					// types.PluginStaticCredentials does not support Expires. Let's
-					// use labels.
-					labels := cred.GetStaticLabels()
-					labels["now"] = time.Now().String()
-					cred.SetStaticLabels(labels)
-				},
-			})
+			}, withSkipPaginationTest())
 		})
 	}
 }

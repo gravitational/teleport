@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
+	"github.com/gravitational/teleport/lib/utils/log"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -109,6 +111,8 @@ type TLSServerConfig struct {
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 	// InventoryHandle is used to send kube server heartbeats via the inventory control stream.
 	InventoryHandle inventory.DownstreamHandle
+	// HealthCheckManager manages checking the health of Kubernetes clusters.
+	HealthCheckManager healthcheck.Manager
 }
 
 type awsClientsGetter struct{}
@@ -142,6 +146,9 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ConnectedProxyGetter == nil {
 		return trace.BadParameter("missing parameter ConnectedProxyGetter")
+	}
+	if c.HealthCheckManager == nil {
+		return trace.BadParameter("missing parameter HealthCheckManager")
 	}
 
 	if err := c.validateLabelKeys(); err != nil {
@@ -375,6 +382,31 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 	t.kubeClusterWatcher = kubeClusterWatcher
 	t.mu.Unlock()
 
+	if t.OnHeartbeat != nil {
+		// Kube uses heartbeat v2, which heartbeats resources but not the server itself
+		// If there are no resources, we will never report ready.
+		// We work around by reporting ready after the first successful watcher init.
+		var watcherWaiters []func() error
+		if kubeClusterWatcher != nil {
+			watcherWaiters = append(watcherWaiters, kubeClusterWatcher.WaitInitialization)
+		}
+		if t.KubernetesServersWatcher != nil {
+			watcherWaiters = append(watcherWaiters, t.KubernetesServersWatcher.WaitInitialization)
+		}
+		if len(watcherWaiters) > 0 {
+			go func() {
+				for _, w := range watcherWaiters {
+					err := w()
+					if err != nil {
+						t.OnHeartbeat(err)
+						return
+					}
+				}
+				t.OnHeartbeat(nil)
+			}()
+		}
+	}
+
 	// kubeServerWatcher is used by the kube proxy to watch for changes in the
 	// kubernetes servers of a cluster. Proxy requires it to update the kubeServersMap
 	// which holds the list of kubernetes_services connected to the proxy for a given
@@ -411,7 +443,7 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster.GetName()))
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 
@@ -490,7 +522,81 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 		return nil, trace.Wrap(err)
 	}
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+
+	// Get the kube cluster health and send it to the auth server.
+	srv.SetTargetHealth(t.getTargetHealth(t.closeContext, cluster))
+
 	return srv, nil
+}
+
+// startHealthCheck starts checking the health of a Kubernetes cluster.
+func (t *TLSServer) startHealthCheck(cluster types.KubeCluster) error {
+	kubeDetails, err := t.fwd.findKubeDetailsByClusterName(cluster.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = t.HealthCheckManager.AddTarget(healthcheck.Target{
+		HealthChecker: kubeDetails,
+		GetResource:   func() types.ResourceWithLabels { return cluster },
+	})
+	return trace.Wrap(err)
+}
+
+// stopHealthCheck stops checking the health of a Kubernetes cluster.
+func (t *TLSServer) stopHealthCheck(cluster types.KubeCluster) error {
+	if err := t.HealthCheckManager.RemoveTarget(cluster); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// startHeartbeatAndHealthCheck starts heart beats and health checks.
+func (t *TLSServer) startHeartbeatAndHealthCheck(cluster types.KubeCluster) error {
+	if err := t.startHealthCheck(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := t.startHeartbeat(cluster.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// stopHeartbeatAndHealthCheck stops heart beats and health checks.
+func (t *TLSServer) stopHeartbeatAndHealthCheck(cluster types.KubeCluster) error {
+	var errs []error
+	if err := t.stopHealthCheck(cluster); err != nil {
+		errs = append(errs, err)
+	}
+	if err := t.stopHeartbeat(cluster.GetName()); err != nil {
+		errs = append(errs, err)
+	}
+	return trace.NewAggregate(errs...)
+}
+
+// getTargetHealth returns the health of a Kubernetes cluster.
+func (t *TLSServer) getTargetHealth(ctx context.Context, cluster types.KubeCluster) *types.TargetHealth {
+	health, err := t.HealthCheckManager.GetTargetHealth(cluster)
+	if err == nil {
+		return health
+	}
+	if trace.IsNotFound(err) {
+		return &types.TargetHealth{
+			Status:           string(types.TargetHealthStatusUnknown),
+			TransitionReason: string(types.TargetHealthTransitionReasonDisabled),
+			Message:          "Unable to find the Kubernetes cluster",
+		}
+	}
+
+	t.log.WarnContext(ctx, "Failed to get kube cluster health",
+		"kube_cluster", log.StringerAttr(cluster),
+		"error", err,
+	)
+	return &types.TargetHealth{
+		Status:           string(types.TargetHealthStatusUnknown),
+		TransitionReason: string(types.TargetHealthTransitionReasonInternalError),
+		TransitionError:  err.Error(),
+		Message:          "Teleport failed to get the Kubernetes cluster health status (this is a bug)",
+	}
 }
 
 // getKubeClusterWithServiceLabels finds the kube cluster by name, strips the credentials,
@@ -559,14 +665,14 @@ func (t *TLSServer) startStaticClustersHeartbeat() error {
 	// proxy_service will pretend to also be kube_server.
 	if t.KubeServiceType == KubeService ||
 		t.KubeServiceType == LegacyProxyService {
-		t.log.DebugContext(t.closeContext, "Starting kubernetes_service heartbeats")
-		for _, cluster := range t.fwd.kubeClusters() {
-			if err := t.startHeartbeat(cluster.GetName()); err != nil {
+		t.log.DebugContext(t.closeContext, "Starting kubernetes_service heartbeats and health checks")
+		for _, kc := range t.fwd.kubeClusters() {
+			if err := t.startHeartbeatAndHealthCheck(kc); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 	} else {
-		t.log.DebugContext(t.closeContext, "No local kube credentials on proxy, will not start kubernetes_service heartbeats")
+		t.log.DebugContext(t.closeContext, "No local kube credentials on proxy, will not start kubernetes_service heartbeats and health checks")
 	}
 
 	return nil

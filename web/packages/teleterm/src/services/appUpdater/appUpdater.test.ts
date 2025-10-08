@@ -27,7 +27,7 @@ import Logger, { NullService } from 'teleterm/logger';
 
 import { AppUpdateEvent, AppUpdater, AppUpdaterStorage } from './appUpdater';
 
-const mockedAppVersion = '15.0.0';
+const mockedAppVersion = '17.8.0';
 
 jest.mock('electron', () => ({
   app: {
@@ -100,6 +100,7 @@ class MockedMacUpdater extends MacUpdater {
 function setUpAppUpdater(options: {
   clusters: GetClusterVersionsResponse;
   storage?: AppUpdaterStorage;
+  processEnvVar?: string;
 }) {
   const clusterGetter = async () => {
     return options.clusters;
@@ -117,6 +118,7 @@ function setUpAppUpdater(options: {
     event => {
       lastEvent.value = event;
     },
+    options.processEnvVar,
     nativeUpdater
   );
 
@@ -136,8 +138,8 @@ test('auto-downloads update when all clusters are reachable', async () => {
         {
           clusterUri: '/clusters/foo',
           toolsAutoUpdate: true,
-          toolsVersion: '18.0.0',
-          minToolsVersion: '17.0.0-aa',
+          toolsVersion: '19.0.0',
+          minToolsVersion: '18.0.0-aa',
         },
       ],
       unreachableClusters: [],
@@ -168,8 +170,8 @@ test('does not auto-download update when there are unreachable clusters', async 
         {
           clusterUri: '/clusters/foo',
           toolsAutoUpdate: true,
-          toolsVersion: '18.0.0',
-          minToolsVersion: '17.0.0-aa',
+          toolsVersion: '19.0.0',
+          minToolsVersion: '18.0.0-aa',
         },
       ],
       unreachableClusters: [
@@ -191,6 +193,34 @@ test('does not auto-download update when there are unreachable clusters', async 
   expect(setup.downloadUpdateSpy).toHaveBeenCalledTimes(0);
 });
 
+test('does not auto-download update when env var is set to off', async () => {
+  const setup = setUpAppUpdater({
+    processEnvVar: 'off',
+    clusters: {
+      reachableClusters: [
+        {
+          clusterUri: '/clusters/foo',
+          toolsAutoUpdate: true,
+          toolsVersion: '19.0.0',
+          minToolsVersion: '18.0.0-aa',
+        },
+      ],
+      unreachableClusters: [],
+    },
+  });
+
+  await setup.appUpdater.checkForUpdates({ noAutoDownload: true });
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'update-not-available',
+      autoUpdatesStatus: expect.objectContaining({
+        reason: 'disabled-by-env-var',
+      }),
+    })
+  );
+  expect(setup.downloadUpdateSpy).toHaveBeenCalledTimes(0);
+});
+
 test('does not auto-download update when all clusters are reachable and noAutoDownload is set', async () => {
   const setup = setUpAppUpdater({
     clusters: {
@@ -198,8 +228,8 @@ test('does not auto-download update when all clusters are reachable and noAutoDo
         {
           clusterUri: '/clusters/foo',
           toolsAutoUpdate: true,
-          toolsVersion: '18.0.0',
-          minToolsVersion: '17.0.0-aa',
+          toolsVersion: '19.0.0',
+          minToolsVersion: '18.0.0-aa',
         },
       ],
       unreachableClusters: [],
@@ -222,8 +252,8 @@ test('discards previous update if a new one is found that should not auto-downlo
       {
         clusterUri: '/clusters/foo',
         toolsAutoUpdate: true,
-        toolsVersion: '18.0.0',
-        minToolsVersion: '17.0.0-aa',
+        toolsVersion: '19.0.0',
+        minToolsVersion: '18.0.0-aa',
       },
     ],
     unreachableClusters: [],
@@ -240,7 +270,7 @@ test('discards previous update if a new one is found that should not auto-downlo
     expect.objectContaining({
       kind: 'update-downloaded',
       update: expect.objectContaining({
-        version: '18.0.0',
+        version: '19.0.0',
       }),
     })
   );
@@ -249,16 +279,16 @@ test('discards previous update if a new one is found that should not auto-downlo
     {
       clusterUri: '/clusters/foo',
       toolsAutoUpdate: true,
-      toolsVersion: '18.0.0',
-      minToolsVersion: '17.0.0-aa',
+      toolsVersion: '19.0.0',
+      minToolsVersion: '18.0.0-aa',
     },
 
     // This cluster is on newer version, so it will be providing updates.
     {
       clusterUri: '/clusters/bar',
       toolsAutoUpdate: true,
-      toolsVersion: '18.0.1',
-      minToolsVersion: '17.0.0-aa',
+      toolsVersion: '19.0.1',
+      minToolsVersion: '18.0.0-aa',
     },
   ];
   await setup.appUpdater.checkForUpdates({ noAutoDownload: true });
@@ -268,7 +298,7 @@ test('discards previous update if a new one is found that should not auto-downlo
       autoDownload: false,
       kind: 'update-available',
       update: expect.objectContaining({
-        version: '18.0.1',
+        version: '19.0.1',
       }),
     })
   );
@@ -283,8 +313,8 @@ test('discards previous update if the latest check returns no update', async () 
       {
         clusterUri: '/clusters/foo',
         toolsAutoUpdate: true,
-        toolsVersion: '18.0.0',
-        minToolsVersion: '17.0.0-aa',
+        toolsVersion: '19.0.0',
+        minToolsVersion: '18.0.0-aa',
       },
     ],
     unreachableClusters: [],
@@ -301,7 +331,7 @@ test('discards previous update if the latest check returns no update', async () 
     expect.objectContaining({
       kind: 'update-downloaded',
       update: expect.objectContaining({
-        version: '18.0.0',
+        version: '19.0.0',
       }),
     })
   );
@@ -317,4 +347,56 @@ test('discards previous update if the latest check returns no update', async () 
   await setup.appUpdater.dispose();
   // Check if the app is set to discard the first downloaded update on close.
   expect(setup.nativeUpdater.autoInstallOnAppQuit).toBeFalsy();
+});
+
+test('when the update is older than app updateKind equals downgrade', async () => {
+  const setup = setUpAppUpdater({
+    clusters: {
+      reachableClusters: [
+        {
+          clusterUri: '/clusters/foo',
+          toolsAutoUpdate: true,
+          toolsVersion: '17.7.5',
+          minToolsVersion: '16.0.0-aa',
+        },
+      ],
+      unreachableClusters: [],
+    },
+  });
+
+  await setup.appUpdater.checkForUpdates();
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'update-available',
+      update: expect.objectContaining({
+        updateKind: 'downgrade',
+      }),
+    })
+  );
+});
+
+test('when the update is newer than app updateKind equals upgrade', async () => {
+  const setup = setUpAppUpdater({
+    clusters: {
+      reachableClusters: [
+        {
+          clusterUri: '/clusters/foo',
+          toolsAutoUpdate: true,
+          toolsVersion: '19.7.5',
+          minToolsVersion: '16.0.0-aa',
+        },
+      ],
+      unreachableClusters: [],
+    },
+  });
+
+  await setup.appUpdater.checkForUpdates();
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'update-available',
+      update: expect.objectContaining({
+        updateKind: 'upgrade',
+      }),
+    })
+  );
 });

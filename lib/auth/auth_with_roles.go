@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"net/url"
 	"os"
@@ -179,12 +180,13 @@ func (a *ServerWithRoles) identityCenterAction(namespace string, resource string
 
 // actionForListWithCondition extracts a restrictive filter condition to be
 // added to a list query after a simple resource check fails.
-func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resource, identifier string) (*types.WhereExpr, error) {
+func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resource, identifier string) (*utils.ToFieldsConditionConfig, error) {
 	origErr := a.authorizeAction(resource, types.VerbList)
 	if origErr == nil || !trace.IsAccessDenied(origErr) {
 		return nil, trace.Wrap(origErr)
 	}
-	cond, err := a.context.Checker.ExtractConditionForIdentifier(&services.Context{User: a.context.User}, apidefaults.Namespace, resource, types.VerbList, identifier)
+	svcCtx := &services.Context{User: a.context.User}
+	cond, err := a.context.Checker.ExtractConditionForIdentifier(svcCtx, apidefaults.Namespace, resource, types.VerbList, identifier)
 	if trace.IsAccessDenied(err) {
 		a.authServer.logger.InfoContext(ctx, "Access to list resource denied",
 			"error", err,
@@ -193,7 +195,19 @@ func (a *ServerWithRoles) actionForListWithCondition(ctx context.Context, resour
 		// Return the original AccessDenied to avoid leaking information.
 		return nil, trace.Wrap(origErr)
 	}
-	return cond, trace.Wrap(err)
+	return &utils.ToFieldsConditionConfig{
+		CanView: func(ef utils.Fields) bool {
+			au, err := events.FromEventFields(events.EventFields(ef))
+			if err != nil {
+				slog.WarnContext(ctx, "Failed to convert event fields", "error", err)
+				return false
+			}
+			canViewCtx := services.Context{User: a.context.User}
+			canViewCtx.ExtendWithSessionEnd(au, a.context.Checker)
+			return services.CanViewResourceFunc(&canViewCtx)()()
+		},
+		Expr: cond,
+	}, trace.Wrap(err)
 }
 
 // actionWithExtendedContext performs an additional RBAC check with extended
@@ -218,7 +232,18 @@ func (a *ServerWithRoles) actionWithExtendedContext(ctx context.Context, kind, v
 func (a *ServerWithRoles) actionForKindSession(ctx context.Context, sid session.ID) error {
 	extendContext := func(servicesCtx *services.Context) error {
 		sessionEnd, err := a.findSessionEndEvent(ctx, sid)
-		servicesCtx.Session = sessionEnd
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		servicesCtx.ExtendWithSessionEnd(sessionEnd, a.context.Checker)
+		return nil
+	}
+
+	// First try a simple check without the extended context.
+	if err := a.actionWithContext(&services.Context{User: a.context.User}, types.KindSession, types.VerbRead); err == nil {
+		return nil
+	} else if !trace.IsAccessDenied(err) {
+		// If the error is something other than AccessDenied, return it.
 		return trace.Wrap(err)
 	}
 
@@ -322,9 +347,10 @@ func (a *ServerWithRoles) filterSessionTracker(joinerRoles []types.Role, tracker
 		}
 
 		for _, participant := range tracker.GetParticipants() {
-			// We only need to fill in User here since other fields get discarded anyway.
+			// We only need to fill in User and cluster here since other fields get discarded anyway.
 			ruleCtx.SSHSession.Parties = append(ruleCtx.SSHSession.Parties, session.Party{
-				User: participant.User,
+				User:    participant.User,
+				Cluster: participant.Cluster,
 			})
 		}
 
@@ -1296,12 +1322,17 @@ var (
 		types.KindNode:                   {},
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
+		types.KindMCP:                    {},
 	}
 
 	defaultUnifiedResourceKinds = slices.Collect(maps.Keys(supportedUnifiedResourceKinds))
 )
 
 func (a *ServerWithRoles) checkKindAccess(kind string) error {
+	// MCP are apps internally atm.
+	if kind == types.KindMCP {
+		kind = types.KindApp
+	}
 	if _, ok := supportedUnifiedResourceKinds[kind]; !ok {
 		// Treat unknown kinds as an access denied error instead of a bad parameter
 		// to prevent rejecting the request if users have access to other kinds requested.
@@ -1318,7 +1349,6 @@ func (a *ServerWithRoles) checkKindAccess(kind string) error {
 	default:
 		return trace.Wrap(a.checkAction(apidefaults.Namespace, kind, types.VerbList, types.VerbRead))
 	}
-
 }
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
@@ -2620,72 +2650,62 @@ func (r *webSessionsWithRoles) DeleteAll(ctx context.Context) error {
 	return r.ws.DeleteAll(ctx)
 }
 
-// GetWebToken returns the web token specified with req.
-// Implements auth.ReadAccessPoint.
-func (a *ServerWithRoles) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	return a.WebTokens().Get(ctx, req)
-}
-
 type webSessionsWithRoles struct {
 	c  accessChecker
 	ws types.WebSessionInterface
 }
 
-// WebTokens returns the web token manager.
-// Implements services.WebTokensGetter.
-func (a *ServerWithRoles) WebTokens() types.WebTokenInterface {
-	return &webTokensWithRoles{c: a, t: a.authServer.WebTokens()}
-}
-
-// Get returns the web token specified with req.
-func (r *webTokensWithRoles) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	if err := r.c.currentUserAction(req.User); err != nil {
-		if err := r.c.authorizeAction(types.KindWebToken, types.VerbRead); err != nil {
+// GetWebToken returns the web token specified with req.
+func (a *ServerWithRoles) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	if err := a.currentUserAction(req.User); err != nil {
+		if err := a.authorizeAction(types.KindWebToken, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return r.t.Get(ctx, req)
-}
 
-// List returns the list of all web tokens.
-func (r *webTokensWithRoles) List(ctx context.Context) ([]types.WebToken, error) {
-	if err := r.c.authorizeAction(types.KindWebToken, types.VerbList); err != nil {
+	token, err := a.authServer.GetWebToken(ctx, req)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return r.t.List(ctx)
+
+	return token, nil
 }
 
-// Upsert creates a new or updates the existing web token from the specified token.
-// TODO(dmitri): this is currently only implemented for local invocations. This needs to be
-// moved into a more appropriate API
-func (*webTokensWithRoles) Upsert(ctx context.Context, session types.WebToken) error {
-	return trace.NotImplemented(notImplementedMessage)
+// GetWebTokens returns the list of all web tokens.
+func (a *ServerWithRoles) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
+	if err := a.authorizeAction(types.KindWebToken, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tokens, err := a.authServer.GetWebTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tokens, nil
 }
 
-// Delete removes the web token specified with req.
-func (r *webTokensWithRoles) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
-	if err := r.c.currentUserAction(req.User); err != nil {
-		if err := r.c.authorizeAction(types.KindWebToken, types.VerbDelete); err != nil {
+// DeleteWebToken removes the web token specified with req.
+func (a *ServerWithRoles) DeleteWebToken(ctx context.Context, req types.DeleteWebTokenRequest) error {
+	if err := a.currentUserAction(req.User); err != nil {
+		if err := a.authorizeAction(types.KindWebToken, types.VerbDelete); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	return r.t.Delete(ctx, req)
+	return a.authServer.DeleteWebToken(ctx, req)
 }
 
-// DeleteAll removes all web tokens.
-func (r *webTokensWithRoles) DeleteAll(ctx context.Context) error {
-	if err := r.c.authorizeAction(types.KindWebToken, types.VerbList); err != nil {
+// DeleteAllWebTokens removes all web tokens.
+func (a *ServerWithRoles) DeleteAllWebTokens(ctx context.Context) error {
+	if err := a.authorizeAction(types.KindWebToken, types.VerbList); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := r.c.authorizeAction(types.KindWebToken, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return r.t.DeleteAll(ctx)
-}
 
-type webTokensWithRoles struct {
-	c accessChecker
-	t types.WebTokenInterface
+	if err := a.authorizeAction(types.KindWebToken, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteAllWebTokens(ctx)
 }
 
 type accessChecker interface {
@@ -2940,6 +2960,75 @@ func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.A
 	}
 
 	return a.authServer.GetAccessCapabilities(ctx, req)
+}
+
+// GetRemoteAccessCapabilities computes and returns what remote roles the user
+// needs to assume in order access resources in this cluster. In order to do so,
+// the method will:
+//   - maps the supplied remote search_as roles into local roles,
+//   - computes which subset of the local search_as roles are required to access
+//     the target resources, and finally
+//   - maps the required local roles *back* onto a subset of the supplied remote
+//     roles
+func (a *ServerWithRoles) GetRemoteAccessCapabilities(ctx context.Context, req types.RemoteAccessCapabilitiesRequest) (*types.RemoteAccessCapabilities, error) {
+	if !authz.IsRemoteUser(a.context) {
+		return nil, trace.AccessDenied("only remote users can invoke GetRemoteAccessCapabilities")
+	}
+
+	localIdentity := a.context.Identity.GetIdentity()
+	remoteIdentity := a.context.UnmappedIdentity.GetIdentity()
+
+	if req.User == "" {
+		req.User = remoteIdentity.Username
+	}
+	if req.User != remoteIdentity.Username {
+		return nil, trace.AccessDenied("users may only query their own access")
+	}
+
+	remoteCluster, err := a.authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: localIdentity.RouteToCluster,
+	}, false /* do not load keys */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	localSearchAsRoles, err := services.MapRoles(remoteCluster.GetRoleMap(), req.SearchAsRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(localSearchAsRoles) == 0 {
+		return &types.RemoteAccessCapabilities{ApplicableRolesForResources: []string{}}, nil
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Mapped search_as roles",
+		"remote_roles", req.SearchAsRoles,
+		"local_roles", localSearchAsRoles)
+
+	localAccessRoles, err := services.PruneMappedSearchAsRoles(ctx, a.authServer.clock, a.authServer, a.context.User, localSearchAsRoles, req.ResourceIDs, "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Pruned search_as roles",
+		"remote_roles", req.SearchAsRoles,
+		"local_roles", localSearchAsRoles,
+		"local_access_roles", localAccessRoles)
+
+	remoteAccessRoles, err := services.UnmapRoles(remoteCluster.GetRoleMap(), req.SearchAsRoles, localAccessRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.authServer.logger.DebugContext(ctx, "Mapped local access roles to remote access roles",
+		"local_access_roles", localAccessRoles,
+		"remote_access_roles", remoteAccessRoles)
+
+	caps := &types.RemoteAccessCapabilities{
+		ApplicableRolesForResources: remoteAccessRoles,
+	}
+	return caps, nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -3507,7 +3596,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
 		azureIdentity:                    req.RouteToApp.AzureIdentity,
 		gcpServiceAccount:                req.RouteToApp.GCPServiceAccount,
-		checker:                          checker,
+		checker:                          services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to generateUserCerts.
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
 		loginIP:                a.context.Identity.GetIdentity().LoginIP,
@@ -4439,10 +4528,12 @@ func (a *ServerWithRoles) findSessionEndEvent(ctx context.Context, sid session.I
 		To:    a.authServer.clock.Now().UTC(),
 		Limit: defaults.EventsIterationLimit,
 		Order: types.EventOrderAscending,
-		Cond: &types.WhereExpr{Equals: types.WhereExpr2{
-			L: &types.WhereExpr{Field: events.SessionEventID},
-			R: &types.WhereExpr{Literal: sid.String()},
-		}},
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr: &types.WhereExpr{Equals: types.WhereExpr2{
+				L: &types.WhereExpr{Field: events.SessionEventID},
+				R: &types.WhereExpr{Literal: sid.String()},
+			}},
+		},
 		SessionID: sid.String(),
 	})
 	if err != nil {
@@ -5279,6 +5370,7 @@ func (a *ServerWithRoles) DeleteAllServerInfos(ctx context.Context) error {
 	return trace.Wrap(a.authServer.DeleteAllServerInfos(ctx))
 }
 
+// Deprecated: Prefer paginated variant such as [teleport.trust.v1.ListTrustedClusters]
 func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	if err := a.authorizeAction(types.KindTrustedCluster, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)

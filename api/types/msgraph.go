@@ -46,11 +46,11 @@ var (
 // https://learn.microsoft.com/en-us/graph/deployments
 func ValidateMSGraphEndpoints(loginEndpoint, graphEndpoint string) error {
 	if loginEndpoint != "" && !slices.Contains(validLoginEndpoints, loginEndpoint) {
-		return trace.BadParameter("expected login endpoints to be one of %q, got %q", validLoginEndpoints, loginEndpoint)
+		return trace.BadParameter("expected login endpoint to be one of %q, got %q", validLoginEndpoints, loginEndpoint)
 	}
 
 	if graphEndpoint != "" && !slices.Contains(validGraphEndpoints, graphEndpoint) {
-		return trace.BadParameter("expected graph endpoints to be one of %q, got %q", validGraphEndpoints, graphEndpoint)
+		return trace.BadParameter("expected graph endpoint to be one of %q, got %q", validGraphEndpoints, graphEndpoint)
 	}
 
 	return nil

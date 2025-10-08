@@ -263,6 +263,9 @@ const (
 	// MetricRegisteredServers tracks the number of Teleport servers that have successfully registered with the Teleport cluster and have not reached the end of their ttl
 	MetricRegisteredServers = "registered_servers"
 
+	// MetricBotInstances tracks the number of bot instances across the entire cluster, labeled by version
+	MetricBotInstances = "bot_instances"
+
 	// MetricRegisteredServersByInstallMethods tracks the number of Teleport servers, and their installation method,
 	// that have successfully registered with the Teleport cluster and have not reached the end of their ttl
 	MetricRegisteredServersByInstallMethods = "registered_servers_by_install_methods"
@@ -276,6 +279,24 @@ const (
 
 	// MetricTeleportServices tracks which services are currently running in the current Teleport Process.
 	MetricTeleportServices = "services"
+
+	// MetricResourcesHealthStatus tracks resource health status.
+	MetricResourcesHealthStatus = "resources_health_status"
+
+	// MetricHealthy represents a resource in an healthy state.
+	MetricHealthy = "healthy"
+
+	// MetricUnhealthy represents a resource in an unhealthy state.
+	MetricUnhealthy = "unhealthy"
+
+	// MetricUnknown represents a resource in an unknown health state.
+	MetricUnknown = "unknown"
+
+	// MetricResourceDB is a database resource metric.
+	MetricResourceDB = "db"
+
+	// MetricResourceKubernetes is a Kubernetes cluster resource metric.
+	MetricResourceKubernetes = "kubernetes"
 
 	// TagRange is a tag specifying backend requests
 	TagRange = "range"
@@ -294,6 +315,10 @@ const (
 
 	// TagVersion is a prometheus label for version of Teleport built
 	TagVersion = "version"
+
+	// TagOS is a prometheus label for indicating the Operating System
+	// where agent is running (e.g. Darwin, Linux).
+	TagOS = "os"
 
 	// TagGitref is a prometheus label for the gitref of Teleport built
 	TagGitref = "gitref"

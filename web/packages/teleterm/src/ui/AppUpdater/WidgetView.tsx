@@ -38,6 +38,7 @@ import {
   AppUpdateEvent,
   AutoUpdatesStatus,
 } from 'teleterm/services/appUpdater';
+import { UnsupportedVersionError } from 'teleterm/services/appUpdater/errors';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
@@ -86,6 +87,7 @@ export function WidgetView({
       <Alert
         kind="danger"
         mb={0}
+        {...rest}
         details={
           <Stack gap={2}>
             {issueRequiringAttention}
@@ -114,7 +116,9 @@ export function WidgetView({
           </Stack>
         }
       >
-        Unable to check for app updates
+        {updateEvent.error.name === UnsupportedVersionError.name
+          ? 'Incompatible managed update version'
+          : 'Unable to check for app updates'}
       </Alert>
     );
   }
@@ -280,14 +284,21 @@ function makeUpdaterContent({
         description: `Downloaded ${formatMB(updateEvent.progress.transferred)} of ${formatMB(updateEvent.progress.total)}`,
       };
     case 'update-available':
+      const { updateKind } = updateEvent.update;
       if (updateEvent.autoDownload) {
         return {
-          description: 'Update available. Starting download…',
+          description:
+            updateKind === 'upgrade'
+              ? 'Update available. Starting download…'
+              : 'Downloading required version…',
         };
       }
 
       return {
-        description: 'Update available',
+        description:
+          updateKind === 'upgrade'
+            ? 'Update available'
+            : 'Downgrade to required version',
         button: {
           name: 'Download',
           action: onDownload,

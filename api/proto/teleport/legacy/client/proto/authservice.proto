@@ -2760,6 +2760,27 @@ message ListProvisionTokensResponse {
   string NextKey = 2;
 }
 
+// ValidateTrustedClusterRequest is the request for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterRequest {
+  // Token is the join token to use to join.
+  string Token = 1;
+  // CertAuthorities are the certificate authorities submitted from the leaf to
+  // the root as part of the join process.
+  repeated types.CertAuthorityV2 CertAuthorities = 2;
+  // TeleportVersion is the version of Teleport that the leaf cluster is
+  // running.
+  string TeleportVersion = 3;
+}
+
+// ValidateTrustedClusterResponse is the response for the ValidateTrustedCluster
+// RPC.
+message ValidateTrustedClusterResponse {
+  // CertAuthorities are the certificate authorities of the root cluster that
+  // should be trusted by the leaf cluster.
+  repeated types.CertAuthorityV2 CertAuthorities = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2860,6 +2881,8 @@ service AuthService {
   rpc SubmitAccessReview(types.AccessReviewSubmission) returns (types.AccessRequestV3);
   // GetAccessCapabilities requests the access capabilities of a user.
   rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
+  // GetRemoteAccessCapabilities requests the access capabilities for a user from a remote cluster
+  rpc GetRemoteAccessCapabilities(types.RemoteAccessCapabilitiesRequest) returns (types.RemoteAccessCapabilities);
 
   // GetAccessRequestAllowedPromotions returns a list of allowed promotions from an access request to an access list.
   rpc GetAccessRequestAllowedPromotions(AccessRequestAllowedPromotionRequest) returns (AccessRequestAllowedPromotionResponse);
@@ -3225,7 +3248,11 @@ service AuthService {
   // GetTrustedCluster gets a Trusted Cluster resource by name.
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
   // GetTrustedClusters gets all current Trusted Cluster resources.
-  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
+  // Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
+  // TODO(okraport): DELETE IN 21.0.0
+  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List) {
+    option deprecated = true;
+  }
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
   //
   // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
@@ -3339,7 +3366,9 @@ service AuthService {
   rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetApps returns all registered applications.
-  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List);
+  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List) {
+    option deprecated = true;
+  }
   // ListApps returns a page of registered applications.
   rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // GetApp returns an application by name.
@@ -3604,4 +3633,9 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
+  // by the proxy on behalf of a cluster that wishes to join to this one as a
+  // leaf cluster.
+  rpc ValidateTrustedCluster(ValidateTrustedClusterRequest) returns (ValidateTrustedClusterResponse);
 }
