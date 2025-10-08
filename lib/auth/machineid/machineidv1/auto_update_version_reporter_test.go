@@ -19,16 +19,21 @@ package machineidv1_test
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -144,6 +149,64 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	if diff != "" {
 		t.Fatal(diff)
 	}
+}
+
+func TestEmitInstancesMetric(t *testing.T) {
+	gauge := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBotInstances,
+		},
+		[]string{
+			teleport.TagVersion,
+			teleport.TagAutomaticUpdates,
+		},
+	)
+
+	machineidv1.EmitInstancesMetric(
+		&autoupdatev1pb.AutoUpdateBotInstanceReport{
+			Spec: &autoupdatev1pb.AutoUpdateBotInstanceReportSpec{
+				Groups: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup{
+					"prod": {
+						Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
+							"18.0.0": {Count: 1},
+							"19.0.0": {Count: 1},
+						},
+					},
+					"stage": {
+						Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
+							"18.0.0": {Count: 1},
+							"19.0.0": {Count: 1},
+						},
+					},
+					"": {
+						Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
+							"19.0.0": {Count: 123},
+							"20.0.0": {Count: 321},
+						},
+					},
+				},
+			},
+		},
+		gauge,
+	)
+
+	for _, tc := range []struct {
+		version          string
+		automaticUpdates bool
+		expectedValue    float64
+	}{
+		{version: "18.0.0", automaticUpdates: true, expectedValue: 2},
+		{version: "19.0.0", automaticUpdates: true, expectedValue: 2},
+		{version: "19.0.0", automaticUpdates: false, expectedValue: 123},
+		{version: "20.0.0", automaticUpdates: false, expectedValue: 321},
+	} {
+		t.Run(fmt.Sprintf("%s/%v", tc.version, tc.automaticUpdates), func(t *testing.T) {
+			metric := gauge.WithLabelValues(tc.version, strconv.FormatBool(tc.automaticUpdates))
+			require.InEpsilon(t, tc.expectedValue, testutil.ToFloat64(metric), 0)
+		})
+	}
+
 }
 
 type testSemaphores struct{ types.Semaphores }
