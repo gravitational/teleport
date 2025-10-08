@@ -1329,7 +1329,9 @@ func (i *TeleInstance) Start() error {
 	if i.Config.WindowsDesktop.Enabled {
 		expectedEvents = append(expectedEvents, service.WindowsDesktopReady)
 	}
-
+	if i.Config.Relay.Enabled {
+		expectedEvents = append(expectedEvents, service.RelayReady)
+	}
 	if i.Config.Discovery.Enabled {
 		expectedEvents = append(expectedEvents, service.DiscoveryReady)
 	}
