@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -60,48 +61,31 @@ func NewScopedTokenService(b backend.Backend) (*ScopedTokenService, error) {
 	}, nil
 }
 
-// CreateScopedToken adds a scoped join token to the auth server
-func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
-	created, err := s.svc.CreateResource(ctx, token)
-	return created, trace.Wrap(err)
-}
-
-// UpdateScopedToken
-func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
-	updated, err := s.svc.ConditionalUpdateResource(ctx, token)
-	return updated, trace.Wrap(err)
-}
-
-// UpsertScopedToken
-func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
-	upserted, err := s.svc.UpsertResource(ctx, token)
-	return upserted, trace.Wrap(err)
-}
-
-// GetScopedToken finds and returns token by id
-func (s *ScopedTokenService) GetScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error) {
-	token, err := s.svc.GetResource(ctx, name)
-	return token, trace.Wrap(err)
-}
-
-func validateScopedTokenFilters(filters *services.ScopedTokenFilters) error {
-	if filters == nil {
-		return nil
+// CreateScopedToken adds a scoped token to the auth server.
+func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joiningv1.CreateScopedTokenRequest) (*joiningv1.CreateScopedTokenResponse, error) {
+	if err := joining.StrongValidateToken(req.GetToken()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if filters.AssignedScope.GetScope() != "" {
-		if err := scopes.StrongValidate(filters.AssignedScope.Scope); err != nil {
-			return trace.BadParameter("invalid scope for assigned filter: %s", filters.AssignedScope.Scope)
-		}
-	}
+	created, err := s.svc.CreateResource(ctx, req.GetToken())
+	return &joiningv1.CreateScopedTokenResponse{
+		Token: created,
+	}, trace.Wrap(err)
+}
 
-	if filters.ResourceScope.GetScope() != "" {
-		if err := scopes.StrongValidate(filters.ResourceScope.Scope); err != nil {
-			return trace.BadParameter("invalid scope for resource filter: %s", filters.ResourceScope.Scope)
-		}
-	}
+// UpdateScopedToken updates a scoped token in the auth server.
+func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joiningv1.UpdateScopedTokenRequest) (*joiningv1.UpdateScopedTokenResponse, error) {
+	return nil, trace.NotImplemented("scoped tokens must be recreated, not updated")
+}
 
-	return nil
+// GetScopedToken finds and returns a scoped token by name.
+func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.GetScopedTokenResponse, error) {
+	token, err := s.svc.GetResource(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = joining.WeakValidateToken(token)
+	return &joiningv1.GetScopedTokenResponse{Token: token}, trace.Wrap(err)
 }
 
 func evalScopeFilter(filter *scopesv1.Filter, scope string) bool {
@@ -120,47 +104,86 @@ func evalScopeFilter(filter *scopesv1.Filter, scope string) bool {
 }
 
 // ListScopedTokens retrieves a paginated list of scoped join tokens.
-func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, pageSize int, pageToken string, filters *services.ScopedTokenFilters) ([]*joiningv1.ScopedToken, string, error) {
-	if filters == nil {
-		tokens, cursor, err := s.svc.ListResources(ctx, pageSize, pageToken)
+func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error) {
+	// we only want to return filters if at least one of the filters
+	// has been defined, otherwise we should return nil so that the
+	// backend can choose to perform a simple list operation instead
+	// of a list with filter
+	switch {
+	case req.ResourceScope != nil:
+	case req.AssignedScope != nil:
+	case len(req.Roles) > 0:
+	case len(req.Labels) > 0:
+	default:
+		tokens, cursor, err := s.svc.ListResources(ctx, int(req.GetLimit()), req.GetCursor())
 
-		return tokens, cursor, trace.Wrap(err)
+		return &joiningv1.ListScopedTokensResponse{
+			Tokens: tokens,
+			Cursor: cursor,
+		}, trace.Wrap(err)
 	}
 
-	if err := validateScopedTokenFilters(filters); err != nil {
-		return nil, "", trace.Wrap(err)
+	if req.GetAssignedScope().GetScope() != "" {
+		if err := scopes.WeakValidate(req.GetAssignedScope().GetScope()); err != nil {
+			return nil, trace.BadParameter("invalid scope for assigned filter: %s", req.GetAssignedScope().GetScope())
+		}
+
+	}
+
+	if req.GetResourceScope().GetScope() != "" {
+		if err := scopes.WeakValidate(req.GetResourceScope().GetScope()); err != nil {
+			return nil, trace.BadParameter("invalid scope for resource filter: %s", req.GetResourceScope().GetScope())
+		}
+	}
+
+	filterRoles, err := types.NewTeleportRoles(req.GetRoles())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	filterFn := func(token *joiningv1.ScopedToken) bool {
-		if len(filters.Roles) > 0 {
+		if len(req.GetRoles()) > 0 {
 			roles, err := types.NewTeleportRoles(token.Spec.Roles)
 			if err != nil {
 				return false
 			}
 
-			if !filters.Roles.IncludeAny(roles...) {
+			if !filterRoles.IncludeAny(roles...) {
 				return false
 			}
 		}
 
-		if !evalScopeFilter(filters.AssignedScope, token.Spec.AssignedScope) {
+		if !evalScopeFilter(req.GetAssignedScope(), token.Spec.AssignedScope) {
 			return false
 		}
 
-		if !evalScopeFilter(filters.ResourceScope, token.Scope) {
+		if !evalScopeFilter(req.GetResourceScope(), token.Scope) {
+			return false
+		}
+
+		for k, v := range req.GetLabels() {
+			if token.GetMetadata().GetLabels()[k] != v {
+				return false
+			}
+		}
+
+		if err := joining.WeakValidateToken(token); err != nil {
 			return false
 		}
 
 		return true
 	}
 
-	tokens, newPageToken, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken, filterFn)
-	return tokens, newPageToken, trace.Wrap(err)
+	tokens, cursor, err := s.svc.ListResourcesWithFilter(ctx, int(req.GetLimit()), req.GetCursor(), filterFn)
+	return &joiningv1.ListScopedTokensResponse{
+		Tokens: tokens,
+		Cursor: cursor,
+	}, trace.Wrap(err)
 }
 
-// DeleteScopedToken deletes scoped join token.
-func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, name string) error {
-	return trace.Wrap(s.svc.DeleteResource(ctx, name))
+// DeleteScopedToken deletes a scoped token by name.
+func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) (*joiningv1.DeleteScopedTokenResponse, error) {
+	return nil, trace.Wrap(s.svc.DeleteResource(ctx, req.GetName()))
 }
 
 type scopedTokenParser struct {

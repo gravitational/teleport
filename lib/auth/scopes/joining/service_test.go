@@ -23,11 +23,14 @@ import (
 	"slices"
 	"testing"
 
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -40,13 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
-
-func assertEqualScopedTokens(t *testing.T, expected *joiningv1.ScopedToken, val *joiningv1.ScopedToken) bool {
-	return assert.Equal(t, expected.GetMetadata().GetName(), val.GetMetadata().GetName()) &&
-		assert.Equal(t, expected.GetScope(), val.GetScope()) &&
-		assert.Equal(t, expected.GetSpec().GetAssignedScope(), val.GetSpec().GetAssignedScope()) &&
-		assert.Equal(t, expected.GetSpec().GetJoinMethod(), val.GetSpec().GetJoinMethod())
-}
 
 func TestScopedJoiningService(t *testing.T) {
 	ctx := withAuthCtx(t.Context(), newAuthCtx(types.RoleAdmin))
@@ -64,8 +60,11 @@ func TestScopedJoiningService(t *testing.T) {
 	require.NoError(t, err)
 
 	token := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: "testtoken",
+			Name:      "testtoken",
+			Namespace: defaults.Namespace,
 		},
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{
@@ -79,7 +78,11 @@ func TestScopedJoiningService(t *testing.T) {
 		Token: token,
 	})
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, token, created.GetToken())
+	cmpOpts := []gocmp.Option{
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	}
+	assert.Empty(t, gocmp.Diff(token, created.GetToken(), cmpOpts...))
 
 	tokenWithMismatchedScope := proto.CloneOf(token)
 	tokenWithMismatchedScope.Metadata.Name = "invalid-token"
@@ -90,27 +93,20 @@ func TestScopedJoiningService(t *testing.T) {
 	})
 	assert.True(t, trace.IsBadParameter(err))
 
-	// update token with reachable scope
-	token.Spec.AssignedScope = "/test/bb"
-	updated, err := service.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
-		Token: token,
+	tokenWithoutName := proto.CloneOf(token)
+	tokenWithoutName.Metadata.Name = ""
+	createdWithoutName, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: tokenWithoutName,
 	})
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, token, updated.GetToken())
+	require.NotEmpty(t, createdWithoutName.Token.GetMetadata().GetName())
 
 	// get token
 	fetched, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 		Name: token.Metadata.Name,
 	})
 	require.NoError(t, err)
-	assertEqualScopedTokens(t, token, fetched.GetToken())
-
-	// fail to update token with unreachable scope
-	token.Spec.AssignedScope = "/stage/bb"
-	_, err = service.UpdateScopedToken(ctx, &joiningv1.UpdateScopedTokenRequest{
-		Token: token,
-	})
-	require.True(t, trace.IsBadParameter(err))
+	assert.Empty(t, gocmp.Diff(token, fetched.GetToken(), cmpOpts...))
 
 	// delete token
 	_, err = service.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
@@ -150,16 +146,119 @@ func TestScopedJoiningService(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	assert.Len(t, res.Tokens, 2)
+	assert.Len(t, res.Tokens, 3)
 	sortFn := func(left *joiningv1.ScopedToken, right *joiningv1.ScopedToken) int {
 		return cmp.Compare(left.Metadata.Name, right.Metadata.Name)
 	}
 
-	expected := []*joiningv1.ScopedToken{token, token2}
+	expected := []*joiningv1.ScopedToken{token, tokenWithoutName, token2}
 	slices.SortStableFunc(res.Tokens, sortFn)
 	slices.SortStableFunc(expected, sortFn)
 	for idx, token := range res.Tokens {
-		assertEqualScopedTokens(t, expected[idx], token)
+		assert.Empty(t, gocmp.Diff(expected[idx], token, cmpOpts...))
+	}
+}
+
+func TestScopedJoiningServiceList(t *testing.T) {
+
+	ctx := withAuthCtx(t.Context(), newAuthCtx(types.RoleAdmin))
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	svc, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	require.NoError(t, err)
+
+	service, err := joining.New(joining.Config{
+		Logger:     logtest.NewLogger(),
+		Backend:    svc,
+		Authorizer: fakeAuthorizer{},
+	})
+	require.NoError(t, err)
+
+	initToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:      "testtoken",
+			Namespace: defaults.Namespace,
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/aa",
+			JoinMethod:    "token",
+			Roles:         []string{"Node"},
+		},
+	}
+
+	created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: initToken,
+	})
+	require.NoError(t, err)
+	token1 := proto.CloneOf(created.Token)
+
+	initToken.Metadata.Name = "testoken2"
+	initToken.Metadata.Labels = map[string]string{"hello": "world"}
+	created, err = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: initToken,
+	})
+	require.NoError(t, err)
+	token2 := proto.CloneOf(created.Token)
+
+	cases := []struct {
+		name     string
+		req      *joiningv1.ListScopedTokensRequest
+		expected []*joiningv1.ScopedToken
+	}{
+		{
+			name:     "list all tokens without a filter",
+			req:      &joiningv1.ListScopedTokensRequest{},
+			expected: []*joiningv1.ScopedToken{token1, token2},
+		},
+		{
+			name: "list all tokens assigning to a scope within /test",
+			req: &joiningv1.ListScopedTokensRequest{
+				AssignedScope: &scopesv1.Filter{
+					Scope: "/test",
+					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				},
+			},
+			expected: []*joiningv1.ScopedToken{token1, token2},
+		},
+		{
+			name: "list all tokens assigning to a scope within /test with matching labels",
+			req: &joiningv1.ListScopedTokensRequest{
+				AssignedScope: &scopesv1.Filter{
+					Scope: "/test",
+					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				},
+				Labels: map[string]string{
+					"hello": "world",
+				},
+			},
+			expected: []*joiningv1.ScopedToken{token2},
+		},
+	}
+
+	sortFn := func(left *joiningv1.ScopedToken, right *joiningv1.ScopedToken) int {
+		return cmp.Compare(left.Metadata.Name, right.Metadata.Name)
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res, err := service.ListScopedTokens(ctx, c.req)
+			require.NoError(t, err)
+			tokens := res.Tokens
+			slices.SortStableFunc(tokens, sortFn)
+			slices.SortStableFunc(c.expected, sortFn)
+			require.Len(t, tokens, len(c.expected))
+			for idx, tok := range tokens {
+				cmpOpts := []gocmp.Option{
+					protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+					protocmp.Transform(),
+				}
+				assert.Empty(t, gocmp.Diff(tok, c.expected[idx], cmpOpts...))
+			}
+		})
 	}
 }
 
@@ -186,118 +285,6 @@ func newAuthCtx(role types.SystemRole) authz.Context {
 		Checker: &fakeChecker{
 			role: string(role),
 		},
-	}
-}
-
-func TestScopedJoiningServiceValidation(t *testing.T) {
-	ctx := withAuthCtx(t.Context(), newAuthCtx(types.RoleAdmin))
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	svc, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
-	require.NoError(t, err)
-
-	service, err := joining.New(joining.Config{
-		Logger:     logtest.NewLogger(),
-		Backend:    svc,
-		Authorizer: fakeAuthorizer{},
-	})
-	require.NoError(t, err)
-
-	cases := []struct {
-		name         string
-		token        *joiningv1.ScopedToken
-		expectErrMsg string
-	}{
-		{
-			name:         "reject nil token",
-			expectErrMsg: "scoped token must not be nil",
-		},
-		{
-			name: "reject scoped token without a resource scope",
-			token: &joiningv1.ScopedToken{
-				Metadata: &headerv1.Metadata{
-					Name: "test",
-				},
-			},
-			expectErrMsg: "scoped token must not be nil",
-		},
-		{
-			name: "reject scoped token with invalid resource scope",
-			token: &joiningv1.ScopedToken{
-				Metadata: &headerv1.Metadata{
-					Name: "test",
-				},
-				Scope: "test",
-			},
-			expectErrMsg: "scoped token must not be nil",
-		},
-		{
-			name: "reject scoped token that assigns an invalid scope",
-			token: &joiningv1.ScopedToken{
-				Metadata: &headerv1.Metadata{
-					Name: "test",
-				},
-				Scope: "/test",
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "test/aa",
-				},
-			},
-			expectErrMsg: "validating scoped token assigned scope",
-		},
-		{
-			name: "reject scoped token that assigns a scope that is not descendant of its own scope",
-			token: &joiningv1.ScopedToken{
-				Metadata: &headerv1.Metadata{
-					Name: "test",
-				},
-				Scope: "/test",
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/stage/aa",
-				},
-			},
-			expectErrMsg: "scoped token assigned scope must be descendant of its resource scope",
-		},
-		{
-			name: "reject scoped token that fails to assign at least one role",
-			token: &joiningv1.ScopedToken{
-				Metadata: &headerv1.Metadata{
-					Name: "test",
-				},
-				Scope: "/test",
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/test/aa",
-				},
-			},
-			expectErrMsg: "at least one role must be assigned to a token",
-		},
-		{
-			name: "accept well formed token",
-			token: &joiningv1.ScopedToken{
-				Metadata: &headerv1.Metadata{
-					Name: "test",
-				},
-				Scope: "/test",
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/test/aa",
-					Roles:         []string{"Node"},
-				},
-			},
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			created, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
-				Token: c.token,
-			})
-
-			if c.expectErrMsg != "" {
-				require.Contains(t, err.Error(), c.expectErrMsg)
-			} else {
-				assertEqualScopedTokens(t, c.token, created.GetToken())
-			}
-		})
 	}
 }
 
