@@ -1174,6 +1174,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstances))
 	// GET Machine ID bot instances (paged)
 	h.GET("/v2/webapi/sites/:site/machine-id/bot-instance", h.WithClusterAuth(h.listBotInstancesV2))
+	// GET Machine ID bot instance metrics.
+	h.GET("/webapi/sites/:site/machine-id/bot-instance/metrics", h.WithClusterAuth(h.botInstanceMetrics))
 
 	// List workload identities
 	h.GET("/webapi/sites/:site/workload-identity", h.WithClusterAuth(h.listWorkloadIdentities))
