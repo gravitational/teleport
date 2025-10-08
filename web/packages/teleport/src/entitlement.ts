@@ -42,7 +42,8 @@ type entitlement =
   | 'SessionLocks'
   | 'UnrestrictedManagedUpdates'
   | 'UpsellAlert'
-  | 'UsageReporting';
+  | 'UsageReporting'
+  | 'CloudIPRestrictions';
 
 export const defaultEntitlements: Record<
   entitlement,
@@ -73,4 +74,5 @@ export const defaultEntitlements: Record<
   UnrestrictedManagedUpdates: { enabled: false, limit: 0 },
   UpsellAlert: { enabled: false, limit: 0 },
   UsageReporting: { enabled: false, limit: 0 },
+  CloudIPRestrictions: { enabled: false, limit: 0 },
 };
