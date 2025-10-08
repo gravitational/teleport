@@ -20,7 +20,7 @@ package mcp
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"path"
 	"testing"
@@ -233,7 +233,7 @@ func TestHandleSession_execMCPServer(t *testing.T) {
 			cancelHandlerCtx:   true,
 			waitForHandlerExit: time.Second * 15,
 			afterHandlerStart: func(t *testing.T, testCtx *testContext, containerName string) {
-				time.Sleep(time.Duration(rand.Intn(10000)) * time.Microsecond)
+				time.Sleep(time.Duration(rand.Uint32N(10000)) * time.Microsecond)
 			},
 			// Make sure the container is removed no matter the timing.
 			afterHandlerStop: containerShouldBeRemoved,
