@@ -13,11 +13,14 @@ state: draft
 
 ## What
 
-This RFD proposes centralizing SSH authentication and authorization at the Proxy service, integrating in-band
-multi-factor authentication (MFA) into session establishment. The Proxy will leverage the [Access Control Decision API
-(RFD 0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), a v2
+This RFD proposes integrating in-band multi-factor authentication (MFA) into session establishment at the Proxy/Relay
+services. The Proxy/Relay will leverage the [Access Control Decision API (RFD
+0024e)](https://github.com/gravitational/Teleport.e/blob/master/rfd/0024e-access-control-decision-api.md), a v2
 `TransportService` and a new [MFA service](#mfa-service) to consistently enforce policy decisions and MFA requirements
 for all SSH sessions.
+
+> **Note:** For clarity and brevity, this RFD uses "Proxy" to refer collectively to both Proxy and Relay services, since
+> all described changes apply equally to both components.
 
 ## Why
 
@@ -39,16 +42,16 @@ By centralizing these responsibilities at the Proxy, the new design directly add
 1. In-band MFA enforcement is tightly integrated with session creation, ensuring that authentication factors are
    directly bound to each session and mitigating the risk of bypasses like those seen in
    [CVE-2025-49825](https://github.com/gravitational/Teleport/security/advisories/GHSA-8cqv-pj7f-pwpc).
-1. MFA complexity is moved from clients to the Proxy, so clients only need to connect to the Proxy and resolve an MFA
-   challenge only if required, streamlining the session establishment process and reducing the risk of implementation
-   errors.
+1. MFA complexity is moved from clients to the Proxy, so clients only need to connect to the Proxy and
+   resolve an MFA challenge only if required, streamlining the session establishment process and reducing the risk of
+   implementation errors.
 1. Centralized access control simplifies and strengthens policy enforcement, removing the need to update the Teleport
    client for policy changes.
 
-In summary, centralizing authentication, authorization, and MFA enforcement at the Proxy eliminates critical security
-gaps, reduces client-side complexity, and enables more robust, auditable, and maintainable access control. This approach
-ensures that every SSH session is consistently protected by the latest policies and MFA requirements, improving both
-security and operational efficiency across the Teleport platform.
+In summary, centralizing authentication, authorization, and MFA enforcement at the Proxy eliminates critical
+security gaps, reduces client-side complexity, and enables more robust, auditable, and maintainable access control. This
+approach ensures that every SSH session is consistently protected by the latest policies and MFA requirements, improving
+both security and operational efficiency across the Teleport platform.
 
 ## Details
 
@@ -162,16 +165,16 @@ Each RPC introduced in this RFD will enforce strict authorization:
 
 - `ProxySSH` (v2): Maintains the same authentication and authorization checks as the existing v1 RPC. Only authenticated
   clients with valid credentials and appropriate permissions can initiate SSH sessions.
-- `StartAuthenticateChallenge`: Only the Proxy service is permitted to invoke this RPC, allowing it to initiate MFA
-  challenges on behalf of users. Direct user access to this RPC will be denied.
+- `StartAuthenticateChallenge`: Only the Proxy and Relay service are permitted to invoke this RPC, allowing them to
+  initiate MFA challenges on behalf of users. Direct user access to this RPC will be denied.
 - `CompleteAuthenticateChallenge`: Only the user for whom the MFA challenge was created is authorized to complete it.
   The service verifies the user's identity and ensures that only the intended recipient can respond to the challenge.
 
 #### Unfinished MFA Challenge Mitigation
 
-MFA challenges initiated by the Proxy must be completed within a specified time frame (e.g., 5 minutes). If the client
-fails to do so, the session will be terminated. This limits the window of opportunity for an attacker to exploit an
-unfinished MFA challenge.
+MFA challenges initiated by the Proxy and Relay must be completed within a specified time frame (e.g., 5 minutes). If
+the client fails to do so, the session will be terminated. This limits the window of opportunity for an attacker to
+exploit an unfinished MFA challenge.
 
 #### Denial-of-Service Mitigation
 
@@ -180,8 +183,8 @@ the system with MFA challenge requests.
 
 #### Connection Downgrade Mitigation
 
-System administrators will have the ability to disable support for the legacy v1 `TransportService` RPCs on the Proxy.
-This prevents clients from downgrading to the older protocol with weaker security controls.
+System administrators will have the ability to disable support for the legacy v1 `TransportService` RPCs on the Proxy
+and Relay. This prevents clients from downgrading to the older protocol with weaker security controls.
 
 ### Privacy
 
@@ -341,18 +344,16 @@ The implementation of this RFD will leverage work done in the [Relocate Phase of
 (see [dependencies](#dependencies)).
 
 The reverse tunnel and proxy peering protocols will have to be updated to include the `Permit` from the Decision API
-response, which includes relevant session metadata, to be forwarded from Proxy to agent as part of an incoming dial. The
-target agent will parse the permit and validate the session context before allowing access to the underlying resource
-(i.e., access-control decisions will be made at the control plane before establishing the connection). For backward
-compatibility, if a legacy v1 client is detected, the agent will continue to validate the SSH certificate.
+response, which includes relevant session metadata, to be forwarded from Proxy to agent as part of an incoming
+dial. The target agent will parse the permit and validate the session context before allowing access to the underlying
+resource (i.e., access-control decisions will be made at the control plane before establishing the connection). For
+backward compatibility, if a legacy v1 client is detected, the agent will continue to validate the SSH certificate.
 
 ### Relay Service
 
-For simplicity, this RFD takes a Proxy centric approach to the design. However, the same principles can be applied to
-the Relay service to enable in-band MFA enforcement for SSH sessions established via a Relay. The Relay would need to be
-updated to support the v2 `TransportService` and invoke the MFA service as needed, similar to the Proxy. Additionally,
-it would need to be authorized to invoke the Decision service's `EvaluateSSHAccess` RPC and MFA service's
-`StartAuthenticateChallenge` RPC.
+The Relay will be updated to support the v2 `TransportService` and invoke the MFA service as needed, similar to the
+Proxy. Additionally, it would need to be authorized to invoke the Decision service's `EvaluateSSHAccess` RPC and MFA
+service's `StartAuthenticateChallenge` RPC.
 
 ### Backward Compatibility
 
@@ -413,12 +414,12 @@ The following are assumed to be completed before starting work on this RFD:
    and relocate implementation
    1. Decision service has a way for deriving user/session metadata from incoming requests without relying on client
       certificates.
-   1. Proxy is able to evaluate SSH access requests using the Decision service.
+   1. Proxy/Relay is able to evaluate SSH access requests using the Decision service.
    1. Reverse tunnel and proxy peering protocols are updated to include the `Permit` from the Decision API response to
-      be forwarded from Proxy to agent as part of an incoming dial.
-   1. There exists a structured way for the Proxy to determine if MFA is required for a given SSH session based on the
-      Decision API response.
-   1. The Proxy has a way to tell Decision service that MFA has been satisfied for a session.
+      be forwarded from Proxy/Relay to agent as part of an incoming dial.
+   1. There exists a structured way for the Proxy/Relay to determine if MFA is required for a given SSH session based on
+      the Decision API response.
+   1. The Proxy/Relay has a way to tell Decision service that MFA has been satisfied for a session.
 
 #### Phase 1 (Transition Period - at least 2 major releases)
 
@@ -429,7 +430,7 @@ The following are assumed to be completed before starting work on this RFD:
 1. Ensure server can handle clients using the deprecated v1 `TransportService` RPCs, while supporting the new v2
    `TransportService` RPCs.
 1. Add new `MFAService` in `api/proto/teleport/mfa/v1/mfa_service.proto` and implement the service in `lib/auth/mfa/`.
-1. Ensure Proxy is authorized to invoke the new `MFAService` RPCs and the `EvaluateSSHAccess` RPC.
+1. Ensure Proxy/Relay is authorized to invoke the new `MFAService` RPCs and the `EvaluateSSHAccess` RPC.
 1. Update `tsh ssh` client to use the v2 `TransportService` and `MFAService`. Remove per-session MFA certificate
    generation and use standard client certificate when dialing. Client should fallback to the v1 `TransportService` if
    the v2 service is not available.
@@ -453,10 +454,10 @@ The following are assumed to be completed before starting work on this RFD:
 
 ## Alternatives Considered
 
-1. Proxy facilitates the entire MFA ceremony: In this approach, the Proxy would handle the entire MFA flow, including
-   creating the MFA challenge and validating the response. While this would still simplify the client-side
-   implementation, it would potentially introduce security risks by giving Proxy access to operations that are out of
-   its domain scope.
+1. Proxy/Relay facilitates the entire MFA ceremony: In this approach, the Proxy/Relay would handle the entire MFA flow,
+   including creating the MFA challenge and validating the response. While this would still simplify the client-side
+   implementation, it would potentially introduce security risks by giving Proxy/Relay access to operations that are out
+   of its domain scope.
 
 ## Future Considerations
 
