@@ -3045,10 +3045,22 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
 	})
 	t.Run("Read", func(t *testing.T) {
+		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
+
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
 	})
+
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
 		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
@@ -3059,8 +3071,16 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
+		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+
 		// Discovery service cannot delete non-cloud clusters.
 		clusters, err = srv.Auth().GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+
+		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 	})
