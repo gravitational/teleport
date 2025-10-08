@@ -347,6 +347,15 @@ func (m *mockAuthServer) UpdateDiscoveryConfigStatus(ctx context.Context, name s
 func (m *mockAuthServer) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
 	return nil, nil
 }
+
+func (m *mockAuthServer) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	return nil, "", nil
+}
+
+func (m *mockAuthServer) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+	return func(yield func(types.KubeCluster, error) bool) {}
+}
+
 func (m *mockAuthServer) GetKubernetesServers(context.Context) ([]types.KubeServer, error) {
 	return nil, nil
 }
