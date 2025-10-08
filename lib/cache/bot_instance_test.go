@@ -64,7 +64,7 @@ func TestBotInstanceCache(t *testing.T) {
 			_, err := p.botInstanceService.CreateBotInstance(ctx, resource)
 			return err
 		},
-		list: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1.BotInstance, string, error) {
 			return p.botInstanceService.ListBotInstances(ctx, pageSize, pageToken, nil)
 		},
 		update: func(ctx context.Context, bi *machineidv1.BotInstance) error {

@@ -41,7 +41,7 @@ func TestCrownJewel(t *testing.T) {
 			_, err := p.crownJewels.CreateCrownJewel(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {
 			return p.crownJewels.ListCrownJewels(ctx, int64(pageSize), pageToken)
 		},
 		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {

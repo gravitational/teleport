@@ -61,7 +61,7 @@ func TestWorkloadIdentity(t *testing.T) {
 			_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context, pageSize int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
 			return p.workloadIdentity.ListWorkloadIdentities(ctx, pageSize, pageToken, nil)
 		},
 		deleteAll: func(ctx context.Context) error {

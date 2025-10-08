@@ -188,8 +188,8 @@ func TestAccessGraphSettings(t *testing.T) {
 			_, err := p.clusterConfigS.UpsertAccessGraphSettings(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      singletonListAdapter(p.clusterConfigS.GetAccessGraphSettings),
-		cacheList: singletonListAdapter(p.cache.GetAccessGraphSettings),
-		deleteAll: p.clusterConfigS.DeleteAccessGraphSettings,
+		upstreamList: singletonListAdapter(p.clusterConfigS.GetAccessGraphSettings),
+		cacheList:    singletonListAdapter(p.cache.GetAccessGraphSettings),
+		deleteAll:    p.clusterConfigS.DeleteAccessGraphSettings,
 	}, withSkipPaginationTest())
 }

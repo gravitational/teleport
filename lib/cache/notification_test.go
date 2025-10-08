@@ -41,9 +41,9 @@ func TestUserNotifications(t *testing.T) {
 			_, err := p.notifications.CreateUserNotification(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.notifications.ListUserNotifications,
-		cacheList: p.cache.ListUserNotifications,
-		deleteAll: p.notifications.DeleteAllUserNotifications,
+		upstreamList: p.notifications.ListUserNotifications,
+		cacheList:    p.cache.ListUserNotifications,
+		deleteAll:    p.notifications.DeleteAllUserNotifications,
 	})
 }
 
@@ -63,8 +63,8 @@ func TestGlobalNotifications(t *testing.T) {
 			_, err := p.notifications.CreateGlobalNotification(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.notifications.ListGlobalNotifications,
-		cacheList: p.cache.ListGlobalNotifications,
-		deleteAll: p.notifications.DeleteAllGlobalNotifications,
+		upstreamList: p.notifications.ListGlobalNotifications,
+		cacheList:    p.cache.ListGlobalNotifications,
+		deleteAll:    p.notifications.DeleteAllGlobalNotifications,
 	})
 }

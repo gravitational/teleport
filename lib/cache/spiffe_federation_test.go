@@ -58,9 +58,9 @@ func TestSPIFFEFederations(t *testing.T) {
 			_, err := p.spiffeFederations.CreateSPIFFEFederation(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.spiffeFederations.ListSPIFFEFederations,
-		deleteAll: p.spiffeFederations.DeleteAllSPIFFEFederations,
-		cacheList: p.cache.ListSPIFFEFederations,
-		cacheGet:  p.cache.GetSPIFFEFederation,
+		upstreamList: p.spiffeFederations.ListSPIFFEFederations,
+		deleteAll:    p.spiffeFederations.DeleteAllSPIFFEFederations,
+		cacheList:    p.cache.ListSPIFFEFederations,
+		cacheGet:     p.cache.GetSPIFFEFederation,
 	})
 }

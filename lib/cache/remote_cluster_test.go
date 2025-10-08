@@ -46,9 +46,9 @@ func TestRemoteClusters(t *testing.T) {
 				_, err := p.trustS.CreateRemoteCluster(ctx, rc)
 				return err
 			},
-			list:      getAllAdapter(p.trustS.GetRemoteClusters),
-			cacheGet:  p.cache.GetRemoteCluster,
-			cacheList: getAllAdapter(p.cache.GetRemoteClusters),
+			upstreamList: getAllAdapter(p.trustS.GetRemoteClusters),
+			cacheGet:     p.cache.GetRemoteCluster,
+			cacheList:    getAllAdapter(p.cache.GetRemoteClusters),
 			update: func(ctx context.Context, rc types.RemoteCluster) error {
 				_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
 				return err
@@ -71,9 +71,9 @@ func TestRemoteClusters(t *testing.T) {
 				_, err := p.trustS.CreateRemoteCluster(ctx, rc)
 				return err
 			},
-			list:      getAllAdapter(p.trustS.GetRemoteClusters),
-			cacheGet:  p.cache.GetRemoteCluster,
-			cacheList: getAllAdapter(p.cache.GetRemoteClusters),
+			upstreamList: getAllAdapter(p.trustS.GetRemoteClusters),
+			cacheGet:     p.cache.GetRemoteCluster,
+			cacheList:    getAllAdapter(p.cache.GetRemoteClusters),
 			update: func(ctx context.Context, rc types.RemoteCluster) error {
 				_, err := p.trustS.UpdateRemoteCluster(ctx, rc)
 				return err
@@ -99,10 +99,10 @@ func TestTunnelConnections(t *testing.T) {
 				LastHeartbeat: time.Now().UTC(),
 			})
 		},
-		create:    modifyNoContext(p.trustS.UpsertTunnelConnection),
-		list:      getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.trustS.GetAllTunnelConnections() }),
-		cacheList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
-		update:    modifyNoContext(p.trustS.UpsertTunnelConnection),
+		create:       modifyNoContext(p.trustS.UpsertTunnelConnection),
+		upstreamList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.trustS.GetAllTunnelConnections() }),
+		cacheList:    getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
+		update:       modifyNoContext(p.trustS.UpsertTunnelConnection),
 		deleteAll: func(ctx context.Context) error {
 			return p.trustS.DeleteAllTunnelConnections()
 		},

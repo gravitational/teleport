@@ -39,9 +39,9 @@ func TestWebUIConfig(t *testing.T) {
 				},
 			}, nil
 		},
-		create:    p.clusterConfigS.SetUIConfig,
-		list:      singletonListAdapter(p.clusterConfigS.GetUIConfig),
-		cacheList: singletonListAdapter(p.cache.GetUIConfig),
-		deleteAll: p.clusterConfigS.DeleteUIConfig,
+		create:       p.clusterConfigS.SetUIConfig,
+		upstreamList: singletonListAdapter(p.clusterConfigS.GetUIConfig),
+		cacheList:    singletonListAdapter(p.cache.GetUIConfig),
+		deleteAll:    p.clusterConfigS.DeleteUIConfig,
 	}, withSkipPaginationTest()) // UIConfig is a singleton resource, so pagination is not applicable.
 }

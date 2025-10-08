@@ -57,7 +57,7 @@ func TestHealthCheckConfig(t *testing.T) {
 			_, err := p.healthCheckConfig.CreateHealthCheckConfig(ctx, cfg)
 			return trace.Wrap(err)
 		},
-		list: p.healthCheckConfig.ListHealthCheckConfigs,
+		upstreamList: p.healthCheckConfig.ListHealthCheckConfigs,
 		update: func(ctx context.Context, cfg *healthcheckconfigv1.HealthCheckConfig) error {
 			_, err := p.healthCheckConfig.UpdateHealthCheckConfig(ctx, cfg)
 			return trace.Wrap(err)

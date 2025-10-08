@@ -33,9 +33,9 @@ func TestInstallers(t *testing.T) {
 		newResource: func(name string) (types.Installer, error) {
 			return types.NewInstallerV1(name, "test.sh")
 		},
-		create:    p.clusterConfigS.SetInstaller,
-		list:      getAllAdapter(p.clusterConfigS.GetInstallers),
-		cacheList: getAllAdapter(p.cache.GetInstallers),
+		create:       p.clusterConfigS.SetInstaller,
+		upstreamList: getAllAdapter(p.clusterConfigS.GetInstallers),
+		cacheList:    getAllAdapter(p.cache.GetInstallers),
 		deleteAll: func(ctx context.Context) error {
 			return p.clusterConfigS.DeleteAllInstallers(ctx)
 		},

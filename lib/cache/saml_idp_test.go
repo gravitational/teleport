@@ -42,11 +42,11 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 					EntityID:         "IAMShowcase" + name,
 				})
 		},
-		create:    p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
-		list:      p.samlIDPServiceProviders.ListSAMLIdPServiceProviders,
-		cacheGet:  p.cache.GetSAMLIdPServiceProvider,
-		cacheList: p.cache.ListSAMLIdPServiceProviders,
-		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
-		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
+		create:       p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
+		upstreamList: p.samlIDPServiceProviders.ListSAMLIdPServiceProviders,
+		cacheGet:     p.cache.GetSAMLIdPServiceProvider,
+		cacheList:    p.cache.ListSAMLIdPServiceProviders,
+		update:       p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
+		deleteAll:    p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
 	})
 }

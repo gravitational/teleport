@@ -85,8 +85,8 @@ func TestPluginStaticCredentials(t *testing.T) {
 							},
 						})
 				},
-				create: p.pluginStaticCredentials.CreatePluginStaticCredentials,
-				list:   getAllAdapter(p.pluginStaticCredentials.GetAllPluginStaticCredentials),
+				create:       p.pluginStaticCredentials.CreatePluginStaticCredentials,
+				upstreamList: getAllAdapter(p.pluginStaticCredentials.GetAllPluginStaticCredentials),
 				update: func(ctx context.Context, cred types.PluginStaticCredentials) error {
 					_, err := p.pluginStaticCredentials.UpdatePluginStaticCredentials(ctx, cred)
 					return err

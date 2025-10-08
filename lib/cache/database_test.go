@@ -48,7 +48,7 @@ func TestDatabaseServices(t *testing.T) {
 			})
 		},
 		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
-		list: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseService, string, error) {
 			resources, next, err := listResource(ctx, p.presenceS, types.KindDatabaseService, pageSize, pageToken)
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -92,14 +92,14 @@ func TestDatabases(t *testing.T) {
 				URI:      "localhost:5432",
 			})
 		},
-		create:     p.databases.CreateDatabase,
-		list:       p.databases.ListDatabases,
-		Range:      p.databases.RangeDatabases,
-		cacheGet:   p.cache.GetDatabase,
-		cacheList:  p.cache.ListDatabases,
-		cacheRange: p.cache.RangeDatabases,
-		update:     p.databases.UpdateDatabase,
-		deleteAll:  p.databases.DeleteAllDatabases,
+		create:        p.databases.CreateDatabase,
+		upstreamList:  p.databases.ListDatabases,
+		upstreamRange: p.databases.RangeDatabases,
+		cacheGet:      p.cache.GetDatabase,
+		cacheList:     p.cache.ListDatabases,
+		cacheRange:    p.cache.RangeDatabases,
+		update:        p.databases.UpdateDatabase,
+		deleteAll:     p.databases.DeleteAllDatabases,
 	})
 }
 
@@ -123,7 +123,7 @@ func TestDatabaseServers(t *testing.T) {
 				})
 			},
 			create: withKeepalive(p.presenceS.UpsertDatabaseServer),
-			list: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
+			upstreamList: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
 				return p.presenceS.GetDatabaseServers(ctx, apidefaults.Namespace)
 			}),
 			cacheList: getAllAdapter(func(ctx context.Context) ([]types.DatabaseServer, error) {
@@ -148,7 +148,7 @@ func TestDatabaseServers(t *testing.T) {
 				})
 			},
 			create: withKeepalive(p.presenceS.UpsertDatabaseServer),
-			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseServer, string, error) {
+			upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.DatabaseServer, string, error) {
 				resources, next, err := listResource(ctx, p.presenceS, types.KindDatabaseServer, pageSize, pageToken)
 				if err != nil {
 					return nil, "", trace.Wrap(err)
@@ -192,8 +192,8 @@ func TestDatabaseObjects(t *testing.T) {
 			_, err := p.databaseObjects.CreateDatabaseObject(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.databaseObjects.ListDatabaseObjects,
-		cacheList: p.databaseObjects.ListDatabaseObjects,
+		upstreamList: p.databaseObjects.ListDatabaseObjects,
+		cacheList:    p.databaseObjects.ListDatabaseObjects,
 		deleteAll: func(ctx context.Context) error {
 			token := ""
 			var objects []*dbobjectv1.DatabaseObject

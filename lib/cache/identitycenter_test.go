@@ -63,7 +63,7 @@ func TestIdentityCenterAccount(t *testing.T) {
 			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccount(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.identityCenter.ListIdentityCenterAccounts,
+		upstreamList: fixturePack.identityCenter.ListIdentityCenterAccounts,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeleteIdentityCenterAccount(
 				ctx, services.IdentityCenterAccountID(id)))
@@ -111,7 +111,7 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 			_, err := fixturePack.identityCenter.UpdatePrincipalAssignment(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.identityCenter.ListPrincipalAssignments,
+		upstreamList: fixturePack.identityCenter.ListPrincipalAssignments,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeletePrincipalAssignment(ctx, services.PrincipalAssignmentID(id)))
 		},
@@ -162,7 +162,7 @@ func TestIdentityCenterAccountAssignment(t *testing.T) {
 			_, err := fixturePack.identityCenter.UpdateIdentityCenterAccountAssignment(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: fixturePack.identityCenter.ListIdentityCenterAccountAssignments,
+		upstreamList: fixturePack.identityCenter.ListIdentityCenterAccountAssignments,
 		delete: func(ctx context.Context, id string) error {
 			return trace.Wrap(fixturePack.identityCenter.DeleteAccountAssignment(ctx, services.IdentityCenterAccountAssignmentID(id)))
 		},

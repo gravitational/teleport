@@ -41,9 +41,9 @@ func TestStaticHostUsers(t *testing.T) {
 			_, err := p.staticHostUsers.CreateStaticHostUser(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.staticHostUsers.ListStaticHostUsers,
-		cacheList: p.cache.ListStaticHostUsers,
-		cacheGet:  p.cache.GetStaticHostUser,
-		deleteAll: p.staticHostUsers.DeleteAllStaticHostUsers,
+		upstreamList: p.staticHostUsers.ListStaticHostUsers,
+		cacheList:    p.cache.ListStaticHostUsers,
+		cacheGet:     p.cache.GetStaticHostUser,
+		deleteAll:    p.staticHostUsers.DeleteAllStaticHostUsers,
 	})
 }

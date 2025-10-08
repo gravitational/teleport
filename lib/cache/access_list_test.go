@@ -57,9 +57,9 @@ func TestAccessList(t *testing.T) {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.accessLists.ListAccessLists,
-		cacheGet:  p.cache.GetAccessList,
-		cacheList: p.cache.ListAccessLists,
+		upstreamList: p.accessLists.ListAccessLists,
+		cacheGet:     p.cache.GetAccessList,
+		cacheList:    p.cache.ListAccessLists,
 		update: func(ctx context.Context, item *accesslist.AccessList) error {
 			_, err := p.accessLists.UpsertAccessList(ctx, item)
 			return trace.Wrap(err)
@@ -91,7 +91,7 @@ func TestAccessListMembers(t *testing.T) {
 			_, err := p.accessLists.UpsertAccessListMember(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: p.accessLists.ListAllAccessListMembers,
+		upstreamList: p.accessLists.ListAllAccessListMembers,
 		cacheGet: func(ctx context.Context, name string) (*accesslist.AccessListMember, error) {
 			return p.cache.GetAccessListMember(ctx, al.GetName(), name)
 		},
@@ -176,7 +176,7 @@ func TestAccessListReviews(t *testing.T) {
 			reviews[oldName].SetName(review.GetName())
 			return trace.Wrap(err)
 		},
-		list: p.accessLists.ListAllAccessListReviews,
+		upstreamList: p.accessLists.ListAllAccessListReviews,
 		cacheList: func(ctx context.Context, pageSize int, startKey string) ([]*accesslist.Review, string, error) {
 			return p.cache.ListAccessListReviews(ctx, al.GetName(), pageSize, startKey)
 		},

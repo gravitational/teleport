@@ -267,21 +267,21 @@ func singletonListAdapter[T any](fn func(context.Context) (T, error)) func(conte
 
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T any] struct {
-	newResource func(string) (T, error)
-	create      func(context.Context, T) error
-	list        func(context.Context, int, string) ([]T, string, error)
-	Range       func(context.Context, string, string) iter.Seq2[T, error]
-	cacheGet    func(context.Context, string) (T, error)
-	cacheList   func(context.Context, int, string) ([]T, string, error)
-	cacheRange  func(context.Context, string, string) iter.Seq2[T, error]
-	update      func(context.Context, T) error
-	delete      func(context.Context, string) error
-	deleteAll   func(context.Context) error
-	resource    *resourceOps[T]
+	newResource   func(string) (T, error)
+	create        func(context.Context, T) error
+	upstreamList  func(context.Context, int, string) ([]T, string, error)
+	upstreamRange func(context.Context, string, string) iter.Seq2[T, error]
+	cacheGet      func(context.Context, string) (T, error)
+	cacheList     func(context.Context, int, string) ([]T, string, error)
+	cacheRange    func(context.Context, string, string) iter.Seq2[T, error]
+	update        func(context.Context, T) error
+	delete        func(context.Context, string) error
+	deleteAll     func(context.Context) error
+	resource      *resourceOps[T]
 }
 
-func (f *testFuncs[T]) listAll(ctx context.Context) ([]T, error) {
-	return stream.Collect(clientutils.Resources(ctx, f.list))
+func (f *testFuncs[T]) upstreamListAll(ctx context.Context) ([]T, error) {
+	return stream.Collect(clientutils.Resources(ctx, f.upstreamList))
 }
 
 func (f *testFuncs[T]) cacheListAll(ctx context.Context) ([]T, error) {
@@ -1436,7 +1436,7 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 	}
 
 	// Check that the resource is now in the backend.
-	out, err := funcs.listAll(ctx)
+	out, err := funcs.upstreamListAll(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
@@ -1476,7 +1476,7 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 
 	// Check that the resource is in the backend and only one exists (so an
 	// update occurred).
-	out, err = funcs.listAll(ctx)
+	out, err = funcs.upstreamListAll(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]T{r}, out, cmpOpts...))
 
@@ -2703,7 +2703,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	}
 
 	// Fetch all of the created items from the upstream:
-	expected, err := funcs.listAll(ctx)
+	expected, err := funcs.upstreamListAll(ctx)
 	require.NoError(t, err)
 	require.Len(t, expected, totalItemCount)
 
@@ -2744,7 +2744,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	assert.Len(t, pageSmall, 1)
 	assert.NotEmpty(t, pageSmallNext)
 
-	if funcs.Range != nil && funcs.cacheRange != nil {
+	if funcs.upstreamRange != nil && funcs.cacheRange != nil {
 		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
 		require.NoError(t, err)
 		assert.Len(t, out, len(page1))

@@ -42,9 +42,9 @@ func TestAuditQuery(t *testing.T) {
 				err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 				return trace.Wrap(err)
 			},
-			list:      getAllAdapter(p.secReports.GetSecurityAuditQueries),
-			cacheGet:  p.cache.GetSecurityAuditQuery,
-			cacheList: getAllAdapter(p.cache.GetSecurityAuditQueries),
+			upstreamList: getAllAdapter(p.secReports.GetSecurityAuditQueries),
+			cacheGet:     p.cache.GetSecurityAuditQuery,
+			cacheList:    getAllAdapter(p.cache.GetSecurityAuditQueries),
 			update: func(ctx context.Context, item *secreports.AuditQuery) error {
 				err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 				return trace.Wrap(err)
@@ -62,9 +62,9 @@ func TestAuditQuery(t *testing.T) {
 				err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 				return trace.Wrap(err)
 			},
-			list:      getAllAdapter(p.secReports.GetSecurityAuditQueries),
-			cacheGet:  p.cache.GetSecurityAuditQuery,
-			cacheList: p.cache.ListSecurityAuditQueries,
+			upstreamList: getAllAdapter(p.secReports.GetSecurityAuditQueries),
+			cacheGet:     p.cache.GetSecurityAuditQuery,
+			cacheList:    p.cache.ListSecurityAuditQueries,
 			update: func(ctx context.Context, item *secreports.AuditQuery) error {
 				err := p.secReports.UpsertSecurityAuditQuery(ctx, item)
 				return trace.Wrap(err)
@@ -92,9 +92,9 @@ func TestSecurityReports(t *testing.T) {
 				err := p.secReports.UpsertSecurityReport(ctx, item)
 				return trace.Wrap(err)
 			},
-			list:      getAllAdapter(p.secReports.GetSecurityReports),
-			cacheGet:  p.cache.GetSecurityReport,
-			cacheList: getAllAdapter(p.cache.GetSecurityReports),
+			upstreamList: getAllAdapter(p.secReports.GetSecurityReports),
+			cacheGet:     p.cache.GetSecurityReport,
+			cacheList:    getAllAdapter(p.cache.GetSecurityReports),
 			update: func(ctx context.Context, item *secreports.Report) error {
 				err := p.secReports.UpsertSecurityReport(ctx, item)
 				return trace.Wrap(err)
@@ -111,9 +111,9 @@ func TestSecurityReports(t *testing.T) {
 				err := p.secReports.UpsertSecurityReport(ctx, item)
 				return trace.Wrap(err)
 			},
-			list:      p.secReports.ListSecurityReports,
-			cacheGet:  p.cache.GetSecurityReport,
-			cacheList: p.cache.ListSecurityReports,
+			upstreamList: p.secReports.ListSecurityReports,
+			cacheGet:     p.cache.GetSecurityReport,
+			cacheList:    p.cache.ListSecurityReports,
 			update: func(ctx context.Context, item *secreports.Report) error {
 				err := p.secReports.UpsertSecurityReport(ctx, item)
 				return trace.Wrap(err)
@@ -140,9 +140,9 @@ func TestSecurityReportState(t *testing.T) {
 			err := p.secReports.UpsertSecurityReportsState(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      p.secReports.ListSecurityReportsStates,
-		cacheGet:  p.cache.GetSecurityReportState,
-		cacheList: p.cache.ListSecurityReportsStates,
+		upstreamList: p.secReports.ListSecurityReportsStates,
+		cacheGet:     p.cache.GetSecurityReportState,
+		cacheList:    p.cache.ListSecurityReportsStates,
 		update: func(ctx context.Context, item *secreports.ReportState) error {
 			err := p.secReports.UpsertSecurityReportsState(ctx, item)
 			return trace.Wrap(err)
