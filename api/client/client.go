@@ -3476,6 +3476,27 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 	return clusters, nil
 }
 
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	resp, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+		PageSize:  int32(limit),
+		PageToken: start,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	kubeClusters := make([]types.KubeCluster, len(resp.KubernetesClusters))
+	for i := range resp.KubernetesClusters {
+		kubeClusters[i] = resp.KubernetesClusters[i]
+	}
+	return kubeClusters, resp.NextPageToken, nil
+}
+
+// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+	return clientutils.RangeResources(ctx, start, end, c.ListKubernetesClusters, types.KubeCluster.GetName)
+}
+
 // DeleteKubernetesCluster deletes specified kubernetes cluster resource.
 func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{Name: name})
