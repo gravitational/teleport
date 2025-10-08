@@ -46,14 +46,14 @@ func TestApps(t *testing.T) {
 				URI: "localhost",
 			})
 		},
-		create:     p.apps.CreateApp,
-		list:       p.apps.ListApps,
-		Range:      p.apps.Apps,
-		cacheGet:   p.cache.GetApp,
-		cacheList:  p.cache.ListApps,
-		cacheRange: p.cache.Apps,
-		update:     p.apps.UpdateApp,
-		deleteAll:  p.apps.DeleteAllApps,
+		create:        p.apps.CreateApp,
+		upstreamList:  p.apps.ListApps,
+		upstreamRange: p.apps.Apps,
+		cacheGet:      p.cache.GetApp,
+		cacheList:     p.cache.ListApps,
+		cacheRange:    p.cache.Apps,
+		update:        p.apps.UpdateApp,
+		deleteAll:     p.apps.DeleteAllApps,
 	})
 }
 
@@ -73,7 +73,7 @@ func TestApplicationServers(t *testing.T) {
 				return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 			},
 			create: withKeepalive(p.presenceS.UpsertApplicationServer),
-			list: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
+			upstreamList: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
 				return p.presenceS.GetApplicationServers(ctx, apidefaults.Namespace)
 			}),
 			cacheList: getAllAdapter(func(ctx context.Context) ([]types.AppServer, error) {
@@ -94,7 +94,7 @@ func TestApplicationServers(t *testing.T) {
 				return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
 			},
 			create: withKeepalive(p.presenceS.UpsertApplicationServer),
-			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.AppServer, string, error) {
+			upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.AppServer, string, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindAppServer,
 					StartKey:     pageToken,

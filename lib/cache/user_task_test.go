@@ -41,7 +41,7 @@ func TestUserTasks(t *testing.T) {
 			_, err := p.userTasks.CreateUserTask(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context, pageLimit int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
+		upstreamList: func(ctx context.Context, pageLimit int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
 			return p.userTasks.ListUserTasks(ctx, int64(pageLimit), pageToken, &usertasksv1.ListUserTasksFilters{})
 		},
 		cacheList: func(ctx context.Context, pageLimit int, pageToken string) ([]*usertasksv1.UserTask, string, error) {

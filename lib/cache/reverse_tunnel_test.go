@@ -41,7 +41,7 @@ func TestReverseTunnels(t *testing.T) {
 			_, err := p.presenceS.UpsertReverseTunnel(ctx, tunnel)
 			return err
 		},
-		list: p.presenceS.ListReverseTunnels,
+		upstreamList: p.presenceS.ListReverseTunnels,
 		update: func(ctx context.Context, tunnel types.ReverseTunnel) error {
 			_, err := p.presenceS.UpsertReverseTunnel(ctx, tunnel)
 			return err

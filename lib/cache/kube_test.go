@@ -41,12 +41,12 @@ func TestKubernetes(t *testing.T) {
 				Name: name,
 			}, types.KubernetesClusterSpecV3{})
 		},
-		create:    p.kubernetes.CreateKubernetesCluster,
-		list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
-		cacheGet:  p.cache.GetKubernetesCluster,
-		cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
-		update:    p.kubernetes.UpdateKubernetesCluster,
-		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
+		create:       p.kubernetes.CreateKubernetesCluster,
+		upstreamList: getAllAdapter(p.kubernetes.GetKubernetesClusters),
+		cacheGet:     p.cache.GetKubernetesCluster,
+		cacheList:    getAllAdapter(p.cache.GetKubernetesClusters),
+		update:       p.kubernetes.UpdateKubernetesCluster,
+		deleteAll:    p.kubernetes.DeleteAllKubernetesClusters,
 	}, withSkipPaginationTest())
 }
 
@@ -65,10 +65,10 @@ func TestKubernetesServers(t *testing.T) {
 				require.NoError(t, err)
 				return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
 			},
-			create:    withKeepalive(p.presenceS.UpsertKubernetesServer),
-			list:      getAllAdapter(p.presenceS.GetKubernetesServers),
-			cacheList: getAllAdapter(p.cache.GetKubernetesServers),
-			update:    withKeepalive(p.presenceS.UpsertKubernetesServer),
+			create:       withKeepalive(p.presenceS.UpsertKubernetesServer),
+			upstreamList: getAllAdapter(p.presenceS.GetKubernetesServers),
+			cacheList:    getAllAdapter(p.cache.GetKubernetesServers),
+			update:       withKeepalive(p.presenceS.UpsertKubernetesServer),
 			deleteAll: func(ctx context.Context) error {
 				return p.presenceS.DeleteAllKubernetesServers(ctx)
 			},
@@ -83,7 +83,7 @@ func TestKubernetesServers(t *testing.T) {
 				return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
 			},
 			create: withKeepalive(p.presenceS.UpsertKubernetesServer),
-			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeServer, string, error) {
+			upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeServer, string, error) {
 				resources, next, err := listResource(ctx, p.presenceS, types.KindKubeServer, pageSize, pageToken)
 				if err != nil {
 					return nil, "", trace.Wrap(err)

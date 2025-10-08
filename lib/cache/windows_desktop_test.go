@@ -49,7 +49,7 @@ func TestWindowsDesktop(t *testing.T) {
 			)
 		},
 		create: p.windowsDesktops.CreateWindowsDesktop,
-		list: func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
 			var desktops []types.WindowsDesktop
 			req := types.ListWindowsDesktopsRequest{
 				StartKey: pageToken,
@@ -180,12 +180,12 @@ func TestWindowsDesktopService(t *testing.T) {
 					},
 				)
 			},
-			create:    withKeepalive(p.presenceS.UpsertWindowsDesktopService),
-			list:      getAllAdapter(p.presenceS.GetWindowsDesktopServices),
-			cacheGet:  p.cache.GetWindowsDesktopService,
-			cacheList: getAllAdapter(p.cache.GetWindowsDesktopServices),
-			update:    withKeepalive(p.presenceS.UpsertWindowsDesktopService),
-			deleteAll: p.presenceS.DeleteAllWindowsDesktopServices,
+			create:       withKeepalive(p.presenceS.UpsertWindowsDesktopService),
+			upstreamList: getAllAdapter(p.presenceS.GetWindowsDesktopServices),
+			cacheGet:     p.cache.GetWindowsDesktopService,
+			cacheList:    getAllAdapter(p.cache.GetWindowsDesktopServices),
+			update:       withKeepalive(p.presenceS.UpsertWindowsDesktopService),
+			deleteAll:    p.presenceS.DeleteAllWindowsDesktopServices,
 		}, withSkipPaginationTest())
 	})
 
@@ -203,7 +203,7 @@ func TestWindowsDesktopService(t *testing.T) {
 				)
 			},
 			create: withKeepalive(p.presenceS.UpsertWindowsDesktopService),
-			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktopService, string, error) {
+			upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktopService, string, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindWindowsDesktopService,
 					StartKey:     pageToken,
@@ -267,9 +267,9 @@ func TestDynamicWindowsDesktop(t *testing.T) {
 			_, err := p.dynamicWindowsDesktops.CreateDynamicWindowsDesktop(ctx, dwd)
 			return err
 		},
-		list:      p.dynamicWindowsDesktops.ListDynamicWindowsDesktops,
-		cacheGet:  p.cache.GetDynamicWindowsDesktop,
-		cacheList: p.cache.ListDynamicWindowsDesktops,
+		upstreamList: p.dynamicWindowsDesktops.ListDynamicWindowsDesktops,
+		cacheGet:     p.cache.GetDynamicWindowsDesktop,
+		cacheList:    p.cache.ListDynamicWindowsDesktops,
 		update: func(ctx context.Context, dwd types.DynamicWindowsDesktop) error {
 			_, err := p.dynamicWindowsDesktops.UpdateDynamicWindowsDesktop(ctx, dwd)
 			return err

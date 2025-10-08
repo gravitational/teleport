@@ -60,8 +60,8 @@ func TestRecordingEncryption(t *testing.T) {
 			_, err := p.recordingEncryption.UpdateRecordingEncryption(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      singletonListAdapter(p.recordingEncryption.GetRecordingEncryption),
-		cacheList: singletonListAdapter(p.cache.GetRecordingEncryption),
-		deleteAll: p.recordingEncryption.DeleteRecordingEncryption,
+		upstreamList: singletonListAdapter(p.recordingEncryption.GetRecordingEncryption),
+		cacheList:    singletonListAdapter(p.cache.GetRecordingEncryption),
+		deleteAll:    p.recordingEncryption.DeleteRecordingEncryption,
 	}, withSkipPaginationTest())
 }

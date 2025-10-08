@@ -142,7 +142,7 @@ func TestTokensCache(t *testing.T) {
 			err := p.provisionerS.CreateToken(ctx, resource)
 			return err
 		},
-		list: func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
 			return p.provisionerS.ListProvisionTokens(ctx, pageSize, pageToken, nil, "")
 		},
 		update: func(ctx context.Context, t types.ProvisionToken) error {

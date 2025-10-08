@@ -45,12 +45,12 @@ func TestUserGroups(t *testing.T) {
 				}, types.UserGroupSpecV1{},
 			)
 		},
-		create:    p.userGroups.CreateUserGroup,
-		list:      p.userGroups.ListUserGroups,
-		cacheGet:  p.cache.GetUserGroup,
-		cacheList: p.cache.ListUserGroups,
-		update:    p.userGroups.UpdateUserGroup,
-		deleteAll: p.userGroups.DeleteAllUserGroups,
+		create:       p.userGroups.CreateUserGroup,
+		upstreamList: p.userGroups.ListUserGroups,
+		cacheGet:     p.cache.GetUserGroup,
+		cacheList:    p.cache.ListUserGroups,
+		update:       p.userGroups.UpdateUserGroup,
+		deleteAll:    p.userGroups.DeleteAllUserGroups,
 	})
 
 	require.NoError(t, p.userGroups.DeleteAllUserGroups(t.Context()))

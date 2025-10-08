@@ -45,8 +45,8 @@ func TestUsers(t *testing.T) {
 				_, err := p.usersS.UpsertUser(ctx, user)
 				return err
 			},
-			list:      getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.usersS.GetUsers(ctx, false) }),
-			cacheList: getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.cache.GetUsers(ctx, false) }),
+			upstreamList: getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.usersS.GetUsers(ctx, false) }),
+			cacheList:    getAllAdapter(func(ctx context.Context) ([]types.User, error) { return p.cache.GetUsers(ctx, false) }),
 			update: func(ctx context.Context, user types.User) error {
 				_, err := p.usersS.UpdateUser(ctx, user)
 				return err
@@ -64,7 +64,7 @@ func TestUsers(t *testing.T) {
 				_, err := p.usersS.UpsertUser(ctx, user)
 				return err
 			},
-			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
+			upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
 				var out []types.User
 				req := &userspb.ListUsersRequest{
 					PageSize:  int32(pageSize),

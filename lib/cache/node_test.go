@@ -45,7 +45,7 @@ func TestNodes(t *testing.T) {
 				return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 			},
 			create: withKeepalive(p.presenceS.UpsertNode),
-			list: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
+			upstreamList: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
 				return p.presenceS.GetNodes(ctx, apidefaults.Namespace)
 			}),
 			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
@@ -70,7 +70,7 @@ func TestNodes(t *testing.T) {
 				return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 			},
 			create: withKeepalive(p.presenceS.UpsertNode),
-			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+			upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindNode,
 					Limit:        int32(pageSize),

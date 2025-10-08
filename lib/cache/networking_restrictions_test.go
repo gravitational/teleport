@@ -32,9 +32,9 @@ func TestNetworkRestrictions(t *testing.T) {
 		newResource: func(name string) (types.NetworkRestrictions, error) {
 			return types.NewNetworkRestrictions(), nil
 		},
-		create:    p.restrictions.SetNetworkRestrictions,
-		list:      singletonListAdapter(p.restrictions.GetNetworkRestrictions),
-		cacheList: singletonListAdapter(p.cache.GetNetworkRestrictions),
-		deleteAll: p.restrictions.DeleteNetworkRestrictions,
+		create:       p.restrictions.SetNetworkRestrictions,
+		upstreamList: singletonListAdapter(p.restrictions.GetNetworkRestrictions),
+		cacheList:    singletonListAdapter(p.cache.GetNetworkRestrictions),
+		deleteAll:    p.restrictions.DeleteNetworkRestrictions,
 	}, withSkipPaginationTest()) // skip pagination test because NetworkRestrictions is a singleton resource
 }

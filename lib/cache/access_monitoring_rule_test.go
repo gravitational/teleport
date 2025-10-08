@@ -45,9 +45,9 @@ func TestAccessMonitoringRules(t *testing.T) {
 			_, err := p.accessMonitoringRules.CreateAccessMonitoringRule(ctx, i)
 			return err
 		},
-		list:      p.accessMonitoringRules.ListAccessMonitoringRules,
-		cacheGet:  p.cache.GetAccessMonitoringRule,
-		cacheList: p.cache.ListAccessMonitoringRules,
+		upstreamList: p.accessMonitoringRules.ListAccessMonitoringRules,
+		cacheGet:     p.cache.GetAccessMonitoringRule,
+		cacheList:    p.cache.ListAccessMonitoringRules,
 		update: func(ctx context.Context, i *accessmonitoringrulesv1.AccessMonitoringRule) error {
 			_, err := p.accessMonitoringRules.UpdateAccessMonitoringRule(ctx, i)
 			return err

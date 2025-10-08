@@ -45,9 +45,9 @@ func TestWebTokens(t *testing.T) {
 				User:  "llama",
 			})
 		},
-		list:      getAllAdapter(p.webTokenS.GetWebTokens),
-		cacheList: getAllAdapter(p.cache.GetWebTokens),
-		deleteAll: p.webTokenS.DeleteAllWebTokens,
+		upstreamList: getAllAdapter(p.webTokenS.GetWebTokens),
+		cacheList:    getAllAdapter(p.cache.GetWebTokens),
+		deleteAll:    p.webTokenS.DeleteAllWebTokens,
 		delete: func(ctx context.Context, token string) error {
 			return p.webTokenS.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
 				Token: token,

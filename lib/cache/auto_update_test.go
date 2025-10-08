@@ -41,7 +41,7 @@ func TestAutoUpdateConfig(t *testing.T) {
 			_, err := p.autoUpdateService.UpsertAutoUpdateConfig(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateConfig, error) {
+		upstreamList: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateConfig, error) {
 			item, err := p.autoUpdateService.GetAutoUpdateConfig(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateConfig{}, nil
@@ -77,7 +77,7 @@ func TestAutoUpdateVersion(t *testing.T) {
 			_, err := p.autoUpdateService.UpsertAutoUpdateVersion(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateVersion, error) {
+		upstreamList: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateVersion, error) {
 			item, err := p.autoUpdateService.GetAutoUpdateVersion(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateVersion{}, nil
@@ -111,7 +111,7 @@ func TestAutoUpdateAgentRollout(t *testing.T) {
 			_, err := p.autoUpdateService.UpsertAutoUpdateAgentRollout(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
+		upstreamList: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
 			item, err := p.autoUpdateService.GetAutoUpdateAgentRollout(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdatev1.AutoUpdateAgentRollout{}, nil

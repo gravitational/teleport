@@ -49,9 +49,9 @@ func TestDiscoveryConfig(t *testing.T) {
 			_, err := p.discoveryConfigs.CreateDiscoveryConfig(ctx, discoveryConfig)
 			return trace.Wrap(err)
 		},
-		list:      p.discoveryConfigs.ListDiscoveryConfigs,
-		cacheGet:  p.cache.GetDiscoveryConfig,
-		cacheList: p.cache.ListDiscoveryConfigs,
+		upstreamList: p.discoveryConfigs.ListDiscoveryConfigs,
+		cacheGet:     p.cache.GetDiscoveryConfig,
+		cacheList:    p.cache.ListDiscoveryConfigs,
 		update: func(ctx context.Context, discoveryConfig *discoveryconfig.DiscoveryConfig) error {
 			_, err := p.discoveryConfigs.UpdateDiscoveryConfig(ctx, discoveryConfig)
 			return trace.Wrap(err)

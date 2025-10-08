@@ -64,9 +64,9 @@ func TestRoles(t *testing.T) {
 				_, err := p.accessS.UpsertRole(ctx, role)
 				return err
 			},
-			list:      getAllAdapter(p.accessS.GetRoles),
-			cacheGet:  p.cache.GetRole,
-			cacheList: getAllAdapter(p.cache.GetRoles),
+			upstreamList: getAllAdapter(p.accessS.GetRoles),
+			cacheGet:     p.cache.GetRole,
+			cacheList:    getAllAdapter(p.cache.GetRoles),
 			update: func(ctx context.Context, role types.Role) error {
 				_, err := p.accessS.UpsertRole(ctx, role)
 				return err
@@ -93,7 +93,7 @@ func TestRoles(t *testing.T) {
 				_, err := p.accessS.UpsertRole(ctx, role)
 				return err
 			},
-			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.Role, string, error) {
+			upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.Role, string, error) {
 				var out []types.Role
 				req := &proto.ListRolesRequest{
 					Limit:    int32(pageSize),

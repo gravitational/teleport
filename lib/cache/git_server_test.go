@@ -47,7 +47,7 @@ func TestGitServers(t *testing.T) {
 			_, err := p.gitServers.CreateGitServer(ctx, server)
 			return trace.Wrap(err)
 		},
-		list: p.gitServers.ListGitServers,
+		upstreamList: p.gitServers.ListGitServers,
 		update: func(ctx context.Context, server types.Server) error {
 			_, err := p.gitServers.UpdateGitServer(ctx, server)
 			return trace.Wrap(err)
