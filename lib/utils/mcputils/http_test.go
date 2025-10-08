@@ -20,6 +20,8 @@ package mcputils
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"maps"
 	"net/http"
 	"sync"
@@ -63,7 +65,7 @@ func TestReplaceHTTPResponse(t *testing.T) {
 	// Initialize client and call a tool.
 	_, err = mcptest.InitializeClient(ctx, client)
 	require.NoError(t, err)
-	mcptest.MustCallServerTool(t, ctx, client)
+	mcptest.MustCallServerTool(t, client)
 	assert.Equal(t, uint32(2), httpClientTransport.countMCPResponse.Load())
 
 	// Send notifications from server. Notifications will be sent through SSE.
@@ -128,4 +130,68 @@ func (t *testReplaceHTTPResponseTransport) ProcessResponse(_ context.Context, re
 func (t *testReplaceHTTPResponseTransport) ProcessNotification(_ context.Context, notification *JSONRPCNotification) mcp.JSONRPCMessage {
 	t.countMCPNotification.Add(1)
 	return notification
+}
+
+func TestHTTPReaderWriter(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Set up an MCP server.
+	mcpServer := mcptest.NewServer()
+	httpServer := mcpserver.NewTestStreamableHTTPServer(mcpServer)
+	t.Cleanup(httpServer.Close)
+
+	// Create a proxy that converts from stdio to HTTP.
+	clientStdin, writeToClient := io.Pipe()
+	readFromClient, clientStdout := io.Pipe()
+	t.Cleanup(func() {
+		assert.NoError(t, trace.NewAggregate(
+			clientStdin.Close(), writeToClient.Close(),
+			readFromClient.Close(), clientStdout.Close(),
+		))
+	})
+
+	serverReaderWriter, err := NewHTTPReaderWriter(ctx, httpServer.URL, mcpclienttransport.WithContinuousListening())
+	require.NoError(t, err)
+	defer serverReaderWriter.Close() // Send DELETE before server is shutdown
+
+	clientTransportReader := NewStdioReader(readFromClient)
+	clientWriter := NewStdioMessageWriter(writeToClient)
+	proxyReaderWriter(t, clientTransportReader, clientWriter, serverReaderWriter, serverReaderWriter)
+
+	// Make a "high-level" stdio MCP client and test the proxy.
+	notificationsChan := make(chan mcp.JSONRPCNotification, 1)
+	stdioClient := mcptest.NewStdioClient(t, clientStdin, clientStdout)
+	stdioClient.OnNotification(func(notification mcp.JSONRPCNotification) {
+		notificationsChan <- notification
+	})
+	mcptest.MustInitializeClient(t, stdioClient)
+	mcptest.MustCallServerTool(t, stdioClient)
+
+	// Test listening notifications from server.
+	mcpServer.SendNotificationToAllClients("notifications/test", nil)
+	select {
+	case notification := <-notificationsChan:
+		require.NotNil(t, notification)
+		require.Equal(t, "notifications/test", notification.Notification.Method)
+	case <-time.After(time.Second):
+		require.Fail(t, "timeout waiting for notification")
+	}
+}
+
+func proxyReaderWriter(
+	t *testing.T,
+	clientTransportReader TransportReader,
+	clientWriter MessageWriter,
+	serverTransportReader TransportReader,
+	serverWriter MessageWriter,
+) {
+	t.Helper()
+
+	clientMessageReader, err := NewForwardMessageReader(slog.Default(), clientTransportReader, serverWriter)
+	require.NoError(t, err)
+	serverMessageReader, err := NewForwardMessageReader(slog.Default(), serverTransportReader, clientWriter)
+	require.NoError(t, err)
+	go clientMessageReader.Run(t.Context())
+	go serverMessageReader.Run(t.Context())
 }

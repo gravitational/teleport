@@ -125,9 +125,8 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		getEventCode := func(e apievents.AuditEvent) string {
 			return e.GetCode()
 		}
-		_, err = mcptest.InitializeClient(ctx, client)
-		require.NoError(t, err)
-		mcptest.MustCallServerTool(t, ctx, client)
+		mcptest.MustInitializeClient(t, client)
+		mcptest.MustCallServerTool(t, client)
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			require.ElementsMatch(t, []string{
 				libevents.MCPSessionStartCode,
