@@ -156,6 +156,48 @@ credential_process = another process
 another_field = another_value`),
 			errCheck: require.Error,
 		},
+		{
+			name:           "re-apply the login, should not add another section",
+			sectionName:    "profile Upper-and-lower-CASE",
+			sectionComment: "Do not edit. Section managed by Teleport. Generated for accessing Upper-and-lower-CASE",
+			existingContents: strPtr(`[sectionA]
+some_setting = value
+
+; Do not edit. Section managed by Teleport. Generated for accessing Upper-and-lower-CASE
+[profile Upper-and-lower-CASE]
+credential_process=credential_process
+`),
+			errCheck: require.NoError,
+			expected: `[sectionA]
+some_setting = value
+
+; Do not edit. Section managed by Teleport. Generated for accessing Upper-and-lower-CASE
+[profile Upper-and-lower-CASE]
+credential_process = credential_process
+`,
+		},
+		{
+			// This is not exactly a test but serves documentation purposes on the limitation of the library we use.
+			// It's not possible to keep the exact formatting of the existing file because it doesn't support it.
+			// Instead, it will reformat the file before saving it.
+			// The library supports turning off pretty printing but that would just reformat the entire file using no spaces, and no alignment,
+			// even if the original file had it.
+			name:           "document reformatting behavior",
+			sectionName:    "profile Upper-and-lower-CASE",
+			sectionComment: "Do not edit. Section managed by Teleport. Generated for accessing Upper-and-lower-CASE",
+			existingContents: strPtr(`[sectionA]
+with_spaces = value
+without_spaces=value`),
+			errCheck: require.NoError,
+			expected: `[sectionA]
+with_spaces    = value
+without_spaces = value
+
+; Do not edit. Section managed by Teleport. Generated for accessing Upper-and-lower-CASE
+[profile Upper-and-lower-CASE]
+credential_process = credential_process
+`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			configFilePath := filepath.Join(t.TempDir(), "config")
