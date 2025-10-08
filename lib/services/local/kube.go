@@ -20,9 +20,12 @@ package local
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -31,11 +34,15 @@ import (
 // KubernetesService manages kubernetes resources in the backend.
 type KubernetesService struct {
 	backend.Backend
+	logger *slog.Logger
 }
 
 // NewKubernetesService creates a new KubernetesService.
 func NewKubernetesService(backend backend.Backend) *KubernetesService {
-	return &KubernetesService{Backend: backend}
+	return &KubernetesService{
+		Backend: backend,
+		logger:  slog.With(teleport.ComponentKey, "KubernetesService"),
+	}
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
@@ -55,6 +62,48 @@ func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.
 		kubeClusters[i] = cluster
 	}
 	return kubeClusters, nil
+}
+
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (s *KubernetesService) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	kubernetesKey := backend.NewKey(kubernetesPrefix)
+	startKey := kubernetesKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(kubernetesKey)
+
+	result, err := s.Backend.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	out := make([]types.KubeCluster, 0, len(result.Items))
+
+	for _, item := range result.Items {
+		cluster, err := services.UnmarshalKubeCluster(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal kubernetes cluster",
+				"key", item.Key,
+				"error", err,
+			)
+
+			continue
+		}
+
+		if len(out) >= limit {
+			return out, cluster.GetName(), nil
+		}
+
+		out = append(out, cluster)
+	}
+
+	return out, "", nil
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
