@@ -24,6 +24,8 @@ import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex from 'design/Flex/Flex';
 import { Cross } from 'design/Icon/Icons/Cross';
 import { Indicator } from 'design/Indicator/Indicator';
+import { TabBorder, TabContainer, TabsContainer } from 'design/Tabs/Tabs';
+import { useSlidingBottomBorderTabs } from 'design/Tabs/useSlidingBottomBorderTabs';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import TextEditor from 'shared/components/TextEditor/TextEditor';
@@ -36,8 +38,10 @@ export function BotInstanceDetails(props: {
   botName: string;
   instanceId: string;
   onClose: () => void;
+  activeTab?: string | null;
+  onTabSelected: (tab: string) => void;
 }) {
-  const { botName, instanceId, onClose } = props;
+  const { botName, instanceId, onClose, activeTab, onTabSelected } = props;
 
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
@@ -53,6 +57,8 @@ export function BotInstanceDetails(props: {
       staleTime: 30_000, // Keep data in the cache for 30 seconds
     }
   );
+
+  const tab = tabs.find(t => t.id === activeTab)?.id ?? 'info';
 
   return (
     <Container>
@@ -87,19 +93,28 @@ export function BotInstanceDetails(props: {
           </Alert>
         ) : undefined}
 
-        {isSuccess && data.yaml ? (
-          <YamlContaner>
-            <TextEditor
-              bg="levels.sunken"
-              data={[
-                {
-                  content: data.yaml,
-                  type: 'yaml',
-                },
-              ]}
-              readOnly={true}
-            />
-          </YamlContaner>
+        {isSuccess ? (
+          <>
+            <Tabs activeTab={tab} onTabSelected={onTabSelected} />
+            <TabContentContainer>
+              {tab === 'info' ? <div style={{ flex: 1 }} /> : undefined}
+
+              {tab === 'health' ? <div style={{ flex: 1 }} /> : undefined}
+
+              {tab === 'yaml' ? (
+                <TextEditor
+                  bg="levels.sunken"
+                  data={[
+                    {
+                      content: data.yaml,
+                      type: 'yaml',
+                    },
+                  ]}
+                  readOnly={true}
+                />
+              ) : undefined}
+            </TabContentContainer>
+          </>
         ) : undefined}
       </ContentContainer>
     </Container>
@@ -146,8 +161,60 @@ const ContentContainer = styled.div`
   flex: 1;
 `;
 
-const YamlContaner = styled(Flex)`
+const TabContentContainer = styled(Flex)`
   flex: 1;
-  border-radius: ${props => props.theme.space[2]}px;
   background-color: ${({ theme }) => theme.colors.levels.surface};
+`;
+
+const tabs = [
+  {
+    id: 'info',
+    label: 'Overview',
+    tooltip: 'View instance metadata and summary',
+  },
+  {
+    id: 'health',
+    label: 'Services',
+    tooltip: 'View service-level health status',
+  },
+  { id: 'yaml', label: 'YAML', tooltip: 'View full resource YAML' },
+] as const;
+
+type TabId = (typeof tabs)[number]['id'];
+
+function Tabs(props: {
+  activeTab: TabId;
+  onTabSelected: (tab: TabId) => void;
+}) {
+  const { activeTab, onTabSelected } = props;
+  const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
+
+  return (
+    <StyledTabsContainer ref={parentRef} withBottomBorder role="tablist">
+      {tabs.map(t => (
+        <StyledTabContainer
+          key={t.id}
+          data-tab-id={t.id}
+          selected={activeTab === t.id}
+          onClick={() => onTabSelected(t.id)}
+          role="tab"
+        >
+          <HoverTooltip placement="top" tipContent={t.tooltip}>
+            <span>{t.label}</span>
+          </HoverTooltip>
+        </StyledTabContainer>
+      ))}
+      <TabBorder ref={borderRef} />
+    </StyledTabsContainer>
+  );
+}
+
+const StyledTabsContainer = styled(TabsContainer)`
+  gap: ${p => p.theme.space[3]}px;
+`;
+
+const StyledTabContainer = styled(TabContainer)`
+  padding: ${p => p.theme.space[2]}px;
+  font-weight: ${p => p.theme.fontWeights.medium};
+  font-size: ${p => p.theme.fontSizes[2]}px;
 `;
