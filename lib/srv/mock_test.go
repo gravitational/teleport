@@ -124,8 +124,10 @@ func newMockServer(t *testing.T) *mockServer {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
+	bkpath := t.TempDir()
+	datadir := t.TempDir()
 	bk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+		Path:  bkpath,
 		Clock: clock,
 	})
 	require.NoError(t, err)
@@ -141,6 +143,9 @@ func newMockServer(t *testing.T) *mockServer {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, bk.Close())
+		// TempDir does not delete contents on exit cleanup.
+		os.RemoveAll(bkpath)
+		os.RemoveAll(datadir)
 	})
 
 	authCfg := &auth.InitConfig{
@@ -157,7 +162,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 	return &mockServer{
 		auth:                authServer,
-		datadir:             t.TempDir(),
+		datadir:             datadir,
 		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 		clock:               clock,
 	}
