@@ -195,7 +195,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 		return nil, trace.Wrap(err)
 	}
 
-	if !ctc.HasVersion(toolsVersion, runtime.GOOS, runtime.GOARCH) {
+	if !ctc.HasVersion(u.toolsDir, toolsVersion, runtime.GOOS, runtime.GOARCH) {
 		if err := migrateV1AndUpdateConfig(u.toolsDir, u.tools); err != nil {
 			// Execution should not be interrupted if migration fails. Instead, it's better to
 			// re-download the version that was supposed to be migrated but failed for some reason.
@@ -301,7 +301,7 @@ func (u *Updater) Update(ctx context.Context, toolsVersion string) error {
 			// If the version of the running binary or the version downloaded to
 			// tools directory is the same as the requested version of client tools,
 			// nothing to be done, exit early.
-			if tool.IsEqual(toolsVersion, runtime.GOOS, runtime.GOARCH) {
+			if tool.IsEqual(u.toolsDir, toolsVersion, runtime.GOOS, runtime.GOARCH) {
 				return nil
 			}
 			ignoreTools = append(ignoreTools, tool.PackageNames()...)
@@ -383,7 +383,7 @@ func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packag
 	for key, val := range toolsMap {
 		toolsMap[key] = filepath.Join(pkgName, val)
 	}
-	ctc.AddTool(Tool{Version: pkg.Version, OS: runtime.GOOS, Arch: runtime.GOARCH, PathMap: toolsMap})
+	ctc.AddTool(u.toolsDir, Tool{Version: pkg.Version, OS: runtime.GOOS, Arch: runtime.GOARCH, PathMap: toolsMap})
 
 	return nil
 }
@@ -392,7 +392,7 @@ func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packag
 func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error) {
 	var tool *Tool
 	if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
-		tool = ctc.SelectVersion(toolVersion, runtime.GOOS, runtime.GOARCH)
+		tool = ctc.SelectVersion(u.toolsDir, toolVersion, runtime.GOOS, runtime.GOARCH)
 		return nil
 	}); err != nil {
 		return "", trace.Wrap(err)
