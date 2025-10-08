@@ -1721,7 +1721,7 @@ func (a *Server) runPeriodicOperations() {
 		})
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           autoUpdateBotInstanceReportKey,
-			Duration:      constants.AutoUpdateAgentReportPeriod,
+			Duration:      constants.AutoUpdateBotInstanceReportPeriod,
 			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.SeventhJitter,
 		})

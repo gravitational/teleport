@@ -583,3 +583,7 @@ const MaxPIVPINCacheTTL = time.Hour
 // routine running in every auth server. Any report older than this period should
 // be considered stale.
 const AutoUpdateAgentReportPeriod = time.Minute
+
+// AutoUpdateBotInstanceReportPeriod is the period of the autoupdate bot instance
+// reporting routine.
+const AutoUpdateBotInstanceReportPeriod = time.Minute
