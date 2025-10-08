@@ -2815,8 +2815,12 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 	err = ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, WithExpandVars(true))
 	require.NoError(t, err)
 	require.Len(t, req.GetRequestedResourceIDs(), 2)
-	require.Equal(t, "/someCluster/node/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[0]))
-	require.Equal(t, "/someCluster/node/resource2", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
+	expectedRidStr0, err := types.ResourceIDToString(req.GetRequestedResourceIDs()[0])
+	require.NoError(t, err)
+	require.Equal(t, "/someCluster/node/resource1", expectedRidStr0)
+	expectedRidStr1, err := types.ResourceIDToString(req.GetRequestedResourceIDs()[1])
+	require.NoError(t, err)
+	require.Equal(t, "/someCluster/node/resource2", expectedRidStr1)
 
 	var requestedResourceIDs []types.ResourceID
 	for i := range 200 {

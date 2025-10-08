@@ -1055,11 +1055,13 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 	return nil
 }
 
-// requestValidator a helper for validating access requests.
-// a user's statically assigned roles are "added" to the
+type checkAccessFunc func(RoleSet, types.ResourceWithLabels, map[string][]string, AccessState, ...RoleMatcher) error
+
+// RequestValidator is a helper for validating access requests.
+// A user's statically assigned roles are "added" to the
 // validator via the push() method, which extracts all the
 // relevant rules, performs variable substitutions, and builds
-// a set of simple Allow/Deny datastructures.  These, in turn,
+// a set of simple Allow/Deny datastructures. These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
 	logger    *slog.Logger
@@ -1119,6 +1121,7 @@ type RequestValidator struct {
 		matchers    []parse.Matcher
 		maxDuration time.Duration
 	}
+	checkAccess checkAccessFunc
 }
 
 // NewRequestValidator configures a new RequestValidator for the specified user.
@@ -1152,6 +1155,10 @@ func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, gett
 		// before it is inserted into the backend.
 		m.annotations.allow = make(map[singleAnnotation]annotationMatcher)
 		m.annotations.deny = make(map[singleAnnotation]struct{})
+	}
+
+	m.checkAccess = func(rs RoleSet, r types.ResourceWithLabels, traits map[string][]string, state AccessState, matchers ...RoleMatcher) error {
+		return rs.checkAccess(r, traits, state, matchers...)
 	}
 
 	m.kubernetesResource.allow = make(map[string][]types.RequestKubernetesResource)
@@ -1279,7 +1286,10 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 		seen := make(map[string]struct{})
 		resourcesLen := 0
 		for _, resource := range req.GetRequestedResourceIDs() {
-			id := types.ResourceIDToString(resource)
+			id, err := types.ResourceIDToString(resource)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			if _, isDuplicate := seen[id]; isDuplicate {
 				continue
 			}
@@ -1617,11 +1627,16 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
+	type resourceIDPair struct {
+		rid types.ResourceID
+		r   types.ResourceWithLabels
+	}
+
 	// Filter out resources the user requested but doesn't have access to.
-	filteredResources := make([]types.ResourceWithLabels, 0, len(resources))
-	for _, resource := range resources {
+	filteredResources := make([]resourceIDPair, 0, len(resources))
+	for i, resource := range resources {
 		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
-			filteredResources = append(filteredResources, resource)
+			filteredResources = append(filteredResources, resourceIDPair{resourceIDs[i], resource})
 		}
 	}
 
@@ -1633,8 +1648,18 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		}
 
 		roleAllowsAccess := true
-		for _, resource := range filteredResources {
-			access, err := m.roleAllowsResource(role, resource, loginHint)
+		for _, resourcePair := range filteredResources {
+			var extraMatchers []RoleMatcher
+			if resourcePair.rid.Constraints != nil {
+				rm, err := MatcherFromConstraints(resourcePair.rid)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				if rm != nil {
+					extraMatchers = append(extraMatchers, rm)
+				}
+			}
+			access, err := m.roleAllowsResource(role, resourcePair.r, loginHint, extraMatchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2282,9 +2307,15 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 
 	for _, resourceID := range resourceIDs {
 		if resourceID.ClusterName != localClusterName {
-			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
-				slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
-			)
+			ridString, err := types.ResourceIDToString(resourceID)
+			if err != nil {
+				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested. Failed to marshal resource ID`,
+					slog.String("error", err.Error()))
+			} else {
+				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
+					slog.Any("requested_resources", ridString),
+				)
+			}
 			return roles, nil
 		}
 	}

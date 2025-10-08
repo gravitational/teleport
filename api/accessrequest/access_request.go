@@ -89,7 +89,11 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		}
-		result[types.ResourceIDToString(id)] = types.ResourceDetails{
+		idString, err := types.ResourceIDToString(id)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result[idString] = types.ResourceDetails{
 			FriendlyName: friendlyName,
 		}
 	}
@@ -142,7 +146,10 @@ func GetResourceNames(ctx context.Context, lister client.ListResourcesClient, re
 		}
 
 		for _, resource := range resources {
-			resourceName := types.ResourceIDToString(resource)
+			resourceName, err := types.ResourceIDToString(resource)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			if details, ok := resourceDetails[resourceName]; ok && details.FriendlyName != "" {
 				resourceName = fmt.Sprintf("/%s/%s", resource.Kind, details.FriendlyName)
 			}
