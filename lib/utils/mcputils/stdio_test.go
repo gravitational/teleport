@@ -28,12 +28,39 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils/mcptest"
 )
+
+type countingMessageWriter struct {
+	m MessageWriter
+
+	notifications atomic.Int32
+	requests      atomic.Int32
+	responses     atomic.Int32
+}
+
+func newCountingMessageWriter(m MessageWriter) *countingMessageWriter {
+	return &countingMessageWriter{
+		m: m,
+	}
+}
+
+func (c *countingMessageWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMessage) error {
+	switch msg.(type) {
+	case *JSONRPCRequest:
+		c.requests.Add(1)
+	case *JSONRPCResponse:
+		c.responses.Add(1)
+	case *JSONRPCNotification:
+		c.notifications.Add(1)
+	}
+	return trace.Wrap(c.m.WriteMessage(ctx, msg))
+}
 
 // TestStdioHelpers tests MessageReader and StdioMessageWriter by
 // implementing a passthrough reverse proxy.
@@ -44,12 +71,6 @@ import (
 func TestStdioHelpers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-
-	// Set up some counters for verification.
-	var readClientNotifications int32
-	var readClientRequests int32
-	var readServerNotifications int32
-	var readServerResponses int32
 
 	// Pipes for hooking things up.
 	clientStdin, writeToClient := io.Pipe()
@@ -66,21 +87,10 @@ func TestStdioHelpers(t *testing.T) {
 	})
 
 	// Make "low-level" message readers and writers for MITM proxy.
-	clientMessageWriter := NewStdioMessageWriter(writeToClient)
-	serverMessageWriter := NewStdioMessageWriter(writeToServer)
+	clientMessageWriter := newCountingMessageWriter(NewStdioMessageWriter(writeToClient))
+	serverMessageWriter := newCountingMessageWriter(NewStdioMessageWriter(writeToServer))
 
-	clientMessageReader, err := NewMessageReader(MessageReaderConfig{
-		Transport: NewStdioReader(readFromClient),
-		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
-			atomic.AddInt32(&readClientNotifications, 1)
-			return trace.Wrap(serverMessageWriter.WriteMessage(ctx, notification))
-		},
-		OnRequest: func(ctx context.Context, request *JSONRPCRequest) error {
-			atomic.AddInt32(&readClientRequests, 1)
-			return trace.Wrap(serverMessageWriter.WriteMessage(ctx, request))
-		},
-		OnParseError: ReplyParseError(clientMessageWriter),
-	})
+	clientMessageReader, err := NewForwardMessageReader(slog.Default(), NewStdioReader(readFromClient), serverMessageWriter)
 	require.NoError(t, err)
 	clientMessageReaderClosed := make(chan struct{})
 	go func() {
@@ -88,18 +98,7 @@ func TestStdioHelpers(t *testing.T) {
 		close(clientMessageReaderClosed)
 	}()
 
-	serverMessageReader, err := NewMessageReader(MessageReaderConfig{
-		Transport: NewStdioReader(readFromServer),
-		OnNotification: func(ctx context.Context, notification *JSONRPCNotification) error {
-			atomic.AddInt32(&readServerNotifications, 1)
-			return trace.Wrap(clientMessageWriter.WriteMessage(ctx, notification))
-		},
-		OnResponse: func(ctx context.Context, response *JSONRPCResponse) error {
-			atomic.AddInt32(&readServerResponses, 1)
-			return trace.Wrap(clientMessageWriter.WriteMessage(ctx, response))
-		},
-		OnParseError: LogAndIgnoreParseError(slog.Default()),
-	})
+	serverMessageReader, err := NewForwardMessageReader(slog.Default(), NewStdioReader(readFromServer), clientMessageWriter)
 	require.NoError(t, err)
 	serverMessageReaderClosed := make(chan struct{})
 	serverMessageReaderCtx, serverMessageReaderCtxCancel := context.WithCancel(ctx)
@@ -118,12 +117,11 @@ func TestStdioHelpers(t *testing.T) {
 
 	// Test things out.
 	t.Run("client initialize", func(t *testing.T) {
-		_, err := mcptest.InitializeClient(ctx, stdioClient)
-		require.NoError(t, err)
+		mcptest.MustInitializeClient(t, stdioClient)
 	})
 
 	t.Run("client call tool", func(t *testing.T) {
-		mcptest.MustCallServerTool(t, ctx, stdioClient)
+		mcptest.MustCallServerTool(t, stdioClient)
 	})
 
 	t.Run("reader closed by closing stdin", func(t *testing.T) {
@@ -150,9 +148,9 @@ func TestStdioHelpers(t *testing.T) {
 		// client -> server: notifications/initialized
 		// client -> server: tools\call request
 		// server -> client: tools\call response
-		assert.Equal(t, int32(1), atomic.LoadInt32(&readClientNotifications))
-		assert.Equal(t, int32(2), atomic.LoadInt32(&readClientRequests))
-		assert.Equal(t, int32(0), atomic.LoadInt32(&readServerNotifications))
-		assert.Equal(t, int32(2), atomic.LoadInt32(&readServerResponses))
+		assert.Equal(t, int32(1), serverMessageWriter.notifications.Load())
+		assert.Equal(t, int32(2), serverMessageWriter.requests.Load())
+		assert.Equal(t, int32(0), clientMessageWriter.notifications.Load())
+		assert.Equal(t, int32(2), clientMessageWriter.responses.Load())
 	})
 }
