@@ -20,17 +20,20 @@ package tools
 
 import (
 	"context"
+	"debug/buildinfo"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -66,9 +69,9 @@ type ClientToolsConfig struct {
 
 // AddTool adds a tool to the collection in the configuration, always placing it at the top.
 // The collection size is limited by the `defaultSizeStoredVersion` constant.
-func (ctc *ClientToolsConfig) AddTool(tool Tool) {
+func (ctc *ClientToolsConfig) AddTool(toolsDir string, tool Tool) {
 	for _, t := range ctc.Tools {
-		if t.IsEqual(tool.Version, tool.OS, tool.Arch) {
+		if t.IsEqual(toolsDir, tool.Version, tool.OS, tool.Arch) {
 			maps.Copy(t.PathMap, tool.PathMap)
 			return
 		}
@@ -94,9 +97,9 @@ func (ctc *ClientToolsConfig) SetConfig(proxy string, version string, disabled b
 }
 
 // SelectVersion lookups the version and re-order by last recently used.
-func (ctc *ClientToolsConfig) SelectVersion(version, os, arch string) *Tool {
+func (ctc *ClientToolsConfig) SelectVersion(toolsDir, version, os, arch string) *Tool {
 	for i, tool := range ctc.Tools {
-		if tool.IsEqual(version, os, arch) {
+		if tool.IsEqual(toolsDir, version, os, arch) {
 			ctc.Tools = append([]Tool{tool}, append(ctc.Tools[:i], ctc.Tools[i+1:]...)...)
 			return &tool
 		}
@@ -105,9 +108,9 @@ func (ctc *ClientToolsConfig) SelectVersion(version, os, arch string) *Tool {
 }
 
 // HasVersion check that specific version present in collection.
-func (ctc *ClientToolsConfig) HasVersion(version, os, arch string) bool {
+func (ctc *ClientToolsConfig) HasVersion(toolsDir, version, os, arch string) bool {
 	return slices.ContainsFunc(ctc.Tools, func(tool Tool) bool {
-		return tool.IsEqual(version, os, arch)
+		return tool.IsEqual(toolsDir, version, os, arch)
 	})
 }
 
@@ -143,8 +146,39 @@ func (t *Tool) PackageNames() []string {
 }
 
 // IsEqual verifies that specific tool matches version, operating system and architecture.
-func (t *Tool) IsEqual(version, os, arch string) bool {
-	return version == t.Version && ((os == t.OS && arch == t.Arch) || t.OS == "")
+func (t *Tool) IsEqual(toolsDir, version, os, arch string) bool {
+	// If OS version is not defined in configuration we should check it by binary headers.
+	// TODO(vapopov): DELETE IN v21.0.0 - OS and Arch must be supported for all version.
+	if t.OS == "" {
+		path, ok := t.PathMap[DefaultClientTools()[0]]
+		if !ok {
+			return version == t.Version
+		}
+		info, err := buildinfo.ReadFile(filepath.Join(toolsDir, path))
+		if err != nil {
+			slog.WarnContext(context.Background(), "Failed to read build info.", "error", err)
+			return version == t.Version
+		}
+		var binOS, binArch string
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "GOOS":
+				binOS = s.Value
+			case "GOARCH":
+				binArch = s.Value
+			}
+		}
+		if binOS == "" || binArch == "" {
+			return version == t.Version
+		}
+		// macOS binaries are always built with universal architecture support (arm64, amd64).
+		if runtime.GOOS == constants.DarwinOS {
+			return version == t.Version && os == binOS
+		}
+		return version == t.Version && os == binOS && arch == binArch
+	}
+
+	return version == t.Version && os == t.OS && arch == t.Arch
 }
 
 // GetToolsConfig reads the configuration file for client tools managed updates,
