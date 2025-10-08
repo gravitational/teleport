@@ -1064,7 +1064,7 @@ func (s *Service) GetAutoUpdateBotInstanceReport(ctx context.Context, _ *autoupd
 		authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbList),
 	}
 	if !slices.Contains(authErrors, nil) {
-		return nil, trace.Wrap(authErrors[0])
+		return nil, trace.NewAggregate(authErrors...)
 	}
 
 	report, err := s.backend.GetAutoUpdateBotInstanceReport(ctx)
