@@ -174,7 +174,6 @@ func GetOwnersFor(ctx context.Context, accessList *accesslist.AccessList, g Acce
 	return owners, nil
 }
 
-// TODO(hugoShaka): make this code cycle proof
 func maxDepthDownwards(
 	ctx context.Context,
 	currentListName string,
