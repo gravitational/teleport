@@ -25,6 +25,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	ResourceConstraintVersionV1 = "v1"
+)
+
 func (id *ResourceID) CheckAndSetDefaults() error {
 	if len(id.ClusterName) == 0 {
 		return trace.BadParameter("ResourceID must include ClusterName")
@@ -36,8 +40,15 @@ func (id *ResourceID) CheckAndSetDefaults() error {
 		return trace.BadParameter("ResourceID must include Name")
 	}
 
-	if id.Constraints != nil && id.SubResourceName != "" {
-		return trace.BadParameter("ResourceID must not include both Constraints and SubResourceName")
+	if id.Constraints != nil {
+		if id.SubResourceName != "" {
+			return trace.BadParameter("ResourceID must not include both Constraints and SubResourceName")
+		}
+		if id.Constraints.Version == "" {
+			id.Constraints.Version = ResourceConstraintVersionV1
+		} else if id.Constraints.Version != ResourceConstraintVersionV1 {
+			return trace.BadParameter("unsupported Constraints version %q", id.Constraints.Version)
+		}
 	}
 
 	// TODO(@creack): DELETE IN v20.0.0. Here to maintain backwards compatibility with older clients.
@@ -90,9 +101,6 @@ func (id *ResourceID) validateK8sSubResource() error {
 // ResourceIDToString marshals a ResourceID to a string.
 func ResourceIDToString(id ResourceID) (string, error) {
 	if id.Constraints != nil {
-		if id.SubResourceName != "" {
-			return "", trace.BadParameter("cannot marshal ResourceID with both Constraints and SubResourceName set")
-		}
 		return resourceIDWithConstraintsToString(id)
 	}
 
@@ -152,6 +160,9 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 }
 
 func resourceIDWithConstraintsToString(id ResourceID) (string, error) {
+	if err := id.CheckAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
 	bytes, err := json.Marshal(id)
 	if err != nil {
 		// Should never happen since ResourceID is always marshalable.
@@ -171,6 +182,9 @@ func resourceIDWithConstraintsFromString(raw string) (ResourceID, error) {
 	}
 	if err := resourceID.CheckAndSetDefaults(); err != nil {
 		return ResourceID{}, trace.Wrap(err)
+	}
+	if resourceID.Constraints != nil && resourceID.Constraints.Version != ResourceConstraintVersionV1 {
+		return ResourceID{}, trace.BadParameter("unsupported Constraints version %q", resourceID.Constraints.Version)
 	}
 	return resourceID, nil
 }
