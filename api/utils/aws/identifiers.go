@@ -136,42 +136,112 @@ func IsValidGlueResourceName(name string) error {
 }
 
 const (
-	arnDelimiter    = ":"
-	arnPrefix       = "arn:"
-	arnSections     = 6
-	sectionService  = 2 // arn:<partition>:<service>:...
-	sectionAccount  = 4 // arn:<partition>:<service>:<region>:<accountid>:...
-	sectionResource = 5 // arn:<partition>:<service>:<region>:<accountid>:<resource>
-	iamServiceName  = "iam"
+	arnDelimiter             = ":"
+	arnPrefix                = "arn:"
+	arnSections              = 6
+	sectionService           = 2 // arn:<partition>:<service>:...
+	sectionAccount           = 4 // arn:<partition>:<service>:<region>:<accountid>:...
+	sectionResource          = 5 // arn:<partition>:<service>:<region>:<accountid>:<resource>
+	iamServiceName           = "iam"
+	organizationsServiceName = "organizations"
 )
 
 // CheckRoleARN returns whether a string is a valid IAM Role ARN.
 // Example role ARN: arn:aws:iam::123456789012:role/some-role-name
 func CheckRoleARN(arn string) error {
-	if !strings.HasPrefix(arn, arnPrefix) {
-		return trace.BadParameter("arn: invalid prefix: %q", arn)
+	roleARNParts, err := ParseRoleARN(arn)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	sections := strings.SplitN(arn, arnDelimiter, arnSections)
-	if len(sections) != arnSections {
-		return trace.BadParameter("arn: not enough sections: %q", arn)
-	}
-
-	resourceParts := strings.SplitN(sections[sectionResource], "/", 2)
-
-	if resourceParts[0] != "role" || sections[sectionService] != iamServiceName {
-		return trace.BadParameter("%q is not an AWS IAM role ARN", arn)
-	}
-
-	if len(resourceParts) < 2 || resourceParts[1] == "" {
-		return trace.BadParameter("%q is missing AWS IAM role name", arn)
-	}
-
-	if err := IsValidAccountID(sections[sectionAccount]); err != nil {
+	if err := IsValidAccountID(roleARNParts.AccountID); err != nil {
 		return trace.BadParameter("%q invalid account ID: %v", arn, err)
 	}
 
 	return nil
+}
+
+// ParseRoleARN parses an AWS IAM Role ARN and returns its parts.
+// Returns an error if the ARN is not a valid AWS IAM Role ARN.
+func ParseRoleARN(arn string) (*ARNParts, error) {
+	arnParts, err := parseARN(arn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if arnParts.ResourceType != "role" || arnParts.Service != iamServiceName {
+		return nil, trace.BadParameter("%q is not an AWS IAM role ARN", arn)
+	}
+
+	return arnParts, nil
+}
+
+type ARNParts struct {
+	AccountID    string
+	Service      string
+	ResourceType string
+	Resource     string
+}
+
+func ParseAccountFromOrganizationsAccountARN(arn string) (string, error) {
+	arnParts, err := parseARN(arn)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if arnParts.ResourceType != "account" || arnParts.Service != organizationsServiceName {
+		return "", trace.BadParameter("%q is not an AWS Organizations account ARN", arn)
+	}
+
+	resourcePaths := strings.SplitN(arnParts.Resource, "/", 2)
+	if len(resourcePaths) != 2 {
+		return "", trace.BadParameter("%q is not an AWS Organizations account ARN", arn)
+	}
+
+	organizationID := resourcePaths[1]
+
+	// Organization must start with "o-" and have between 10 and 32 lowercase alphanumeric values.
+	// https://docs.aws.amazon.com/organizations/latest/APIReference/API_Account.html
+	if !strings.HasPrefix(organizationID, "o-") {
+		return "", trace.BadParameter("%q is not an AWS Organizations account ARN", arn)
+	}
+
+	organizationIDWithoutPrefix := strings.TrimLeft(organizationID, "o-")
+	if len(organizationIDWithoutPrefix) < 10 || len(organizationIDWithoutPrefix) > 32 {
+		return "", trace.BadParameter("%q is not an AWS Organizations account ARN", arn)
+	}
+
+	for _, b := range organizationIDWithoutPrefix {
+		if (b < 'a' || b > 'z') && (b < '0' || b > '9') {
+			return "", trace.BadParameter("%q is not an AWS Organizations account ARN", arn)
+		}
+	}
+
+	return organizationID, nil
+}
+
+func parseARN(arn string) (*ARNParts, error) {
+	if !strings.HasPrefix(arn, arnPrefix) {
+		return nil, trace.BadParameter("arn: invalid prefix: %q", arn)
+	}
+
+	sections := strings.SplitN(arn, arnDelimiter, arnSections)
+	if len(sections) != arnSections {
+		return nil, trace.BadParameter("arn: not enough sections: %q", arn)
+	}
+
+	resourceParts := strings.SplitN(sections[sectionResource], "/", 2)
+	if len(resourceParts) < 2 || resourceParts[1] == "" {
+		return nil, trace.BadParameter("%q is missing resource name", arn)
+	}
+
+	return &ARNParts{
+		AccountID:    sections[sectionAccount],
+		Service:      sections[sectionService],
+		ResourceType: resourceParts[0],
+		Resource:     resourceParts[1],
+	}, nil
+
 }
 
 var (

@@ -147,11 +147,23 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
+	var assumeRoleAccountID string
 	if m.AssumeRole != nil {
 		if m.AssumeRole.RoleARN != "" {
-			if err := awsapiutils.CheckRoleARN(m.AssumeRole.RoleARN); err != nil {
+			roleARNParts, err := awsapiutils.ParseRoleARN(m.AssumeRole.RoleARN)
+			if err != nil {
 				return trace.BadParameter("invalid assume role: %v", err)
 			}
+
+			// Validate whether this is a valid Account ID or a wildcard.
+			assumeRoleAccountID = roleARNParts.AccountID
+
+			if assumeRoleAccountID != Wildcard {
+				if err := awsapiutils.IsValidAccountID(assumeRoleAccountID); err != nil {
+					return trace.BadParameter("invalid assume role: %v", err)
+				}
+			}
+
 		} else if m.AssumeRole.ExternalID != "" {
 			for _, t := range m.Types {
 				if !slices.Contains(RequireAWSIAMRolesAsUsersMatchers, t) {
@@ -160,6 +172,10 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 				}
 			}
 		}
+	}
+
+	if err := validateAWSAccountIDsWithAssumeRole(m.AccountIDs, assumeRoleAccountID); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if m.SetupAccessForARN != "" {
@@ -243,5 +259,36 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 			m.SSM.DocumentName = AWSInstallerDocument
 		}
 	}
+	return nil
+}
+
+func validateAWSAccountIDsWithAssumeRole(accountIDs []string, assumeRoleAccountID string) error {
+	// No assume role and no explicit account IDs.
+	// It will fetch credentials using the current identity.
+	if len(accountIDs) == 0 && assumeRoleAccountID == "" {
+		return nil
+	}
+
+	// The user set the same AccountID as the one in the AssumeRoleARN.
+	// This can happen with the `*` wildcard or with a specific Account ID.
+	if len(accountIDs) == 1 && accountIDs[0] == assumeRoleAccountID {
+		return nil
+	}
+
+	// User must set the AssumeRoleARN to assume the role in the target account.
+	if len(accountIDs) > 0 && assumeRoleAccountID == "" {
+		return trace.BadParameter("assume_role_arn must be set when account_ids is set")
+	}
+
+	if assumeRoleAccountID != Wildcard {
+		return trace.BadParameter("assume_role_arn must have a * in the account ID field when the account_ids field is set")
+	}
+
+	for _, accountID := range accountIDs {
+		if err := awsapiutils.IsValidAccountID(accountID); err != nil {
+			return trace.BadParameter("discovery service has invalid account ID %q: %v", accountID, err)
+		}
+	}
+
 	return nil
 }

@@ -1468,6 +1468,9 @@ message TokenRule {
   // AWSARN is used for the IAM join method, the AWS identity of joining nodes
   // must match this ARN. Supports wildcards "*" and "?".
   string AWSARN = 4 [(gogoproto.jsontag) = "aws_arn,omitempty"];
+  // AWSOrganizationID is the ID of the AWS organization that is allowed to join.
+  // Used for the IAM join method.
+  string AWSOrganizationID = 5 [(gogoproto.jsontag) = "aws_organization_id,omitempty"];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -8941,6 +8944,11 @@ message AWSMatcher {
   // This value should match the IAM identity that Teleport Kubernetes Service uses.
   // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
   string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
+  // AccountIDs contain the list of AWS Account IDs to use when assuming an IAM Role.
+  // AssumeRole must be present and have the account ID part set to *.
+  // Using an wildcard (*) as the account ID will enumerate all the Account IDs within the AWS Organization.
+  // The organizations.ListAccounts API must be available to the IAM Role running the discovery service.
+  repeated string AccountIDs = 10 [(gogoproto.jsontag) = "account_ids,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
