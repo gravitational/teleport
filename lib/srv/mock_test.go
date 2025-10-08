@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/user"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -141,6 +142,9 @@ func newMockServer(t *testing.T) *mockServer {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, bk.Close())
+		// This will race the TempDir cleanup, for a high test count give a
+		// chance for the locks to be released.
+		time.Sleep(10 * time.Millisecond)
 	})
 
 	authCfg := &auth.InitConfig{
