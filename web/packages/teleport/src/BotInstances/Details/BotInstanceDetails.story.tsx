@@ -18,6 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 
 import { CardTile } from 'design/CardTile';
 
@@ -100,6 +101,8 @@ const queryClient = new QueryClient({
 function Wrapper(props?: { hasBotInstanceReadPermission?: boolean }) {
   const { hasBotInstanceReadPermission = true } = props ?? {};
 
+  const [activeTab, setActiveTab] = useState('info');
+
   const customAcl = makeAcl({
     botInstances: {
       ...defaultAccess,
@@ -119,6 +122,8 @@ function Wrapper(props?: { hasBotInstanceReadPermission?: boolean }) {
             botName="ansible-worker"
             instanceId="a55259e8-9b17-466f-9d37-ab390ca4024e"
             onClose={() => {}}
+            activeTab={activeTab}
+            onTabSelected={tab => setActiveTab(tab)}
           />
         </CardTile>
       </TeleportProviderBasic>

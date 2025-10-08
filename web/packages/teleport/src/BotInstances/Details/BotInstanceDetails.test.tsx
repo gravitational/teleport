@@ -62,7 +62,7 @@ describe('BotIntanceDetails', () => {
     const onClose = jest.fn();
     withSuccessResponse();
 
-    const { user } = renderComponent({ onClose });
+    const { user } = renderComponent({ props: { onClose } });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -72,10 +72,35 @@ describe('BotIntanceDetails', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('Allows switching tab', async () => {
+    const onTabSelected = jest.fn();
+
+    withSuccessResponse();
+
+    const { user } = renderComponent({ props: { onTabSelected } });
+
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
+    await user.click(overviewTab);
+    expect(onTabSelected).toHaveBeenCalledTimes(1);
+    expect(onTabSelected).toHaveBeenLastCalledWith('info');
+
+    const servicesTab = screen.getByRole('tab', { name: 'Services' });
+    await user.click(servicesTab);
+    expect(onTabSelected).toHaveBeenCalledTimes(2);
+    expect(onTabSelected).toHaveBeenLastCalledWith('health');
+
+    const yamlTab = screen.getByRole('tab', { name: 'YAML' });
+    await user.click(yamlTab);
+    expect(onTabSelected).toHaveBeenCalledTimes(3);
+    expect(onTabSelected).toHaveBeenLastCalledWith('yaml');
+  });
+
   it('Shows full yaml', async () => {
     withSuccessResponse();
 
-    renderComponent();
+    renderComponent({ props: { activeTab: 'yaml' } });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
@@ -111,24 +136,29 @@ describe('BotIntanceDetails', () => {
   });
 });
 
-const renderComponent = (
-  options?: Partial<ComponentProps<typeof BotInstanceDetails>> & {
-    hasBotInstanceReadPermission?: boolean;
-  }
-) => {
+const renderComponent = (options?: {
+  props?: Partial<ComponentProps<typeof BotInstanceDetails>>;
+  hasBotInstanceReadPermission?: boolean;
+}) => {
+  const { props, ...rest } = options ?? {};
   const {
     botName = 'test-bot-name',
     instanceId = '4fa10e68-f2e0-4cf9-ad5b-1458febcd827',
     onClose = jest.fn(),
-    ...rest
-  } = options ?? {};
+    activeTab = 'info',
+    onTabSelected = jest.fn(),
+  } = props ?? {};
+
   const user = userEvent.setup();
+
   return {
     ...render(
       <BotInstanceDetails
         botName={botName}
         instanceId={instanceId}
         onClose={onClose}
+        activeTab={activeTab}
+        onTabSelected={onTabSelected}
       />,
       {
         wrapper: makeWrapper(rest),
