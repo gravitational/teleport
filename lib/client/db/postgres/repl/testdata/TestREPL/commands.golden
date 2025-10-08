@@ -1,0 +1,31 @@
+Teleport PostgreSQL interactive shell (v19.0.0-dev)
+Connected to "postgres-test-container" instance as "postgres" user.
+Type \? for help.
+
+postgres=> \?
+Connection
+\session Display information about the current session, like user, and database instance. 
+
+General
+\?        Show the list of supported commands.                                        
+\q        Terminates the session.                                                     
+\teleport Show Teleport interactive shell information, such as execution limitations. 
+
+postgres=> \teleport
+Teleport PostgreSQL interactive shell (v19.0.0-dev)
+
+Limitations: 
+- Query cancellation is not supported. Once a query is sent, its execution
+  cannot be canceled. Note that Teleport sends a terminate message to the database
+  when the database session terminates. This flow doesn't guarantee that any
+  running queries will be canceled.
+  See https://www.postgresql.org/docs/17/protocol-flow.html#PROTOCOL-FLOW-TERMINATION for more details on the termination flow.
+- Pressing CTRL-C will have no effect in this shell.
+- All escaped delimiters (semicolons) must appear on the same line as the unescaped query delimiter.
+- Commands cannot be used in the middle of a query.
+
+postgres=> \session
+Connected to "postgres-test-container" instance at "postgres" database as "postgres" user.
+
+postgres=> 
+postgres=> 
