@@ -178,8 +178,8 @@ metadata:
 
 #### Provision Script
 
-For simplicity, the provision script will be updated to always create the
-Kubernetes resources, and will not provide a means for users to opt out of
+For simplicity, the [provisioning script](https://github.com/gravitational/teleport/blob/89a13c7c7c6538e5b6afc1b820db0e2e3a9b87fb/examples/k8s-auth/get-kubeconfig.sh#L4)
+will be updated to always create the Kubernetes resources, and will not provide a means for users to opt out of
 the new behavior.
 
 #### Auto Discovery
