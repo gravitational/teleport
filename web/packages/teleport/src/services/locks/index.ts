@@ -18,3 +18,4 @@
 
 export { lockService } from './locks';
 export * from './types';
+export * from './hooks';

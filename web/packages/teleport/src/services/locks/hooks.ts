@@ -17,16 +17,7 @@
  */
 
 import { createQueryHook } from 'teleport/services/queryHelpers';
-import userService from 'teleport/services/user';
+import { listLocks } from './locks';
 
-export const { queryKey: GetUsersQueryKey, useQuery: useGetUsers } =
-  createQueryHook(['users', 'get'], userService.fetchUsers);
-
-export const { queryKey: GetUserQueryKey, useQuery: useGetUser } =
-  createQueryHook(['user', 'get'], userService.fetchUser);
-
-export const { queryKey: GetUserAccessListsQueryKey, useQuery: useGetUserAccessLists } =
-  createQueryHook(['user', 'accesslists'], async (userId: string) => {
-    const { accessManagementService } = await import('e-teleport/services/accessmanagement');
-    return accessManagementService.fetchUserAccessLists(userId);
-  });
+export const { createQueryKey: createListLocksQueryKey, useQuery: useListLocks } =
+  createQueryHook(['locks', 'list'], listLocks);

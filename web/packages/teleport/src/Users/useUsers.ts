@@ -23,9 +23,12 @@ import { storageService } from 'teleport/services/storageService';
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
+import { UserDetailsProps } from './UserDetails/UserDetails';
+
 export default function useUsers({
   InviteCollaborators,
   EmailPasswordReset,
+  UserDetails,
 }: UsersContainerProps) {
   const ctx = useTeleport();
   const [operation, setOperation] = useState({
@@ -108,6 +111,7 @@ export default function useUsers({
     inviteCollaboratorsOpen,
     onEmailPasswordResetClose,
     EmailPasswordReset,
+    UserDetails,
     showMauInfo,
     onDismissUsersMauNotice,
     fetch,
@@ -140,10 +144,12 @@ type InviteCollaboratorsElement = (
 type EmailPasswordResetElement = (
   props: EmailPasswordResetDialogProps
 ) => ReactElement;
+type UserDetailsElement = (props: UserDetailsProps) => ReactElement;
 
 export type UsersContainerProps = {
   InviteCollaborators?: InviteCollaboratorsElement;
   EmailPasswordReset?: EmailPasswordResetElement;
+  UserDetails?: UserDetailsElement;
 };
 
 export type State = ReturnType<typeof useUsers>;
