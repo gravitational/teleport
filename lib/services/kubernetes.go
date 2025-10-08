@@ -31,6 +31,8 @@ import (
 type KubernetesClusterGetter interface {
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }

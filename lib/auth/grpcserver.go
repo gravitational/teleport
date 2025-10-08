@@ -4843,6 +4843,34 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 	}, nil
 }
 
+// ListKubernetesClusters returns a page of registered kubernetes clusters.
+func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusters, next, err := auth.ListKubernetesClusters(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &authpb.ListKubernetesClustersResponse{
+		KubernetesClusters: make([]*types.KubernetesClusterV3, 0, len(clusters)),
+		NextPageToken:      next,
+	}
+
+	for _, cluster := range clusters {
+		clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+		if !ok {
+			return nil, trace.BadParameter("unsupported kubernetes cluster type %T", clusterV3)
+		}
+		resp.KubernetesClusters = append(resp.KubernetesClusters, clusterV3)
+	}
+
+	return resp, nil
+}
+
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)

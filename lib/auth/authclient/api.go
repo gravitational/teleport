@@ -298,6 +298,8 @@ type ReadProxyAccessPoint interface {
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 
@@ -497,6 +499,8 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
@@ -750,6 +754,8 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	// GetKubernetesServers returns all registered kubernetes servers.
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
@@ -1155,6 +1161,8 @@ type Cache interface {
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 

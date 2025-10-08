@@ -2632,13 +2632,23 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
-	eksCluster, err := common.NewKubeClusterFromAWSEKS(
-		"eks-cluster1",
-		"arn:aws:eks:eu-west-1:accountID:cluster/cluster1",
-		nil,
-	)
-	require.NoError(t, err)
-	eksCluster.SetOrigin(types.OriginCloud)
+	newCluster := func(index int) types.KubeCluster {
+		cluster, err := common.NewKubeClusterFromAWSEKS(
+			fmt.Sprintf("eks-cluster%d", index),
+			fmt.Sprintf("arn:aws:eks:eu-west-1:accountID:cluster/cluster%d", index),
+			nil,
+		)
+		require.NoError(t, err)
+		return cluster
+
+	}
+
+	var eksClusters []types.KubeCluster
+	for i := range 3 {
+		cluster := newCluster(i)
+		cluster.SetOrigin(types.OriginCloud)
+		eksClusters = append(eksClusters, cluster)
+	}
 
 	// Discovery service must not have access to non-cloud cluster (cluster
 	// without "cloud" origin label).
@@ -2652,11 +2662,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
 
 	// Discovery service cannot create cluster with dynamic labels.
-	clusterWithDynamicLabels, err := common.NewKubeClusterFromAWSEKS(
-		"eks-cluster2",
-		"arn:aws:eks:eu-west-1:accountID:cluster/cluster2",
-		nil,
-	)
+	clusterWithDynamicLabels := newCluster(4)
 	require.NoError(t, err)
 	clusterWithDynamicLabels.SetOrigin(types.OriginCloud)
 	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
@@ -2667,17 +2673,39 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	})
 
 	t.Run("Create", func(t *testing.T) {
-		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		for _, eksCluster := range eksClusters {
+			require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		}
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, nonCloudCluster)))
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
 	})
 	t.Run("Read", func(t *testing.T) {
+		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
+
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		require.Empty(t, cmp.Diff(eksClusters, clusters, diffopt))
+
+		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(eksClusters, clusters, diffopt))
+
+		page1, page2Start, err := discoveryClt.ListKubernetesClusters(ctx, 1, "")
+		require.NotEmpty(t, page2Start)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(eksClusters[:1], page1, diffopt))
+
+		page2, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, page2Start)
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(eksClusters[1:], page2, diffopt))
+
+		require.Empty(t, cmp.Diff(eksClusters, append(page1, page2...), diffopt))
 	})
+
 	t.Run("Update", func(t *testing.T) {
-		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
+		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksClusters[0]))
 		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
 	})
 	t.Run("Delete", func(t *testing.T) {

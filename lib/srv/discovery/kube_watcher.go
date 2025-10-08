@@ -26,6 +26,7 @@ import (
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,7 +48,8 @@ func (s *Server) startKubeWatchers() error {
 		services.ReconcilerConfig[types.KubeCluster]{
 			Matcher: func(_ types.KubeCluster) bool { return true },
 			GetCurrentResources: func() map[string]types.KubeCluster {
-				kcs, err := s.AccessPoint.GetKubernetesClusters(s.ctx)
+				// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+				kcs, err := clientutils.CollectWithFallback(s.ctx, s.AccessPoint.ListKubernetesClusters, s.AccessPoint.GetKubernetesClusters)
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Unable to get Kubernetes clusters from cache", "error", err)
 					return nil

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1184,7 +1185,11 @@ func (k *kubeCollector) resourceKinds() []types.WatchKind {
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (k *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	clusters, err := k.KubernetesClusterGetter.GetKubernetesClusters(ctx)
+	clusters, err := clientutils.CollectWithFallback(
+		ctx,
+		k.KubernetesClusterGetter.ListKubernetesClusters,
+		k.KubernetesClusterGetter.GetKubernetesClusters,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
