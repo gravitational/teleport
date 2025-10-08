@@ -1046,6 +1046,18 @@ var (
 		[]string{teleport.TagPrivateKeyPolicy},
 	)
 
+	botInstancesMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricBotInstances,
+			Help:      "The number of bot instances across the entire cluster",
+		},
+		[]string{
+			teleport.TagVersion,
+			teleport.TagAutomaticUpdates,
+		},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
@@ -1055,6 +1067,7 @@ var (
 		registeredAgentsInstallMethod,
 		userCertificatesGeneratedMetric,
 		roleCount,
+		botInstancesMetric,
 	}
 )
 
@@ -1598,6 +1611,7 @@ const (
 	accessListReminderNotificationsKey
 	autoUpdateAgentReportKey
 	autoUpdateBotInstanceReportKey
+	autoUpdateBotInstanceMetricsKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1696,6 +1710,12 @@ func (a *Server) runPeriodicOperations() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           autoUpdateBotInstanceReportKey,
 			Duration:      constants.AutoUpdateAgentReportPeriod,
+			FirstDuration: retryutils.HalfJitter(10 * time.Second),
+			Jitter:        retryutils.SeventhJitter,
+		})
+		ticker.Push(interval.SubInterval[periodicIntervalKey]{
+			Key:           autoUpdateBotInstanceMetricsKey,
+			Duration:      constants.AutoUpdateAgentReportPeriod / 2,
 			FirstDuration: retryutils.HalfJitter(10 * time.Second),
 			Jitter:        retryutils.SeventhJitter,
 		})
@@ -1827,6 +1847,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.reportAgentVersions(a.closeCtx)
 			case autoUpdateBotInstanceReportKey:
 				go a.botVersionReporter.Report(a.closeCtx)
+			case autoUpdateBotInstanceMetricsKey:
+				go a.updateBotInstanceMetrics()
 			}
 		}
 	}
@@ -2142,6 +2164,18 @@ func (a *Server) updateAgentMetrics() {
 			teleport.TagUpgrader: metadata.upgraderType,
 			teleport.TagVersion:  metadata.version,
 		}).Set(float64(count))
+	}
+}
+
+func (a *Server) updateBotInstanceMetrics() {
+	report, err := a.GetAutoUpdateBotInstanceReport(a.closeCtx)
+	switch {
+	case trace.IsNotFound(err):
+		// No report to emit.
+	case err != nil:
+		a.logger.ErrorContext(a.closeCtx, "Failed to get bot instance report", "error", err)
+	default:
+		machineidv1.EmitInstancesMetric(report, botInstancesMetric)
 	}
 }
 
