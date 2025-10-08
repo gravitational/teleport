@@ -36,23 +36,22 @@ or Kubernetes cluster to Teleport. If you haven't done so, refer to the
 [guides on enrolling resources](../enroll-resources/enroll-resources.mdx).
 
 - A GitHub repository where you have permissions to create GitHub Actions workflows.
+  <details>
+  <summary>Using GitHub Enterprise?</summary>
 
-    <details>
-    <summary>Using GitHub Enterprise?</summary>
+  There is extra configuration needed when using GitHub Enterprise repositories, either
+  cloud or self-hosted. We recommend using a personal repository for this guide if possible.
 
-    There is extra configuration needed when using GitHub Enterprise repositories, either
-    cloud or self-hosted. We recommend using a personal repository for this guide if possible.
+  If you need to use GitHub Enterprise, check the following:
+  - Cloud
+    - In the join token, under `github` set the `enterprise_slug` field to the name of your enterprise's slug, likely the name of the organization.
+  - Self-hosted
+    - Your Teleport Auth Server must be able to reach your GitHub Enterprise instance.
+    - In the join token, under `github`, set the `enterprise_server_host` field to the hostname of your GitHub Enterprise instance.
 
-    If you need to use GitHub Enterprise, check the following:
-    - Cloud
-      - In the join token, under `github` set the `enterprise_slug` field to the name of your enterprise's slug, likely the name of the organization.
-    - Self-hosted
-      - Your Teleport proxies must be able to reach your GitHub Enterprise instance.
-      - In the join token, under `github`, set the `enterprise_server_host` field to the hostname of your GitHub Enterprise instance.
-
-    <br/>
-    The join token fields are available and commented out in the example join token file.
-    </details>
+  <br/>
+  The join token fields are available and commented out in the example join token file.
+  </details>
 - A target resource enrolled in Teleport, either:
   - A Linux server
   - A Kubernetes cluster
