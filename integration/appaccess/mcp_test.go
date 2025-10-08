@@ -85,13 +85,9 @@ func testMCPDialStdioToSSE(t *testing.T, pack *Pack, appName string) {
 	serverConn, err := pack.tc.DialMCPServer(context.Background(), appName)
 	require.NoError(t, err)
 
-	ctx := t.Context()
 	stdioClient := mcptest.NewStdioClientFromConn(t, serverConn)
-
-	_, err = mcptest.InitializeClient(ctx, stdioClient)
-	require.NoError(t, err)
-
-	mcptest.MustCallServerTool(t, ctx, stdioClient)
+	mcptest.MustInitializeClient(t, stdioClient)
+	mcptest.MustCallServerTool(t, stdioClient)
 }
 
 func testMCPProxyStreamableHTTP(t *testing.T, pack *Pack, appName string) {
@@ -136,7 +132,6 @@ func testMCPProxyStreamableHTTP(t *testing.T, pack *Pack, appName string) {
 	defer client.Close()
 
 	// Initialize client and call a tool.
-	_, err = mcptest.InitializeClient(ctx, client)
-	require.NoError(t, err)
-	mcptest.MustCallServerTool(t, ctx, client)
+	mcptest.MustInitializeClient(t, client)
+	mcptest.MustCallServerTool(t, client)
 }
