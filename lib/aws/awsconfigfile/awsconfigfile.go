@@ -68,6 +68,10 @@ func addCredentialProcessToSection(configFilePath, sectionName, sectionComment, 
 		iniFile.NewSection(sectionName)
 	}
 
+	if !strings.HasPrefix(sectionComment, "; ") {
+		sectionComment = "; " + sectionComment
+	}
+
 	section := iniFile.Section(sectionName)
 	if cmp.Or(section.Comment, sectionComment) != sectionComment {
 		return trace.BadParameter("%s: section %q is not managed by teleport, remove the section and try again", configFilePath, sectionName)
