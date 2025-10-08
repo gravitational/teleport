@@ -66,6 +66,9 @@ Teleport v17.0.5 git:v17.0.5-0-g7cc4c2a go1.23.4
 
 ### Using `tctl`
 
+To configure client tool managed updates in your cluster, you must have access to the
+`autoupdate_config` and `autoupdate_version` resources. By default, the `editor` role can modify both resources. Note that `autoupdate_version` is managed for you on Cloud clusters, and cannot be edited.
+
 To enable or disable client tools automatic updates in the cluster, use the following command:
 
 ```code
