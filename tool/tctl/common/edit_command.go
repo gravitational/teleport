@@ -203,7 +203,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		}
 
 		// Try looking for a resource handler
-		if resourceHandler, found := resources.Handlers[resources.Kind(newResource.Kind)]; found {
+		if resourceHandler, found := resources.Handlers()[newResource.Kind]; found {
 			opts := resources.CreateOpts{
 				Force:   rc.force,
 				Confirm: rc.confirm,
@@ -231,7 +231,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		// the CreateHandler. UpdateHandlers are preferred over CreateHandler because an update
 		// will not forcibly overwrite a resource unlike with create which requires the force
 		// flag to be set to update an existing resource.
-		if updator, found := rc.UpdateHandlers[resources.Kind(newResource.Kind)]; found {
+		if updator, found := rc.UpdateHandlers[newResource.Kind]; found {
 			if err := updator(ctx, client, newResource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -240,7 +240,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 
 		// TODO(tross) remove the fallback to CreateHandlers once all the resources
 		// have been updated to implement an UpdateHandler.
-		if creator, found := rc.CreateHandlers[resources.Kind(newResource.Kind)]; found {
+		if creator, found := rc.CreateHandlers[newResource.Kind]; found {
 			if err := creator(ctx, client, newResource); err != nil {
 				return trace.Wrap(err)
 			}

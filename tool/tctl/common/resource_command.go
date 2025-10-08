@@ -116,8 +116,8 @@ type ResourceCommand struct {
 
 	verbose bool
 
-	CreateHandlers map[resources.Kind]ResourceCreateHandler
-	UpdateHandlers map[resources.Kind]ResourceCreateHandler
+	CreateHandlers map[string]ResourceCreateHandler
+	UpdateHandlers map[string]ResourceCreateHandler
 
 	// Stdout allows to switch standard output source for resource command. Used in tests.
 	Stdout io.Writer
@@ -136,7 +136,7 @@ Same as above, but using JSON output:
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	rc.CreateHandlers = map[resources.Kind]ResourceCreateHandler{
+	rc.CreateHandlers = map[string]ResourceCreateHandler{
 		types.KindUser:                               rc.createUser,
 		types.KindTrustedCluster:                     rc.createTrustedCluster,
 		types.KindGithubConnector:                    rc.createGithubConnector,
@@ -196,7 +196,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferenceSecret:                    rc.createInferenceSecret,
 		types.KindInferencePolicy:                    rc.createInferencePolicy,
 	}
-	rc.UpdateHandlers = map[resources.Kind]ResourceCreateHandler{
+	rc.UpdateHandlers = map[string]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
 		types.KindGithubConnector:                    rc.updateGithubConnector,
 		types.KindOIDCConnector:                      rc.updateOIDCConnector,
@@ -311,7 +311,7 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 	// Some resources require MFA to list with secrets. Check if we are trying to
 	// get any such resources so we can prompt for MFA preemptively.
 	mfaKinds := []string{types.KindToken, types.KindCertAuthority}
-	for kind, handler := range resources.Handlers {
+	for kind, handler := range resources.Handlers() {
 		if handler.MFARequired() {
 			mfaKinds = append(mfaKinds, string(kind))
 		}
@@ -439,7 +439,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 		count++
 
 		// Try looking for a resource handler
-		if resourceHandler, found := resources.Handlers[resources.Kind(raw.Kind)]; found {
+		if resourceHandler, found := resources.Handlers()[raw.Kind]; found {
 			// only return in case of error, to create multiple resources
 			// in case if yaml spec is a list
 			opts := resources.CreateOpts{
@@ -460,7 +460,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 		// Else fallback to the legacy logic
 
 		// locate the creator function for a given resource kind:
-		creator, found := rc.CreateHandlers[resources.Kind(raw.Kind)]
+		creator, found := rc.CreateHandlers[raw.Kind]
 		if !found {
 			return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
 		}
@@ -1795,7 +1795,7 @@ func (rc *ResourceCommand) updateStaticHostUser(ctx context.Context, client *aut
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
 	// Try looking for a resource handler
-	if resourceHandler, found := resources.Handlers[resources.Kind(rc.ref.Kind)]; found {
+	if resourceHandler, found := resources.Handlers()[rc.ref.Kind]; found {
 		if err := resourceHandler.Delete(ctx, client, rc.ref); err != nil {
 			if trace.IsNotImplemented(err) {
 				return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
@@ -2435,7 +2435,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	}
 
 	// Looking if the resource has been converted to the handler format.
-	if handler, found := resources.Handlers[resources.Kind(rc.ref.Kind)]; found {
+	if handler, found := resources.Handlers()[rc.ref.Kind]; found {
 		coll, err := handler.Get(ctx, client, rc.ref, resources.GetOpts{WithSecrets: rc.withSecrets})
 		if err != nil {
 			if trace.IsNotImplemented(err) {

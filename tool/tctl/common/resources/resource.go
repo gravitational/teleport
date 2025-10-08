@@ -28,15 +28,13 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// Kind is the resource kind.
-type Kind string
-
-// Handlers is a map of Handler per kind.
+// Handlers returns a map of Handler per kind.
 // This map will be filled as we convert existing resources
 // to the Handler format.
-var Handlers = map[Kind]Handler{
-	types.KindRole: roleHandler,
-	// TODO: convert resources one by one and add them here
+func Handlers() map[string]Handler {
+	return map[string]Handler{
+		types.KindRole: roleHandler(),
+	}
 }
 
 // Handler represents a resource supported by the tctl resource command.
