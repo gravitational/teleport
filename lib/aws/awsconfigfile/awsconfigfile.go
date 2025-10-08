@@ -17,7 +17,6 @@
 package awsconfigfile
 
 import (
-	"cmp"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,17 +63,25 @@ func addCredentialProcessToSection(configFilePath, sectionName, sectionComment, 
 		return trace.Wrap(err)
 	}
 
-	if !iniFile.HasSection(sectionName) {
-		iniFile.NewSection(sectionName)
-	}
+	var section *ini.Section
 
-	if !strings.HasPrefix(sectionComment, "; ") {
-		sectionComment = "; " + sectionComment
-	}
+	switch {
+	case iniFile.HasSection(sectionName):
+		section = iniFile.Section(sectionName)
 
-	section := iniFile.Section(sectionName)
-	if cmp.Or(section.Comment, sectionComment) != sectionComment {
-		return trace.BadParameter("%s: section %q is not managed by teleport, remove the section and try again", configFilePath, sectionName)
+		if !strings.HasPrefix(sectionComment, "; ") {
+			sectionComment = "; " + sectionComment
+		}
+		// Check ownership of the section by comparing comments.
+		if section.Comment != sectionComment {
+			return trace.BadParameter("%s: section %q is not managed by teleport, remove the section and try again", configFilePath, sectionName)
+		}
+
+	default:
+		section, err = iniFile.NewSection(sectionName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	section.Comment = sectionComment
