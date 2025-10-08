@@ -40,6 +40,7 @@ import { User } from 'teleport/services/user';
 
 import { UserAddEdit } from './UserAddEdit';
 import { UserDelete } from './UserDelete';
+import { UserDetails } from './UserDetails';
 import UserList from './UserList';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
@@ -71,6 +72,7 @@ export function Users(props: State) {
   } = props;
 
   const [search, setSearch] = useState('');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const serverSidePagination = useServerSidePagination<User>({
@@ -100,6 +102,14 @@ export function Users(props: State) {
       abortControllerRef.current?.abort();
     };
   }, []);
+
+  const handleUserClick = (user: User) => {
+    setSelectedUser(user);
+  };
+
+  const handleCloseSidePanel = () => {
+    setSelectedUser(null);
+  };
 
   const requiredPermissions = Object.entries(usersAcl)
     .map(([key, value]) => {
@@ -226,7 +236,13 @@ export function Users(props: State) {
         onEdit={onStartEdit}
         onDelete={onStartDelete}
         onReset={onStartReset}
+        onUserClick={handleUserClick}
         usersAcl={usersAcl}
+      />
+      <UserDetails
+        isVisible={!!selectedUser}
+        onClose={handleCloseSidePanel}
+        user={selectedUser}
       />
       {(operation.type === 'create' || operation.type === 'edit') && (
         <UserAddEdit
