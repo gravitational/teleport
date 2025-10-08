@@ -23,10 +23,12 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -430,32 +432,33 @@ func TestNewClientConnTimeout(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
-	t.Cleanup(func() {
-		listener.Close()
-	})
+	var wg sync.WaitGroup
+	t.Cleanup(wg.Wait)
+	t.Cleanup(func() { listener.Close() })
 
-	go func() {
+	wg.Go(func() {
 		defer listener.Close()
 
 		for {
 			conn, err := listener.Accept()
-			if errors.Is(err, net.ErrClosed) {
+			if err != nil {
+				assert.ErrorIs(t, err, net.ErrClosed)
 				return
 			}
 			require.NoError(t, err)
-			go func(conn net.Conn) {
+			wg.Go(func() {
 				defer conn.Close()
 				// Simulate a server that does not respond so the ssh.NewClientConn
 				// call on the client side hangs indefinitely.
-				_, _ = io.ReadAll(conn)
-			}(conn)
+				_, _ = io.Copy(io.Discard, conn)
+			})
 		}
-	}()
+	})
 
 	t.Run("context timeout is respected", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Millisecond)
 		t.Cleanup(cancel)
 
 		conn, err := net.Dial("tcp", listener.Addr().String())
@@ -477,7 +480,7 @@ func TestNewClientConnTimeout(t *testing.T) {
 		require.NoError(t, err)
 
 		_, _, _, err = NewClientConnWithTimeout(t.Context(), conn, listener.Addr().String(), &ssh.ClientConfig{
-			Timeout:         500 * time.Millisecond,
+			Timeout:         5 * time.Millisecond,
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
 
