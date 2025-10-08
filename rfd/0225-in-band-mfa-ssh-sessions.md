@@ -288,9 +288,17 @@ message StartAuthenticateChallengeResponse {
   one of data {
     // Unique challenge ID for the MFA challenge.
     string challenge_id = 1;
-    // Final response indicating the result of the MFA challenge.
-    bool success = 2;
+    // Final response containing the result of an MFA challenge after it has been completed.
+    AuthenticateChallengeResult result = 2;
   }
+}
+
+// AuthenticateChallengeResult contains the result of a MFA challenge.
+message AuthenticateChallengeResult {
+  // Success is true when the MFA challenge was completed successfully by the user.
+  bool success = 1;
+  // Error contains the error message if the MFA challenge failed or could not be completed.
+  optional string error = 2;
 }
 
 // Request to complete an MFA challenge.
