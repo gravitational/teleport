@@ -67,9 +67,9 @@ For sessions where MFA is required, the server begins by sending an MFA challeng
 `CompleteAuthenticateChallenge` RPC with the challenge ID and complete the challenge. Once the client completes the MFA
 challenge, the `TransportService` will receive the pass/fail result and `ProxySSH` will unblock and proceed accordingly.
 
-If the MFA verification fails, the stream is immediately terminated. Similarly, any connectivity issues with the Proxy
-or Auth services result in the session being denied. If the client does not complete the MFA challenge within a
-specified time frame (e.g., 5 minutes), the session will be terminated. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
+If MFA verification fails, or if the client does not complete the challenge within the specified time frame (e.g., 5
+minutes), the stream is terminated and an `AccessDeniedError` is returned. If there are connectivity issues with Proxy
+or Auth, an `InternalServerError` is returned. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for details.
 
 In cases where MFA is not required, or after successful MFA verification, the server sends `ClusterDetails` to the
 client. The client can then proceed to send SSH frames over the established stream. The Proxy forwards these frames to
