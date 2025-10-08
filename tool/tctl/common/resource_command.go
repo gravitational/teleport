@@ -313,7 +313,7 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 	mfaKinds := []string{types.KindToken, types.KindCertAuthority}
 	for kind, handler := range resources.Handlers() {
 		if handler.MFARequired() {
-			mfaKinds = append(mfaKinds, string(kind))
+			mfaKinds = append(mfaKinds, kind)
 		}
 	}
 	mfaRequired := rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
