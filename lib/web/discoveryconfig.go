@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -43,10 +44,22 @@ func (h *Handler) discoveryconfigCreate(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
+	metadata := header.Metadata{
+		Name: req.Name,
+	}
+
+	for _, awsMatcher := range req.AWS {
+		if awsMatcher.Integration != "" {
+			if metadata.Labels == nil {
+				metadata.Labels = map[string]string{}
+			}
+			metadata.Labels[types.TeleportInternalManagedByIntegrationLabel] = awsMatcher.Integration
+			break
+		}
+	}
+
 	dc, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{
-			Name: req.Name,
-		},
+		metadata,
 		discoveryconfig.Spec{
 			DiscoveryGroup: req.DiscoveryGroup,
 			AWS:            req.AWS,

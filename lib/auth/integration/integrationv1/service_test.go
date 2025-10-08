@@ -771,6 +771,130 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			ErrAssertion: noError,
 		},
+		{
+			Name: "delete AWS OIDC integration with associated resources with internal label",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindIntegration},
+						Verbs:     []string{types.VerbDelete},
+					},
+				}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+
+				ig := sampleIntegrationFn(t, igName)
+				_, err := localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+
+				// discovery config with implicit rules
+				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
+				require.NoError(t, err)
+
+				// discovery config explicit integration labels
+				config, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{
+						Name: "my-config",
+						Labels: map[string]string{
+							types.TeleportInternalManagedByIntegrationLabel: igName,
+						},
+					},
+					discoveryconfig.Spec{
+						DiscoveryGroup: igName,
+					},
+				)
+				require.NoError(t, err)
+				_, err = localClient.CreateDiscoveryConfig(ctx, config)
+				require.NoError(t, err)
+
+				otherConfig, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{
+						Name: "my-other-config",
+						Labels: map[string]string{
+							types.TeleportInternalManagedByIntegrationLabel: "nobody",
+						},
+					},
+					discoveryconfig.Spec{
+						DiscoveryGroup: igName,
+					},
+				)
+				require.NoError(t, err)
+				_, err = localClient.CreateDiscoveryConfig(ctx, otherConfig)
+				require.NoError(t, err)
+
+				appServer, err := types.NewAppServerV3(types.Metadata{
+					Name: "integration-app",
+					Labels: map[string]string{
+						types.TeleportInternalManagedByIntegrationLabel: igName,
+					},
+				}, types.AppServerSpecV3{
+					HostID: "host",
+					App: &types.AppV3{
+						Metadata: types.Metadata{
+							Name: "integration-app",
+							Labels: map[string]string{
+								types.TeleportInternalManagedByIntegrationLabel: igName,
+							},
+						},
+						Spec: types.AppSpecV3{
+							URI: "https://example.com",
+						},
+					},
+				})
+				require.NoError(t, err)
+				_, err = localClient.UpsertApplicationServer(ctx, appServer)
+				require.NoError(t, err)
+
+				anotherIg := sampleIntegrationFn(t, igName+igName)
+				_, err = localClient.CreateIntegration(ctx, anotherIg)
+				require.NoError(t, err)
+				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, anotherIg))
+				require.NoError(t, err)
+				_, err = localClient.UpsertApplicationServer(ctx, mustMakeAppServer(t, anotherIg))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				})
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				// discovery_config associated with the integration is removed
+				_, err := localClient.GetDiscoveryConfig(context.Background(), igName)
+				require.True(t, trace.IsNotFound(err))
+
+				// discovery_config with integration label is removed also
+				_, err = localClient.GetDiscoveryConfig(context.Background(), "my-config")
+				require.True(t, trace.IsNotFound(err), "integration managed discovery config should be deleted")
+
+				// app_server associated with the integration is removed
+				appServers, err := localClient.GetApplicationServers(context.Background(), defaults.Namespace)
+				require.NoError(t, err)
+				for _, appServer := range appServers {
+					require.NotEqual(t, igName, appServer.GetApp().GetIntegration(),
+						"app server with integration %s should have been deleted", igName)
+				}
+				// other integrations' associated resources should remain
+				_, err = localClient.GetDiscoveryConfig(context.Background(), "my-other-config")
+				require.NoError(t, err)
+				// other discovery config remains
+				_, err = localClient.GetDiscoveryConfig(context.Background(), igName+igName)
+				require.NoError(t, err)
+				require.Condition(t, func() bool {
+					for _, appServer := range appServers {
+						if appServer.GetApp().GetIntegration() == igName+igName {
+							return true
+						}
+					}
+					return false
+				}, "app server with integration %s should still exist", igName+igName)
+			},
+			ErrAssertion: noError,
+		},
 
 		// Delete all
 		{
