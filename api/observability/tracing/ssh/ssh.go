@@ -198,16 +198,17 @@ func NewClientConnWithTimeout(ctx context.Context, conn net.Conn, addr string, c
 	stopFn := context.AfterFunc(ctx, func() {
 		_ = conn.Close()
 	})
+	defer stopFn()
 
 	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
-		// if the context was canceled or timed out, return that error instead
-		// of the error from NewClientConn which would be something like
+		// if the context was canceled or timed out, return that an aggregated error instead
+		// of the original error returned from NewClientConn. The returned error would be something like
 		// "ssh: handshake failed: read tcp {ip}:{port} -> {ip}:{port} use of closed network connection"
-		if ctx.Err() != nil {
-			return nil, nil, nil, trace.Wrap(ctx.Err())
-		}
-		return nil, nil, nil, trace.Wrap(err)
+		// which doesn't indicate the real error was a timeout or cancellation.
+		// If the context was not canceled and the function failed, it returns the original error as
+		// ctx.Err() would be nil.
+		return nil, nil, nil, trace.NewAggregate(ctx.Err(), err)
 	}
 
 	if !stopFn() {
