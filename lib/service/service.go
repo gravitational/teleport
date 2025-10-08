@@ -132,6 +132,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
@@ -319,6 +320,13 @@ const (
 
 	// TeleportReadyEvent is generated to signal that all teleport
 	// internal components have started successfully.
+	// This event is used as a sync point to wait for all services to be started
+	// before kicking off new operations.
+	// This must not be confused as a Kube readiness check, checking the process
+	// ability to handle requests. The event can be emitted even while one or
+	// many services are not ready to process requests.
+	// If one need to measure readiness, they should rely on [process.state]
+	// and heartbeats.
 	TeleportReadyEvent = "TeleportReady"
 
 	// ServiceExitedWithErrorEvent is emitted whenever a service
@@ -331,6 +339,12 @@ const (
 
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
+
+	// TeleportStartingEvent is emitted when a service starts but is not ready yet.
+	// This helps with tracking that a service is expected to report ready.
+	// Without this Teleport will report ready as soon as the first service
+	// is registered and ready, even when other services are still starting up.
+	TeleportStartingEvent = "TeleportStarting"
 )
 
 func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, error) {
@@ -753,6 +767,17 @@ func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
 			process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
 		}
 	}
+}
+
+// ExpectService is used to advertise a service that should be running in the process.
+// Calling ExpectService while starting a service prevents the process from
+// turning ready while the service is not done starting.
+// After calling ExpectService for a component, one must call the OnHeartbeat callback
+// for the same component at least once to mark the service as running.
+// ExpectService should be called just before starting the service with
+// process.RegisterFunc or process.RegisterCriticalFunc.
+func (process *TeleportProcess) ExpectService(component string) {
+	process.BroadcastEvent(Event{Name: TeleportStartingEvent, Payload: component})
 }
 
 func (process *TeleportProcess) findStaticIdentity(role types.SystemRole) (*state.Identity, error) {
@@ -2523,10 +2548,12 @@ func (process *TeleportProcess) initAuthService() error {
 	// second, create the API Server: it's actually a collection of API servers,
 	// each serving requests for a "role" which is assigned to every connected
 	// client based on their certificate (user, server, admin, etc)
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+
+	authorizerOpts := authz.AuthorizerOpts{
 		ClusterName:         clusterName,
 		AccessPoint:         authServer,
 		ReadOnlyAccessPoint: authServer,
+		ScopedRoleReader:    authServer.ScopedAccessCache,
 		MFAAuthenticator:    authServer,
 		LockWatcher:         lockWatcher,
 		Logger:              process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
@@ -2537,10 +2564,17 @@ func (process *TeleportProcess) initAuthService() error {
 			DisableGlobalMode: true,
 			DisableRoleMode:   true,
 		},
-	})
+	}
+
+	authorizer, err := authz.NewAuthorizer(authorizerOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	var accessGraphCAData []byte
 	if cfg.AccessGraph.Enabled && cfg.AccessGraph.CA != "" {
 		accessGraphCAData, err = os.ReadFile(cfg.AccessGraph.CA)
@@ -2549,12 +2583,13 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 	apiConf := &auth.APIConfig{
-		AuthServer:     authServer,
-		Authorizer:     authorizer,
-		AuditLog:       process.auditLog,
-		PluginRegistry: process.PluginRegistry,
-		Emitter:        authServer,
-		MetadataGetter: uploadHandler,
+		AuthServer:       authServer,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: scopedAuthorizer,
+		AuditLog:         process.auditLog,
+		PluginRegistry:   process.PluginRegistry,
+		Emitter:          authServer,
+		MetadataGetter:   uploadHandler,
 		AccessGraph: auth.AccessGraphConfig{
 			Enabled:  cfg.AccessGraph.Enabled,
 			Address:  cfg.AccessGraph.Addr,
@@ -2634,6 +2669,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		logger.InfoContext(process.ExitContext(), "Auth service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", authAddr)
 
@@ -2724,6 +2760,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	process.ExpectService(teleport.ComponentAuth)
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 
 	spiffeFedSyncer, err := machineidv1.NewSPIFFEFederationSyncer(machineidv1.SPIFFEFederationSyncerConfig{
@@ -2910,7 +2947,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.UserLoginStates = services.UserLoginStates
 	cfg.Users = services.Identity
 	cfg.WebSession = services.Identity.WebSessions()
-	cfg.WebToken = services.Identity.WebTokens()
+	cfg.WebToken = services.Identity
 	cfg.WindowsDesktops = services.WindowsDesktops
 	cfg.WorkloadIdentity = services.WorkloadIdentities
 	cfg.DynamicWindowsDesktops = services.DynamicWindowsDesktops
@@ -2964,7 +3001,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.UserLoginStates = client.UserLoginStateClient()
 	cfg.Users = client
 	cfg.WebSession = client.WebSessions()
-	cfg.WebToken = client.WebTokens()
+	cfg.WebToken = client
 	cfg.WindowsDesktops = client
 	cfg.DynamicWindowsDesktops = client.DynamicDesktopClient()
 	cfg.AutoUpdateService = client
@@ -3229,6 +3266,7 @@ func (process *TeleportProcess) initSSH() error {
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 	relayInfoHolder := new(relaytunnel.InfoHolder)
 
+	process.ExpectService(teleport.ComponentNode)
 	process.RegisterCriticalFunc("ssh.node", func() error {
 		// restartingOnGracefulShutdown will be set to true before the function
 		// exits if the function is exiting because Teleport is gracefully
@@ -3911,6 +3949,7 @@ func (process *TeleportProcess) newProcessStateMachine() (*processState, error) 
 		eventCh := make(chan Event, 1024)
 		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
 		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportStartingEvent, eventCh)
 
 		for {
 			select {
@@ -4268,6 +4307,7 @@ func (process *TeleportProcess) initProxy() error {
 		}
 	}
 	process.RegisterWithAuthServer(types.RoleProxy, ProxyIdentityEvent)
+	process.ExpectService(teleport.ComponentProxy)
 	process.RegisterCriticalFunc("proxy.init", func() error {
 		conn, err := process.WaitForConnector(ProxyIdentityEvent, process.logger)
 		if conn == nil {
@@ -4280,10 +4320,6 @@ func (process *TeleportProcess) initProxy() error {
 		}
 
 		return nil
-	})
-	process.RegisterFunc("update.aws-oidc.deploy.service", func() error {
-		err := process.initAWSOIDCDeployServiceUpdater(process.Config.Proxy.AutomaticUpgradesChannels)
-		return trace.Wrap(err)
 	})
 	return nil
 }
@@ -4823,6 +4859,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		alpnServer               *alpnproxy.Proxy
 		reverseTunnelALPNServer  *alpnproxy.Proxy
 		clientTLSConfigGenerator *auth.ClientTLSConfigGenerator
+		healthCheckManager       healthcheck.Manager
 		// initShutdownMtx ensures that shutdown only occurs after the full
 		// setup has been completed.
 		//
@@ -4898,6 +4935,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
 			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
+			}
 		} else {
 			logger.InfoContext(process.ExitContext(), "Shutting down gracefully")
 			ctx := payloadContext(payload)
@@ -4962,6 +5002,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
+			}
+			if healthCheckManager != nil {
+				warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 			}
 		}
 		if peerQUICTransport != nil {
@@ -5660,6 +5703,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// Register TLS endpoint of the Kube proxy service
 		component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
+
 		kubeServiceType := kubeproxy.ProxyService
 		if cfg.Proxy.Kube.LegacyKubeProxy {
 			kubeServiceType = kubeproxy.LegacyProxyService
@@ -5677,6 +5721,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			KubernetesServerGetter: accessPoint,
 		})
 		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Create a health check manager.
+		healthCheckManager, err = healthcheck.NewManager(
+			process.ExitContext(),
+			healthcheck.ManagerConfig{
+				Component:               component,
+				Events:                  accessPoint,
+				HealthCheckConfigReader: accessPoint,
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := healthCheckManager.Start(process.ExitContext()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -5720,10 +5780,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
 			InventoryHandle:          process.inventoryHandle,
 			ConnectedProxyGetter:     reversetunnel.NewConnectedProxyGetter(),
+			HealthCheckManager:       healthCheckManager,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		process.ExpectService(component)
 		process.RegisterCriticalFunc("proxy.kube", func() error {
 			logger := process.logger.With(teleport.ComponentKey, component)
 
@@ -5951,6 +6013,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			})
 		}
 	}
+
+	process.RegisterFunc("update.aws-oidc.deploy.service", func() error {
+		err := process.initAWSOIDCDeployServiceUpdater(process.Config.Proxy.AutomaticUpgradesChannels, accessPoint)
+		return trace.Wrap(err)
+	})
 
 	return nil
 }
@@ -6366,6 +6433,7 @@ func (process *TeleportProcess) initApps() {
 	component := teleport.Component(teleport.ComponentApp, process.id)
 	logger := process.logger.With(teleport.ComponentKey, component)
 
+	process.ExpectService(teleport.ComponentApp)
 	process.RegisterCriticalFunc("apps.start", func() error {
 		conn, err := process.WaitForConnector(AppsIdentityEvent, logger)
 		if conn == nil {

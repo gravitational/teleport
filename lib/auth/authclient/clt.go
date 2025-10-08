@@ -1368,6 +1368,11 @@ type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
 
+	// Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+	// authentication and some differences in locking behavior.
+	Scope string `json:"scope,omitempty"`
+
 	// SSHPublicKey is a public key in ssh authorized_keys format.
 	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
 	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
@@ -1569,7 +1574,7 @@ type ClientI interface {
 	types.Events
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	services.WebToken
 
 	DynamicDesktopClient() *dynamicwindows.Client
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)

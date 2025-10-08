@@ -23,8 +23,8 @@ import Table from 'design/DataTable/Table';
 import { FetchingConfig, SortType } from 'design/DataTable/types';
 import Flex from 'design/Flex';
 import Text from 'design/Text';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import { SearchPanel } from 'shared/components/Search/SearchPanel';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import { WorkloadIdentity } from 'teleport/services/workloadIdentity/types';
 
@@ -97,7 +97,7 @@ export function WorkloadIdetitiesList({
                         return acc;
                       }, [])}
                   </Text>
-                  <CopyButton name={spiffe_id} />
+                  <CopyButton value={spiffe_id} />
                 </Flex>
               </Cell>
             ) : (

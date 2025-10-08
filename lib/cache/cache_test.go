@@ -145,7 +145,7 @@ type testPack struct {
 	databases               *local.DatabaseService
 	databaseServices        *local.DatabaseServicesService
 	webSessionS             types.WebSessionInterface
-	webTokenS               types.WebTokenInterface
+	webTokenS               *local.IdentityService
 	windowsDesktops         *local.WindowsDesktopService
 	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
 	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
@@ -395,7 +395,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.appSessionS = idService
 	p.webSessionS = idService.WebSessions()
 	p.snowflakeSessionS = idService
-	p.webTokenS = idService.WebTokens()
+	p.webTokenS = idService
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
 	p.kubernetes = local.NewKubernetesService(p.backend)
@@ -1935,6 +1935,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAutoUpdateVersion:                 types.Resource153ToLegacy(newAutoUpdateVersion(t)),
 		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
 		types.KindAutoUpdateAgentReport:             types.Resource153ToLegacy(newAutoUpdateAgentReport(t, "test")),
+		types.KindAutoUpdateBotInstanceReport:       types.Resource153ToLegacy(newAutoUpdateBotInstanceReport(t)),
 		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
 		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
@@ -1989,6 +1990,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateVersion]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*autoupdate.AutoUpdateBotInstanceReport]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*autoupdate.AutoUpdateBotInstanceReport]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*recordingencryptionv1.RecordingEncryption]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*userprovisioningpb.StaticHostUser]:
@@ -2601,6 +2604,35 @@ func newAutoUpdateAgentReport(t *testing.T, name string) *autoupdate.AutoUpdateA
 	}, name)
 	require.NoError(t, err)
 	return r
+}
+
+func newAutoUpdateBotInstanceReport(t *testing.T) *autoupdate.AutoUpdateBotInstanceReport {
+	t.Helper()
+
+	return &autoupdate.AutoUpdateBotInstanceReport{
+		Kind:    types.KindAutoUpdateBotInstanceReport,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameAutoUpdateBotInstanceReport,
+		},
+		Spec: &autoupdate.AutoUpdateBotInstanceReportSpec{
+			Timestamp: timestamppb.Now(),
+			Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
+				"foo": {
+					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
+						"1.2.3": {Count: 1},
+						"1.2.4": {Count: 2},
+					},
+				},
+				"bar": {
+					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
+						"2.3.4": {Count: 3},
+						"2.3.5": {Count: 4},
+					},
+				},
+			},
+		},
+	}
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

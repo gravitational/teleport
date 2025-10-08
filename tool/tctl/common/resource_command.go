@@ -1878,6 +1878,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		types.KindAutoUpdateConfig,
 		types.KindAutoUpdateVersion,
 		types.KindAutoUpdateAgentRollout,
+		types.KindAutoUpdateBotInstanceReport,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -2035,7 +2036,8 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindKubernetesCluster:
-		clusters, err := client.GetKubernetesClusters(ctx)
+		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2366,6 +2368,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("AutoUpdateAgentRollout has been deleted\n")
+	case types.KindAutoUpdateBotInstanceReport:
+		if err := client.DeleteAutoUpdateBotInstanceReport(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s has been deleted\n", types.KindAutoUpdateBotInstanceReport)
 	case types.KindHealthCheckConfig:
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
 	case types.KindRelayServer:
@@ -2859,7 +2866,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &databaseCollection{databases: databases}, nil
 	case types.KindKubernetesCluster:
-		clusters, err := client.GetKubernetesClusters(ctx)
+		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3544,6 +3552,15 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateAgentReportCollection{reports: reports}, nil
+	case types.KindAutoUpdateBotInstanceReport:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindAutoUpdateBotInstanceReport)
+		}
+		report, err := client.GetAutoUpdateBotInstanceReport(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &autoUpdateBotInstanceReportCollection{report}, nil
 	case types.KindAccessMonitoringRule:
 		if rc.ref.Name != "" {
 			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)

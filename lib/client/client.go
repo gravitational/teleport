@@ -28,7 +28,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -388,10 +386,10 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	return nc, nil
 }
 
-// RunInteractiveShell creates an interactive shell on the node and copies stdin/stdout/stderr
+// RunInteractiveShell creates or joins an interactive shell on the node and copies stdin/stdout/stderr
 // to and from the node and local shell. This will block until the interactive shell on the node
 // is terminated.
-func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
+func (c *NodeClient) RunInteractiveShell(ctx context.Context, joinSessionID string, joinMode types.SessionParticipantMode, beforeStart func(io.Writer)) error {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/RunInteractiveShell",
@@ -399,28 +397,21 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	)
 	defer span.End()
 
-	env := c.TC.newSessionEnv()
-	env[teleport.EnvSSHJoinMode] = string(mode)
-	env[teleport.EnvSSHSessionReason] = c.TC.Config.Reason
-	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(c.TC.Config.DisplayParticipantRequirements)
-	encoded, err := json.Marshal(&c.TC.Config.Invited)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	env[teleport.EnvSSHSessionInvited] = string(encoded)
-
-	// Overwrite "SSH_SESSION_WEBPROXY_ADDR" with the public addr reported by the proxy. Otherwise,
-	// this would be set to the localhost addr (tc.WebProxyAddr) used for Web UI client connections.
-	if c.ProxyPublicAddr != "" && c.TC.WebProxyAddr != c.ProxyPublicAddr {
-		env[teleport.SSHSessionWebProxyAddr] = c.ProxyPublicAddr
+	sessionParams := &tracessh.SessionParams{
+		WebProxyAddr:                   c.WebProxyAddr(),
+		Reason:                         c.TC.Config.Reason,
+		Invited:                        c.TC.Config.Invited,
+		DisplayParticipantRequirements: c.TC.Config.DisplayParticipantRequirements,
+		JoinSessionID:                  joinSessionID,
+		JoinMode:                       joinMode,
 	}
 
-	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, !c.TC.DisableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, sessionParams, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err = nodeSession.runShell(ctx, mode, beforeStart, c.TC.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, sessionParams, beforeStart, c.TC.OnShellCreated); err != nil {
 		var exitErr *ssh.ExitError
 		var exitMissingErr *ssh.ExitMissingError
 		switch err := trace.Unwrap(err); {
@@ -616,13 +607,19 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		}
 	}
 
-	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, stdout, stderr, !c.TC.DisableEscapeSequences)
+	sessionParams := &tracessh.SessionParams{
+		WebProxyAddr:                   c.WebProxyAddr(),
+		Reason:                         c.TC.Config.Reason,
+		Invited:                        c.TC.Config.Invited,
+		DisplayParticipantRequirements: c.TC.Config.DisplayParticipantRequirements,
+	}
+
+	nodeSession, err := newSession(ctx, c, sessionParams, c.TC.Stdin, stdout, stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-
-	err = nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand)
+	err = nodeSession.runCommand(ctx, sessionParams, command, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand)
 	if err != nil {
 		c.TC.SetExitStatus(getExitStatus(err))
 	}
@@ -742,29 +739,6 @@ func newClientConn(
 		resp := <-respCh
 		return nil, nil, nil, trace.ConnectionProblem(resp.err, "failed to connect to %q", nodeAddress)
 	}
-}
-
-// TransferFiles transfers files over SFTP.
-func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error {
-	ctx, span := c.Tracer.Start(
-		ctx,
-		"nodeClient/TransferFiles",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	if err := cfg.TransferFiles(ctx, c.Client.Client); err != nil {
-		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
-		// a trace.BadParameter error when ~user path expansion was rejected, and
-		// reauthentication logic is attempted on BadParameter errors.
-		if trace.IsBadParameter(err) && strings.Contains(err.Error(), "expanding remote ~user paths is not supported") {
-			return trace.Wrap(&NonRetryableError{Err: err})
-		}
-
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 type netDialer interface {
@@ -1028,4 +1002,14 @@ func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSiz
 		return sessions[:max], nil
 	}
 	return sessions, nil
+}
+
+// WebProxyAddr is the address of the proxy forwarding the SSH connection to the target server.
+func (c *NodeClient) WebProxyAddr() string {
+	// Prioritize the public addr reported by the proxy. Otherwise, this would
+	// return the localhost addr used for Web UI client connections.
+	if c.ProxyPublicAddr != "" {
+		return c.ProxyPublicAddr
+	}
+	return c.TC.WebProxyAddr
 }

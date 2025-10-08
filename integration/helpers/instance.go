@@ -1326,6 +1326,9 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Kube.Enabled {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
+	if i.Config.WindowsDesktop.Enabled {
+		expectedEvents = append(expectedEvents, service.WindowsDesktopReady)
+	}
 
 	if i.Config.Discovery.Enabled {
 		expectedEvents = append(expectedEvents, service.DiscoveryReady)

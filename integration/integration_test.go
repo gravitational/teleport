@@ -239,6 +239,8 @@ func testDifferentPinnedIP(t *testing.T, suite *integrationTestSuite) {
 	site := teleInstance.GetSiteAPI(helpers.Site)
 	require.NotNil(t, site)
 
+	require.NoError(t, teleInstance.WaitForNodeCount(t.Context(), helpers.Site, 1))
+
 	connectionProblem := func(t require.TestingT, err error, i ...any) {
 		require.Error(t, err, i...)
 		require.True(t, trace.IsConnectionProblem(err), "expected a connection problem error, got: %v", err)
@@ -672,7 +674,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 
 			// hook up stdin and stdout to a buffer for reading and writing
 			inbuf := bytes.NewReader([]byte(tt.inStdin))
-			outbuf := utils.NewSyncBuffer()
+			outbuf := newSyncBuffer()
 			cl.Stdin = inbuf
 			cl.Stdout = outbuf
 			cl.Stderr = outbuf
@@ -1131,7 +1133,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				)
 				assert.NoError(t, err)
 
-				errCh <- nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil)
+				errCh <- nodeClient.RunInteractiveShell(ctx, "", "", nil)
 				assert.NoError(t, nodeClient.Close())
 			}()
 
@@ -7976,7 +7978,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		isNilOrEOFErr(t, transferSess.Close())
 	})
 
-	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+	err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
 	require.NoError(t, err)
 
 	err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
@@ -8038,7 +8040,7 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, transferSess.Close())
 	})
 
-	err = transferSess.Setenv(ctx, string(telesftp.ModeratedSessionID), sessTracker.GetSessionID())
+	err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
 	require.NoError(t, err)
 
 	// Test that only operations needed to complete the download

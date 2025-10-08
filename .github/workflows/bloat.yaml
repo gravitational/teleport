@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout base
-        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.before }}
 
@@ -37,7 +37,7 @@ jobs:
         uses: ./.github/actions/prepare-workspace
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+        uses: actions/checkout@v5
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
@@ -53,10 +53,10 @@ jobs:
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: actions/create-github-app-token@v1.0.5 # Cannot upgrade past v1.1 while this runs in centos:7 due to nodejs GLIBC incompatibility
+        uses: actions/create-github-app-token@v2
         with:
-          app_id: ${{ secrets.REVIEWERS_APP_ID }}
-          private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Build base
@@ -83,13 +83,13 @@ jobs:
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
       - name: Checkout branch
-        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+        uses: actions/checkout@v5
         with:
           clean: false
           ref: ${{ github.event.after }}
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+        uses: actions/checkout@v5
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
