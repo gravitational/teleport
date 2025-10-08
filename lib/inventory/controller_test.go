@@ -322,6 +322,10 @@ func TestSSHServerBasics(t *testing.T) {
 	oldExpiry, expiry := expiry, auth.getLastServerExpiry()
 	require.Greater(t, expiry, oldExpiry)
 
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
+
 	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
 		SSHServer: &types.ServerV2{
 			Metadata: types.Metadata{
@@ -336,10 +340,6 @@ func TestSSHServerBasics(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	auth.mu.Lock()
-	auth.failUpserts = 1
-	auth.mu.Unlock()
 
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
