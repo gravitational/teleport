@@ -156,6 +156,14 @@ func validateSchedules(schedules map[string]*accessmonitoringrulesv1.Schedule) e
 }
 
 func validateTimeSchedule(schedule *accessmonitoringrulesv1.TimeSchedule) error {
+	if schedule.GetTimezone() == "" {
+		return trace.BadParameter("timezone is required")
+	}
+
+	if _, err := time.LoadLocation(schedule.GetTimezone()); err != nil {
+		return trace.Wrap(err, "timezone is invalid")
+	}
+
 	if len(schedule.GetShifts()) == 0 {
 		return trace.BadParameter("at least one shift is required")
 	}

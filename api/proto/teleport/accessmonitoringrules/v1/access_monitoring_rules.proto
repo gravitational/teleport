@@ -103,6 +103,9 @@ message TimeSchedule {
   // Shifts are configured in UTC.
   repeated Shift shifts = 1;
 
+  // Timezone specifies the schedule timezone.
+  string timezone = 2;
+
   // Shift contains the weekday, start time, and end time of a shift.
   message Shift {
     // Weekday specifies the day of the week, e.g., "Sunday", "Monday", "Tuesday".
