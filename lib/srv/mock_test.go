@@ -128,6 +128,9 @@ func newMockServer(t *testing.T) *mockServer {
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, bk.Close())
+	})
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
@@ -138,9 +141,6 @@ func newMockServer(t *testing.T) *mockServer {
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, bk.Close())
-	})
 
 	authCfg := &auth.InitConfig{
 		Backend:        bk,
@@ -152,6 +152,9 @@ func newMockServer(t *testing.T) *mockServer {
 
 	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authServer.Close())
+	})
 
 	return &mockServer{
 		auth:                authServer,
