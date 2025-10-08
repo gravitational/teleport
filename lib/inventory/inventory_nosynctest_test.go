@@ -23,7 +23,6 @@ import "testing"
 // TODO(espadolini): DELETE IN v21 or after the oldest supported Teleport
 // version is on go 1.25
 
-func synctestOrParallel(t *testing.T, fn func(*testing.T)) {
-	t.Parallel()
+func maybeSynctest(t *testing.T, fn func(*testing.T)) {
 	fn(t)
 }

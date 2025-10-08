@@ -23,6 +23,6 @@ import (
 	"testing/synctest"
 )
 
-func synctestOrParallel(t *testing.T, fn func(*testing.T)) {
+func maybeSynctest(t *testing.T, fn func(*testing.T)) {
 	synctest.Test(t, fn)
 }

@@ -200,7 +200,8 @@ func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) 
 // TestSSHServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // an ssh service.
 func TestSSHServerBasics(t *testing.T) {
-	synctestOrParallel(t, testSSHServerBasics)
+	t.Parallel()
+	maybeSynctest(t, testSSHServerBasics)
 }
 func testSSHServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -415,7 +416,8 @@ func testSSHServerBasics(t *testing.T) {
 // TestAppServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // an app service.
 func TestAppServerBasics(t *testing.T) {
-	synctestOrParallel(t, testAppServerBasics)
+	t.Parallel()
+	maybeSynctest(t, testAppServerBasics)
 }
 func testAppServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -648,7 +650,8 @@ func testAppServerBasics(t *testing.T) {
 // TestDatabaseServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // a database server.
 func TestDatabaseServerBasics(t *testing.T) {
-	synctestOrParallel(t, testDatabaseServerBasics)
+	t.Parallel()
+	maybeSynctest(t, testDatabaseServerBasics)
 }
 func testDatabaseServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -914,7 +917,8 @@ func testDatabaseServerBasics(t *testing.T) {
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat_Disabled(t *testing.T) {
-	synctestOrParallel(t, testInstanceHeartbeat_Disabled)
+	t.Parallel()
+	maybeSynctest(t, testInstanceHeartbeat_Disabled)
 }
 func testInstanceHeartbeat_Disabled(t *testing.T) {
 	const serverID = "test-instance"
@@ -965,7 +969,8 @@ func TestInstanceHeartbeatDisabledEnv(t *testing.T) {
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat(t *testing.T) {
-	synctestOrParallel(t, testInstanceHeartbeat)
+	t.Parallel()
+	maybeSynctest(t, testInstanceHeartbeat)
 }
 func testInstanceHeartbeat(t *testing.T) {
 	const serverID = "test-instance"
@@ -1084,7 +1089,8 @@ func testInstanceHeartbeat(t *testing.T) {
 // TestUpdateLabels verifies that an instance's labels can be updated over an
 // inventory control stream.
 func TestUpdateLabels(t *testing.T) {
-	synctestOrParallel(t, testUpdateLabels)
+	t.Parallel()
+	maybeSynctest(t, testUpdateLabels)
 }
 func testUpdateLabels(t *testing.T) {
 	const serverID = "test-instance"
@@ -1156,7 +1162,8 @@ func testUpdateLabels(t *testing.T) {
 // TestAgentMetadata verifies that an instance's agent metadata is received in
 // inventory control stream.
 func TestAgentMetadata(t *testing.T) {
-	synctestOrParallel(t, testAgentMetadata)
+	t.Parallel()
+	maybeSynctest(t, testAgentMetadata)
 }
 func testAgentMetadata(t *testing.T) {
 	const serverID = "test-instance"
@@ -1432,13 +1439,15 @@ func TestGoodbye(t *testing.T) {
 
 		}
 		t.Run(test.name, func(t *testing.T) {
-			synctestOrParallel(t, inner)
+			t.Parallel()
+			maybeSynctest(t, inner)
 		})
 	}
 }
 
 func TestKubernetesServerBasics(t *testing.T) {
-	synctestOrParallel(t, testKubernetesServerBasics)
+	t.Parallel()
+	maybeSynctest(t, testKubernetesServerBasics)
 }
 func testKubernetesServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -1668,7 +1677,8 @@ func testKubernetesServerBasics(t *testing.T) {
 }
 
 func TestGetSender(t *testing.T) {
-	synctestOrParallel(t, testGetSender)
+	t.Parallel()
+	maybeSynctest(t, testGetSender)
 }
 func testGetSender(t *testing.T) {
 	controller := NewController(
@@ -1740,7 +1750,8 @@ func testGetSender(t *testing.T) {
 
 // TestTimeReconciliation verifies basic behavior of the time reconciliation check.
 func TestTimeReconciliation(t *testing.T) {
-	synctestOrParallel(t, testTimeReconciliation)
+	t.Parallel()
+	maybeSynctest(t, testTimeReconciliation)
 }
 func testTimeReconciliation(t *testing.T) {
 	const serverID = "test-server"
