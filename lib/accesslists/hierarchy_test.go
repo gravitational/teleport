@@ -21,6 +21,7 @@ package accesslists
 import (
 	"context"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -66,7 +67,33 @@ func (m *mockAccessListAndMembersGetter) ListAccessListMembers(ctx context.Conte
 	if !exists {
 		return nil, "", nil
 	}
-	return members, "", nil
+
+	if pageSize == 0 {
+		pageSize = 50
+	}
+
+	var pageNumber int
+	var err error
+	if pageToken != "" {
+		pageNumber, err = strconv.Atoi(pageToken)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	}
+
+	start := pageNumber * pageSize
+	end := (pageNumber + 1) * pageSize
+
+	switch {
+	case start > len(members):
+		return nil, "", nil
+	case end > len(members):
+		// no next page
+		return members[start:], "", nil
+	default:
+		// next page
+		return members[start:end], strconv.Itoa(pageNumber + 1), nil
+	}
 }
 
 type mockLocksGetter struct {
