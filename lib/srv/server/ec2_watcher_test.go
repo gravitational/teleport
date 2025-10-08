@@ -56,7 +56,7 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 }
 
 func makeMockClients(m map[string]*ec2.DescribeInstancesOutput) matcherEC2ClientGetter {
-	return func(ctx context.Context, region string, matcher types.AWSMatcher, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+	return func(ctx context.Context, region string, matcher *types.AWSMatcher, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 		var roleARN string
 		if matcher.AssumeRole != nil {
 			roleARN = matcher.AssumeRole.RoleARN
