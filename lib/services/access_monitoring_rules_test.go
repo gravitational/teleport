@@ -131,6 +131,7 @@ func TestValidateAccessMonitoringRule(t *testing.T) {
 				amr.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
 					"default": {
 						Time: &accessmonitoringrulesv1.TimeSchedule{
+							Timezone: time.UTC.String(),
 							Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 								{
 									Weekday: time.Monday.String(),
@@ -189,6 +190,7 @@ func TestValidateSchedules(t *testing.T) {
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
 				"default": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Monday.String(),
@@ -206,6 +208,7 @@ func TestValidateSchedules(t *testing.T) {
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
 				"on-call-1": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Saturday.String(),
@@ -217,6 +220,7 @@ func TestValidateSchedules(t *testing.T) {
 				},
 				"on-call-2": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Sunday.String(),
@@ -242,7 +246,9 @@ func TestValidateSchedules(t *testing.T) {
 			description: "does not contain any shifts",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
 				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{},
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
+					},
 				},
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
@@ -250,10 +256,31 @@ func TestValidateSchedules(t *testing.T) {
 			},
 		},
 		{
+			description: "invalid timezone",
+			schedules: map[string]*accessmonitoringrulesv1.Schedule{
+				"default": {
+					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: "invalid",
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+							{
+								Weekday: time.Monday.String(),
+								Start:   "00:00",
+								End:     "23:59",
+							},
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorContains(t, err, "timezone is invalid")
+			},
+		},
+		{
 			description: "start time is not before end time",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
 				"default": {
 					Time: &accessmonitoringrulesv1.TimeSchedule{
+						Timezone: time.UTC.String(),
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
 							{
 								Weekday: time.Monday.String(),
