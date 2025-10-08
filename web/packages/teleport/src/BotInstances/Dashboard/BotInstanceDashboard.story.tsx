@@ -73,6 +73,7 @@ export const NoData: Story = {
       handlers: [
         getBotInstanceMetricsSuccess({
           upgrade_statuses: null,
+          refresh_after_seconds: 60_000,
         }),
       ],
     },
