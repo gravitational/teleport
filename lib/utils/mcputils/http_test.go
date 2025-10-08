@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/gravitational/trace"
 	mcpclient "github.com/mark3labs/mcp-go/client"
@@ -166,16 +167,32 @@ func TestHTTPReaderWriter(t *testing.T) {
 		))
 	})
 
-	serverReaderWriter, err := NewHTTPReaderWriter(ctx, httpServer.URL)
+	serverReaderWriter, err := NewHTTPReaderWriter(ctx, httpServer.URL, mcpclienttransport.WithContinuousListening())
 	require.NoError(t, err)
+	defer serverReaderWriter.Close() // Send DELETE before server is shutdown
+
 	clientTransportReader := NewStdioReader(readFromClient)
 	clientWriter := NewStdioMessageWriter(writeToClient)
 	proxyReaderWriter(t, clientTransportReader, clientWriter, serverReaderWriter, serverReaderWriter)
 
 	// Make a "high-level" stdio MCP client and test the proxy.
+	notificationsChan := make(chan mcp.JSONRPCNotification, 1)
 	stdioClient := mcptest.NewStdioClient(t, clientStdin, clientStdout)
+	stdioClient.OnNotification(func(notification mcp.JSONRPCNotification) {
+		notificationsChan <- notification
+	})
 	mcptest.MustInitializeClient(t, stdioClient)
 	mcptest.MustCallServerTool(t, stdioClient)
+
+	// Test listening notifications from server.
+	mcpServer.SendNotificationToAllClients("notifications/test", nil)
+	select {
+	case notification := <-notificationsChan:
+		require.NotNil(t, notification)
+		require.Equal(t, "notifications/test", notification.Notification.Method)
+	case <-time.After(time.Second):
+		require.Fail(t, "timeout waiting for notification")
+	}
 }
 
 func proxyReaderWriter(
