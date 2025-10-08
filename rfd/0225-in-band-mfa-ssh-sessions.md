@@ -69,8 +69,7 @@ challenge, the `TransportService` will receive the pass/fail result and `ProxySS
 
 If the MFA verification fails, the stream is immediately terminated. Similarly, any connectivity issues with the Proxy
 or Auth services result in the session being denied. If the client does not complete the MFA challenge within a
-specified time frame (e.g., 5 minutes), the session will be terminated. See [Per-session MFA (RFD
-14)](0014-session-2FA.md) for more details on session termination.
+specified time frame (e.g., 5 minutes), the session will be terminated. See [Per-session MFA (RFD 14)](0014-session-2FA.md) for more details on session termination.
 
 In cases where MFA is not required, or after successful MFA verification, the server sends `ClusterDetails` to the
 client. The client can then proceed to send SSH frames over the established stream. The Proxy forwards these frames to
@@ -88,37 +87,30 @@ sequenceDiagram
   Client->>Proxy: Open stream (ProxySSH)
   Client->>Proxy: Send target host (dial_target )
 
-  alt New Client
-    Proxy->>Proxy: Check MFA Requirement (EvaluateSSHAccess)
-    Note over Proxy: Using local Decision service
+  Proxy->>Proxy: Check MFA Requirement (EvaluateSSHAccess)
+  Note over Proxy: Using local Decision service
 
-    alt MFA Required
-      Proxy->>Auth: Initiate MFA challenge (StartAuthenticateChallenge)
-      Auth->>Proxy: Send MFA challenge ID
-      Proxy->>Client: Send MFA challenge ID
+  alt MFA Required
+    Proxy->>Auth: Initiate MFA challenge (StartAuthenticateChallenge)
+    Auth->>Proxy: Send MFA challenge ID
+    Proxy->>Client: Send MFA challenge ID
 
-      Client->>Auth: Begin MFA challenge (CompleteAuthenticateChallenge)
-      Auth->>Client: Send MFA challenge
-      Client->>Auth: Send MFA response
-      Auth->>Auth: Validate MFA response
+    Client->>Auth: Begin MFA challenge (CompleteAuthenticateChallenge)
+    Auth->>Client: Send MFA challenge
+    Client->>Auth: Send MFA response
+    Auth->>Auth: Validate MFA response
 
-      break MFA Failure
-        Auth->>Client: MFA Failure
-        Auth->>Proxy: MFA Failure
-        Note over Client,Proxy: Session terminated
-      end
-
-      Auth->>Client: Result of MFA challenge
-      Auth->>Proxy: Result of MFA challenge
+    break MFA Failure
+      Auth->>Client: MFA Failure
+      Auth->>Proxy: MFA Failure
+      Note over Client,Proxy: Session terminated
     end
+
+    Auth->>Client: Result of MFA challenge
+    Auth->>Proxy: Result of MFA challenge
   end
 
-  Proxy->>Node: Dial target host
-  alt New Client
-    Note over Proxy,Node: With stapled permit (no SSH-MFA certificate required)
-  else Legacy Client
-    Note over Proxy,Node: No permit (SSH-MFA certificate required)
-  end
+  Proxy->>Node: Dial target host with stapled permit
 
   Node->>Proxy: Dial response
 
