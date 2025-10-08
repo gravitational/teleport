@@ -107,7 +107,8 @@ credential_process = credential_process
 			name:           "replaces default credential process",
 			sectionName:    "default",
 			sectionComment: "This section is managed by Teleport. Do not edit.",
-			existingContents: strPtr(`[default]
+			existingContents: strPtr(`; This section is managed by Teleport. Do not edit.
+[default]
 credential_process = another process`),
 			errCheck: require.NoError,
 			expected: `; This section is managed by Teleport. Do not edit.
@@ -119,7 +120,8 @@ credential_process = credential_process
 			name:           "comments are kept",
 			sectionName:    "default",
 			sectionComment: "This section is managed by Teleport. Do not edit.",
-			existingContents: strPtr(`[default]
+			existingContents: strPtr(`; This section is managed by Teleport. Do not edit.
+[default]
 ; this is a comment
 # yet another comment
 credential_process = another process`),
@@ -175,6 +177,18 @@ some_setting = value
 [profile Upper-and-lower-CASE]
 credential_process = credential_process
 `,
+		},
+		{
+			name:           "refuses to change the profile when a profile with the same name already exists but has no comment",
+			sectionName:    "profile My-Profile",
+			sectionComment: "Do not edit. Section managed by Teleport. Generated for accessing My-Profile",
+			existingContents: strPtr(`[sectionA]
+some_setting = value
+
+[profile My-Profile]
+credential_process=credential_process
+`),
+			errCheck: require.Error,
 		},
 		{
 			// This is not exactly a test but serves documentation purposes on the limitation of the library we use.
