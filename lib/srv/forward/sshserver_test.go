@@ -23,11 +23,13 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"net"
 	"os/user"
 	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -37,7 +39,10 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -375,4 +380,112 @@ func TestEventMetadata(t *testing.T) {
 			require.EqualValues(t, tt.expectMetadata, forwardSrv.EventMetadata())
 		})
 	}
+}
+
+func TestServerConfigCheckDefaults(t *testing.T) {
+	teleportNode, err := types.NewNode("teleport-node", "", types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	openSSHNode, err := types.NewNode("openssh-node", types.SubKindOpenSSHNode, types.ServerSpecV2{
+		Addr:     "openssh.example.com:22",
+		Hostname: "openssh.example.com",
+	}, nil)
+	require.NoError(t, err)
+
+	openSSHEICENode, err := types.NewEICENode(types.ServerSpecV2{
+		Addr:     "openssheice.example.com:22",
+		Hostname: "openssheice.example.com",
+		CloudMetadata: &types.CloudMetadata{
+			AWS: &types.AWSInfo{
+				AccountID:   "123456789012",
+				InstanceID:  "i-123456789012",
+				Region:      "us-east-1",
+				VPCID:       "vpc-abcd",
+				SubnetID:    "subnet-123",
+				Integration: "teleportdev",
+			},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name           string
+		modifyCfg      func(c *ServerConfig)
+		errorAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:      "no targetServer",
+			modifyCfg: func(c *ServerConfig) {},
+			errorAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "target server is required")
+			},
+		}, {
+			name: "Teleport Node",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = teleportNode
+				c.UserAgent = &sshutils.AgentChannel{}
+			},
+			errorAssertion: require.NoError,
+		}, {
+			name: "Teleport Node no agent",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = teleportNode
+			},
+			errorAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "user agent required")
+			},
+		}, {
+			name: "OpenSSH Node",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = openSSHNode
+				c.AgentlessSigner = &sshutils.LegacySHA1Signer{}
+			},
+			errorAssertion: require.NoError,
+		}, {
+			name: "OpenSSH Node no signer",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = openSSHNode
+			},
+			errorAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "agentless signer is required")
+			},
+		}, {
+			name: "OpenSSH EICE Node",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = openSSHEICENode
+			},
+			errorAssertion: require.NoError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &ServerConfig{
+				LocalAuthClient:          &authclient.Client{},
+				TargetClusterAccessPoint: &authclient.Client{},
+				DataDir:                  "datadir",
+				TargetConn:               &net.UnixConn{},
+				SrcAddr:                  &net.IPAddr{},
+				DstAddr:                  &net.IPAddr{},
+				HostCertificate:          &sshutils.LegacySHA1Signer{},
+				Clock:                    clockwork.NewFakeClock(),
+				Emitter:                  &authclient.Client{},
+				LockWatcher:              &services.LockWatcher{},
+				EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
+					return nil, nil
+				},
+			}
+
+			tt.modifyCfg(config)
+
+			err := config.CheckDefaults()
+			tt.errorAssertion(t, err)
+		})
+	}
+
+	// UserAgent:                userAgent,
+	// AgentlessSigner:          params.AgentlessSigner,
+	// TargetServer:    params.TargetServer,
+
 }

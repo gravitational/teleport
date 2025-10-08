@@ -201,6 +201,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindAutoUpdateAgentReport},
+		{Kind: types.KindAutoUpdateBotInstanceReport},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindProvisioningPrincipalState},
 		{Kind: types.KindIdentityCenterAccount},
@@ -271,6 +272,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
 		{Kind: types.KindRelayServer},
+		{Kind: types.KindHealthCheckConfig},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -367,6 +369,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindHealthCheckConfig},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -671,7 +674,7 @@ type Config struct {
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
-	WebToken types.WebTokenInterface
+	WebToken services.WebToken
 	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// DynamicWindowsDesktops is a dynamic Windows desktop service.

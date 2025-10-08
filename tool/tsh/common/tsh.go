@@ -94,7 +94,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1585,12 +1584,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	stopTracing := initializeTracing(&cf)
 	defer stopTracing()
 
-	// start the span for the command and update the config context so that all spans created
-	// in the future will be rooted at this span.
-	ctx, span := cf.tracer.Start(cf.Context, command)
-	cf.Context = ctx
-	defer span.End()
-
 	if err := client.ValidateAgentKeyOption(cf.AddKeysToAgent); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1929,9 +1922,14 @@ func initializeTracing(cf *CLIConf) func() {
 	cf.TracingProvider = tracing.NoopProvider()
 	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
-	// flush ensures that the spans are all attempted to be written when tsh exits.
+	// flush ends the root span and ensures that the spans are all attempted to be written when tsh exits.
+	var rootSpan oteltrace.Span
 	flush := func(provider *tracing.Provider) func() {
 		return func() {
+			if rootSpan != nil {
+				rootSpan.End()
+			}
+
 			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(cf.Context), time.Second)
 			defer cancel()
 			err := provider.Shutdown(shutdownCtx)
@@ -1976,6 +1974,9 @@ func initializeTracing(cf *CLIConf) func() {
 
 		cf.TracingProvider = provider
 		cf.tracer = provider.Tracer(teleport.ComponentTSH)
+		// Start the root span for the command and update the config context so
+		// that all spans created in the future will be rooted at this span.
+		cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
 		return flush(provider)
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
@@ -2000,6 +2001,9 @@ func initializeTracing(cf *CLIConf) func() {
 	}
 	cf.TracingProvider = provider
 	cf.tracer = provider.Tracer(teleport.ComponentTSH)
+	// Start the root span for the command and update the config context so
+	// that all spans created in the future will be rooted at this span.
+	cf.Context, rootSpan = cf.tracer.Start(cf.Context, cf.command)
 
 	if cf.command == "login" {
 		// Don't call RetryWithRelogin below if the user is trying to log in.
@@ -3134,10 +3138,14 @@ func serializeNodes(nodes []types.Server, format string) (string, error) {
 func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string {
 	// Reusable function to get addr or tunnel for each node
 	getAddr := func(n types.Server) string {
-		if n.GetUseTunnel() {
+		switch {
+		case n.GetUseTunnel() && n.GetRelayGroup() != "":
+			return "⟵ Tunnel (relay)"
+		case n.GetUseTunnel():
 			return "⟵ Tunnel"
+		default:
+			return n.GetAddr()
 		}
-		return n.GetAddr()
 	}
 
 	row := make([]string, 0)
@@ -3903,8 +3911,15 @@ func getAutoResourceRequest(ctx context.Context, tc *client.TeleportClient, requ
 	req.SetDryRun(true)
 	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
 	if err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
-		req, err = clt.CreateAccessRequestV2(ctx, req)
-		return trace.Wrap(err)
+		dryRunReq, err := clt.CreateAccessRequestV2(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Copying the computed roles here is not strictly necessary but avoids requiring
+		// the server to recompute the roles when the real request is created, which can be
+		// an expensive operation.
+		req.SetRoles(dryRunReq.GetRoles())
+		return nil
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4441,18 +4456,17 @@ func onSCP(cf *CLIConf) error {
 		}
 	}
 
+	sftpReq := client.SFTPRequest{
+		Sources:       cf.CopySpec[:len(cf.CopySpec)-1],
+		Destination:   cf.CopySpec[len(cf.CopySpec)-1],
+		Recursive:     cf.RecursiveCopy,
+		PreserveAttrs: cf.PreserveAttrs,
+	}
+	if !cf.Quiet {
+		sftpReq.ProgressWriter = cf.Stdout()
+	}
 	err = executor(cf.Context, tc, func() error {
-		return trace.Wrap(tc.SFTP(
-			cf.Context,
-			cf.CopySpec[:len(cf.CopySpec)-1],
-			cf.CopySpec[len(cf.CopySpec)-1],
-			sftp.Options{
-				Recursive:      cf.RecursiveCopy,
-				PreserveAttrs:  cf.PreserveAttrs,
-				Quiet:          cf.Quiet,
-				ProgressWriter: cf.Stdout(),
-			},
-		))
+		return trace.Wrap(tc.SFTP(cf.Context, sftpReq))
 	})
 
 	// don't print context canceled errors to the user
@@ -4639,6 +4653,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	}
 
 	// Check if this host has a matching proxy template.
+	c.ProxyTemplates = cf.TSHConfig.ProxyTemplates
 	expanded, tMatched := cf.TSHConfig.ProxyTemplates.Apply(fullHostName)
 	if !tMatched && useProxyTemplate {
 		return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")

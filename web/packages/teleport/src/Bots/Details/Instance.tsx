@@ -32,7 +32,7 @@ import {
 import { ResourceIcon } from 'design/ResourceIcon';
 import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 
 import { useClusterVersion } from '../../useClusterVersion';
 import { JoinMethodIcon } from './JoinMethodIcon';
@@ -75,7 +75,7 @@ export function Instance(props: {
             <BotNameText>
               {botName}/{shortenId(id)}
             </BotNameText>
-            <CopyButton name={`${botName}/${id}`} />
+            <CopyButton value={`${botName}/${id}`} />
           </BotNameContainer>
         ) : (
           <IdText typography="body2">{id}</IdText>

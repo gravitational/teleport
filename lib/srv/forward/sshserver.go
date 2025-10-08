@@ -268,14 +268,17 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.TargetServer == nil {
 		return trace.BadParameter("target server is required")
 	}
-	if s.TargetServer.IsOpenSSHNode() {
+	switch s.TargetServer.GetSubKind() {
+	case types.SubKindTeleportNode:
+		if s.UserAgent == nil {
+			return trace.BadParameter("user agent required for teleport nodes (agentless)")
+		}
+	case types.SubKindOpenSSHNode:
 		if s.AgentlessSigner == nil {
 			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
 		}
-	} else {
-		if s.UserAgent == nil {
-			return trace.BadParameter("user agent required for teleport nodes")
-		}
+	case types.SubKindOpenSSHEICENode:
+		// agentless signer is set once the forwarding server is started.
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -573,6 +576,10 @@ func (s *Server) Serve() {
 	config.Ciphers = s.ciphers
 	config.KeyExchanges = s.kexAlgorithms
 	config.MACs = s.macAlgorithms
+
+	// Set the server version to Teleport to enable tracing and other Teleport
+	// specific features like joining.
+	config.ServerVersion = sshutils.SSHVersionPrefix
 
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
@@ -889,7 +896,7 @@ func (s *Server) handleForwardedTCPIPRequest(ctx context.Context, nch ssh.NewCha
 
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, nil)
 	if err != nil {
 		if err := nch.Reject(ssh.ConnectionFailed, "failed to open server context"); err != nil {
 			s.logger.ErrorContext(ctx, "Error rejecting forwarded-tcpip channel", "error", err)
@@ -999,7 +1006,7 @@ func (s *Server) checkTCPIPForwardRequest(ctx context.Context, r *ssh.Request) e
 
 	// RBAC checks are only necessary when connecting to an agentless node
 	if s.targetServer.IsOpenSSHNode() {
-		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
+		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext, nil)
 		if err != nil {
 			return err
 		}
@@ -1062,7 +1069,7 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, nil)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to create connection context", "error", err)
 		s.stderrWrite(ctx, ch, "Unable to create connection context.")
@@ -1114,12 +1121,22 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 // the remote host. Once the session channel has been established, this function's loop handles
 // all the "exec", "subsystem" and "shell" requests.
 func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
+	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+	sessionParams, err := tracessh.ParseSessionParams(nch.ExtraData())
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+		}
+		return
+	}
+
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	// There is no need for the forwarding server to initiate disconnects,
 	// based on teleport business logic, because this logic is already
 	// done on the server's terminating side.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, sessionParams)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Server context setup failed", "error", err)
 		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("server context setup failed: %v", err)); err != nil {
@@ -1140,7 +1157,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
 	// reason/message in the event the channel is rejected.
-	remoteSession, err := s.remoteClient.NewSession(ctx)
+	remoteSession, err := s.remoteClient.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Remote session open failed", "error", err)
 		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)

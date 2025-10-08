@@ -33,6 +33,7 @@ import {
   IntegrationOperations,
   useIntegrationOperation,
 } from 'teleport/Integrations/Operations';
+import { type DeleteRequestOptions } from 'teleport/Integrations/Operations/IntegrationOperations';
 import type { EditableIntegrationFields } from 'teleport/Integrations/Operations/useIntegrationOperation';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { IntegrationAwsOidc } from 'teleport/services/integrations';
@@ -55,8 +56,8 @@ export function AwsOidcTitle({
   const { status, labelKind } = getStatusAndLabel(integration);
   const content = getContent(integration, resource, tasks);
 
-  async function removeIntegration() {
-    await integrationOps.remove();
+  async function removeIntegration(opt: DeleteRequestOptions) {
+    await integrationOps.remove(opt);
     integrationOps.clear();
     history.push(cfg.routes.integrations);
   }

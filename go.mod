@@ -25,7 +25,7 @@ require (
 	cloud.google.com/go/spanner v1.86.0
 	cloud.google.com/go/storage v1.57.0
 	code.dny.dev/ssrf v0.2.0
-	connectrpc.com/connect v1.19.0
+	connectrpc.com/connect v1.18.1
 	filippo.io/age v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.12.0
@@ -221,6 +221,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.39.0
 	github.com/testcontainers/testcontainers-go/modules/mysql v0.39.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.39.0
 	github.com/tidwall/pretty v1.2.1
 	github.com/tidwall/sjson v1.2.5
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb

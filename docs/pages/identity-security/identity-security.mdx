@@ -2,42 +2,141 @@
 title: Teleport Identity Security
 description: An overview of Teleport Identity Security.
 videoBanner: Vg5R6vpZffg
+template: landing-page
 tags:
  - identity-security
  - access-risks
 ---
 
-Teleport Identity Security unifies management of access policies across your infrastructure.
-It hardens your access controls and displays up-to-date relationships and policies of all
-users, groups, and computing resources.
+import LandingHero from '@site/src/components/Pages/Landing/LandingHero';
+import TextWithMedia from "@site/src/components/Pages/Landing/TextWithMedia";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
+import Integrations from "@site/src/components/Pages/Homepage/Integrations";
 
-It can help you answer questions like:
+import identitySecurityImg from '@version/docs/img/identity-security/identity-security-hero.png';
+import bookOpenSvg from "@site/src/components/Icon/teleport-svg/book-open.svg";
+import identificationBadgeSvg from "@site/src/components/Icon/teleport-svg/identification-badge.svg";
+import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.svg";
+import verifySvg from "@site/src/components/Icon/teleport-svg/verify.svg";
+import githubSvg from "@site/src/components/Icon/svg/github.svg";
+import awsSvg from "@site/src/components/Icon/teleport-svg/aws.svg";
+import oktaSvg from "@site/src/components/Icon/teleport-svg/okta.svg";
+import teleportSvg from "@site/src/components/Icon/teleport-svg/teleport.svg";
+import video from "@site/src/components/Pages/Landing/TextWithMedia/identity-security.mp4";
 
-- What resources can a specific user access?
-- What users can access a specific resource?
-- What are the relationships between users, roles, and resources?
+<LandingHero
+  title="Teleport Identity Security"
+  image={identitySecurityImg}
+  links={[
+    {
+      title: "Self-Hosting Guide",
+      description: "Deploy Identity Security in a self-hosted cluster (enabled by default for managed Enterprise customers)",
+      href: "./access-graph/",
+      icon: identificationBadgeSvg,
+    },
+    {
+      title: "Key Concepts",
+      description: "Understand Access Graph visualization, Crown Jewels, and access relationships",
+      href: "./usage/",
+      icon: listBulletsSvg,
+    },
+  ]}
+>
+  Teleport Identity Security centralizes access policy across your infrastructure, consolidates disparate identity audit logs, discovers shadow access, and alerts on access anomalies. It helps you quickly answer:
+  - What resources can a specific user access?
+  - What actions do users perform when connecting to systems?
+  - How are users, roles, and resources connected?
+  - Can users gain access to resources outside of defined RBAC policies?
+  - Can users interact with resources in ways that bypass audit logging?
 
-## Getting started with Identity Security
+</LandingHero>
 
-To start using Identity Security to explore access paths and identity-related
-activity in your infrastructure, read [Get Started with Identity
-Security](usage/usage.mdx).
+<UseCasesList
+  title="Use cases"
+  useCases={[
+    {
+      title: "Expose hidden access risks",
+      description: "Scan for insecure SSH keys and access paths",
+      href: "./integrations/ssh-keys-scan/",
+    },  
+    {
+      title: "Identify over-privileged users",
+      description: "Identify users with excessive standing privileges",
+      href: "./usage/dashboard/",
+    },
+    {
+      title: "Monitor changes to critical resources",
+      description: "Monitor, alert on, and visualize access changes",
+      href: "./usage/crown-jewels/",
+    },  
+    {
+      title: "Alert on anomalous activity",
+      description: "AI alerting on risky access patterns in your infrastructure",
+      href: "./usage/alerts/",
+    },
+    {
+      title: "Unify logs from key systems",
+      description: "Unify logs from Okta, AWS, GitHub, and more",
+      href: './integrations/',
+    },  
+    {
+      title: "Query roles, groups, and permissions",
+      description: "Create custom-tailored queries w/the SQL Editor",
+      href: "./usage/sql-editor",
+    },
+  ]}
+/>
 
-Identity Security is a separately licensed product and is available to Teleport
-Enterprise customers.
+<TextWithMedia
+  title="Visualize access relationships"
+  videoSrc={video}
+>
+  Use Graph Explorer to explore real-time identity-to-resource paths, quickly spotting where access is allowed or denied. Run custom SQL queries using [SQL Editor](./usage/sql-editor.mdx) to analyze
+  [connections](./usage/graph-explorer.mdx) (identities, user group, and actions).
 
-## Enabling Identity Security integrations
+  **[View Standing Privileges](./usage/dashboard.mdx)**  
+  **[Set up Crown Jewels](./usage/crown-jewels.mdx)**  
+  **[Manage Audit Events](./integrations/teleport.mdx)**
+</TextWithMedia>
 
-You can configure Teleport Identity Security to integrate with third-party
-services so you can visualize access paths and identity-related activity from
-your cloud platform, code repositories, and more, all in a single view. Read
-[Identity Security Integrations](integrations/integrations.mdx) for
-instructions.
-
-## Self-hosting Identity Security
-
-Self-hosted Teleport Enterprise customers must deploy Identity Security on their
-own infrastructure. Learn about the services you need to deploy in [Self-Host
-Teleport Identity Security](access-graph/access-graph.mdx).
-
-
+<Integrations
+  title="Integrations"
+  integrations={[
+    {
+      title: 'GitHub',
+      description: 'Connect GitHub and stream audit logs, map permissions, and track user behavior to stay ahead of access issues.',
+      href: './integrations/github/',
+      iconColor: '#0000001A',
+      iconComponent: githubSvg,
+    },
+    {
+      title: 'Okta',
+      description: 'Integrate your Okta account to visualize your access policies, user roles, and group memberships.',
+      href: '../identity-governance/integrations/okta/',
+      iconColor: '#0000001A',
+      iconComponent: oktaSvg,
+    },
+    {
+      title: 'AWS',
+      description: 'Leverage the power of Access Graph by connecting AWS account to visualize IAM roles, policies, and access relationships.',
+      href: './integrations/aws-sync/',
+      iconColor: '#E87B0C1A',
+      iconComponent: awsSvg,
+    },
+    {
+      title: 'Teleport',
+      description: 'Connect Teleport audit logs to trace the full identity chain from authentication through resource access, enabling ...',
+      href: './integrations/teleport/',
+      iconColor: '#512FC91A',
+      iconComponent: teleportSvg,
+    },
+  ]}
+  mainLink={
+    {
+      title: "View all Integrations",
+      href: "./integrations/"
+    }
+  }
+  desktopColumnsCount={4}
+  noBackgroundColor={true}
+/>

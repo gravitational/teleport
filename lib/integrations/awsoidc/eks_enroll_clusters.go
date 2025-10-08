@@ -135,7 +135,7 @@ type EnrollEKSClusterClient interface {
 type defaultEnrollEKSClustersClient struct {
 	*eks.Client
 	stsClient    *sts.Client
-	tokenCreator TokenCreator
+	tokenCreator TokenCreatorFn
 }
 
 // GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
@@ -158,7 +158,7 @@ func (d *defaultEnrollEKSClustersClient) CheckAgentAlreadyInstalled(ctx context.
 	return checkAgentAlreadyInstalled(ctx, actionConfig)
 }
 
-func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreator) (string, string, error) {
+func getToken(ctx context.Context, clock clockwork.Clock, tokenCreator TokenCreatorFn) (string, string, error) {
 	const eksJoinTokenTTL = 30 * time.Minute
 
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -211,11 +211,11 @@ func (d *defaultEnrollEKSClustersClient) CreateToken(ctx context.Context, token 
 	return d.tokenCreator(ctx, token)
 }
 
-// TokenCreator creates join token on the auth server.
-type TokenCreator func(ctx context.Context, token types.ProvisionToken) error
+// TokenCreatorFn creates join token on the auth server.
+type TokenCreatorFn func(ctx context.Context, token types.ProvisionToken) error
 
 // NewEnrollEKSClustersClient returns new client that can be used to enroll EKS clusters into Teleport.
-func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, tokenCreator TokenCreator) (EnrollEKSClusterClient, error) {
+func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, tokenCreator TokenCreatorFn) (EnrollEKSClusterClient, error) {
 	eksClient, err := newEKSClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -133,6 +133,9 @@ If there is no active session, but a versioned binary exists in the tools direct
 
 ### Cluster-wide using `tctl`
 
+To configure client tool managed updates in your cluster, you must have access to the
+`autoupdate_config` and `autoupdate_version` resources. By default, the `editor` role can modify both resources. Note that `autoupdate_version` is managed for you on Cloud clusters, and cannot be edited.
+
 To enable or disable client tools managed updates in the cluster, use the following command:
 
 ```code

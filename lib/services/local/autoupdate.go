@@ -32,18 +32,20 @@ import (
 )
 
 const (
-	autoUpdateConfigPrefix       = "auto_update_config"
-	autoUpdateVersionPrefix      = "auto_update_version"
-	autoUpdateAgentRolloutPrefix = "auto_update_agent_rollout"
-	autoUpdateAgentReportPrefix  = "auto_update_agent_report"
+	autoUpdateConfigPrefix            = "auto_update_config"
+	autoUpdateVersionPrefix           = "auto_update_version"
+	autoUpdateAgentRolloutPrefix      = "auto_update_agent_rollout"
+	autoUpdateAgentReportPrefix       = "auto_update_agent_report"
+	autoUpdateBotInstanceReportPrefix = "auto_update_bot_instance_report"
 )
 
 // AutoUpdateService is responsible for managing AutoUpdateConfig and AutoUpdateVersion singleton resources.
 type AutoUpdateService struct {
-	config  *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
-	version *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
-	rollout *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentRollout]
-	report  *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentReport]
+	config            *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
+	version           *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
+	rollout           *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentRollout]
+	agentReport       *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentReport]
+	botInstanceReport *generic.ServiceWrapper[*autoupdate.AutoUpdateBotInstanceReport]
 }
 
 // NewAutoUpdateService returns a new AutoUpdateService.
@@ -93,7 +95,7 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	report, err := generic.NewServiceWrapper(
+	agentReport, err := generic.NewServiceWrapper(
 		generic.ServiceConfig[*autoupdate.AutoUpdateAgentReport]{
 			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateAgentRollout,
@@ -105,11 +107,24 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	botInstanceReport, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*autoupdate.AutoUpdateBotInstanceReport]{
+			Backend:       b,
+			ResourceKind:  types.KindAutoUpdateBotInstanceReport,
+			BackendPrefix: backend.NewKey(autoUpdateBotInstanceReportPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateBotInstanceReport],
+			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateBotInstanceReport],
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &AutoUpdateService{
-		config:  config,
-		version: version,
-		rollout: rollout,
-		report:  report,
+		config:            config,
+		version:           version,
+		rollout:           rollout,
+		agentReport:       agentReport,
+		botInstanceReport: botInstanceReport,
 	}, nil
 }
 
@@ -229,13 +244,13 @@ func (s *AutoUpdateService) DeleteAutoUpdateAgentRollout(ctx context.Context) er
 
 // ListAutoUpdateAgentReports returns a paginated list of AutoUpdateAgentReport resources.
 func (s *AutoUpdateService) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error) {
-	agentReports, nextKey, err := s.report.ListResources(ctx, pageSize, pageToken)
+	agentReports, nextKey, err := s.agentReport.ListResources(ctx, pageSize, pageToken)
 	return agentReports, nextKey, trace.Wrap(err)
 }
 
 // GetAutoUpdateAgentReport returns the specified AutoUpdateAgentReport resource.
 func (s *AutoUpdateService) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdate.AutoUpdateAgentReport, error) {
-	agentReport, err := s.report.GetResource(ctx, name)
+	agentReport, err := s.agentReport.GetResource(ctx, name)
 	return agentReport, trace.Wrap(err)
 }
 
@@ -244,7 +259,7 @@ func (s *AutoUpdateService) CreateAutoUpdateAgentReport(ctx context.Context, age
 	if err := update.ValidateAutoUpdateAgentReport(agentReport); err != nil {
 		return nil, trace.Wrap(err, "validating autoupdate agent report")
 	}
-	created, err := s.report.CreateResource(ctx, agentReport)
+	created, err := s.agentReport.CreateResource(ctx, agentReport)
 	return created, trace.Wrap(err)
 }
 
@@ -253,7 +268,7 @@ func (s *AutoUpdateService) UpdateAutoUpdateAgentReport(ctx context.Context, age
 	if err := update.ValidateAutoUpdateAgentReport(agentReport); err != nil {
 		return nil, trace.Wrap(err, "validating autoupdate agent report")
 	}
-	updated, err := s.report.ConditionalUpdateResource(ctx, agentReport)
+	updated, err := s.agentReport.ConditionalUpdateResource(ctx, agentReport)
 	return updated, trace.Wrap(err)
 }
 
@@ -262,18 +277,18 @@ func (s *AutoUpdateService) UpsertAutoUpdateAgentReport(ctx context.Context, age
 	if err := update.ValidateAutoUpdateAgentReport(agentReport); err != nil {
 		return nil, trace.Wrap(err, "validating autoupdate agent report")
 	}
-	upserted, err := s.report.UpsertResource(ctx, agentReport)
+	upserted, err := s.agentReport.UpsertResource(ctx, agentReport)
 	return upserted, trace.Wrap(err)
 }
 
 // DeleteAutoUpdateAgentReport removes the specified AutoUpdateAgentReport resource.
 func (s *AutoUpdateService) DeleteAutoUpdateAgentReport(ctx context.Context, name string) error {
-	return trace.Wrap(s.report.DeleteResource(ctx, name))
+	return trace.Wrap(s.agentReport.DeleteResource(ctx, name))
 }
 
 // DeleteAllAutoUpdateAgentReports removes all AutoUpdateAgentReport resources.
 func (s *AutoUpdateService) DeleteAllAutoUpdateAgentReports(ctx context.Context) error {
-	return trace.Wrap(s.report.DeleteAllResources(ctx))
+	return trace.Wrap(s.agentReport.DeleteAllResources(ctx))
 }
 
 // itemFromAutoUpdateConfig generates `backend.Item` from `AutoUpdateConfig` resource type.
@@ -326,4 +341,24 @@ func itemFromAutoUpdateVersion(version *autoupdate.AutoUpdateVersion) (*backend.
 		Revision: rev,
 	}
 	return item, nil
+}
+
+// GetAutoUpdateBotInstanceReport gets the singleton auto-update bot report.
+func (s *AutoUpdateService) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdate.AutoUpdateBotInstanceReport, error) {
+	report, err := s.botInstanceReport.GetResource(ctx, types.MetaNameAutoUpdateBotInstanceReport)
+	return report, trace.Wrap(err)
+}
+
+// UpsertAutoUpdateBotInstanceReport creates or updates the bot instance report.
+func (s *AutoUpdateService) UpsertAutoUpdateBotInstanceReport(ctx context.Context, report *autoupdate.AutoUpdateBotInstanceReport) (*autoupdate.AutoUpdateBotInstanceReport, error) {
+	if err := update.ValidateAutoUpdateBotInstanceReport(report); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	report, err := s.botInstanceReport.UpsertResource(ctx, report)
+	return report, trace.Wrap(err)
+}
+
+// DeleteAutoUpdateBotInstanceReport deletes the singleton auto-update bot instance report.
+func (s *AutoUpdateService) DeleteAutoUpdateBotInstanceReport(ctx context.Context) error {
+	return trace.Wrap(s.botInstanceReport.DeleteResource(ctx, types.MetaNameAutoUpdateBotInstanceReport))
 }
