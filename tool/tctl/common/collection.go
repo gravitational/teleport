@@ -2165,11 +2165,11 @@ type autoUpdateBotInstanceReportCollection struct {
 	report *autoupdatev1pb.AutoUpdateBotInstanceReport
 }
 
-func (c *autoUpdateBotInstanceReportCollection) resources() []types.Resource {
+func (c *autoUpdateBotInstanceReportCollection) Resources() []types.Resource {
 	return []types.Resource{types.ProtoResource153ToLegacy(c.report)}
 }
 
-func (c *autoUpdateBotInstanceReportCollection) writeText(w io.Writer, _ bool) error {
+func (c *autoUpdateBotInstanceReportCollection) WriteText(w io.Writer, _ bool) error {
 	t := asciitable.MakeTable([]string{"Update Group", "Version", "Count"})
 	for groupName, groupMetrics := range c.report.GetSpec().GetGroups() {
 		if groupName == "" {
