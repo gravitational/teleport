@@ -51,7 +51,7 @@ func migrateV1AndUpdateConfig(toolsDir string, tools []string) error {
 		}
 
 		for _, tool := range migratedTools {
-			ctc.AddTool(tool)
+			ctc.AddTool(toolsDir, tool)
 		}
 		return nil
 	}); err != nil {
