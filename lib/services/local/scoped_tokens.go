@@ -60,25 +60,25 @@ func NewScopedTokenService(b backend.Backend) (*ScopedTokenService, error) {
 	}, nil
 }
 
-// CreateScopedToken adds a scoped join token to the auth server
+// CreateScopedToken adds a scoped token to the auth server.
 func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 	created, err := s.svc.CreateResource(ctx, token)
 	return created, trace.Wrap(err)
 }
 
-// UpdateScopedToken
+// UpdateScopedToken updates a scoped token in the auth server.
 func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 	updated, err := s.svc.ConditionalUpdateResource(ctx, token)
 	return updated, trace.Wrap(err)
 }
 
-// UpsertScopedToken
+// UpsertScopedToken upserts a scoped token to the auth server.
 func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, token *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 	upserted, err := s.svc.UpsertResource(ctx, token)
 	return upserted, trace.Wrap(err)
 }
 
-// GetScopedToken finds and returns token by id
+// GetScopedToken finds and returns a scoped token by name.
 func (s *ScopedTokenService) GetScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error) {
 	token, err := s.svc.GetResource(ctx, name)
 	return token, trace.Wrap(err)
@@ -158,7 +158,7 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, pageSize int,
 	return tokens, newPageToken, trace.Wrap(err)
 }
 
-// DeleteScopedToken deletes scoped join token.
+// DeleteScopedToken deletes a scoped  token by name.
 func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, name string) error {
 	return trace.Wrap(s.svc.DeleteResource(ctx, name))
 }

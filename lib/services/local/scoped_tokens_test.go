@@ -25,15 +25,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
-
+	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func assertEqualScopedTokens(t *testing.T, expected *joiningv1.ScopedToken, val *joiningv1.ScopedToken) bool {
@@ -52,8 +52,11 @@ func TestScopedTokenService(t *testing.T) {
 	ctx := t.Context()
 
 	token := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: "testtoken",
+			Name:      "testtoken",
+			Namespace: defaults.Namespace,
 		},
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{

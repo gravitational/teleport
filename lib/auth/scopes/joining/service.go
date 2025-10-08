@@ -26,7 +26,6 @@ import (
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -68,36 +67,6 @@ func New(c Config) (*Server, error) {
 	}, nil
 }
 
-func validateScopedToken(token *scopedjoiningv1.ScopedToken) error {
-	spec := token.GetSpec()
-	if spec == nil {
-		return trace.BadParameter("scoped token must not be nil")
-	}
-
-	if token.GetScope() == "" {
-		return trace.BadParameter("scoped token must have a scope assigned")
-	}
-
-	if err := scopes.StrongValidate(token.GetScope()); err != nil {
-		return trace.Wrap(err, "validating scoped token resource scope")
-	}
-
-	if spec.AssignedScope != "" {
-		if err := scopes.StrongValidate(spec.AssignedScope); err != nil {
-			return trace.Wrap(err, "validating scoped token assigned scope")
-		}
-		if !scopes.ResourceScope(spec.AssignedScope).IsSubjectToPolicyScope(token.GetScope()) {
-			return trace.BadParameter("scoped token assigned scope must be descendant of its resource scope")
-		}
-	}
-
-	if len(spec.Roles) == 0 {
-		return trace.BadParameter("at least one role must be assigned to a token")
-	}
-
-	return nil
-}
-
 // CreateScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
 func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.CreateScopedTokenRequest) (*scopedjoiningv1.CreateScopedTokenResponse, error) {
 	authzContext, err := s.authorizer.Authorize(ctx)
@@ -111,7 +80,7 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 	}
 
 	token := req.GetToken()
-	if err := validateScopedToken(token); err != nil {
+	if err := services.ValidateScopedToken(token); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -229,17 +198,5 @@ func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.Upd
 		return nil, trace.AccessDenied("user %q does not have permission to update scoped tokens", authzContext.User.GetName())
 	}
 
-	token := req.GetToken()
-	if err := validateScopedToken(token); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err = s.backend.UpdateScopedToken(ctx, token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &scopedjoiningv1.UpdateScopedTokenResponse{
-		Token: token,
-	}, nil
+	return nil, trace.NotImplemented("scoped tokens can not be updated")
 }
