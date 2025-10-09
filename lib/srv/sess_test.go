@@ -926,7 +926,6 @@ func (s sessionEvaluator) IsModerated() bool {
 
 func TestTrackingSession(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
 
 	me, err := user.Current()
 	require.NoError(t, err)
@@ -1029,6 +1028,9 @@ func TestTrackingSession(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
 			srv := newMockServer(t)
 			srv.component = tt.component
 
