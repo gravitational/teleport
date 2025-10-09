@@ -172,6 +172,13 @@ func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID
 	return nil, trace.NotImplemented("GetInheritedGrants should not be called")
 }
 
+// CreateAccessListWithMembersAndRoles creates an access list with members and roles where Teleport automatically creates
+// the necessary roles based on given role specs and requested grant type then assign member/owner grants with the appropriate roles.
+// This is not implemented in the local service.
+func (a *AccessListService) CreateAccessListWithMembersAndRoles(context.Context, *accesslistv1.CreateAccessListWithMembersAndRolesRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	return nil, nil, trace.NotImplemented("CreateAccessListWithMembersAndRoles should not be called")
+}
+
 // ListAccessLists returns a paginated list of access lists.
 func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
 	return a.service.ListResources(ctx, pageSize, nextToken)

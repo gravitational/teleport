@@ -57,6 +57,7 @@ const (
 	AccessListService_DeleteAllAccessListMembersForAccessList_FullMethodName = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessListMembersForAccessList"
 	AccessListService_DeleteAllAccessListMembers_FullMethodName              = "/teleport.accesslist.v1.AccessListService/DeleteAllAccessListMembers"
 	AccessListService_UpsertAccessListWithMembers_FullMethodName             = "/teleport.accesslist.v1.AccessListService/UpsertAccessListWithMembers"
+	AccessListService_CreateAccessListWithMembersAndRoles_FullMethodName     = "/teleport.accesslist.v1.AccessListService/CreateAccessListWithMembersAndRoles"
 	AccessListService_ListAccessListReviews_FullMethodName                   = "/teleport.accesslist.v1.AccessListService/ListAccessListReviews"
 	AccessListService_ListAllAccessListReviews_FullMethodName                = "/teleport.accesslist.v1.AccessListService/ListAllAccessListReviews"
 	AccessListService_CreateAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/CreateAccessListReview"
@@ -134,6 +135,9 @@ type AccessListServiceClient interface {
 	DeleteAllAccessListMembers(ctx context.Context, in *DeleteAllAccessListMembersRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpsertAccessListWithMembers creates or updates an access list with members.
 	UpsertAccessListWithMembers(ctx context.Context, in *UpsertAccessListWithMembersRequest, opts ...grpc.CallOption) (*UpsertAccessListWithMembersResponse, error)
+	// CreateAccessListWithMembersAndRoles creates an access list with members and roles where Teleport automatically creates
+	// the necessary roles based on given role specs and requested grant type then assign member/owner grants with the appropriate roles.
+	CreateAccessListWithMembersAndRoles(ctx context.Context, in *CreateAccessListWithMembersAndRolesRequest, opts ...grpc.CallOption) (*CreateAccessListWithMembersAndRolesResponse, error)
 	// ListAccessListReviews will list access list reviews for a particular access
 	// list.
 	ListAccessListReviews(ctx context.Context, in *ListAccessListReviewsRequest, opts ...grpc.CallOption) (*ListAccessListReviewsResponse, error)
@@ -397,6 +401,16 @@ func (c *accessListServiceClient) UpsertAccessListWithMembers(ctx context.Contex
 	return out, nil
 }
 
+func (c *accessListServiceClient) CreateAccessListWithMembersAndRoles(ctx context.Context, in *CreateAccessListWithMembersAndRolesRequest, opts ...grpc.CallOption) (*CreateAccessListWithMembersAndRolesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateAccessListWithMembersAndRolesResponse)
+	err := c.cc.Invoke(ctx, AccessListService_CreateAccessListWithMembersAndRoles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accessListServiceClient) ListAccessListReviews(ctx context.Context, in *ListAccessListReviewsRequest, opts ...grpc.CallOption) (*ListAccessListReviewsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListAccessListReviewsResponse)
@@ -544,6 +558,9 @@ type AccessListServiceServer interface {
 	DeleteAllAccessListMembers(context.Context, *DeleteAllAccessListMembersRequest) (*emptypb.Empty, error)
 	// UpsertAccessListWithMembers creates or updates an access list with members.
 	UpsertAccessListWithMembers(context.Context, *UpsertAccessListWithMembersRequest) (*UpsertAccessListWithMembersResponse, error)
+	// CreateAccessListWithMembersAndRoles creates an access list with members and roles where Teleport automatically creates
+	// the necessary roles based on given role specs and requested grant type then assign member/owner grants with the appropriate roles.
+	CreateAccessListWithMembersAndRoles(context.Context, *CreateAccessListWithMembersAndRolesRequest) (*CreateAccessListWithMembersAndRolesResponse, error)
 	// ListAccessListReviews will list access list reviews for a particular access
 	// list.
 	ListAccessListReviews(context.Context, *ListAccessListReviewsRequest) (*ListAccessListReviewsResponse, error)
@@ -644,6 +661,9 @@ func (UnimplementedAccessListServiceServer) DeleteAllAccessListMembers(context.C
 }
 func (UnimplementedAccessListServiceServer) UpsertAccessListWithMembers(context.Context, *UpsertAccessListWithMembersRequest) (*UpsertAccessListWithMembersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessListWithMembers not implemented")
+}
+func (UnimplementedAccessListServiceServer) CreateAccessListWithMembersAndRoles(context.Context, *CreateAccessListWithMembersAndRolesRequest) (*CreateAccessListWithMembersAndRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAccessListWithMembersAndRoles not implemented")
 }
 func (UnimplementedAccessListServiceServer) ListAccessListReviews(context.Context, *ListAccessListReviewsRequest) (*ListAccessListReviewsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAccessListReviews not implemented")
@@ -1104,6 +1124,24 @@ func _AccessListService_UpsertAccessListWithMembers_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_CreateAccessListWithMembersAndRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAccessListWithMembersAndRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).CreateAccessListWithMembersAndRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_CreateAccessListWithMembersAndRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).CreateAccessListWithMembersAndRoles(ctx, req.(*CreateAccessListWithMembersAndRolesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccessListService_ListAccessListReviews_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAccessListReviewsRequest)
 	if err := dec(in); err != nil {
@@ -1346,6 +1384,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpsertAccessListWithMembers",
 			Handler:    _AccessListService_UpsertAccessListWithMembers_Handler,
+		},
+		{
+			MethodName: "CreateAccessListWithMembersAndRoles",
+			Handler:    _AccessListService_CreateAccessListWithMembersAndRoles_Handler,
 		},
 		{
 			MethodName: "ListAccessListReviews",

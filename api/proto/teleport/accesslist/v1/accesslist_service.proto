@@ -90,6 +90,10 @@ service AccessListService {
   // UpsertAccessListWithMembers creates or updates an access list with members.
   rpc UpsertAccessListWithMembers(UpsertAccessListWithMembersRequest) returns (UpsertAccessListWithMembersResponse);
 
+  // CreateAccessListWithMembersAndRoles creates an access list with members and roles where Teleport automatically creates
+  // the necessary roles based on given role specs and requested grant type then assign member/owner grants with the appropriate roles.
+  rpc CreateAccessListWithMembersAndRoles(CreateAccessListWithMembersAndRolesRequest) returns (CreateAccessListWithMembersAndRolesResponse);
+
   // ListAccessListReviews will list access list reviews for a particular access
   // list.
   rpc ListAccessListReviews(ListAccessListReviewsRequest) returns (ListAccessListReviewsResponse);
@@ -297,6 +301,65 @@ message UpsertAccessListWithMembersResponse {
   AccessList access_list = 1;
   // members is the list of access list members that were upserted.
   repeated Member members = 2;
+}
+
+// CreateAccessListWithMembersAndRolesRequest is the request for creating
+// an access list with members and roles (created by Teleport).
+message CreateAccessListWithMembersAndRolesRequest {
+  // access_list is the access list to create.
+  AccessList access_list = 1;
+  // members is the list of access list members to create.
+  repeated Member members = 2;
+  // access_grant_spec describes what type of access grant is requested.
+  AccessGrantSpec access_grant_spec = 3;
+}
+
+// CreateAccessListWithMembersAndPresetResponse is the response for creating
+// an access list with members and roles.
+message CreateAccessListWithMembersAndRolesResponse {
+  // access_list is the access list that was created.
+  AccessList access_list = 1;
+  // members is the list of access list members that were created.
+  repeated Member members = 2;
+}
+
+// AccessGrantType describes what type of access grant was requested.
+enum AccessGrantType {
+  // ACCESS_GRANT_TYPE_UNSPECIFIED is the zero value.
+  ACCESS_GRANT_TYPE_UNSPECIFIED = 0;
+  // ACCESS_GRANT_TYPE_LONG_TERM describes a grant where members are granted
+  // roles that grants long term access.
+  ACCESS_GRANT_TYPE_LONG_TERM = 1;
+  // GRANT_TYPE_SHORT_TERM describes a request where members are granted
+  // roles that require them to request for access and upon approval gain short
+  // term access. And owners are granted roles that allows them to review those
+  // access requests.
+  ACCESS_GRANT_TYPE_SHORT_TERM = 2;
+}
+
+// AccessGrantSpec describes what type of grant was requested and
+// defines the fields necessary to create appropriate roles.
+message AccessGrantSpec {
+  AccessGrantType type = 1;
+  // access_roles is a list of role specs that defines access to resources.
+  // Teleport will create a role per spec. Multi specs can be provided to
+  // provide flexibility in defining access.
+  // For example, with application access:
+  //  - One role specifies access to applications with general labels (a label
+  //    that could target access to different types of applications).
+  //  - Another role specifies access to AWS IC application specifically.
+  //    AWS IC applications have a very specific label that is set by Teleport.
+  // Since multi labels is an AND operation, if we didn't allow multi roles to
+  // be created then that one role is limited to a very specific type of app.
+  repeated Role access_roles = 2;
+}
+
+// Role describes a role for an access list to be created by Teleport.
+message Role {
+  // name of role, Teleport will add a base prefix and suffix
+  // the access list UID to this name to ensure uniqueness.
+  string name = 1;
+  types.RoleSpecV6 spec = 2;
 }
 
 // GetAccessListMemberRequest is the request for retrieving an access_list_member.
