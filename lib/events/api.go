@@ -965,6 +965,16 @@ const (
 
 	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
+
+	// AppAuthConfigCreateEvent is emitted when a app auth config
+	// resource is created.
+	AppAuthConfigCreateEvent = "app_auth_config.create"
+	// AppAuthConfigUpdateEvent is emitted when a app auth config
+	// resource is updated.
+	AppAuthConfigUpdateEvent = "app_auth_config.update"
+	// AppAuthConfigDeleteEvent is emitted when a app auth config
+	// resource is deleted.
+	AppAuthConfigDeleteEvent = "app_auth_config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

@@ -198,3 +198,12 @@ const (
 	// unhealthy threshold.
 	HealthCheckUnhealthyThreshold uint32 = 1
 )
+
+const (
+	// AppAuthConfigDefaultUsernameClaim is the default JWT claim used as
+	// username for app auth configs.
+	AppAuthConfigDefaultUsernameClaim = "email"
+	// AppAuthConfigAuthorizationHeader is the default header name that contains
+	// token used by app auth configs.
+	AppAuthConfigAuthorizationHeader = "Authorization"
+)
