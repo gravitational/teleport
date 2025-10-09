@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -67,16 +68,21 @@ func TestHeartbeatService(t *testing.T) {
 		ch: make(chan *machineidv1pb.SubmitHeartbeatRequest, 2),
 	}
 
+	reg := readyz.NewRegistry()
+	svcA := reg.AddService("a")
+
 	now := time.Date(2024, time.April, 1, 12, 0, 0, 0, time.UTC)
 	svc, err := NewService(Config{
-		Interval:   time.Second,
-		RetryLimit: 3,
-		Client:     fhs,
-		Clock:      clockwork.NewFakeClockAt(now),
-		StartedAt:  time.Date(2024, time.April, 1, 11, 0, 0, 0, time.UTC),
-		Logger:     log,
-		JoinMethod: types.JoinMethodGitHub,
-		BotKind:    machineidv1pb.BotKind_BOT_KIND_TBOT,
+		Interval:       time.Second,
+		RetryLimit:     3,
+		Client:         fhs,
+		Clock:          clockwork.NewFakeClockAt(now),
+		StartedAt:      time.Date(2024, time.April, 1, 11, 0, 0, 0, time.UTC),
+		Logger:         log,
+		JoinMethod:     types.JoinMethodGitHub,
+		StatusReporter: reg.AddService("heartbeat"),
+		StatusRegistry: reg,
+		BotKind:        machineidv1pb.BotKind_BOT_KIND_TBOT,
 	})
 	require.NoError(t, err)
 
@@ -88,7 +94,14 @@ func TestHeartbeatService(t *testing.T) {
 		errCh <- svc.Run(ctx)
 	}()
 
-	got := <-fhs.ch
+	select {
+	case <-fhs.ch:
+		t.Fatal("should not have received a heartbeat until all services have reported their status")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	svcA.ReportReason(readyz.Unhealthy, "no more bananas")
+
 	want := &machineidv1pb.SubmitHeartbeatRequest{
 		Heartbeat: &machineidv1pb.BotInstanceStatusHeartbeat{
 			RecordedAt:   timestamppb.New(now),
@@ -103,11 +116,21 @@ func TestHeartbeatService(t *testing.T) {
 			Kind:         machineidv1pb.BotKind_BOT_KIND_TBOT,
 		},
 	}
-	assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
 
-	got = <-fhs.ch
-	want.Heartbeat.IsStartup = false
-	assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
+	select {
+	case got := <-fhs.ch:
+		assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for heartbeat")
+	}
+
+	select {
+	case got := <-fhs.ch:
+		want.Heartbeat.IsStartup = false
+		assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for heartbeat")
+	}
 
 	cancel()
 	assert.NoError(t, <-errCh)

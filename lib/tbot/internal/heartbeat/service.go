@@ -76,6 +76,10 @@ type Config struct {
 	// StatusReporter is used to report the service's health.
 	StatusReporter readyz.Reporter
 
+	// StatusRegistry is used to fetch the current service statuses when
+	// submitting a heartbeat.
+	StatusRegistry *readyz.Registry
+
 	// Clock that will be used to determine the current time.
 	Clock clockwork.Clock
 }
@@ -91,6 +95,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("Client is required")
 	case cfg.JoinMethod == "":
 		return trace.BadParameter("JoinMethod is required")
+	case cfg.StatusRegistry == nil:
+		return trace.BadParameter("StatusRegistry is required")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -114,6 +120,13 @@ type Service struct{ cfg Config }
 
 // Run the service in long-running mode, submitting heartbeats periodically.
 func (s *Service) Run(ctx context.Context) error {
+	// Wait for service health before sending our first heartbeat. Otherwise, we
+	// might report all services as "initializing" for the first ~30 minutes our
+	// bot is running.
+	if shuttingDown := s.waitForServiceHealth(ctx); shuttingDown {
+		return nil
+	}
+
 	isStartup := true
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:    s.String(),
@@ -146,6 +159,21 @@ func (s *Service) Run(ctx context.Context) error {
 
 // OneShot submits one heartbeat and then exits.
 func (s *Service) OneShot(ctx context.Context) error {
+	// Wait for services to report their health before sending the heartbeat.
+	shuttingDown := s.waitForServiceHealth(ctx)
+
+	if shuttingDown {
+		// If the outer context has been canceled (likely because another
+		// service has return an error) we'll create a new one detached from
+		// the cancellation to try to send the heartbeat.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(
+			context.WithoutCancel(ctx),
+			5*time.Second,
+		)
+		defer cancel()
+	}
+
 	err := s.heartbeat(ctx, true, true)
 	// Ignore not implemented as this is likely confusing.
 	// TODO(noah): Remove NotImplemented check at V18 assuming V17 first major
@@ -158,6 +186,24 @@ func (s *Service) OneShot(ctx context.Context) error {
 
 // String implements fmt.Stringer.
 func (s *Service) String() string { return "heartbeat" }
+
+func (s *Service) waitForServiceHealth(ctx context.Context) (shuttingDown bool) {
+	// We must report our own status to avoid blocking ourselves!
+	s.cfg.StatusReporter.Report(readyz.Healthy)
+
+	select {
+	case <-s.cfg.StatusRegistry.AllServicesReported():
+		// All services have reported their status, we're ready!
+		return false
+	case <-s.cfg.Clock.After(30 * time.Second):
+		// It's taking too long, give up and start sending heartbeats.
+		return false
+	case <-ctx.Done():
+		// The outer context has been canceled (e.g. another service has exited
+		// or the process has received SIGINT).
+		return true
+	}
+}
 
 func (s *Service) heartbeat(ctx context.Context, isOneShot, isStartup bool) error {
 	s.cfg.Logger.DebugContext(ctx, "Sending heartbeat")
