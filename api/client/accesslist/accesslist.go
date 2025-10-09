@@ -363,21 +363,28 @@ func (c *Client) UpsertAccessListWithMembers(ctx context.Context, list *accessli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	accessList, err := conv.FromProto(resp.AccessList, conv.WithOwnersIneligibleStatusField(resp.AccessList.GetSpec().GetOwners()))
+	accessList, updatedMembers, err := convertAccessListWithMembersProtoResponse(resp.GetAccessList(), resp.GetMembers())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	updatedMembers := make([]*accesslist.AccessListMember, len(resp.Members))
-	for i, member := range resp.Members {
-		var err error
-		updatedMembers[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
+	return accessList, updatedMembers, nil
+}
+
+// CreateAccessListWithMembersAndRoles creates an access list with members and roles where Teleport automatically creates
+// the necessary roles based on given role specs and requested grant type then assign member/owner grants with the appropriate roles.
+func (c *Client) CreateAccessListWithMembersAndRoles(ctx context.Context, req *accesslistv1.CreateAccessListWithMembersAndRolesRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.CreateAccessListWithMembersAndRoles(ctx, req)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return accessList, updatedMembers, nil
+	accessList, members, err := convertAccessListWithMembersProtoResponse(resp.GetAccessList(), resp.GetMembers())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return accessList, members, nil
 }
 
 // AccessRequestPromote promotes an access request to an access list.
@@ -493,4 +500,22 @@ func (c *Client) ListUserAccessLists(ctx context.Context, req *accesslistv1.List
 	}
 
 	return accessLists, resp.GetNextPageToken(), nil
+}
+
+func convertAccessListWithMembersProtoResponse(alProto *accesslistv1.AccessList, membersProto []*accesslistv1.Member) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	accessList, err := conv.FromProto(alProto, conv.WithOwnersIneligibleStatusField(alProto.GetSpec().GetOwners()))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	members := make([]*accesslist.AccessListMember, len(membersProto))
+	for i, member := range membersProto {
+		var err error
+		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	return accessList, members, nil
 }
