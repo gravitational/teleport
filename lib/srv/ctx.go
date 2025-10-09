@@ -322,7 +322,7 @@ type ServerContext struct {
 
 	// newSessionID is set if this server context is going to create a new session.
 	// This field must be set through [ServerContext.SetNewSessionID] for non-join
-	// sessions before as soon as a session channel is accepted in order to inform
+	// sessions as soon as a session channel is accepted in order to inform
 	// the client of the to-be session ID.
 	newSessionID rsession.ID
 
@@ -917,7 +917,8 @@ func (c *ServerContext) reportStats(conn *utils.TrackingConn) {
 	// sessions are being recorded at the proxy (this would result in double
 	// events).
 	// Do not emit session data for git commands as they have their own events.
-	if c.GetServer().Component() == teleport.ComponentForwardingGit {
+	if c.GetServer().Component() == teleport.ComponentProxy ||
+		c.GetServer().Component() == teleport.ComponentForwardingGit {
 		return
 	}
 	if services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode()) &&
