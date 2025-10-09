@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"iter"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -86,6 +87,37 @@ type genericLister[T any, I comparable] struct {
 	// filter is an optional function used to exclude items from
 	// cache reads.
 	filter func(T) bool
+	// fallbackGetter is an optional fallback if upstream does not implment ranging getters.
+	// TODO(okraport): Remove when all deprecated non-paginated endpoints have been removed.
+	fallbackGetter func(context.Context) ([]T, error)
+}
+
+// clipEnd takes a page of items and checks if it already contains the end token.
+// If so it returns a slice up to end and modifes the next token to be empty.
+func (g genericLister[T, I]) clipEnd(page []T, next, end string) ([]T, string) {
+	if end == "" || len(page) == 0 {
+		return page, next
+	}
+
+	// Check if the last item is within bounds to shortcircuit.
+	if g.nextToken(page[len(page)-1]) < end {
+		return page, next
+	}
+
+	// Consider a binary search in the future, perhaps `sort.Search`, we do not expect the memory to be
+	// contiguous.
+	index := slices.IndexFunc(page, func(item T) bool {
+		return g.nextToken(item) >= end
+	})
+
+	if index >= 0 {
+		clear(page[index:])
+		return page[:index], ""
+	}
+
+	// This case should not happen, if the end is not found (index < 0) then we already should
+	// have shortcircuited this logic prior.
+	return page, next
 }
 
 // listRange retrieves a page of items from the configured cache collection between the start and end tokens.
@@ -100,7 +132,12 @@ func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startT
 
 	if !rg.ReadCache() {
 		out, next, err := l.upstreamList(ctx, pageSize, startToken)
-		return out, next, trace.Wrap(err)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		out, next = l.clipEnd(out, next, endToken)
+		return out, next, nil
 	}
 
 	defaultPageSize := defaults.DefaultChunkSize
@@ -140,48 +177,45 @@ func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken 
 	return out, next, trace.Wrap(err)
 }
 
-// genericRanger is a helper to retrieve a stream from a cache collection.
-type genericRanger[T any, I comparable] struct {
-	// cache to performe the primary read from.
-	cache *Cache
-	// collection that contains the item.
-	collection *collection[T, I]
-	// index of the collection to read with.
-	index I
-	// upstreamRange is the upstream range implementation.
-	upstreamRange func(context.Context, string, string) iter.Seq2[T, error]
-	// fallbackGetter is an optional fallback if upstream does not implment ranging getters.
-	fallbackGetter func(context.Context) ([]T, error)
-}
-
 // Range retrieves a stream of items from the configured cache collection within the range [start, end).
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
-func (g genericRanger[T, I]) Range(ctx context.Context, start, end string) iter.Seq2[T, error] {
+func (l genericLister[T, I]) Range(ctx context.Context, start, end string) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
-		rg, err := acquireReadGuard(g.cache, g.collection)
-		if err != nil {
-			yield(*new(T), err)
-			return
-		}
-		defer rg.Release()
+		token := start
+		for {
+			items, next, err := l.listRange(ctx, l.defaultPageSize, token, end)
+			if err != nil {
+				yield(*new(T), err)
+				return
+			}
 
-		if rg.ReadCache() {
-			for item := range rg.store.resources(g.index, start, end) {
-				if !yield(g.collection.store.clone(item), nil) {
+			for _, item := range items {
+				if !yield(item, nil) {
 					return
 				}
 			}
-			return
+
+			if next == "" {
+				return
+			}
+
+			token = next
 		}
+	}
+}
 
-		// Release the read guard early since all future reads will be
-		// performed against the upstream.
-		rg.Release()
+// RangeWithFallback retrieves a stream of items from the configured cache collection within the range [start, end).
+// If the cache is not healthy, then the items are retrieved from the upstream backend. In addition, a fallback getter
+// is supported if the upstream does not implement a list operation, this is only checked on the first page.
+func (l genericLister[T, I]) RangeWithFallback(ctx context.Context, start, end string) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		// Fallback is only allowed when configured and the entire range is requested.
+		fallbackAllowed := l.fallbackGetter != nil && start == "" && end == ""
 
-		for item, err := range g.upstreamRange(ctx, start, end) {
+		for item, err := range l.Range(ctx, start, end) {
 			if err != nil {
-				if g.fallbackGetter != nil && trace.IsNotImplemented(err) {
-					items, err := g.fallbackGetter(ctx)
+				if fallbackAllowed && trace.IsNotImplemented(err) {
+					items, err := l.fallbackGetter(ctx)
 					if err != nil {
 						yield(*new(T), err)
 						return
@@ -203,11 +237,10 @@ func (g genericRanger[T, I]) Range(ctx context.Context, start, end string) iter.
 			if !yield(item, nil) {
 				return
 			}
-			// if we get a NotImplemented halfway through the iteration we
-			// cannot retroactively not yield the items we have already successfully
-			// received, so we have to forward the NotImplemented error even if we
-			// have a fallback configured
-			g.fallbackGetter = nil
+
+			// Disable the fallback once the first item is successfully yielded.
+			fallbackAllowed = false
 		}
+
 	}
 }

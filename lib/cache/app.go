@@ -70,11 +70,12 @@ func newAppCollection(upstream services.Applications, w types.WatchKind) (*colle
 
 // Apps returns application resources within the range [start, end).
 func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
-	ranger := genericRanger[types.Application, appIndex]{
-		cache:         c,
-		collection:    c.collections.apps,
-		index:         appNameIndex,
-		upstreamRange: c.Config.Apps.Apps,
+	lister := genericLister[types.Application, appIndex]{
+		cache:        c,
+		collection:   c.collections.apps,
+		index:        appNameIndex,
+		upstreamList: c.Config.Apps.ListApps,
+		nextToken:    types.Application.GetName,
 		// TODO(tross): DELETE IN v21.0.0
 		fallbackGetter: c.Config.Apps.GetApps,
 	}
@@ -83,7 +84,7 @@ func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.App
 		ctx, span := c.Tracer.Start(ctx, "cache/Apps")
 		defer span.End()
 
-		for app, err := range ranger.Range(ctx, start, end) {
+		for app, err := range lister.RangeWithFallback(ctx, start, end) {
 			if !yield(app, err) {
 				return
 			}
