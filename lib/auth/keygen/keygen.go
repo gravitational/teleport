@@ -36,8 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
-// Keygen is a key generator that precomputes keys to provide quick access to
-// public/private key pairs.
+// Keygen is named poorly, it provides methods for generating and signing SSH
+// certificates.
 type Keygen struct {
 	// clock is used to control time.
 	clock clockwork.Clock
