@@ -372,7 +372,6 @@ func (s *Service) Initialize(ctx context.Context) error {
 	s.mu.Unlock()
 
 	s.unblockWaiters()
-	s.cfg.StatusReporter.Report(readyz.Healthy)
 
 	s.log.InfoContext(ctx, "Identity initialized successfully")
 	return nil
