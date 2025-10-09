@@ -56,7 +56,7 @@ func TestNewUserACL(t *testing.T) {
 			Verbs:     RW(),
 		},
 		{
-			Resources: []string{types.KindCloudIPRestriction},
+			Resources: []string{types.KindClientIPRestrictions},
 			Verbs:     RW(),
 		},
 	})
@@ -115,14 +115,14 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.Contact, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.GitServers, denied))
 	// cloud IP restrictions should be denied because features doesn't include Cloud
-	require.Empty(t, cmp.Diff(userContext.CloudIPRestriction, denied))
+	require.Empty(t, cmp.Diff(userContext.ClientIPRestriction, denied))
 
 	// test enabling of the 'Use' verb
 	require.Empty(t, cmp.Diff(userContext.Integrations, ResourceAccess{true, true, true, true, true, true}))
 
 	userContext = NewUserACL(user, roleSet, proto.Features{Cloud: true}, true, false)
 	require.Empty(t, cmp.Diff(userContext.Billing, ResourceAccess{true, true, false, false, false, false}))
-	require.Empty(t, cmp.Diff(userContext.CloudIPRestriction, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ClientIPRestriction, allowedRW))
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
 	userContext = NewUserACL(user, roleSet, proto.Features{}, false, false)

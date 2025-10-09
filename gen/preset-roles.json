@@ -1170,7 +1170,7 @@
           },
           {
             "resources": [
-              "cloud_ip_restriction"
+              "client_ip_restriction"
             ],
             "verbs": [
               "list",
