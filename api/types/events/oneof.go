@@ -928,6 +928,26 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SCIMResourceEvent{SCIMResourceEvent: e}
 	case *ClientIPRestrictionsUpdate:
 		out.Event = &OneOf_ClientIPRestrictionsUpdate{ClientIPRestrictionsUpdate: e}
+	case *AppAuthConfigCreate:
+		out.Event = &OneOf_AppAuthConfigCreate{
+			AppAuthConfigCreate: e,
+		}
+	case *AppAuthConfigUpdate:
+		out.Event = &OneOf_AppAuthConfigUpdate{
+			AppAuthConfigUpdate: e,
+		}
+	case *AppAuthConfigDelete:
+		out.Event = &OneOf_AppAuthConfigDelete{
+			AppAuthConfigDelete: e,
+		}
+	case *AppAuthConfigVerifySuccess:
+		out.Event = &OneOf_AppAuthConfigVerifySuccess{
+			AppAuthConfigVerifySuccess: e,
+		}
+	case *AppAuthConfigVerifyFailure:
+		out.Event = &OneOf_AppAuthConfigVerifyFailure{
+			AppAuthConfigVerifyFailure: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}
