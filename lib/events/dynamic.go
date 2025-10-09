@@ -551,24 +551,27 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
-		unknown := &events.Unknown{}
-		if err := utils.FastUnmarshal(data, unknown); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		unknown.Type = UnknownEvent
-		unknown.Code = UnknownCode
-		unknown.UnknownType = eventType
-		unknown.UnknownCode = getFieldEmpty(EventCode)
-		unknown.Data = string(data)
-		return unknown, nil
 	}
 
-	if err := utils.FastUnmarshal(data, e); err != nil {
+	if e != nil {
+		if err := utils.FastUnmarshal(data, e); err == nil {
+			return e, nil
+		} else {
+			slog.ErrorContext(context.Background(), "failed to unmarshal event", "event_type", eventType, "error", err)
+		}
+	}
+
+	unknown := &events.Unknown{}
+	if err := utils.FastUnmarshal(data, unknown); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return e, nil
+	unknown.Type = UnknownEvent
+	unknown.Code = UnknownCode
+	unknown.UnknownType = eventType
+	unknown.UnknownCode = getFieldEmpty(EventCode)
+	unknown.Data = string(data)
+	return unknown, nil
 }
 
 // GetSessionID pulls the session ID from the events that have a
