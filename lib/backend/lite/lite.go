@@ -1011,7 +1011,14 @@ func (l *Backend) setClosed() {
 func (l *Backend) closeDatabase() error {
 	l.setClosed()
 	l.buf.Close()
-	return l.db.Close()
+	err := l.db.Close()
+
+	stats := l.db.Stats()
+
+	if stats.InUse > 0 {
+		fmt.Printf("closeDatabase:%#v, %#v\n", err, stats)
+	}
+	return err
 }
 
 func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (err error) {
@@ -1062,6 +1069,8 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 				if e2 := rollback(); e2 != nil {
 					l.logger.ErrorContext(ctx, "Failed to rollback too", "error", e2)
 				}
+			} else {
+				fmt.Printf("db closed err:%v\n", err)
 			}
 			return
 		}
